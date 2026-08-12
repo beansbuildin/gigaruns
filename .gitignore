@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+*.key
+*.pem
+config/discovered.json
+data/
+logs/
+fixtures/**/*.har
+fixtures/**/*.harx
+.claude/settings.local.json
