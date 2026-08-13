@@ -17,7 +17,7 @@ Record in `DECISIONS.md`: *Task 3 runs before Task 2; schemas are written from
 observed responses, never from SPEC.*
 
 **Q1 — auth path: Path A, confirmed.** The user plays in-browser (character
-"<PLAYER>", Lv.0), so assume Abstract Global Wallet and do not build EOA signing
+"<USER>", Lv.0), so assume Abstract Global Wallet and do not build EOA signing
 yet. The JWT will be at `~/.secrets/gigaverse-jwt.txt`. Path B stays deferred.
 
 **Q2 — fishing HAR: deferred, not blocking.** Correct call. Don't chase it.

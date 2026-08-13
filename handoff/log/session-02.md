@@ -32,9 +32,10 @@ model is confirmed and machine-checked against 8 recorded live battle states;
   `lootPhase` never flipped — the run ended in a death. §4c loot ranking is
   built on zero evidence.
 - Charge semantics incomplete — see Corrections. Pruning cannot be built safely.
-- `handoff/next.md` contains the username `<PLAYER>` and was committed in c916be5
-  (before this session, user-authored). Already public in history; not rewritten.
-  Flagged, not fixed — say if you want history rewritten.
+- `handoff/next.md` carried the raw username. Redacted to `<USER>` in the
+  working tree, but it is still present in git history at commit c916be5
+  (user-authored, before this session). Removing it there needs a history
+  rewrite and force-push — NOT done, ask first.
 
 ## Corrections to SPEC.md
 All fixed in SPEC.md this session (§3 table, new §3c/§3d, §4, §4a, §4b, §4c).
