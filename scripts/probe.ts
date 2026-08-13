@@ -18,7 +18,10 @@ import { homedir } from "node:os";
 import { privateKeyToAccount } from "viem/accounts";
 
 const BASE = "https://gigaverse.io/api";
+/** Redacted corpus — committed. Task 4's test fixtures come from here. */
 const OUT = "fixtures/probe";
+/** Raw ground truth — gitignored, carries the real wallet address. */
+const RAW = join(OUT, "raw");
 const SECRETS = join(homedir(), ".secrets");
 
 /** Names we're hunting for. Case-insensitive substring match. */
@@ -97,6 +100,33 @@ async function authFromEoa(): Promise<string> {
 let jwt = "";
 let lastCall = 0;
 
+/** Every raw body, kept so redacted copies can be written once the address is known. */
+const rawBodies = new Map<string, unknown>();
+
+/**
+ * Redact identity, keep mechanics. Only the *user's* address is rewritten — a
+ * blanket 0x[0-9a-f]{40} rule would also flatten contract addresses, which are
+ * game data we want to keep.
+ */
+function redact(json: unknown, address: string): string {
+  let s = JSON.stringify(json, null, 2);
+  if (address) {
+    // Address appears checksummed in some fields and lowercased in others.
+    for (const form of [address, address.toLowerCase(), address.toUpperCase()]) {
+      s = s.split(form).join("0xUSER");
+    }
+  }
+  if (jwt) s = s.split(jwt).join("<JWT>");
+  return s;
+}
+
+function writeRedactedCorpus(address: string) {
+  for (const [label, body] of rawBodies) {
+    writeFileSync(join(OUT, `${label}.json`), redact(body, address));
+  }
+  console.log(`  ✓ ${rawBodies.size} redacted fixtures → ${OUT}/ (raw kept in ${RAW}/)`);
+}
+
 async function get(path: string, label: string): Promise<unknown | null> {
   // Be a polite client even though this is read-only.
   const wait = 1200 + Math.random() * 400 - (Date.now() - lastCall);
@@ -122,7 +152,10 @@ async function get(path: string, label: string): Promise<unknown | null> {
   }
 
   // Raw and unmodified — this is the ground truth the spec gets corrected against.
-  writeFileSync(join(OUT, `${label}.json`), JSON.stringify(json, null, 2));
+  // The committed, redacted copy is written at the end of main(), once the
+  // address is known (it is itself discovered by the first of these calls).
+  writeFileSync(join(RAW, `${label}.json`), JSON.stringify(json, null, 2));
+  rawBodies.set(label, json);
   console.log(`  ✓ ${label}  (${text.length} bytes)`);
   return json;
 }
@@ -180,10 +213,55 @@ function findChargeFields(node: unknown, path = "$", out: string[] = []): string
   return out;
 }
 
+// ─── spec drift (SPEC 3b, requirement 5) ─────────────────────────────────────
+
+/** Every distinct object key appearing anywhere in a response tree. */
+function collectKeys(node: unknown, out = new Set<string>()): Set<string> {
+  if (Array.isArray(node)) node.forEach((v) => collectKeys(v, out));
+  else if (node && typeof node === "object") {
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      out.add(k);
+      collectKeys(v, out);
+    }
+  }
+  return out;
+}
+
+/**
+ * Report field names the live API returns that SPEC.md never mentions, and
+ * backtick-quoted identifiers in SPEC.md that no response actually contains.
+ * The first list is where the spec is incomplete; the second is where it is
+ * probably wrong.
+ */
+function reportSpecDrift(responses: Record<string, unknown>) {
+  if (!existsSync("SPEC.md")) return;
+  const spec = readFileSync("SPEC.md", "utf8");
+
+  const observed = new Set<string>();
+  for (const body of Object.values(responses)) collectKeys(body, observed);
+
+  const undocumented = [...observed].filter((k) => !spec.includes(k)).sort();
+
+  // Identifier-shaped tokens the spec quotes: CAPS_CID names and camelCase.
+  const quoted = new Set(
+    [...spec.matchAll(/`([A-Za-z_][A-Za-z0-9_]{2,})`/g)].flatMap((m) => m[1] ?? []),
+  );
+  const claimed = [...quoted].filter(
+    (t) => /_CID$|^[a-z]+[A-Z]/.test(t) && !observed.has(t),
+  ).sort();
+
+  console.log(`\n  observed keys: ${observed.size}`);
+  console.log(`  ⚠ in API, absent from SPEC.md (${undocumented.length}):`);
+  console.log(`     ${undocumented.join(", ") || "none"}`);
+  console.log(`  ⚠ quoted in SPEC.md, never seen in a response (${claimed.length}):`);
+  console.log(`     ${claimed.join(", ") || "none"}`);
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 
 async function main() {
   mkdirSync(OUT, { recursive: true });
+  mkdirSync(RAW, { recursive: true });
   mkdirSync("config", { recursive: true });
 
   const mode = process.env.AUTH_MODE ?? "jwt";
@@ -229,7 +307,34 @@ async function main() {
       console.log(`     container: ${JSON.stringify(hit.container, null, 2).slice(0, 900)}`);
 
       const key = /dendren/i.test(hit.matched) ? "dendren" : "forbiddenWoods";
-      discovered[key] = { id, source: `${label}${hit.path}`, container: hit.container };
+
+      // "Forbidden Woods" matches the dungeon entity AND each of its entryData
+      // tier names. Only the entity carries an id, and it is not last, so
+      // last-write-wins would clobber a real id with null. Keep the best hit.
+      const prev = discovered[key] as { id?: unknown } | undefined;
+      if (prev && prev.id != null && id == null) {
+        console.log(`     (ignored — id-less match, keeping ${JSON.stringify(prev.id)})`);
+        continue;
+      }
+
+      const entry: Record<string, unknown> = {
+        id,
+        source: `${label}${hit.path}`,
+        container: hit.container,
+      };
+
+      // Gate requires energy cost and room count alongside the id, live-sourced.
+      const c = hit.container as Record<string, unknown>;
+      if (id != null && typeof c === "object") {
+        if ("ENERGY_CID" in c) entry.energyCost = c.ENERGY_CID;
+        if ("maxRoom" in c) entry.maxRoom = c.maxRoom;
+        if ("juicedMaxRunsPerDay" in c) entry.juicedMaxRunsPerDay = c.juicedMaxRunsPerDay;
+        if ("UINT256_CID" in c) entry.maxRunsPerDay = c.UINT256_CID;
+        entry.tiers = (c.entryData as { name?: string; tier?: number }[] | undefined)?.map(
+          (t) => ({ name: t.name, tier: t.tier }),
+        );
+      }
+      discovered[key] = entry;
     }
   }
 
@@ -259,8 +364,13 @@ async function main() {
     );
   }
 
+  console.log("\n▸ spec drift (SPEC 3b.5)");
+  reportSpecDrift(responses);
+
+  console.log("\n▸ writing");
   writeFileSync("config/discovered.json", JSON.stringify(discovered, null, 2));
-  console.log("\n▸ wrote config/discovered.json + fixtures/probe/*.json\n");
+  writeRedactedCorpus(address ?? "");
+  console.log(`  ✓ config/discovered.json (gitignored)\n`);
 }
 
 main().catch((e) => {

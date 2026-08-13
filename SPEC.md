@@ -137,14 +137,14 @@ writing. They are newer or seasonal content. **Do not hardcode IDs.**
 
 | Unknown | How to resolve |
 |---|---|
-| Forbidden Woods `dungeonId` | Dump `GET /game/dungeon/today` in full. Match on name, case-insensitive substring. Persist to `config/discovered.json`. |
-| Its energy cost, room count, entry `index` tier | Same response — dump every field, don't cherry-pick. |
-| Whether entry needs `entryData` / an item | If entry fails, the error body usually names the requirement. |
-| Move **charges** — do moves have limited uses that regenerate? | Inspect a live battle state for per-move counters. **This materially changes strategy — see §4.** |
-| Enemy stat visibility — do you see enemy ATK/DEF/HP/armor? | Same dump. |
-| Whether enemy's *current* move charges are visible | Same. This is the single biggest potential edge. |
-| Fishing endpoints entirely | Not documented. See §3a. |
-| Dendren node ID, cast tiers, bait item IDs | Same. |
+| ~~Forbidden Woods `dungeonId`~~ | **RESOLVED 2026-08-13 — see §3c.** |
+| ~~Its energy cost, room count, entry tier~~ | **RESOLVED — §3c.** |
+| ~~Whether entry needs `entryData` / an item~~ | **RESOLVED — tiers 2 and 3 are item-gated, tier 1 is free. §3c.** |
+| ~~Move **charges**~~ | **RESOLVED — they exist, 3/3 per move. §3d.** |
+| ~~Enemy stat visibility~~ | **RESOLVED — fully visible, both sides. §3d.** |
+| ~~Whether enemy's *current* move charges are visible~~ | **RESOLVED — YES. §3d. This is the edge; build §4a pruning.** |
+| Fishing endpoints entirely | Not documented, and **confirmed absent** from all seven probed endpoints (2026-08-13). See §3a — the HAR is the only path. |
+| Dendren node ID, cast tiers, bait item IDs | Same. Zero hits for `/dendren|fish|cast|bait/i` anywhere in probe output. |
 
 ### 3a. Finding the fishing API
 
@@ -179,6 +179,73 @@ Read-only. Never starts a run. Must:
 5. Print a diff of observed field names vs. those referenced in `SPEC.md`, so
    spec drift is visible immediately.
 
+### 3c. Forbidden Woods — RESOLVED 2026-08-13 **[CONFIRMED]**
+
+From `GET /game/dungeon/today` → `dungeonDataEntities[3]`:
+
+| Field | Value |
+|---|---|
+| `ID_CID` | **5** ← this is the dungeon id |
+| `NAME_CID` | `Forbidden Woods` |
+| `ENERGY_CID` | **20** |
+| `maxRoom` | **16** |
+| `UINT256_CID` | 12 (appears to be base max runs/day) |
+| `juicedMaxRunsPerDay` | 12 |
+| `minLevelForInvader` | 79 |
+| `basicBoonMultiplier` | 2 (only dungeon with 2) |
+
+Three tiers in `entryData`, gated on **items, not energy**. Tier 1 is free
+(`inputItems: []`, `dropMultiplier: 1`); tier 2 and tier 3 each consume 7
+distinct items (`dropMultiplier` 2 and 4). Both gated tiers carry
+`inputsBasedOnFactionDay: true`, so **the required item list is not static** —
+re-read it per day, never cache it.
+
+`entryData` is ordered tier 2, 1, 3. **Array index is not tier.** Match on
+`tier`.
+
+**Two traps in the id layer:**
+
+- `entity.ID_CID` is the dungeon *type* (`"5"`, **a string**), while
+  `dungeonDataEntities[].ID_CID` is a *number* (`5`). Coerce at the boundary.
+- `DUNGEON_ID_CID` (on both `run` and `entity`, e.g. `24754733`) is the **run
+  instance id**, not the dungeon id. The field named "dungeon id" is not the
+  dungeon id.
+- `players[1].id` is a name string like `"Enemy Room 63"`. The 63 is
+  `entity.ENEMY_CID`, **not** the room. Room is `entity.ROOM_NUM_CID`.
+
+There is **no floor field**. Only `ROOM_NUM_CID`. Any "Floor N" in the UI is a
+presentation grouping over room number.
+
+### 3d. Battle state shape — RESOLVED 2026-08-13 **[CONFIRMED]**
+
+`GET /game/dungeon/state` → `data.run.players[]`: `[0]` is the user, `[1]` the
+enemy, **identical schema**. Every move on both sides exposes:
+
+```json
+"rock": { "startingATK": 16, "startingDEF": 0, "currentATK": 16,
+          "currentDEF": 0, "currentCharges": 3, "maxCharges": 3 }
+```
+
+So enemy ATK, DEF, and remaining charges are **fully visible before deciding**.
+There is no hidden information in the move layer.
+
+`health` and `shield` (= armor) are parallel `{current, starting, currentMax,
+startingMax}` pools. Armor is **not** a minor term — it is modelled exactly like
+HP. Observed maxima above base (HP 32 vs starting 30, armor 15 vs 12), so gear
+and boons raise both.
+
+Phase flags are explicit booleans with matching option arrays: `lootPhase`,
+`pathPhase`, `rewardPathPhase`, `enemyPathPhase`. Read the state machine
+directly; do not infer it.
+
+Present but **semantics still unknown** (all zero/empty in the observed run):
+`tenacity`, `evasion`, `lck`, `intuition`, `block`, `battleArmorReduction`,
+`activeEffects`, `statusEffects`, `pickedBoons`, `triggeredBoons`, `gearBoons`,
+`focusBuffs`.
+
+Energy is stored scaled (`ENERGY_CID: 332247916021`). Always read
+`parsedData.energyValue`, never the raw CID.
+
 ---
 
 ## 4. Dungeon strategy
@@ -198,12 +265,53 @@ and blocks. So the right question is never "which move most likely wins," it's
 When you're at 3 HP and the enemy is at 20, a 60%-likely Shield beats a
 70%-likely Sword, because losing the Sword exchange ends the run.
 
-**(b) Charges, if they exist, are public information.** If the state exposes
-per-move charge counts, an enemy with zero Shield charges *cannot play Shield* —
-and your decision collapses from a 3-way guess to a 2-way one, sometimes to a
-forced win. Confirm this in probe output before anything else. If it's there,
-prune the enemy's move set every single turn before computing EV. This is worth
-more than any amount of strategy tuning.
+**(b) Charges exist and are public information [CONFIRMED 2026-08-13].** Both
+sides' `currentCharges`/`maxCharges` are visible every turn. But see the
+**charge caveat** below before building pruning on top of it — the naive rule
+"zero charges ⇒ cannot play" is *not* yet established.
+
+### Combat resolution **[CONFIRMED 2026-08-13]**
+
+Derived from 7 live exchanges in Forbidden Woods room 1 (14 side-updates, no
+mismatches). Order of operations per exchange:
+
+1. **Shield grants armor first.** Playing Shield (`paper`) adds armor equal to
+   that move's own `currentDEF`, capped at `shield.currentMax`. This happens
+   *before* incoming damage is applied.
+2. **Damage.**
+   - **Win/loss:** the winner deals its **full `currentATK`**. The loser's DEF
+     does **not** reduce it. The loser deals **zero**.
+   - **Tie (same move):** *both* sides deal `ATK − opponent's DEF`, floored at 0.
+   - **Exception:** in a Shield-vs-Shield tie, Shield's DEF is spent on the
+     armor grant and does **not** also reduce incoming damage.
+3. **Damage hits armor first, overflow carries to HP.** Armor floors at 0 and
+   the remainder is subtracted from HP in the same exchange.
+
+Worked example (observed 004→005, Shield vs Shield tie): my armor 0 +12 (Shield
+DEF) = 12, then −8 (their Shield ATK, no DEF reduction) = **4** ✓. Their armor
+0 +2 = 2, then −6 (my Shield ATK) = −4 → armor **0**, 4 overflow to HP,
+16 → **12** ✓.
+
+This makes Shield a **resource-regeneration move**, not a stall: a won or tied
+Shield converts DEF straight into a fresh armor pool. `w₃ = 0.3` badly
+undervalues it — see §4b.
+
+### Charges — mechanics and the caveat **[PARTIAL]**
+
+A played move costs 1 charge; every move *not* played regenerates +1 per
+exchange, capped at `maxCharges`. Confirmed across 14 transitions.
+
+**One exception, and it matters.** The enemy played `paper` at
+`currentCharges: 1` and it went to **−1**, not 0. Every other transition moved
+by exactly ±1. Charges therefore **can go negative**, and we have *not* observed
+whether a move at 0 or below can still be played.
+
+So: **do not prune a move purely because its charge count is ≤ 0** until this is
+settled. Treat a non-positive charge as *evidence of reduced likelihood*, not as
+proof of illegality, and log every case where an enemy plays a move at ≤ 0 so
+the question resolves itself with data. Getting this wrong assigns probability
+zero to a move the enemy can actually play, which is exactly the kind of
+confident-and-wrong that loses runs.
 
 ### Decision procedure
 
@@ -227,7 +335,10 @@ Key counts by `(enemyId, roomIndex)`, Laplace-smoothed, persisted to
 P(e) = (count[e] + α) / (Σ count + 3α)     α = 1.0
 ```
 
-Then, critically, **zero out moves the enemy has no charges for and renormalise.**
+Then **down-weight moves the enemy has no charges for** — but do not zero them
+outright. See the charge caveat in §4: a move at ≤ 0 charges has been observed
+to exist, and has not been shown to be unplayable. Zeroing and renormalising is
+only correct once that is confirmed.
 
 Blend toward uniform when the sample is thin: with fewer than ~20 observations
 for a key, mix 50/50 with uniform. This stops one lucky read from driving
@@ -255,6 +366,19 @@ Terminal cases dominate; get these right and the rest is tuning:
 Start at `w₁=1.0, w₂=0.8, w₃=0.3`. Survival is weighted above damage on purpose:
 a dead run forfeits every remaining room's loot, so the downside is much larger
 than the upside of a fast kill.
+
+**Revised 2026-08-13 — `w₃` is too low.** Armor is a full damage pool that
+absorbs before HP, and Shield actively refills it (§4 combat resolution). In the
+observed run, armor soaked 27 of the 51 damage taken. Effective HP is
+`HP + armor`, so armor deserves a weight near `w₁`, not a third of it. Start at
+`w₃ = 0.8` and sweep it in Task 11. Better still, replace the split terms with
+effective HP:
+
+```
+w₁·((myHP + myArmor) / (myMaxHP + myMaxArmor)) − w₂·(enemy equivalent)
+```
+
+Both forms are worth testing in sim before either is trusted.
 
 Add a **depth bonus**: later rooms are worth more, so raise `w₁` as room index
 climbs — dying in room 4 wastes far more invested energy than dying in room 1.

@@ -9,4 +9,11 @@ data/
 logs/
 fixtures/**/*.har
 fixtures/**/*.harx
+# Raw dumps carry the real wallet address. The redacted copies one level up are
+# the committed corpus — see scripts/probe.ts and scripts/battleWatch.ts.
+# Must cover every raw/ dir, not just probe's: battleWatch writes
+# fixtures/dungeon-runs/raw/ and staged 104 address-bearing lines when this
+# rule was probe-specific.
+fixtures/**/raw/
+.DS_Store
 .claude/settings.local.json

@@ -1,0 +1,376 @@
+{
+  "juiceData": {
+    "isJuiced": true,
+    "juicedSeconds": 10007775,
+    "_id": "68386aa2a1922eaf137d0475",
+    "docId": "451097579394114828432456836890433724014123108325",
+    "tableName": "GigaJuiceSystem",
+    "TIMESTAMP_CID": 1796661276,
+    "createdAt": "2025-05-29T14:09:38.158Z",
+    "updatedAt": "2026-06-10T13:34:01.065Z"
+  },
+  "purchases": [
+    {
+      "_id": "68386aa2873846be456a8c48",
+      "docId": "32988660236765169677485181316008569103137308774884892245545813889370142661253",
+      "tableName": "GigaJuiceSystem",
+      "PLAYER_CID": "0xUSER",
+      "createdAt": "2025-05-29T14:09:38.136Z",
+      "updatedAt": "2025-05-29T14:10:33.782Z",
+      "TIMESTAMP_CID": 1748527770,
+      "ETH_MINT_PRICE_CID": 23000000000000000,
+      "UINT256_CID": 27091,
+      "ID_CID": "3",
+      "analyticsProcessed": true,
+      "NAME_CID": "JUICE CARTON"
+    },
+    {
+      "_id": "68af1c12701ef1026ba6aa1e",
+      "docId": "28073264347732595209738505665121770128161453091744312176041374718111000252266",
+      "tableName": "GigaJuiceSystem",
+      "ID_CID": "4",
+      "createdAt": "2025-08-27T14:54:10.737Z",
+      "updatedAt": "2025-08-27T14:55:10.743Z",
+      "ETH_MINT_PRICE_CID": 38000000000000000,
+      "PLAYER_CID": "0xUSER",
+      "UINT256_CID": 33761,
+      "TIMESTAMP_CID": 1756306445,
+      "analyticsProcessed": true,
+      "NAME_CID": "JUICE TANK"
+    },
+    {
+      "_id": "694d662b634aaf9940178e5a",
+      "docId": "47750506110636889739628984236528670815941421479288516272340286477864290913342",
+      "tableName": "GigaJuiceSystem",
+      "ID_CID": "2",
+      "createdAt": "2025-12-25T16:28:27.470Z",
+      "updatedAt": "2025-12-25T16:28:43.101Z",
+      "TIMESTAMP_CID": 1766680102,
+      "ETH_MINT_PRICE_CID": 10000000000000000,
+      "UINT256_CID": 39879,
+      "ID_CID_array": [
+        "7"
+      ],
+      "PLAYER_CID": "0xUSER",
+      "analyticsProcessed": true,
+      "NAME_CID": "JUICE BOX"
+    },
+    {
+      "_id": "69d922aa50b90c27ab6890b6",
+      "docId": "60512136701397855013170179402569142038622447619174420067251311797520361367198",
+      "tableName": "GigaJuiceSystem",
+      "ID_CID_array": [],
+      "createdAt": "2026-04-10T16:17:46.921Z",
+      "updatedAt": "2026-04-10T16:17:51.773Z",
+      "ETH_MINT_PRICE_CID": 10000000000000000,
+      "ID_CID": "2",
+      "TIMESTAMP_CID": 1775837863,
+      "PLAYER_CID": "0xUSER",
+      "UINT256_CID": 41689,
+      "analyticsProcessed": true,
+      "ADDRESS_CID": "0xUSER",
+      "NAME_CID": "JUICE BOX"
+    },
+    {
+      "_id": "6a0205234b1fd4e987938845",
+      "docId": "12915916732768344953552892913884469060193765875502828422570992691172877221171",
+      "tableName": "GigaJuiceSystem",
+      "ETH_MINT_PRICE_CID": 10000000000000000,
+      "createdAt": "2026-05-11T16:34:43.735Z",
+      "updatedAt": "2026-05-11T16:34:52.260Z",
+      "ID_CID": "2",
+      "PLAYER_CID": "0xUSER",
+      "UINT256_CID": 41903,
+      "TIMESTAMP_CID": 1778517276,
+      "ADDRESS_CID": "0xUSER",
+      "ID_CID_array": [],
+      "analyticsProcessed": true,
+      "NAME_CID": "JUICE BOX"
+    },
+    {
+      "_id": "6a2967cacf16d471f85a0ee5",
+      "docId": "39942905947365616813664999724011857462661908027061929341639281694695652550431",
+      "createdAt": "2026-06-10T13:34:02.024Z",
+      "tableName": "GigaJuiceSystem",
+      "updatedAt": "2026-06-10T13:34:53.146Z",
+      "ID_CID_array": [
+        "10",
+        "11"
+      ],
+      "ID_CID": "4",
+      "ETH_MINT_PRICE_CID": 38000000000000000,
+      "UINT256_CID": 42117,
+      "PLAYER_CID": "0xUSER",
+      "TIMESTAMP_CID": 1781098438,
+      "ADDRESS_CID": "0xUSER",
+      "analyticsProcessed": true,
+      "NAME_CID": "JUICE TANK"
+    }
+  ],
+  "referrals": [],
+  "listings": [
+    {
+      "_id": "6813787c9263ad7732468f3f",
+      "docId": "2",
+      "tableName": "GigaJuiceSystem",
+      "ETH_MINT_PRICE_CID": 10000000000000000,
+      "createdAt": "2025-05-01T13:34:52.370Z",
+      "updatedAt": "2026-08-10T18:28:19.558Z",
+      "TIME_BETWEEN_CID": 2592000,
+      "ID_CID_array": [
+        "12"
+      ],
+      "TIMESTAMP_CID": 1786384800,
+      "LAST_TRANSFER_TIME_CID": 1787608800,
+      "UINT256_COL_1": 1810,
+      "NAME_CID": "JUICE BOX"
+    },
+    {
+      "_id": "6813788ed3b0ed29a1610065",
+      "docId": "3",
+      "tableName": "GigaJuiceSystem",
+      "ETH_MINT_PRICE_CID": 23000000000000000,
+      "createdAt": "2025-05-01T13:35:10.488Z",
+      "updatedAt": "2026-08-10T18:28:19.402Z",
+      "TIME_BETWEEN_CID": 7776000,
+      "TIMESTAMP_CID": 1786384800,
+      "LAST_TRANSFER_TIME_CID": 1787608800,
+      "ID_CID_array": [
+        "12",
+        "13"
+      ],
+      "UINT256_COL_1": 4180,
+      "NAME_CID": "JUICE CARTON"
+    },
+    {
+      "_id": "6813789dd3b0ed29a161006a",
+      "docId": "4",
+      "tableName": "GigaJuiceSystem",
+      "ETH_MINT_PRICE_CID": 38000000000000000,
+      "createdAt": "2025-05-01T13:35:25.265Z",
+      "updatedAt": "2026-08-10T18:28:24.688Z",
+      "TIME_BETWEEN_CID": 15552000,
+      "LAST_TRANSFER_TIME_CID": 1787608800,
+      "ID_CID_array": [
+        "12",
+        "13",
+        "14"
+      ],
+      "TIMESTAMP_CID": 1786384800,
+      "UINT256_COL_1": 6910,
+      "NAME_CID": "JUICE TANK"
+    }
+  ],
+  "offerings": [
+    {
+      "_id": "68b84df17282001f445db6d9",
+      "docId": "54550500393066972516043701221377549088523642429926322586606230690963645087071",
+      "tableName": "GigaJuiceSystem",
+      "GAME_ITEM_ID_CID_array": [
+        "485"
+      ],
+      "createdAt": "2025-09-03T14:17:21.825Z",
+      "updatedAt": "2025-09-03T14:17:21.868Z",
+      "NAME_CID": "Angelic Body",
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ],
+      "UINT256_CID": 2
+    },
+    {
+      "_id": "68b84df1acbcb0211058ac08",
+      "docId": "29893566725161657344839057782218092829690406221664342863990528388625682089267",
+      "tableName": "GigaJuiceSystem",
+      "GAME_ITEM_ID_CID_array": [
+        "484"
+      ],
+      "createdAt": "2025-09-03T14:17:21.830Z",
+      "updatedAt": "2025-09-03T14:17:21.941Z",
+      "UINT256_CID": 1,
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ],
+      "NAME_CID": "Angelic Head"
+    },
+    {
+      "_id": "694c1882cc81c64b1df50e1e",
+      "docId": "28058894938638771570721359582056716133298820432277631471807758323486306799979",
+      "tableName": "GigaJuiceSystem",
+      "UINT256_CID": 9,
+      "createdAt": "2025-12-24T16:44:50.660Z",
+      "updatedAt": "2025-12-24T16:44:50.701Z",
+      "NAME_CID": "Demonoob Body",
+      "GAME_ITEM_ID_CID_array": [
+        "487"
+      ],
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ]
+    },
+    {
+      "_id": "694c18759d9e07ac07ebdaf1",
+      "docId": "54913983978856011808197492069232933592802575152683686139929445356436971880376",
+      "tableName": "GigaJuiceSystem",
+      "NAME_CID": "Demonoob Head",
+      "createdAt": "2025-12-24T16:44:37.614Z",
+      "updatedAt": "2025-12-24T16:44:37.816Z",
+      "GAME_ITEM_ID_CID_array": [
+        "486"
+      ],
+      "UINT256_CID": 8,
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ]
+    },
+    {
+      "_id": "6a21bbce3cb2387e049315b7",
+      "docId": "11473864653950338645675029620783824080114216773713745895266485773957819446472",
+      "tableName": "GigaJuiceSystem",
+      "NAME_CID": "Egg Raffle Ticket",
+      "createdAt": "2026-06-04T17:54:22.744Z",
+      "updatedAt": "2026-06-04T17:54:22.962Z",
+      "UINT256_CID": 10,
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ],
+      "GAME_ITEM_ID_CID_array": [
+        "813"
+      ]
+    },
+    {
+      "_id": "694c1839bdf536631f47bca1",
+      "docId": "37902365523260302340499154425212271181034737965618874291551966510811031369759",
+      "tableName": "GigaJuiceSystem",
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ],
+      "createdAt": "2025-12-24T16:43:37.386Z",
+      "updatedAt": "2025-12-24T16:43:37.608Z",
+      "NAME_CID": "Fuchsia Orb",
+      "UINT256_CID": 7,
+      "GAME_ITEM_ID_CID_array": [
+        "659"
+      ]
+    },
+    {
+      "_id": "6a21bcc01e1664cdd05c5994",
+      "docId": "39697714954428709971164052613349423752540458228093676341082753335693910180695",
+      "tableName": "GigaJuiceSystem",
+      "NAME_CID": "Gigling Raffle Ticket",
+      "createdAt": "2026-06-04T17:58:24.742Z",
+      "updatedAt": "2026-06-04T17:58:24.925Z",
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ],
+      "UINT256_CID": 11,
+      "GAME_ITEM_ID_CID_array": [
+        "814"
+      ]
+    },
+    {
+      "_id": "6998a5e2848e07b6154ba0e9",
+      "docId": "39178281660295583746452778760371732521991080966452162880388708881566347597616",
+      "tableName": "GigaJuiceSystem",
+      "UINT256_CID": 10001,
+      "createdAt": "2026-02-20T18:20:18.957Z",
+      "updatedAt": "2026-02-20T18:20:19.072Z",
+      "IMPORT_AMOUNT_CID_array": [
+        "100"
+      ],
+      "GAME_ITEM_ID_CID_array": [
+        "717"
+      ],
+      "NAME_CID": "Juice Box Gigabit"
+    },
+    {
+      "_id": "6998a5fdeff1adef897b3a0f",
+      "docId": "27994439894088659390289994128721819069551939482484120091678602641601430353162",
+      "tableName": "GigaJuiceSystem",
+      "GAME_ITEM_ID_CID_array": [
+        "717"
+      ],
+      "createdAt": "2026-02-20T18:20:45.172Z",
+      "updatedAt": "2026-02-20T18:20:45.281Z",
+      "UINT256_CID": 10002,
+      "NAME_CID": "Juice Carton Gigabit",
+      "IMPORT_AMOUNT_CID_array": [
+        "400"
+      ]
+    },
+    {
+      "_id": "6998a60710e1a9072613ff1d",
+      "docId": "105566506540145292666359909523416119300094437145764767405286765321026532531156",
+      "tableName": "GigaJuiceSystem",
+      "UINT256_CID": 10003,
+      "createdAt": "2026-02-20T18:20:55.796Z",
+      "updatedAt": "2026-02-20T18:20:55.997Z",
+      "NAME_CID": "Juice Carton Gigabit",
+      "IMPORT_AMOUNT_CID_array": [
+        "1000"
+      ],
+      "GAME_ITEM_ID_CID_array": [
+        "717"
+      ]
+    },
+    {
+      "_id": "68b84df1293fd86d542b77c8",
+      "docId": "14863145097472647985212917643401162808369085658974730398656918736750785670094",
+      "tableName": "GigaJuiceSystem",
+      "UINT256_CID": 3,
+      "createdAt": "2025-09-03T14:17:21.826Z",
+      "updatedAt": "2025-09-03T14:17:54.805Z",
+      "GAME_ITEM_ID_CID_array": [
+        "505"
+      ],
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ],
+      "NAME_CID": "REAL GIGA HAT"
+    },
+    {
+      "_id": "6a7a15f3bdb76e21d1ac4e48",
+      "docId": "72656518931285294595483878777546802467037903322285665061505947743400383127751",
+      "createdAt": "2026-08-10T18:18:27.254Z",
+      "tableName": "GigaJuiceSystem",
+      "updatedAt": "2026-08-10T18:28:13.583Z",
+      "GAME_ITEM_ID_CID_array": [
+        "503"
+      ],
+      "UINT256_CID": 12,
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ],
+      "NAME_CID": "The Awakening Tier 2"
+    },
+    {
+      "_id": "6a7a15f7bdb76e21d1ac4e4c",
+      "docId": "114158167635439258400203216365129809714993815805232040478098554897948111083419",
+      "createdAt": "2026-08-10T18:18:31.942Z",
+      "tableName": "GigaJuiceSystem",
+      "updatedAt": "2026-08-10T18:28:13.576Z",
+      "UINT256_CID": 13,
+      "NAME_CID": "The Awakening Tier 3",
+      "GAME_ITEM_ID_CID_array": [
+        "838"
+      ],
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ]
+    },
+    {
+      "_id": "6a7a15f7bdb76e21d1ac4e4d",
+      "docId": "70884585787530352109601589329297643940028380000460875272132635936151442444123",
+      "createdAt": "2026-08-10T18:18:31.947Z",
+      "tableName": "GigaJuiceSystem",
+      "updatedAt": "2026-08-10T18:28:19.610Z",
+      "UINT256_CID": 14,
+      "GAME_ITEM_ID_CID_array": [
+        "839"
+      ],
+      "NAME_CID": "The Awakening Tier 4",
+      "IMPORT_AMOUNT_CID_array": [
+        "1"
+      ]
+    }
+  ]
+}

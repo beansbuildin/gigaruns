@@ -1,0 +1,1618 @@
+{
+  "entities": [
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-2",
+      "ID_CID": "2",
+      "BALANCE_CID": 4372800
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-4",
+      "ID_CID": "4",
+      "BALANCE_CID": 779
+    },
+    {
+      "ID_CID": "83",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-83",
+      "BALANCE_CID": 193
+    },
+    {
+      "ID_CID": "76",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-76",
+      "BALANCE_CID": 937
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-81",
+      "ID_CID": "81",
+      "BALANCE_CID": 75
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-74",
+      "ID_CID": "74",
+      "BALANCE_CID": 1018
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "84",
+      "docId": "PlayerGameItemBalance#0xUSER-84",
+      "BALANCE_CID": 3
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "77",
+      "docId": "PlayerGameItemBalance#0xUSER-77",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "5",
+      "docId": "PlayerGameItemBalance#0xUSER-5",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 887
+    },
+    {
+      "ID_CID": "3",
+      "docId": "PlayerGameItemBalance#0xUSER-3",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 3255888
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-21",
+      "ID_CID": "21",
+      "BALANCE_CID": 569
+    },
+    {
+      "ID_CID": "214",
+      "docId": "PlayerGameItemBalance#0xUSER-214",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 17
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "155",
+      "docId": "PlayerGameItemBalance#0xUSER-155",
+      "BALANCE_CID": 7
+    },
+    {
+      "ID_CID": "158",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-158",
+      "BALANCE_CID": 15830
+    },
+    {
+      "ID_CID": "151",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-151",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-13",
+      "ID_CID": "13",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "7",
+      "docId": "PlayerGameItemBalance#0xUSER-7",
+      "BALANCE_CID": 175
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-6",
+      "ID_CID": "6",
+      "BALANCE_CID": 698
+    },
+    {
+      "ID_CID": "14",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-14",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "9",
+      "docId": "PlayerGameItemBalance#0xUSER-9",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 682
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-79",
+      "ID_CID": "79",
+      "BALANCE_CID": 913
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-75",
+      "ID_CID": "75",
+      "BALANCE_CID": 56
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-93",
+      "ID_CID": "93",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "131",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-131",
+      "BALANCE_CID": 11
+    },
+    {
+      "ID_CID": "82",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-82",
+      "BALANCE_CID": 15
+    },
+    {
+      "ID_CID": "17",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-17",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "70",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-70",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-129",
+      "ID_CID": "129",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-128",
+      "ID_CID": "128",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-185",
+      "ID_CID": "185",
+      "BALANCE_CID": 1714
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "86",
+      "docId": "PlayerGameItemBalance#0xUSER-86",
+      "BALANCE_CID": 60
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-66",
+      "ID_CID": "66",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "157",
+      "docId": "PlayerGameItemBalance#0xUSER-157",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 5
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-270",
+      "ID_CID": "270",
+      "BALANCE_CID": 19
+    },
+    {
+      "ID_CID": "273",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-273",
+      "BALANCE_CID": 5
+    },
+    {
+      "ID_CID": "266",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-266",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "272",
+      "docId": "PlayerGameItemBalance#0xUSER-272",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 9
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "265",
+      "docId": "PlayerGameItemBalance#0xUSER-265",
+      "BALANCE_CID": 8
+    },
+    {
+      "ID_CID": "262",
+      "docId": "PlayerGameItemBalance#0xUSER-262",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 8
+    },
+    {
+      "ID_CID": "69",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-69",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "264",
+      "docId": "PlayerGameItemBalance#0xUSER-264",
+      "BALANCE_CID": 13
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "8",
+      "docId": "PlayerGameItemBalance#0xUSER-8",
+      "BALANCE_CID": 1750
+    },
+    {
+      "ID_CID": "215",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-215",
+      "BALANCE_CID": 5
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-298",
+      "ID_CID": "298",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "333",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-333",
+      "BALANCE_CID": 10166
+    },
+    {
+      "ID_CID": "268",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-268",
+      "BALANCE_CID": 9
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-15",
+      "ID_CID": "15",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-78",
+      "ID_CID": "78",
+      "BALANCE_CID": 19
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-95",
+      "ID_CID": "95",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-73",
+      "ID_CID": "73",
+      "BALANCE_CID": 3
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "12",
+      "docId": "PlayerGameItemBalance#0xUSER-12",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "269",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-269",
+      "BALANCE_CID": 6
+    },
+    {
+      "ID_CID": "263",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-263",
+      "BALANCE_CID": 3
+    },
+    {
+      "ID_CID": "85",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-85",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-274",
+      "ID_CID": "274",
+      "BALANCE_CID": 2
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-286",
+      "ID_CID": "286",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "68",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-68",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "267",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-267",
+      "BALANCE_CID": 8
+    },
+    {
+      "ID_CID": "206",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-206",
+      "BALANCE_CID": 76
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-276",
+      "ID_CID": "276",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "275",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-275",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "280",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-280",
+      "BALANCE_CID": 10
+    },
+    {
+      "ID_CID": "80",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-80",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-306",
+      "ID_CID": "306",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 9
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-132",
+      "ID_CID": "132",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "149",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-149",
+      "BALANCE_CID": 11
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-278",
+      "ID_CID": "278",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "281",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-281",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-395",
+      "ID_CID": "395",
+      "BALANCE_CID": 144
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-23",
+      "ID_CID": "23",
+      "BALANCE_CID": 2661
+    },
+    {
+      "ID_CID": "135",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-135",
+      "BALANCE_CID": 30
+    },
+    {
+      "ID_CID": "284",
+      "docId": "PlayerGameItemBalance#0xUSER-284",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 10
+    },
+    {
+      "ID_CID": "136",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-136",
+      "BALANCE_CID": 42
+    },
+    {
+      "ID_CID": "137",
+      "docId": "PlayerGameItemBalance#0xUSER-137",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 21
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-133",
+      "ID_CID": "133",
+      "BALANCE_CID": 342
+    },
+    {
+      "ID_CID": "139",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-139",
+      "BALANCE_CID": 45
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-296",
+      "ID_CID": "296",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "140",
+      "docId": "PlayerGameItemBalance#0xUSER-140",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 42
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-369",
+      "ID_CID": "369",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-97",
+      "ID_CID": "97",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "134",
+      "docId": "PlayerGameItemBalance#0xUSER-134",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 27
+    },
+    {
+      "ID_CID": "261",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-261",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "110",
+      "docId": "PlayerGameItemBalance#0xUSER-110",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "109",
+      "docId": "PlayerGameItemBalance#0xUSER-109",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "138",
+      "docId": "PlayerGameItemBalance#0xUSER-138",
+      "BALANCE_CID": 24
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "22",
+      "docId": "PlayerGameItemBalance#0xUSER-22",
+      "BALANCE_CID": 184
+    },
+    {
+      "ID_CID": "25",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-25",
+      "BALANCE_CID": 256
+    },
+    {
+      "ID_CID": "203",
+      "docId": "PlayerGameItemBalance#0xUSER-203",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 61
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-236",
+      "ID_CID": "236",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "61",
+      "docId": "PlayerGameItemBalance#0xUSER-61",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 319
+    },
+    {
+      "ID_CID": "413",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-413",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "329",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-329",
+      "BALANCE_CID": 5
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-319",
+      "ID_CID": "319",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 2
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-324",
+      "ID_CID": "324",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-332",
+      "ID_CID": "332",
+      "BALANCE_CID": 2
+    },
+    {
+      "ID_CID": "322",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-322",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-318",
+      "ID_CID": "318",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 2
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-320",
+      "ID_CID": "320",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 2
+    },
+    {
+      "ID_CID": "317",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-317",
+      "BALANCE_CID": 4
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-323",
+      "ID_CID": "323",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "331",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-331",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-327",
+      "ID_CID": "327",
+      "BALANCE_CID": 3
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-328",
+      "ID_CID": "328",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 3
+    },
+    {
+      "ID_CID": "321",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-321",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-326",
+      "ID_CID": "326",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "330",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-330",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-18",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "18",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-193",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "193",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "250",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-250",
+      "BALANCE_CID": 24
+    },
+    {
+      "ID_CID": "224",
+      "docId": "PlayerGameItemBalance#0xUSER-224",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 65
+    },
+    {
+      "ID_CID": "200",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-200",
+      "BALANCE_CID": 50
+    },
+    {
+      "ID_CID": "307",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-307",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "153",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-153",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-300",
+      "ID_CID": "300",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "221",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-221",
+      "BALANCE_CID": 77
+    },
+    {
+      "ID_CID": "209",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-209",
+      "BALANCE_CID": 93
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "303",
+      "docId": "PlayerGameItemBalance#0xUSER-303",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-71",
+      "ID_CID": "71",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "118",
+      "docId": "PlayerGameItemBalance#0xUSER-118",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "150",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-150",
+      "BALANCE_CID": 3
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "154",
+      "docId": "PlayerGameItemBalance#0xUSER-154",
+      "BALANCE_CID": 5
+    },
+    {
+      "ID_CID": "130",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-130",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-94",
+      "ID_CID": "94",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "142",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-142",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "126",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-126",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-212",
+      "ID_CID": "212",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 3
+    },
+    {
+      "ID_CID": "217",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-217",
+      "BALANCE_CID": 7
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "156",
+      "docId": "PlayerGameItemBalance#0xUSER-156",
+      "BALANCE_CID": 7
+    },
+    {
+      "ID_CID": "392",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-392",
+      "BALANCE_CID": 3
+    },
+    {
+      "ID_CID": "186",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-186",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "187",
+      "docId": "PlayerGameItemBalance#0xUSER-187",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-190",
+      "ID_CID": "190",
+      "BALANCE_CID": 4
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "192",
+      "docId": "PlayerGameItemBalance#0xUSER-192",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "96",
+      "docId": "PlayerGameItemBalance#0xUSER-96",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-101",
+      "ID_CID": "101",
+      "BALANCE_CID": 491958
+    },
+    {
+      "ID_CID": "102",
+      "docId": "PlayerGameItemBalance#0xUSER-102",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 12
+    },
+    {
+      "ID_CID": "196",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-196",
+      "BALANCE_CID": 5
+    },
+    {
+      "ID_CID": "67",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-67",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "334",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-334",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "197",
+      "docId": "PlayerGameItemBalance#0xUSER-197",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-211",
+      "ID_CID": "211",
+      "BALANCE_CID": 120
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "283",
+      "docId": "PlayerGameItemBalance#0xUSER-283",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "98",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-98",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "188",
+      "docId": "PlayerGameItemBalance#0xUSER-188",
+      "BALANCE_CID": 3
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-183",
+      "ID_CID": "183",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "465",
+      "docId": "PlayerGameItemBalance#0xUSER-465",
+      "BALANCE_CID": 2
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "464",
+      "docId": "PlayerGameItemBalance#0xUSER-464",
+      "BALANCE_CID": 2
+    },
+    {
+      "ID_CID": "288",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-288",
+      "BALANCE_CID": 6
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-92",
+      "ID_CID": "92",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "99",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-99",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-194",
+      "ID_CID": "194",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 3
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-117",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "117",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-125",
+      "ID_CID": "125",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 2
+    },
+    {
+      "ID_CID": "144",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-144",
+      "BALANCE_CID": 3
+    },
+    {
+      "ID_CID": "180",
+      "docId": "PlayerGameItemBalance#0xUSER-180",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "244",
+      "docId": "PlayerGameItemBalance#0xUSER-244",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 36
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-249",
+      "ID_CID": "249",
+      "BALANCE_CID": 44
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "141",
+      "docId": "PlayerGameItemBalance#0xUSER-141",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "143",
+      "docId": "PlayerGameItemBalance#0xUSER-143",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "245",
+      "docId": "PlayerGameItemBalance#0xUSER-245",
+      "BALANCE_CID": 31
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-247",
+      "ID_CID": "247",
+      "BALANCE_CID": 35
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "127",
+      "docId": "PlayerGameItemBalance#0xUSER-127",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-248",
+      "ID_CID": "248",
+      "BALANCE_CID": 29
+    },
+    {
+      "ID_CID": "243",
+      "docId": "PlayerGameItemBalance#0xUSER-243",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 36
+    },
+    {
+      "ID_CID": "152",
+      "docId": "PlayerGameItemBalance#0xUSER-152",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "246",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-246",
+      "BALANCE_CID": 31
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "198",
+      "docId": "PlayerGameItemBalance#0xUSER-198",
+      "BALANCE_CID": 16
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-301",
+      "ID_CID": "301",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "397",
+      "docId": "PlayerGameItemBalance#0xUSER-397",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 124
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-124",
+      "ID_CID": "124",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-292",
+      "ID_CID": "292",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-277",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "277",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "305",
+      "docId": "PlayerGameItemBalance#0xUSER-305",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "304",
+      "docId": "PlayerGameItemBalance#0xUSER-304",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "179",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-179",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-550",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "550",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-299",
+      "ID_CID": "299",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "398",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-398",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "282",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-282",
+      "BALANCE_CID": 2
+    },
+    {
+      "ID_CID": "289",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-289",
+      "BALANCE_CID": 3
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-573",
+      "ID_CID": "573",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 4
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-181",
+      "ID_CID": "181",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "287",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-287",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "255",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-255",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-581",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "581",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "576",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-576",
+      "BALANCE_CID": 10
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-577",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "577",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-579",
+      "ID_CID": "579",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-580",
+      "ID_CID": "580",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "578",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-578",
+      "BALANCE_CID": 10
+    },
+    {
+      "ID_CID": "182",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-182",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "290",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-290",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "279",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-279",
+      "BALANCE_CID": 4
+    },
+    {
+      "ID_CID": "256",
+      "docId": "PlayerGameItemBalance#0xUSER-256",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 3
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-302",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "302",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "295",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-295",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-589",
+      "ID_CID": "589",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "471",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-471",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-470",
+      "ID_CID": "470",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-232",
+      "ID_CID": "232",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-191",
+      "ID_CID": "191",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "271",
+      "docId": "PlayerGameItemBalance#0xUSER-271",
+      "BALANCE_CID": 9
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-592",
+      "ID_CID": "592",
+      "BALANCE_CID": 2
+    },
+    {
+      "ID_CID": "468",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-468",
+      "BALANCE_CID": 6
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-469",
+      "ID_CID": "469",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 6
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-615",
+      "ID_CID": "615",
+      "BALANCE_CID": 17
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-599",
+      "ID_CID": "599",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 87
+    },
+    {
+      "ID_CID": "603",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-603",
+      "BALANCE_CID": 294
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-607",
+      "ID_CID": "607",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 2285
+    },
+    {
+      "ID_CID": "600",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-600",
+      "BALANCE_CID": 476
+    },
+    {
+      "ID_CID": "586",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-586",
+      "BALANCE_CID": 3
+    },
+    {
+      "ID_CID": "585",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-585",
+      "BALANCE_CID": 5
+    },
+    {
+      "ID_CID": "659",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-659",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-466",
+      "ID_CID": "466",
+      "BALANCE_CID": 24
+    },
+    {
+      "ID_CID": "467",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-467",
+      "BALANCE_CID": 24
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-616",
+      "ID_CID": "616",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-618",
+      "ID_CID": "618",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-624",
+      "ID_CID": "624",
+      "BALANCE_CID": 182
+    },
+    {
+      "ID_CID": "611",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-611",
+      "BALANCE_CID": 203
+    },
+    {
+      "ID_CID": "610",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-610",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "609",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-609",
+      "BALANCE_CID": 264
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-613",
+      "ID_CID": "613",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-612",
+      "ID_CID": "612",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-608",
+      "ID_CID": "608",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-614",
+      "ID_CID": "614",
+      "BALANCE_CID": 553
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-667",
+      "ID_CID": "667",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "681",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-681",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "666",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-666",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "598",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-598",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "597",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-597",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "595",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-595",
+      "BALANCE_CID": 27
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-596",
+      "ID_CID": "596",
+      "BALANCE_CID": 22
+    },
+    {
+      "ID_CID": "594",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-594",
+      "BALANCE_CID": 34
+    },
+    {
+      "ID_CID": "593",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-593",
+      "BALANCE_CID": 0
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-626",
+      "ID_CID": "626",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "668",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-668",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "670",
+      "docId": "PlayerGameItemBalance#0xUSER-670",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-662",
+      "ID_CID": "662",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-661",
+      "ID_CID": "661",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "291",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-291",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "189",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-189",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "11",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-11",
+      "BALANCE_CID": 4
+    },
+    {
+      "ID_CID": "717",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-717",
+      "BALANCE_CID": 4086
+    },
+    {
+      "ID_CID": "715",
+      "docId": "PlayerGameItemBalance#0xUSER-715",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-297",
+      "ID_CID": "297",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-184",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "184",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "623",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-623",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "801",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-801",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-716",
+      "ID_CID": "716",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "285",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-285",
+      "BALANCE_CID": 5
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-714",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "714",
+      "BALANCE_CID": 304
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-829",
+      "PLAYER_CID": "0xUSER",
+      "ID_CID": "829",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "814",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-814",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "813",
+      "docId": "PlayerGameItemBalance#0xUSER-813",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "830",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-830",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "912",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-912",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "294",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-294",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "845",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-845",
+      "BALANCE_CID": 3428
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-503",
+      "ID_CID": "503",
+      "BALANCE_CID": 1
+    },
+    {
+      "ID_CID": "514",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-514",
+      "BALANCE_CID": 2
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-846",
+      "ID_CID": "846",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 32
+    },
+    {
+      "ID_CID": "518",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-518",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "515",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-515",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "516",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-516",
+      "BALANCE_CID": 5
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-935",
+      "ID_CID": "935",
+      "BALANCE_CID": 23
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-522",
+      "ID_CID": "522",
+      "BALANCE_CID": 0
+    },
+    {
+      "ID_CID": "517",
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-517",
+      "BALANCE_CID": 0
+    },
+    {
+      "docId": "PlayerGameItemBalance#0xUSER-386",
+      "ID_CID": "386",
+      "PLAYER_CID": "0xUSER",
+      "BALANCE_CID": 1
+    },
+    {
+      "PLAYER_CID": "0xUSER",
+      "docId": "PlayerGameItemBalance#0xUSER-521",
+      "ID_CID": "521",
+      "BALANCE_CID": 1
+    }
+  ]
+}

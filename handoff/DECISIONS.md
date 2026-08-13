@@ -13,3 +13,5 @@ Format: `YYYY-MM-DD — <decision> — <reason>`
 2026-08-12 — `.claude/settings.local.json` gitignored — machine-local permissions state, not repo content.
 2026-08-12 — No `.gitkeep` in `data/` or `logs/` — both gitignored wholesale, so a keepfile could never be tracked.
 2026-08-12 — `config/bot.json` deferred, not invented — no schema exists yet and CLAUDE.md forbids guessing at energy-budget values. Must be defined explicitly before the orchestrator can enforce a budget.
+2026-08-13 — Task 3 runs before Task 2; schemas are written from observed responses, never from SPEC — probe.ts is self-contained and read-only, so writing zod schemas against spec guesses then rewriting them against reality is wasted work in both directions. Ground truth first.
+2026-08-13 — Auth is Path A (browser JWT at ~/.secrets/gigaverse-jwt.txt); Path B EOA signing stays deferred — user plays in-browser via Abstract Global Wallet, so a bot-owned EOA would authenticate a different, empty account.

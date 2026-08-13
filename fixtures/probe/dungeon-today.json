@@ -1,0 +1,412 @@
+{
+  "dayProgressEntities": [
+    {
+      "_id": "6a7b57357929f384bf86b404",
+      "docId": "DayCount#0xUSER#Dungeon#5",
+      "UINT256_CID": 1,
+      "ID_CID": "Dungeon#5",
+      "TIMESTAMP_CID": 20678,
+      "PLAYER_CID": "0xUSER",
+      "DOC_TYPE_CID": "DayCount",
+      "createdAt": "2026-08-11T17:09:09.572Z",
+      "updatedAt": "2026-08-13T20:24:20.990Z",
+      "__v": 0
+    }
+  ],
+  "dungeonDataEntities": [
+    {
+      "ID_CID": 1,
+      "enabled": true,
+      "devEnabled": true,
+      "NAME_CID": "Dungetron 5000",
+      "ENERGY_CID": 40,
+      "UINT256_CID": 10,
+      "CHECKPOINT_CID": -1,
+      "juicedMaxRunsPerDay": 12,
+      "entryData": [],
+      "gearEnabled": true,
+      "consumablesEnabled": true,
+      "maxRoom": 16,
+      "dungeonDisabled": false,
+      "juicedMultiplier": 1,
+      "minLevelForInvader": 10,
+      "invaderPercentage": 10,
+      "juicedModeEnabled": true,
+      "basicBoonMultiplier": 1
+    },
+    {
+      "ID_CID": 3,
+      "enabled": true,
+      "devEnabled": true,
+      "NAME_CID": "Underhaul",
+      "ENERGY_CID": 40,
+      "UINT256_CID": 8,
+      "CHECKPOINT_CID": 2,
+      "juicedMaxRunsPerDay": 9,
+      "entryData": [],
+      "gearEnabled": true,
+      "consumablesEnabled": true,
+      "maxRoom": 16,
+      "dungeonDisabled": false,
+      "juicedMultiplier": 1,
+      "minLevelForInvader": 10,
+      "invaderPercentage": 10,
+      "juicedModeEnabled": true,
+      "basicBoonMultiplier": 1
+    },
+    {
+      "ID_CID": 4,
+      "enabled": true,
+      "devEnabled": true,
+      "NAME_CID": "Void Dungeon",
+      "ENERGY_CID": 0,
+      "UINT256_CID": 9999,
+      "CHECKPOINT_CID": -1,
+      "juicedMaxRunsPerDay": 9999,
+      "entryData": [
+        {
+          "name": "Void Dungeon Tier 1",
+          "tier": 1,
+          "inputItems": [
+            717
+          ],
+          "inputAmounts": [
+            200
+          ],
+          "dropItemIds": [
+            714,
+            829
+          ],
+          "dropRateMultipliers": [
+            1,
+            1
+          ],
+          "dropMultiplier": 1,
+          "startDay": 20578,
+          "endDay": 20586,
+          "jackpotChance": 0.25,
+          "jackpotPoolId": "gigapot-void",
+          "jackpotItemId": 717,
+          "prizePoolId": "void-dungeon-3",
+          "payoutStructure": {
+            "rarities": [
+              3,
+              4,
+              5,
+              6
+            ],
+            "weights": [
+              70,
+              22,
+              7.5,
+              0.5
+            ],
+            "percentages": [
+              0.002,
+              0.004,
+              0.01,
+              0.05
+            ],
+            "displayNames": [
+              "Epic",
+              "Legendary",
+              "Relic",
+              "Giga"
+            ]
+          },
+          "feeStructure": [
+            {
+              "poolId": "glhf-nft-pot",
+              "percentage": 0.05,
+              "order": 1
+            },
+            {
+              "poolId": "gigapot-void",
+              "percentage": 0.35,
+              "order": 2
+            },
+            {
+              "poolId": "void-dungeon-3",
+              "percentage": 0.6,
+              "order": 3
+            }
+          ]
+        },
+        {
+          "name": "Void Dungeon Tier 3",
+          "tier": 3,
+          "inputItems": [
+            717
+          ],
+          "inputAmounts": [
+            800
+          ],
+          "dropItemIds": [
+            714,
+            829
+          ],
+          "dropRateMultipliers": [
+            4,
+            4
+          ],
+          "dropMultiplier": 4,
+          "startDay": 20578,
+          "endDay": 20586,
+          "jackpotChance": 1,
+          "jackpotPoolId": "gigapot-void",
+          "jackpotItemId": 717,
+          "prizePoolId": "void-dungeon-3",
+          "payoutStructure": {
+            "rarities": [
+              3,
+              4,
+              5,
+              6
+            ],
+            "weights": [
+              70,
+              22,
+              7.5,
+              0.5
+            ],
+            "percentages": [
+              0.002,
+              0.004,
+              0.01,
+              0.05
+            ],
+            "displayNames": [
+              "Epic",
+              "Legendary",
+              "Relic",
+              "Giga"
+            ]
+          },
+          "feeStructure": [
+            {
+              "poolId": "glhf-nft-pot",
+              "percentage": 0.05,
+              "order": 1
+            },
+            {
+              "poolId": "gigapot-void",
+              "percentage": 0.35,
+              "order": 2
+            },
+            {
+              "poolId": "void-dungeon-3",
+              "percentage": 0.6,
+              "order": 3
+            }
+          ]
+        },
+        {
+          "name": "Void Dungeon Tier 2",
+          "tier": 2,
+          "inputItems": [
+            717
+          ],
+          "inputAmounts": [
+            400
+          ],
+          "dropItemIds": [
+            714,
+            829
+          ],
+          "dropRateMultipliers": [
+            2,
+            2
+          ],
+          "dropMultiplier": 2,
+          "startDay": 20578,
+          "endDay": 20586,
+          "jackpotChance": 0.5,
+          "jackpotPoolId": "gigapot-void",
+          "jackpotItemId": 717,
+          "prizePoolId": "void-dungeon-3",
+          "payoutStructure": {
+            "rarities": [
+              3,
+              4,
+              5,
+              6
+            ],
+            "weights": [
+              70,
+              22,
+              7.5,
+              0.5
+            ],
+            "percentages": [
+              0.002,
+              0.004,
+              0.01,
+              0.05
+            ],
+            "displayNames": [
+              "Epic",
+              "Legendary",
+              "Relic",
+              "Giga"
+            ]
+          },
+          "feeStructure": [
+            {
+              "poolId": "glhf-nft-pot",
+              "percentage": 0.05,
+              "order": 1
+            },
+            {
+              "poolId": "gigapot-void",
+              "percentage": 0.35,
+              "order": 2
+            },
+            {
+              "poolId": "void-dungeon-3",
+              "percentage": 0.6,
+              "order": 3
+            }
+          ]
+        }
+      ],
+      "gearEnabled": false,
+      "consumablesEnabled": false,
+      "maxRoom": 17,
+      "dungeonDisabled": true,
+      "juicedMultiplier": 1,
+      "minLevelForInvader": 0,
+      "invaderPercentage": 10,
+      "juicedModeEnabled": false,
+      "basicBoonMultiplier": 1
+    },
+    {
+      "ID_CID": 5,
+      "enabled": true,
+      "devEnabled": true,
+      "NAME_CID": "Forbidden Woods",
+      "ENERGY_CID": 20,
+      "UINT256_CID": 12,
+      "CHECKPOINT_CID": -1,
+      "juicedMaxRunsPerDay": 12,
+      "entryData": [
+        {
+          "name": "Forbidden Woods Tier 2",
+          "tier": 2,
+          "inputItems": [
+            134,
+            137,
+            138,
+            135,
+            136,
+            139,
+            140
+          ],
+          "inputAmounts": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "dropItemIds": [],
+          "dropRateMultipliers": [],
+          "dropMultiplier": 2,
+          "inputsBasedOnFactionDay": true,
+          "startDay": 20675,
+          "endDay": 20731,
+          "jackpotPoolId": null,
+          "jackpotItemId": 0,
+          "prizePoolId": null,
+          "payoutStructure": null,
+          "feeStructure": [],
+          "jackpotChance": null
+        },
+        {
+          "name": "Forbidden Woods Tier 1",
+          "tier": 1,
+          "inputItems": [],
+          "inputAmounts": [],
+          "dropItemIds": [],
+          "dropRateMultipliers": [],
+          "dropMultiplier": 1,
+          "startDay": 20675,
+          "endDay": 20731,
+          "jackpotPoolId": null,
+          "jackpotItemId": 0,
+          "prizePoolId": null,
+          "payoutStructure": null,
+          "feeStructure": [],
+          "jackpotChance": null
+        },
+        {
+          "name": "Forbidden Woods Tier 3",
+          "tier": 3,
+          "inputItems": [
+            245,
+            244,
+            243,
+            246,
+            248,
+            247,
+            249
+          ],
+          "inputAmounts": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "dropItemIds": [],
+          "dropRateMultipliers": [],
+          "dropMultiplier": 4,
+          "inputsBasedOnFactionDay": true,
+          "startDay": 20675,
+          "endDay": 20735,
+          "jackpotPoolId": null,
+          "jackpotItemId": 0,
+          "prizePoolId": null,
+          "payoutStructure": null,
+          "feeStructure": [],
+          "jackpotChance": null
+        }
+      ],
+      "gearEnabled": true,
+      "consumablesEnabled": true,
+      "maxRoom": 16,
+      "dungeonDisabled": false,
+      "juicedMultiplier": 1,
+      "minLevelForInvader": 79,
+      "invaderPercentage": 10,
+      "juicedModeEnabled": true,
+      "basicBoonMultiplier": 2
+    }
+  ],
+  "entryWarnings": {
+    "unspentSkillXp": [
+      {
+        "skillId": 3,
+        "xpItemId": 333,
+        "balance": 10166,
+        "currentLevel": 15,
+        "nextLevelCost": 3568
+      },
+      {
+        "skillId": 5,
+        "xpItemId": 846,
+        "balance": 32,
+        "currentLevel": 6,
+        "nextLevelCost": 27
+      }
+    ],
+    "overLevelGear": [],
+    "maintenance": {
+      "active": false,
+      "message": ""
+    }
+  }
+}

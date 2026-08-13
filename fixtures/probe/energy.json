@@ -1,0 +1,22 @@
+{
+  "entities": [
+    {
+      "_id": "682de4ea4642194afcde8ed2",
+      "docId": "Player#0xUSER",
+      "createdAt": "2025-05-21T14:36:26.814Z",
+      "updatedAt": "2026-08-13T20:24:20.985Z",
+      "ENERGY_CID": 332247916021,
+      "TIMESTAMP_CID": 1786652660,
+      "__v": 0,
+      "parsedData": {
+        "energy": 336340971483,
+        "energyValue": 336,
+        "maxEnergy": 420,
+        "regenPerSecond": 4861111,
+        "regenPerHour": 18,
+        "secondsSinceLastUpdate": 842,
+        "isPlayerJuiced": true
+      }
+    }
+  ]
+}

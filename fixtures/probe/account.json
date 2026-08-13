@@ -1,0 +1,33 @@
+{
+  "address": "0xUSER",
+  "noob": {
+    "_id": "682de4dc3a09b7401d6fcaef",
+    "docId": "72946",
+    "tableName": "GigaNoobNFT",
+    "LAST_TRANSFER_TIME_CID": 1747838169,
+    "createdAt": "2025-05-21T14:36:12.398Z",
+    "updatedAt": "2025-05-21T14:36:16.311Z",
+    "INITIALIZED_CID": true,
+    "IS_NOOB_CID": true,
+    "LEVEL_CID": 1,
+    "OWNER_CID": "0xUSER"
+  },
+  "allowedToCreateAccount": true,
+  "canEnterGame": true,
+  "noobPassBalance": 0,
+  "lastNoobId": 82348,
+  "maxNoobId": 10000,
+  "hasAcceptedLegal": true,
+  "legalAcceptedAt": "2025-08-30T17:06:01.673Z",
+  "username": "<PLAYER>",
+  "juiceData": {
+    "isJuiced": true,
+    "juicedSeconds": 10007772,
+    "_id": "68386aa2a1922eaf137d0475",
+    "docId": "451097579394114828432456836890433724014123108325",
+    "tableName": "GigaJuiceSystem",
+    "TIMESTAMP_CID": 1796661276,
+    "createdAt": "2025-05-29T14:09:38.158Z",
+    "updatedAt": "2026-06-10T13:34:01.065Z"
+  }
+}
