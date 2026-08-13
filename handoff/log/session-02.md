@@ -142,3 +142,107 @@ All fixed in SPEC.md this session (§3 table, new §3c/§3d, §4, §4a, §4b, §
  scripts/verifyCombatModel.ts         |  129 ++   (new)
  23 files changed, 5902 insertions(+), 19 deletions(-)
 ```
+
+---
+
+# APPENDIX — session 02 verbose
+
+## verifyCombatModel.ts full output
+
+```
+── 000→001  Sword vs Spell  → me
+   ✓ me   predicted HP 32 ARM 15   actual HP 32 ARM 15
+   ✓ foe  predicted HP 26 ARM 0   actual HP 26 ARM 0
+── 001→002  Shield vs Shield  → tie
+   ✓ me   predicted HP 32 ARM 7   actual HP 32 ARM 7
+   ✓ foe  predicted HP 22 ARM 0   actual HP 22 ARM 0
+── 002→003  Sword vs Shield  → foe
+   ✓ me   predicted HP 31 ARM 0   actual HP 31 ARM 0
+   ✓ foe  predicted HP 22 ARM 2   actual HP 22 ARM 2
+── 003→004  Spell vs Spell  → tie
+   ✓ me   predicted HP 23 ARM 0   actual HP 23 ARM 0
+   ✓ foe  predicted HP 16 ARM 0   actual HP 16 ARM 0
+── 004→005  Shield vs Shield  → tie
+   ✓ me   predicted HP 23 ARM 4   actual HP 23 ARM 4
+   ✓ foe  predicted HP 12 ARM 0   actual HP 12 ARM 0
+── 005→006  Sword vs Shield  → foe
+   ✓ me   predicted HP 19 ARM 0   actual HP 19 ARM 0
+   ✓ foe  predicted HP 12 ARM 2   actual HP 12 ARM 2
+── 006→007  Sword vs Sword  → tie
+   ✓ me   predicted HP 7 ARM 0   actual HP 7 ARM 0
+   ✓ foe  predicted HP 4 ARM 0   actual HP 4 ARM 0
+
+✓ MODEL HOLDS — 14/14 side-updates matched
+```
+
+## Full observed run (battleWatch.ts)
+
+```
+── 000  room 1  enemy 63
+   me   HP 32/32  ARM 15/15  Sword 16/0 x3  Shield 6/12 x3  Spell 12/8 x3
+   foe  HP 30/30  ARM 12/12  Sword 12/6 x3  Shield 8/2 x3  Spell 16/4 x3
+── 001  me HP 32/32 ARM 15/15 | foe HP 26/30 ARM 0/12   last: me=Sword foe=Spell  won: me
+── 002  me HP 32/32 ARM  7/15 | foe HP 22/30 ARM 0/12   last: me=Shield foe=Shield won: tie
+── 003  me HP 31/32 ARM  0/15 | foe HP 22/30 ARM 2/12   last: me=Sword foe=Shield  won: foe
+── 004  me HP 23/32 ARM  0/15 | foe HP 16/30 ARM 0/12   last: me=Spell foe=Spell   won: tie
+── 005  me HP 23/32 ARM  4/15 | foe HP 12/30 ARM 0/12   last: me=Shield foe=Shield won: tie
+── 006  me HP 19/32 ARM  0/15 | foe HP 12/30 ARM 2/12   last: me=Sword foe=Shield  won: foe
+── 007  me HP  7/32 ARM  0/15 | foe HP  4/30 ARM 0/12   last: me=Sword foe=Sword   won: tie
+        (run ended in a death on the following exchange — not captured)
+```
+
+## Charge transitions — the anomaly in full
+
+```
+        000 001 002 003 004 005 006 007
+me rock   3   2   3   2   3   3   2   1
+me paper  3   3   2   3   3   2   3   3
+me sciss  3   3   3   3   2   3   3   3
+foe rock  3   3   3   3   3   3   3   2
+foe paper 3   3   2   1   2   1  -1   0   <-- 005->006 moved by -2
+foe sciss 3   2   3   3   2   3   3   3
+```
+Every transition is -1 (played) or +1 (unused, capped at max) EXCEPT foe paper
+005->006, which went 1 -> -1 while being played. Raw JSON confirms it; no
+statusEffects, activeEffects, or battleArmorReduction were set on either side
+at any point in the run, so nothing visible explains the extra -1.
+
+## Forbidden Woods entity, verbatim
+
+```json
+{ "ID_CID": 5, "enabled": true, "devEnabled": true,
+  "NAME_CID": "Forbidden Woods", "ENERGY_CID": 20, "UINT256_CID": 12,
+  "CHECKPOINT_CID": -1, "juicedMaxRunsPerDay": 12, "gearEnabled": true,
+  "consumablesEnabled": true, "maxRoom": 16, "dungeonDisabled": false,
+  "juicedMultiplier": 1, "minLevelForInvader": 79, "invaderPercentage": 10,
+  "juicedModeEnabled": true, "basicBoonMultiplier": 2 }
+```
+
+All four dungeons for comparison (UINT256_CID appears to be base runs/day):
+```
+ID 1 Dungetron 5000  energy 40  UINT256 10  juiced 12  maxRoom 16
+ID 3 Underhaul       energy 40  UINT256  8  juiced  9  maxRoom 16  CHECKPOINT 2
+ID 4 Void Dungeon    energy  0  UINT256 9999           maxRoom 17  DISABLED
+ID 5 Forbidden Woods energy 20  UINT256 12  juiced 12  maxRoom 16  boonMult 2
+```
+
+## Spec drift diff output
+
+183 observed keys. 157 appear in the API but nowhere in SPEC.md — the spec
+documents almost none of the `*_CID` layer. 1 identifier is quoted in SPEC.md
+and never seen in a response: `dungeonId`, which is a REQUEST field and so
+cannot be refuted by GETs. Not treated as drift.
+
+## Probe defects fixed this session
+
+1. `config/discovered.json` was written with `id: null`. "Forbidden Woods"
+   matches the entity `NAME_CID` and all three `entryData` tier names; the
+   entity is not last in iteration order, so last-write-wins clobbered id 5.
+   The gate would have "passed" against a null. Now refuses to overwrite a real
+   id with a null one, and records energyCost/maxRoom/tiers alongside.
+2. SPEC §3b requirement 5 (spec-drift diff) had never been implemented. Added.
+3. Raw dumps carry the wallet address and username. Split raw (gitignored) from
+   redacted (committed). First rule was `fixtures/probe/raw/` and missed
+   `fixtures/dungeon-runs/raw/`, staging 104 address-bearing lines; widened to
+   `fixtures/**/raw/`. Username redaction (`<USER>`) was missing entirely on the
+   first pass and added during the recap scan.

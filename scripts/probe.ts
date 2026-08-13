@@ -108,7 +108,7 @@ const rawBodies = new Map<string, unknown>();
  * blanket 0x[0-9a-f]{40} rule would also flatten contract addresses, which are
  * game data we want to keep.
  */
-function redact(json: unknown, address: string): string {
+function redact(json: unknown, address: string, username: string): string {
   let s = JSON.stringify(json, null, 2);
   if (address) {
     // Address appears checksummed in some fields and lowercased in others.
@@ -117,12 +117,14 @@ function redact(json: unknown, address: string): string {
     }
   }
   if (jwt) s = s.split(jwt).join("<JWT>");
+  // Username is identifying too — it appears in /game/account/{address}.
+  if (username) s = s.split(`"${username}"`).join(`"<USER>"`);
   return s;
 }
 
-function writeRedactedCorpus(address: string) {
+function writeRedactedCorpus(address: string, username: string) {
   for (const [label, body] of rawBodies) {
-    writeFileSync(join(OUT, `${label}.json`), redact(body, address));
+    writeFileSync(join(OUT, `${label}.json`), redact(body, address, username));
   }
   console.log(`  ✓ ${rawBodies.size} redacted fixtures → ${OUT}/ (raw kept in ${RAW}/)`);
 }
@@ -369,7 +371,8 @@ async function main() {
 
   console.log("\n▸ writing");
   writeFileSync("config/discovered.json", JSON.stringify(discovered, null, 2));
-  writeRedactedCorpus(address ?? "");
+  const account = responses["account"] as Record<string, any> | undefined;
+  writeRedactedCorpus(address ?? "", account?.username ?? "");
   console.log(`  ✓ config/discovered.json (gitignored)\n`);
 }
 

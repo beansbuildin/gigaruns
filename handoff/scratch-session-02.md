@@ -122,7 +122,7 @@ on the HAR; nothing more to do without it.
 
 ## Account facts
 
-username `<PLAYER>`, noobId 72946, `LEVEL_CID: 1` on the noob NFT but
+username `<USER>`, noobId 72946, `LEVEL_CID: 1` on the noob NFT but
 `LEVEL_CID: 6` on the dungeon entity (two different level concepts).
 Energy 332/420, `regenPerHour: 18`, `isPlayerJuiced: true`.
 
