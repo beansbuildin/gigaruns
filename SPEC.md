@@ -272,29 +272,45 @@ sides' `currentCharges`/`maxCharges` are visible every turn. But see the
 
 ### Combat resolution **[CONFIRMED 2026-08-13]**
 
-Derived from 7 live exchanges in Forbidden Woods room 1 (14 side-updates, no
-mismatches). Order of operations per exchange:
+Verify any change to this section with `npx tsx scripts/verifyCombatModel.ts`,
+which replays it against every recorded exchange. Currently **14/14**.
 
-1. **Shield grants armor first.** Playing Shield (`paper`) adds armor equal to
-   that move's own `currentDEF`, capped at `shield.currentMax`. This happens
-   *before* incoming damage is applied.
-2. **Damage.**
-   - **Win/loss:** the winner deals its **full `currentATK`**. The loser's DEF
-     does **not** reduce it. The loser deals **zero**.
-   - **Tie (same move):** *both* sides deal `ATK − opponent's DEF`, floored at 0.
-   - **Exception:** in a Shield-vs-Shield tie, Shield's DEF is spent on the
-     armor grant and does **not** also reduce incoming damage.
-3. **Damage hits armor first, overflow carries to HP.** Armor floors at 0 and
-   the remainder is subtracted from HP in the same exchange.
+Per exchange, for each side independently:
 
-Worked example (observed 004→005, Shield vs Shield tie): my armor 0 +12 (Shield
-DEF) = 12, then −8 (their Shield ATK, no DEF reduction) = **4** ✓. Their armor
-0 +2 = 2, then −6 (my Shield ATK) = −4 → armor **0**, 4 overflow to HP,
-16 → **12** ✓.
+1. **A side that WINS or TIES regenerates armor** equal to **its own move's
+   `currentDEF`**, capped at `shield.currentMax`. Excess is wasted — at 4/10,
+   a winning move with 8 DEF takes you to 10/10, not 12.
+2. **That same side then deals its full `currentATK`.**
+3. **A side that LOSES gains nothing and deals nothing.**
+4. Armor regen resolves **before** incoming damage.
+5. **Damage depletes armor first; the overflow carries to HP** in the same
+   exchange.
 
-This makes Shield a **resource-regeneration move**, not a stall: a won or tied
-Shield converts DEF straight into a fresh armor pool. `w₃ = 0.3` badly
-undervalues it — see §4b.
+**Every move regenerates — not just Shield.** Regen is the DEF of whichever
+move won. Winning with Spell (DEF 8) restores 8 armor; winning with Sword
+(DEF 0) restores none.
+
+A tie behaves as *both sides winning*: both regenerate and both deal full ATK.
+
+Worked example (observed 003→004, Spell vs Spell tie): my armor 0 +8 (my Spell
+DEF) = 8, then −16 (their Spell ATK) = −8 → armor **0**, 8 overflow to HP,
+31 → **23** ✓. Their armor 2 +4 = 6, then −12 (my Spell ATK) = −6 → armor **0**,
+6 overflow, 22 → **16** ✓.
+
+> **Superseded model — do not reintroduce.** An earlier reading of this data had
+> *only Shield* granting armor, ties dealing `ATK − opponent DEF`, and a special
+> case exempting Shield ties from DEF reduction. It also scores 14/14, because
+> the two are algebraically identical while armor is 0 and the cap is slack, and
+> because **every observed win was either Sword (DEF 0) or the enemy's Shield** —
+> no win with a DEF-bearing non-Shield move was ever recorded. It diverges, and
+> is wrong, the moment you win with Spell: it grants 0 armor instead of 8. Two
+> models fitting the same fixtures is not agreement; prefer the one with no
+> special cases.
+
+**There is no healing in combat.** HP is only restored by a card offered
+*after* a won fight (§4c). Armor is therefore the only renewable defensive
+resource inside a battle, and regenerating it is the whole defensive game.
+`w₃ = 0.3` badly undervalues it — see §4b.
 
 ### Charges — mechanics and the caveat **[PARTIAL]**
 
@@ -367,18 +383,32 @@ Start at `w₁=1.0, w₂=0.8, w₃=0.3`. Survival is weighted above damage on pu
 a dead run forfeits every remaining room's loot, so the downside is much larger
 than the upside of a fast kill.
 
-**Revised 2026-08-13 — `w₃` is too low.** Armor is a full damage pool that
-absorbs before HP, and Shield actively refills it (§4 combat resolution). In the
-observed run, armor soaked 27 of the 51 damage taken. Effective HP is
-`HP + armor`, so armor deserves a weight near `w₁`, not a third of it. Start at
-`w₃ = 0.8` and sweep it in Task 11. Better still, replace the split terms with
-effective HP:
+**Revised 2026-08-13 — `w₃` is too low, and HP/armor are not the same currency.**
+
+Armor absorbs before HP and is **renewable**: every won or tied exchange
+regenerates the played move's DEF. HP is **not renewable in combat at all** —
+only a post-fight card restores it (§4 combat resolution). So:
+
+- **Armor spent is nearly free** if you expect to win or tie soon; it comes back.
+- **HP spent is gone for the rest of the run**, unless a heal card shows up.
+
+A utility function that adds them into one effective-HP pool erases exactly this
+asymmetry, so treat that form as a baseline to beat, not the default:
 
 ```
 w₁·((myHP + myArmor) / (myMaxHP + myMaxArmor)) − w₂·(enemy equivalent)
 ```
 
-Both forms are worth testing in sim before either is trusted.
+Prefer keeping the terms split, with `w₃` raised to about `0.8` and, better, an
+explicit penalty on *HP* loss above and beyond the armor term — losing 8 HP
+through an empty armor pool should score strictly worse than losing 8 armor.
+Sweep both in Task 11 against the real opponent model.
+
+A concrete consequence to sanity-check any candidate weighting against: at
+`HP 7 / ARM 0` versus an enemy on `HP 4`, Shield (6/12) regenerates 12 armor
+*before* damage lands, which converts two of the three enemy replies from lethal
+into survivable and wins the third. Any weighting that does not pick Shield
+there is wrong.
 
 Add a **depth bonus**: later rooms are worth more, so raise `w₁` as room index
 climbs — dying in room 4 wastes far more invested energy than dying in room 1.
@@ -388,7 +418,10 @@ climbs — dying in room 4 wastes far more invested energy than dying in room 1.
 After each win you pick one of up to four boons. Rank by:
 
 1. **Heal**, if HP fraction < 0.5 and rooms remain. Survival compounds; nothing
-   else matters if the run ends.
+   else matters if the run ends. **[CONFIRMED 2026-08-13]** this card is the
+   *only* way HP is ever restored — there is no in-combat healing — so a heal
+   offered at low HP is worth more than any stat upgrade, and passing one up is
+   effectively choosing to end the run early.
 2. **Upgrade the move you actually play most** (read it off your own logged move
    distribution, not off a guess about what's theoretically strongest).
 3. **Max HP / armor**, weighted up in early rooms where a long run is still ahead.

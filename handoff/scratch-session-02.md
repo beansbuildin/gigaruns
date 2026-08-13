@@ -1,5 +1,37 @@
 # scratch — session 02 surprises (raw, for recap)
 
+## THE LESSON OF THE SESSION: two models fit, one was wrong
+
+I derived a combat model from the 7 recorded exchanges and it scored 14/14. The
+user then supplied the actual rule, which ALSO scores 14/14 — and is different.
+
+Mine: only Shield grants armor; ties deal `ATK − opponent DEF`; special case
+exempting Shield ties from DEF reduction.
+Correct: **any** side that wins *or ties* regenerates its own move's DEF as
+armor (capped), then deals full ATK; a loser gains and deals nothing.
+
+They coincide while armor is 0 and the cap is slack, because "gain DEF then take
+full ATK" reduces to "take ATK − DEF". And critically, **every observed win was
+either my Sword (DEF 0) or the enemy's Shield** — so no win with a DEF-bearing
+non-Shield move ever appeared. My special case covered every observed win by
+accident.
+
+Where it would have broken: winning with Spell grants 8 armor; my model granted
+0. A silent, systematic undervaluation of Spell inside every EV calculation,
+invisible to the fixtures.
+
+Takeaway for future sessions: a model fitting 100% of recorded data is not
+confirmation when the data never exercises the branch that distinguishes it.
+Ask what observation would separate two candidate rules, and check whether the
+corpus actually contains one. Prefer the model with no special cases.
+`scripts/verifyCombatModel.ts` now re-checks this on every change.
+
+## No in-combat healing
+
+HP is only restored by a card offered after a won fight. Armor is renewable
+every winning/tying exchange; HP is not renewable at all inside a run. These are
+different currencies and §4b should not merge them into one effective-HP pool.
+
 ## The big one: charges are real AND the enemy's are fully visible
 
 `/game/dungeon/state` → `data.run.players[]`. Two entries: `[0]` = user (id is

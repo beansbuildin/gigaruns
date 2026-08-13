@@ -41,8 +41,12 @@ The brief noted per-item drop percentages render in the UI, so the data is
 almost certainly exposed once the phase flips — we just never reached it.
 
 **What's needed.** One room won to completion while `scripts/battleWatch.ts` is
-running. It snapshots `lootOptions` and prints it automatically. The run was
-left paused at room 1 with you on 7 HP and the enemy on 4 HP.
+running. It snapshots `lootOptions` and prints it automatically.
+
+The observed run **ended in a death** on the exchange after state 007 (7 HP vs
+the enemy's 4), so this now requires starting a *fresh* run — 20 energy. Worth
+pairing with question 1: the same watched run answers both, and the loot phase
+is also where the heal card (§4c) can finally be seen.
 
 Note for whoever picks this up: `dropItemIds` and `dropRateMultipliers` on the
 `entryData` tiers are `[]` for all three Forbidden Woods tiers, so the drop
