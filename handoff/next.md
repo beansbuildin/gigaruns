@@ -1,93 +1,134 @@
-# BRIEF — session 02
+# BRIEF — session 03
 
-Good recap. The vitest audit catch and the honest "src/ is entirely empty" note
-are exactly right. Answers below, then your task.
-
----
-
-## Answers to your open questions
-
-**Q3 — reorder Task 3 before Task 2? YES.** Your reasoning is correct and this
-is now the plan. `probe.ts` is self-contained, read-only, and doesn't import
-`src/api/`, so nothing blocks it. Writing zod schemas against spec guesses and
-then rewriting them against reality is wasted work in both directions. Ground
-truth first.
-
-Record in `DECISIONS.md`: *Task 3 runs before Task 2; schemas are written from
-observed responses, never from SPEC.*
-
-**Q1 — auth path: Path A, confirmed.** The user plays in-browser (character
-"<USER>", Lv.0), so assume Abstract Global Wallet and do not build EOA signing
-yet. The JWT will be at `~/.secrets/gigaverse-jwt.txt`. Path B stays deferred.
-
-**Q2 — fishing HAR: deferred, not blocking.** Correct call. Don't chase it.
+Task 3 was well executed. `dungeonId 5`, `ENERGY_CID 20`, `maxRoom 16`, eight
+battle states, and a clean gate. Three responses below, then the task.
 
 ---
 
-## Ground truth from manual play
+## 1. I am reopening the charge conclusion
 
-The user played Forbidden Woods by hand this session. Observations from the live
-UI — treat as **strong hypotheses to confirm in probe output**, not as fact,
-since these are read off pixels rather than API fields.
+You concluded: charges go negative, therefore §4a becomes down-weight rather
+than prune-to-zero. I don't think the evidence supports that yet, and this is
+the highest-value mechanic in the game, so it's worth one more look.
 
-**Move charges EXIST and are visible for both sides.** Three pip segments render
-under every move card, player and enemy alike. This is the §4 edge and it
-appears to be real. Find the API field carrying it — likely near the move stat
-block. Getting this field name is the single most valuable output of your probe.
+The observation was: **enemy `paper` at 1, played it, landed at −1.**
 
-**Full enemy stats are visible pre-decision.** ATK and DEF for all three enemy
-moves are shown before you commit. Observed on Miasmablade Toxishroom: Sword
-14/7, Shield 10/4, Spell 8/3.
+Two hypotheses both fit that:
 
-**Armor is a separate pool that sits in front of HP.** Player showed `ARM 0/12`
-and `HP 2/30` as independent bars. Enemy armor fell 14 → 8 after losing an
-exchange while their HP stayed 35/35 — so **damage depletes armor before HP**.
-SPEC §4b treats armor as a minor utility term; it's more central than that.
+- **H1 (hard prune).** A move requires ≥1 charge to play. The −1 is the
+  *resulting* state — `paper` is now locked until it regenerates. Every
+  observation you have is consistent with this.
+- **H2 (soft cost).** Moves are playable at any value; charges simply go
+  negative. Also consistent.
 
-**Shield wins appear to restore armor.** Player armor went `0/12` → `12/12` on
-a won Shield exchange. Player Shield DEF is exactly 12. Working hypothesis:
-*winning with Shield grants armor equal to that move's DEF.* If true, Shield is
-not a passive stall move — it's a resource-regeneration move, and the utility
-function needs to reward it far more than the current `w₃=0.3` does. **Confirm
-before building §4b.**
+You reported that **no move was ever seen attempted at ≤0**. That is weak
+evidence *for* H1, not against it. Under H2 you'd expect to eventually see a
+play from a non-positive charge; you saw none.
 
-**Other observed shapes:** enemy names are modifier + creature ("Miasmablade
-Toxishroom"), suggesting prefix affixes that may alter stats. Floor and Room are
-tracked separately (`Floor 1, Room 2`). Per-item drop percentages render in the
-UI, so a drop table is probably exposed. Player has max HP 30, max ARM 12 at
-Lv.0.
+There's also an unexplained detail: 1 → −1 is a decrement of **two**. If a play
+costs 1, something else moved that counter — a second cost, a regeneration tick
+on unused moves, or two turns collapsed between the snapshots you compared.
+Until that's explained, neither hypothesis is safe to build on.
 
-Enemy move log (2 fights, tiny sample, do not model on this yet):
-Room 1 turn 1 = Spell. Room 2 turn 1 = Sword.
+**The discriminating observation.** Across every consecutive state pair in the
+fixtures, emit one row per player per move:
+
+```
+turn | player | move | chargesBefore | movePlayed | chargesAfter | delta
+```
+
+Then answer three questions in the recap:
+
+1. Is `delta` ever anything other than −1 for the played move? What happens to
+   the two *unplayed* moves — do they regenerate?
+2. Did any player ever hold a move at ≤0 and play a different one? **That's H1
+   confirmed.**
+3. Did any player ever play a move that was already at ≤0? **That's H2
+   confirmed.**
+
+If the fixtures can't separate them, say so and leave it UNRESOLVED — do not
+pick one. Write §4a to branch on a single flag so the answer can be swapped in
+later without touching the EV engine.
+
+This matters because the two models differ enormously in value. H1 turns a
+three-way guess into certainty; H2 is a mild prior nudge.
 
 ---
 
-## Your task — Task 3, discovery
+## 2. On getting the combat model wrong
 
-Per `TASKS.md` Task 3 and `SPEC.md` §3b.
+> *A 100% fit on a corpus that can't distinguish your hypotheses isn't
+> confirmation.*
 
-Prerequisite: `~/.secrets/gigaverse-jwt.txt` must exist. If it doesn't, write
-that to `QUESTIONS.md` and stop — do not build workarounds, and do not start
-Task 2 as a substitute.
+That's the correct lesson and I want it kept. Recording it as a
+do-not-reintroduce block was right.
 
-Run `probe.ts`. Then, beyond the existing gate:
+Generalize it into a habit: **before treating a verification pass as
+confirmation, state which branches the corpus never exercised.** A verifier
+that can't fail on a wrong model isn't a verifier. Add that line to the §1 note.
 
-1. **Run the probe again during an active battle.** The user will start a
-   Forbidden Woods run and pause mid-fight. `/game/dungeon/state` is empty
-   outside a run, and every question above lives inside that response. This is
-   the whole point of the session — a probe run only outside combat answers
-   almost nothing.
-2. **Answer each hypothesis above explicitly in the recap**, naming the actual
-   API field or stating ABSENT: charges, enemy stat visibility, armor-vs-HP
-   ordering, shield-restores-armor, floor/room, drop table.
-3. **Commit redacted fixtures.** Full battle-state JSON with addresses as
-   `0xUSER` and JWTs as `<JWT>`. Keep every game-mechanical value intact — these
-   fixtures become the Task 4 test corpus, so fidelity matters more than tidiness.
-4. **Update `SPEC.md` §3 and §4** from what you find, and list every change in
-   the recap's Corrections section.
+That's also the reason I'm pushing back on the charge conclusion above — same
+failure shape, one turn of evidence carrying a design decision.
 
-Do not write strategy code this session. Discovery only.
+Please restate the **verified** combat model explicitly in your next recap:
+exactly when armor is granted, to whom, and in what amount. My brief said
+"Shield wins restore armor"; your correction generalized it. I want the final
+form written down in one place, since the whole utility function hangs off it.
 
-If the probe's name matching fails to find Forbidden Woods, dump the full
-dungeon list into the recap rather than guessing an ID — the in-game display
-name may differ from the API name.
+---
+
+## 3. Security: don't rewrite history
+
+The username in `c916be5` came from my brief — I wrote it in after reading it
+off a screenshot. My error, not yours.
+
+**Leave it.** The username is already public in-game and on-chain via the Noob
+NFT, so the rewrite buys very little, while a force-push on a public repo risks
+desyncing your local clone for no real gain. The thing that actually mattered —
+wallet address and JWT — was redacted throughout, including in that same commit.
+
+Your fix of building username redaction into `writeRedactedCorpus` is the right
+response: stop the leak going forward rather than relitigate the past. Log in
+`DECISIONS.md`: *username tolerated in history; address and JWT never are.*
+
+---
+
+## 4. `maxRoom 16` changes the utility function
+
+Sixteen rooms per run at 20 energy is a much longer run than SPEC §4b assumed.
+Dying in room 2 forfeits fourteen rooms of loot.
+
+So **survival dominates far more than the current weights express.** When you
+get to Task 5, make the depth bonus steep rather than linear, and raise `w₁`
+well above `w₂`. A slow win that reaches room 12 beats a fast one that dies in
+room 5, and the current weights don't come close to capturing that gap.
+
+Don't implement this yet — just carry it into Task 4's sim as a scenario worth
+scoring: total loot across a 16-room run, not win rate per fight.
+
+---
+
+## Your task
+
+**Step 1 — one watched run, first.** Your recommendation was right and it's
+worth the 20 energy. §4c is currently written against zero evidence, which is
+the worst state any section can be in. The user will play a run manually,
+deliberately conservatively (Shield-heavy) to survive to a loot phase rather
+than to win fights fast.
+
+Capture, in redacted fixtures:
+
+- **A full `lootPhase` state** — every option offered, its fields, and the
+  action envelope that selects one. This is the priority.
+- The heal card's actual shape, if one appears.
+- Consecutive states across several turns, for the §1 charge table.
+- A room transition, so `Floor`/`Room` progression is on record.
+
+If the run dies before a loot phase again, report that plainly and do **not**
+write §4c from inference.
+
+**Step 2 — Task 4, the simulator.** As you proposed. No network, no auth. Build
+it on the committed fixtures plus `verifyCombatModel.ts`. Fix the `vitest run`
+exit-1 while you're there — real tests, not `--passWithNoTests`.
+
+Do not start Task 2 or write strategy code this session.
