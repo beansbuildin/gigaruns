@@ -55,16 +55,70 @@ random-move opponent and reports win rate. Nothing touches the network.
 
 ---
 
+### 4.5 — Boon model ← inserted 2026-08-15, **GATE NOT MET (see below)**
+
+Model boons as state deltas applied at pickup, derived from before/after pairs
+in the corpus. Nothing inferred from option text. Types without a pair stay
+unmodelled and fail closed with a reason code.
+
+**Gate as written:** `deepestScorableRoom` ≥ 4, matching corpus depth, with
+coverage reported.
+
+**Outcome: the model is built and correct; the gate is NOT met, and it was never
+reachable.** `deepestScorableRoom` is still **1**. `src/sim/boons.ts` models all
+four boon types that have a pickup pair, `tests/boons.test.ts` re-derives every
+delta from the fixtures, and the blanket `BOON_TAKEN` reason is replaced by
+precise ones. But three walls hold the number down, and the second is fatal to
+the gate itself (SPEC §4d):
+
+1. 6 of 6 recorded room-1 boon options are unmodelled or grant a rolled stat.
+2. Enemies 65 and 66 are unscorable *innately* — so a perfect boon model caps
+   `deepestScorableRoom` at **2**, not 4. The gate asked for a number the corpus
+   cannot produce regardless of how good the boon model is.
+3. Only four offer triples exist; synthesising more is forbidden.
+
+`npm run sim` prints a labelled counterfactual proving the machinery works: sub
+`Heal` into room 1 and the number rises to 2, then stops at wall 2.
+
+**Not carried forward as a blocker.** The remaining work is capture, not code —
+see `QUESTIONS.md` §5a–§5d for the specific captures that would move it, all of
+which fit inside a single watched run.
+
+---
+
 ### 5 — Dungeon strategy
 
 Implement SPEC §4: EV engine, utility function, opponent model with charge
 pruning and first-order transition tracking, maximin fallback, loot ranking.
-Pure functions only.
+Pure functions only. Must use `netDamageOnTie` rather than raw ATK — see the
+tie-value asymmetry in SPEC §4b.
 
-**Gate:** In sim, beats a fixed-move baseline (always-Sword) by ≥15% win rate
-over 1000 runs. Log the EV table for one full battle and eyeball it — every
-chosen move should be justifiable from its numbers. If one isn't, the utility
-weights are wrong, not the logs.
+**Gate [RESTATED 2026-08-15].** The original — "beats always-Sword by ≥15% win
+rate over 1000 runs" — is unrunnable: run win rate is 0% by construction under
+fail-closed coverage, since clearing a room fires a boon and every recorded
+room-1 boon is unscorable. Replacing it:
+
+> On the scored subset, the strategy engine beats the always-Sword baseline on
+> **mean rooms cleared per run**, by a margin exceeding the 95% confidence
+> interval over ≥1000 runs. Report alongside it: room-1 battle win rate,
+> coverage percentage, and `deepestScorableRoom`. **Any win-rate claim stated
+> without its coverage is not a result.**
+
+Rooms cleared is the honest proxy for items per energy, which is what the bot
+exists to maximise. A confidence interval sets the threshold from the data's own
+variance rather than from a number someone picked. `simulate()` returns
+`meanRoomsCleared` and `roomsClearedCi95` for exactly this.
+
+Baselines to beat, from `npm run sim` (1000 runs vs random, room-1 battle win
+rate on the scored subset): **always-Sword 67.9%**, random 60.6%, always-Shield
+55.1%. Mean rooms cleared: always-Sword **1.018 ± 0.058**, random 0.859 ± 0.052,
+always-Shield 0.847 ± 0.059. Always-Sword is a genuinely strong baseline, not a
+strawman — beating it will need the charge pruning and the tie asymmetry, not
+just tuned weights.
+
+Log the EV table for one full battle and eyeball it — every chosen move should
+be justifiable from its numbers. If one isn't, the utility weights are wrong,
+not the logs.
 
 ---
 

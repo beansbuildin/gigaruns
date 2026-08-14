@@ -376,6 +376,21 @@ not free. It is a run-long resource that happens to be *renewable in combat*
 renewable at all. The asymmetry §4b needs is renewable-vs-not, not
 per-room-vs-per-run.
 
+> **This rests on ONE observation.** Three of the four boundaries are
+> uninformative, so the entire correction hangs on `run-23-29-39 009->010`.
+> That is enough to retract the old rule — a single counterexample refutes a
+> universal — but it is *not* enough to be confident in the replacement.
+> **Re-check this whenever the corpus grows**, and specifically whenever a run
+> crosses a boundary below the armor cap. A capture that crosses two or three
+> boundaries at partial armor would settle it. [session 05]
+
+**Downstream consequence worth stating explicitly: armor depletes across all 16
+rooms.** Since it does not reset at a boundary and only regenerates through a
+won or tied move's DEF, a run that reaches room 10 arrives with whatever it has
+managed to bank. That makes late rooms structurally harder than early ones in a
+way §4b's flat weights never modelled, and it raises the value of armor and heal
+boons considerably relative to a per-room reading. [session 05]
+
 **The armor threshold — net damage is not ATK. [CONFIRMED 2026-08-15]**
 
 Because a side that loses regenerates nothing, damage lands differently
@@ -601,6 +616,29 @@ there is wrong.
 Add a **depth bonus**: later rooms are worth more, so raise `w₁` as room index
 climbs — dying in room 4 wastes far more invested energy than dying in room 1.
 
+**Tie-value asymmetry — a Task 5 input the current form cannot express.
+[2026-08-15]**
+
+Ties are not neutral, and their value depends entirely on *which move* ties.
+From the corrected damage rules above, a tie deals `max(0, myATK − theirDEF)`,
+so with our loadout:
+
+| our move | ATK | tie vs enemy 66's Shield (DEF 8) | tie vs enemy 63's Shield (DEF 2) |
+|---|---|---|---|
+| Sword  | 16 | 8 damage | 14 damage |
+| Spell  | 12 | 4 damage | 10 damage |
+| Shield |  6 | **0 — literally nothing, forever** | 4 damage |
+
+So **under genuine uncertainty, tying with a high-ATK move strictly dominates
+tying with a low-ATK one.** The `w₂·(enemyHP/enemyMaxHP)` term has no way to say
+this: it scores 6 ATK as 75% of 8 ATK when one may be worth nothing at all and
+the other everything. Task 5's EV engine must score a candidate move by
+`netDamageOnTie` against each possible reply, not by raw ATK.
+
+`scripts/sim.ts` asserts the threshold directly against all four observed
+enemies and it holds exactly — our Shield's 6 ATK clears DEF 2 and 4, and makes
+zero progress at DEF 6 and 8.
+
 ### 4c. Loot selection
 
 **[CORRECTED 2026-08-14]** This section was written against zero evidence and
@@ -633,6 +671,142 @@ After each win you pick one of three boons. Rank by:
 Log every boon offered and taken to `data/loot-log.jsonl`, so this ranking can
 later be replaced with something fitted to actual run outcomes rather than
 intuition.
+
+### 4d. Boon effects — the model **[Task 4.5, 2026-08-15]**
+
+Implemented in `src/sim/boons.ts`; every delta below is re-derived from the
+fixtures by `tests/boons.test.ts`, so this table cannot drift from the responses
+it claims to come from.
+
+**A boon is modelled only if the corpus contains a state pair bracketing its
+pickup.** A pickup pair is a `rewardPathPhase` state followed by one where
+`pickedBoons` has grown by exactly one; all four in the corpus add exactly one
+boon, so each isolates a single effect with no attribution ambiguity.
+
+| boon | selectedVal1 | observed delta | evidence |
+|---|---|---|---|
+| `AddLuck` | 1 | `lck.current` 0 → 1 | run-23-29-39 008→009 |
+| `AddEvasion` | 1 | `evasion.current` 0 → 1 | run-01-00-08 021→022 |
+| `Heal` | 16 | `health.current` 15 → 31 (hpMax 32) | run-01-00-08 027→028 |
+| `AddBurnSword` | 3 | **nothing** — latent, fires in combat | run-01-00-08 038→039 |
+
+`AddBurnSword`'s empty delta is a **result**, not a gap: the pair proves the
+pickup changes no stat.
+
+Two things are deliberately *not* modelled:
+
+- **Seven offered types have no pair**: `AddBlock`, `AddIntuition`,
+  `AddTenacity`, `CorrosiveShield`, `TieDamageReduction`, `UpgradePaper`,
+  `UpgradeScissor`. `UpgradePaper` almost certainly adds 4 to Shield — its name
+  says so and its `selectedVal2` is 4 — and it stays unmodelled anyway, because
+  nobody picked it and no recorded state shows what moved.
+- **Additive vs assignment for the rolled-stat boons.** Both samples went
+  `0 → val1`, so `+= val1` and `= val1` fit equally. `boons.ts` uses additive;
+  one capture of a second rolled-stat boon in the same run settles it.
+- **Heal's cap is unverified.** The one sample healed 15 → 31 against an hpMax
+  of 32, so it never reached the ceiling. `boons.ts` caps at `hpMax` as the
+  conservative reading.
+
+#### Why this did not raise `deepestScorableRoom`
+
+The task's gate asked for ≥ 4. It stayed at **1**, for three independent
+reasons — and the second one means the gate was never reachable at all:
+
+1. **No clean room-1 boon exists in the corpus.** Both recorded room-1 offers
+   are `AddLuck | CorrosiveShield | UpgradePaper` and
+   `AddEvasion | AddTenacity | AddBlock`. Every one is either unmodelled or
+   grants a rolled stat whose effect on damage is unexplained. **6 of 6 room-1
+   options are unscorable**, so a run is contaminated before room 2 begins.
+   `Heal` — the only clean boon anywhere in the corpus — is only ever offered at
+   room 2, by which point it is too late to help coverage.
+2. **Rooms 3+ are unscorable for reasons boons have nothing to do with.** Enemy
+   65 carries `evasion 2 / block 2 / lck 1` **innately**, and enemy 66 carries
+   Burn while the run carries `shatterblade`. A *perfect* boon model therefore
+   caps `deepestScorableRoom` at **2**. This is a fact about the enemies.
+3. **There is no grounded offer distribution.** Four offer triples exist (two at
+   room 1, one each at rooms 2 and 3). The sim draws only from these and does
+   not synthesise offers — generating them would invent the single thing that
+   decides how a run develops, off a sample of four.
+
+`scripts/sim.ts` prints a clearly-labelled counterfactual that substitutes
+`Heal` into room 1: `deepestScorableRoom` rises to **2** and stops. That
+confirms the boon machinery is correct and that the remaining blocker is
+capture, not code.
+
+### 4e. Rolled stats — audited, still unexplained **[2026-08-15]**
+
+`evasion / block / lck / tenacity / intuition` are read from `.current`, never
+`.starting`. `src/sim/combat.ts` does not read them at all: any non-zero value
+makes the surrounding unit unscorable.
+
+Counted in **damage-taking opportunities** (side-updates flatter the numbers,
+because a side that wins outright takes nothing and gives the stat no chance to
+fire):
+
+```
+player evasion1      8/9   exact      <- side-update count inflates this to 20/21
+player lck1          2/2   exact
+player none         29/29  exact
+enemy  ev2+bl2+lk1   6/7   exact
+enemy  none         34/37  exact      <- all 3 misses are Burn
+```
+
+It is tempting to conclude "evasion 1 does nothing" and unlock room 2. **Do
+not.** n = 9 with one miss is exactly the shape a ~10% dodge proc produces, and
+the enemy-63 "Shield-biased 57% off 14 exchanges" mistake is the same shape.
+Per the 2026-08-15 decision on the opponent model, ~30 observations is the floor
+for reading a rate.
+
+**The enemy-65 anomaly (029→030): our Sword's 16 ATK dealt exactly 8.** The same
+matchup at 032→033 dealt the full 16 against the same enemy with the same stats,
+so it is **not a function of (moves, stats) alone**. Tested and rejected:
+
+- *block halves damage landing on armor* — rejected by 030→031, where our
+  Shield's 6 ATK landed in full on armor 7 → 1.
+- *a flat reduction* — rejected; every other enemy-65 exchange takes full ATK.
+- *damage to a target at full armor is halved* — fits both samples and is not
+  rejected by any enemy-65 row, but enemy 63 at full armor took full damage, so
+  it would have to be conditional on `block > 0`. One positive sample. Not
+  modellable.
+
+**The player-side miss (037→038) is perfectly confounded.** The player took 0
+from a 10-ATK tie. Either `evasion 1` dodged, **or a side that dies on an
+exchange deals no damage** — and 037→038 is the only exchange in the entire
+corpus where a side died on a *tie*. Every other recorded kill is an outright
+win, where the loser already deals nothing. The second reading needs no new
+mechanic at all.
+
+### 4f. Burn — a strong hypothesis, held behind a flag **[2026-08-15]**
+
+Burn deals a **flat 3 damage per exchange**, applied after the exchange's own
+damage, and its `amount` does not decrement over three consecutive exchanges:
+
+```
+045->046  rock/scissor   predicted enemy HP 28, actual 25          (+3)
+046->047  paper/paper    predicted 25/2, actual 24/0  -> 9 = 6+3   (+3)
+047->048  paper/paper    predicted 24/2, actual 23/0  -> 9 = 6+3   (+3)
+```
+
+`statusEffects` reads `[{Burn, amount: 3}]`, and Burn first appears immediately
+after the player's first Sword win of that battle — which is what `AddBurnSword`
+should do. Fits 3/3.
+
+It stays **default-off** (`BURN_PER_EXCHANGE` in `src/sim/boons.ts`) because the
+boon's `selectedVal1`, the status `amount` and the damage are all the number 3,
+from a single status instance at a single value, so "ticks for `amount`", "ticks
+for 3" and "ticks for the boon's val1" are the same observation — and it is
+never seen expiring, so the duration is unknown. Same treatment as
+`chargesAreHardLimit`: implemented, flagged, defaulted to the side that refuses
+to score rather than the side that guesses. Turning it on buys nothing today,
+since the only enemy ever seen burning is in room 4, which is unscorable for
+`ENEMY_BUFF` regardless.
+
+**Also worth recording: `shatterblade` fired twice and did nothing observable.**
+The run-level `activeEnemyBuff` ("Applies 1 Vulnerable on Sword wins") was live
+from state-029 on. The enemy won with Sword at 042→043 and 043→044; the player's
+`statusEffects` stayed `[]` both times and the player took exactly the predicted
+damage. `ENEMY_BUFF` stays as a reason code — n = 2 settles nothing — but 2
+opportunities with 0 observed effects is worth knowing.
 
 ---
 

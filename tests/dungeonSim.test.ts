@@ -45,10 +45,40 @@ describe("fail-closed accounting", () => {
   });
 
   it("marks every run that clears a room as unscorable", () => {
+    // [session 05] This used to assert the blanket `BOON_TAKEN`. Task 4.5
+    // replaced that with per-boon reasons, so the assertion is restated at the
+    // level of the claim it was actually protecting — clearing a room ends the
+    // clean stretch — rather than at the level of the code that implemented it.
+    //
+    // It STILL holds after boons are modelled, and that is the headline finding
+    // of Task 4.5, not an artefact: every boon the corpus ever offered at
+    // room 1 either has no observed effect (BOON_UNMODELLED) or grants a rolled
+    // stat whose effect on damage is unexplained (ROLLED_STATS). There is no
+    // clean choice to make. See handoff/scratch-session-05.md, Wall 1.
     for (let seed = 1; seed <= 200; seed++) {
       const r = simulateRun({ ...base, policy: randomPolicy, seed });
-      if (r.roomsCleared > 0) expect(r.reasons).toContain("BOON_TAKEN");
+      if (r.roomsCleared > 0) {
+        expect(r.reasons.length, `seed ${seed} cleared a room but scored clean`).toBeGreaterThan(0);
+        expect(r.boons.length).toBeGreaterThan(0);
+      }
     }
+  });
+
+  it("flags every ROOM-1 boon, which is what keeps deepestScorableRoom at 1", () => {
+    // Deliberately scoped to room 1. An earlier draft asserted this for EVERY
+    // boon and failed on Heal at room 2 — correctly, because Heal really is
+    // clean. That is the boon model working, not a hole in it: the wall is that
+    // no *room-1* offer ever contains a boon like Heal, so the run is already
+    // unscorable by the time a clean one is on the table.
+    let seenRoomOne = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const r = simulateRun({ ...base, policy: randomPolicy, seed });
+      for (const b of r.boons.filter((x) => x.room === 1)) {
+        seenRoomOne++;
+        expect(b.reasons.length, `${b.type} at room 1 came back clean`).toBeGreaterThan(0);
+      }
+    }
+    expect(seenRoomOne, "no run ever cleared room 1").toBeGreaterThan(0);
   });
 
   it("marks a run that runs past the corpus DEPTH_BEYOND_CORPUS rather than extrapolating", () => {

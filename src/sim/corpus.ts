@@ -11,7 +11,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { probeCombatant, probeRun, type CoverageProbe, type Reason } from "./coverage.js";
-import { MOVES, type Combatant, type MoveKey } from "./types.js";
+import { MOVES, ROLLED, type Combatant, type MoveKey } from "./types.js";
 
 export const CORPUS_DIR = "fixtures/dungeon-runs";
 
@@ -41,6 +41,22 @@ export interface WireSide extends CoverageProbe {
   lastMove: string;
   thisPlayerWin: boolean;
   otherPlayerWin: boolean;
+  pickedBoons?: WireBoon[];
+}
+
+/** One entry of `rewardPathOptions[]`. Only the fields the sim reads. */
+export interface WireBoon {
+  boonTypeString: string;
+  /** The APPLIED value, already multiplied by `basicBoonMultiplier`. */
+  selectedVal1: number;
+  selectedVal2: number;
+  val1Min?: number;
+  val1Max?: number;
+}
+
+export interface WireRewardOption {
+  index: number;
+  boon: WireBoon;
 }
 
 export interface WireRun {
@@ -50,6 +66,7 @@ export interface WireRun {
   enemyStartingBuff?: unknown;
   perpetualBuffs?: unknown[];
   rewardPathPhase?: boolean;
+  rewardPathOptions?: WireRewardOption[];
   enemyPathPhase?: boolean;
   lootPhase?: boolean;
 }
@@ -206,6 +223,64 @@ export function exchanges(runs: CorpusRun[]): Exchange[] {
   return out;
 }
 
+export interface BoonPickup {
+  run: string;
+  label: string;
+  before: CorpusState;
+  after: CorpusState;
+  /** The options that were on the table, from `before`. */
+  offered: WireBoon[];
+  /** The one that got added to `pickedBoons` — the last entry in `after`. */
+  picked: WireBoon;
+  /** 1-based room the offer was made in, i.e. the room just cleared. */
+  room: number;
+}
+
+/**
+ * Consecutive state pairs that bracket a boon pickup: a `rewardPathPhase` state
+ * followed by one where `pickedBoons` has grown by exactly one.
+ *
+ * The same DUNGEON_ID_CID split as `exchanges()` applies. The "grown by exactly
+ * one" condition is what makes each pair attributable — if a pair ever adds two
+ * boons at once, the delta cannot be assigned and this refuses to return it
+ * rather than splitting the difference.
+ *
+ * `room` is derived from the enemy present in `before`, via its position in
+ * ROOM_ENEMIES — the enemy has not been swapped out yet during the reward
+ * phase, so the offer belongs to the room just cleared.
+ */
+export function boonPickups(runs: CorpusRun[], roomOf: (enemyId: string) => number): BoonPickup[] {
+  const out: BoonPickup[] = [];
+
+  for (const { name, states } of runs) {
+    for (let i = 1; i < states.length; i++) {
+      const before = states[i - 1]!;
+      const after = states[i]!;
+      if (before.run.DUNGEON_ID_CID !== after.run.DUNGEON_ID_CID) continue;
+      if (before.run.rewardPathPhase !== true) continue;
+
+      const bBoons = before.run.players[0]?.pickedBoons ?? [];
+      const aBoons = after.run.players[0]?.pickedBoons ?? [];
+      if (aBoons.length !== bBoons.length + 1) continue;
+
+      const picked = aBoons[aBoons.length - 1]!;
+      const room = roomOf(before.run.players[1]!.id);
+      if (room <= 0) continue;
+
+      out.push({
+        run: name,
+        label: `${before.label.split("/").pop()}→${after.label.split("/").pop()}`,
+        before,
+        after,
+        offered: (before.run.rewardPathOptions ?? []).map((o) => o.boon),
+        picked,
+        room,
+      });
+    }
+  }
+  return out;
+}
+
 function toMoves(s: WireSide): Combatant["moves"] {
   const one = (w: WireMove) => ({
     atk: w.currentATK,
@@ -224,5 +299,11 @@ export function toCombatant(s: WireSide): Combatant {
     armor: s.shield.current,
     armorMax: s.shield.currentMax,
     moves: toMoves(s),
+    // Always `.current`. `.starting` is 0 even when `current` is 2 (enemy 65),
+    // so a reader written against `starting` reports a clean corpus and is
+    // wrong — the same trap `probeCombatant` documents.
+    rolled: Object.fromEntries(
+      ROLLED.map((k) => [k, (s as unknown as Record<string, { current?: number }>)[k]?.current ?? 0]),
+    ) as Combatant["rolled"],
   };
 }

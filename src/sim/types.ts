@@ -25,6 +25,31 @@ export interface MoveState {
   maxCharges: number;
 }
 
+/**
+ * The rolled stats, as named on the wire. Read from `.current`, never
+ * `.starting` — `starting` stays 0 even when `current` is 2 (enemy 65).
+ *
+ * `src/sim/combat.ts` does not read these AT ALL, and that is the point: their
+ * effect on damage is unexplained, so any non-zero value makes the surrounding
+ * unit UNSCORABLE rather than being quietly approximated. They live on the
+ * Combatant so that a boon which grants one produces a real state change we can
+ * see, instead of a delta applied to nothing.
+ */
+export const ROLLED = ["evasion", "block", "lck", "tenacity", "intuition"] as const;
+export type RolledStat = (typeof ROLLED)[number];
+
+export type RolledStats = Record<RolledStat, number>;
+
+export const noRolled = (): RolledStats => ({
+  evasion: 0,
+  block: 0,
+  lck: 0,
+  tenacity: 0,
+  intuition: 0,
+});
+
+export const anyRolled = (r: RolledStats): boolean => ROLLED.some((s) => r[s] !== 0);
+
 export interface Combatant {
   id: string;
   hp: number;
@@ -32,6 +57,7 @@ export interface Combatant {
   armor: number;
   armorMax: number;
   moves: Record<MoveKey, MoveState>;
+  rolled: RolledStats;
 }
 
 export interface BattleState {
@@ -57,5 +83,6 @@ export function cloneCombatant(c: Combatant): Combatant {
       paper: { ...c.moves.paper },
       scissor: { ...c.moves.scissor },
     },
+    rolled: { ...c.rolled },
   };
 }

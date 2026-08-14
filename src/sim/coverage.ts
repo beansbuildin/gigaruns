@@ -13,8 +13,29 @@
  */
 
 export const REASONS = [
-  /** `pickedBoons` non-empty — boon effects on stats are not modelled. */
+  /**
+   * `pickedBoons` non-empty on a RECORDED state. Used when replaying the
+   * corpus, where we read a state that already has boons applied and cannot
+   * re-derive which of them moved which number.
+   *
+   * The SIM does not use this. It applies boons itself via `src/sim/boons.ts`
+   * and reports the precise consequence instead — `BOON_UNMODELLED` for a type
+   * with no observed before/after pair, or the specific mechanic a modelled
+   * boon drags in (`ROLLED_STATS`, `STATUS_EFFECT`). [session 05]
+   */
   "BOON_TAKEN",
+  /**
+   * A boon type with no before/after pair in the corpus was offered and taken.
+   * Its effect is NOT inferred from its name or its option text (brief §3).
+   */
+  "BOON_UNMODELLED",
+  /**
+   * A room was cleared at a depth where the corpus records no reward offer, so
+   * we do not know what would have been on the table. Distinct from
+   * `BOON_UNMODELLED`: there we know the boon and not its effect; here we do
+   * not know the choice set at all.
+   */
+  "BOON_OFFER_UNKNOWN",
   /** `statusEffects` non-empty (e.g. Burn). Tick rate unknown. */
   "STATUS_EFFECT",
   /** evasion/block/lck/tenacity non-zero. Their damage effect is unexplained. */
@@ -37,7 +58,9 @@ export const REASONS = [
 export type Reason = (typeof REASONS)[number];
 
 export const REASON_DETAIL: Record<Reason, string> = {
-  BOON_TAKEN: "boon effects on stats are not modelled",
+  BOON_TAKEN: "recorded state already carries boons; per-boon effects not re-derivable",
+  BOON_UNMODELLED: "boon type has no before/after pair in the corpus; effect not inferred from its name",
+  BOON_OFFER_UNKNOWN: "room cleared at a depth where no reward offer was ever recorded",
   STATUS_EFFECT: "Burn tick rate and its armor-regen interaction are unknown",
   ROLLED_STATS: "evasion/block/lck/tenacity affect damage by an unexplained rule",
   ENEMY_BUFF: "run-level enemy buff applies statuses we do not model",

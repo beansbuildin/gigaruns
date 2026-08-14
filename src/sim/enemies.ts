@@ -12,7 +12,7 @@
  */
 
 import type { Reason } from "./coverage.js";
-import type { Combatant } from "./types.js";
+import { noRolled, type Combatant, type RolledStats } from "./types.js";
 
 const mv = (atk: number, def: number, maxCharges = 3) => ({
   atk,
@@ -20,6 +20,9 @@ const mv = (atk: number, def: number, maxCharges = 3) => ({
   charges: maxCharges,
   maxCharges,
 });
+
+/** Rolled stats read from `.current`. `.starting` is 0 even when current is 2. */
+const rolled = (r: Partial<RolledStats> = {}): RolledStats => ({ ...noRolled(), ...r });
 
 /**
  * The user's loadout as recorded. HP/armor maxima sit above the base 30/12
@@ -36,6 +39,9 @@ export const PLAYER: Combatant = {
     paper: mv(6, 12), // Shield
     scissor: mv(12, 8), // Spell
   },
+  // The player starts every run with all rolled stats at zero; the only way
+  // they become non-zero is a boon (src/sim/boons.ts).
+  rolled: rolled(),
 };
 
 export interface EnemyProfile {
@@ -61,6 +67,7 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 12,
       armorMax: 12,
       moves: { rock: mv(12, 6), paper: mv(8, 2), scissor: mv(16, 4) },
+      rolled: rolled(),
     },
   },
   {
@@ -73,6 +80,7 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 14,
       armorMax: 14,
       moves: { rock: mv(14, 7), paper: mv(10, 4), scissor: mv(8, 3) },
+      rolled: rolled(),
     },
   },
   {
@@ -88,6 +96,9 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 15,
       armorMax: 15,
       moves: { rock: mv(10, 5), paper: mv(15, 6), scissor: mv(12, 4) },
+      // Innate, not boon-granted — which is why room 3 is unscorable no matter
+      // how well boons are modelled. [session 05]
+      rolled: rolled({ evasion: 2, block: 2, lck: 1 }),
     },
   },
   {
@@ -102,6 +113,7 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 16,
       armorMax: 16,
       moves: { rock: mv(16, 4), paper: mv(8, 8), scissor: mv(14, 4) },
+      rolled: rolled(),
     },
   },
 ];

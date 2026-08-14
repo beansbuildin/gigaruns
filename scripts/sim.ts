@@ -10,6 +10,7 @@
  *   npx tsx scripts/sim.ts [runs=1000]
  */
 
+import { BOON_MODELS, offersForRoom, UNMODELLED_TYPES } from "../src/sim/boons.js";
 import {
   fixedPolicy,
   formatSummary,
@@ -17,6 +18,7 @@ import {
   simulate,
   type Policy,
 } from "../src/sim/dungeonSim.js";
+import { ROOM_ENEMIES } from "../src/sim/enemies.js";
 import { replayCorpus } from "../src/sim/replay.js";
 
 const RUNS = Number(process.argv[2] ?? 1000);
@@ -61,6 +63,78 @@ for (const policy of policies) {
   );
   console.log(`\n${formatSummary(summary, { policy: policy.name, opponent: "random" })}`);
 }
+
+// ── 2b. TASK 4.5 GATE — how deep can the sim score now boons are modelled ──
+console.log(rule("TASK 4.5 — boon model, and the ceiling it runs into"));
+
+const gate = simulate(RUNS, { policy: randomPolicy, opponent: randomPolicy, chargesAreHardLimit: true }, 1);
+
+console.log(`
+  boon types with a before/after pair in the corpus: ${Object.keys(BOON_MODELS).length}`);
+for (const [type, m] of Object.entries(BOON_MODELS)) {
+  const tag = m.contaminates.length ? `drags in ${m.contaminates.join("+")}` : "CLEAN";
+  console.log(`    ${type.padEnd(15)} ${m.observed.padEnd(46)} ${tag}`);
+}
+console.log(`
+  offered but never shown to do anything (no pair, not inferred from the name):
+    ${UNMODELLED_TYPES.join(", ")}`);
+
+console.log(`
+  DEEPEST SCORABLE ROOM: ${gate.deepestScorableRoom}   (gate asked for >= 4)`);
+
+// The ceiling is a property of the ENEMIES, not of the boon model. Compute it
+// from the profiles rather than asserting it, so it updates itself when the
+// corpus grows.
+const firstDirtyRoom = ROOM_ENEMIES.find((p) => p.unmodelled.length > 0)?.room ?? Infinity;
+console.log(`
+  Why. Three independent walls, any one of which alone holds the number down:
+
+  1. NO CLEAN ROOM-1 BOON. Both recorded room-1 offers are one rolled-stat boon
+     we can model at pickup but whose effect on damage is unexplained, plus two
+     types with no pair at all. 6 of 6 room-1 options are unscorable, so the run
+     is contaminated before room 2 begins. Heal — the one clean boon in the
+     corpus — is only ever offered at room 2, by which point it is too late.
+
+  2. ROOMS ${firstDirtyRoom}+ ARE UNSCORABLE FOR REASONS BOONS HAVE NOTHING TO DO WITH.
+     Enemy 65 carries evasion2/block2/lck1 innately; enemy 66 carries Burn and
+     the run carries shatterblade. So a PERFECT boon model caps this number at
+     ${firstDirtyRoom - 1}. The gate value of 4 was never reachable from this corpus — that
+     is a fact about the enemies, and no amount of boon work changes it.
+
+  3. NO GROUNDED OFFER DISTRIBUTION. Four offer triples exist (two at room 1,
+     one each at rooms 2 and 3). Synthesising more would be inventing the single
+     thing that decides how a run develops, off a sample of four.`);
+
+// A counterfactual, kept strictly separate from every reported number. It
+// answers an engineering question the walls above obscure: is the boon
+// PLUMBING correct, and where exactly does the ceiling bite?
+console.log(`
+  ─── HYPOTHETICAL — NOT A RESULT ───────────────────────────────────────────
+  The room-1 offer below did not happen. Substituting Heal (the one boon that
+  is both modelled and clean) into room 1 isolates whether the boon machinery
+  actually raises the number when a clean choice exists:`);
+
+const hypothetical = simulate(
+  RUNS,
+  {
+    policy: randomPolicy,
+    opponent: randomPolicy,
+    chargesAreHardLimit: true,
+    offers: (room) =>
+      room === 1
+        ? [{ room: 1, source: "HYPOTHETICAL — not recorded", options: [{ type: "Heal", val1: 16, val2: 0 }] }]
+        : offersForRoom(room),
+  },
+  1,
+);
+console.log(`
+    deepest scorable room under the hypothetical: ${hypothetical.deepestScorableRoom}
+    battles scored: ${hypothetical.battleCoverage.scored}/${hypothetical.battleCoverage.total}
+
+  So the plumbing works — a clean room-1 boon does move the number, to ${hypothetical.deepestScorableRoom}, and
+  then stops dead at wall 2. This is the strongest evidence that the remaining
+  blocker is CAPTURE (rolled-stat semantics and a clean room-1 offer), not code.
+  ───────────────────────────────────────────────────────────────────────────`);
 
 // ── 3. the §1 threshold case, stated as a number ──────────────────────────
 //

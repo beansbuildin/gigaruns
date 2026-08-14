@@ -37,34 +37,71 @@ Please do this before Task 5 if convenient; §4a's EV engine is built on it.
 `enemyPathOptions[].lootTable`. See SPEC §3d. What remains open is the tier
 choice — question 5.
 
-## 5. The coverage wall: everything past room 1 is unscorable
+## 5. The coverage wall — boons are now modelled, and the wall did not move
 
-**This is now the project's main constraint, and it is a capture problem, not a
-code problem.** The sim refuses to score any unit touching a mechanic we cannot
-model, and the corpus contamination is not gradual — it is a wall:
+**Updated 2026-08-15 (Task 4.5).** Item 1 below is **done**: boons are modelled
+as verified state deltas (`src/sim/boons.ts`, SPEC §4d). It did not raise
+`deepestScorableRoom`, which is still **1**. That is the finding, not a failure
+of the attempt — and it changes what to ask for next.
 
-```
-room 1                    clean in every capture
-first rewardPathPhase  →  boons, rolled enemy stats, status effects, enemy buffs
-```
+Why it didn't move:
 
-Clearing a room means taking a boon, so **a scored run is by construction one
-that died in room 1**, and `deepestScorableRoom` is 1. Task 5's strategy work
-can only be validated on room-1 battles until this moves.
+1. **No clean room-1 boon exists.** Both recorded room-1 offers are
+   `AddLuck | CorrosiveShield | UpgradePaper` and
+   `AddEvasion | AddTenacity | AddBlock`. All six are either unmodelled or grant
+   a rolled stat whose damage effect is unexplained. `Heal` is the only clean
+   boon in the corpus and it is only ever offered at **room 2**.
+2. **Enemies 65 and 66 are unscorable innately** — nothing to do with boons. So
+   a perfect boon model caps `deepestScorableRoom` at **2**.
 
-Three things would each raise coverage by a whole room, in order of value per
-energy spent:
+The remaining work is capture. Three specific asks, in order of value per energy
+spent. **All three fit inside a single watched run** (`scripts/watch.ts` already
+records every state; none of these needs new tooling):
 
-1. **Boon stat effects.** After taking a boon, diff the player's move ATK/DEF
-   and HP/armor maxima against the state before it. `pickedBoons` carries the
-   full boon object with `selectedVal1`/`selectedVal2`, so if the deltas match
-   the selected values, boons stop being unmodelled and rooms 2+ open up. This
-   is the single highest-value capture available and it needs no new tooling —
-   `scripts/watch.ts` already records every state.
-2. **Rolled enemy stats.** The enemy-65 half-damage case (8 from a 16-ATK Sword
-   win, `block 2 / evasion 2`) is still one sample. Needs several exchanges
-   against an enemy with known non-zero rolled stats.
-3. **Burn's tick rate** and its interaction with armor regen. Also one sample.
+### 5a. Rolled-stat semantics — the highest-value capture
+
+This is now the top blocker, ahead of everything else: it gates both the room-1
+boons (`AddLuck`, `AddEvasion`) *and* enemy 65.
+
+**What we have.** Counted in damage-taking opportunities: player `evasion 1`
+8/9 exact, player `lck 1` 2/2, enemy `ev2+bl2+lk1` 6/7. The enemy-65 anomaly is
+a Sword win that dealt exactly **8** of 16 — while the *same matchup against the
+same enemy* dealt the full 16 elsewhere, so it is not a function of moves and
+stats alone. SPEC §4e lists the hypotheses already tested and rejected.
+
+**What would settle it.** ~30 exchanges where a side carries non-zero rolled
+stats and actually takes damage. Concretely: take `AddEvasion` or `AddLuck`
+early and play a long run, and/or fight enemy 65 through several Sword wins **at
+full enemy armor** (the anomaly's one distinguishing feature).
+
+### 5b. A clean room-1 boon offer
+
+Even one recorded room-1 offer containing `Heal` — or any boon whose delta we
+can verify and which grants no rolled stat — opens room 2 immediately. This is
+pure luck of the draw, so it comes free with any watched run: just record what
+gets offered at room 1 each time.
+
+### 5c. One die-on-a-tie exchange
+
+Cheap, and it resolves a confound that currently taints the only player-side
+replay miss. At 037→038 the player took **0** from a 10-ATK tie. Either
+`evasion 1` dodged, **or a side that dies on an exchange deals no damage** — and
+that is the only exchange in the whole corpus where a side died on a *tie*, so
+the two are indistinguishable. The second explanation needs no new mechanic and
+would be a plain addition to the combat model.
+
+**Capture:** finish any enemy off with a **tie** (mirror its move) rather than
+an outright win, while the player is on non-zero armor, and record whether the
+player takes damage.
+
+### 5d. Burn — nearly closed, low priority
+
+`amount` 3, flat 3 damage per exchange, non-decrementing over 3 exchanges
+(SPEC §4f). Implemented behind a default-off flag. It stays off because the
+boon val, the status amount and the damage are all `3`, and it is never seen
+expiring. **Deliberately low priority:** the only burning enemy is in room 4,
+which is unscorable for `ENEMY_BUFF` regardless, so resolving Burn alone buys no
+coverage. Worth doing only once 5a lands.
 
 ## 6. `enemyPathOptions` tier choice — still unspecified
 

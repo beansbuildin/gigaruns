@@ -11,21 +11,31 @@
  * must state the coverage next to it.
  */
 
+import { applyBoon, offersForRoom, type BoonOffer, type BoonOption } from "./boons.js";
 import { legalMoves, resolveExchange, enterRoom } from "./combat.js";
 import { CoverageReport, type Reason } from "./coverage.js";
 import { MAX_OBSERVED_ROOM, PLAYER, ROOM_ENEMIES } from "./enemies.js";
 import { makeRng, type Rng } from "./rng.js";
-import { cloneCombatant, isDead, MOVES, type BattleState, type MoveKey } from "./types.js";
+import { anyRolled, cloneCombatant, isDead, MOVES, type BattleState, type Combatant, type MoveKey } from "./types.js";
 
-/** A move chooser. Strategy modules plug in here; none may touch the network. */
+/**
+ * A move chooser, and — since Task 4.5 — a boon chooser.
+ *
+ * Strategy modules plug in here; none may touch the network. `pickBoon` is
+ * optional so the Task 4 baselines keep working unchanged; the default takes
+ * the first option, which is a real choice rather than a random one and keeps
+ * the baselines deterministic.
+ */
 export interface Policy {
   name: string;
   pick(state: BattleState, legal: MoveKey[], rng: Rng): MoveKey;
+  pickBoon?(player: Combatant, offered: BoonOption[], room: number, rng: Rng): BoonOption;
 }
 
 export const randomPolicy: Policy = {
   name: "random",
   pick: (_s, legal, rng) => rng.pick(legal),
+  pickBoon: (_p, offered, _room, rng) => rng.pick(offered),
 };
 
 export const fixedPolicy = (move: MoveKey): Policy => ({
@@ -58,6 +68,17 @@ export interface SimOptions {
    * is a real outcome, not a hang.
    */
   maxExchangesPerBattle?: number;
+  /**
+   * Override the reward offers for a room. Defaults to `offersForRoom`, i.e.
+   * only what the corpus recorded.
+   *
+   * This exists for ONE purpose: the counterfactual in `scripts/sim.ts` that
+   * asks "if a clean boon were ever offered at room 1, how deep could the sim
+   * then score?" — which separates "is the boon model correct" from "does the
+   * corpus offer a clean boon". Anything it produces is a HYPOTHETICAL and must
+   * be labelled as one. Never use it to generate a reported result.
+   */
+  offers?: (room: number) => BoonOffer[];
 }
 
 export type RunOutcome = "cleared" | "died" | "stalled" | "halted";
@@ -73,12 +94,20 @@ export interface BattleRecord {
   armorAfter: number;
 }
 
+export interface BoonRecord {
+  room: number;
+  type: string;
+  /** Empty means the boon is modelled AND drags nothing unmodelled in. */
+  reasons: Reason[];
+}
+
 export interface RunResult {
   outcome: RunOutcome;
   roomsCleared: number;
   exchanges: number;
   hp: number;
   battles: BattleRecord[];
+  boons: BoonRecord[];
   /** Empty means the whole run is inside the clean model. */
   reasons: Reason[];
 }
@@ -143,6 +172,7 @@ export function simulateRun(opts: SimOptions): RunResult {
   let roomsCleared = 0;
   let exchanges = 0;
   let outcome: RunOutcome = "cleared";
+  const boons: BoonRecord[] = [];
 
   for (let room = opts.startRoom ?? 1; room <= maxRooms; room++) {
     const profile = ROOM_ENEMIES[room - 1];
@@ -188,11 +218,34 @@ export function simulateRun(opts: SimOptions): RunResult {
 
     roomsCleared++;
 
-    // A cleared room fires `rewardPathPhase` and the player takes a boon. Boon
-    // effects on stats are not modelled, so everything from here on is outside
-    // the clean model. This is the hard wall in the corpus: room 1 is clean in
-    // every capture, and every contaminant enters at the first reward phase.
-    if (room < maxRooms) runReasons.add("BOON_TAKEN");
+    // A cleared room fires `rewardPathPhase` and the player MUST take a boon —
+    // there is no decline option in any recorded offer. [Task 4.5]
+    //
+    // Boons are now applied as real state deltas (src/sim/boons.ts) rather than
+    // blanket-flagged, but that does NOT make them free: a boon can be modelled
+    // exactly at pickup and still drag in a mechanic combat.ts cannot evaluate.
+    // Both rolled-stat boons do precisely that, which is why this still ends
+    // the clean stretch of nearly every run.
+    if (room < maxRooms) {
+      const offers = (opts.offers ?? offersForRoom)(room);
+      if (offers.length === 0) {
+        // We know the room was cleared and we do not know what was offered.
+        // Skipping the boon entirely would model a run that cannot happen.
+        runReasons.add("BOON_OFFER_UNKNOWN");
+        continue;
+      }
+      const offer = rng.pick(offers);
+      const chosen = opts.policy.pickBoon
+        ? opts.policy.pickBoon(player, offer.options, room, rng)
+        : offer.options[0]!;
+      const applied = applyBoon(player, chosen);
+      player = applied.player;
+      boons.push({ room, type: chosen.type, reasons: applied.reasons });
+      for (const r of applied.reasons) runReasons.add(r);
+      // A boon that granted a rolled stat leaves the player permanently outside
+      // the clean model, so assert it rather than trusting the reason list.
+      if (anyRolled(player.rolled)) runReasons.add("ROLLED_STATS");
+    }
   }
 
   return {
@@ -201,6 +254,7 @@ export function simulateRun(opts: SimOptions): RunResult {
     exchanges,
     hp: player.hp,
     battles,
+    boons,
     reasons: [...runReasons],
   };
 }
@@ -220,22 +274,35 @@ export interface SimSummary {
   deepestScorableRoom: number;
   outcomes: Record<RunOutcome, number>;
   meanRoomsCleared: number;
+  /** Coverage over boon pickups — how often a taken boon kept the run clean. */
+  boonCoverage: CoverageReport;
+  /** Every boon type actually taken, and whether it cost coverage. */
+  boonsTaken: Map<string, { n: number; clean: number }>;
+  /**
+   * Mean rooms cleared with a 95% CI half-width, for the restated Task 5 gate.
+   * Normal approximation over `runs` independent runs.
+   */
+  roomsClearedCi95: number;
 }
 
 export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1): SimSummary {
   const runCoverage = new CoverageReport();
   const battleCoverage = new CoverageReport();
+  const boonCoverage = new CoverageReport();
+  const boonsTaken = new Map<string, { n: number; clean: number }>();
   const outcomes: Record<RunOutcome, number> = { cleared: 0, died: 0, stalled: 0, halted: 0 };
 
   let scoredWins = 0;
   let scoredBattlesWon = 0;
   let deepestScorableRoom = 0;
   let totalRooms = 0;
+  let sumSqRooms = 0;
 
   for (let i = 0; i < runs; i++) {
     const r = simulateRun({ ...opts, seed: seed + i });
     outcomes[r.outcome]++;
     totalRooms += r.roomsCleared;
+    sumSqRooms += r.roomsCleared * r.roomsCleared;
 
     runCoverage.record(r.reasons);
     if (r.reasons.length === 0 && r.outcome === "cleared") scoredWins++;
@@ -247,7 +314,21 @@ export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1)
         deepestScorableRoom = Math.max(deepestScorableRoom, b.room);
       }
     }
+
+    for (const b of r.boons) {
+      boonCoverage.record(b.reasons);
+      const t = boonsTaken.get(b.type) ?? { n: 0, clean: 0 };
+      t.n++;
+      if (b.reasons.length === 0) t.clean++;
+      boonsTaken.set(b.type, t);
+    }
   }
+
+  const mean = runs === 0 ? 0 : totalRooms / runs;
+  // Sample variance, then the 95% half-width of the mean. Reported so the
+  // Task 5 gate can be a confidence interval rather than a number I picked.
+  const variance = runs < 2 ? 0 : Math.max(0, sumSqRooms / runs - mean * mean) * (runs / (runs - 1));
+  const roomsClearedCi95 = runs < 2 ? 0 : 1.96 * Math.sqrt(variance / runs);
 
   return {
     runs,
@@ -259,7 +340,10 @@ export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1)
     scoredBattlesWon,
     deepestScorableRoom,
     outcomes,
-    meanRoomsCleared: runs === 0 ? 0 : totalRooms / runs,
+    meanRoomsCleared: mean,
+    boonCoverage,
+    boonsTaken,
+    roomsClearedCi95,
   };
 }
 
@@ -295,12 +379,27 @@ export function formatSummary(s: SimSummary, opts: { policy: string; opponent: s
   );
   lines.push(`  deepest scorable room:      ${s.deepestScorableRoom}`);
   lines.push("");
+  lines.push("BOONS TAKEN");
+  if (s.boonCoverage.total === 0) {
+    lines.push("  none — no run cleared a room");
+  } else {
+    lines.push(`  ${s.boonCoverage.format("pickups").split("\n").join("\n  ")}`);
+    for (const [type, t] of [...s.boonsTaken].sort((a, b) => b[1].n - a[1].n)) {
+      lines.push(
+        `    ${type.padEnd(20)} taken ${String(t.n).padStart(5)}` +
+          `   kept the run clean: ${t.clean}`,
+      );
+    }
+  }
+  lines.push("");
   lines.push("ALL RUNS (including unscorable — for shape only, not for claims)");
   lines.push(
     `  cleared ${s.outcomes.cleared}  died ${s.outcomes.died}` +
       `  stalled ${s.outcomes.stalled}  halted ${s.outcomes.halted}`,
   );
-  lines.push(`  mean rooms cleared: ${s.meanRoomsCleared.toFixed(2)}`);
+  lines.push(
+    `  mean rooms cleared: ${s.meanRoomsCleared.toFixed(3)} ± ${s.roomsClearedCi95.toFixed(3)} (95% CI)`,
+  );
   return lines.join("\n");
 }
 
