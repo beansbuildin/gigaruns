@@ -249,7 +249,11 @@ describe("runOnce — dry run", () => {
     const p = runOnce(deps);
     await vi.runAllTimersAsync();
     await p;
-    expect(getCalls).toBe(1);
+    // 2, not 1: one to check whether a run is already active (before deciding
+    // whether to start_run — session 08 stage 3 found the server rejects a
+    // second start_run on top of an existing run), one to read it for the
+    // decision.
+    expect(getCalls).toBe(2);
   });
 });
 
@@ -259,7 +263,35 @@ describe("runOnce — stage 2 (single POST then halt)", () => {
     vi.stubGlobal(
       "fetch",
       mockFetch((url, init) => {
-        calls.push({ url, method: init?.method ?? "GET", body: init?.body as string | undefined });
+        const method = init?.method ?? "GET";
+        calls.push({ url, method, body: init?.body as string | undefined });
+        // The pre-check GET must see "no active run" or runOnce correctly
+        // skips start_run and resumes instead (see the test below) — this
+        // test wants the start_run path, so the GET has to come back idle.
+        if (method === "GET") {
+          return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        }
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(calls).toHaveLength(2); // 1 GET (pre-check) + 1 POST (start_run)
+    const post = calls.find((c) => c.method === "POST")!;
+    const sentBody = JSON.parse(post.body!);
+    expect(sentBody.action).toBe("start_run");
+    expect(deps.guards.runCount).toBe(1);
+  });
+
+  it("skips start_run and returns cleanly if a run is already active — no duplicate-start POST", async () => {
+    const calls: { url: string; method: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        calls.push({ url, method: init?.method ?? "GET" });
         return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
       }),
     );
@@ -269,10 +301,8 @@ describe("runOnce — stage 2 (single POST then halt)", () => {
     await p;
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.method).toBe("POST");
-    const sentBody = JSON.parse(calls[0]!.body!);
-    expect(sentBody.action).toBe("start_run");
-    expect(deps.guards.runCount).toBe(1);
+    expect(calls[0]!.method).toBe("GET");
+    expect(deps.guards.runCount).toBe(0); // no start_run was sent, so no run was "started" by this call
   });
 });
 

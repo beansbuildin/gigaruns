@@ -240,13 +240,36 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
 
   guards.assertCanStartRun(config.energyCostPerRun);
 
-  if (dryRun) {
+  // Check BEFORE deciding to start_run — CLAUDE.md §1, don't assume. A prior
+  // stage (or a prior crashed process) can leave a run active; sending
+  // start_run on top of one is rejected by the server (HTTP 400, "Error
+  // starting dungeon" — confirmed live, session 08 stage 3's first attempt)
+  // rather than silently resetting or stacking runs.
+  const existing = await client.getDungeonState();
+
+  if (existing) {
+    const room = existing.data.entity?.ROOM_NUM_CID ?? "?";
+    console.log(`  · active run already exists at room ${room} — resuming rather than starting a new one`);
+    log.write({ event: "resuming_existing_run", room });
+    if (opts.stage2Only) {
+      console.log(`  ▸ stage 2 has nothing to send (a run is already active) — halting without a POST.`);
+      return;
+    }
+  } else if (dryRun) {
     log.write({ event: "dry_run_start_run_intended", dungeonId: config.dungeonId });
     console.log(`  [dry-run] would POST start_run (dungeonId ${config.dungeonId})`);
+    console.log(`  · no active run — nothing further to decide against, stopping.`);
+    return;
   } else {
     const body = buildEnvelope("start_run", config.dungeonId, client.getActionToken());
     log.write({ event: "post", body });
-    const resp = await client.postDungeonAction(body);
+    let resp;
+    try {
+      resp = await client.postDungeonAction(body);
+    } catch (e) {
+      if (e instanceof TokenExpiredError) throw e;
+      fail(guards, log, "start_run rejected", { error: (e as Error).message });
+    }
     guards.recordActionResult(true);
     guards.recordRunStarted();
     log.write({ event: "post_response", resp });
@@ -258,9 +281,6 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
     }
   }
 
-  // Dry-run has nothing live to iterate against unless a run happens to be
-  // active already; poll once and, if idle, stop — there is nothing further
-  // to decide against a hypothetical run.
   for (;;) {
     let state: DungeonState | null;
     try {
