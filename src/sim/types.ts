@@ -1,0 +1,61 @@
+/**
+ * src/sim/types.ts — the sim's internal battle representation.
+ *
+ * Deliberately NOT the wire shape. `src/sim/corpus.ts` adapts recorded
+ * `/game/dungeon/state` responses into these types; everything downstream
+ * (combat, coverage, strategy) sees only this. Keeping the two apart is what
+ * lets the combat model be tested without a fixture and the fixtures be
+ * replayed without a network.
+ */
+
+export const MOVES = ["rock", "paper", "scissor"] as const;
+export type MoveKey = (typeof MOVES)[number];
+
+/** In-game names. The API uses rock/paper/scissor; the UI uses these. */
+export const WEAPON: Record<MoveKey, string> = {
+  rock: "Sword",
+  paper: "Shield",
+  scissor: "Spell",
+};
+
+export interface MoveState {
+  atk: number;
+  def: number;
+  charges: number;
+  maxCharges: number;
+}
+
+export interface Combatant {
+  id: string;
+  hp: number;
+  hpMax: number;
+  armor: number;
+  armorMax: number;
+  moves: Record<MoveKey, MoveState>;
+}
+
+export interface BattleState {
+  /** `players[0]` — us. */
+  me: Combatant;
+  /** `players[1]` — the enemy. */
+  foe: Combatant;
+  /** 1-based room number within the run. */
+  room: number;
+}
+
+/** 1 = `a` beats `b`, -1 = `b` beats `a`, 0 = tie. */
+export type Outcome = -1 | 0 | 1;
+
+export const isDead = (c: Combatant): boolean => c.hp <= 0;
+
+/** Structural clone. Every combat function is pure and returns fresh state. */
+export function cloneCombatant(c: Combatant): Combatant {
+  return {
+    ...c,
+    moves: {
+      rock: { ...c.moves.rock },
+      paper: { ...c.moves.paper },
+      scissor: { ...c.moves.scissor },
+    },
+  };
+}

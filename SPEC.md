@@ -303,8 +303,14 @@ sides' `currentCharges`/`maxCharges` are visible every turn. But see the
 
 ### Combat resolution **[CONFIRMED 2026-08-13]**
 
-Verify any change to this section with `npx tsx scripts/verifyCombatModel.ts`,
-which replays it against every recorded exchange. Currently **14/14**.
+Verify any change to this section with `npx vitest run tests/replay.test.ts`,
+which replays it against every recorded exchange through `src/sim/combat.ts` —
+the single implementation everything else uses. `npx tsx scripts/sim.ts` prints
+the same replay with coverage attached. Currently **127/132 side-updates, and
+0 failures inside the clean model**: every one of the 5 mismatches falls on an
+exchange coverage has already marked unscorable. `scripts/verifyCombatModel.ts`
+is the older standalone check and does not apply the phase filter (see the
+charge-recount correction below), so prefer the test.
 
 Per exchange, for each side independently:
 
@@ -343,15 +349,77 @@ DEF) = 8, then −16 (their Spell ATK) = −8 → armor **0**, 8 overflow to HP,
 resource inside a battle, and regenerating it is the whole defensive game.
 `w₃ = 0.3` badly undervalues it — see §4b.
 
-**[CONFIRMED 2026-08-14] Armor refills to `currentMax` at every room
-transition; HP does not.** Observed at all three room boundaries of the deepest
-run. Consequence for §4b: armor is a *per-room* budget that is wasted if unspent,
-while HP is the run-long resource. Spending armor freely late in a room costs
-nothing; spending HP costs the rest of the run.
+**[RETRACTED 2026-08-15 — armor does NOT refill at room transitions.]** Session
+03 recorded "armor refills to `currentMax` at every room transition; HP does
+not", observed at "all three room boundaries of the deepest run". The corpus
+contains **four** room boundaries (pairs where `players[1].id` changes under one
+`DUNGEON_ID_CID`), and three of them crossed with the player already **at the
+armor cap**, where "refilled to max" and "unchanged" are the same observation:
+
+```
+run-23-29-39  009->010  63->64  me ARM  4/15 ->  4/15   <- the only informative one
+run-01-00-08  022->023  63->64  me ARM 15/15 -> 15/15
+run-01-00-08  028->029  64->65  me ARM 15/15 -> 15/15
+run-01-00-08  039->040  65->66  me ARM 15/15 -> 15/15
+```
+
+The one boundary that carries information crossed at **4/15 and stayed at
+4/15**. HP, armor and charges all persist across a room transition unchanged.
+What refills is the **enemy**, because the transition swaps in a new entity at
+full pools (`HP 40/40 ARM 16/16`) — session 03 read the enemy's fresh pools as a
+global rule and applied it to the player.
+
+**Consequence for §4b: the guidance built on this was backwards.** Armor is not
+a per-room budget that is wasted if unspent, and spending it late in a room is
+not free. It is a run-long resource that happens to be *renewable in combat*
+(via a won or tied move's DEF), while HP is a run-long resource that is not
+renewable at all. The asymmetry §4b needs is renewable-vs-not, not
+per-room-vs-per-run.
+
+**The armor threshold — net damage is not ATK. [CONFIRMED 2026-08-15]**
+
+Because a side that loses regenerates nothing, damage lands differently
+depending on how the exchange resolved:
+
+| exchange | our net damage |
+|---|---|
+| we win outright | **full ATK** — the loser regenerates nothing |
+| we tie | `max(0, ourATK − theirMoveDEF)` — both regenerate before both deal |
+| we lose | 0 |
+
+The tie row is a **threshold, not a gradient**, and it is exact. A move whose
+ATK is at or below the opponent's move DEF makes *literally zero* progress in a
+mirror, forever. Verified in sim across all four observed enemies, our Shield
+(6/12) mirrored against theirs:
+
+```
+enemy 63  Shield DEF 2  net 4  -> clears 100/100
+enemy 64  Shield DEF 4  net 2  -> clears 100/100
+enemy 65  Shield DEF 6  net 0  -> clears   0/100  (we die; its Shield ATK 15 > our 12 regen)
+enemy 66  Shield DEF 8  net 0  -> clears   0/100  (true stall; neither side can finish)
+```
+
+One point of DEF separates a winnable grind from an unwinnable one. §4b's smooth
+`w₂·(enemyHP/enemyMaxHP)` term cannot express this — it scores 6 damage as 75%
+of 8 damage when one may be worth nothing and the other everything. **Task 5
+must compute net damage per §4's table, not read raw ATK.**
+
+> **[CORRECTION 2026-08-15]** The session-04 brief proposed a single rule,
+> `effective damage = max(0, ATK − armorRestoredPerWin)`, applied to *every*
+> exchange, and the session-03 recap explained the lost run as "enemy 63's 12
+> armor fully restores on any enemy win". Both are wrong. Regen is the **played
+> move's DEF, capped** — never a restore to full. Enemy 63's armor was recorded
+> going `6 -> 12` on a Sword win whose DEF is exactly 6, and `12 + 2` capped
+> back to 12 on a Shield tie. And the offset applies only on a tie, because a
+> loser gains nothing. The lost run was not a flat threshold: it was a **rate
+> race** the player lost, 6 damage per landed hit against a 12-armor pool being
+> topped up 2–6 at a time.
 
 **[UNRESOLVED 2026-08-14] The model above is exact only for clean exchanges.**
-It holds 128/134 side-updates across four captures. Every miss involves a
-mechanic outside it, and two are not yet explained by any rule:
+It holds **127/132** side-updates across four captures, and — the number that
+matters — **41/41 on the clean subset, with zero failures there.** All 5 misses
+sit on exchanges already flagged with a reason code. Every miss involves a
+mechanic outside the model, and two are not yet explained by any rule:
 
 - Enemy 65 (`block: 2`, `evasion: 2`) took **8 damage from a 16-ATK Sword win**.
   Neither stat explains 8 arithmetically (not `16−2`, not `16−4`); it is exactly
@@ -365,15 +433,30 @@ after it, because boons and rolled enemy stats compound with depth.
 
 ### Charges — mechanics and the caveat **[PARTIAL]**
 
-**[CONFIRMED 2026-08-14]** over **134 played moves** across 4 captures and 5
-dungeon attempts, by `scripts/chargeTable.ts`:
+**[CONFIRMED 2026-08-14, recounted 2026-08-15]** over **132 played moves** across
+4 captures and 5 dungeon attempts, by `scripts/chargeRecount.ts`:
 
 - A played move costs **−1**, *except* a move played from **exactly 1 charge,
-  which lands on −1, skipping 0.* 118/134 were −1; all 16 exceptions were plays
-  from exactly 1.
+  which lands on −1, skipping 0.* 116/132 were −1; **all 14 exceptions were
+  plays from exactly 1, with no residue.**
 - Every move *not* played regenerates **+1 per exchange, capped at
-  `maxCharges`**. 163/163 already at max stayed; 105/105 below max gained +1;
-  nothing ever exceeded max.
+  `maxCharges`**. 160/160 already at max stayed; 104/104 below max gained +1;
+  nothing ever exceeded max. **264/264 unplayed transitions, no exceptions.**
+
+> **[CORRECTION 2026-08-15]** The earlier count (134 moves, 118 at −1, 16
+> exceptions) was inflated by one phantom exchange. `scripts/chargeTable.ts`
+> admitted the pair `run-01-00-08 027→028`, which is the **boon pickup** that
+> follows a kill: `lastMove` still names the killing blow on both sides, the
+> enemy id has not changed yet, and a `Heal` boon moved the player's HP 15 → 31,
+> so a "did anything change?" test passes. It is the sole source of the two
+> `2 → 2 (delta 0)` played moves, and therefore of the claim that the 16
+> exceptions were "all plays from exactly 1" — two of them were not plays at
+> all. With the pair excluded the rule holds with **zero** unexplained deltas.
+>
+> The fix, now in `src/sim/corpus.ts` and required of any future analysis
+> script: an exchange requires **both sides alive in the `before` state** and
+> **no `rewardPathPhase`/`enemyPathPhase` active on it**. Read the phase flags
+> directly; do not infer the state machine from what moved.
 - Regeneration ticks on **combat exchanges only** — not across reward/enemy path
   phases or room transitions.
 
@@ -381,30 +464,48 @@ This supersedes session 02's "unexplained decrement of two": it was never two
 collapsed turns or a hidden second cost, but a last-charge rule. Reproduced
 independently on both sides in three separate runs.
 
-**Legality remains open.** We have *not* observed whether a move at 0 or below
-can be played.
+**Legality: still not proven, but the evidence now leans hard one way.**
+No move at ≤0 has ever been *observed being played*, and none has been observed
+being *refused* either. What changed on 2026-08-15 is how the absence is read.
 
-So: **do not prune a move purely because its charge count is ≤ 0** until this is
-settled. Treat a non-positive charge as *evidence of reduced likelihood*, not as
-proof of illegality, and log every case where an enemy plays a move at ≤ 0 so
-the question resolves itself with data. Getting this wrong assigns probability
-zero to a move the enemy can actually play, which is exactly the kind of
-confident-and-wrong that loses runs.
+The session-03 reading was "23 firings, 0 forced ⇒ non-discriminating". That
+counted the wrong thing. The informative quantity is not how often a play was
+*forced*; it is how often a non-positive move was **available and declined**.
+`scripts/chargeRecount.ts` splits this by actor, because the two actors are not
+equal evidence:
 
-**[2026-08-14] Implement this as a single flag** (`chargesAreHardLimit`,
-default `false`) that the EV engine reads, so the answer can be swapped in
-without touching the engine.
+| actor | opportunities | non-positive move played | expected if uniform | P(0 \| soft cost) |
+|---|---|---|---|---|
+| player | 12 | 0 | 4.00 | 7.7e-3 |
+| **enemy** | **11** | **0** | 3.67 | **1.2e-2** |
 
-A discriminator proposed in the session-03 brief — *"a side held a move at ≤0
-and played a different one ⇒ moves at ≤0 are illegal"* — **does not work and
-should not be retried.** It has now fired **23 times** across the corpus, and
-every instance left at least one other legal move available, which is precisely
-what a free choice looks like under the opposite hypothesis. It discriminates
-only when the play was *forced* — every alternative also non-positive. Forced
-plays observed: **0**.
+**Only the enemy rows are evidence about the rule.** The player rows are
+contaminated: the user was following a written guide that avoided low-charge
+moves *by policy*, so a zero there is equally consistent with either hypothesis.
+The enemy has no such policy, and across 11 clean opportunities it never once
+took a move it was holding at ≤0.
 
-The cheapest remaining test needs no energy: drive a move to −1 in the client
-and try to select it.
+That is `p ≈ 0.012` under the soft-cost null with uniform selection — suggestive,
+not conclusive, and an order of magnitude weaker than the `1e-4` the session-04
+brief estimated (the brief assumed every opportunity offered all three moves;
+most offer only one non-positive move, so the per-turn avoidance probability is
+2/3, not 1/3).
+
+**[2026-08-15] Keep the `chargesAreHardLimit` flag, and default it to `true`.**
+The evidence is one-sided and the cost asymmetry runs the same way: wrongly
+pruning costs one option in the EV table, while wrongly permitting assigns
+probability mass to a move the enemy *cannot* make, which corrupts every
+prediction against that enemy. Threaded through `legalMoves(combatant, hardLimit)`
+in `src/sim/combat.ts`, so flipping it touches no engine code.
+
+Do NOT treat this as settled. The cheapest decisive test still costs no energy:
+drive a move to −1 in the client and try to select it. Until then, log every
+case where an enemy plays a move at ≤0 — one such observation flips the flag.
+
+The session-03 brief's discriminator — *"a side held a move at ≤0 and played a
+different one ⇒ illegal"* — remains **rejected as stated**: on its own it is
+exactly what a free choice looks like. It is the *aggregate* zero across many
+opportunities that carries the signal, not any single instance.
 
 ### Decision procedure
 
@@ -428,14 +529,24 @@ Key counts by `(enemyId, roomIndex)`, Laplace-smoothed, persisted to
 P(e) = (count[e] + α) / (Σ count + 3α)     α = 1.0
 ```
 
-Then **down-weight moves the enemy has no charges for** — but do not zero them
-outright. See the charge caveat in §4: a move at ≤ 0 charges has been observed
-to exist, and has not been shown to be unplayable. Zeroing and renormalising is
-only correct once that is confirmed.
+Then handle moves the enemy has no charges for, per `chargesAreHardLimit`
+(§4 charges): **default `true` — prune to zero and renormalise.** With the flag
+`false`, down-weight instead of zeroing. One flag, read in one place; never two
+code paths.
 
-Blend toward uniform when the sample is thin: with fewer than ~20 observations
-for a key, mix 50/50 with uniform. This stops one lucky read from driving
-confident bad decisions.
+**Sample floor — a hard gate, not a blend. [2026-08-15]**
+
+Below **30 observations for a key**, the model must return **uniform** and set
+`confidence: "low"`. It must not emit a read at all. Above 30, blend toward
+uniform in proportion to sample size as before.
+
+This replaces the old "with fewer than ~20 observations, mix 50/50 with uniform"
+because that guidance was in the spec *and was still not enough*: enemy 63 was
+called "Shield-biased 57%" off 14 exchanges and play advice was given from it;
+over 39 exchanges it is uniform (31/38/31). A 50/50 blend of a wrong read is
+still a wrong read, just quieter. The floor has to be structural — downstream
+code cannot be allowed to receive a thin read at all, and the `confidence` flag
+exists so it cannot silently treat one as strong.
 
 Check for determinism explicitly: after ~200 observations of an enemy, test
 whether its move is predictable from the previous turn (a first-order Markov
@@ -614,7 +725,9 @@ src/
   strategy/     dungeon/  decide.ts, utility.ts, opponentModel.ts, loot.ts
                 fishing/  patterns.ts, hypothesis.ts, cardChoice.ts
                           ← pure functions, no network
-  sim/          dungeonSim.ts, fishingSim.ts, replay.ts
+  sim/          types.ts, combat.ts, coverage.ts, corpus.ts, enemies.ts,
+                rng.ts, scenarios.ts, dungeonSim.ts, replay.ts
+                fishingSim.ts (Task 8)
   orchestrator/ loop.ts, budget.ts, guards.ts
 scripts/        probe.ts, parseHar.ts, mineFishPatterns.ts
 fixtures/       probe/, dungeon-runs/, fishing-casts/
@@ -625,6 +738,38 @@ logs/
 
 The `api` ↔ `strategy` split is what makes everything testable. Strategy takes a
 state object and returns a decision; it never knows the network exists.
+
+### The sim's coverage contract **[2026-08-15]**
+
+`src/sim/` never approximates a mechanic it does not understand and never
+hardcodes one to zero. Anything outside the clean exchange model becomes a
+**reason code** (`src/sim/coverage.ts`), the surrounding unit is marked
+UNSCORABLE, and it is excluded from every rate the sim reports.
+
+- **Any claim about win rate must state coverage beside it.** A win rate
+  without its coverage is not a result.
+- `src/sim/corpus.ts` is the only module that knows the wire shape. Analysis
+  scripts go through it rather than re-deriving the pair-walking rules — two
+  scripts have now shipped bugs those rules exist to prevent.
+- `src/sim/enemies.ts` is checked against the fixtures by `tests/enemies.test.ts`,
+  so a hand-edited stat cannot drift from the response it claims to come from.
+- The sim reports `deepestScorableRoom`. **It is currently 1.** That is the
+  headline blind spot, and it is the number that should climb every session.
+
+Where coverage stands today, on 1000 synthetic runs (random vs random):
+
+```
+runs:    394 / 1000 scored          battles: 1000 / 1858 scored
+  606 BOON_TAKEN                      858 BOON_TAKEN
+  205 ROLLED_STATS                    252 ROLLED_STATS
+   47 STATUS_EFFECT / ENEMY_BUFF       47 STATUS_EFFECT / ENEMY_BUFF
+```
+
+The wall is sharp rather than gradual: **room 1 is clean in every capture, and
+every contaminant enters at the first `rewardPathPhase`.** Clearing a room
+means taking a boon, so a scored *run* is by construction one that died in room
+1 — which is why the run-level win rate is 0% and carries no information. The
+battle-level rate over room 1 is the number with content in it.
 
 ### Orchestrator loop
 

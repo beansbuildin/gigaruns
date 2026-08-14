@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "probe": "tsx scripts/probe.ts"
+    "probe": "tsx scripts/probe.ts",
+    "sim": "tsx scripts/sim.ts",
+    "charges": "tsx scripts/chargeRecount.ts"
   },
   "dependencies": {
     "viem": "^2.21.0",
