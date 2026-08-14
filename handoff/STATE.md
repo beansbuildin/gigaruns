@@ -1,149 +1,143 @@
-# STATE — session 06 — 2026-08-16 — commit 536fac6
+# STATE — session 07 — 2026-08-17 — commit ff36aa1
 
 ## Status
-Task 5 "Dungeon strategy": **GATE PASS.**
-Next per TASKS.md: Task 2 (auth + API client) — still unbuilt, and now the only
-thing between a working strategy engine and a live run.
-Overall: the EV engine beats always-Sword 81.8% vs 67.9% on room-1 battle win
-rate with non-overlapping CIs; three supervised captures overturned two claims
-the last two sessions were built on, and `deepestScorableRoom` is **still 1**.
+Task 2 "Auth + API client": **GATE PASS**, read-only, live-verified.
+Next per TASKS.md: Task 3 (`scripts/probe.ts` — already built and previously
+run) is done; the next UNBUILT task is **Task 6, Live dungeon (supervised)**,
+now that Task 2's client exists. Consider one capture run first — see Open
+Questions.
+Overall: the client works against the real API (real username/noob ID
+printed, corrupted-JWT halt confirmed live), and a corpus re-audit found the
+enemies.ts tier labels from sessions 05/06 were wrong on the specifics —
+room 4 is actually clean at Safe tier; only room 3 has zero Safe captures.
 
 ## What works
 - `npx tsc --noEmit` — clean, exit 0.
-- `npx vitest run` — **127 tests, 8 files, all pass** (91 → 127; `tests/strategy.test.ts`
-  is new with 32).
-- `npm run sim` — replay, three baselines, the Task 4.5 report, the **Task 5 gate**,
-  a full EV-table log, and the threshold check. Exit 0.
-- `src/strategy/` — opponent model (30-obs floor, Laplace, charge pruning,
-  first-order transitions), §4b utility, depth-2 expectimax EV engine, §4c loot
-  ranking. Pure: `decide(state, model, cfg, prev)` has no I/O, the model holds
-  counts in memory with `toJSON`/`fromJSON`, and all per-run state lives in the
-  `strategyPolicy` adapter. **Room-agnostic** — nothing hardcodes room 1; a test
-  asserts it decides at rooms 1–4.
-- `simulate()` now returns `battlesByRoom` — scored/unscorable/won and a binomial
-  CI per room depth, so a result is quoted at the depth it was measured at.
-- `Policy` gained optional `onBattleStart` / `observe` hooks, so a model can learn
-  inside the sim from exactly what a live bot sees (`lastMove` on both sides).
-- Capture tooling unchanged and working: `scripts/watch.ts` recorded 35 states
-  across 3 supervised runs, redacted, committed.
+- `npx vitest run` — **155 tests, 10 files, all pass** (127 → 155).
+- `npm run check-auth` — **live gate, run against the real account**: prints
+  `address 0x4F03...`, `/game/account -> username "<PLAYER>" noobId 72946`;
+  corrupted JWT halts cleanly with `TokenExpiredError` (HTTP 401, confirmed
+  live — not assumed) rather than crashing or retrying.
+- `src/api/` — `GigaverseClient`: 1200ms+jitter rate limiter, single-flight
+  mutex (serializes every request, not just dungeon actions), 429 backoff
+  from 5s (5 retries then `RateLimitedError`), zod-validated responses with
+  `.passthrough()` so spec drift stays visible instead of silently stripped.
+  `getDungeonState()` returns `null` on a 5xx (SPEC: "no active run") but
+  throws `UnexpectedResponseError` on a 5xx anywhere else. Covers
+  `/user/me`, `/game/account`, `/offchain/player/energy`,
+  `/game/dungeon/today`, `/game/dungeon/state`, `/items/balances`,
+  `/gigajuice/player`. **Nothing POSTs.** `DungeonActionResponseSchema`
+  exists but is `[VERIFY]` — never validated against a live response.
+- `src/sim/enemies.ts` — restructured to `EnemyProfile[]` keyed by
+  `(room, tier)`. `lookupEnemy(room, tier)` fails closed (no fallback).
+  `bestKnownProfile(room)` for tests/scenarios that want real numbers
+  regardless of tier. `MAX_SAFE_ROOM` = 2 (computed, not asserted).
+- `src/strategy/enemyTier.ts` — `pickSafeTier()` picks the lowest tier in an
+  offer and throws `UnsafeTierError` if it isn't `SAFE_TIER`. CLAUDE.md §8
+  makes this a hard rule, not a scored preference.
+- `src/strategy/config.ts` — `LIVE_CONFIG` (depth 3) alongside `DEFAULT_CONFIG`
+  (depth 2, unchanged, for sim throughput). `scripts/depthAblation.ts` at
+  N=20000 separates depth 1/2/3 cleanly; Task 6 should use `LIVE_CONFIG`.
+- Task 5 gate re-verified unaffected by the enemies.ts restructure (room 1
+  mechanics didn't change): always-Sword 67.9% vs ev-engine 81.8%, still PASS.
 
 ## What's broken
-- **`deepestScorableRoom` is still 1.** The gate did not ask for it to move and
-  it did not move. Coverage actually *fell* (49% → 39%) because a better policy
-  survives room 1 more often and every recorded room-1 boon is unscorable.
-- **037→038 is now explained by NOTHING.** Both candidate rules are eliminated:
-  die-on-a-tie is refuted by observation, and evasion at 1% makes a dodge inside
-  nine opportunities an 8.6% event. Worse than the confound it replaced.
-- **`enemies.ts` room-3 and room-4 profiles are Dangerous-tier instances** stored
-  as if they were the enemies themselves. Flagged in comments, **not fixed** —
-  no Safe-tier capture of enemies 65/66 exists to re-derive them from.
-- `scripts/chargeTable.ts` and `scripts/verifyCombatModel.ts` still lack the
-  phase filter and over-count. Superseded; do not cite their numbers.
-- `src/api/`, `src/orchestrator/` are still empty. Nothing has ever POSTed.
+- **`deepestScorableRoom` is still 1** in the reported sim numbers — unchanged
+  this session, because nothing here modelled a new boon or mechanic. But the
+  CEILING under the Safe-tier hard rule is now much better understood: rooms
+  1, 2 and 4 already have clean Safe-tier captures. **The only remaining gap
+  is room 3** — no Safe-tier capture of enemy 65 exists anywhere in the
+  corpus. This is a capture gap, not an unscorable enemy.
+- `src/api/schemas.ts`'s `DungeonActionResponseSchema` is unverified — no POST
+  has ever been sent. Task 6 must re-derive it from a live response before
+  trusting it.
+- `src/orchestrator/` is still empty. No budget/energy enforcement exists yet.
+- `037→038` anomaly (session 06) remains genuinely unexplained. Not touched
+  this session, per session-06 brief §2's instruction not to propose a third
+  hypothesis.
 
 ## Corrections to SPEC.md
-All fixed in SPEC.md this session. New **§3e** documents the tier surface.
-
-- **`enemyPathOptions[]` carries `rolledEnemyStats` AND `enemyBuff` PER TIER.**
-  Tier 0 "Safe" is all zeros with a null buff; both tier-2 "Dangerous" options
-  carry non-zero rolls. So session 05's "enemies 65/66 are unscorable *innately*"
-  is **retracted** — those profiles are tiers the user picked. This was **wall 2
-  behind the Task 4.5 gate retirement**. The retirement stands on its other two
-  reasons. Confirmed end-to-end in run 3: picked Safe, and the room-2 enemy came
-  in with rolled stats all zero, `statusEffects []`, `activeEnemyBuff null`.
-- **The `lootTable` is IDENTICAL across all three tiers** (same table, item 846,
-  weight 1, amount 9), in both samples. Resolves QUESTIONS §6: **always Safe** —
-  higher tiers are pure added risk with zero loot upside, and they are the sole
-  source of the mechanics that make a battle unscorable.
-- **Rolled stats are PERCENT PROC CHANCES, not points.** Client option text reads
-  `+5% intuition` / `+1% luck`, and `selectedVal1` lands verbatim in `.current`.
-  Every sample-size argument in §4e was an order of magnitude off: `evasion 1` is
-  **1%**, not ~10%, so reading one needs *hundreds* of observations, not 30.
-- **"A side that dies on an exchange deals no damage" is REFUTED.** run-…-03-26-57
-  `004→005`: the enemy died on a tie and dealt its full 16 anyway, inside the
-  clean model. The session-06 brief §4 asked for this behind a flag on parsimony
-  grounds; it was not built, because it is false.
-- **Burn's declared `amount` is 2** on `perpetual_firebrand`, not 3 — breaking the
-  single-observation coincidence keeping `BURN_PER_EXCHANGE` off. Duration is
-  still unknown, so the flag stays off.
-- **`enemyBuff` is machine-readable**, with typed `effects`
-  (`onEnemyWinExchange_applyStatus`, `onEnemyWinExchange_corrode`), `moveType`,
-  `amount`, `minTier`.
-- **Player `armorMax` 15 → 16** — the user changed gear. `PLAYER` now tracks the
-  newest capture; a test asserts the distinct-loadout count so drift is visible.
-- Resolved IDs: **forbiddenWoods=5**, **dendren=NOT FOUND** (not re-probed).
-- Move charges: **PRESENT**, enemy's fully visible, rule unchanged.
+- **§3e — room 3 and room 4's `enemies.ts` profiles were mislabelled
+  "Dangerous-tier instances".** Re-matched each captured enemy state against
+  the `enemyPathOptions[]` that preceded it (comparing `rolledEnemyStats` of
+  the picked option to the resulting state):
+  - Room 3 (enemy 65)'s capture is **tier 1 "Risky"**, not tier 2. Buff is
+    `shatterblade` ("Applies 1 Vulnerable on Sword wins").
+  - Room 4 (enemy 66)'s capture is **tier 0 "Safe"**, not Dangerous.
+    `activeEnemyBuff` is `null` for the whole battle. The Burn status seen on
+    that enemy is the **player's own `AddBurnSword` boon** (in that run's
+    `pickedBoons`) landing on a Sword win — not an enemy or tier mechanic.
+    Room 4's Safe-tier profile is CLEAN.
+- **§4b (armor/HP room-transition section) — HP persistence strengthened.**
+  All 7 corpus room boundaries (up from 4) confirm HP unchanged across the
+  transition, 6 of them below the HP cap (was 1 informative point, now 6).
+  HP persists; it does not reset. `Regen`'s cross-room value is therefore
+  potentially large if it fires every room — reported, not modelled (no
+  pickup pair exists for `Regen`).
+- Resolved IDs unchanged: **forbiddenWoods=5**, **dendren=NOT FOUND**.
+- Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- **Building the die-on-a-tie flag the brief asked for.** Refuted before it was
-  written. Don't re-propose it without a counter-observation.
-- **Concluding "evasion probably fires" once die-on-a-tie fell.** I wrote this,
-  then the percentage units arrived and killed it. Corrected in SPEC §4e with an
-  explicit warning not to adopt evasion by elimination — it is the last
-  hypothesis standing only because no third has been proposed.
-- **Chasing rolled-stat semantics with human play.** Session 05 called it the top
-  blocker; it is now downgraded twice (avoidable via Safe tier, and needs
-  hundreds of observations at 1–5%). It is Task 6 machine-speed work.
-- **Depth-3 expectimax.** Measures 84.2% vs depth-2's 82.0%, but the CIs overlap
-  and it costs 7× the time. Not adopted — the difference is not established.
-- **A test asserting a specific exchange by `label` alone.** `label` is
-  `state-NNN→state-NNN` and is not unique across runs; the phantom-pickup
-  assertion silently began matching a legitimate pair in the new capture.
+- **Trusting the brief's instruction to "label existing rows as tier 2."**
+  The brief's premise was wrong — re-deriving tier from the corpus (not from
+  the existing code comments) found room 3 was tier 1 and room 4 was tier 0.
+  Always adjudicate from the corpus before implementing a brief's specific
+  claim about it, same lesson as session 06 brief §1.
+- **Assuming `firstDirtyRoom`/"wall 2" scoped to whole rooms.** Tier is a
+  property of the *encounter* (room + tier), not the room or the enemy —
+  `src/sim/enemies.ts` and `scripts/sim.ts`'s narrative text both had to be
+  restructured around `(room, tier)`, not `room` alone.
+- Did not model `Regen` or `intuition` this session, per session-06 brief
+  §4/§5 — both stay open questions.
 
 ## Metrics
-- **Task 5 gate**, 1000 runs each vs random, room-1 battle win rate, scored subset:
+- Task 2 gate: live, 1 real account check + 1 corrupted-JWT halt, both PASS.
+- Task 5 gate (re-verified, unaffected by this session's changes), 1000 runs
+  each vs random, room-1 battle win rate, scored subset:
   `always-Sword 67.9% ± 2.9 [65.0, 70.8]` vs `ev-engine 81.8% ± 2.4 [79.4, 84.2]`.
   Non-overlapping. **PASS.**
-- Reported, not gated: mean rooms cleared `1.038 ± 0.059` vs `1.616 ± 0.072`;
-  battle coverage `49%` vs `39%`; `deepestScorableRoom` **1** for both.
-- Ablations (1000 runs, seed 1): depth1 78.3% · depth2 82.0% · depth3 84.2%;
-  learning on 82.3% vs off 81.3%. Stable across seeds 1/77/12345.
-  `determinism()` found **nothing** over 5447 observations — correct, the sim's
-  opponent is uniform.
-- Corpus grew: **66 → 92 exchanges**, 132 → 184 side-updates, **179/184 matched,
-  0 clean-model failures**, 4 → 7 boon pickup pairs, 4 → 6 offer triples.
-- Live: **3 supervised runs, ~60 energy, 0 actions POSTed by the bot.** Deepest
-  reached: room 2. All three died in room 2.
-- Tests: 127 passed, 0 skipped, 0 failed.
+- Depth ablation (`scripts/depthAblation.ts`, N=20000, seed 1, room-1 battle
+  win rate): depth1 77.14% ± 0.58, depth2 79.96% ± 0.55, depth3 81.64% ± 0.54,
+  depth4 82.62% ± 0.53. 1v2 SEPARATED, 2v3 SEPARATED (settles what N=1000
+  couldn't), 3v4 NOT separated (0.98pp gap overlaps). Depth 3 adopted for live
+  (`LIVE_CONFIG`); depth 4 is not.
+- Tests: 155 passed, 0 skipped, 0 failed (127 → 155).
+- Live: 0 dungeon/fishing actions POSTed. 2 read-only live GET checks this
+  session (`/user/me`, `/game/account`), both via `npm run check-auth`.
 
 ## Open questions for Claude
-1. **`Regen` is offered at room 1 and is the highest-value unmodelled boon.**
-   Option text: "start each battle with 2 regen, decreases by 1 per turn until
-   0", `val1 2`. §4b's central asymmetry is that HP is *not* renewable in combat.
-   A per-battle regenerating resource changes the **shape** of the utility
-   function, not its weights. Should a capture be spent taking it, and should
-   §4b be re-derived rather than retuned if it lands?
-2. **Does `intuition` reveal the enemy's next move?** (QUESTIONS §5a-bis.) The
-   user reports it has a visible client trigger. §4a's entire edge is predicting
-   that move, so a 5% chance of a *certain read* is worth far more than a 5%
-   dodge. Costs no energy — just one question to the user.
-3. **Task 2 next, or one more capture first?** `AddMaxArmor` was offered at room 1
-   and not taken; taking it would likely give the first clean room-1 boon and let
-   the sim finally score past room 1. But Task 2 is the step that makes captures
-   free, and three human runs this session produced two rooms of depth. My read:
-   **build Task 2**, and stop spending human clicks on coverage.
-4. **Should `enemies.ts` become tier-aware?** Enemy profiles are currently
-   `(room) → enemy`, but the truth is `(room, tier) → enemy`. Restructuring
-   without a Safe-tier capture of enemies 65/66 would mean inventing rows, so I
-   left it. Worth doing when the data exists?
+1. **Task 6 next, or one more capture first?** The client (Task 2) and the
+   Safe-tier hard rule (with its guard) are both built and tested. The
+   remaining `deepestScorableRoom` blocker is narrow and specific: **one
+   Safe-tier capture of room 3 (enemy 65)** — pick Safe at every enemy-path
+   screen, all the way to room 3, in one supervised run. `QUESTIONS.md` §5b
+   is updated with this. My read: worth ~20 energy before Task 6, since it
+   might let the very first live run score deeper than room 2 immediately —
+   but session-06 brief §6 pushed back hard on spending human clicks on
+   coverage Task 6 will produce for free, and that argument still applies.
+   Your call.
+2. **`DungeonActionResponseSchema` is unverified.** No POST has ever been
+   sent to `/game/dungeon/action`. Task 6's `--dry-run` should log what a
+   real response looks like the moment one arrives, and the schema should be
+   corrected from it immediately — same discipline as everything else in
+   `src/api/schemas.ts`.
+3. **`intuition`** — still pending an answer from the user (session-06 brief
+   §5). Not asked again this session.
+4. **Room-2's now-captured Risky/Dangerous tiers** (`bloodthirsty` +4 ATK all
+   moves, `corrosiveShield`) are stored in `ROOM_ENEMIES` as diagnostic-only
+   entries, never fought by default. No action needed — just flagging that
+   `enemies.ts` now carries data it doesn't use by default, in case that
+   looks like dead code to a future session. It isn't; it's corpus fidelity.
 
 ## Files changed
 ```
- CLAUDE.md                     |  13 +      (§6, the gate-setting rule)
- QUESTIONS.md                  | 120 +--    (capture checklist; §6 resolved)
- SPEC.md                       | 148 ++     (new §3e; §4e, §4f corrections)
- TASKS.md                      |  75 +--    (4.5 retired; Task 5 restated + PASS)
- handoff/DECISIONS.md          |  14 +
- handoff/scratch-session-06.md | 205 ++++   (new, S1–S9)
- scripts/sim.ts                | 150 ++     (Task 5 gate + EV-table log)
- src/sim/boons.ts              |  47 +      (AddTenacity, AddIntuition, 2 offers)
- src/sim/dungeonSim.ts         |  86 ++     (observe/onBattleStart, battlesByRoom)
- src/sim/enemies.ts            |  38 +-     (loadout; tier corrections)
- src/sim/scenarios.ts          |   7 +-
- src/strategy/*.ts             | 875 +++++  (new: config, opponentModel, utility,
-                                             decide, loot, policy)
- tests/strategy.test.ts        | 396 +++++  (new)
- tests/{boons,combat,enemies,replay,scenarios}.test.ts | 73 +-
- fixtures/dungeon-runs/run-2026-08-14-03-26-57/*.json  | 35 files, redacted
- 58 files changed, 14416 insertions(+), 96 deletions(-)
+ New: src/api/{client,auth,errors,schemas}.ts, tests/api/client.test.ts,
+      scripts/checkAuth.ts, scripts/depthAblation.ts,
+      src/strategy/enemyTier.ts, tests/enemyTier.test.ts
+ Restructured: src/sim/enemies.ts (+172/-), src/sim/dungeonSim.ts,
+      src/sim/scenarios.ts, src/sim/coverage.ts, scripts/sim.ts,
+      tests/{combat,dungeonSim,enemies,strategy}.test.ts
+ Docs: CLAUDE.md (§8), SPEC.md (§3e, HP persistence), TASKS.md,
+      QUESTIONS.md, handoff/DECISIONS.md
+ 25 files changed, 1310 insertions(+), 82 deletions(-) — full stat: `git diff 2f78c74..ff36aa1 --stat`
 ```
