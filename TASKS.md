@@ -173,6 +173,28 @@ without sending. Then one real run.
 **Gate:** One completed run, full JSONL log, run summary printed, energy
 accounting matches expectation. Then five consecutive runs with no guard trips.
 
+**Outcome [session 08]: first half MET, second half NOT ATTEMPTED.**
+`scripts/liveRun.ts` built with 4 CLI stages (`--dry-run`/`--stage2`/
+`--runs=N`) per the session-08 brief's staged plan. Blocked at the top of the
+session on a rejected JWT (QUESTIONS.md §7); once refreshed, ran all the way
+through: stage 1 (dry-run) found and fixed a real spec-drift bug on the
+first-ever live call (`/game/dungeon/state`'s idle shape); stage 2 sent the
+project's first-ever POST (`start_run`) and halted as designed; stage 3 ran
+one full room 1→4 live run, ending in a death at room 4 that matched the
+clean combat model to the last hit. Along the way: `GET /game/dungeon/state`
+turned out not to carry a fresh `actionToken` (client was clobbering its own
+tracked token — fixed); the reward-pick action is `reward_one`, not
+`loot_one`; the enemy-tier pick is `path_two`, not `enemy_two`; an HTTP 500
+does NOT reliably mean an action didn't apply (confirmed both ways on the
+same run) — `postWithVerifiedRetry()` re-checks live state before ever
+retrying. Room 3's Safe-tier capture gap (open since session 06/07) is
+closed; `MAX_SAFE_ROOM` is 4, not 2. Full detail in DECISIONS.md and
+handoff/log/session-08.md.
+
+**Five consecutive runs NOT attempted** — this run took five rounds of
+live-discovered bugs and several human-assisted unblocks to get through, not
+a clean pass to build five more on. Next session's first move.
+
 ---
 
 ### 7 — Fishing API discovery
