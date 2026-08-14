@@ -5,6 +5,39 @@ these block it.
 
 ---
 
+## 7. JWT rejected — blocks all of Task 6 [session 08, TOP OF SESSION]
+
+`~/.secrets/gigaverse-jwt.txt` exists (1729 chars) but the server rejects it.
+
+```
+$ npm run check-auth
+▸ real JWT
+  jwt eyJhbGci...(1728 chars)
+✗ Auth rejected (HTTP 401). The JWT is expired or invalid — refresh it.
+```
+
+Confirmed independently with a raw request, same result:
+
+```
+$ curl https://gigaverse.io/api/user/me -H "Authorization: Bearer <jwt>"
+{"error":"Unauthorized"}
+```
+
+This is exactly CLAUDE.md's "missing private key/JWT" blocking condition — a
+rejected token is functionally the same as no token for everything Task 6
+needs, since even the stage-1 dry run reads live state. Per CLAUDE.md ("When
+you get stuck"), not idling on this: `scripts/liveRun.ts` is being built and
+unit-tested against a mocked client (same pattern as
+`tests/api/client.test.ts`) so all four stages are ready to run the moment a
+fresh JWT lands, and the corpus-only `intuition` field-frequency check
+(session-08 brief addendum §7) doesn't need network access either.
+
+**What's needed:** log into gigaverse.io in a browser, DevTools → Network,
+copy the current `Authorization: Bearer <token>` value, overwrite
+`~/.secrets/gigaverse-jwt.txt` with it (no trailing newline needed — the
+loader trims). Then `npm run check-auth` should pass again and Task 6 stage 1
+can run for real.
+
 ## 0. CAPTURE RUN — do this first [session 06]
 
 One supervised Forbidden Woods run, ~20 energy. `scripts/watch.ts` is read-only
