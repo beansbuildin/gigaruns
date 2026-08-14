@@ -73,6 +73,18 @@ tier; it halts (`UnsafeTierError`) rather than proceeding if the chosen tier
 isn't Safe. Route every live tier decision through it — do not re-implement the
 choice inline.
 
+**9. A brief's claims about what the corpus contains are hypotheses to verify,
+not facts to implement.**
+Claude (chat) writes session briefs without access to the fixtures — it works
+from the previous recap, which can be stale, incomplete, or simply wrong about
+a specific. When a brief asserts something checkable against `fixtures/` or a
+live response (a tier label, a field's meaning, a boon's effect), check it
+first. If it's wrong, the corpus wins, the brief's claim does not get
+implemented as stated, and the correction goes in the recap so the next brief
+doesn't repeat it. This has already happened twice (session 06's "label rows
+tier 2", session 07 found room 3 was tier 1 and room 4 was tier 0 and clean) —
+treat a third time as expected, not exceptional.
+
 ---
 
 ## Working style
