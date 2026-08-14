@@ -238,10 +238,41 @@ Phase flags are explicit booleans with matching option arrays: `lootPhase`,
 `pathPhase`, `rewardPathPhase`, `enemyPathPhase`. Read the state machine
 directly; do not infer it.
 
-Present but **semantics still unknown** (all zero/empty in the observed run):
-`tenacity`, `evasion`, `lck`, `intuition`, `block`, `battleArmorReduction`,
-`activeEffects`, `statusEffects`, `pickedBoons`, `triggeredBoons`, `gearBoons`,
-`focusBuffs`.
+**[CORRECTED 2026-08-14] `lootPhase` / `lootOptions` are NOT the reward
+surface.** Across 4 captures and 5 dungeon attempts — including runs that
+demonstrably awarded loot, a boon, and a heal — `lootPhase` was `false` and
+`lootOptions` was `[]` **every single time**. Nothing is known to populate them.
+The two phases that actually fire after a win are:
+
+| phase flag | options array | what it is |
+|---|---|---|
+| `rewardPathPhase` | `rewardPathOptions[]` | the boon / buff cards |
+| `enemyPathPhase`  | `enemyPathOptions[]`  | next-room enemy choice — **carries the loot table** |
+
+`enemyPathOptions[]` entries are a risk/reward tier pick:
+`{index, tier, tierName: "Safe"|"Risky"|"Dangerous", enemyId, enemyBuff,
+lootTable, rolledEnemyStats}`. `lootTable` is
+`{NAME_CID: "LT_D5_Room_2", ID_CID, GAME_ITEM_ID_CID_array,
+WEIGHT_CID_array, LOOT_AMOUNT_CID_array}`. In the one sample captured, all
+three tiers shared an identical loot table, so the higher tiers were pure added
+risk — **verify this before treating tier as a reward lever.**
+
+`rolledEnemyStats` (`evasion`, `block`, `lck`, `tenacity`) are **live and affect
+damage** — see §4 for the unexplained enemy-65 case. They are no longer safe to
+treat as zero.
+
+**Boon values: read `selectedVal1` / `selectedVal2`, never `val1Min`/`val1Max`.**
+The `selected*` fields are the *applied* values, already multiplied by the
+dungeon's `basicBoonMultiplier` (2 for Forbidden Woods). Observed: `Heal` with
+`val1Min/Max: 8` applied as `selectedVal1: 16` (HP 15 → 31); `UpgradePaper` with
+`val2: 2` applied as `selectedVal2: 4`. Ranking boons off the raw range
+undervalues every one of them by half.
+
+Present but **semantics still unknown**: `intuition`, `battleArmorReduction`,
+`activeEffects`, `triggeredBoons`, `gearBoons`, `focusBuffs`.
+Now observed non-zero and partially understood: `evasion`, `block`, `lck`,
+`tenacity` (rolled per enemy), `statusEffects` (`[{type: "Burn", amount: 3}]`),
+`pickedBoons` (full boon objects, accumulates across the run).
 
 Energy is stored scaled (`ENERGY_CID: 332247916021`). Always read
 `parsedData.energyValue`, never the raw CID.
@@ -312,15 +343,46 @@ DEF) = 8, then −16 (their Spell ATK) = −8 → armor **0**, 8 overflow to HP,
 resource inside a battle, and regenerating it is the whole defensive game.
 `w₃ = 0.3` badly undervalues it — see §4b.
 
+**[CONFIRMED 2026-08-14] Armor refills to `currentMax` at every room
+transition; HP does not.** Observed at all three room boundaries of the deepest
+run. Consequence for §4b: armor is a *per-room* budget that is wasted if unspent,
+while HP is the run-long resource. Spending armor freely late in a room costs
+nothing; spending HP costs the rest of the run.
+
+**[UNRESOLVED 2026-08-14] The model above is exact only for clean exchanges.**
+It holds 128/134 side-updates across four captures. Every miss involves a
+mechanic outside it, and two are not yet explained by any rule:
+
+- Enemy 65 (`block: 2`, `evasion: 2`) took **8 damage from a 16-ATK Sword win**.
+  Neither stat explains 8 arithmetically (not `16−2`, not `16−4`); it is exactly
+  half. One sample. Do not guess — capture more.
+- With `Burn` up, the enemy lost **1 HP/turn and regenerated no armor**, though
+  the applied burn amount was 3. Tick rate and the burn/armor-regen interaction
+  are both unknown.
+
+Anything built on the clean model is correct for room 1 and increasingly wrong
+after it, because boons and rolled enemy stats compound with depth.
+
 ### Charges — mechanics and the caveat **[PARTIAL]**
 
-A played move costs 1 charge; every move *not* played regenerates +1 per
-exchange, capped at `maxCharges`. Confirmed across 14 transitions.
+**[CONFIRMED 2026-08-14]** over **134 played moves** across 4 captures and 5
+dungeon attempts, by `scripts/chargeTable.ts`:
 
-**One exception, and it matters.** The enemy played `paper` at
-`currentCharges: 1` and it went to **−1**, not 0. Every other transition moved
-by exactly ±1. Charges therefore **can go negative**, and we have *not* observed
-whether a move at 0 or below can still be played.
+- A played move costs **−1**, *except* a move played from **exactly 1 charge,
+  which lands on −1, skipping 0.* 118/134 were −1; all 16 exceptions were plays
+  from exactly 1.
+- Every move *not* played regenerates **+1 per exchange, capped at
+  `maxCharges`**. 163/163 already at max stayed; 105/105 below max gained +1;
+  nothing ever exceeded max.
+- Regeneration ticks on **combat exchanges only** — not across reward/enemy path
+  phases or room transitions.
+
+This supersedes session 02's "unexplained decrement of two": it was never two
+collapsed turns or a hidden second cost, but a last-charge rule. Reproduced
+independently on both sides in three separate runs.
+
+**Legality remains open.** We have *not* observed whether a move at 0 or below
+can be played.
 
 So: **do not prune a move purely because its charge count is ≤ 0** until this is
 settled. Treat a non-positive charge as *evidence of reduced likelihood*, not as
@@ -328,6 +390,21 @@ proof of illegality, and log every case where an enemy plays a move at ≤ 0 so
 the question resolves itself with data. Getting this wrong assigns probability
 zero to a move the enemy can actually play, which is exactly the kind of
 confident-and-wrong that loses runs.
+
+**[2026-08-14] Implement this as a single flag** (`chargesAreHardLimit`,
+default `false`) that the EV engine reads, so the answer can be swapped in
+without touching the engine.
+
+A discriminator proposed in the session-03 brief — *"a side held a move at ≤0
+and played a different one ⇒ moves at ≤0 are illegal"* — **does not work and
+should not be retried.** It has now fired **23 times** across the corpus, and
+every instance left at least one other legal move available, which is precisely
+what a free choice looks like under the opposite hypothesis. It discriminates
+only when the play was *forced* — every alternative also non-positive. Forced
+plays observed: **0**.
+
+The cheapest remaining test needs no energy: drive a move to −1 in the client
+and try to select it.
 
 ### Decision procedure
 
@@ -415,7 +492,22 @@ climbs — dying in room 4 wastes far more invested energy than dying in room 1.
 
 ### 4c. Loot selection
 
-After each win you pick one of up to four boons. Rank by:
+**[CORRECTED 2026-08-14]** This section was written against zero evidence and
+against the wrong fields. Boons arrive as `rewardPathOptions[]` during
+`rewardPathPhase`, **not** `lootOptions`/`lootPhase` — see §3. Three options
+were offered (not "up to four"). Read applied values from `selectedVal1` /
+`selectedVal2`.
+
+Boon shapes actually observed (all `RestrictedToDungeons: ["5"]` unless noted):
+`AddLuck` (Common, 1), `CorrosiveShield` (Uncommon, 2), `UpgradePaper`
+(Uncommon, val2 2 → 4, `MaxRoom: 12`), `AddEvasion` (Common, 1), `Heal`
+(Uncommon, 8 → **16**, `MaxRoom: 12`), `AddBurnSword` (Uncommon, 3).
+
+A separate decision follows immediately: `enemyPathOptions[]`, choosing the next
+enemy by tier. That choice is **not** covered by the ranking below and is
+currently unspecified.
+
+After each win you pick one of three boons. Rank by:
 
 1. **Heal**, if HP fraction < 0.5 and rooms remain. Survival compounds; nothing
    else matters if the run ends. **[CONFIRMED 2026-08-13]** this card is the

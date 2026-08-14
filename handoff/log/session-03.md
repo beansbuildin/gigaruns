@@ -1,4 +1,4 @@
-# STATE — session 03 — 2026-08-14 — commit 9f8d591
+# SESSION 03 LOG — 2026-08-14
 
 ## Status
 Task 4 "Simulator + fixtures": **GATE FAIL — not started.**
@@ -143,3 +143,112 @@ All fixed in SPEC.md this commit (§3 phase table, §4 armor/unresolved block,
  fixtures/dungeon-runs/run-2026-08-13-23-29-39/*.json | 15 files (new, redacted)
  fixtures/dungeon-runs/run-2026-08-14-01-00-08/*.json | 49 files (new, redacted)
 ```
+
+---
+
+# Appendix — verbose detail
+
+## A. The four captures
+
+| dir | attempts | states | outcome |
+|---|---|---|---|
+| `fixtures/dungeon-runs/` (flat) | 1 | 8 | session-02 corpus, died room 1 |
+| `run-2026-08-13-23-21-36` | 1 | 8 | died room 1, enemy HP never moved off 30/30 |
+| `run-2026-08-13-23-29-39` | 1 | 15 | cleared room 1, died room 2 at 2 HP |
+| `run-2026-08-14-01-00-08` | 3 | 49 | two died room 1; third reached room 4 |
+
+## B. The six combat-model misses, in full
+
+```
+── 027→028  Shield vs Sword  → me
+   ✗ me   predicted HP 15 ARM 15   actual HP 31 ARM 15
+```
+Not an exchange. `rewardPathPhase` heal boon: `Heal`, `val1Min/Max: 8`,
+`selectedVal1: 16`. HP 15 + 16 = 31.
+
+```
+── 037→038  Sword vs Sword  → tie
+   ✗ me   predicted HP 22 ARM 5   actual HP 22 ARM 15
+```
+Room 3 → room 4 transition. Armor refilled 5 → 15 (`currentMax`). HP unchanged.
+
+```
+── 045→046  Sword vs Spell  → me
+   ✗ foe  predicted HP 28 ARM 0   actual HP 25 ARM 0
+```
+3 extra damage = `AddBurnSword` `selectedVal1: 3` on a Sword win. Enemy
+`statusEffects` becomes `[{"type":"Burn","amount":3}]` in the same state.
+
+```
+── 046→047  Shield vs Shield  → tie
+   ✗ foe  predicted HP 25 ARM 2   actual HP 24 ARM 0
+── 047→048  Shield vs Shield  → tie
+   ✗ foe  predicted HP 24 ARM 2   actual HP 23 ARM 0
+```
+Burn present (amount 3) but the enemy loses exactly **1 HP/turn**, and
+regenerates **0 armor** where the model expects 2. UNRESOLVED: is the tick 1
+regardless of amount, and does Burn suppress armor regeneration outright?
+
+```
+── 029→030  Sword vs Spell  → me
+   ✗ foe  predicted HP 37 ARM 0   actual HP 38 ARM 7
+```
+Enemy 65, `block: 2`, `evasion: 2`, `battleArmorReduction: 0`, my Sword
+`currentATK: 16`. Armor went 15 → 7, i.e. **8 damage from a 16-ATK win**, HP
+untouched. Exactly half, but `block 2` and `evasion 2` do not produce 8 under
+any obvious arithmetic. UNRESOLVED on one sample.
+
+## C. Boon objects observed (verbatim shapes)
+
+`AddLuck` Common val1 1 · `CorrosiveShield` Uncommon val1 2 ·
+`UpgradePaper` Uncommon val2 2 → selectedVal2 4, `MaxRoom: 12` ·
+`AddEvasion` Common val1 1 · `Heal` Uncommon val1 8 → selectedVal1 16,
+`MaxRoom: 12` · `AddBurnSword` Uncommon val1 3.
+
+Common fields: `{MinRoom, MaxRoom, RestrictedToDungeons: ["5"], BoonType,
+Rarity, val1Min, val1Max, TokenId, UINT256_CID_array, UINT256_CID, RARITY_CID,
+selectedVal1, selectedVal2, boonTypeString, docId}`.
+
+`pickedBoons` on the player accumulates the full boon objects across the run.
+
+## D. enemyPathOptions — the tier choice
+
+Three options, all `enemyId: 64`, all sharing `lootTable` `LT_D5_Room_2`
+(`ID_CID 95`, items `[846]`, weights `[1]`, amounts `[9]`):
+
+- tier 0 `Safe` — `enemyBuff: null`, rolled `{evasion:0, block:0, lck:0, tenacity:0}`
+- tier 1 `Risky` — `Cursing`, "Applies 1 Vulnerable on Magic wins"
+  (`onEnemyWinExchange_applyStatus`, `statusType: Vulnerable`, amount 1,
+  `moveType: scissor`), rolled `{evasion:2, block:0, lck:2, tenacity:1}`
+- tier 2 `Dangerous` — `Firebrand`, "Applies 2 Burn on Sword wins"
+  (`statusType: Burn`, amount 2, `moveType: rock`), rolled
+  `{evasion:2, block:1, lck:1, tenacity:3}`
+
+Identical loot across tiers means the tier premium bought nothing in this
+sample. If that generalises the rule is "always Safe" — but it is one sample.
+
+## E. Recollection vs fixtures
+
+The user transcribed their move sequence from memory for all four enemies.
+Checked against the recorded states: ~75% match. Enemy 1 — 7 listed, 8 actual.
+Enemy 2 — 4 listed, 3 actual. Enemy 3 — 9 listed, 8 actual. Enemy 4 — 8 listed,
+8 actual, 4 with at least one move wrong. The fixtures hold every exchange with
+exact HP/armor/charges, so nothing was lost; but recollection is not a data
+source and should not be requested again.
+
+## F. Verification commands and output
+
+```
+npx tsc --noEmit                                              -> exit 0
+npx tsx scripts/verifyCombatModel.ts fixtures/dungeon-runs    -> 14/14 HOLDS
+  ... run-2026-08-13-23-21-36                                 -> 14/14 HOLDS
+  ... run-2026-08-13-23-29-39                                 -> 24/24 HOLDS
+  ... run-2026-08-14-01-00-08                                 -> 76/82 BROKEN
+npx tsx scripts/chargeTable.ts                                -> 134 played moves
+npx vitest run                                                -> exit 1, NO TEST FILES
+```
+
+`--rejected` replays the superseded combat model as a falsification check. It
+fails, but it is reconstructed from STATE.md prose and omits the "Shield ties"
+special case, so its failure is NOT evidence that session 02's model scored
+differently than logged. Do not cite it as such.
