@@ -40,7 +40,19 @@ failures, energy below threshold, daily cap hit — stop the loop, log the full
 response body to `logs/`, exit non-zero. Never guess an action to "keep going."
 A stopped bot costs nothing. A confused bot costs energy and items.
 
-**6. Rate limits.**
+**6. A gate must be set on something the agent controls.**
+If a gate depends on data that does not exist yet, it is a capture request
+wearing a gate's clothes, and no amount of working harder can meet it. Task 4.5
+asked for `deepestScorableRoom >= 4` because the corpus *reached* room 4 —
+confusing corpus depth with corpus scorability — and the number was unreachable
+before the session began.
+
+Two obligations follow. If you receive a gate you believe is unreachable, say so
+**at the top of the session**, not in the recap; that is a far cheaper failure.
+And when you set a gate, state what would have to be captured for it to be
+meetable, so the next reader can tell a hard task from an impossible one.
+
+**7. Rate limits.**
 Minimum 1200ms between actions, plus 0–400ms jitter. Exponential backoff on 429
 starting at 5s. The action-token window is ~5s — if you go too fast the server
 rejects the token, and if you go too slow it goes stale. Handle both.

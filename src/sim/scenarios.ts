@@ -158,8 +158,11 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: "armor-cap-waste",
-    note: "Armor 14/15 winning with Spell (DEF 8): 7 of the 8 regenerated is wasted. Excess does not bank.",
-    state: { me: tweak(player(), { armor: 14 }), foe: enemy(1), room: 1 },
+    // Two below the cap, expressed relative to it — the user's gear changes
+    // between sessions (armorMax 15 -> 16 in session 06) and the scenario is
+    // about waste, not about a particular ceiling.
+    note: "Two below the armor cap, winning with Spell (DEF 8): 6 of the 8 regenerated is wasted. Excess does not bank.",
+    state: { me: tweak(player(), { armor: player().armorMax - 2 }), foe: enemy(1), room: 1 },
   },
   {
     name: "overflow-armor-to-hp",

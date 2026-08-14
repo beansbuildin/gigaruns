@@ -277,6 +277,65 @@ Now observed non-zero and partially understood: `evasion`, `block`, `lck`,
 Energy is stored scaled (`ENERGY_CID: 332247916021`). Always read
 `parsedData.energyValue`, never the raw CID.
 
+### 3e. `enemyPathOptions[]` — the tier choice **[CONFIRMED 2026-08-16]**
+
+After the boon phase, `enemyPathPhase` offers three options for the next enemy.
+Session 05 recorded this as "a real strategic decision with no spec" and left it
+open (QUESTIONS §6). It is now the **most consequential known decision in the
+run**, because each option carries its own enemy modifiers:
+
+```json
+{ "index": 0, "tier": 0, "tierName": "Safe", "enemyId": 64,
+  "enemyBuff": null,
+  "rolledEnemyStats": { "evasion": 0, "block": 0, "lck": 0, "tenacity": 0 },
+  "lootTable": { "NAME_CID": "LT_D5_Room_2", "ID_CID": 95,
+                 "GAME_ITEM_ID_CID_array": [846], "WEIGHT_CID_array": [1],
+                 "LOOT_AMOUNT_CID_array": [9] } }
+```
+
+The other two options in that offer were both `tier: 2` ("Dangerous"), same
+`enemyId: 64`, with `rolledEnemyStats` `{1,2,1,1}` and `{1,1,3,3}` and a non-null
+`enemyBuff` each.
+
+**The loot table is IDENTICAL across all three tiers** — same table, same item,
+same weight, same amount 9. Two independent samples now agree (session 05 saw
+the same, at the same room). So:
+
+> **Rule: always pick tier 0 ("Safe").** Higher tiers are pure added risk with
+> zero loot upside, *and* they are the sole source of enemy rolled stats and
+> enemy buffs — the two mechanics that make a battle unscorable. The strategic
+> choice and the coverage-preserving choice are the same choice.
+
+Caveat: two samples, both at room 2. If a deeper room shows a tier premium in
+`LOOT_AMOUNT_CID_array`, this reverses into a real risk/reward tradeoff. Re-check
+whenever a capture reaches a new depth.
+
+**`enemyBuff` is machine-readable, not prose.** Two observed:
+
+```json
+{ "id": "perpetual_firebrand", "name": "Perpetual Firebrand", "minTier": 2,
+  "perpetual": true, "description": "Applies 2 Burn on Sword wins",
+  "effects": [{ "kind": "onEnemyWinExchange_applyStatus",
+                "statusType": "Burn", "amount": 2, "moveType": "rock" }] }
+
+{ "id": "corrosiveShield", "name": "Miasmaguard", "minTier": 2,
+  "description": "Reduces 3 max armor on Shield wins",
+  "effects": [{ "kind": "onEnemyWinExchange_corrode",
+                "amount": 3, "moveType": "paper" }] }
+```
+
+Three things follow, none of them modelled yet because none has a before/after
+pair:
+
+1. **Burn's `amount` is 2 here, not 3** — which breaks the coincidence §4f is
+   held hostage by. See §4f.
+2. `corrosiveShield` is the same id as the room-1 **boon** `CorrosiveShield`
+   (`val1: 2`, unmodelled). Same effect kind, player side. A pointer for where
+   to look, **not** a model — the DECISIONS 2026-08-15 rule stands and it stays
+   unmodelled until a pickup pair exists.
+3. `battleArmorReduction` ("semantics unknown" in `src/sim/coverage.ts`) is very
+   likely the Miasmaguard counter.
+
 ---
 
 ## 4. Dungeon strategy
@@ -739,6 +798,13 @@ capture, not code.
 `.starting`. `src/sim/combat.ts` does not read them at all: any non-zero value
 makes the surrounding unit unscorable.
 
+> **[2026-08-16] Enemy rolled stats are a CHOICE, not a property of the enemy.**
+> `enemyPathOptions[]` carries `rolledEnemyStats` per tier — tier 0 ("Safe") is
+> all zeros, tier 2 ("Dangerous") is not. See §3e. So on the enemy side this
+> whole section describes a *tier the user picked*, and the bot can avoid the
+> mechanic entirely by picking Safe. It remains genuinely open on the **player**
+> side, where a rolled stat arrives via a boon.
+
 Counted in **damage-taking opportunities** (side-updates flatter the numbers,
 because a side that wins outright takes nothing and gives the stat no chance to
 fire):
@@ -769,12 +835,33 @@ so it is **not a function of (moves, stats) alone**. Tested and rejected:
   it would have to be conditional on `block > 0`. One positive sample. Not
   modellable.
 
-**The player-side miss (037→038) is perfectly confounded.** The player took 0
-from a 10-ATK tie. Either `evasion 1` dodged, **or a side that dies on an
-exchange deals no damage** — and 037→038 is the only exchange in the entire
-corpus where a side died on a *tie*. Every other recorded kill is an outright
-win, where the loser already deals nothing. The second reading needs no new
-mechanic at all.
+**The player-side miss (037→038) was perfectly confounded — and session 06 broke
+the confound.** The player took 0 from a 10-ATK tie. Either `evasion 1` dodged,
+**or a side that dies on an exchange deals no damage** — and 037→038 was the only
+exchange in the corpus where a side died on a *tie*, so the two were
+indistinguishable. The session-06 brief preferred the second on parsimony.
+
+**[REFUTED 2026-08-16.]** `run-2026-08-14-03-26-57 004→005` is a second
+death-on-a-tie, and it is inside the clean model:
+
+```
+before  me HP 20/32 ARM 0/16   foe HP  4/30 ARM 0/12
+after   me HP 12/32 ARM 0/16   foe HP  0/30 ARM 0/12    me=Spell foe=Spell, tie
+
+foe: tie -> regen own DEF 4 -> armor 4; takes our ATK 12 -> 4-12 = -8 -> HP 4-8 -> 0, DEAD
+me:  tie -> regen own DEF 8 -> armor 8; takes foe ATK 16 -> 8-16 = -8 -> HP 20-8 = 12 ✓
+```
+
+The enemy **died on that tie and dealt its full 16 anyway**. So "a side that dies
+deals no damage" is false, and the surviving explanation for 037→038 is
+`evasion`. Do **not** implement the die-on-a-tie flag the session-06 brief §4
+asked for; it would be modelling a rule the corpus refutes.
+
+Note which way this cuts: the parsimonious hypothesis was the wrong one, and the
+player-side evasion evidence stays **8/9, not 9/9** — so `evasion` probably does
+something. That still does not license narrowing `ROLLED_STATS`: n = 9 is under
+the 30-observation floor either way. What changed is which hypothesis is live,
+not whether a rate can be read off nine samples.
 
 ### 4f. Burn — a strong hypothesis, held behind a flag **[2026-08-15]**
 
@@ -795,7 +882,14 @@ It stays **default-off** (`BURN_PER_EXCHANGE` in `src/sim/boons.ts`) because the
 boon's `selectedVal1`, the status `amount` and the damage are all the number 3,
 from a single status instance at a single value, so "ticks for `amount`", "ticks
 for 3" and "ticks for the boon's val1" are the same observation — and it is
-never seen expiring, so the duration is unknown. Same treatment as
+never seen expiring, so the duration is unknown.
+
+> **[2026-08-16] The coincidence is now breakable.** §3e records a
+> `perpetual_firebrand` enemy buff whose declared Burn `amount` is **2**, not 3.
+> One capture of a Firebrand enemy actually burning separates "ticks for
+> `amount`" from "ticks for 3" in a single observation. The duration question is
+> untouched by this and still needs a Burn seen expiring. The flag stays off
+> until both land. Same treatment as
 `chargesAreHardLimit`: implemented, flagged, defaulted to the side that refuses
 to score rather than the side that guesses. Turning it on buys nothing today,
 since the only enemy ever seen burning is in room 4, which is unscorable for

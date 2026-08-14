@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(4);
+    expect(pickups.length).toBe(6);
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -143,7 +143,7 @@ describe("fail-closed on unmodelled types", () => {
     expect(UNMODELLED_TYPES).toEqual([
       "AddBlock",
       "AddIntuition",
-      "AddTenacity",
+      "AddMaxArmor",
       "CorrosiveShield",
       "TieDamageReduction",
       "UpgradePaper",
@@ -155,7 +155,7 @@ describe("fail-closed on unmodelled types", () => {
 describe("Wall 1 — the finding that keeps deepestScorableRoom at 1", () => {
   it("has no room-1 option that is both modelled and clean", () => {
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(6);
+    expect(roomOne.length).toBe(12);
 
     for (const option of roomOne) {
       const { reasons } = applyBoon(toCombatant(pickups[0]!.before.run.players[0]!), option);

@@ -5,6 +5,60 @@ these block it.
 
 ---
 
+## 0. CAPTURE RUN — do this first [session 06]
+
+One supervised Forbidden Woods run, ~20 energy. `scripts/watch.ts` is read-only
+and records every state automatically — you just play. Everything below is a
+thing to *do while playing*; nothing needs writing down.
+
+**Setup**
+
+```bash
+npx tsx scripts/watch.ts 2700
+```
+
+Leave it running. Start a Forbidden Woods run in the browser when it says
+`polling — no active run yet`.
+
+**While you play — in priority order**
+
+- [ ] **Pick the "Safe" tier at every enemy-path screen.** [added run 2 —
+      this is now the top item] The run-1 capture showed all three tiers share
+      an identical `lootTable`, while Safe alone has `rolledEnemyStats` all zero
+      and `enemyBuff: null`. Higher tiers are pure added risk with no loot
+      upside — and a Safe enemy is one the sim can actually score.
+- [ ] **Room 1 boon: take `AddMaxArmor` (or any `AddMax…`, or `Heal`) if it is
+      offered.** [changed run 3 — this replaces the earlier "take AddEvasion or
+      AddLuck"] It is very likely the first *clean* room-1 boon, which is the
+      one thing that would let the sim score past room 1. See §5b.
+      If none of those is offered, then take `AddEvasion` or `AddLuck` — a
+      rolled stat carried all run is the second-best thing to capture.
+- [ ] **Play long.** The rolled stat needs ~30 exchanges where you actually
+      *take damage* to be readable. Grinding an enemy down is worth more to us
+      than a fast clean kill.
+- [ ] **At enemy 65 (room 3): win with Sword while its armor is FULL.**
+      Several times if you can. This is the single highest-value capture in the
+      session. Enemy 65 once took 8 from a 16-damage Sword win and 16 from the
+      same hit elsewhere; full armor is the one thing that differed. If its
+      armor is already chipped, let it rebuild (it regenerates when it wins or
+      ties) and then Sword it.
+- [ ] **Free if it comes up: kill an enemy with a TIE, not a win.** Mirror its
+      move on the killing blow, while you still have armor. Don't chase this —
+      ties can't be forced. If it happens, that's one confound resolved.
+- [ ] **Pause a beat at every boon and enemy-tier screen** so the 2.5s poll
+      catches it. We need the full offer triple, including the two you don't
+      take, and all three tiers' loot tables.
+
+**One free check, no energy, any time**
+
+- [ ] Play one move until its charge counter reads `-1`, then try to click it.
+      Does the client let you select it? (See §1 — this settles `chargesAreHardLimit`
+      outright, and it's currently the biggest claimed edge in the EV engine.)
+
+**When you're done**, ctrl-c the watcher. It prints where it wrote.
+
+---
+
 ## 1. Can a move at ≤ 0 charges actually be played? — one click settles it
 
 **Status 2026-08-15: no longer blocking, but still unproven.** The flag
@@ -58,10 +112,13 @@ The remaining work is capture. Three specific asks, in order of value per energy
 spent. **All three fit inside a single watched run** (`scripts/watch.ts` already
 records every state; none of these needs new tooling):
 
-### 5a. Rolled-stat semantics — the highest-value capture
+### 5a. Rolled-stat semantics — downgraded 2026-08-16, no longer the top blocker
 
-This is now the top blocker, ahead of everything else: it gates both the room-1
-boons (`AddLuck`, `AddEvasion`) *and* enemy 65.
+**It gates less than session 05 thought.** On the *enemy* side, rolled stats come
+from the tier the player picks (§6, SPEC §3e) — pick Safe and the mechanic never
+fires. What remains genuinely open is the **player** side, where a rolled stat
+arrives via a boon, and there the bot can also simply not take one. So this is
+now a nice-to-have behind §5b, not the wall it was recorded as.
 
 **What we have.** Counted in damage-taking opportunities: player `evasion 1`
 8/9 exact, player `lck 1` 2/2, enemy `ev2+bl2+lk1` 6/7. The enemy-65 anomaly is
@@ -74,25 +131,31 @@ stats and actually takes damage. Concretely: take `AddEvasion` or `AddLuck`
 early and play a long run, and/or fight enemy 65 through several Sword wins **at
 full enemy armor** (the anomaly's one distinguishing feature).
 
-### 5b. A clean room-1 boon offer
+### 5b. A clean room-1 boon offer — NOW THE TOP ASK, and it is one click
 
-Even one recorded room-1 offer containing `Heal` — or any boon whose delta we
-can verify and which grants no rolled stat — opens room 2 immediately. This is
-pure luck of the draw, so it comes free with any watched run: just record what
-gets offered at room 1 each time.
+**Updated 2026-08-16.** Session 06 recorded `AddMaxArmor` (val1 2) offered at
+**room 1**, alongside `AddLuck` and `UpgradeScissor`. It was not taken, so it has
+no pair and stays unmodelled.
 
-### 5c. One die-on-a-tie exchange
+This is the highest-value single action left in the project. A max-pool change is
+something `combat.ts` already models, so `AddMaxArmor` is very likely the clean
+room-1 boon that has been missing since session 04 — and one pickup gives it a
+before/after pair. Combined with Safe-tier enemies (§6), `deepestScorableRoom`
+could go from 1 to 4 in a single run.
 
-Cheap, and it resolves a confound that currently taints the only player-side
-replay miss. At 037→038 the player took **0** from a 10-ATK tie. Either
-`evasion 1` dodged, **or a side that dies on an exchange deals no damage** — and
-that is the only exchange in the whole corpus where a side died on a *tie*, so
-the two are indistinguishable. The second explanation needs no new mechanic and
-would be a plain addition to the combat model.
+**Capture:** if `AddMaxArmor` — or any `AddMax*`, or `Heal` — is offered at room
+1, take it. Then keep playing so the rooms behind it get scored.
 
-**Capture:** finish any enemy off with a **tie** (mirror its move) rather than
-an outright win, while the player is on non-zero armor, and record whether the
-player takes damage.
+### 5c. Die-on-a-tie — RESOLVED 2026-08-16, and the answer was the unexpected one
+
+`run-2026-08-14-03-26-57 004→005`: the enemy **died on a tie and dealt its full
+16 ATK anyway**, inside the clean model. So "a side that dies on an exchange
+deals no damage" is **refuted** — do not implement it.
+
+The confound at 037→038 therefore breaks toward `evasion`, which means evasion
+probably *does* fire, and the player-side evidence stays 8/9 rather than becoming
+9/9. `ROLLED_STATS` is still not narrowed: n = 9 is under the floor either way.
+See SPEC §4e.
 
 ### 5d. Burn — nearly closed, low priority
 
@@ -103,13 +166,21 @@ expiring. **Deliberately low priority:** the only burning enemy is in room 4,
 which is unscorable for `ENEMY_BUFF` regardless, so resolving Burn alone buys no
 coverage. Worth doing only once 5a lands.
 
-## 6. `enemyPathOptions` tier choice — still unspecified
+## 6. `enemyPathOptions` tier choice — RESOLVED 2026-08-16
 
-Safe / Risky / Dangerous, with an identical `lootTable` across all three tiers
-in the single captured sample. If that generalises, higher tiers are pure added
-risk and the rule is trivially "always Safe" — but it is one sample, and it is a
-real strategic decision with no spec. One capture of a reward phase, reading all
-three tiers' loot tables, settles it.
+Second sample captured, and it agrees: **the `lootTable` is identical across all
+three tiers** (same table `LT_D5_Room_2`, same item 846, same weight, same amount
+9). And the tiers are the source of `rolledEnemyStats` and `enemyBuff` — tier 0
+("Safe") is all zeros with a null buff.
+
+So the rule is **always Safe**, for two independent reasons that happen to point
+the same way: higher tiers are pure added risk with no loot upside, and they are
+the only thing making these battles unscorable. See SPEC §3e and DECISIONS
+2026-08-16.
+
+Still open, and worth one line in any future capture: both samples are at room 2.
+If a deeper room shows a tier premium in `LOOT_AMOUNT_CID_array`, this becomes a
+real risk/reward tradeoff rather than a free choice.
 
 ## 3. Fishing HAR — still blocks Task 7 (carried from session 01)
 

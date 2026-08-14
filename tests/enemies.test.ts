@@ -49,10 +49,19 @@ describe("enemy profiles match the fixtures", () => {
 });
 
 describe("player loadout matches the fixtures", () => {
+  /**
+   * Pinned to the NEWEST capture, not a named one. The user changes gear between
+   * sessions — `armorMax` was 15 through sessions 03–05 and is 16 as of
+   * run-2026-08-14-03-26-57 — so a test pinned to one run keeps passing while
+   * the sim quietly models a loadout that no longer exists.
+   */
+  const newestOpening = () => {
+    const runs = loadCorpus().filter((r) => r.states.length > 0);
+    return runs[runs.length - 1]!.states[0]!;
+  };
+
   it("uses the live values, not the class base of HP 30 / armor 12", () => {
-    const runs = loadCorpus();
-    const opening = runs.find((r) => r.name === "run-2026-08-14-01-00-08")!.states[0]!;
-    const wire = opening.run.players[0]!;
+    const wire = newestOpening().run.players[0]!;
 
     expect(PLAYER.hpMax).toBe(wire.health.currentMax);
     expect(PLAYER.armorMax).toBe(wire.shield.currentMax);
@@ -65,6 +74,25 @@ describe("player loadout matches the fixtures", () => {
       expect(PLAYER.moves[m].atk).toBe(wire[m].currentATK);
       expect(PLAYER.moves[m].def).toBe(wire[m].currentDEF);
     }
+  });
+
+  /**
+   * Not an assertion that the corpus is consistent — it is NOT, and that is the
+   * point. This records how many distinct loadouts are in there, so gear drift
+   * is a visible number instead of a silent bias on every armor fraction the sim
+   * reports. Update the count when it changes, and re-measure any baseline you
+   * were about to quote from an older session.
+   */
+  it("records how many distinct loadouts the corpus contains", () => {
+    const seen = new Set(
+      loadCorpus().flatMap((r) =>
+        r.states.map((s) => {
+          const w = s.run.players[0]!;
+          return `${w.health.currentMax}/${w.shield.currentMax}`;
+        }),
+      ),
+    );
+    expect([...seen].sort()).toEqual(["32/15", "32/16"]);
   });
 });
 

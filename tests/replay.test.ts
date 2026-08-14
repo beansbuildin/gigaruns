@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(66);
+    expect(exchanges(runs).length).toBe(84);
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -71,7 +71,7 @@ describe("combat model vs recordings", () => {
 
   it("reports the headline numbers", () => {
     // Not an assertion so much as a record of where the model stands.
-    expect(report.sideUpdates).toBe(132);
+    expect(report.sideUpdates).toBe(168);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

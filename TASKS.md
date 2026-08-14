@@ -55,7 +55,7 @@ random-move opponent and reports win rate. Nothing touches the network.
 
 ---
 
-### 4.5 — Boon model ← inserted 2026-08-15, **GATE NOT MET (see below)**
+### 4.5 — Boon model ← inserted 2026-08-15, **GATE RETIRED 2026-08-16**
 
 Model boons as state deltas applied at pickup, derived from before/after pairs
 in the corpus. Nothing inferred from option text. Types without a pair stay
@@ -84,6 +84,21 @@ the gate itself (SPEC §4d):
 see `QUESTIONS.md` §5a–§5d for the specific captures that would move it, all of
 which fit inside a single watched run.
 
+**GATE RETIRED [2026-08-16, session-06 brief §1].** Not carried forward as `>= 2`
+either: a gate one counterfactual substitution away from passing measures
+nothing. The gate was badly set, and the generalisable rule is now `CLAUDE.md`
+§6 — *a gate must be set on something the agent controls*. `deepestScorableRoom
+>= 4` was chosen because the corpus **reached** room 4, which confused corpus
+depth with corpus scorability.
+
+**And one of the reasons recorded for retiring it was itself wrong.** Reason 2
+above — enemies 65 and 66 are unscorable *innately* — was falsified by session
+06's capture: `enemyPathOptions[]` carries `rolledEnemyStats` and `enemyBuff`
+**per tier**, tier 0 ("Safe") is all zeros with a null buff, and the recorded
+profiles are Dangerous-tier instances the user chose. The retirement stands on
+reasons 1 and 3, which hold. Reason 2 is retracted; see `src/sim/enemies.ts` and
+DECISIONS 2026-08-16.
+
 ---
 
 ### 5 — Dungeon strategy
@@ -93,32 +108,53 @@ pruning and first-order transition tracking, maximin fallback, loot ranking.
 Pure functions only. Must use `netDamageOnTie` rather than raw ATK — see the
 tie-value asymmetry in SPEC §4b.
 
-**Gate [RESTATED 2026-08-15].** The original — "beats always-Sword by ≥15% win
-rate over 1000 runs" — is unrunnable: run win rate is 0% by construction under
-fail-closed coverage, since clearing a room fires a boon and every recorded
-room-1 boon is unscorable. Replacing it:
+**Gate [RESTATED AGAIN 2026-08-16, session-06 brief §5].** The 2026-08-15 form
+gated on *mean rooms cleared*, which with `deepestScorableRoom` pinned at 1 is
+the room-1 win rate with extra steps — `always-Sword 1.018` is barely a different
+number from its 67.9% battle rate. The rooms-cleared gate moves to Task 11, where
+it belongs once coverage has climbed. Replacing it:
 
 > On the scored subset, the strategy engine beats the always-Sword baseline on
-> **mean rooms cleared per run**, by a margin exceeding the 95% confidence
-> interval over ≥1000 runs. Report alongside it: room-1 battle win rate,
-> coverage percentage, and `deepestScorableRoom`. **Any win-rate claim stated
+> **room-1 battle win rate**, with **non-overlapping 95% confidence intervals**
+> over ≥1000 runs. Report alongside: mean rooms cleared ± CI, coverage %, and
+> `deepestScorableRoom` — **reported, not gated**. **Any win-rate claim stated
 > without its coverage is not a result.**
 
-Rooms cleared is the honest proxy for items per energy, which is what the bot
-exists to maximise. A confidence interval sets the threshold from the data's own
-variance rather than from a number someone picked. `simulate()` returns
-`meanRoomsCleared` and `roomsClearedCi95` for exactly this.
+Gate on what is measurable now; report what isn't, so the blind spot stays
+visible. Two constraints on the build: the engine must be **room-agnostic**
+(nothing hardcodes room 1, so it works deeper with no rewrite when coverage
+climbs), and §4c loot ranking gets written but explicitly marked **unvalidated**,
+since it cannot be tested at depth 1.
 
-Baselines to beat, from `npm run sim` (1000 runs vs random, room-1 battle win
-rate on the scored subset): **always-Sword 67.9%**, random 60.6%, always-Shield
-55.1%. Mean rooms cleared: always-Sword **1.018 ± 0.058**, random 0.859 ± 0.052,
-always-Shield 0.847 ± 0.059. Always-Sword is a genuinely strong baseline, not a
-strawman — beating it will need the charge pruning and the tie asymmetry, not
-just tuned weights.
+**Outcome: GATE MET [2026-08-16].** `npm run sim`, 1000 runs each vs random,
+room-1 battle win rate on the scored subset:
+
+```
+always-Sword   67.9% ± 2.9  [65.0, 70.8]  (679/1000 scored)
+ev-engine      81.8% ± 2.4  [79.4, 84.2]  (818/1000 scored)
+```
+
+Intervals do not overlap. Reported, not gated: mean rooms cleared always-Sword
+1.038 ± 0.059 vs ev-engine 1.616 ± 0.072; battle coverage 49% vs 39%;
+`deepestScorableRoom` 1 for both. **Coverage falls as the engine improves** and
+that is not a regression — a policy that survives room 1 more often takes more
+boons, and every recorded room-1 boon is unscorable. Only capture moves
+`deepestScorableRoom`.
+
+Baselines re-measured at the session-06 loadout (`armorMax` 15 → 16, the user
+changed gear): always-Sword 67.9%, random 60.6%, always-Shield 55.1%. Always-Sword
+is a genuinely strong baseline, not a strawman.
+
+Where the edge comes from, measured rather than asserted: depth-2 expectimax is
+worth ~4 points over depth-1 (82.0% vs 78.3%), and depth 3 a further ~2 that is
+**inside the confidence interval** and costs 7× the time, so the default stays
+at 2. Online learning against this opponent is worth ~1 point, correctly — the
+sim's opponent is uniformly random, so there is nothing to learn, and the model
+reports exactly that (`determinism()` finds nothing over 5447 observations).
 
 Log the EV table for one full battle and eyeball it — every chosen move should
 be justifiable from its numbers. If one isn't, the utility weights are wrong,
-not the logs.
+not the logs. `npm run sim` prints one, from a warmed model at a fixed seed.
 
 ---
 

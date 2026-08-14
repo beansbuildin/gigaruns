@@ -25,15 +25,26 @@ const mv = (atk: number, def: number, maxCharges = 3) => ({
 const rolled = (r: Partial<RolledStats> = {}): RolledStats => ({ ...noRolled(), ...r });
 
 /**
- * The user's loadout as recorded. HP/armor maxima sit above the base 30/12
- * because of gear, so these are the live values, not the class defaults.
+ * The user's loadout as recorded in the MOST RECENT capture. HP/armor maxima sit
+ * above the base 30/12 because of gear, so these are the live values, not the
+ * class defaults.
+ *
+ * **This drifts.** `armorMax` was 15 through sessions 03–05 and is 16 as of
+ * run-2026-08-14-03-26-57 — the user changed gear. The corpus therefore contains
+ * more than one loadout, and `tests/enemies.test.ts` pins this to the newest
+ * one and reports how many distinct loadouts it can see, so the drift is visible
+ * rather than silently biasing every armor-fraction number in the sim.
+ *
+ * Consequence for cross-session comparisons: a baseline measured at armorMax 15
+ * is not strictly comparable to one measured at 16. Re-measure both sides of any
+ * comparison in the same run rather than quoting a number from an old recap.
  */
 export const PLAYER: Combatant = {
   id: "player",
   hp: 32,
   hpMax: 32,
-  armor: 15,
-  armorMax: 15,
+  armor: 16,
+  armorMax: 16,
   moves: {
     rock: mv(16, 0), // Sword
     paper: mv(6, 12), // Shield
@@ -88,6 +99,15 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
     // Observed with evasion 2 / block 2 / lck 1 (read from `.current`;
     // `.starting` is 0). This is the enemy that took 8 damage from a 16-ATK
     // Sword win by a rule nothing explains.
+    //
+    // [CORRECTED session 06] These stats are NOT innate. `enemyPathOptions[]`
+    // carries `rolledEnemyStats` PER TIER, and tier 0 ("Safe") is all zeros
+    // while both tier-2 ("Dangerous") options carry non-zero rolls. So this
+    // profile is a Dangerous-tier INSTANCE of enemy 65, recorded because the
+    // user was picking high tiers — not a property of the enemy. Session 05
+    // read it as innate and built "wall 2" of the Task 4.5 analysis on it.
+    // A Safe-tier enemy 65 should be clean, and this profile should be split
+    // by tier once a Safe capture exists to derive it from.
     unmodelled: ["ROLLED_STATS"],
     enemy: {
       id: "Enemy Room 65",
@@ -96,8 +116,8 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 15,
       armorMax: 15,
       moves: { rock: mv(10, 5), paper: mv(15, 6), scissor: mv(12, 4) },
-      // Innate, not boon-granted — which is why room 3 is unscorable no matter
-      // how well boons are modelled. [session 05]
+      // Not boon-granted, and — as of session 06 — not innate either: granted
+      // by the Dangerous tier the user chose. See the note above.
       rolled: rolled({ evasion: 2, block: 2, lck: 1 }),
     },
   },
@@ -105,6 +125,12 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
     room: 4,
     // Observed carrying `statusEffects [{Burn, 3}]`, and the run carried an
     // `activeEnemyBuff` (shatterblade: applies Vulnerable on Sword wins).
+    //
+    // [session 06] Same suspicion as room 3: `enemyBuff` is a per-tier field on
+    // `enemyPathOptions[]` and is `null` on tier 0, so shatterblade is very
+    // likely a Dangerous-tier buff rather than a property of enemy 66. Not
+    // corrected in the data, only flagged — no Safe-tier capture of this enemy
+    // exists yet, and the rule here is that the recording wins over the theory.
     unmodelled: ["STATUS_EFFECT", "ENEMY_BUFF"],
     enemy: {
       id: "Enemy Room 66",

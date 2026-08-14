@@ -135,9 +135,11 @@ describe("charge scenarios", () => {
 describe("armor scenarios", () => {
   it("armor-cap-waste: excess regen does not bank", () => {
     const { state } = get("armor-cap-waste");
-    expect(state.me.armor).toBe(14);
+    // Against the loadout's cap rather than a literal — gear drifts between
+    // sessions and the claim is about waste, not about a particular ceiling.
+    expect(state.me.armor).toBe(state.me.armorMax - 2);
     const { state: next } = resolveExchange(state, "scissor", "paper"); // win, DEF 8
-    expect(next.me.armor).toBe(15);
+    expect(next.me.armor).toBe(state.me.armorMax);
   });
 
   it("overflow-armor-to-hp: absorbed then carried, in one exchange", () => {

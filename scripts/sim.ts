@@ -10,7 +10,7 @@
  *   npx tsx scripts/sim.ts [runs=1000]
  */
 
-import { BOON_MODELS, offersForRoom, UNMODELLED_TYPES } from "../src/sim/boons.js";
+import { BOON_MODELS, OBSERVED_OFFERS, offersForRoom, UNMODELLED_TYPES } from "../src/sim/boons.js";
 import {
   fixedPolicy,
   formatSummary,
@@ -18,8 +18,14 @@ import {
   simulate,
   type Policy,
 } from "../src/sim/dungeonSim.js";
-import { ROOM_ENEMIES } from "../src/sim/enemies.js";
+import { isDead, cloneCombatant, type MoveKey } from "../src/sim/types.js";
+import { legalMoves, resolveExchange } from "../src/sim/combat.js";
+import { PLAYER, ROOM_ENEMIES } from "../src/sim/enemies.js";
+import { makeRng } from "../src/sim/rng.js";
 import { replayCorpus } from "../src/sim/replay.js";
+import { DEFAULT_CONFIG } from "../src/strategy/config.js";
+import { decide, formatDecision } from "../src/strategy/decide.js";
+import { strategyPolicy } from "../src/strategy/policy.js";
 
 const RUNS = Number(process.argv[2] ?? 1000);
 const rule = (s: string) => `\n${"═".repeat(74)}\n${s}\n${"═".repeat(74)}`;
@@ -86,24 +92,33 @@ console.log(`
 // from the profiles rather than asserting it, so it updates itself when the
 // corpus grows.
 const firstDirtyRoom = ROOM_ENEMIES.find((p) => p.unmodelled.length > 0)?.room ?? Infinity;
+const roomOneOptions = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
 console.log(`
-  Why. Three independent walls, any one of which alone holds the number down:
+  Why. Three walls were recorded in session 05. Session 06's capture knocked one
+  of them down, which is worth stating precisely, because the gate was retired
+  partly on the strength of it:
 
-  1. NO CLEAN ROOM-1 BOON. Both recorded room-1 offers are one rolled-stat boon
-     we can model at pickup but whose effect on damage is unexplained, plus two
-     types with no pair at all. 6 of 6 room-1 options are unscorable, so the run
-     is contaminated before room 2 begins. Heal — the one clean boon in the
-     corpus — is only ever offered at room 2, by which point it is too late.
+  1. NO CLEAN ROOM-1 BOON. ${roomOneOptions.length} of ${roomOneOptions.length} recorded room-1 options are either a
+     rolled-stat boon we can model at pickup but whose damage effect is
+     unexplained, or a type with no before/after pair at all. So the run is
+     contaminated before room 2 begins. Heal — the one clean boon in the corpus
+     — is still only ever offered at room 2. STANDS, but it is now one pickup
+     away from falling: 'AddMaxArmor' was offered at room 1 in session 06 and
+     not taken, and a max-pool change is something combat.ts already models.
 
-  2. ROOMS ${firstDirtyRoom}+ ARE UNSCORABLE FOR REASONS BOONS HAVE NOTHING TO DO WITH.
-     Enemy 65 carries evasion2/block2/lck1 innately; enemy 66 carries Burn and
-     the run carries shatterblade. So a PERFECT boon model caps this number at
-     ${firstDirtyRoom - 1}. The gate value of 4 was never reachable from this corpus — that
-     is a fact about the enemies, and no amount of boon work changes it.
+  2. RETRACTED — rooms ${firstDirtyRoom}+ ARE NOT INNATELY UNSCORABLE. Session 05 read enemy
+     65's evasion2/block2/lck1 as a property of the enemy and concluded a
+     perfect boon model caps this number at ${firstDirtyRoom - 1}. It is not a property of the
+     enemy: 'enemyPathOptions[]' carries 'rolledEnemyStats' PER TIER, tier 0
+     ("Safe") is all zeros, and both tier-2 options carry non-zero rolls. The
+     recorded profile is a Dangerous-tier instance, captured because the user was
+     picking high tiers. Under a Safe-tier policy these enemies should be clean.
+     The gate retirement still stands — it was unreachable from THAT corpus —
+     but this reason for it was wrong.
 
-  3. NO GROUNDED OFFER DISTRIBUTION. Four offer triples exist (two at room 1,
-     one each at rooms 2 and 3). Synthesising more would be inventing the single
-     thing that decides how a run develops, off a sample of four.`);
+  3. NO GROUNDED OFFER DISTRIBUTION. ${OBSERVED_OFFERS.length} offer triples now exist, up from 4.
+     Still far too few to synthesise from; the sim continues to draw only from
+     what was recorded.`);
 
 // A counterfactual, kept strictly separate from every reported number. It
 // answers an engineering question the walls above obscure: is the boon
@@ -132,9 +147,108 @@ console.log(`
     battles scored: ${hypothetical.battleCoverage.scored}/${hypothetical.battleCoverage.total}
 
   So the plumbing works — a clean room-1 boon does move the number, to ${hypothetical.deepestScorableRoom}, and
-  then stops dead at wall 2. This is the strongest evidence that the remaining
-  blocker is CAPTURE (rolled-stat semantics and a clean room-1 offer), not code.
+  then stops at the room-${firstDirtyRoom} profile. That profile is a Dangerous-tier instance
+  (wall 2 above), so the stop is an artefact of which enemies were captured, not
+  a ceiling. The remaining blocker is CAPTURE — a Safe-tier run and one clean
+  room-1 pickup — and not code.
   ───────────────────────────────────────────────────────────────────────────`);
+
+// ── 2c. TASK 5 GATE — the EV engine against the always-Sword baseline ─────
+//
+// Gate (session-06 brief §5, replacing the session-05 mean-rooms-cleared form):
+//
+//   On the scored subset, the strategy engine beats the always-Sword baseline
+//   on ROOM-1 BATTLE WIN RATE, with non-overlapping 95% confidence intervals
+//   over >= 1000 runs. Reported alongside, NOT gated: mean rooms cleared ± CI,
+//   coverage %, and deepestScorableRoom.
+//
+// Gating on the battle rate rather than on rooms cleared is not a lowered bar,
+// it is the honest one: with deepestScorableRoom pinned at 1, mean rooms
+// cleared over mostly-unscorable runs is the room-1 win rate with extra steps.
+console.log(rule(`TASK 5 GATE — EV engine vs always-Sword, ${RUNS} runs each`));
+
+const evPolicy = strategyPolicy({ name: "ev-engine" });
+const sword = simulate(RUNS, { policy: fixedPolicy("rock"), opponent: randomPolicy, chargesAreHardLimit: true }, 1);
+const ev = simulate(RUNS, { policy: evPolicy, opponent: randomPolicy, chargesAreHardLimit: true }, 1);
+
+const band = (s: typeof sword): string => {
+  const r = s.battlesByRoom.get(1);
+  if (!r || r.winRate === null) return "nothing scorable at room 1";
+  const ci = r.ci95 ?? 0;
+  return (
+    `${(100 * r.winRate).toFixed(1)}% ± ${(100 * ci).toFixed(1)}` +
+    `  [${(100 * (r.winRate - ci)).toFixed(1)}, ${(100 * (r.winRate + ci)).toFixed(1)}]` +
+    `  (${r.won}/${r.scored} scored)`
+  );
+};
+
+console.log(`
+  ROOM-1 BATTLE WIN RATE, scored subset, 95% CI
+    always-Sword   ${band(sword)}
+    ev-engine      ${band(ev)}`);
+
+const a = sword.battlesByRoom.get(1)!;
+const b = ev.battlesByRoom.get(1)!;
+const separated = b.winRate! - (b.ci95 ?? 0) > a.winRate! + (a.ci95 ?? 0);
+
+console.log(`
+  REPORTED, NOT GATED — the blind spot stays visible
+    mean rooms cleared     always-Sword ${sword.meanRoomsCleared.toFixed(3)} ± ${sword.roomsClearedCi95.toFixed(3)}` +
+  `   ev-engine ${ev.meanRoomsCleared.toFixed(3)} ± ${ev.roomsClearedCi95.toFixed(3)}
+    battle coverage        always-Sword ${(100 * sword.battleCoverage.fraction).toFixed(0)}%` +
+  `   ev-engine ${(100 * ev.battleCoverage.fraction).toFixed(0)}%
+    deepestScorableRoom    always-Sword ${sword.deepestScorableRoom}   ev-engine ${ev.deepestScorableRoom}
+
+  Coverage FALLS as the engine improves, and that is not a regression: a policy
+  that survives room 1 more often takes more boons, and every recorded room-1
+  boon is unscorable. Winning more and being able to score less are the same
+  fact here. The number to watch is deepestScorableRoom, and only capture moves it.`);
+
+console.log(
+  separated
+    ? `\n✓ GATE MET — the intervals do not overlap.`
+    : `\n✗ GATE NOT MET — the intervals overlap; the difference is not established.`,
+);
+
+// SPEC §4: "Log the EV table for one full battle and eyeball it — every chosen
+// move should be justifiable from its numbers. If one isn't, the utility
+// weights are wrong, not the logs."
+console.log(rule("EV TABLE — one full room-1 battle, every turn"));
+{
+  const rng = makeRng(20260816);
+  // Reuse the model the gate run just built, so the log shows the engine in its
+  // normal state — a read above the sample floor, with charge pruning — rather
+  // than the cold-start uniform every first battle sees.
+  const model = evPolicy.model;
+  const cfg = DEFAULT_CONFIG;
+  let s = { me: cloneCombatant(PLAYER), foe: cloneCombatant(ROOM_ENEMIES[0]!.enemy), room: 1 };
+  let prev: MoveKey | null = null;
+
+  for (let turn = 1; !isDead(s.me) && !isDead(s.foe) && turn <= 20; turn++) {
+    const d = decide(s, model, cfg, prev);
+    console.log(`\n[turn ${turn}] ${formatDecision(s, d)}`);
+    const theirs = legalMoves(s.foe, cfg.chargesAreHardLimit);
+    const foeMove = rng.pick(theirs);
+    const res = resolveExchange(s, d.move, foeMove);
+    console.log(
+      `      played ${d.move} vs ${foeMove} → ${res.outcome > 0 ? "win" : res.outcome === 0 ? "tie" : "loss"}` +
+        `, dealt ${res.damageDealt} took ${res.damageTaken}`,
+    );
+    prev = foeMove;
+    s = res.state;
+  }
+  console.log(
+    `\n  outcome: ${isDead(s.foe) ? "enemy dead" : isDead(s.me) ? "we died" : "unresolved at the turn cap"}` +
+      `  — me HP ${s.me.hp} ARM ${s.me.armor}, foe HP ${s.foe.hp} ARM ${s.foe.armor}`,
+  );
+  console.log(`
+  ONE battle at a fixed seed, printed whatever it did — not selected for being
+  won, and not evidence either way about the engine. The gate above is the
+  evidence. What this log is for is SPEC §4's check that every chosen move is
+  justifiable from its own numbers, which you can read off the rows: the engine
+  takes Sword while the pools are healthy and its worst case is survivable, and
+  switches to Shield once a single lost exchange would end the run.`);
+}
 
 // ── 3. the §1 threshold case, stated as a number ──────────────────────────
 //

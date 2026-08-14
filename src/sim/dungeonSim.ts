@@ -12,7 +12,7 @@
  */
 
 import { applyBoon, offersForRoom, type BoonOffer, type BoonOption } from "./boons.js";
-import { legalMoves, resolveExchange, enterRoom } from "./combat.js";
+import { legalMoves, resolveExchange, enterRoom, type ExchangeResult } from "./combat.js";
 import { CoverageReport, type Reason } from "./coverage.js";
 import { MAX_OBSERVED_ROOM, PLAYER, ROOM_ENEMIES } from "./enemies.js";
 import { makeRng, type Rng } from "./rng.js";
@@ -30,6 +30,21 @@ export interface Policy {
   name: string;
   pick(state: BattleState, legal: MoveKey[], rng: Rng): MoveKey;
   pickBoon?(player: Combatant, offered: BoonOption[], room: number, rng: Rng): BoonOption;
+  /**
+   * Called before the first exchange of each battle. A stateful policy resets
+   * per-battle memory here — notably the enemy's previous move, which must not
+   * cross a room boundary.
+   */
+  onBattleStart?(state: BattleState): void;
+  /**
+   * Called after every resolved exchange, with what both sides actually played.
+   *
+   * This is how an opponent model learns inside the sim, and it grants the
+   * policy nothing it would not have live: the wire state carries `lastMove` for
+   * both sides on every poll, so a real bot observes exactly this. It is called
+   * for the acting policy only — an opponent policy is scenery, not a learner.
+   */
+  observe?(result: ExchangeResult, room: number): void;
 }
 
 export const randomPolicy: Policy = {
@@ -129,6 +144,8 @@ function fightBattle(
   let count = 0;
   let halted = false;
 
+  opts.policy.onBattleStart?.(state);
+
   while (!isDead(state.me) && !isDead(state.foe) && count < limit) {
     const mine = legalMoves(state.me, opts.chargesAreHardLimit);
     const theirs = legalMoves(state.foe, opts.chargesAreHardLimit);
@@ -142,7 +159,11 @@ function fightBattle(
     }
     const myMove = opts.policy.pick(state, mine, rng);
     const foeMove = opts.opponent.pick({ me: state.foe, foe: state.me, room: state.room }, theirs, rng);
-    state = resolveExchange(state, myMove, foeMove).state;
+    const result = resolveExchange(state, myMove, foeMove);
+    // Observe AFTER resolution, so a learning policy sees exactly what a live
+    // bot sees: the state that carries both sides' `lastMove`.
+    opts.policy.observe?.(result, state.room);
+    state = result.state;
     count++;
   }
 
@@ -283,6 +304,41 @@ export interface SimSummary {
    * Normal approximation over `runs` independent runs.
    */
   roomsClearedCi95: number;
+  /**
+   * Scored battles per room, so a result can be quoted at the depth it was
+   * measured at rather than pooled. The Task 5 gate reads room 1 off this;
+   * nothing about the shape is room-1-specific, so it keeps working as
+   * coverage climbs. [session 06]
+   */
+  battlesByRoom: Map<number, RoomStats>;
+}
+
+/** Scored battles at one room depth, with a binomial CI on the win rate. */
+export interface RoomStats {
+  room: number;
+  scored: number;
+  unscorable: number;
+  won: number;
+  /** Wins / scored. `null` when nothing at this depth was scorable. */
+  winRate: number | null;
+  /**
+   * 95% CI half-width on `winRate`, normal approximation. `null` when there is
+   * no rate. Two policies whose intervals do not overlap are separated at 95%
+   * — which is the Task 5 gate, rather than a margin someone picked.
+   */
+  ci95: number | null;
+}
+
+function roomStats(room: number, scored: number, unscorable: number, won: number): RoomStats {
+  const winRate = scored === 0 ? null : won / scored;
+  return {
+    room,
+    scored,
+    unscorable,
+    won,
+    winRate,
+    ci95: winRate === null || scored < 2 ? null : 1.96 * Math.sqrt((winRate * (1 - winRate)) / scored),
+  };
 }
 
 export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1): SimSummary {
@@ -292,6 +348,7 @@ export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1)
   const boonsTaken = new Map<string, { n: number; clean: number }>();
   const outcomes: Record<RunOutcome, number> = { cleared: 0, died: 0, stalled: 0, halted: 0 };
 
+  const perRoom = new Map<number, { scored: number; unscorable: number; won: number }>();
   let scoredWins = 0;
   let scoredBattlesWon = 0;
   let deepestScorableRoom = 0;
@@ -309,10 +366,18 @@ export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1)
 
     for (const b of r.battles) {
       battleCoverage.record(b.reasons);
+      const tally = perRoom.get(b.room) ?? { scored: 0, unscorable: 0, won: 0 };
       if (b.reasons.length === 0) {
-        if (b.won) scoredBattlesWon++;
+        tally.scored++;
+        if (b.won) {
+          tally.won++;
+          scoredBattlesWon++;
+        }
         deepestScorableRoom = Math.max(deepestScorableRoom, b.room);
+      } else {
+        tally.unscorable++;
       }
+      perRoom.set(b.room, tally);
     }
 
     for (const b of r.boons) {
@@ -344,6 +409,11 @@ export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1)
     boonCoverage,
     boonsTaken,
     roomsClearedCi95,
+    battlesByRoom: new Map(
+      [...perRoom.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([room, t]) => [room, roomStats(room, t.scored, t.unscorable, t.won)]),
+    ),
   };
 }
 
@@ -378,6 +448,16 @@ export function formatSummary(s: SimSummary, opts: { policy: string; opponent: s
       `  (${s.scoredBattlesWon}/${s.battleCoverage.scored})`,
   );
   lines.push(`  deepest scorable room:      ${s.deepestScorableRoom}`);
+  lines.push("  battle win rate by room (scored only):");
+  for (const st of s.battlesByRoom.values()) {
+    lines.push(
+      `    room ${st.room}: ` +
+        (st.winRate === null
+          ? `nothing scorable (${st.unscorable} unscorable)`
+          : `${(st.winRate * 100).toFixed(1)}% ± ${((st.ci95 ?? 0) * 100).toFixed(1)}` +
+            `  (${st.won}/${st.scored} scored, ${st.unscorable} unscorable)`),
+    );
+  }
   lines.push("");
   lines.push("BOONS TAKEN");
   if (s.boonCoverage.total === 0) {

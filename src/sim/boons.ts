@@ -69,6 +69,16 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-14-01-00-08 state-021→state-022",
     observed: "selectedVal1 1 → evasion.current 0 → 1",
   },
+  AddTenacity: {
+    // [session 06] Third rolled-stat boon with a pair, and the first whose
+    // val1 is not 1 — so "rolled boons add selectedVal1" is now distinguishable
+    // from "rolled boons add 1", which the two earlier samples could not
+    // separate. It adds 2.
+    effect: { kind: "rolled", stat: "tenacity" },
+    contaminates: ["ROLLED_STATS"],
+    evidence: "run-2026-08-14-03-26-57 state-005→state-006",
+    observed: "selectedVal1 2 → tenacity.current 0 → 2",
+  },
   Heal: {
     // The only fully clean boon in the corpus.
     effect: { kind: "heal" },
@@ -194,6 +204,21 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 1,
     source: "run-2026-08-14-01-00-08/state-021",
     options: [opt("AddEvasion", 1), opt("AddTenacity", 2), opt("AddBlock", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-14-03-26-57/state-005",
+    options: [opt("AddTenacity", 2), opt("AddLuck", 2), opt("AddBlock", 2)],
+  },
+  {
+    // [session 06] The first room-1 offer containing a boon that is neither a
+    // rolled stat nor an upgrade. `AddMaxArmor` was NOT taken, so it has no
+    // pair and stays unmodelled — but it is the strongest candidate yet for a
+    // clean room-1 boon, since a max-pool change is something combat.ts already
+    // models. See QUESTIONS §5b.
+    room: 1,
+    source: "run-2026-08-14-03-26-57/state-016",
+    options: [opt("AddMaxArmor", 2), opt("AddLuck", 1), opt("UpgradeScissor", 0, 4)],
   },
   {
     room: 2,

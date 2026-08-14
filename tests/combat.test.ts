@@ -82,9 +82,13 @@ describe("resolveExchange", () => {
   });
 
   it("wastes armor regenerated above the cap", () => {
-    const state: BattleState = { me: { ...me(), armor: 14 }, foe: e63(), room: 1 };
+    // Asserted against the loadout's own cap, not a literal: the user's gear
+    // changes between sessions (armorMax went 15 -> 16 in session 06) and the
+    // claim under test is "excess regen is wasted", not any particular ceiling.
+    const start = { ...me(), armor: me().armorMax - 2 };
+    const state: BattleState = { me: start, foe: e63(), room: 1 };
     const { state: next } = resolveExchange(state, "scissor", "paper"); // win, DEF 8
-    expect(next.me.armor).toBe(15); // not 22
+    expect(next.me.armor).toBe(me().armorMax); // capped, not armorMax - 2 + 8
   });
 
   it("overflows armor into HP within the same exchange", () => {
