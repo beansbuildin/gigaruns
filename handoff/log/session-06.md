@@ -147,3 +147,194 @@ All fixed in SPEC.md this session. New **§3e** documents the tier surface.
  fixtures/dungeon-runs/run-2026-08-14-03-26-57/*.json  | 35 files, redacted
  58 files changed, 14416 insertions(+), 96 deletions(-)
 ```
+
+---
+
+# Verbose appendix — session 06
+
+## The Task 5 gate, verbatim from `npm run sim`
+
+```
+TASK 5 GATE — EV engine vs always-Sword, 1000 runs each
+
+  ROOM-1 BATTLE WIN RATE, scored subset, 95% CI
+    always-Sword   67.9% ± 2.9  [65.0, 70.8]  (679/1000 scored)
+    ev-engine      81.8% ± 2.4  [79.4, 84.2]  (818/1000 scored)
+
+  REPORTED, NOT GATED — the blind spot stays visible
+    mean rooms cleared     always-Sword 1.038 ± 0.059   ev-engine 1.616 ± 0.072
+    battle coverage        always-Sword 49%   ev-engine 39%
+    deepestScorableRoom    always-Sword 1   ev-engine 1
+
+✓ GATE MET — the intervals do not overlap.
+```
+
+Replay against ground truth, same run:
+
+```
+exchanges replayed: 92
+side-updates matched: 179/184
+mismatches inside the clean model: 0
+mismatches on unscorable exchanges: 5
+```
+
+## Ablations — where the edge actually comes from
+
+1000 runs, seed 1, room-1 battle win rate on the scored subset:
+
+```
+always-Sword                       67.9% ± 2.9   rooms 1.018 ± 0.058   cov 50%
+random                             60.6% ± 3.0   rooms 0.859 ± 0.052   cov 54%
+ev d1 λ0                           77.6% ± 2.6   rooms 1.435 ± 0.071   cov 42%
+ev d1 λ0.15                        78.3% ± 2.6   rooms 1.453 ± 0.069   cov 41%
+ev d2 λ0                           81.5% ± 2.4   rooms 1.581 ± 0.072   cov 40%
+ev d2 λ0.15                        82.0% ± 2.4   rooms 1.585 ± 0.071   cov 40%
+ev d3 λ0.15                        84.2% ± 2.3   rooms 1.683 ± 0.072   cov 38%
+```
+
+Depth is worth ~4 points from 1→2 and ~2 more from 2→3, but the d2/d3 intervals
+overlap and d3 costs 2041ms vs 298ms per 1000 runs. Default stays 2.
+
+λ (ambiguity aversion) is worth nothing measurable at d2 — 81.5 / 82.0 / 81.7 for
+λ = 0 / 0.15 / 0.5. It is kept at 0.15 on the SPEC §4a argument that a fixed
+response to a read is maximally exploitable if the server ever adapts, not
+because the sim rewards it. Say so if it is ever reported as a tuned value.
+
+Stability across seeds (d2, λ0.15):
+
+```
+seed      always-Sword   ev learn=true   ev learn=false
+1         67.9% ± 2.9    82.3% ± 2.4     81.3% ± 2.4
+77        67.2% ± 2.9    82.4% ± 2.4     81.6% ± 2.4
+12345     71.5% ± 2.8    78.6% ± 2.5     80.9% ± 2.4
+```
+
+Non-overlapping at every seed. Learning is worth ~1 point and is *negative* at
+seed 12345 — consistent with there being nothing to learn, since the opponent is
+uniformly random. `determinism()` returns `[]` after 5447 observations of enemy
+63, which is the correct answer and a live check that the detector does not
+hallucinate structure.
+
+Move mix over 16290 plays: `rock 37.0%  paper 30.4%  scissor 32.6%` — a real
+mix, not a degenerate policy that rediscovered always-Sword.
+
+## The tier surface — full option dump (run 1, state-006)
+
+All three options are `enemyId: 64`. Abridged to the fields that matter:
+
+```json
+{ "index": 0, "tier": 0, "tierName": "Safe", "enemyBuff": null,
+  "rolledEnemyStats": { "evasion": 0, "block": 0, "lck": 0, "tenacity": 0 },
+  "lootTable": { "NAME_CID": "LT_D5_Room_2", "ID_CID": 95,
+                 "GAME_ITEM_ID_CID_array": [846], "WEIGHT_CID_array": [1],
+                 "LOOT_AMOUNT_CID_array": [9] } }
+
+{ "index": 1, "tier": 2, "tierName": "Dangerous",
+  "rolledEnemyStats": { "evasion": 1, "block": 2, "lck": 1, "tenacity": 1 },
+  "enemyBuff": { "id": "corrosiveShield", "name": "Miasmaguard", "minTier": 2,
+    "description": "Reduces 3 max armor on Shield wins",
+    "effects": [{ "kind": "onEnemyWinExchange_corrode",
+                  "amount": 3, "moveType": "paper" }] },
+  "lootTable": { ...identical to index 0... } }
+
+{ "index": 2, "tier": 2, "tierName": "Dangerous",
+  "rolledEnemyStats": { "evasion": 1, "block": 1, "lck": 3, "tenacity": 3 },
+  "enemyBuff": { "id": "perpetual_firebrand", "name": "Perpetual Firebrand",
+    "minTier": 2, "perpetual": true,
+    "description": "Applies 2 Burn on Sword wins",
+    "effects": [{ "kind": "onEnemyWinExchange_applyStatus",
+                  "statusType": "Burn", "amount": 2, "moveType": "rock" }] },
+  "lootTable": { ...identical to index 0... } }
+```
+
+Verification that Safe actually delivers, run 3 `state-030.json`, `players[1]`:
+`evasion 0, block 0, lck 0, tenacity 0`, `statusEffects []`,
+`activeEnemyBuff null`.
+
+## The die-on-a-tie refutation, worked
+
+`run-2026-08-14-03-26-57` `004→005`, me=Spell foe=Spell, tie:
+
+```
+before  me HP 20/32 ARM 0/16   foe HP  4/30 ARM 0/12
+after   me HP 12/32 ARM 0/16   foe HP  0/30 ARM 0/12
+
+foe: tie -> regen own DEF 4 -> armor 4; takes our ATK 12 -> 4-12 = -8
+     -> HP 4-8 -> 0, DEAD
+me:  tie -> regen own DEF 8 -> armor 8; takes foe ATK 16 -> 8-16 = -8
+     -> HP 20-8 = 12  ✓ exact
+```
+
+The enemy died on the tie **and dealt its full 16 anyway**. Inside the clean
+model, no reason codes, arithmetic exact on both sides.
+
+## All 7 boon pickup pairs, re-derived from fixtures
+
+```
+AddLuck        room 1  v1=1   lck       0->1     run-23-29-39 008->009
+AddEvasion     room 1  v1=1   evasion   0->1     run-01-00-08 021->022
+Heal           room 2  v1=16  hp       15->31    run-01-00-08 027->028
+AddBurnSword   room 3  v1=3   NO CHANGE          run-01-00-08 038->039
+AddTenacity    room 1  v1=2   tenacity  0->2     run-03-26-57 005->006
+AddLuck        room 1  v1=1   lck       0->1     run-03-26-57 016->017
+AddIntuition   room 1  v1=5   intuition 0->5     run-03-26-57 028->029
+```
+
+`selectedVal1` lands verbatim in `.current` at three distinct values (1, 2, 5),
+so "rolled boons add `selectedVal1`" no longer fits by coincidence with "add 1".
+
+## All 6 recorded offer triples
+
+```
+room 1  AddLuck(1) | CorrosiveShield(2) | UpgradePaper(0,4)
+room 1  AddEvasion(1) | AddTenacity(2) | AddBlock(2)
+room 1  AddTenacity(2) | AddLuck(2) | AddBlock(2)
+room 1  AddMaxArmor(2) | AddLuck(1) | UpgradeScissor(0,4)     <- AddMaxArmor, not taken
+room 1  AddIntuition(5) | AddLuck(1) | Regen(2)               <- Regen, not taken
+room 2  Heal(16) | UpgradeScissor(4) | AddIntuition(1)
+room 3  AddBurnSword(3) | TieDamageReduction(8) | AddEvasion(1)
+```
+
+15 of 15 room-1 options are unmodelled or grant a rolled stat. `AddMaxArmor` and
+`Regen` are the two that would most likely come back clean if taken.
+
+## EV table — one full room-1 battle, warmed model, seed 20260816
+
+Printed by `npm run sim`. Abridged to the decision line per turn:
+
+```
+[turn 1] me HP 32 ARM 15 | foe HP 30 ARM 12   model: marginal n=5447 conf=high
+  ▶ rock    score 0.35   ev 0.38    worst  0.16
+    paper   score 0.15   ev 0.19    worst -0.08
+    scissor score 0.21   ev 0.24    worst  0.06
+  played rock vs rock -> tie, dealt 16 took 12
+
+[turn 3] me HP 27 ARM 0  | foe HP 26 ARM 2    model: first-order n=1551
+  ▶ rock    score  91.61  ev  107.82  worst   -0.27
+    paper   score -184.64 ev -144.37  worst -412.82
+    scissor score  82.71  ev   97.37  worst   -0.40
+  played rock vs rock -> tie, dealt 16 took 12
+
+[turn 5] me HP 15 ARM 8  | foe HP 6 ARM 0
+    paper   score 262.23  ev 376.31  worst -384.19
+  ▶ scissor score 527.10  ev 640.37  worst -114.77
+  played scissor vs scissor -> tie, dealt 12 took 16
+
+  outcome: enemy dead — me HP 14 ARM 0, foe HP 0 ARM 0
+```
+
+Every chosen move is the argmax of its own row, and the shape is the one §4b
+predicts: Sword while the pools are healthy and the worst case is survivable,
+Shield/Spell once a single lost exchange would end the run. The `paper` row at
+turn 3 shows the machinery working — its worst case is −412 because losing to
+Spell at 27 HP with no armor leads to a likely death two plies out.
+
+## Note on how the numbers were produced
+
+The gate re-measures **both** policies in the same process, at the same loadout,
+on the same seed. This matters more than usual this session: the user's
+`armorMax` changed 15 → 16 mid-project, so any baseline quoted from a session-04
+or session-05 recap is not comparable to one measured now. Session 05's
+"always-Sword 67.9%" and this session's "67.9%" agreeing is a coincidence of
+rounding, not evidence that the loadout change had no effect — mean rooms
+cleared moved 1.018 → 1.038 on the same policy.
