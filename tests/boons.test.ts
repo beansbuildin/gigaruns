@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(7);
+    expect(pickups.length).toBe(8); // +1 session 08: AddBlock, room 4, the bot's own live pick
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -141,13 +141,15 @@ describe("fail-closed on unmodelled types", () => {
 
   it("names the types the corpus offered but never showed the effect of", () => {
     expect(UNMODELLED_TYPES).toEqual([
-      "AddBlock",
+      // AddBlock moved OUT — session 08 gave it a live pickup pair, now modelled.
       "AddMaxArmor",
       "CorrosiveShield",
       "Regen",
       "TieDamageReduction",
       "UpgradePaper",
+      "UpgradeRock", // session 08: offered in the new room-3 offer, not picked
       "UpgradeScissor",
+      "WeakeningMastery", // session 08: same offer, not picked
     ]);
   });
 });

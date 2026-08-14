@@ -251,15 +251,25 @@ export type DungeonActionResponse = z.infer<typeof DungeonActionResponseSchema>;
  * that (captured live via DevTools by the user, after `loot_one` was
  * rejected with HTTP 409 — a wrong action name, not a state/sequencing
  * issue). `reward_two`/`reward_three`/`reward_four` are inferred by the same
- * naming pattern, not yet individually observed. `enemy_one`/`enemy_two`/
- * `enemy_three` for the enemy-tier pick are a NEW hypothesis on the same
- * pattern, also not yet individually confirmed — the live run that found
- * `reward_one` resolved its enemy-tier pick by the user clicking in-browser,
- * not through this client, so that specific action name is still unverified.
+ * naming pattern, individually confirmed for `reward_three` (this client's
+ * own successful `AddBlock` pick, room 4).
+ *
+ * **The enemy-tier pick is `path_<n>`, NOT `enemy_<n>`.** `enemy_two` was
+ * tried live 3 times (2× HTTP 500, 1× HTTP 400 on an otherwise identical
+ * retry — a 400 on a retry is a strong signal of a genuinely wrong name, not
+ * flakiness) before the user captured the real client sending `path_two` for
+ * the same pick via DevTools. `path_one`/`path_three` inferred by the same
+ * pattern, not individually confirmed. **Its `data.index` is also NOT the
+ * option's array position** — the captured `path_two` (picking
+ * `enemyPathOptions[1]`) sent `data.index: 0`, not `1`, unlike `reward_*`
+ * where `index` matches the position. One sample; treated as the literal
+ * behavior to reproduce (`buildPathSelectionEnvelope`'s caller passes `0`
+ * for this family) rather than a pattern to extrapolate further.
+ *
  * `loot_one`..`loot_four` are LEFT IN the enum (still SPEC-listed, still
  * possibly real for an actual loot-phase pick, which the corpus has simply
  * never observed populated — DECISIONS 2026-08-14) but are no longer used by
- * `scripts/liveRun.ts`'s `selectByIndex()`.
+ * `scripts/liveRun.ts`.
  */
 export const DUNGEON_ACTIONS = [
   "start_run",
@@ -270,9 +280,9 @@ export const DUNGEON_ACTIONS = [
   "reward_two",
   "reward_three",
   "reward_four",
-  "enemy_one",
-  "enemy_two",
-  "enemy_three",
+  "path_one",
+  "path_two",
+  "path_three",
   "loot_one",
   "loot_two",
   "loot_three",

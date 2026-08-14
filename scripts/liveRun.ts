@@ -14,22 +14,28 @@
  * doesn't mistake one for the other (CLAUDE.md §2, "never invent an
  * endpoint"):
  *   - `start_run`, `rock`, `paper`, `scissor` — CONFIRMED, SPEC §2.
- *   - `reward_one` (reward-path pick) — CONFIRMED live 2026-08-14, session
- *     08 Task 6 stage 3: `loot_one` (the original hypothesis, matching SPEC
- *     §2's only documented index-selecting actions) was rejected HTTP 409;
- *     the user captured the real client sending `reward_one` for the same
- *     pick via DevTools. `reward_two`/`three`/`four` inferred by the same
- *     naming pattern, not individually confirmed. Also confirmed: this
- *     action's envelope is NOT the combat/start_run shape — see
- *     `buildPathSelectionEnvelope()`.
- *   - `enemy_one`/`enemy_two`/`enemy_three` (enemy-tier pick) — a NEW
- *     hypothesis on the same `reward_*` naming pattern, NOT individually
- *     confirmed. The live run that found `reward_one` had its enemy-tier
- *     pick resolved by the user clicking in-browser, not through this
- *     client. The guard's fail-closed-on-failure behavior means a wrong
- *     guess halts the run rather than corrupting it — confirm or correct
- *     the moment a real response comes back, same discipline as
- *     `DungeonActionResponseSchema`.
+ *   - `reward_one`/`reward_three` (reward-path pick) — CONFIRMED live
+ *     2026-08-14, session 08 Task 6 stage 3: `loot_one` (the original
+ *     hypothesis, matching SPEC §2's only documented index-selecting
+ *     actions) was rejected HTTP 409; the user captured the real client
+ *     sending `reward_one` for the same pick via DevTools, and this client's
+ *     own `postWithVerifiedRetry()` later landed a successful
+ *     `reward_three` (`AddBlock`, room 4). `reward_two`/`four` inferred by
+ *     the same naming pattern, not individually confirmed. `data.index`
+ *     matches the option's array position for this family.
+ *   - `path_two` (enemy-tier pick) — CONFIRMED live 2026-08-14, same
+ *     session: `enemy_one`/`enemy_two`/`enemy_three` (a hypothesis on the
+ *     `reward_*` pattern) failed 3/3 live, including one HTTP 400 on an
+ *     otherwise identical retry — a strong signal of a wrong name, not
+ *     flakiness. The user then captured the real client sending `path_two`
+ *     for the same pick via DevTools. `path_one`/`path_three` inferred by
+ *     the same pattern, not individually confirmed. **`data.index` is `0`
+ *     for this family regardless of the option's array position** — the
+ *     captured `path_two` picked `enemyPathOptions[1]` but sent
+ *     `data.index: 0`, unlike `reward_*`. One sample; reproduced literally,
+ *     not extrapolated further. The guard's fail-closed-on-failure behavior
+ *     means a wrong guess halts the run rather than corrupting it — this is
+ *     exactly how `enemy_*` was caught.
  *
  * Fixtures land in `fixtures/dungeon-runs/run-<stamp>/`, same shape as
  * `scripts/watch.ts` (raw/ unredacted + redacted top-level), so live play
@@ -122,15 +128,16 @@ export function unknownSideKeys(side: Record<string, unknown>): string[] {
 }
 
 const REWARD_ACTIONS: readonly DungeonAction[] = ["reward_one", "reward_two", "reward_three", "reward_four"];
-/** [HYPOTHESIS, not individually confirmed — see DUNGEON_ACTIONS's doc comment in schemas.ts] */
-const ENEMY_ACTIONS: readonly DungeonAction[] = ["enemy_one", "enemy_two", "enemy_three"];
+const PATH_ACTIONS: readonly DungeonAction[] = ["path_one", "path_two", "path_three"];
 
 /**
  * `reward_<n>` for a reward-path pick — CONFIRMED live 2026-08-14 (session
  * 08, Task 6 stage 3: `loot_one` was rejected HTTP 409, the user captured
- * the real client sending `reward_one` for the same pick via DevTools).
- * Throws on index >= 4 — the corpus has never shown an offer with more than
- * 3 options, so a 4th would itself be a surprise worth stopping on.
+ * the real client sending `reward_one` for the same pick via DevTools;
+ * `reward_three` separately confirmed by this client's own successful
+ * `AddBlock` pick, room 4). Throws on index >= 4 — the corpus has never
+ * shown an offer with more than 3 options, so a 4th would itself be a
+ * surprise worth stopping on.
  */
 export function selectRewardByIndex(index: number): DungeonAction {
   const action = REWARD_ACTIONS[index];
@@ -139,15 +146,15 @@ export function selectRewardByIndex(index: number): DungeonAction {
 }
 
 /**
- * `enemy_<n>` for the enemy-tier pick. Same naming pattern as
- * `selectRewardByIndex`, NOT individually confirmed — the live run that
- * found `reward_one` had its enemy-tier pick resolved by the user clicking
- * in-browser, not through this client. Fails closed exactly like the reward
- * case if wrong; a rejection here is informative, not corrupting.
+ * `path_<n>` for the enemy-tier pick — CONFIRMED live 2026-08-14 (session
+ * 08: `enemy_two` failed 3/3 live, including one HTTP 400 on an otherwise
+ * identical retry; the user captured the real client sending `path_two` for
+ * the same pick). `path_one`/`path_three` inferred by the same pattern, not
+ * individually confirmed.
  */
 export function selectEnemyPathByIndex(index: number): DungeonAction {
-  const action = ENEMY_ACTIONS[index];
-  if (!action) throw new Error(`selectEnemyPathByIndex(${index}) — no enemy_* action for an index this large`);
+  const action = PATH_ACTIONS[index];
+  if (!action) throw new Error(`selectEnemyPathByIndex(${index}) — no path_* action for an index this large`);
   return action;
 }
 
@@ -173,6 +180,14 @@ export function buildEnvelope(
  * envelope never sends. Matched exactly rather than guessed at, since a
  * subtly-wrong envelope is exactly the kind of thing that produces another
  * confusing rejection.
+ *
+ * `index` is the caller's responsibility to get right per action family —
+ * they are NOT the same convention. `reward_<n>` wants `data.index` equal to
+ * the option's array position (confirmed: this client's own successful
+ * `reward_three`/`AddBlock` pick sent `index: 2`). `path_<n>` wants `0`
+ * regardless of position (confirmed: the captured `path_two` — picking
+ * `enemyPathOptions[1]` — sent `index: 0`, not `1`). Callers pass what's
+ * right for their family; this function does not guess.
  */
 export function buildPathSelectionEnvelope(action: DungeonAction, index: number): DungeonActionRequest {
   return {
@@ -479,10 +494,13 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
       log.write({ event: "tier_choice", chosen, options });
 
       if (dryRun) {
-        console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(chosen.index)} (index ${chosen.index})`);
+        console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(chosen.index)} (data.index 0 — see buildPathSelectionEnvelope)`);
         return;
       }
-      const body = buildPathSelectionEnvelope(selectEnemyPathByIndex(chosen.index), chosen.index);
+      // data.index is 0 here, NOT chosen.index — confirmed live (see
+      // buildPathSelectionEnvelope's doc comment): path_* does not use the
+      // array-position convention reward_* does.
+      const body = buildPathSelectionEnvelope(selectEnemyPathByIndex(chosen.index), 0);
       const resp = await postWithVerifiedRetry(
         client,
         guards,

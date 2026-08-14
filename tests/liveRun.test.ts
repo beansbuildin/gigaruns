@@ -163,10 +163,10 @@ describe("selectRewardByIndex", () => {
 });
 
 describe("selectEnemyPathByIndex", () => {
-  it("maps 0-2 to enemy_one..enemy_three — a hypothesis, not individually confirmed", () => {
-    expect(selectEnemyPathByIndex(0)).toBe("enemy_one");
-    expect(selectEnemyPathByIndex(1)).toBe("enemy_two");
-    expect(selectEnemyPathByIndex(2)).toBe("enemy_three");
+  it("maps 0-2 to path_one..path_three — path_two confirmed live, session 08", () => {
+    expect(selectEnemyPathByIndex(0)).toBe("path_one");
+    expect(selectEnemyPathByIndex(1)).toBe("path_two");
+    expect(selectEnemyPathByIndex(2)).toBe("path_three");
   });
 
   it("throws rather than guessing past the observed 3-option offers", () => {
@@ -178,6 +178,18 @@ describe("buildPathSelectionEnvelope", () => {
   it("matches the real envelope captured live for reward_one — dungeonId 0, actionToken empty string, extra data fields", () => {
     expect(buildPathSelectionEnvelope("reward_one", 0)).toEqual({
       action: "reward_one",
+      dungeonId: 0,
+      actionToken: "",
+      data: { consumables: [], isJuiced: false, index: 0, itemId: 0, expectedAmount: 0, gearInstanceIds: [], devBoons: [] },
+    });
+  });
+
+  it("matches the real envelope captured live for path_two — data.index 0, NOT the option's array position", () => {
+    // Confirmed live: picking enemyPathOptions[1] (the second option) sent
+    // path_two with data.index: 0, unlike reward_* where index tracks
+    // position. Callers pass 0 explicitly for this family.
+    expect(buildPathSelectionEnvelope("path_two", 0)).toEqual({
+      action: "path_two",
       dungeonId: 0,
       actionToken: "",
       data: { consumables: [], isJuiced: false, index: 0, itemId: 0, expectedAmount: 0, gearInstanceIds: [], devBoons: [] },

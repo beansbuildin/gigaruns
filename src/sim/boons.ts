@@ -89,6 +89,17 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-14-03-26-57 state-005→state-006",
     observed: "selectedVal1 2 → tenacity.current 0 → 2",
   },
+  AddBlock: {
+    // [session 08, LIVE] Fifth rolled-stat boon with a pair, and the first
+    // captured by the bot's own live play (not a supervised human capture) —
+    // picked via scripts/liveRun.ts's postWithVerifiedRetry(), room 4,
+    // reward_three. Adds 7, consistent with every other rolled-stat boon's
+    // "adds selectedVal1" reading.
+    effect: { kind: "rolled", stat: "block" },
+    contaminates: ["ROLLED_STATS"],
+    evidence: "run-2026-08-14-22-02-31 state-000→state-001",
+    observed: "selectedVal1 7 → block.current 0 → 7",
+  },
   Heal: {
     // The only fully clean boon in the corpus.
     effect: { kind: "heal" },
@@ -251,6 +262,13 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 3,
     source: "run-2026-08-14-01-00-08/state-038",
     options: [opt("AddBurnSword", 3), opt("TieDamageReduction", 8), opt("AddEvasion", 1)],
+  },
+  {
+    // [session 08, LIVE] Second room-3 offer, first from the bot's own live
+    // play. AddBlock (picked) now has a pair — see BOON_MODELS above.
+    room: 3,
+    source: "run-2026-08-14-21-30-55/state-015",
+    options: [opt("UpgradeRock", 4), opt("WeakeningMastery", 10), opt("AddBlock", 7)],
   },
 ];
 
