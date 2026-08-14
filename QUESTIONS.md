@@ -150,7 +150,7 @@ The remaining work is capture. Three specific asks, in order of value per energy
 spent. **All three fit inside a single watched run** (`scripts/watch.ts` already
 records every state; none of these needs new tooling):
 
-### 5a-bis. Does `intuition` reveal the enemy's next move? — ONE QUESTION, NO ENERGY
+### 5a-bis. Does `intuition` reveal the enemy's next move?
 
 The user took `AddIntuition` (+5%) and reported it "didn't trigger during the
 next fight". At 5% that is expected and proves nothing about the effect — but it
@@ -162,8 +162,21 @@ far more than 5% suggests, because predicting that move is the entire content of
 §4a — a 5% chance of a certain read is a much better deal than a 5% chance of a
 dodge.
 
-**Ask the user, no capture needed:** when intuition does trigger, what does the
-client show? A revealed enemy move, a damage number, something else?
+**[session 08] Corpus check 1 (session-08 brief addendum §7) done, found
+nothing** — `scripts/fieldFrequency.ts` over all 230 captured sides: every key
+path is present 100% of the time (rolled stats included), and the four
+normally-empty array fields (`activeEffects`, `triggeredBoons`, `gearBoons`,
+`statusEffects`) are non-empty in 0/230, 0/230, 0/230, 3/230 (the known Burn
+instance) respectively. `intuition.current` is non-zero in only 6/230
+side-observations — far too little exposure to conclude anything, not evidence
+the stat does nothing. See SPEC §4e.
+
+**Check 2, still open and now the only path left:** add detection to the live
+loop (`scripts/liveRun.ts`) that logs the full raw state whenever an unexpected
+key appears — "at machine speed this resolves within a session or two on its
+own" (brief addendum §7). Blocked on the same JWT issue as the rest of Task 6
+(§7 above). Asking the user directly remains a fallback if a live session
+doesn't produce a fire: when intuition does trigger, what does the client show?
 
 ### 5a. Rolled-stat semantics — downgraded twice, now a poor use of a capture
 

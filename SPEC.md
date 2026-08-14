@@ -954,6 +954,36 @@ them. Do not attribute it to evasion in a future session on the strength of it
 being the last hypothesis standing — it is the last hypothesis standing largely
 because nobody has proposed a third.
 
+**[2026-08-14, session 08] `intuition` — corpus checked for a rare-field
+signature, found nothing.** The hypothesis (session-08 brief addendum §7): if
+`intuition` reveals the enemy's next move, it likely shows as an occasional
+EXTRA field rather than a permanent one, and ~92 exchanges at a 5% proc "should
+have produced a few fires if the stat was active in those runs." `scripts/
+fieldFrequency.ts` enumerates every key path across all 230 captured
+player/enemy side-observations in the corpus:
+
+- **Every top-level key is present on 100% of sides**, rolled stats included —
+  `intuition.current`/`.starting` are there whether the stat is 0 or not, so a
+  proc cannot show up as a key appearing or disappearing. This rules out the
+  "extra field" form of the hypothesis as stated.
+- The plausible alternative — a proc showing up as CONTENT inside a normally-
+  empty array — also comes back empty: `activeEffects` and `triggeredBoons` are
+  non-empty in **0/230** sides, `gearBoons` 0/230, `statusEffects` 3/230 (all
+  three are the known Burn instance, §4f). `battleArmorReduction` is `0` in
+  every single observation.
+- `intuition.current` is non-zero (i.e. the boon was carried) in only 6/230
+  side-observations. Even restricted to those 6, nothing above fires — but 6
+  carrying-observations is far below the "hundreds of observations" floor
+  §4e's percentage finding already established for reading a 1–5% proc, so this
+  is not strong evidence intuition does nothing. It is evidence the corpus has
+  never had enough exposure to see it, which is what a supervised human capture
+  was always going to struggle to produce.
+
+**Consequence:** per the brief's own addendum, this doesn't license modelling
+`intuition` either way — it narrows the next move to check 2 (log the full raw
+state whenever an unexpected key appears, live, at machine speed) rather than
+anything a corpus re-audit can settle. `intuition` stays unmodelled.
+
 ### 4f. Burn — a strong hypothesis, held behind a flag **[2026-08-15]**
 
 Burn deals a **flat 3 damage per exchange**, applied after the exchange's own

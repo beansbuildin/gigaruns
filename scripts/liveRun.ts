@@ -72,6 +72,47 @@ export function moveToAction(m: MoveKey): DungeonAction {
   return m; // MoveKey ("rock"|"paper"|"scissor") IS the wire action name — SPEC §2.
 }
 
+/**
+ * Every key `scripts/fieldFrequency.ts` has ever seen on a player/enemy side,
+ * across all 230 corpus observations (session-08 brief addendum §7, check 1
+ * — see SPEC §4e). Used only to detect a NEW key live; nothing here treats
+ * this list as exhaustive or authoritative.
+ */
+export const KNOWN_SIDE_KEYS: ReadonlySet<string> = new Set([
+  "_id",
+  "activeEffects",
+  "battleArmorReduction",
+  "block",
+  "evasion",
+  "focusBuffs",
+  "gearBoons",
+  "health",
+  "id",
+  "intuition",
+  "lastMove",
+  "lck",
+  "otherPlayerWin",
+  "paper",
+  "pickedBoons",
+  "rock",
+  "scissor",
+  "shield",
+  "statusEffects",
+  "tenacity",
+  "thisPlayerWin",
+  "triggeredBoons",
+]);
+
+/**
+ * Check 2 of the addendum §7 `intuition` plan: "add detection to the live
+ * loop... log the full raw state whenever an unexpected key appears. At
+ * machine speed this resolves within a session or two on its own." Generic
+ * over any mechanic, not just intuition — any new key is worth a look.
+ */
+export function unknownSideKeys(side: Record<string, unknown>): string[] {
+  return Object.keys(side).filter((k) => !KNOWN_SIDE_KEYS.has(k));
+}
+
 const LOOT_ACTIONS: readonly DungeonAction[] = ["loot_one", "loot_two", "loot_three", "loot_four"];
 
 /**
@@ -245,6 +286,19 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
     if (foeWire.id !== lastFoeId) {
       prevFoeMove = null; // fresh entity — no predecessor move (SPEC §4a).
       lastFoeId = foeWire.id;
+    }
+
+    // Addendum §7 check 2: at machine speed this should resolve `intuition`
+    // (and anything else unmodelled) within a session or two on its own.
+    for (const [label, wire] of [
+      ["me", meWire],
+      ["foe", foeWire],
+    ] as const) {
+      const unknown = unknownSideKeys(wire as unknown as Record<string, unknown>);
+      if (unknown.length > 0) {
+        log.write({ event: "unknown_side_key", side: label, keys: unknown, raw: wire });
+        console.log(`  ★ unknown key(s) on ${label}: ${unknown.join(", ")} — full state logged`);
+      }
     }
 
     if (phase === "over") {

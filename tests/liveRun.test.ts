@@ -14,9 +14,11 @@ import {
   buildBattleState,
   buildEnvelope,
   classifyPhase,
+  KNOWN_SIDE_KEYS,
   moveToAction,
   runOnce,
   selectByIndex,
+  unknownSideKeys,
   wireBoonToOption,
   type LiveRunDeps,
 } from "../scripts/liveRun.js";
@@ -170,6 +172,24 @@ describe("buildEnvelope", () => {
   it("carries a non-default index through for a loot_* selection", () => {
     expect(buildEnvelope("loot_two", 5, 42, 1).data.index).toBe(1);
     expect(buildEnvelope("loot_two", 5, 42, 1).actionToken).toBe(42);
+  });
+});
+
+describe("unknownSideKeys", () => {
+  it("returns nothing for a side with only known keys", () => {
+    expect(unknownSideKeys(fakeSide("player") as unknown as Record<string, unknown>)).toEqual([]);
+  });
+
+  it("flags a key not in KNOWN_SIDE_KEYS — the addendum §7 check 2 signal", () => {
+    const side = { ...(fakeSide("player") as unknown as Record<string, unknown>), revealedMove: "rock" };
+    expect(unknownSideKeys(side)).toEqual(["revealedMove"]);
+  });
+
+  it("KNOWN_SIDE_KEYS matches what scripts/fieldFrequency.ts found on the real corpus (SPEC §4e)", () => {
+    // Regression guard: if the corpus grows a genuinely new key and someone
+    // "fixes" this by adding it to KNOWN_SIDE_KEYS without re-reading SPEC
+    // §4e first, this test's count at least makes the addition visible.
+    expect(KNOWN_SIDE_KEYS.size).toBe(22);
   });
 });
 
