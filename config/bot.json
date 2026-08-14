@@ -1,0 +1,10 @@
+{
+  "_comment": "User-editable budget knobs. Dungeon economics (energyCost, maxRoom, maxRunsPerDay) come from config/discovered.json (generated, gitignored) — this file only holds the numbers a human chooses. Session-08: conservative first-session budget, 3 runs at 20 energy each per session-08 brief §5.",
+  "forbiddenWoods": {
+    "dailyEnergyBudget": 60,
+    "maxRunsPerSession": 3
+  },
+  "guards": {
+    "maxConsecutiveActionFailures": 3
+  }
+}
