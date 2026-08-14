@@ -438,10 +438,11 @@ resource inside a battle, and regenerating it is the whole defensive game.
 
 **[RETRACTED 2026-08-15 — armor does NOT refill at room transitions.]** Session
 03 recorded "armor refills to `currentMax` at every room transition; HP does
-not", observed at "all three room boundaries of the deepest run". The corpus
-contains **four** room boundaries (pairs where `players[1].id` changes under one
-`DUNGEON_ID_CID`), and three of them crossed with the player already **at the
-armor cap**, where "refilled to max" and "unchanged" are the same observation:
+not", observed at "all three room boundaries of the deepest run". The corpus at
+the time contained four room boundaries (pairs where `players[1].id` changes
+under one `DUNGEON_ID_CID`), and three of them crossed with the player already
+**at the armor cap**, where "refilled to max" and "unchanged" are the same
+observation:
 
 ```
 run-23-29-39  009->010  63->64  me ARM  4/15 ->  4/15   <- the only informative one
@@ -455,6 +456,33 @@ The one boundary that carries information crossed at **4/15 and stayed at
 What refills is the **enemy**, because the transition swaps in a new entity at
 full pools (`HP 40/40 ARM 16/16`) — session 03 read the enemy's fresh pools as a
 global rule and applied it to the player.
+
+**[STRENGTHENED session 07]** The corpus now has **seven** room boundaries, and
+every one of them — including four that cross well below either cap — confirms
+the same rule for HP specifically, which is the fact the original three-of-four
+sample couldn't establish:
+
+```
+run-23-29-39  009->010  63->64  HP  2/32 ->  2/32   ARM  4/15 ->  4/15
+run-01-00-08  022->023  63->64  HP 15/32 -> 15/32   ARM 15/15 -> 15/15
+run-01-00-08  028->029  64->65  HP 31/32 -> 31/32   ARM 15/15 -> 15/15
+run-01-00-08  039->040  65->66  HP 22/32 -> 22/32   ARM 15/15 -> 15/15
+run-03-26-57  006->007  63->64  HP 12/32 -> 12/32   ARM  0/16 ->  0/16
+run-03-26-57  017->018  63->64  HP  4/32 ->  4/32   ARM 16/16 -> 16/16
+run-03-26-57  029->030  63->64  HP 28/32 -> 28/32   ARM  8/16 -> 8/16
+```
+
+Four of these cross with HP below max (2, 15, 22, 12, 4, 28 — six, not one),
+each unchanged across the boundary. **HP persists across room transitions; it
+does not reset.** This settles session-06 brief §4's open question about
+`Regen` ("start each battle with 2 regen, decreasing by 1 per turn until 0"):
+since HP carries between rooms, a per-battle regenerating resource compounds
+across a run rather than resetting with it — roughly 3 HP/battle × up to 16
+rooms is a large cumulative refund against a 30 HP pool, *if* it fires every
+room. This is reported as a capture finding, not modelled: `Regen`'s actual
+in-combat mechanic is still unconfirmed (no pickup pair exists), and §4b is not
+re-derived on the strength of a hypothesis about its size — see session-06
+brief §4 and DECISIONS 2026-08-16.
 
 **Consequence for §4b: the guidance built on this was backwards.** Armor is not
 a per-room budget that is wasted if unspent, and spending it late in a room is
