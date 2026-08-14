@@ -97,3 +97,21 @@ export const DEFAULT_CONFIG: StrategyConfig = {
   ambiguityWhenUnsure: 0.5,
   chargesAreHardLimit: true,
 };
+
+/**
+ * For live play. [session 07] The Task 5 gate's ablation (N=1000) found
+ * depth 3 ~2pp better than depth 2 but with OVERLAPPING confidence intervals
+ * — not established, so the default stayed at 2. Re-run at N=20000
+ * (`scripts/depthAblation.ts`) settles it: depth 1→2→3 are each SEPARATED
+ * (77.14% / 79.96% / 81.64%, all non-overlapping 95% CIs), and depth 3→4 is
+ * NOT (82.62%, gap 0.98pp overlaps) — so 3 is adopted, 4 is not.
+ *
+ * The "7x the time" objection that kept depth at 2 does not apply live: the
+ * bot has a 1200ms rate-limit floor between actions (CLAUDE.md §7), and
+ * depth 3 costs on the order of a millisecond per decision — the ablation's
+ * 20000 SIM runs (each several decisions) took 20.8s total. `DEFAULT_CONFIG`
+ * stays at depth 2 because `scripts/sim.ts` runs thousands of iterations per
+ * invocation and that cost is NOT free in aggregate; `LIVE_CONFIG` is what
+ * Task 6's orchestrator should use instead.
+ */
+export const LIVE_CONFIG: StrategyConfig = { ...DEFAULT_CONFIG, depth: 3 };

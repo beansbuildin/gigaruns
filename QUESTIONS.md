@@ -106,7 +106,12 @@ Why it didn't move:
    a rolled stat whose damage effect is unexplained. `Heal` is the only clean
    boon in the corpus and it is only ever offered at **room 2**.
 2. **Enemies 65 and 66 are unscorable innately** — nothing to do with boons. So
-   a perfect boon model caps `deepestScorableRoom` at **2**.
+   a perfect boon model caps `deepestScorableRoom` at **2**. **[RETRACTED
+   session 06, RE-DERIVED session 07]** Not innate — it's per-tier
+   (`rolledEnemyStats`/`enemyBuff`), and re-matching the actual captures
+   against their preceding `enemyPathOptions[]` shows enemy 66's one capture
+   IS Safe-tier and clean. Only enemy 65 (room 3) has zero Safe-tier captures.
+   See the updated ask below.
 
 The remaining work is capture. Three specific asks, in order of value per energy
 spent. **All three fit inside a single watched run** (`scripts/watch.ts` already
@@ -170,6 +175,15 @@ could go from 1 to 4 in a single run.
 
 **Capture:** if `AddMaxArmor` — or any `AddMax*`, or `Heal` — is offered at room
 1, take it. Then keep playing so the rooms behind it get scored.
+
+**[UPDATED session 07] This alone no longer reaches room 4.** Re-deriving tier
+from the corpus found rooms 1, 2 AND 4 already have clean Safe-tier captures —
+only room 3 (enemy 65) has never been captured at Safe tier at all, at any
+depth. So the ceiling with a clean room-1 boon plus Safe tier everywhere is
+**room 3's lookup being absent**, not room 4's enemy being dirty. The single
+highest-value capture is now: **pick Safe at the room-2→3 enemy-path screen**
+(not Risky or Dangerous) so enemy 65 finally gets a Safe-tier recording. See
+SPEC §3e and DECISIONS 2026-08-17.
 
 ### 5c. Die-on-a-tie — RESOLVED 2026-08-16, and the answer was the unexpected one
 

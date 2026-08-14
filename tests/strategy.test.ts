@@ -18,7 +18,7 @@ import { describe, expect, it } from "vitest";
 import { legalMoves, resolveExchange } from "../src/sim/combat.js";
 import { bestKnownProfile, PLAYER } from "../src/sim/enemies.js";
 import { cloneCombatant, MOVES, type BattleState, type Combatant } from "../src/sim/types.js";
-import { DEFAULT_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
+import { DEFAULT_CONFIG, LIVE_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
 import { decide } from "../src/strategy/decide.js";
 import { categorise, rankBoons, upgradeTarget } from "../src/strategy/loot.js";
 import {
@@ -393,5 +393,16 @@ describe("loot ranking — §4c, unvalidated by construction", () => {
     ];
     const a = rankBoons(cloneCombatant(PLAYER), offer, 1).map((r) => r.option.type);
     expect(a).toEqual(["AddLuck", "AddEvasion", "AddBlock"]);
+  });
+});
+
+describe("config — depth 2 for sim throughput, depth 3 for live play [session 07]", () => {
+  it("keeps DEFAULT_CONFIG at depth 2 — scripts/sim.ts runs thousands of iterations per invocation", () => {
+    expect(DEFAULT_CONFIG.depth).toBe(2);
+  });
+
+  it("LIVE_CONFIG is depth 3 and otherwise identical to DEFAULT_CONFIG — the ablation's only established gap is the depth", () => {
+    expect(LIVE_CONFIG.depth).toBe(3);
+    expect(LIVE_CONFIG).toEqual({ ...DEFAULT_CONFIG, depth: 3 });
   });
 });

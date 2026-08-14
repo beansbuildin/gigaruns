@@ -152,6 +152,13 @@ at 2. Online learning against this opponent is worth ~1 point, correctly — the
 sim's opponent is uniformly random, so there is nothing to learn, and the model
 reports exactly that (`determinism()` finds nothing over 5447 observations).
 
+**[UPDATED session 07]** Re-run at N=20000 (`scripts/depthAblation.ts`, session-06
+brief §8): depth 1/2/3 SEPARATE cleanly (77.14% / 79.96% / 81.64%, non-overlapping
+95% CIs) — the depth-2→3 gap above was real, just under-sampled at N=1000. Depth 4
+(82.62%) does not separate from depth 3. Adopted for live play as `LIVE_CONFIG`
+(`src/strategy/config.ts`); `DEFAULT_CONFIG` stays at depth 2 for sim throughput.
+See DECISIONS 2026-08-17.
+
 Log the EV table for one full battle and eyeball it — every chosen move should
 be justifiable from its numbers. If one isn't, the utility weights are wrong,
 not the logs. `npm run sim` prints one, from a warmed model at a fixed seed.
