@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(92);
+    expect(exchanges(runs).length).toBe(93);
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -80,7 +80,12 @@ describe("combat model vs recordings", () => {
 
   it("reports the headline numbers", () => {
     // Not an assertion so much as a record of where the model stands.
-    expect(report.sideUpdates).toBe(184);
+    // [session 08] First LIVE exchange in the corpus (not a supervised
+    // human-played capture): stage 3's resumed room-1 rock-vs-rock, matched
+    // the clean model EXACTLY (0 clean failures) — the first real-world
+    // confirmation the model holds up against the bot's own live play, not
+    // just against recorded human sessions.
+    expect(report.sideUpdates).toBe(186);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

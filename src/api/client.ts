@@ -231,6 +231,21 @@ export class GigaverseClient {
    *     HTTP 200, `{success:true, data:{run:null, entity:null}, actionToken:0}`.
    * Both mean the same thing to a caller — return `null` either way. Every
    * other non-2xx, or a 2xx that fails even the nullable shape, still throws.
+   *
+   * **[session 08, live, Task 6 stage 3] This response's `actionToken` is
+   * NOT a fresh token to track — it reports `0` regardless of the run's real
+   * state.** Confirmed 3 times on one live run: read #1 (before any action)
+   * → 0; a `rock` POST succeeded and returned a real token
+   * (`1786737196369`); the very next `getDungeonState()` read → `0` again,
+   * with the run state otherwise UNCHANGED. The old code did
+   * `this.actionToken = parsed.data.actionToken` here unconditionally, which
+   * clobbered the real token the POST had just set — the following action
+   * was sent with the stale `0` and the server rejected it with HTTP 500.
+   * SPEC §2's "every response returns a fresh actionToken, always send the
+   * newest" holds for `POST /game/dungeon/action` (see `post()` below) but
+   * NOT for this endpoint — a GET is a read, not an action, and apparently
+   * doesn't advance or echo the action-token sequence. Do not restore this
+   * line without new live evidence it's safe.
    */
   async getDungeonState(): Promise<DungeonState | null> {
     const { status, text } = await this.raw("/game/dungeon/state", { method: "GET" });
@@ -252,7 +267,6 @@ export class GigaverseClient {
         `zod validation failed: ${parsed.error.message}\n\nbody: ${text.slice(0, 2000)}`,
       );
     }
-    this.actionToken = parsed.data.actionToken;
     if (parsed.data.data.run === null) return null;
     // Narrowed above: `run` is non-null here, matching DungeonState's stricter shape.
     return parsed.data as DungeonState;

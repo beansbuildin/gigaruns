@@ -91,6 +91,33 @@ describe("GigaverseClient", () => {
     await assertion;
   });
 
+  it("does NOT update the tracked actionToken from a getDungeonState() response — session 08, live", async () => {
+    // Live finding, Task 6 stage 3: this endpoint's actionToken field is not
+    // a fresh token, it reports 0 regardless of the run's real state. A POST
+    // /game/dungeon/action response DOES carry a real one; a subsequent
+    // getDungeonState() must not clobber it back to 0, or the next action
+    // gets sent with a stale token and the server rejects it (HTTP 500,
+    // confirmed live).
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({
+        status: 200,
+        body: {
+          success: true,
+          actionToken: 0,
+          data: { run: { DUNGEON_ID_CID: 1, players: [], lootPhase: false, pathPhase: false, rewardPathPhase: false, enemyPathPhase: false } },
+        },
+      })),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    // Simulate a prior POST having set a real token.
+    (client as unknown as { actionToken: number }).actionToken = 999;
+    const p = client.getDungeonState();
+    await vi.runAllTimersAsync();
+    await p;
+    expect(client.getActionToken()).toBe(999);
+  });
+
   it("still fails closed on a 200 that matches neither the run shape nor the null-run idle shape", async () => {
     vi.stubGlobal("fetch", mockFetch(() => ({ status: 200, body: { success: true, data: {} } })));
     const client = new GigaverseClient({ jwt: "test-jwt" });
