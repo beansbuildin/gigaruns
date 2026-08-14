@@ -55,7 +55,7 @@ interface Side {
 
 const load = (f: string) =>
   JSON.parse(readFileSync(join(DIR, f), "utf8")) as {
-    data: { run: { players: Side[] } };
+    data: { run: { players: Side[]; DUNGEON_ID_CID: number } };
   };
 
 /**
@@ -114,8 +114,16 @@ function main() {
   let fails = 0;
 
   for (let i = 1; i < files.length; i++) {
-    const prev = load(files[i - 1]!).data.run.players;
-    const next = load(files[i]!).data.run.players;
+    const prevRun = load(files[i - 1]!).data.run;
+    const nextRun = load(files[i]!).data.run;
+
+    // One watcher session can span several dungeon attempts. DUNGEON_ID_CID is
+    // the run *instance* id (SPEC §2), so a change means a new attempt and the
+    // boundary is not an exchange.
+    if (prevRun.DUNGEON_ID_CID !== nextRun.DUNGEON_ID_CID) continue;
+
+    const prev = prevRun.players;
+    const next = nextRun.players;
 
     // lastMove on the NEXT state names the moves that produced it.
     const moves = next.map((p) => p.lastMove as Move);

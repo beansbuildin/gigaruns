@@ -135,7 +135,12 @@ async function main() {
     polls++;
 
     if (!res.ok) {
-      console.log(`  ✗ ${res.status} — ${(await res.text()).slice(0, 120)}`);
+      // A finished run makes this endpoint return a 500 HTML error page rather
+      // than an empty state, so 5xx here means "no active run" at least as
+      // often as it means trouble. Noted for the Task 2 client: do not treat
+      // it as fatal.
+      const body = (await res.text()).slice(0, 120).replace(/\s+/g, " ");
+      console.log(`  ✗ ${res.status} — ${body}`);
       if (res.status === 401) throw new Error("JWT rejected. Refresh it.");
       await sleep(5000);
       continue;
@@ -187,13 +192,20 @@ async function main() {
       );
     }
 
-    // The whole point of this capture. Print it in full, never truncated.
-    const loot = (run as Record<string, unknown>).lootOptions as unknown[] | undefined;
-    if (loot?.length) {
+    // The whole point of this capture. Print in full, never truncated.
+    //
+    // `lootOptions`/`lootPhase` are NOT where rewards live — they were empty
+    // across an entire run that awarded both loot and a buff card. The real
+    // surfaces are rewardPathOptions (boons) and enemyPathOptions, the latter
+    // carrying the lootTable. Watch all three; lootOptions is kept only
+    // because we still don't know what populates it.
+    for (const key of ["lootOptions", "rewardPathOptions", "enemyPathOptions"] as const) {
+      const opts = (run as Record<string, unknown>)[key] as unknown[] | undefined;
+      if (!opts?.length) continue;
       sawLoot = true;
-      console.log(`   ★ LOOT ${loot.length} option(s):`);
+      console.log(`   ★ ${key} — ${opts.length} option(s):`);
       console.log(
-        redact(JSON.stringify(loot, null, 2), address)
+        redact(JSON.stringify(opts, null, 2), address)
           .split("\n")
           .map((l) => `     ${l}`)
           .join("\n"),

@@ -92,16 +92,24 @@ function runDirs(): { name: string; files: string[] }[] {
 }
 
 function sides(file: string): Side[] {
+  return runOf(file)?.players ?? [];
+}
+
+function runOf(file: string): { players?: Side[]; DUNGEON_ID_CID?: number } | null {
   const j = JSON.parse(readFileSync(file, "utf8")) as {
-    data?: { run?: { players?: Side[] } | null } | null;
+    data?: { run?: { players?: Side[]; DUNGEON_ID_CID?: number } | null } | null;
   };
-  return j.data?.run?.players ?? [];
+  return j.data?.run ?? null;
 }
 
 const rows: Row[] = [];
 
 for (const { name, files } of runDirs()) {
   for (let i = 1; i < files.length; i++) {
+    // A watcher session can span several dungeon attempts; DUNGEON_ID_CID is
+    // the run instance id, so a change means the pair is not an exchange.
+    if (runOf(files[i - 1]!)?.DUNGEON_ID_CID !== runOf(files[i]!)?.DUNGEON_ID_CID) continue;
+
     const before = sides(files[i - 1]!);
     const after = sides(files[i]!);
     if (before.length < 2 || after.length < 2) continue;
