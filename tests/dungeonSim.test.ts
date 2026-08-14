@@ -81,15 +81,14 @@ describe("fail-closed accounting", () => {
     expect(seenRoomOne, "no run ever cleared room 1").toBeGreaterThan(0);
   });
 
-  it("[session 07] halts with NO_TIER_CAPTURE at room 3 under the default Safe tier", () => {
+  it("[session 08, LIVE] a Safe-tier walk now clears rooms 1-4 and only halts at room 5 (DEPTH_BEYOND_CORPUS)", () => {
     // always-Sword against always-Shield loses every exchange, so force the
     // clears with a policy that beats the opponent outright every time.
-    // Room 3 (enemy 65) has never been captured at Safe tier — under the
-    // hard rule (default enemyTier = SAFE_TIER), this is where a Safe-tier
-    // run necessarily halts, two rooms short of MAX_OBSERVED_ROOM. This is a
-    // CAPTURE gap, not a claim that rooms 3+ are unscorable in general — see
-    // the DEPTH_BEYOND_CORPUS test below, which reaches room 4 fine at the
-    // tiers the corpus actually has.
+    // Room 3 (enemy 65) HAD never been captured at Safe tier through session
+    // 07 — session 08 closed that gap live (the bot's own play, not a
+    // supervised human capture). Every room 1-4 now has a Safe-tier capture,
+    // so a default Safe-tier walk has no NO_TIER_CAPTURE wall left to hit at
+    // all; the only remaining wall is genuinely unexplored depth.
     const r = simulateRun({
       policy: fixedPolicy("paper"),
       opponent: fixedPolicy("rock"), // Shield beats Sword, every exchange
@@ -97,9 +96,9 @@ describe("fail-closed accounting", () => {
       seed: 1,
       maxRooms: MAX_OBSERVED_ROOM + 3,
     });
-    expect(r.reasons).toContain("NO_TIER_CAPTURE");
+    expect(r.reasons).toContain("DEPTH_BEYOND_CORPUS");
     expect(r.outcome).toBe("halted");
-    expect(r.roomsCleared).toBe(2);
+    expect(r.roomsCleared).toBe(MAX_OBSERVED_ROOM);
   });
 
   it("marks a run that starts past the corpus DEPTH_BEYOND_CORPUS rather than extrapolating", () => {
@@ -144,8 +143,11 @@ describe("fail-closed accounting", () => {
   });
 
   it("reports null rather than a fake 0 when nothing is scorable", () => {
-    // Starting at room 3 means every battle carries ROLLED_STATS from the off.
-    const s = simulate(50, { ...base, policy: randomPolicy, startRoom: 3, maxRooms: 3 }, 5);
+    // [session 08] Room 3 now HAS a Safe-tier capture (live, this session)
+    // and is no longer guaranteed unscorable — room 5 is beyond anything
+    // ever captured (MAX_OBSERVED_ROOM is 4), so it's the room that still
+    // demonstrates "nothing scorable" reliably.
+    const s = simulate(50, { ...base, policy: randomPolicy, startRoom: 5, maxRooms: 3 }, 5);
     expect(s.battleCoverage.scored).toBe(0);
     expect(s.scoredBattleWinRate).toBeNull();
   });

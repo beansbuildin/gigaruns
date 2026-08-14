@@ -40,7 +40,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { GigaverseClient } from "../src/api/client.js";
-import type { DungeonAction, DungeonActionRequest, DungeonState } from "../src/api/schemas.js";
+import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, DungeonState } from "../src/api/schemas.js";
 import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
@@ -269,6 +269,54 @@ function fail(guards: GuardState, log: RunLog, reason: string, detail?: Record<s
 }
 
 /**
+ * POST an action, retrying ONLY after re-verifying it genuinely didn't
+ * apply. [session 08, live] `reward_one` returned HTTP 500 twice on an
+ * otherwise byte-identical request — once where the pick had silently
+ * applied server-side anyway (`pickedBoons` had grown despite the error),
+ * once where it hadn't. Blindly retrying risks double-applying a pick;
+ * blindly giving up on the first 500 means every transient server error
+ * needs a human to unblock it. This checks live state after every failure
+ * and only retries while `stillPending` says the action truly never landed.
+ *
+ * Relies on `guards.recordActionResult(false)` to throw once
+ * `maxConsecutiveActionFailures` (config/bot.json) is reached — that's the
+ * single source of truth for the retry ceiling, not a separate constant
+ * here. `TokenExpiredError` is never retried, per SPEC §6.
+ */
+export async function postWithVerifiedRetry(
+  client: GigaverseClient,
+  guards: GuardState,
+  log: RunLog,
+  body: DungeonActionRequest,
+  stillPending: (run: WireRun) => boolean,
+  reason: string,
+): Promise<DungeonActionResponse | null> {
+  for (;;) {
+    log.write({ event: "post", body });
+    try {
+      const resp = await client.postDungeonAction(body);
+      guards.recordActionResult(true);
+      log.write({ event: "post_response", resp });
+      return resp;
+    } catch (e) {
+      if (e instanceof TokenExpiredError) throw e;
+      log.write({ event: "post_attempt_failed", reason, error: (e as Error).message });
+
+      const fresh = await client.getDungeonState();
+      const pending = fresh ? stillPending(fresh.data.run as unknown as WireRun) : false;
+      if (!pending) {
+        // Applied despite the error response (or the run moved on for some
+        // other reason) — never retry an action that already landed.
+        log.write({ event: "action_applied_despite_error" });
+        guards.recordActionResult(true);
+        return null;
+      }
+      guards.recordActionResult(false); // throws GuardTrip once the configured limit is hit
+    }
+  }
+}
+
+/**
  * One dungeon run, start to finish. Returns when the run ends (win, death, or
  * flee) or a guard trips. In `--dry-run`, never calls `postDungeonAction` —
  * it polls state and logs every decision it WOULD have sent.
@@ -435,17 +483,15 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
         return;
       }
       const body = buildPathSelectionEnvelope(selectEnemyPathByIndex(chosen.index), chosen.index);
-      log.write({ event: "post", body });
-      let resp;
-      try {
-        resp = await client.postDungeonAction(body);
-      } catch (e) {
-        if (e instanceof TokenExpiredError) throw e;
-        fail(guards, log, "enemy path selection rejected", { chosen, error: (e as Error).message });
-      }
-      guards.recordActionResult(true);
-      log.write({ event: "post_response", resp });
-      fixtures.write(resp);
+      const resp = await postWithVerifiedRetry(
+        client,
+        guards,
+        log,
+        body,
+        (freshRun) => classifyPhase(freshRun) === "enemyPath",
+        "enemy path selection rejected",
+      );
+      if (resp) fixtures.write(resp);
       continue;
     }
 
@@ -472,17 +518,15 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
         return;
       }
       const body = buildPathSelectionEnvelope(selectRewardByIndex(chosenIndex), chosenIndex);
-      log.write({ event: "post", body });
-      let resp;
-      try {
-        resp = await client.postDungeonAction(body);
-      } catch (e) {
-        if (e instanceof TokenExpiredError) throw e;
-        fail(guards, log, "reward selection rejected", { chosenIndex, error: (e as Error).message });
-      }
-      guards.recordActionResult(true);
-      log.write({ event: "post_response", resp });
-      fixtures.write(resp);
+      const resp = await postWithVerifiedRetry(
+        client,
+        guards,
+        log,
+        body,
+        (freshRun) => classifyPhase(freshRun) === "rewardPath",
+        "reward selection rejected",
+      );
+      if (resp) fixtures.write(resp);
       continue;
     }
 

@@ -17,6 +17,7 @@ import {
   classifyPhase,
   KNOWN_SIDE_KEYS,
   moveToAction,
+  postWithVerifiedRetry,
   runOnce,
   selectEnemyPathByIndex,
   selectRewardByIndex,
@@ -26,7 +27,7 @@ import {
 } from "../scripts/liveRun.js";
 import { GigaverseClient } from "../src/api/client.js";
 import type { BotConfig } from "../src/orchestrator/config.js";
-import { GuardState } from "../src/orchestrator/guards.js";
+import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { OpponentModel } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
 import { UnsafeTierError } from "../src/strategy/enemyTier.js";
@@ -279,6 +280,100 @@ describe("runOnce — dry run", () => {
     // second start_run on top of an existing run), one to read it for the
     // decision.
     expect(getCalls).toBe(2);
+  });
+});
+
+describe("postWithVerifiedRetry", () => {
+  // [session 08, live] reward_one returned HTTP 500 twice on an otherwise
+  // byte-identical request — once where the pick had silently applied
+  // server-side anyway, once where it hadn't. This is the fix.
+  const rewardBody = buildPathSelectionEnvelope("reward_one", 0);
+  const stillInRewardPhase = (r: ReturnType<typeof fakeRun>) => classifyPhase(r) === "rewardPath";
+
+  function makeLog() {
+    return { write: vi.fn(), filePath: "test.jsonl" } as unknown as import("../scripts/liveRun.js").LiveRunDeps["log"];
+  }
+
+  it("returns the response on a clean first success — no retry needed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } })),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const guards = new GuardState(TEST_CONFIG);
+    const log = makeLog();
+    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    await vi.runAllTimersAsync();
+    const resp = await p;
+    expect(resp).not.toBeNull();
+  });
+
+  it("does NOT retry if a re-check shows the action already applied despite the error", async () => {
+    let postCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "POST") {
+          postCalls++;
+          return { status: 500, body: { success: false, message: "server error" } };
+        }
+        // The re-check: phase has moved on, the pick landed anyway.
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun({ rewardPathPhase: false, enemyPathPhase: true }) } } };
+      }),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const guards = new GuardState(TEST_CONFIG);
+    const log = makeLog();
+    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    await vi.runAllTimersAsync();
+    const resp = await p;
+    expect(resp).toBeNull(); // applied despite the error — nothing further to write to fixtures
+    expect(postCalls).toBe(1); // never retried
+  });
+
+  it("retries while the re-check shows the action is still genuinely pending, then succeeds", async () => {
+    let postCalls = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "POST") {
+          postCalls++;
+          if (postCalls === 1) return { status: 500, body: { success: false, message: "server error" } };
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: fakeRun() } } };
+        }
+        // Re-check after the first failure: still pending, genuinely never landed.
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun({ rewardPathPhase: true }) } } };
+      }),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const guards = new GuardState(TEST_CONFIG);
+    const log = makeLog();
+    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    await vi.runAllTimersAsync();
+    const resp = await p;
+    expect(resp).not.toBeNull();
+    expect(postCalls).toBe(2);
+  });
+
+  it("trips the guard after maxConsecutiveActionFailures if the action never lands", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "POST") return { status: 500, body: { success: false, message: "server error" } };
+        // Every re-check says still pending — the action genuinely never lands.
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun({ rewardPathPhase: true }) } } };
+      }),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const guards = new GuardState(TEST_CONFIG); // maxConsecutiveActionFailures: 3
+    const log = makeLog();
+    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    const assertion = expect(p).rejects.toBeInstanceOf(GuardTrip);
+    await vi.runAllTimersAsync();
+    await assertion;
   });
 });
 

@@ -123,8 +123,16 @@ describe("unmodelled annotations match what the corpus actually shows, PER TIER"
     );
   });
 
-  it("room 3 has NO Safe-tier capture — lookupEnemy fails closed rather than falling back", () => {
-    expect(lookupEnemy(3, SAFE_TIER)).toBeUndefined();
+  it("[session 08, LIVE] room 3's Safe-tier capture exists now and is clean — the gap session 06/07 left open", () => {
+    expect(lookupEnemy(3, SAFE_TIER)!.unmodelled).toEqual([]);
+    expect(lookupEnemy(3, SAFE_TIER)!.enemy.rolled).toEqual({
+      evasion: 0,
+      block: 0,
+      lck: 0,
+      tenacity: 0,
+      intuition: 0,
+    });
+    // The Risky-tier diagnostic capture is unaffected — still there, still dirty.
     expect(lookupEnemy(3, RISKY_TIER)!.unmodelled).toEqual(
       expect.arrayContaining(["ROLLED_STATS", "ENEMY_BUFF"]),
     );

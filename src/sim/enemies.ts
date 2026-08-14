@@ -36,6 +36,11 @@
  * the PLAYER's own boon landing on the enemy, already the concern of
  * `src/sim/boons.ts` / the `BURN_PER_EXCHANGE` flag, not a property of this
  * enemy or this tier. The room-4 Safe-tier profile below is therefore CLEAN.
+ *
+ * [session 08, LIVE] Room 3's Safe-tier gap — the one thing session 06/07
+ * left open — is closed. The bot played room 3 live (not a supervised human
+ * capture) and the resulting enemy-65 state has all rolled stats zero and
+ * both buff fields null. `MAX_SAFE_ROOM` is now 4, not 2.
  */
 
 import type { Reason } from "./coverage.js";
@@ -180,15 +185,34 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
   },
   {
     room: 3,
+    tier: SAFE_TIER,
+    // [session 08, LIVE] The capture this project has been missing since
+    // session 06/07: a Safe-tier (tier 0) instance of enemy 65. Played live
+    // by the bot itself (not a supervised human capture) — 8 exchanges,
+    // matched the clean combat model EXACTLY (0 clean failures on replay).
+    // rolledEnemyStats all zero, activeEnemyBuff/enemyStartingBuff both
+    // null for the whole battle — genuinely clean, not inferred. This is
+    // what unblocks `deepestScorableRoom` past 2.
+    unmodelled: [],
+    enemy: {
+      id: "Enemy Room 65",
+      hp: 38,
+      hpMax: 38,
+      armor: 15,
+      armorMax: 15,
+      moves: { rock: mv(10, 5), paper: mv(15, 6), scissor: mv(12, 4) },
+      rolled: rolled(),
+    },
+  },
+  {
+    room: 3,
     tier: RISKY_TIER,
     // [CORRECTED session 07] Was labelled "Dangerous-tier instance" — the
     // corpus match is tier 1 ("Risky"), not tier 2. rolledEnemyStats
     // evasion2/block2/lck1, plus enemyBuff "shatterblade" ("Applies 1
-    // Vulnerable on Sword wins"). No SAFE-tier (tier 0) capture of enemy 65
-    // exists anywhere in the corpus — `lookupEnemy(3, SAFE_TIER)` is
-    // deliberately absent below rather than invented. This is the actual wall
-    // under the Safe-tier hard rule: not "enemy 65 is unscorable", but "no
-    // Safe capture of it exists yet".
+    // Vulnerable on Sword wins"). Diagnostic only — the Safe-tier hard rule
+    // means this tier is never fought by default; see the SAFE_TIER entry
+    // above for the one the sim actually uses.
     unmodelled: ["ROLLED_STATS", "ENEMY_BUFF"],
     enemy: {
       id: "Enemy Room 65",
@@ -249,9 +273,11 @@ export const MAX_OBSERVED_ROOM = Math.max(...ROOM_ENEMIES.map((p) => p.room));
 
 /**
  * Deepest room a Safe-tier run starting at room 1 can reach without hitting a
- * missing capture. Currently 2 — room 3 (enemy 65) has never been captured at
- * Safe tier, so this is a real ceiling on `deepestScorableRoom`, but it is a
- * CAPTURE gap, not a property of the enemies (session 06/07 finding).
+ * missing capture. [session 08, LIVE] Now 4 — the room-3 Safe-tier capture
+ * gap (session 06/07 finding) is closed, live, by the bot's own play. Room
+ * 4's Safe-tier capture was already clean (session 07), so a Safe-tier run
+ * starting at room 1 now has an unbroken chain of real captures through
+ * room 4. Room 5 has never been reached by anything, human or bot.
  */
 export const MAX_SAFE_ROOM = (() => {
   let room = 1;
