@@ -798,6 +798,31 @@ capture, not code.
 `.starting`. `src/sim/combat.ts` does not read them at all: any non-zero value
 makes the surrounding unit unscorable.
 
+> **[2026-08-16] ROLLED STATS ARE PERCENTAGES, and this rewrites the audit
+> below.** The client renders the boons as `+5% intuition` and `+1% luck`
+> (user-reported from the in-game option text, run 3's room-1 offer), and
+> `AddIntuition`'s `selectedVal1` of 5 landed as `intuition.current = 5`. So
+> `current` is a **percent proc chance**, not a count of points.
+>
+> Every sample-size argument in this section was calibrated to the wrong number.
+> "n = 9 with one miss is the shape a ~10% dodge proc produces" assumed evasion 1
+> meant something like 10%; it means **1%**. At 1%, nine damage-taking
+> opportunities produce a dodge 8.6% of the time, and even the 30-observation
+> floor is nowhere near enough — reading a 1–5% proc needs *hundreds* of
+> observations.
+>
+> Two consequences, pulling opposite ways:
+>
+> - The decision NOT to narrow `ROLLED_STATS` was right, and is now much more
+>   strongly right. It was held on a floor of ~30; the real requirement is an
+>   order of magnitude beyond that.
+> - But the reason recorded for it is wrong, and so is the conclusion drawn just
+>   above about 037→038. See the note there.
+>
+> Source discipline: this is **option text**, which DECISIONS 2026-08-15 forbids
+> modelling from. It is recorded here because it tells us what to *look for* and
+> what sample size a capture would need. It does not license modelling a proc.
+
 > **[2026-08-16] Enemy rolled stats are a CHOICE, not a property of the enemy.**
 > `enemyPathOptions[]` carries `rolledEnemyStats` per tier — tier 0 ("Safe") is
 > all zeros, tier 2 ("Dangerous") is not. See §3e. So on the enemy side this
@@ -858,10 +883,20 @@ deals no damage" is false, and the surviving explanation for 037→038 is
 asked for; it would be modelling a rule the corpus refutes.
 
 Note which way this cuts: the parsimonious hypothesis was the wrong one, and the
-player-side evasion evidence stays **8/9, not 9/9** — so `evasion` probably does
-something. That still does not license narrowing `ROLLED_STATS`: n = 9 is under
-the 30-observation floor either way. What changed is which hypothesis is live,
-not whether a rate can be read off nine samples.
+player-side evasion evidence stays **8/9, not 9/9**.
+
+**[CORRECTED later the same day, by the percentage finding above.]** The first
+reading of this was "so `evasion` probably does something" — i.e. evasion
+explains the miss now that die-on-a-tie cannot. That does not survive the units.
+At `evasion 1` = **1%**, a dodge inside nine opportunities is an 8.6% event, so
+evasion is a *poor* explanation of 037→038, not a good one.
+
+**037→038 is therefore explained by neither hypothesis**, and is back to being
+genuinely unexplained. That is a worse position than the confound was, and an
+honest one: two candidate rules have been eliminated and nothing has replaced
+them. Do not attribute it to evasion in a future session on the strength of it
+being the last hypothesis standing — it is the last hypothesis standing largely
+because nobody has proposed a third.
 
 ### 4f. Burn — a strong hypothesis, held behind a flag **[2026-08-15]**
 

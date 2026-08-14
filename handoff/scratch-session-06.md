@@ -118,6 +118,12 @@ Do NOT implement the die-on-a-tie flag. Do NOT narrow `ROLLED_STATS` either —
 8/9 is still n=9, still under the 30-observation floor. What changed is which
 hypothesis is live, not whether we can read a rate off nine samples.
 
+> **SUPERSEDED IN PART BY S7, later the same session.** "The surviving
+> explanation is evasion" does not hold once the units land: rolled stats are
+> percentages, so `evasion 1` is a **1%** dodge and is a poor explanation for
+> 037→038, not a good one. The refutation of die-on-a-tie stands. Read S7 before
+> acting on this paragraph.
+
 ## S6. Watcher writes two runs into one directory
 
 `scripts/watch.ts` fixes `OUT` per *process*, so a second dungeon run captured by
@@ -126,3 +132,68 @@ exact hazard its own header warns about. `src/sim/corpus.ts` splits on
 `DUNGEON_ID_CID` (DECISIONS 2026-08-14) so it is handled, but any new analysis
 script that globs `state-NNN.json` and diffs neighbours will read the boundary
 between two attempts as an exchange.
+
+## S7. Rolled stats are PERCENTAGES — the audit was calibrated to the wrong units
+
+User-reported from the client's own option text, run 3's room-1 offer:
+
+```
+AddIntuition   "+5% intuition"                                          -> intuition.current 5
+AddLuck        "+1% luck"                                               -> lck.current 1
+Regen          "start each battle with 2 regen, decreases by 1 per turn until 0"
+```
+
+`selectedVal1` lands verbatim in `.current`, and `.current` is a **percent proc
+chance**. So `evasion 1` is a 1% dodge, not "one point of evasion".
+
+Everything in SPEC §4e was sized against the wrong number. "n=9 with one miss is
+the shape a ~10% proc produces" assumed ~10%; the real value is 1%. Reading a
+1–5% proc needs *hundreds* of observations, not 30.
+
+Net effect on the two live questions:
+
+- **Not narrowing `ROLLED_STATS` was right, and is now more strongly right.**
+  The floor should be an order of magnitude above 30 for these keys.
+- **037→038 is now explained by NOTHING.** Die-on-a-tie is refuted (S5); evasion
+  at 1% is an 8.6% event over nine opportunities, so it is a poor explanation
+  too. I told the user evasion "probably does fire" before the units landed —
+  that was wrong and is corrected in SPEC §4e. Two hypotheses eliminated, none
+  standing.
+- Rolled stats are probably **near-irrelevant to EV** at 1–5%, which is a good
+  reason to stop spending captures on them and a bad reason to model them.
+
+Also: the user took AddIntuition and reported it "didn't trigger during the next
+fight". At 5% that is entirely expected and is not evidence of anything — but it
+does tell us intuition has a *visible trigger* in the client. Compare `Fintuition`
+in §5 (fishing), which reveals information. If dungeon intuition reveals the
+enemy's next move, that is worth far more than its 5% suggests, because §4a's
+whole edge is predicting that move. Worth one targeted question to the user.
+
+## S8. `Regen` — a new boon type, and the first with a full mechanical description
+
+Offered at room 1 in run 3, not taken, so no pair and NOT modelled. Option text:
+"start each battle with 2 regen, decreases by 1 per turn until 0", `selectedVal1`
+2.
+
+This is the most interesting unmodelled boon in the corpus, because §4b's central
+asymmetry is that **HP is not renewable in combat and armor is**. A per-battle
+regenerating resource does not just re-weight the utility function, it changes
+its shape. If a future session gets one pickup pair for this, §4b needs revisiting
+rather than retuning.
+
+Stays unmodelled per DECISIONS 2026-08-15 — option text is exactly what that rule
+forbids acting on. Recorded as a capture target, not as a model.
+
+## S9. Test label collision — `state-NNN→state-NNN` is not unique across runs
+
+`tests/replay.test.ts` asserted the phantom boon-pickup pair is excluded via
+`expect(labels).not.toContain("state-027.json→state-028.json")`. `Exchange.label`
+is not run-qualified, and session 06's capture contains a *legitimate* 027→028,
+so the assertion started failing on the wrong pair. Fixed by qualifying with
+`x.run`, plus a companion assertion that the other 027→028 IS admitted — without
+it the test could pass by excluding both.
+
+Worth a general note: several tests assert corpus-wide totals (exchange counts,
+side-update counts, pickup counts). Every one of them breaks whenever a capture
+lands, which is by design — but it means "the tests fail" after a capture is
+expected, and the failures must be read one at a time rather than reverted.

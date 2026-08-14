@@ -112,13 +112,38 @@ The remaining work is capture. Three specific asks, in order of value per energy
 spent. **All three fit inside a single watched run** (`scripts/watch.ts` already
 records every state; none of these needs new tooling):
 
-### 5a. Rolled-stat semantics — downgraded 2026-08-16, no longer the top blocker
+### 5a-bis. Does `intuition` reveal the enemy's next move? — ONE QUESTION, NO ENERGY
 
-**It gates less than session 05 thought.** On the *enemy* side, rolled stats come
-from the tier the player picks (§6, SPEC §3e) — pick Safe and the mechanic never
-fires. What remains genuinely open is the **player** side, where a rolled stat
-arrives via a boon, and there the bot can also simply not take one. So this is
-now a nice-to-have behind §5b, not the wall it was recorded as.
+The user took `AddIntuition` (+5%) and reported it "didn't trigger during the
+next fight". At 5% that is expected and proves nothing about the effect — but it
+does tell us intuition has a **visible trigger** in the client.
+
+SPEC §5 records `Fintuition` on the fishing side as an ability that *reveals*
+information. If dungeon `intuition` reveals the enemy's next move, it is worth
+far more than 5% suggests, because predicting that move is the entire content of
+§4a — a 5% chance of a certain read is a much better deal than a 5% chance of a
+dodge.
+
+**Ask the user, no capture needed:** when intuition does trigger, what does the
+client show? A revealed enemy move, a damage number, something else?
+
+### 5a. Rolled-stat semantics — downgraded twice, now a poor use of a capture
+
+**It gates less than session 05 thought, and it costs more to settle.** Two
+independent downgrades on 2026-08-16:
+
+1. On the *enemy* side, rolled stats come from the tier the player picks (§6,
+   SPEC §3e) — pick Safe and the mechanic never fires. On the player side they
+   arrive via a boon the bot can simply decline.
+2. They are **percentages**. `evasion 1` is a 1% dodge, not a ~10% one. Reading
+   a 1–5% proc to any useful precision needs *hundreds* of damage-taking
+   observations, not the ~30 session 05 asked for — which is far more than a
+   supervised run can produce, and is a job for Task 6 machine-speed play.
+
+At 1–5% these stats are also probably near-irrelevant to EV. That is a reason to
+stop spending human captures on them, and **not** a reason to model them as zero:
+`ROLLED_STATS` stays a fail-closed reason code. Superseded as a priority by §5b
+and §5a-bis.
 
 **What we have.** Counted in damage-taking opportunities: player `evasion 1`
 8/9 exact, player `lck 1` 2/2, enemy `ev2+bl2+lk1` 6/7. The enemy-65 anomaly is

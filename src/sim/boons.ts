@@ -69,6 +69,16 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-14-01-00-08 state-021→state-022",
     observed: "selectedVal1 1 → evasion.current 0 → 1",
   },
+  AddIntuition: {
+    // [session 06] Fourth rolled-stat boon with a pair, and its val1 is 5 — so
+    // across AddEvasion(1), AddLuck(1), AddTenacity(2) and this, "adds
+    // selectedVal1" is now confirmed at three distinct values. The additive
+    // reading is no longer the only one that fits by coincidence.
+    effect: { kind: "rolled", stat: "intuition" },
+    contaminates: ["ROLLED_STATS"],
+    evidence: "run-2026-08-14-03-26-57 state-028→state-029",
+    observed: "selectedVal1 5 → intuition.current 0 → 5",
+  },
   AddTenacity: {
     // [session 06] Third rolled-stat boon with a pair, and the first whose
     // val1 is not 1 — so "rolled boons add selectedVal1" is now distinguishable
@@ -219,6 +229,18 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 1,
     source: "run-2026-08-14-03-26-57/state-016",
     options: [opt("AddMaxArmor", 2), opt("AddLuck", 1), opt("UpgradeScissor", 0, 4)],
+  },
+  {
+    // [session 06] `Regen` is a type the corpus had never seen before. Offered
+    // at room 1, not taken, so it has no pair and is not modelled — and its
+    // name is exactly the kind of thing the DECISIONS 2026-08-15 rule exists to
+    // stop us acting on. It is also, on its name alone, the most interesting
+    // unmodelled boon in the corpus: HP is the one resource combat cannot renew
+    // (§4b), so a regeneration effect would change the shape of the utility
+    // function rather than just its weights. Worth taking a run to capture.
+    room: 1,
+    source: "run-2026-08-14-03-26-57/state-028",
+    options: [opt("AddIntuition", 5), opt("AddLuck", 1), opt("Regen", 2)],
   },
   {
     room: 2,

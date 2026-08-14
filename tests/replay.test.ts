@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(84);
+    expect(exchanges(runs).length).toBe(92);
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -26,8 +26,17 @@ describe("corpus", () => {
     // sides' lastMove still names the killing blow and the enemy id has not
     // changed. It is not an exchange. scripts/chargeTable.ts admitted it, which
     // is why its "all 16 odd deltas were plays from exactly 1" was wrong.
-    const labels = exchanges(loadCorpus()).map((x) => x.label);
-    expect(labels).not.toContain("state-027.json→state-028.json");
+    //
+    // Qualified by RUN. `label` alone is just `state-NNN→state-NNN` and collides
+    // across captures — session 06 added a run whose 027→028 is a perfectly
+    // legitimate exchange, and the unqualified assertion started failing on the
+    // wrong pair. The phantom is a specific pair in a specific run, so the test
+    // has to say which.
+    const labels = exchanges(loadCorpus()).map((x) => `${x.run}/${x.label}`);
+    expect(labels).not.toContain("run-2026-08-14-01-00-08/state-027.json→state-028.json");
+    // And the collision is real, so assert the other one IS admitted — otherwise
+    // this test could pass by excluding both.
+    expect(labels).toContain("run-2026-08-14-03-26-57/state-027.json→state-028.json");
   });
 
   it("never treats a room transition as an exchange", () => {
@@ -71,7 +80,7 @@ describe("combat model vs recordings", () => {
 
   it("reports the headline numbers", () => {
     // Not an assertion so much as a record of where the model stands.
-    expect(report.sideUpdates).toBe(168);
+    expect(report.sideUpdates).toBe(184);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });
