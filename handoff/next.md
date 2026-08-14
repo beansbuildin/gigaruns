@@ -1,135 +1,159 @@
-# BRIEF — session 07
+# BRIEF — session 08
 
-Task 5 passed against a strong baseline, and the tier discovery is the most
-valuable finding in six sessions. Two retractions of mine first, then answers.
-
----
-
-## 1. My die-on-a-tie request was bad reasoning
-
-I asked you to build it behind a flag "on parsimony grounds." You tested it
-instead and found it refuted — the enemy died on a tie and dealt its full 16.
-
-Parsimony is a tiebreaker between hypotheses that *already fit the data
-equally*. It is not evidence, and it is not a reason to build. I inverted that,
-and testing before building was the correct response to a brief that asked for
-the opposite. **Do that again whenever a brief asks you to implement something
-the corpus can adjudicate — adjudicate it first.**
-
-## 2. Leave 037→038 unexplained
-
-Both candidates are dead and you flagged that it's now explained by nothing.
-That's the right place to leave it. It is one exchange out of 184 with a clean
-model everywhere else.
-
-Do **not** propose a third mechanism to close the gap. An unexplained anomaly
-sitting in SPEC is honest; a hypothesis invented to fill it is the exact failure
-this repo has caught four times. Log it as a known-open anomaly and move on.
-
-Same applies to your note about evasion being "the last hypothesis standing only
-because no third has been proposed" — that framing is right, keep it.
-
-## 3. Safe tier is free EV — make it a hard rule
-
-Identical `lootTable` across all three tiers, in both samples, while tiers 1–2
-are the sole source of the mechanics that make a battle unscorable. So higher
-tiers are strictly dominated: same reward, added risk, plus they poison the
-corpus.
-
-Encode as a **hard rule, not a weighted preference**: the bot always picks the
-lowest tier offered. Put it in `CLAUDE.md` alongside the other non-negotiables,
-and add a guard that halts if a non-lowest tier is ever selected. This is the
-kind of rule that gets quietly "optimised" away later by someone reasoning about
-risk-reward in the abstract.
-
-Expect coverage to climb on its own once this holds — Safe-tier enemies come in
-with zero rolls and null buffs, which removes the enemy-side unscorability
-entirely. Room-1 boons remain a separate wall.
+Task 2 passed live, the depth ablation settled cleanly, and the tier re-audit
+corrected two sessions of wrong labels. One regression to fix first, then Task 6
+— the first time this project sends a POST.
 
 ---
 
-## 4. Regen — check the corpus, don't spend a run
+## 1. Privacy regression in `STATE.md` — fix the detector, not just the file
 
-Your instinct that it changes the *shape* rather than the weights is half right,
-and which half depends on a question the existing corpus can answer.
+`STATE.md` in a **public** repo now contains:
 
-"Start each battle with 2 regen, decreasing by 1 per turn" totals ~3 HP per
-battle. Within a battle that's a minor tempo effect against 8–16 damage swings —
-not a structural change to §4b.
+```
+address 0x4F03...
+username "<PLAYER>" noobId 72946
+```
 
-Across a run it depends entirely on: **does HP persist between rooms, or reset?**
-You reached room 2 three times, so the room transitions in the corpus should
-show this directly.
+`DECISIONS.md` says *username tolerated in history; address and JWT never are*.
+This breaks that rule, and the secret scan passed anyway because the pattern is
+`0x[a-fA-F0-9]{40,}` — a truncated address doesn't match.
 
-- If HP **persists** (as armor does), Regen is ~3 HP × 16 rooms ≈ 48 HP of
-  cumulative refund against a 30 HP pool. That's large, and it belongs high in
-  §4c loot ranking.
-- If HP **resets** each room, it's a small tempo boon and ranks accordingly.
+The leak itself is mild: the username was already in history and a Gigaverse
+account is public on-chain regardless. **The detector gap is the real finding.**
+A scan that only catches full-length addresses will keep passing on truncated
+ones forever, and the next one might sit next to something that matters.
 
-Answer that from the corpus. Model Regen from the option text as a hypothesis
-defaulting **OFF**, and validate it from the first machine-speed runs. Don't
-re-derive §4b until it's confirmed and its cross-room value is known.
+Do three things:
 
-## 5. `intuition` — I've asked the user directly
+1. Widen the scan to `0x[a-fA-F0-9]{4,}` and add `noobId\s*\d+` — accept the
+   false positives, they're cheap.
+2. Replace the identifiers in `STATE.md` with `<USER>` / `<NOOB>` / `<ADDR>`.
+   `check-auth` should print them to the terminal, never to a committed file.
+3. Extend redaction to **prose in handoff files**, not just fixtures. Session
+   05's fix covered `writeRedactedCorpus`; this path was never covered.
 
-If it reveals the enemy's next move, you're right that it dwarfs a dodge proc:
-§4a's whole edge is predicting that move, and a certain read collapses the
-decision. The answer will come from the user, not from capture. Treat as
-**pending** — don't model it either way this session.
+No history rewrite — same reasoning as session 04.
 
-## 6. Task 2 next — your read is right
+## 2. My tier premise was wrong, and that's now a standing rule
 
-Three human runs produced two rooms of depth. That's the argument, and it's
-decisive. Task 2 is the step that makes captures free, and every session spent
-on human clicks is one not spent building the thing that removes the need for
-them.
+I told you to label existing `enemies.ts` rows as tier 2. You re-derived from the
+corpus and found room 3 is tier 1 and room 4 is tier 0 and **clean**. That's the
+second time you've correctly overridden a specific factual claim of mine by
+checking the data.
 
-`AddMaxArmor` stays uncaptured. That's acceptable — it'll land in the first
-supervised live runs alongside everything else.
+Making it explicit, for `CLAUDE.md`:
 
-**Stop spending human clicks on coverage.** If a future brief of mine asks for a
-capture that Task 6 would produce for free, push back.
+> **A brief's claims about what the corpus contains are hypotheses to verify,
+> not facts to implement.** Claude writes briefs without access to the fixtures.
+> When a brief asserts something checkable, check it first; if it's wrong, the
+> corpus wins and the correction goes in the recap.
 
-## 7. `enemies.ts` — yes, make it tier-aware now
+The room-4 finding is the good kind of surprise: the Burn on that enemy was the
+player's own `AddBurnSword` boon landing on a Sword win, not an enemy mechanic
+at all. Room 4 is clean at Safe tier, which means the coverage ceiling was never
+where three sessions of briefs assumed it was.
 
-Not for tidiness. The current state is **actively wrong**: room-3 and room-4
-profiles are Dangerous-tier instances stored as if they were the enemies
-themselves, which means the sim may be reasoning from inflated stats without
-saying so. A comment isn't enough.
+## 3. Depth 3 confirmed — good call running it at N=20000
 
-Restructure the key to `(room, tier) → enemy`, label existing rows as **tier 2**,
-and leave tier-0 rows **absent** so lookups fail closed with a reason code
-rather than silently falling back. Invent nothing. Empty is correct; wrong is
-not.
+`depth2 79.96 ± 0.55` vs `depth3 81.64 ± 0.54`, separated; 3v4 not. Adopting
+depth 3 for live and keeping depth 2 for sim throughput is exactly right. This
+is the payoff for re-testing something that had been rejected on a cost argument
+that didn't apply in production.
 
-## 8. Re-test depth-3 — live compute is free
+---
 
-You rejected depth-3 because the CIs overlap, which was right on the evidence.
-But the reason you gave — 7× the time — doesn't apply where it matters. The
-live bot has a **1200ms floor between actions**. Seven times a few milliseconds
-is still free.
+## 4. Task 6 now — the first live run *is* the room-3 capture
 
-So the only question is whether the 84.2% vs 82.0% gap is real. Re-run the
-ablation with enough runs to separate the CIs, or establish that it can't be
-separated. If depth-3 wins, adopt it for live play and keep depth-2 for sim
-throughput. A 2pp edge that costs nothing in production is worth the compute to
-confirm.
+You asked whether to spend ~20 energy on a Safe-tier room-3 capture first. No —
+and the reason is that it isn't a separate thing anymore.
+
+Task 6's first real run picks Safe at every screen (hard rule, guarded) and
+plays deeper than a human did. **That run is the room-3 capture**, for the same
+20 energy, while also validating the client, the schema, and the strategy engine
+against reality. Spending a separate run first buys the same fixture and none of
+the rest.
+
+This is the moment the capture bottleneck dissolves. Design the run loop so
+every live run writes fixtures in the `watch.ts` shape automatically — that's
+what makes coverage compound instead of requiring a decision each time.
+
+## 5. The first POST — staged, with a hard stop after one
+
+`DungeonActionResponseSchema` has never seen a live response, and this is the
+highest-risk moment in the project so far. Everything until now has been
+read-only; a bug now costs energy and can corrupt a run mid-way.
+
+Run it in four stages, committing between each:
+
+**Stage 1 — dry run.** Full decision loop against live *read* state. Log every
+intended action with its EV table. POST nothing. Verify the Safe-tier guard
+fires on a real `enemyPathOptions[]`.
+
+**Stage 2 — one POST, then halt.** Send exactly one action — `start_run` — then
+**stop unconditionally**, whatever comes back. Dump the raw response. Correct
+`DungeonActionResponseSchema` from it. Do not continue in the same process.
+
+**Stage 3 — one full run.** Only after the schema is corrected and committed.
+Halt on any zod failure, unknown enum, or three consecutive action failures.
+
+**Stage 4 — five runs.** Only if stage 3 produced a clean run summary and
+energy accounting matched expectation.
+
+If any stage surprises you, stop there and recap. Reaching stage 2 with a
+corrected schema is a good session; reaching stage 4 on a broken one is not.
+
+**Before stage 2**, write `config/bot.json` with real numbers — you have them
+now: energy cost 20, `maxRoom` 16, daily caps from `/game/dungeon/today`. Set a
+conservative first-session budget of **60 energy** (three runs). `guards.ts`
+enforces it. This is the file session 01 correctly declined to invent; it can be
+written honestly now.
+
+## 6. Loot phase — log everything, trust nothing
+
+§4c ranking has never been validated at depth. For these runs, log every offer
+triple and every pick with the state before and after, but treat the ranking's
+output as provisional. If a pick looks wrong in hindsight, that's a finding, not
+a bug to patch mid-session.
+
+`Regen` is the one to watch: HP persistence is now confirmed across 6 informative
+boundaries, so if `Regen` fires every room its cross-room value is large. If it's
+offered, **take it** and capture the pickup pair — that answers session 06's
+question for free.
+
+## 7. `intuition` — still pending
+
+I've asked the user again. Don't model it either way. If an answer arrives
+mid-session it goes in `QUESTIONS.md`, not into code.
 
 ---
 
 ## Your task
 
-1. **Task 2 — auth + API client.** The main work. Path A (browser JWT), rate
-   limiter, single-flight action-token mutex, zod schemas written against the
-   committed fixtures, clean expired-token halt. Nothing POSTs this session —
-   Task 2's gate is read-only verification.
-2. `enemies.ts` tier-aware, per §7.
-3. Safe-tier hard rule in `CLAUDE.md` + guard, per §3.
-4. Corpus check on HP persistence across rooms, per §4.
-5. Depth-3 ablation re-run, per §8.
+1. Privacy fixes, per §1. First, before anything else.
+2. `CLAUDE.md` rule from §2.
+3. `config/bot.json` with real numbers + `guards.ts` enforcement, per §5.
+4. Task 6, stages 1→4, stopping at the first surprise.
+5. Live fixtures written in `watch.ts` shape automatically, per §4.
 
-Log the §2 anomaly as known-open in SPEC. Do not model Regen or intuition.
+Report per stage reached, not per task attempted. State the energy spent against
+budget, and whether `deepestScorableRoom` moved.
 
-Design the client so supervised runs from Task 6 write fixtures in the same
-shape `watch.ts` produces — that's what makes machine-speed capture actually
-compound.
+Addendum to §7 — intuition:
+
+The user hasn't seen it fire; it's a 5% proc. Don't wait on them.
+
+Two cheap checks instead:
+
+1. Diff the corpus for rare fields. Enumerate every key path across
+   all captured battle states and report any that appear in under
+   ~15% of them. If intuition reveals the enemy's next move, it
+   likely surfaces as an occasional extra field rather than a
+   permanent one. ~92 exchanges at 5% should have produced a few
+   fires if the stat was active in those runs.
+
+2. If nothing turns up, add detection to the live loop: log the full
+   raw state whenever an unexpected key appears. At machine speed
+   this resolves within a session or two on its own.
+
+Still don't model it either way.
