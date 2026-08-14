@@ -57,6 +57,22 @@ Minimum 1200ms between actions, plus 0–400ms jitter. Exponential backoff on 42
 starting at 5s. The action-token window is ~5s — if you go too fast the server
 rejects the token, and if you go too slow it goes stale. Handle both.
 
+**8. Always pick the lowest enemy tier offered (Safe).**
+`enemyPathOptions[]`'s `lootTable` is identical across all three tiers in every
+sample captured so far (SPEC §3e) — same table, same item, same weight, same
+amount. Higher tiers add `rolledEnemyStats` and `enemyBuff` with **zero loot
+upside**, and they are the sole source of the mechanics that make a battle
+unscorable. There is no risk/reward tradeoff to weigh here; it only looks like
+one from a distance.
+
+This is a hard rule, not a preference scored against alternatives — it is
+exactly the kind of thing that gets "optimised away" later by someone reasoning
+about risk/reward in the abstract (session 06 brief §3). `src/strategy/
+enemyTier.ts`'s `pickSafeTier()` is the one call site that should ever choose a
+tier; it halts (`UnsafeTierError`) rather than proceeding if the chosen tier
+isn't Safe. Route every live tier decision through it — do not re-implement the
+choice inline.
+
 ---
 
 ## Working style
