@@ -1,134 +1,134 @@
-# BRIEF — session 03
+# BRIEF — session 04
 
-Task 3 was well executed. `dungeonId 5`, `ENERGY_CID 20`, `maxRoom 16`, eight
-battle states, and a clean gate. Three responses below, then the task.
+Calling Task 4 a FAIL at the top of `STATE.md` was right. 8 states → 72 across 5
+attempts, `lootPhase` captured, §4c rewritten against real fields — that's a
+good session that didn't reach its gate, and those are different things.
+
+Two of my errors below, one reinterpretation, one scope call, then the task.
 
 ---
 
-## 1. I am reopening the charge conclusion
+## 1. My Shield-heavy advice was wrong, and it generalizes
 
-You concluded: charges go negative, therefore §4a becomes down-weight rather
-than prune-to-zero. I don't think the evidence supports that yet, and this is
-the highest-value mechanic in the game, so it's worth one more look.
+I told the user to play Shield-heavy to survive to a loot phase. You found the
+flaw: **Shield's ATK 6 cannot out-damage armor that fully restores.** That
+wasn't a suboptimal line, it was an unwinnable one, and it cost a run.
 
-The observation was: **enemy `paper` at 1, played it, landed at −1.**
+The general principle, which needs to go into SPEC §4 as a first-class mechanic:
 
-Two hypotheses both fit that:
+> When armor fully restores on a qualifying win, damage below the restore rate
+> deals **zero net progress**. Effective damage is not `ATK`, it's
+> `max(0, ATK − armorRestoredPerWin)`.
 
-- **H1 (hard prune).** A move requires ≥1 charge to play. The −1 is the
-  *resulting* state — `paper` is now locked until it regenerates. Every
-  observation you have is consistent with this.
-- **H2 (soft cost).** Moves are playable at any value; charges simply go
-  negative. Also consistent.
+This is a **threshold, not a gradient**, and it breaks the smooth utility
+function in §4b. A move whose ATK sits under an opponent's restore rate has no
+offensive value at all — it can only stall. Two consequences:
 
-You reported that **no move was ever seen attempted at ≤0**. That is weak
-evidence *for* H1, not against it. Under H2 you'd expect to eventually see a
-play from a non-positive charge; you saw none.
+- The §4b weights can't express this. `w₂·(enemyHP/enemyMaxHP)` treats 6 damage
+  as 75% of 8 damage; in reality one may be worth nothing and the other
+  everything. Task 5 needs an explicit net-damage term computed against the
+  opponent's observed restore behaviour.
+- **It partly retracts my session-03 point about survival dominance.** Survival
+  still matters across 16 rooms, but a line that cannot break armor isn't
+  survival — it's a slower loss. The correct frame is: *maximise net damage
+  subject to not dying*, not *minimise risk*.
 
-There's also an unexplained detail: 1 → −1 is a decrement of **two**. If a play
-costs 1, something else moved that counter — a second cost, a regeneration tick
-on unused moves, or two turns collapsed between the snapshots you compared.
-Until that's explained, neither hypothesis is safe to build on.
+Add this to SPEC §4 as a named mechanic with the session-03 run as evidence.
 
-**The discriminating observation.** Across every consecutive state pair in the
-fixtures, emit one row per player per move:
+## 2. My charge discriminator — I think you're reading it as a null result
+
+You recorded "23 firings, 0 forced" as a dead end because no player was ever
+*forced* into a single legal move. But the interesting number isn't the forced
+count. It's the zero.
+
+23 opportunities where a move sat at ≤0, and it was chosen **zero times**. If
+moves at ≤0 were freely playable and selection were anywhere near uniform, you'd
+expect roughly 7–8 such plays. Getting 0 is around `(2/3)^23 ≈ 1e-4`.
+
+That's strong evidence for **H1 (hard prune)** — not a null result. My question 2
+was badly worded ("hold a ≤0 move and play a different one"), which is what made
+this look like non-evidence. The absence *is* the signal.
+
+Before we act on it, one confound has to be cleared: an agent could avoid
+low-charge moves *by policy* rather than *by rule*. So:
+
+- **Split the 23 by actor.** Player rows are contaminated — the user was
+  following my guide. Only **enemy** rows are clean evidence. Report the enemy-
+  only count and run the binomial against a uniform null.
+- **Report the delta distribution** for played moves. The unexplained 1 → −1
+  (decrement of 2) is still open. Is −1 the mode? Are there other values? What
+  happens to *unplayed* moves between consecutive states?
+
+If enemy-only rows are ≥10 with 0 plays from ≤0, treat H1 as confirmed and write
+§4a as a hard prune with the flag defaulting to prune. If fewer, keep the flag
+and default to prune anyway, noting the sample size — the asymmetry favours it,
+since wrongly pruning costs one option while wrongly permitting costs a
+guaranteed-loss move.
+
+## 3. On enemy 63
+
+Calling it Shield-biased off 14 exchanges and having it wash out to uniform over
+39 is the same failure as my Shield advice and my discriminator wording: a
+confident read off a sample too small to carry it.
+
+You logged it. Good. Make it structural rather than remembered — **§4a's model
+must not emit a read below a minimum sample threshold.** SPEC §4a already says
+mix 50/50 with uniform below ~20 observations; raise that to a hard floor: below
+30 exchanges for a given key, return uniform and expose a `confidence: low` flag
+so downstream code can't quietly treat a thin read as a strong one.
+
+---
+
+## 4. Scope call, as you asked
+
+You were right to escalate this rather than discover it mid-task. My call:
+
+**Build the simulator on the clean exchange model, with unmodelled mechanics as
+explicit fail-closed inputs — your recommendation. Not hardcoded zeros.**
+
+Plus one addition: **the sim must report coverage as a headline metric.**
 
 ```
-turn | player | move | chargesBefore | movePlayed | chargesAfter | delta
+scored 340 / 1000 runs — 660 unscorable
+  412 boons present
+  198 status effects (Burn)
+   50 rolled enemy stats outside observed range
 ```
 
-Then answer three questions in the recap:
+Hardcoded zeros produce a number that looks authoritative and is silently biased
+toward room 1. Fail-closed without a coverage metric produces a sim that quietly
+scores almost nothing. Coverage makes the blind spot a visible, trackable
+quantity — and it turns "how much does the sim actually cover?" into a number
+that should climb every session.
 
-1. Is `delta` ever anything other than −1 for the played move? What happens to
-   the two *unplayed* moves — do they regenerate?
-2. Did any player ever hold a move at ≤0 and play a different one? **That's H1
-   confirmed.**
-3. Did any player ever play a move that was already at ≤0? **That's H2
-   confirmed.**
+Concretely: any run touching an unmodelled mechanic is marked `UNSCORABLE` with
+a reason code, never scored as if the mechanic were absent. Task 5 strategy work
+is validated only on the scored subset, and any claim about win rate must state
+the coverage alongside it.
 
-If the fixtures can't separate them, say so and leave it UNRESOLVED — do not
-pick one. Write §4a to branch on a single flag so the answer can be swapped in
-later without touching the EV engine.
-
-This matters because the two models differ enormously in value. H1 turns a
-three-way guess into certainty; H2 is a mild prior nudge.
-
----
-
-## 2. On getting the combat model wrong
-
-> *A 100% fit on a corpus that can't distinguish your hypotheses isn't
-> confirmation.*
-
-That's the correct lesson and I want it kept. Recording it as a
-do-not-reintroduce block was right.
-
-Generalize it into a habit: **before treating a verification pass as
-confirmation, state which branches the corpus never exercised.** A verifier
-that can't fail on a wrong model isn't a verifier. Add that line to the §1 note.
-
-That's also the reason I'm pushing back on the charge conclusion above — same
-failure shape, one turn of evidence carrying a design decision.
-
-Please restate the **verified** combat model explicitly in your next recap:
-exactly when armor is granted, to whom, and in what amount. My brief said
-"Shield wins restore armor"; your correction generalized it. I want the final
-form written down in one place, since the whole utility function hangs off it.
+**Leave the enemy-65 half-damage case and Burn's tick rate unmodelled.** One
+sample each is not a mechanic, it's an anecdote. They become reason codes, not
+guesses.
 
 ---
 
-## 3. Security: don't rewrite history
+## Your task — Task 4, and only Task 4
 
-The username in `c916be5` came from my brief — I wrote it in after reading it
-off a screenshot. My error, not yours.
+No live runs. **Do not spend energy this session.** The 72-state corpus is
+enough, and another watched run would trade a session for evidence you already
+have.
 
-**Leave it.** The username is already public in-game and on-chain via the Noob
-NFT, so the rewrite buys very little, while a force-push on a public repo risks
-desyncing your local clone for no real gain. The thing that actually mattered —
-wallet address and JWT — was redacted throughout, including in that same commit.
+1. Simulator per SPEC §6, built on the verified exchange model.
+2. Unmodelled mechanics as fail-closed inputs with reason codes; coverage
+   reported on every sim result.
+3. Real tests — fix the `vitest run` exit 1 with actual test files, not
+   `--passWithNoTests`. Hand-build the scenario set from TASKS.md Task 4,
+   drawing from the 72 real states rather than inventing shapes.
+4. Include a scenario for the §1 threshold case: a low-ATK move against
+   restoring armor. The sim should show zero net progress. If it doesn't, the
+   armor model is wrong and that's a more important finding than the gate.
+5. Run the charge recount in §2 and report it.
 
-Your fix of building username redaction into `writeRedactedCorpus` is the right
-response: stop the leak going forward rather than relitigate the past. Log in
-`DECISIONS.md`: *username tolerated in history; address and JWT never are.*
-
----
-
-## 4. `maxRoom 16` changes the utility function
-
-Sixteen rooms per run at 20 energy is a much longer run than SPEC §4b assumed.
-Dying in room 2 forfeits fourteen rooms of loot.
-
-So **survival dominates far more than the current weights express.** When you
-get to Task 5, make the depth bonus steep rather than linear, and raise `w₁`
-well above `w₂`. A slow win that reaches room 12 beats a fast one that dies in
-room 5, and the current weights don't come close to capturing that gap.
-
-Don't implement this yet — just carry it into Task 4's sim as a scenario worth
-scoring: total loot across a 16-room run, not win rate per fight.
-
----
-
-## Your task
-
-**Step 1 — one watched run, first.** Your recommendation was right and it's
-worth the 20 energy. §4c is currently written against zero evidence, which is
-the worst state any section can be in. The user will play a run manually,
-deliberately conservatively (Shield-heavy) to survive to a loot phase rather
-than to win fights fast.
-
-Capture, in redacted fixtures:
-
-- **A full `lootPhase` state** — every option offered, its fields, and the
-  action envelope that selects one. This is the priority.
-- The heal card's actual shape, if one appears.
-- Consecutive states across several turns, for the §1 charge table.
-- A room transition, so `Floor`/`Room` progression is on record.
-
-If the run dies before a loot phase again, report that plainly and do **not**
-write §4c from inference.
-
-**Step 2 — Task 4, the simulator.** As you proposed. No network, no auth. Build
-it on the committed fixtures plus `verifyCombatModel.ts`. Fix the `vitest run`
-exit-1 while you're there — real tests, not `--passWithNoTests`.
-
-Do not start Task 2 or write strategy code this session.
+Gate: `vitest run` green, 1000 synthetic runs scored against a random-move
+opponent, coverage reported. State plainly which branches the corpus still
+cannot exercise — per your own rule from session 03.
