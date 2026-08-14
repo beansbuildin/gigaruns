@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadCorpus, type WireSide } from "../src/sim/corpus.js";
-import { PLAYER, ROOM_ENEMIES } from "../src/sim/enemies.js";
+import { lookupEnemy, PLAYER, ROOM_ENEMIES, SAFE_TIER, RISKY_TIER, DANGEROUS_TIER } from "../src/sim/enemies.js";
 import { MOVES } from "../src/sim/types.js";
 
 /** First recorded appearance of each enemy, by name. */
@@ -44,7 +44,16 @@ describe("enemy profiles match the fixtures", () => {
   }
 
   it("covers every enemy the corpus contains, and no invented ones", () => {
-    expect(ROOM_ENEMIES.map((p) => p.enemy.id).sort()).toEqual([...sightings.keys()].sort());
+    // Multiple (room, tier) entries can share an enemy id now (enemy 64 has
+    // three captured tiers) — dedupe before comparing to the corpus's set of
+    // distinct enemies.
+    const ids = new Set(ROOM_ENEMIES.map((p) => p.enemy.id));
+    expect([...ids].sort()).toEqual([...sightings.keys()].sort());
+  });
+
+  it("every (room, tier) pair is unique — no duplicate capture of the same encounter", () => {
+    const keys = ROOM_ENEMIES.map((p) => `${p.room}:${p.tier}`);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
 
@@ -96,13 +105,33 @@ describe("player loadout matches the fixtures", () => {
   });
 });
 
-describe("unmodelled annotations match what the corpus actually shows", () => {
-  it("marks room 1 clean and rooms 3 and 4 contaminated", () => {
-    const byRoom = new Map(ROOM_ENEMIES.map((p) => [p.room, p]));
-    expect(byRoom.get(1)!.unmodelled).toEqual([]);
-    expect(byRoom.get(2)!.unmodelled).toEqual([]);
-    expect(byRoom.get(3)!.unmodelled).toContain("ROLLED_STATS");
-    expect(byRoom.get(4)!.unmodelled).toContain("STATUS_EFFECT");
+describe("unmodelled annotations match what the corpus actually shows, PER TIER", () => {
+  // [session 07] Tier is a property of the encounter (SPEC §3e), not the
+  // room or the enemy — session 06's "rooms 3 and 4 are contaminated" was a
+  // per-room claim that doesn't survive re-deriving tier from
+  // `enemyPathOptions[]`. Room 4's Safe capture is clean; room 3 has no Safe
+  // capture at all.
+  it("room 1 is clean (no tier choice ever precedes it)", () => {
+    expect(lookupEnemy(1, SAFE_TIER)!.unmodelled).toEqual([]);
+  });
+
+  it("room 2's Safe capture is clean; Risky and Dangerous are not", () => {
+    expect(lookupEnemy(2, SAFE_TIER)!.unmodelled).toEqual([]);
+    expect(lookupEnemy(2, RISKY_TIER)!.unmodelled).toContain("ENEMY_BUFF");
+    expect(lookupEnemy(2, DANGEROUS_TIER)!.unmodelled).toEqual(
+      expect.arrayContaining(["ROLLED_STATS", "ENEMY_BUFF"]),
+    );
+  });
+
+  it("room 3 has NO Safe-tier capture — lookupEnemy fails closed rather than falling back", () => {
+    expect(lookupEnemy(3, SAFE_TIER)).toBeUndefined();
+    expect(lookupEnemy(3, RISKY_TIER)!.unmodelled).toEqual(
+      expect.arrayContaining(["ROLLED_STATS", "ENEMY_BUFF"]),
+    );
+  });
+
+  it("room 4's Safe capture is clean — the Burn seen in that run is the player's own boon, not this profile", () => {
+    expect(lookupEnemy(4, SAFE_TIER)!.unmodelled).toEqual([]);
   });
 
   it("confirms enemy 65 really does carry non-zero rolled stats somewhere in the corpus", () => {
@@ -111,5 +140,14 @@ describe("unmodelled annotations match what the corpus actually shows", () => {
       .flatMap((r) => r.states)
       .find((s) => s.run.players[1]!.id === "Enemy Room 65" && (s.run.players[1]!.block?.current ?? 0) > 0);
     expect(hit, "enemy 65 with non-zero block").toBeDefined();
+  });
+
+  it("confirms room 4's recorded battle carries Burn on the enemy but activeEnemyBuff stays null throughout", () => {
+    const runs = loadCorpus();
+    const room4States = runs
+      .flatMap((r) => r.states)
+      .filter((s) => s.run.players[1]!.id === "Enemy Room 66");
+    expect(room4States.some((s) => (s.run.players[1]!.statusEffects?.length ?? 0) > 0)).toBe(true);
+    expect(room4States.every((s) => (s.run.activeEnemyBuff ?? null) === null)).toBe(true);
   });
 });

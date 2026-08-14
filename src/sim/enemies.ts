@@ -1,5 +1,6 @@
 /**
- * src/sim/enemies.ts — combatant profiles observed in the corpus.
+ * src/sim/enemies.ts — combatant profiles observed in the corpus, keyed by
+ * (room, tier).
  *
  * Every number here was read off a recorded `/game/dungeon/state` response, not
  * from SPEC. `tests/enemies.test.ts` re-derives them from the fixtures and
@@ -9,6 +10,32 @@
  * `"Enemy Room 63"` etc, where 63 is `ENEMY_CID` — NOT the room number
  * (SPEC §3c). Room 5+ has never been reached, so the sim marks any run that
  * gets there DEPTH_BEYOND_CORPUS rather than extrapolating the scaling curve.
+ *
+ * **Tier is a property of the ENCOUNTER, not the enemy (SPEC §3e).** Base
+ * combat stats (hp/armor/move ATK/DEF/charges) are identical across tiers of
+ * the same enemy id — confirmed here across all three captured tiers of enemy
+ * 64. Only `rolledEnemyStats` and `enemyBuff` vary by tier, and tier 0
+ * ("Safe") is the only one ever observed with both empty.
+ *
+ * [session 07] `ROOM_ENEMIES` was previously a flat array, one profile per
+ * room, with rooms 3 and 4 commented as "Dangerous-tier instances" on the
+ * theory that the user was picking high tiers. Re-deriving tier from the
+ * corpus (matching each room's `enemyPathOptions[]` against the resulting
+ * post-pick state) shows that comment was wrong on the specifics for BOTH
+ * rooms:
+ *
+ *   - Room 3 (enemy 65)'s one capture is tier 1 ("Risky"), not tier 2.
+ *   - Room 4 (enemy 66)'s one capture is tier 0 ("Safe"), not Dangerous — its
+ *     `enemyBuff` is `null` throughout, matching the Safe pick exactly.
+ *
+ * The `shatterblade` buff ("Applies 1 Vulnerable on Sword wins") belongs to
+ * the room-3 pick, not room 4 as previously written. And room 4's recorded
+ * Burn status effect is NOT an enemy-side mechanic at all: `activeEnemyBuff`
+ * is `null` for the whole battle, but the player's `pickedBoons` for that run
+ * include `AddBurnSword` (picked at the room-3->4 reward phase) — the Burn is
+ * the PLAYER's own boon landing on the enemy, already the concern of
+ * `src/sim/boons.ts` / the `BURN_PER_EXCHANGE` flag, not a property of this
+ * enemy or this tier. The room-4 Safe-tier profile below is therefore CLEAN.
  */
 
 import type { Reason } from "./coverage.js";
@@ -23,6 +50,11 @@ const mv = (atk: number, def: number, maxCharges = 3) => ({
 
 /** Rolled stats read from `.current`. `.starting` is 0 even when current is 2. */
 const rolled = (r: Partial<RolledStats> = {}): RolledStats => ({ ...noRolled(), ...r });
+
+/** `enemyPathOptions[].tier` values, named per SPEC §3e's `tierName`. */
+export const SAFE_TIER = 0;
+export const RISKY_TIER = 1;
+export const DANGEROUS_TIER = 2;
 
 /**
  * The user's loadout as recorded in the MOST RECENT capture. HP/armor maxima sit
@@ -60,8 +92,22 @@ export interface EnemyProfile {
   /** 1-based room this enemy was observed in. */
   room: number;
   /**
-   * Mechanics observed on this enemy that the clean model does not cover. Any
-   * battle against it is UNSCORABLE for these reasons — see src/sim/coverage.ts.
+   * The `enemyPathOptions[].tier` this specific instance was captured at.
+   *
+   * Room 1 has no tier choice at all — `enemyId 63` never appears in any
+   * recorded `enemyPathOptions[]`, so it is a fixed first encounter, not a
+   * pick. It is tagged `SAFE_TIER` here only because its rolled stats and
+   * buff are empty, matching the SHAPE a Safe pick produces elsewhere — this
+   * is a convenience for `lookupEnemy(1, SAFE_TIER)`, not a claim that room 1
+   * was ever offered as a tier choice.
+   */
+  tier: number;
+  /**
+   * Mechanics observed on this instance that the clean model does not cover.
+   * Any battle against it is UNSCORABLE for these reasons — see
+   * src/sim/coverage.ts. Property of the CAPTURED INSTANCE (room + tier), not
+   * of the enemy id — the same enemy is clean at one tier and contaminated at
+   * another (enemy 64, rooms below).
    */
   unmodelled: Reason[];
 }
@@ -69,7 +115,9 @@ export interface EnemyProfile {
 export const ROOM_ENEMIES: EnemyProfile[] = [
   {
     room: 1,
-    // Clean in every capture: no boons, no status, all rolled stats zero.
+    tier: SAFE_TIER,
+    // Clean in every capture: no boons, no status, all rolled stats zero, and
+    // no tier choice ever precedes it.
     unmodelled: [],
     enemy: {
       id: "Enemy Room 63",
@@ -83,6 +131,9 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
   },
   {
     room: 2,
+    tier: SAFE_TIER,
+    // rolledEnemyStats all zero, enemyBuff null — the pick this room's
+    // default profile should be fought at under the Safe-tier hard rule.
     unmodelled: [],
     enemy: {
       id: "Enemy Room 64",
@@ -95,20 +146,50 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
     },
   },
   {
+    room: 2,
+    tier: RISKY_TIER,
+    // Diagnostic only — the sim never fights this by default. rolledEnemyStats
+    // all zero, but enemyBuff "bloodthirsty" ("+4 ATK on all moves") is set,
+    // which the clean model does not evaluate.
+    unmodelled: ["ENEMY_BUFF"],
+    enemy: {
+      id: "Enemy Room 64",
+      hp: 35,
+      hpMax: 35,
+      armor: 14,
+      armorMax: 14,
+      moves: { rock: mv(14, 7), paper: mv(10, 4), scissor: mv(8, 3) },
+      rolled: rolled(),
+    },
+  },
+  {
+    room: 2,
+    tier: DANGEROUS_TIER,
+    // Diagnostic only. rolledEnemyStats evasion1/block2/lck1/tenacity1, plus
+    // enemyBuff "corrosiveShield".
+    unmodelled: ["ROLLED_STATS", "ENEMY_BUFF"],
+    enemy: {
+      id: "Enemy Room 64",
+      hp: 35,
+      hpMax: 35,
+      armor: 14,
+      armorMax: 14,
+      moves: { rock: mv(14, 7), paper: mv(10, 4), scissor: mv(8, 3) },
+      rolled: rolled({ evasion: 1, block: 2, lck: 1, tenacity: 1 }),
+    },
+  },
+  {
     room: 3,
-    // Observed with evasion 2 / block 2 / lck 1 (read from `.current`;
-    // `.starting` is 0). This is the enemy that took 8 damage from a 16-ATK
-    // Sword win by a rule nothing explains.
-    //
-    // [CORRECTED session 06] These stats are NOT innate. `enemyPathOptions[]`
-    // carries `rolledEnemyStats` PER TIER, and tier 0 ("Safe") is all zeros
-    // while both tier-2 ("Dangerous") options carry non-zero rolls. So this
-    // profile is a Dangerous-tier INSTANCE of enemy 65, recorded because the
-    // user was picking high tiers — not a property of the enemy. Session 05
-    // read it as innate and built "wall 2" of the Task 4.5 analysis on it.
-    // A Safe-tier enemy 65 should be clean, and this profile should be split
-    // by tier once a Safe capture exists to derive it from.
-    unmodelled: ["ROLLED_STATS"],
+    tier: RISKY_TIER,
+    // [CORRECTED session 07] Was labelled "Dangerous-tier instance" — the
+    // corpus match is tier 1 ("Risky"), not tier 2. rolledEnemyStats
+    // evasion2/block2/lck1, plus enemyBuff "shatterblade" ("Applies 1
+    // Vulnerable on Sword wins"). No SAFE-tier (tier 0) capture of enemy 65
+    // exists anywhere in the corpus — `lookupEnemy(3, SAFE_TIER)` is
+    // deliberately absent below rather than invented. This is the actual wall
+    // under the Safe-tier hard rule: not "enemy 65 is unscorable", but "no
+    // Safe capture of it exists yet".
+    unmodelled: ["ROLLED_STATS", "ENEMY_BUFF"],
     enemy: {
       id: "Enemy Room 65",
       hp: 38,
@@ -116,22 +197,20 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 15,
       armorMax: 15,
       moves: { rock: mv(10, 5), paper: mv(15, 6), scissor: mv(12, 4) },
-      // Not boon-granted, and — as of session 06 — not innate either: granted
-      // by the Dangerous tier the user chose. See the note above.
       rolled: rolled({ evasion: 2, block: 2, lck: 1 }),
     },
   },
   {
     room: 4,
-    // Observed carrying `statusEffects [{Burn, 3}]`, and the run carried an
-    // `activeEnemyBuff` (shatterblade: applies Vulnerable on Sword wins).
-    //
-    // [session 06] Same suspicion as room 3: `enemyBuff` is a per-tier field on
-    // `enemyPathOptions[]` and is `null` on tier 0, so shatterblade is very
-    // likely a Dangerous-tier buff rather than a property of enemy 66. Not
-    // corrected in the data, only flagged — no Safe-tier capture of this enemy
-    // exists yet, and the rule here is that the recording wins over the theory.
-    unmodelled: ["STATUS_EFFECT", "ENEMY_BUFF"],
+    tier: SAFE_TIER,
+    // [CORRECTED session 07] Was labelled "Dangerous-tier instance" and
+    // marked STATUS_EFFECT + ENEMY_BUFF. The corpus match is tier 0 ("Safe"):
+    // rolledEnemyStats all zero, activeEnemyBuff null for the whole battle.
+    // The recorded Burn status on this enemy is the PLAYER's own AddBurnSword
+    // boon (present in that run's pickedBoons) landing on a Sword win, not an
+    // enemy or tier mechanic — src/sim/boons.ts and BURN_PER_EXCHANGE own
+    // that concern independently of this profile. This instance is CLEAN.
+    unmodelled: [],
     enemy: {
       id: "Enemy Room 66",
       hp: 40,
@@ -144,8 +223,41 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
   },
 ];
 
-/** Deepest room the corpus can vouch for. */
-export const MAX_OBSERVED_ROOM = ROOM_ENEMIES.length;
+/**
+ * Fails closed: no synthesized fallback across tiers or rooms. If the exact
+ * (room, tier) pair has never been captured, returns `undefined` — the caller
+ * decides what that means (see `dungeonSim.ts`'s `NO_TIER_CAPTURE` reason)
+ * rather than silently substituting a different tier's numbers.
+ */
+export function lookupEnemy(room: number, tier: number): EnemyProfile | undefined {
+  return ROOM_ENEMIES.find((p) => p.room === room && p.tier === tier);
+}
+
+/**
+ * The lowest-tier profile captured for a room, preferring Safe. For
+ * diagnostics and hand-built scenarios that need SOME real numbers for a room
+ * and say so explicitly (`src/sim/scenarios.ts`) — never for a reported
+ * result, which must go through `lookupEnemy` and fail closed like
+ * `simulateRun` does.
+ */
+export function bestKnownProfile(room: number): EnemyProfile | undefined {
+  return ROOM_ENEMIES.filter((p) => p.room === room).sort((a, b) => a.tier - b.tier)[0];
+}
+
+/** Deepest room the corpus has ANY tier captured for. */
+export const MAX_OBSERVED_ROOM = Math.max(...ROOM_ENEMIES.map((p) => p.room));
+
+/**
+ * Deepest room a Safe-tier run starting at room 1 can reach without hitting a
+ * missing capture. Currently 2 — room 3 (enemy 65) has never been captured at
+ * Safe tier, so this is a real ceiling on `deepestScorableRoom`, but it is a
+ * CAPTURE gap, not a property of the enemies (session 06/07 finding).
+ */
+export const MAX_SAFE_ROOM = (() => {
+  let room = 1;
+  while (lookupEnemy(room, SAFE_TIER)) room++;
+  return room - 1;
+})();
 
 /** Forbidden Woods `maxRoom`, from config/discovered.json. */
 export const MAX_ROOM = 16;

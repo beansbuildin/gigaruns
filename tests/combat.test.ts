@@ -17,10 +17,11 @@ import {
   resolveExchange,
   stallsOnTie,
 } from "../src/sim/combat.js";
-import { PLAYER, ROOM_ENEMIES } from "../src/sim/enemies.js";
+import { bestKnownProfile, PLAYER } from "../src/sim/enemies.js";
 import { cloneCombatant, MOVES, type BattleState, type Combatant } from "../src/sim/types.js";
 
-const e63 = () => cloneCombatant(ROOM_ENEMIES[0]!.enemy);
+const roomEnemy = (room: number) => cloneCombatant(bestKnownProfile(room)!.enemy);
+const e63 = () => roomEnemy(1);
 const me = () => cloneCombatant(PLAYER);
 
 describe("compare — rock > scissor > paper > rock", () => {
@@ -186,7 +187,7 @@ describe("net damage against restoring armor — session-04 brief §1, corrected
 
   it("makes literally zero progress in a stalling tie loop, forever", () => {
     // Our Shield (6/12) mirrored against enemy 66's Shield (8/8).
-    let state: BattleState = { me: me(), foe: cloneCombatant(ROOM_ENEMIES[3]!.enemy), room: 4 };
+    let state: BattleState = { me: me(), foe: roomEnemy(4), room: 4 };
     const startHp = state.foe.hp;
     expect(stallsOnTie(PLAYER.moves.paper.atk, state.foe.moves.paper.def)).toBe(true);
 
@@ -217,7 +218,7 @@ describe("room transition", () => {
     const carried = { ...me(), hp: 2, armor: 4 };
     carried.moves.paper.charges = 0;
 
-    const next = enterRoom(carried, ROOM_ENEMIES[1]!.enemy, 2);
+    const next = enterRoom(carried, bestKnownProfile(2)!.enemy, 2);
 
     expect(next.me.hp).toBe(2);
     expect(next.me.armor).toBe(4);
@@ -226,7 +227,7 @@ describe("room transition", () => {
   });
 
   it("gives the incoming enemy full pools, because it is a new entity", () => {
-    const next = enterRoom(me(), ROOM_ENEMIES[3]!.enemy, 4);
+    const next = enterRoom(me(), bestKnownProfile(4)!.enemy, 4);
     expect(next.foe.hp).toBe(next.foe.hpMax);
     expect(next.foe.armor).toBe(next.foe.armorMax);
     for (const m of MOVES) {

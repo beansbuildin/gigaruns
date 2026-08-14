@@ -14,7 +14,7 @@
 import { applyBoon, offersForRoom, type BoonOffer, type BoonOption } from "./boons.js";
 import { legalMoves, resolveExchange, enterRoom, type ExchangeResult } from "./combat.js";
 import { CoverageReport, type Reason } from "./coverage.js";
-import { MAX_OBSERVED_ROOM, PLAYER, ROOM_ENEMIES } from "./enemies.js";
+import { lookupEnemy, MAX_OBSERVED_ROOM, PLAYER, SAFE_TIER } from "./enemies.js";
 import { makeRng, type Rng } from "./rng.js";
 import { anyRolled, cloneCombatant, isDead, MOVES, type BattleState, type Combatant, type MoveKey } from "./types.js";
 
@@ -94,6 +94,16 @@ export interface SimOptions {
    * be labelled as one. Never use it to generate a reported result.
    */
   offers?: (room: number) => BoonOffer[];
+  /**
+   * Enemy tier fought at every room. Defaults to SAFE_TIER — CLAUDE.md's hard
+   * rule (DECISIONS 2026-08-16): the loot table is identical across tiers, so
+   * anything else is pure added risk with zero reward. Exists as an override
+   * ONLY for diagnostics that need a specific captured instance regardless of
+   * tier (e.g. the §1 threshold check in scripts/sim.ts, which tests a
+   * tier-invariant DEF stat) — never for a reported win rate, which must
+   * describe what live play would actually fight.
+   */
+  enemyTier?: number;
 }
 
 export type RunOutcome = "cleared" | "died" | "stalled" | "halted";
@@ -195,12 +205,16 @@ export function simulateRun(opts: SimOptions): RunResult {
   let outcome: RunOutcome = "cleared";
   const boons: BoonRecord[] = [];
 
+  const tier = opts.enemyTier ?? SAFE_TIER;
+
   for (let room = opts.startRoom ?? 1; room <= maxRooms; room++) {
-    const profile = ROOM_ENEMIES[room - 1];
+    const profile = lookupEnemy(room, tier);
     if (!profile) {
-      // Past room 4 we have no enemy to fight and no scaling rule worth
-      // guessing at. The run stops here and says why.
-      runReasons.add("DEPTH_BEYOND_CORPUS");
+      // Two distinct failure shapes, both fail-closed rather than guessed:
+      // past MAX_OBSERVED_ROOM the corpus has no enemy at ANY tier; at or
+      // below it, the room is known but not at the tier this run required
+      // (room 3 today, under the default Safe tier — see enemies.ts).
+      runReasons.add(room > MAX_OBSERVED_ROOM ? "DEPTH_BEYOND_CORPUS" : "NO_TIER_CAPTURE");
       outcome = "halted";
       break;
     }

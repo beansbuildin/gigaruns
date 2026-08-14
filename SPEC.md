@@ -336,6 +336,34 @@ pair:
 3. `battleArmorReduction` ("semantics unknown" in `src/sim/coverage.ts`) is very
    likely the Miasmaguard counter.
 
+**[CORRECTED session 07] `src/sim/enemies.ts`'s room-3 and room-4 profiles were
+mislabelled "Dangerous-tier instances".** Re-matching each captured enemy state
+against the `enemyPathOptions[]` that preceded it (comparing `rolledEnemyStats`
+of the option to the resulting state) gives the ACTUAL tier of each capture:
+
+| room | enemy | tier captured | rolled stats | buff |
+|---|---|---|---|---|
+| 1 | 63 | n/a — never offered via `enemyPathOptions[]`, a fixed first encounter | all zero | none |
+| 2 | 64 | 0 Safe, 1 Risky, and 2 Dangerous all captured (three offers across the corpus) | zero / zero / `{1,2,1,1}` | none / `bloodthirsty` (+4 ATK all moves) / `corrosiveShield` |
+| 3 | 65 | **1 Risky** (not 2 Dangerous as previously written) | `{evasion:2,block:2,lck:1}` | `shatterblade` ("Applies 1 Vulnerable on Sword wins") |
+| 4 | 66 | **0 Safe** (not Dangerous) | all zero | **null** |
+
+Room 4's `activeEnemyBuff` is `null` for the entire recorded battle, matching
+the Safe pick exactly. The Burn status effect seen on that enemy mid-battle is
+**not** an enemy or tier mechanic — the player's own `pickedBoons` for that run
+includes `AddBurnSword`, taken at the preceding reward phase, and Burn is that
+boon landing on a Sword win. The room-4 Safe-tier capture is therefore CLEAN;
+`src/sim/enemies.ts`'s `ROOM_ENEMIES` reflects this.
+
+**Consequence for `deepestScorableRoom`:** under the Safe-tier hard rule above,
+rooms 1, 2, and 4 all have a clean Safe-tier capture. The *only* remaining
+capture gap is room 3 — no Safe-tier capture of enemy 65 exists anywhere in the
+corpus. `src/sim/enemies.ts`'s `lookupEnemy(3, SAFE_TIER)` is deliberately
+absent rather than invented, and `src/sim/dungeonSim.ts`'s `simulateRun` fails
+closed there with `NO_TIER_CAPTURE` — a capture gap, not a claim that the enemy
+is unscorable in general. One Safe-tier room-3 capture is the whole remaining
+blocker on this number, not a code or model change.
+
 ---
 
 ## 4. Dungeon strategy

@@ -16,7 +16,7 @@
 import { describe, expect, it } from "vitest";
 
 import { legalMoves, resolveExchange } from "../src/sim/combat.js";
-import { PLAYER, ROOM_ENEMIES } from "../src/sim/enemies.js";
+import { bestKnownProfile, PLAYER } from "../src/sim/enemies.js";
 import { cloneCombatant, MOVES, type BattleState, type Combatant } from "../src/sim/types.js";
 import { DEFAULT_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
 import { decide } from "../src/strategy/decide.js";
@@ -29,7 +29,8 @@ import {
 } from "../src/strategy/opponentModel.js";
 import { deathPenalty, utility } from "../src/strategy/utility.js";
 
-const enemy = (room: number): Combatant => cloneCombatant(ROOM_ENEMIES[room - 1]!.enemy);
+/** Whichever tier is captured for the room — rooms 1/2/4 are Safe, room 3 is Risky. */
+const enemy = (room: number): Combatant => cloneCombatant(bestKnownProfile(room)!.enemy);
 
 const state = (over: Partial<Combatant> = {}, room = 1, foeOver: Partial<Combatant> = {}): BattleState => ({
   me: { ...cloneCombatant(PLAYER), ...over },

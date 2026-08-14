@@ -81,9 +81,15 @@ describe("fail-closed accounting", () => {
     expect(seenRoomOne, "no run ever cleared room 1").toBeGreaterThan(0);
   });
 
-  it("marks a run that runs past the corpus DEPTH_BEYOND_CORPUS rather than extrapolating", () => {
+  it("[session 07] halts with NO_TIER_CAPTURE at room 3 under the default Safe tier", () => {
     // always-Sword against always-Shield loses every exchange, so force the
     // clears with a policy that beats the opponent outright every time.
+    // Room 3 (enemy 65) has never been captured at Safe tier — under the
+    // hard rule (default enemyTier = SAFE_TIER), this is where a Safe-tier
+    // run necessarily halts, two rooms short of MAX_OBSERVED_ROOM. This is a
+    // CAPTURE gap, not a claim that rooms 3+ are unscorable in general — see
+    // the DEPTH_BEYOND_CORPUS test below, which reaches room 4 fine at the
+    // tiers the corpus actually has.
     const r = simulateRun({
       policy: fixedPolicy("paper"),
       opponent: fixedPolicy("rock"), // Shield beats Sword, every exchange
@@ -91,9 +97,28 @@ describe("fail-closed accounting", () => {
       seed: 1,
       maxRooms: MAX_OBSERVED_ROOM + 3,
     });
+    expect(r.reasons).toContain("NO_TIER_CAPTURE");
+    expect(r.outcome).toBe("halted");
+    expect(r.roomsCleared).toBe(2);
+  });
+
+  it("marks a run that starts past the corpus DEPTH_BEYOND_CORPUS rather than extrapolating", () => {
+    // Start beyond every room the corpus has EVER captured at any tier — a
+    // room-3-shaped Safe-tier wall isn't in play here, this is "no knowledge
+    // at all" by construction, isolated by starting past it directly rather
+    // than trying to walk there (rooms 1 and 3 don't share a tier that would
+    // let a single `enemyTier` override reach room 4 first).
+    const r = simulateRun({
+      policy: fixedPolicy("paper"),
+      opponent: fixedPolicy("rock"),
+      chargesAreHardLimit: false,
+      seed: 1,
+      startRoom: MAX_OBSERVED_ROOM + 1,
+      maxRooms: MAX_OBSERVED_ROOM + 3,
+    });
     expect(r.reasons).toContain("DEPTH_BEYOND_CORPUS");
     expect(r.outcome).toBe("halted");
-    expect(r.roomsCleared).toBe(MAX_OBSERVED_ROOM);
+    expect(r.roomsCleared).toBe(0);
   });
 
   it("halts rather than inventing a move when every move is locked", () => {

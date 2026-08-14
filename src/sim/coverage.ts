@@ -53,6 +53,12 @@ export const REASONS = [
   "CHARGES_ALL_LOCKED",
   /** Sim-only: the run exceeded the room count the corpus can vouch for. */
   "DEPTH_BEYOND_CORPUS",
+  /**
+   * Sim-only: the corpus knows this room at SOME tier, but not the tier this
+   * run required (SAFE_TIER by default). Distinct from DEPTH_BEYOND_CORPUS —
+   * this is a capture gap at a known room, not a room past all knowledge.
+   */
+  "NO_TIER_CAPTURE",
 ] as const;
 
 export type Reason = (typeof REASONS)[number];
@@ -68,6 +74,7 @@ export const REASON_DETAIL: Record<Reason, string> = {
   UNKNOWN_EFFECT: "activeEffects/triggeredBoons/gearBoons/focusBuffs semantics unknown",
   CHARGES_ALL_LOCKED: "every move locked under chargesAreHardLimit; server behaviour unobserved",
   DEPTH_BEYOND_CORPUS: "room deeper than any the corpus reached",
+  NO_TIER_CAPTURE: "room is known, but not captured at the tier this run required",
 };
 
 /** A set of reasons, ordered by REASONS for stable reporting. */

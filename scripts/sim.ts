@@ -20,7 +20,7 @@ import {
 } from "../src/sim/dungeonSim.js";
 import { isDead, cloneCombatant, type MoveKey } from "../src/sim/types.js";
 import { legalMoves, resolveExchange } from "../src/sim/combat.js";
-import { PLAYER, ROOM_ENEMIES } from "../src/sim/enemies.js";
+import { bestKnownProfile, MAX_SAFE_ROOM, PLAYER, ROOM_ENEMIES } from "../src/sim/enemies.js";
 import { makeRng } from "../src/sim/rng.js";
 import { replayCorpus } from "../src/sim/replay.js";
 import { DEFAULT_CONFIG } from "../src/strategy/config.js";
@@ -88,15 +88,17 @@ console.log(`
 console.log(`
   DEEPEST SCORABLE ROOM: ${gate.deepestScorableRoom}   (gate asked for >= 4)`);
 
-// The ceiling is a property of the ENEMIES, not of the boon model. Compute it
-// from the profiles rather than asserting it, so it updates itself when the
-// corpus grows.
-const firstDirtyRoom = ROOM_ENEMIES.find((p) => p.unmodelled.length > 0)?.room ?? Infinity;
+// The ceiling under the Safe-tier hard rule is a CAPTURE gap, not a property
+// of the enemies. Walk forward from room 1 while a Safe capture exists —
+// this is exactly what MAX_SAFE_ROOM computes, restated here so the log
+// explains itself without a second lookup.
+const firstNoSafeCaptureRoom = MAX_SAFE_ROOM + 1;
 const roomOneOptions = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
 console.log(`
   Why. Three walls were recorded in session 05. Session 06's capture knocked one
-  of them down, which is worth stating precisely, because the gate was retired
-  partly on the strength of it:
+  of them down; session 07 re-derived tier from the corpus directly and found
+  the SPECIFICS of that correction were themselves wrong, which is worth
+  stating precisely because the gate was retired partly on the strength of it:
 
   1. NO CLEAN ROOM-1 BOON. ${roomOneOptions.length} of ${roomOneOptions.length} recorded room-1 options are either a
      rolled-stat boon we can model at pickup but whose damage effect is
@@ -106,15 +108,19 @@ console.log(`
      away from falling: 'AddMaxArmor' was offered at room 1 in session 06 and
      not taken, and a max-pool change is something combat.ts already models.
 
-  2. RETRACTED — rooms ${firstDirtyRoom}+ ARE NOT INNATELY UNSCORABLE. Session 05 read enemy
-     65's evasion2/block2/lck1 as a property of the enemy and concluded a
-     perfect boon model caps this number at ${firstDirtyRoom - 1}. It is not a property of the
-     enemy: 'enemyPathOptions[]' carries 'rolledEnemyStats' PER TIER, tier 0
-     ("Safe") is all zeros, and both tier-2 options carry non-zero rolls. The
-     recorded profile is a Dangerous-tier instance, captured because the user was
-     picking high tiers. Under a Safe-tier policy these enemies should be clean.
-     The gate retirement still stands — it was unreachable from THAT corpus —
-     but this reason for it was wrong.
+  2. TWICE CORRECTED — rooms ${firstNoSafeCaptureRoom}+ ARE NOT INNATELY UNSCORABLE, but the reason is
+     narrower than session 06 thought. Session 05 read enemy 65's
+     evasion2/block2/lck1 as a property of the enemy. Session 06 retracted
+     that ('enemyPathOptions[]' carries 'rolledEnemyStats' PER TIER, tier 0
+     "Safe" is all zeros) but mislabelled the recorded room-3 and room-4
+     captures as "Dangerous-tier instances". Re-matching each against the
+     'enemyPathOptions[]' that preceded it: room 3 (enemy 65) is actually
+     tier 1 ("Risky"), and room 4 (enemy 66) is actually tier 0 ("Safe") and
+     CLEAN — its recorded Burn status is the player's own AddBurnSword boon
+     landing on a Sword win, not an enemy or tier mechanic. So the true wall
+     is narrower still: room 4 is already fine under Safe tier. The ONLY gap
+     is room 3 — no Safe-tier capture of enemy 65 exists anywhere in the
+     corpus. One clean capture there, not a boon model change, moves this.
 
   3. NO GROUNDED OFFER DISTRIBUTION. ${OBSERVED_OFFERS.length} offer triples now exist, up from 4.
      Still far too few to synthesise from; the sim continues to draw only from
@@ -147,10 +153,11 @@ console.log(`
     battles scored: ${hypothetical.battleCoverage.scored}/${hypothetical.battleCoverage.total}
 
   So the plumbing works — a clean room-1 boon does move the number, to ${hypothetical.deepestScorableRoom}, and
-  then stops at the room-${firstDirtyRoom} profile. That profile is a Dangerous-tier instance
-  (wall 2 above), so the stop is an artefact of which enemies were captured, not
-  a ceiling. The remaining blocker is CAPTURE — a Safe-tier run and one clean
-  room-1 pickup — and not code.
+  then stops at the room-${firstNoSafeCaptureRoom} lookup, which is absent — no Safe-tier capture of that
+  room's enemy exists (wall 2 above). Same conclusion as before, narrower cause:
+  the stop is a CAPTURE gap at room ${firstNoSafeCaptureRoom} specifically, not an artefact of which
+  tier got recorded in general. One Safe-tier capture of room 3 (enemy 65) is
+  the whole remaining blocker, and not code.
   ───────────────────────────────────────────────────────────────────────────`);
 
 // ── 2c. TASK 5 GATE — the EV engine against the always-Sword baseline ─────
@@ -263,6 +270,12 @@ console.log(rule("THRESHOLD CHECK — Shield mirrors against every observed enem
 // Each enemy's Shield, mirrored against ours (6/12), one room in isolation.
 // `netDamageOnTie(6, foeShieldDEF)` predicts the outcome exactly: 0 means the
 // battle can never end, anything positive means it resolves.
+//
+// Shield ATK/DEF is tier-INVARIANT (SPEC §3e — only rolledEnemyStats and
+// enemyBuff vary by tier), so this diagnostic explicitly overrides `enemyTier`
+// to whatever tier the corpus actually captured for that room (bestKnownProfile
+// picks it) — the threshold being tested does not care which tier that was,
+// unlike a reported win rate, which must go through the SAFE_TIER default.
 const mirrors = [
   { room: 1, enemy: "63", def: 2 },
   { room: 2, enemy: "64", def: 4 },
@@ -280,6 +293,7 @@ for (const { room, enemy, def } of mirrors) {
       chargesAreHardLimit: false, // isolate the armor threshold from charge decay
       startRoom: room,
       maxRooms: room,
+      enemyTier: bestKnownProfile(room)!.tier,
     },
     99,
   );

@@ -9,11 +9,18 @@
  * never happened to visit, using stats it did.
  */
 
-import { PLAYER, ROOM_ENEMIES } from "./enemies.js";
+import { bestKnownProfile, PLAYER } from "./enemies.js";
 import { cloneCombatant, type BattleState, type Combatant, type MoveKey } from "./types.js";
 
+/**
+ * The lowest-tier capture available for a room — Safe for rooms 1, 2 and 4;
+ * the only capture that exists (Risky) for room 3. These scenarios exercise
+ * combat.ts with real numbers, not "what live play would fight", so falling
+ * back across tiers here is fine — `dungeonSim.ts`'s `simulateRun` is the one
+ * that must not.
+ */
 const enemy = (room: number): Combatant => {
-  const p = ROOM_ENEMIES[room - 1];
+  const p = bestKnownProfile(room);
   if (!p) throw new Error(`no observed enemy for room ${room}`);
   return cloneCombatant(p.enemy);
 };
@@ -172,7 +179,10 @@ export const SCENARIOS: Scenario[] = [
   },
   {
     name: "deep-room-4-opening",
-    note: "Enemy 66, the deepest position ever reached. Carries Burn and a run-level enemy buff — unscorable by construction.",
+    note:
+      "Enemy 66, the deepest position ever reached, at Safe tier — enemyBuff null, rolled stats zero. " +
+      "[CORRECTED session 07] The recorded battle later shows Burn on the enemy, but that's the PLAYER's " +
+      "own AddBurnSword boon landing on a Sword win, not an enemy or tier mechanic. This opening is clean.",
     from: "run-2026-08-14-01-00-08/state-040.json",
     state: { me: tweak(player(), { hp: 22, armor: 15, charges: { rock: 2, paper: 1 } }), foe: enemy(4), room: 4 },
   },
