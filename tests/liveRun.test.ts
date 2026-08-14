@@ -1,11 +1,11 @@
 /**
  * tests/liveRun.test.ts — scripts/liveRun.ts, Task 6's live loop.
  *
- * The pure helpers (classifyPhase, selectByIndex, buildEnvelope,
- * wireBoonToOption) are tested directly. The loop itself (`runOnce`) is
- * tested against a real `GigaverseClient` with a mocked global `fetch`, same
- * pattern as `tests/api/client.test.ts` — this repo has no live JWT this
- * session (QUESTIONS.md §7), so nothing here touches the network.
+ * The pure helpers (classifyPhase, selectRewardByIndex, selectEnemyPathByIndex,
+ * buildEnvelope, buildPathSelectionEnvelope, wireBoonToOption) are tested
+ * directly. The loop itself (`runOnce`) is tested against a real
+ * `GigaverseClient` with a mocked global `fetch`, same pattern as
+ * `tests/api/client.test.ts` — nothing here touches the real network.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,11 +13,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildBattleState,
   buildEnvelope,
+  buildPathSelectionEnvelope,
   classifyPhase,
   KNOWN_SIDE_KEYS,
   moveToAction,
   runOnce,
-  selectByIndex,
+  selectEnemyPathByIndex,
+  selectRewardByIndex,
   unknownSideKeys,
   wireBoonToOption,
   type LiveRunDeps,
@@ -146,16 +148,39 @@ describe("moveToAction", () => {
   });
 });
 
-describe("selectByIndex", () => {
-  it("maps 0-3 to loot_one..loot_four", () => {
-    expect(selectByIndex(0)).toBe("loot_one");
-    expect(selectByIndex(1)).toBe("loot_two");
-    expect(selectByIndex(2)).toBe("loot_three");
-    expect(selectByIndex(3)).toBe("loot_four");
+describe("selectRewardByIndex", () => {
+  it("maps 0-3 to reward_one..reward_four — reward_one confirmed live, session 08", () => {
+    expect(selectRewardByIndex(0)).toBe("reward_one");
+    expect(selectRewardByIndex(1)).toBe("reward_two");
+    expect(selectRewardByIndex(2)).toBe("reward_three");
+    expect(selectRewardByIndex(3)).toBe("reward_four");
   });
 
   it("throws rather than guessing past the observed 3-option offers", () => {
-    expect(() => selectByIndex(4)).toThrow();
+    expect(() => selectRewardByIndex(4)).toThrow();
+  });
+});
+
+describe("selectEnemyPathByIndex", () => {
+  it("maps 0-2 to enemy_one..enemy_three — a hypothesis, not individually confirmed", () => {
+    expect(selectEnemyPathByIndex(0)).toBe("enemy_one");
+    expect(selectEnemyPathByIndex(1)).toBe("enemy_two");
+    expect(selectEnemyPathByIndex(2)).toBe("enemy_three");
+  });
+
+  it("throws rather than guessing past the observed 3-option offers", () => {
+    expect(() => selectEnemyPathByIndex(3)).toThrow();
+  });
+});
+
+describe("buildPathSelectionEnvelope", () => {
+  it("matches the real envelope captured live for reward_one — dungeonId 0, actionToken empty string, extra data fields", () => {
+    expect(buildPathSelectionEnvelope("reward_one", 0)).toEqual({
+      action: "reward_one",
+      dungeonId: 0,
+      actionToken: "",
+      data: { consumables: [], isJuiced: false, index: 0, itemId: 0, expectedAmount: 0, gearInstanceIds: [], devBoons: [] },
+    });
   });
 });
 

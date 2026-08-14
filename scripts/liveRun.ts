@@ -14,14 +14,22 @@
  * doesn't mistake one for the other (CLAUDE.md §2, "never invent an
  * endpoint"):
  *   - `start_run`, `rock`, `paper`, `scissor` — CONFIRMED, SPEC §2.
- *   - The enemy-path / reward-path / loot selection action is NOT confirmed.
- *     SPEC §2 lists `loot_one`…`loot_four` as the only index-selecting
- *     actions, so `selectByIndex()` below sends `loot_<n>` for whichever
- *     phase is offering a choice, `data.index` set to the 0-based index
- *     too. This is a **hypothesis**, not a known fact — flagged inline, and
- *     the guard's fail-closed-on-failure behavior means a wrong guess halts
- *     the run rather than corrupting it. Confirm or correct this the moment
- *     a real response comes back, same discipline as `DungeonActionResponseSchema`.
+ *   - `reward_one` (reward-path pick) — CONFIRMED live 2026-08-14, session
+ *     08 Task 6 stage 3: `loot_one` (the original hypothesis, matching SPEC
+ *     §2's only documented index-selecting actions) was rejected HTTP 409;
+ *     the user captured the real client sending `reward_one` for the same
+ *     pick via DevTools. `reward_two`/`three`/`four` inferred by the same
+ *     naming pattern, not individually confirmed. Also confirmed: this
+ *     action's envelope is NOT the combat/start_run shape — see
+ *     `buildPathSelectionEnvelope()`.
+ *   - `enemy_one`/`enemy_two`/`enemy_three` (enemy-tier pick) — a NEW
+ *     hypothesis on the same `reward_*` naming pattern, NOT individually
+ *     confirmed. The live run that found `reward_one` had its enemy-tier
+ *     pick resolved by the user clicking in-browser, not through this
+ *     client. The guard's fail-closed-on-failure behavior means a wrong
+ *     guess halts the run rather than corrupting it — confirm or correct
+ *     the moment a real response comes back, same discipline as
+ *     `DungeonActionResponseSchema`.
  *
  * Fixtures land in `fixtures/dungeon-runs/run-<stamp>/`, same shape as
  * `scripts/watch.ts` (raw/ unredacted + redacted top-level), so live play
@@ -113,17 +121,33 @@ export function unknownSideKeys(side: Record<string, unknown>): string[] {
   return Object.keys(side).filter((k) => !KNOWN_SIDE_KEYS.has(k));
 }
 
-const LOOT_ACTIONS: readonly DungeonAction[] = ["loot_one", "loot_two", "loot_three", "loot_four"];
+const REWARD_ACTIONS: readonly DungeonAction[] = ["reward_one", "reward_two", "reward_three", "reward_four"];
+/** [HYPOTHESIS, not individually confirmed — see DUNGEON_ACTIONS's doc comment in schemas.ts] */
+const ENEMY_ACTIONS: readonly DungeonAction[] = ["enemy_one", "enemy_two", "enemy_three"];
 
 /**
- * [INFERRED, not confirmed — see file header] Maps a 0-based choice index
- * into a `loot_<n>` action. Throws on index >= 4 — the corpus has never
- * shown an offer with more than 3 options, so a 4th would itself be a
- * surprise worth stopping on rather than silently dropping.
+ * `reward_<n>` for a reward-path pick — CONFIRMED live 2026-08-14 (session
+ * 08, Task 6 stage 3: `loot_one` was rejected HTTP 409, the user captured
+ * the real client sending `reward_one` for the same pick via DevTools).
+ * Throws on index >= 4 — the corpus has never shown an offer with more than
+ * 3 options, so a 4th would itself be a surprise worth stopping on.
  */
-export function selectByIndex(index: number): DungeonAction {
-  const action = LOOT_ACTIONS[index];
-  if (!action) throw new Error(`selectByIndex(${index}) — no loot_* action for an index this large`);
+export function selectRewardByIndex(index: number): DungeonAction {
+  const action = REWARD_ACTIONS[index];
+  if (!action) throw new Error(`selectRewardByIndex(${index}) — no reward_* action for an index this large`);
+  return action;
+}
+
+/**
+ * `enemy_<n>` for the enemy-tier pick. Same naming pattern as
+ * `selectRewardByIndex`, NOT individually confirmed — the live run that
+ * found `reward_one` had its enemy-tier pick resolved by the user clicking
+ * in-browser, not through this client. Fails closed exactly like the reward
+ * case if wrong; a rejection here is informative, not corrupting.
+ */
+export function selectEnemyPathByIndex(index: number): DungeonAction {
+  const action = ENEMY_ACTIONS[index];
+  if (!action) throw new Error(`selectEnemyPathByIndex(${index}) — no enemy_* action for an index this large`);
   return action;
 }
 
@@ -139,6 +163,24 @@ export function buildEnvelope(
   index = 0,
 ): DungeonActionRequest {
   return { action, dungeonId, actionToken, data: { consumables: [], isJuiced: false, index } };
+}
+
+/**
+ * [session 08, live] Path-selection actions (reward/enemy-tier picks) use a
+ * DIFFERENT envelope convention than combat/start_run, confirmed live via
+ * DevTools: `dungeonId: 0` (not the run's real dungeon id), `actionToken: ""`
+ * (an empty STRING, not a number), and four extra `data` fields the combat
+ * envelope never sends. Matched exactly rather than guessed at, since a
+ * subtly-wrong envelope is exactly the kind of thing that produces another
+ * confusing rejection.
+ */
+export function buildPathSelectionEnvelope(action: DungeonAction, index: number): DungeonActionRequest {
+  return {
+    action,
+    dungeonId: 0,
+    actionToken: "",
+    data: { consumables: [], isJuiced: false, index, itemId: 0, expectedAmount: 0, gearInstanceIds: [], devBoons: [] },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -389,10 +431,10 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
       log.write({ event: "tier_choice", chosen, options });
 
       if (dryRun) {
-        console.log(`  [dry-run] would POST ${selectByIndex(chosen.index)} (index ${chosen.index})`);
+        console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(chosen.index)} (index ${chosen.index})`);
         return;
       }
-      const body = buildEnvelope(selectByIndex(chosen.index), config.dungeonId, client.getActionToken(), chosen.index);
+      const body = buildPathSelectionEnvelope(selectEnemyPathByIndex(chosen.index), chosen.index);
       log.write({ event: "post", body });
       let resp;
       try {
@@ -426,10 +468,10 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
       log.write({ event: "boon_choice", chosen: chosenOption, chosenIndex, options });
 
       if (dryRun) {
-        console.log(`  [dry-run] would POST ${selectByIndex(chosenIndex)} (index ${chosenIndex})`);
+        console.log(`  [dry-run] would POST ${selectRewardByIndex(chosenIndex)} (index ${chosenIndex})`);
         return;
       }
-      const body = buildEnvelope(selectByIndex(chosenIndex), config.dungeonId, client.getActionToken(), chosenIndex);
+      const body = buildPathSelectionEnvelope(selectRewardByIndex(chosenIndex), chosenIndex);
       log.write({ event: "post", body });
       let resp;
       try {

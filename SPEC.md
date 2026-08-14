@@ -118,6 +118,58 @@ shape, so every caller still sees one "no active run" signal.
 Actions: `start_run`, `rock`, `paper`, `scissor`, `loot_one`…`loot_four`,
 `use_item`, `heal_or_damage`, `flee`, `cancel_run`.
 
+**[2026-08-14, session 08, live] This list was incomplete, and the envelope
+above is NOT universal.** Task 6 stage 3's first live run reached a
+reward-path pick (three boon cards) and guessed `loot_one` for "pick option
+0" — SPEC's original list has no dedicated reward/enemy-path action, and
+`loot_one`…`loot_four` were the only index-selecting names it documented.
+Rejected with HTTP 409. The user captured the real client's request via
+DevTools: it sends **`reward_one`**, not `loot_one`. `reward_two`/`three`/
+`four` are inferred by the naming pattern, not individually confirmed;
+`enemy_one`/`enemy_two`/`enemy_three` for the enemy-tier pick are a new
+hypothesis on the same pattern, not yet confirmed at all (that pick was
+resolved by the user clicking in-browser on this run, not through the bot).
+
+**The envelope itself also differs for this action family.** The real
+`reward_one` request captured live:
+
+```json
+{
+  "action": "reward_one",
+  "actionToken": "",
+  "dungeonId": 0,
+  "data": {
+    "consumables": [], "devBoons": [], "expectedAmount": 0,
+    "gearInstanceIds": [], "index": 0, "isJuiced": false, "itemId": 0
+  }
+}
+```
+
+Two differences from `start_run`'s envelope above, both real, not typos:
+`dungeonId` is **0** (not the run's actual dungeon id), and `actionToken` is
+an **empty string** (not a number — the anti-spam token concept in the
+"Action token" section below apparently does not apply to path-selection
+actions). Four `data` fields (`itemId`, `expectedAmount`, `gearInstanceIds`,
+`devBoons`) were never previously observed; all zero/empty in this capture
+(a reward pick with no item cost). `src/api/schemas.ts`'s
+`DungeonActionRequestSchema` and `scripts/liveRun.ts`'s
+`buildPathSelectionEnvelope()` reflect this; combat/start_run keep the
+original envelope, unaffected.
+
+**Sequencing, confirmed the same live run:** combat win → `rewardPathPhase`
+already `true` with `rewardPathOptions` populated on the very next state
+read (no separate "collect loot" action needed at the API level, whatever
+the client UI shows) → reward pick resolves it → `enemyPathPhase` becomes
+`true` with `enemyPathOptions` populated → tier pick resolves it → next
+room's combat begins. `pathPhase` and `lootPhase` were `false` throughout;
+`lootOptions` stayed empty — consistent with DECISIONS 2026-08-14 that
+these are not where rewards live.
+
+**`GET /game/dungeon/state` on top of an already-active run correctly
+returned it** — attempting `start_run` again while a run is active is
+rejected HTTP 400 (`"Error starting dungeon"`); `scripts/liveRun.ts` checks
+for an active run before deciding whether to start one, per this finding.
+
 **Move naming — this trips people up.** The API uses RPS names; the game uses
 weapon names. Map once, at the API boundary, and use weapon names everywhere in
 your own code:
@@ -130,11 +182,28 @@ your own code:
 
 Sword > Spell > Shield > Sword.
 
-### Action token **[CONFIRMED]**
+### Action token **[CONFIRMED, corrected 2026-08-14 session 08 live]**
 
 Every response returns a fresh `actionToken`. Always send the newest one.
 `start_run` uses `0`. Stale tokens are rejected (~5s anti-spam window). On
 rejection, re-sync from `GET /game/dungeon/state` rather than retrying blind.
+
+**Except this doesn't hold for `GET /game/dungeon/state` itself.** Confirmed
+3 times on one live run: that endpoint's `actionToken` field reports `0`
+regardless of the run's real state — it does not echo or advance the real
+sequence. Evidence: read #1 (before any action) → `0`; a `rock` POST
+succeeded and returned a real token; the very next `getDungeonState()` read
+→ `0` again, run state otherwise unchanged. The client blindly trusting this
+(`this.actionToken = ...` on every GET) clobbered the real token the POST
+had just set, and the following action was sent stale and rejected (HTTP
+500). Fixed: only `POST /game/dungeon/action` responses update the tracked
+token now (`src/api/client.ts`). "Every response returns a fresh
+actionToken" is true for actions, not for this one read endpoint.
+
+**Path-selection actions (`reward_*`, and presumably `enemy_*`) don't use a
+numeric token at all** — the real client sends `actionToken: ""` (empty
+string) for these, confirmed live for `reward_one`. See "Dungeon action
+envelope" above.
 
 Model this as a single owned mutable in the client with a mutex — concurrent
 actions against one account will corrupt the token sequence. **One in-flight

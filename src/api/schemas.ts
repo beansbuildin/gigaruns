@@ -245,12 +245,34 @@ export type DungeonActionResponse = z.infer<typeof DungeonActionResponseSchema>;
  * the RESPONSE (`DungeonActionResponseSchema` above) is unverified. Move
  * names are the API's RPS names (`rock`/`paper`/`scissor`), mapped to weapon
  * names (Sword/Shield/Spell) only at the strategy boundary — SPEC §2.
+ *
+ * **[session 08, live, Task 6 stage 3] `loot_one`..`loot_four` is the WRONG
+ * family for a reward-path pick.** The real client sends `reward_one` for
+ * that (captured live via DevTools by the user, after `loot_one` was
+ * rejected with HTTP 409 — a wrong action name, not a state/sequencing
+ * issue). `reward_two`/`reward_three`/`reward_four` are inferred by the same
+ * naming pattern, not yet individually observed. `enemy_one`/`enemy_two`/
+ * `enemy_three` for the enemy-tier pick are a NEW hypothesis on the same
+ * pattern, also not yet individually confirmed — the live run that found
+ * `reward_one` resolved its enemy-tier pick by the user clicking in-browser,
+ * not through this client, so that specific action name is still unverified.
+ * `loot_one`..`loot_four` are LEFT IN the enum (still SPEC-listed, still
+ * possibly real for an actual loot-phase pick, which the corpus has simply
+ * never observed populated — DECISIONS 2026-08-14) but are no longer used by
+ * `scripts/liveRun.ts`'s `selectByIndex()`.
  */
 export const DUNGEON_ACTIONS = [
   "start_run",
   "rock",
   "paper",
   "scissor",
+  "reward_one",
+  "reward_two",
+  "reward_three",
+  "reward_four",
+  "enemy_one",
+  "enemy_two",
+  "enemy_three",
   "loot_one",
   "loot_two",
   "loot_three",
@@ -262,15 +284,31 @@ export const DUNGEON_ACTIONS = [
 ] as const;
 export type DungeonAction = (typeof DUNGEON_ACTIONS)[number];
 
+/**
+ * **[session 08, live] `actionToken` is NOT always a number.** `start_run`
+ * and combat moves (`rock`/`paper`/`scissor`) use a real numeric token from
+ * `getActionToken()`. The real client's `reward_one` request captured live
+ * used `actionToken: ""` (empty STRING) and `dungeonId: 0`, not the run's
+ * real dungeon id — a completely different envelope convention for
+ * path-selection actions than for combat/start actions. `data` also carried
+ * fields this schema never declared: `itemId`, `expectedAmount`,
+ * `gearInstanceIds`, `devBoons` (all zero/empty in the capture — a reward
+ * pick with no item cost). All added as optional; combat/start_run keep
+ * sending only the original four `data` fields, unaffected.
+ */
 export const DungeonActionRequestSchema = z.object({
   action: z.enum(DUNGEON_ACTIONS),
   dungeonId: z.number(),
-  actionToken: z.number(),
+  actionToken: z.union([z.number(), z.string()]),
   data: z
     .object({
       consumables: z.array(z.number()),
       isJuiced: z.boolean(),
       index: z.number(),
+      itemId: z.number().optional(),
+      expectedAmount: z.number().optional(),
+      gearInstanceIds: z.array(z.union([z.number(), z.string()])).optional(),
+      devBoons: z.array(z.unknown()).optional(),
     })
     .passthrough(),
 });
