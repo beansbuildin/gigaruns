@@ -1,134 +1,121 @@
-# BRIEF — session 04
+# BRIEF — session 05
 
-Calling Task 4 a FAIL at the top of `STATE.md` was right. 8 states → 72 across 5
-attempts, `lootPhase` captured, §4c rewritten against real fields — that's a
-good session that didn't reach its gate, and those are different things.
-
-Two of my errors below, one reinterpretation, one scope call, then the task.
+Gate pass with three corrections that each refute a prior CONFIRMED line, and an
+honest headline that `deepestScorableRoom` is 1. That last number is the most
+useful thing in the recap, and it reshapes the plan below.
 
 ---
 
-## 1. My Shield-heavy advice was wrong, and it generalizes
+## 1. All three corrections accepted
 
-I told the user to play Shield-heavy to survive to a loot phase. You found the
-flaw: **Shield's ATK 6 cannot out-damage armor that fully restores.** That
-wasn't a suboptimal line, it was an unwinnable one, and it cost a run.
+**Armor doesn't refill at room transitions.** Accepted, and note how narrowly
+this was caught: four boundaries, three uninformative because the player sat at
+cap. One informative sample. That's a good catch and a thin thread — flag in
+SPEC that it rests on a single observation and should be re-checked whenever the
+corpus grows.
 
-The general principle, which needs to go into SPEC §4 as a first-class mechanic:
+Downstream consequence to record: **armor is a depleting resource across all 16
+rooms, not a per-room reset.** That raises the value of armor and heal boons
+considerably, and it makes late rooms structurally harder than early ones in a
+way §4b never modelled.
 
-> When armor fully restores on a qualifying win, damage below the restore rate
-> deals **zero net progress**. Effective damage is not `ATK`, it's
-> `max(0, ATK − armorRestoredPerWin)`.
+**My §1 net-damage rule was wrong.** Accepted. The corrected form, for the
+record:
 
-This is a **threshold, not a gradient**, and it breaks the smooth utility
-function in §4b. A move whose ATK sits under an opponent's restore rate has no
-offensive value at all — it can only stall. Two consequences:
+- **Win:** full ATK to the loser. No offset. The loser regenerates nothing.
+- **Tie:** `max(0, myATK − theirDEF)`, both directions.
+- The threshold I described exists — I attributed it to the wrong branch.
 
-- The §4b weights can't express this. `w₂·(enemyHP/enemyMaxHP)` treats 6 damage
-  as 75% of 8 damage; in reality one may be worth nothing and the other
-  everything. Task 5 needs an explicit net-damage term computed against the
-  opponent's observed restore behaviour.
-- **It partly retracts my session-03 point about survival dominance.** Survival
-  still matters across 16 rooms, but a line that cannot break armor isn't
-  survival — it's a slower loss. The correct frame is: *maximise net damage
-  subject to not dying*, not *minimise risk*.
+I'd rather have been wrong this way than have the check quietly tuned to pass,
+and the reason it was caught is that the brief said a failing threshold check
+outranks the gate. **Keep that standing instruction.** When a verification fails,
+the default assumption is that the model is wrong, not the check.
 
-Add this to SPEC §4 as a named mechanic with the session-03 run as evidence.
+One strategic implication worth carrying into Task 5: **ties are not neutral,
+and their value depends entirely on which move ties.** A Sword tie at 16 ATK
+against DEF 6–7 does real damage; a Shield tie at 6 ATK against DEF 6–8 does
+literally nothing. So under genuine uncertainty, tying with a high-ATK move
+strictly dominates tying with a low-ATK one — a consideration the current EV
+engine has no term for.
 
-## 2. My charge discriminator — I think you're reading it as a null result
+**Phantom exchange in the charge count.** Accepted. The boon pickup being
+admitted as combat is exactly the kind of error that makes a clean-looking
+dataset lie, and finding it invalidated a claim in your own favour.
 
-You recorded "23 firings, 0 forced" as a dead end because no player was ever
-*forced* into a single legal move. But the interesting number isn't the forced
-count. It's the zero.
+## 2. Charge recount — your math is better than mine
 
-23 opportunities where a move sat at ≤0, and it was chosen **zero times**. If
-moves at ≤0 were freely playable and selection were anywhere near uniform, you'd
-expect roughly 7–8 such plays. Getting 0 is around `(2/3)^23 ≈ 1e-4`.
+`p ≈ 0.012` on 11 clean enemy rows, not my `1e-4`. My estimate assumed every
+opportunity offered all three moves, which inflated it by roughly an order of
+magnitude. Your correction stands.
 
-That's strong evidence for **H1 (hard prune)** — not a null result. My question 2
-was badly worded ("hold a ≤0 move and play a different one"), which is what made
-this look like non-evidence. The absence *is* the signal.
-
-Before we act on it, one confound has to be cleared: an agent could avoid
-low-charge moves *by policy* rather than *by rule*. So:
-
-- **Split the 23 by actor.** Player rows are contaminated — the user was
-  following my guide. Only **enemy** rows are clean evidence. Report the enemy-
-  only count and run the binomial against a uniform null.
-- **Report the delta distribution** for played moves. The unexplained 1 → −1
-  (decrement of 2) is still open. Is −1 the mode? Are there other values? What
-  happens to *unplayed* moves between consecutive states?
-
-If enemy-only rows are ≥10 with 0 plays from ≤0, treat H1 as confirmed and write
-§4a as a hard prune with the flag defaulting to prune. If fewer, keep the flag
-and default to prune anyway, noting the sample size — the asymmetry favours it,
-since wrongly pruning costs one option while wrongly permitting costs a
-guaranteed-loss move.
-
-## 3. On enemy 63
-
-Calling it Shield-biased off 14 exchanges and having it wash out to uniform over
-39 is the same failure as my Shield advice and my discriminator wording: a
-confident read off a sample too small to carry it.
-
-You logged it. Good. Make it structural rather than remembered — **§4a's model
-must not emit a read below a minimum sample threshold.** SPEC §4a already says
-mix 50/50 with uniform below ~20 observations; raise that to a hard floor: below
-30 exchanges for a given key, return uniform and expose a `confidence: low` flag
-so downstream code can't quietly treat a thin read as a strong one.
+Defaulting `chargesAreHardLimit` to `true` on 0.012 plus the cost asymmetry is
+the right call, and logging it as an explicit reversal rather than a silent flip
+is what makes it auditable later. Leave the flag in place — if the corpus grows
+and enemy rows reach ~30 with the pattern holding, tighten it then.
 
 ---
 
-## 4. Scope call, as you asked
+## 3. `deepestScorableRoom = 1` is now the bottleneck — new task before Task 5
 
-You were right to escalate this rather than discover it mid-task. My call:
+This is the important finding. A scored run is by construction a room-1 death,
+so run win rate is structurally 0 and carries no signal. But the problem isn't
+the metric — it's that **boons are unmodelled, and clearing a room requires
+taking one.**
 
-**Build the simulator on the clean exchange model, with unmodelled mechanics as
-explicit fail-closed inputs — your recommendation. Not hardcoded zeros.**
+Everything downstream is unvalidatable until that changes: the §4b weights, the
+depth bonus, and all of §4c loot ranking are strategy for rooms the sim cannot
+reach. Tuning strategy against room 1 while the real run is 16 rooms deep would
+be optimising the only part of the game we can see.
 
-Plus one addition: **the sim must report coverage as a headline metric.**
+**So: insert Task 4.5 — model boons — before Task 5.**
 
-```
-scored 340 / 1000 runs — 660 unscorable
-  412 boons present
-  198 status effects (Burn)
-   50 rolled enemy stats outside observed range
-```
+Session 03 captured verbatim boon shapes and reached room 4 across five
+attempts, so there should be several state pairs bracketing a boon pickup.
+That's enough to verify a delta model for the boon types actually observed.
 
-Hardcoded zeros produce a number that looks authoritative and is silently biased
-toward room 1. Fail-closed without a coverage metric produces a sim that quietly
-scores almost nothing. Coverage makes the blind spot a visible, trackable
-quantity — and it turns "how much does the sim actually cover?" into a number
-that should climb every session.
+- Model boons as state deltas applied at pickup, derived from before/after pairs
+  in the corpus. Nothing inferred from the option text alone.
+- Boon types **not** observed with a before/after pair stay unmodelled and
+  fail closed with a reason code, exactly as now. Don't guess from names.
+- Gate: **`deepestScorableRoom` ≥ 4**, matching corpus depth, with coverage
+  reported. If the corpus can only support room 2, that's the honest answer —
+  report it and say what capture would extend it.
 
-Concretely: any run touching an unmodelled mechanic is marked `UNSCORABLE` with
-a reason code, never scored as if the mechanic were absent. Task 5 strategy work
-is validated only on the scored subset, and any claim about win rate must state
-the coverage alongside it.
+If it turns out the corpus lacks clean before/after boon pairs, say so and stop.
+That's a capture request for a watched run, not something to infer around.
 
-**Leave the enemy-65 half-damage case and Burn's tick rate unmodelled.** One
-sample each is not a mechanic, it's an anecdote. They become reason codes, not
-guesses.
+## 4. Task 5's gate, restated
+
+You're right that it's unrunnable. Replacing it:
+
+> **Gate:** On the scored subset, the strategy engine beats the always-Sword
+> baseline on **mean rooms cleared per run**, by a margin exceeding the 95%
+> confidence interval over ≥1000 runs. Report alongside it: room-1 battle win
+> rate, coverage percentage, and `deepestScorableRoom`. Any win-rate claim
+> stated without its coverage is not a result.
+
+Three reasons for this shape. Rooms cleared is the honest proxy for items per
+energy, which is what the bot exists to maximise. A confidence interval beats
+the arbitrary 15% I originally wrote — the threshold should come from the data's
+own variance, not from a number I picked. And requiring coverage next to every
+claim keeps the room-1 blind spot visible instead of buried.
+
+Note the baselines you established are now the bar: always-Sword 67.9%, random
+60.6%, always-Shield 55.1%. Always-Sword is a genuinely strong baseline, not a
+strawman — beating it meaningfully will require the charge pruning and the tie
+asymmetry above, not just tuned weights.
+
+Update `TASKS.md` Task 5 in-commit with this gate.
 
 ---
 
-## Your task — Task 4, and only Task 4
+## Your task
 
-No live runs. **Do not spend energy this session.** The 72-state corpus is
-enough, and another watched run would trade a session for evidence you already
-have.
+1. **Task 4.5 — boon model**, per §3. This is the session's main work.
+2. Update `TASKS.md` Task 5 gate per §4.
+3. Record in SPEC: armor as a depleting cross-room resource; the corrected
+   win/tie damage rules; tie-value asymmetry as a Task 5 input.
 
-1. Simulator per SPEC §6, built on the verified exchange model.
-2. Unmodelled mechanics as fail-closed inputs with reason codes; coverage
-   reported on every sim result.
-3. Real tests — fix the `vitest run` exit 1 with actual test files, not
-   `--passWithNoTests`. Hand-build the scenario set from TASKS.md Task 4,
-   drawing from the 72 real states rather than inventing shapes.
-4. Include a scenario for the §1 threshold case: a low-ATK move against
-   restoring armor. The sim should show zero net progress. If it doesn't, the
-   armor model is wrong and that's a more important finding than the gate.
-5. Run the charge recount in §2 and report it.
-
-Gate: `vitest run` green, 1000 synthetic runs scored against a random-move
-opponent, coverage reported. State plainly which branches the corpus still
-cannot exercise — per your own rule from session 03.
+No live runs, no energy, unless §3 finds the corpus can't support a boon model —
+in which case stop and write the capture request into `QUESTIONS.md` with
+exactly what states are needed.
