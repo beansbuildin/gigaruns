@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(113);
+    expect(exchanges(runs).length).toBe(117);
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -81,13 +81,14 @@ describe("combat model vs recordings", () => {
   it("reports the headline numbers", () => {
     // Not an assertion so much as a record of where the model stands.
     // [session 08] LIVE exchanges in the corpus now (not supervised
-    // human-played captures): the bot played rooms 1-3 of one run end to
-    // end (enemies 63, 64, and 65 AT SAFE TIER — the room-3 capture gap
-    // this project has had open since session 06), matched the clean model
-    // EXACTLY throughout (0 clean failures) — real-world confirmation the
-    // model holds up against the bot's own live play, not just recorded
-    // human sessions.
-    expect(report.sideUpdates).toBe(226);
+    // human-played captures): the bot played ONE FULL RUN start to finish
+    // (Task 6 stage 3) -- rooms 1-4, including room 3's enemy 65 AT SAFE
+    // TIER (the capture gap open since session 06) -- ending in a death at
+    // room 4. The clean combat model matched EVERY exchange exactly,
+    // including the fatal one (0 clean failures across all of it) --
+    // real-world confirmation the model holds up against the bot's own
+    // live play, not just recorded human sessions, right up to the end.
+    expect(report.sideUpdates).toBe(234);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });
