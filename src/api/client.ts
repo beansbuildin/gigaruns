@@ -22,6 +22,7 @@ import {
   DungeonStateSchema,
   ItemsBalancesSchema,
   JuiceSchema,
+  DungeonActionResponseSchema,
   type UserMe,
   type Account,
   type Energy,
@@ -29,6 +30,8 @@ import {
   type DungeonState,
   type ItemsBalances,
   type Juice,
+  type DungeonActionRequest,
+  type DungeonActionResponse,
 } from "./schemas.js";
 
 const BASE = "https://gigaverse.io/api";
@@ -154,6 +157,54 @@ export class GigaverseClient {
     const body = parsed.data as { actionToken?: number };
     if (typeof body.actionToken === "number") this.actionToken = body.actionToken;
     return parsed.data;
+  }
+
+  /**
+   * POST + validate. Mirrors `get()`'s discipline exactly (fail closed on
+   * non-2xx or a zod mismatch, update `actionToken` from the response) —
+   * this is the first POST path in the client, and CLAUDE.md §4 makes every
+   * live send high-stakes, so it gets no less scrutiny than a GET.
+   */
+  private async post<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S): Promise<z.infer<S>> {
+    const { status, text } = await this.raw(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (status === 401 || status === 403) throw new TokenExpiredError(status, text);
+    if (status < 200 || status >= 300) throw new UnexpectedResponseError(status, path, text);
+
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new UnexpectedResponseError(status, path, text);
+    }
+
+    const parsed = schema.safeParse(json);
+    if (!parsed.success) {
+      throw new UnexpectedResponseError(
+        status,
+        path,
+        `zod validation failed: ${parsed.error.message}\n\nbody: ${text.slice(0, 2000)}`,
+      );
+    }
+    const respBody = parsed.data as { actionToken?: number };
+    if (typeof respBody.actionToken === "number") this.actionToken = respBody.actionToken;
+    return parsed.data;
+  }
+
+  /**
+   * SPEC §2's one CONFIRMED POST path — every dungeon action (`start_run`,
+   * `rock`/`paper`/`scissor`, `loot_one`…, `use_item`, `heal_or_damage`,
+   * `flee`, `cancel_run`) goes through this single method. The caller builds
+   * `body.actionToken` from `getActionToken()` — this method does not inject
+   * it, so the caller's log of "what did I send" always matches what went
+   * over the wire.
+   */
+  async postDungeonAction(body: DungeonActionRequest): Promise<DungeonActionResponse> {
+    return this.post("/game/dungeon/action", body, DungeonActionResponseSchema);
   }
 
   async getMe(): Promise<UserMe> {

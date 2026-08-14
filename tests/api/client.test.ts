@@ -159,4 +159,90 @@ describe("GigaverseClient", () => {
     expect(client.maskedJwt()).not.toContain(jwt);
     expect(client.maskedJwt().length).toBeLessThan(50);
   });
+
+  describe("postDungeonAction", () => {
+    const startRunBody = {
+      action: "start_run" as const,
+      dungeonId: 5,
+      actionToken: 0,
+      data: { consumables: [], isJuiced: false, index: 0 },
+    };
+
+    it("sends the body as-is and returns the validated response", async () => {
+      let sent: { url: string; init?: RequestInit } | null = null;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          sent = { url, init };
+          return {
+            status: 200,
+            text: async () => JSON.stringify({ success: true, actionToken: 1, data: {} }),
+          } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.postDungeonAction(startRunBody);
+      const assertion = expect(p).resolves.toEqual({ success: true, actionToken: 1, data: {} });
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(sent!.url).toContain("/game/dungeon/action");
+      expect(sent!.init!.method).toBe("POST");
+      expect(JSON.parse(sent!.init!.body as string)).toEqual(startRunBody);
+    });
+
+    it("updates the tracked actionToken from the response, same discipline as GET", async () => {
+      vi.stubGlobal(
+        "fetch",
+        mockFetch(() => ({ status: 200, body: { success: true, actionToken: 42, data: {} } })),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.postDungeonAction(startRunBody);
+      await vi.runAllTimersAsync();
+      await p;
+      expect(client.getActionToken()).toBe(42);
+    });
+
+    it("throws TokenExpiredError on 401, not a crash or a retry", async () => {
+      vi.stubGlobal("fetch", mockFetch(() => ({ status: 401, body: { error: "bad token" } })));
+      const client = new GigaverseClient({ jwt: "bad" });
+      const p = client.postDungeonAction(startRunBody);
+      const assertion = expect(p).rejects.toBeInstanceOf(TokenExpiredError);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
+
+    it("fails closed on a response body that doesn't match the schema", async () => {
+      vi.stubGlobal("fetch", mockFetch(() => ({ status: 200, body: { totally: "wrong shape" } })));
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.postDungeonAction(startRunBody);
+      const assertion = expect(p).rejects.toBeInstanceOf(UnexpectedResponseError);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
+
+    it("goes through the same mutex as GETs — never races a GET in flight", async () => {
+      let inFlight = 0;
+      let maxInFlight = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+          inFlight++;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await new Promise((r) => setTimeout(r, 10));
+          inFlight--;
+          const body = url.includes("/game/dungeon/action")
+            ? { success: true, actionToken: 1, data: {} }
+            : okMe;
+          return { status: 200, text: async () => JSON.stringify(body) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p1 = client.getMe();
+      const p2 = client.postDungeonAction(startRunBody);
+      await vi.runAllTimersAsync();
+      await Promise.all([p1, p2]);
+      expect(maxInFlight).toBe(1);
+    });
+  });
 });

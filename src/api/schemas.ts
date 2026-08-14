@@ -199,3 +199,40 @@ export const DungeonActionResponseSchema = z
   })
   .passthrough();
 export type DungeonActionResponse = z.infer<typeof DungeonActionResponseSchema>;
+
+/**
+ * The request envelope, SPEC §2 "Dungeon action envelope [CONFIRMED]" — the
+ * request side has been observed (it's what the official client sends), only
+ * the RESPONSE (`DungeonActionResponseSchema` above) is unverified. Move
+ * names are the API's RPS names (`rock`/`paper`/`scissor`), mapped to weapon
+ * names (Sword/Shield/Spell) only at the strategy boundary — SPEC §2.
+ */
+export const DUNGEON_ACTIONS = [
+  "start_run",
+  "rock",
+  "paper",
+  "scissor",
+  "loot_one",
+  "loot_two",
+  "loot_three",
+  "loot_four",
+  "use_item",
+  "heal_or_damage",
+  "flee",
+  "cancel_run",
+] as const;
+export type DungeonAction = (typeof DUNGEON_ACTIONS)[number];
+
+export const DungeonActionRequestSchema = z.object({
+  action: z.enum(DUNGEON_ACTIONS),
+  dungeonId: z.number(),
+  actionToken: z.number(),
+  data: z
+    .object({
+      consumables: z.array(z.number()),
+      isJuiced: z.boolean(),
+      index: z.number(),
+    })
+    .passthrough(),
+});
+export type DungeonActionRequest = z.infer<typeof DungeonActionRequestSchema>;
