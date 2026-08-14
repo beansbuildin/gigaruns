@@ -11,8 +11,8 @@ corrected two sessions of wrong labels. One regression to fix first, then Task 6
 `STATE.md` in a **public** repo now contains:
 
 ```
-address 0x4F03...
-username "<PLAYER>" noobId 72946
+address <ADDR>
+username <USER> noobId <NOOB>
 ```
 
 `DECISIONS.md` says *username tolerated in history; address and JWT never are*.
