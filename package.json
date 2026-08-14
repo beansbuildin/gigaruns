@@ -14,7 +14,8 @@
     "probe": "tsx scripts/probe.ts",
     "check-auth": "tsx scripts/checkAuth.ts",
     "sim": "tsx scripts/sim.ts",
-    "charges": "tsx scripts/chargeRecount.ts"
+    "charges": "tsx scripts/chargeRecount.ts",
+    "live": "tsx scripts/liveRun.ts"
   },
   "dependencies": {
     "viem": "^2.21.0",
