@@ -445,6 +445,20 @@ function parseArgs(argv: string[]) {
   return { dryRun, stage2, runs };
 }
 
+/**
+ * Observed energy, never assumed — CLAUDE.md §1. `guards.recordEnergySpent()`
+ * needs the real before/after delta, not `config.energyCostPerRun`, which is
+ * only used as a pre-spend ESTIMATE by `assertCanStartRun`.
+ */
+async function currentEnergy(client: GigaverseClient, address: string): Promise<number> {
+  const energy = await client.getEnergy(address);
+  const value = energy.entities[0]?.parsedData?.energyValue;
+  if (typeof value !== "number") {
+    throw new Error("GET /offchain/player/energy — entities[0].parsedData.energyValue missing or not a number");
+  }
+  return value;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   console.log(`\n▸ liveRun.ts — ${args.dryRun ? "STAGE 1 dry-run" : args.stage2 ? "STAGE 2 single POST" : `${args.runs} run(s)`}\n`);
@@ -467,10 +481,21 @@ async function main() {
   const targetRuns = args.dryRun || args.stage2 ? 1 : args.runs;
   for (let i = 0; i < targetRuns; i++) {
     console.log(`\n▸ run ${i + 1}/${targetRuns}`);
+    const before = args.dryRun ? null : await currentEnergy(client, me.address);
     await runOnce(
       { client, config, guards, model, strategyConfig: LIVE_CONFIG, fixtures, log, dryRun: args.dryRun },
       { stage2Only: args.stage2 },
     );
+    if (before !== null) {
+      // Regen runs concurrently (SPEC: ~18/hr, more if juiced), so a real
+      // spend can be masked by a few seconds of regen on a short action —
+      // clamp at 0 rather than ever recording a negative spend.
+      const after = await currentEnergy(client, me.address);
+      const delta = Math.max(0, before - after);
+      guards.recordEnergySpent(delta);
+      log.write({ event: "energy_accounting", before, after, delta });
+      console.log(`  ▸ energy: ${before} -> ${after}  (spent ${delta})`);
+    }
     if (args.stage2) break;
   }
 

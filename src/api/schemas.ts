@@ -205,20 +205,34 @@ export const JuiceSchema = z
 export type Juice = z.infer<typeof JuiceSchema>;
 
 /**
- * The dungeon action response envelope. Never observed live — this session's
- * gate is read-only (CLAUDE.md, `next.md` §Task 2) — so this is a
- * [VERIFY] guess from SPEC §2's confirmed request envelope, not a fixture.
- * `.passthrough()` and a permissive `data` mean a real response will validate
- * even if this guess is wrong in the parts nothing here reads; Task 6 must
- * re-derive this schema from a live response before trusting it further.
+ * The dungeon action response envelope.
+ *
+ * **`start_run` CONFIRMED live 2026-08-14 (session 08, Task 6 stage 2)** —
+ * the original shape below was a [VERIFY] guess from the request envelope
+ * and validated against the real response unchanged (`.passthrough()` meant
+ * a wrong guess in an unread part would have validated anyway, but the
+ * fields this file actually asserts — `success`, `actionToken`, `data.run`
+ * — are all exactly as guessed). Every OTHER action
+ * (`rock`/`paper`/`scissor`/`loot_*`/etc.) remains unverified; re-derive
+ * from a live response before trusting this further for those.
+ *
+ * Two things the live response had that the guess didn't, both added:
+ *  - top-level `message` (human-readable, e.g. `"Dungeon run started"`)
+ *  - `data.events`, an array of `{type, data}` — `[{"type":"dungeon_started",
+ *    "data":{"dungeonId":<runId>}}]` on `start_run`. Untyped for now
+ *    (`z.unknown()`), but worth watching: a structured event log of what an
+ *    action caused is a much better signal than diffing `run` before/after,
+ *    if later actions populate it for room clears, kills, boon picks, etc.
  */
 export const DungeonActionResponseSchema = z
   .object({
     success: z.boolean(),
     actionToken: z.number().optional(),
+    message: z.string().optional(),
     data: z
       .object({
         run: RunSchema.optional(),
+        events: z.array(z.unknown()).optional(),
       })
       .passthrough(),
   })
