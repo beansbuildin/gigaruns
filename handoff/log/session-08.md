@@ -127,3 +127,100 @@ and stage 1 (`npm run live -- --dry-run`) should run immediately.
  19 files changed, 1567 insertions(+), 10 deletions(-) — full stat:
  `git diff 44a43ce..7ab83f1 --stat`
 ```
+
+---
+
+## Verbose appendix (not in STATE.md)
+
+### Commits this session, in order
+
+```
+67cb402  session 08: fix STATE.md privacy regression, widen secret scanner
+938e41c  CLAUDE.md §9: brief claims are hypotheses to verify, not facts to implement
+5084d47  session 08: config/bot.json + guards.ts, un-deferring the 2026-08-12 decision
+f4242d8  session 08: add POST /game/dungeon/action to the API client
+af15b8e  session 08: JWT rejected, blocking Task 6 — logged per CLAUDE.md
+a5f5ab2  session 08: scripts/liveRun.ts — Task 6's run loop, built but not live-verified
+7ab83f1  session 08: intuition rare-field check (addendum §7) — checked, found nothing
+```
+
+### The JWT rejection, verbatim
+
+```
+$ npm run check-auth
+
+> gigaruns@0.1.0 check-auth
+> tsx scripts/checkAuth.ts
+
+▸ real JWT
+  jwt eyJhbGci...(1728 chars)
+
+✗ Auth rejected (HTTP 401). The JWT is expired or invalid — refresh it.
+```
+
+Independent confirmation, bypassing the project's own client entirely:
+
+```
+$ curl -s https://gigaverse.io/api/user/me -H "Authorization: Bearer <jwt>"
+{"error":"Unauthorized"}
+```
+
+The JWT file itself is present and non-empty (`~/.secrets/gigaverse-jwt.txt`,
+1729 bytes) — this is not the "missing file" case `loadJwt()` already handles,
+it's a token the server no longer accepts. Ruled out before writing anything
+to QUESTIONS.md: this is exactly CLAUDE.md's "missing private key/JWT"
+blocking condition (a rejected token is functionally the same as no token for
+everything Task 6 needs), so it went to QUESTIONS.md §7 immediately rather
+than being worked around.
+
+### `scripts/fieldFrequency.ts` output, in full
+
+```
+▸ 230 player-side observations across 5 capture directories
+
+  no key path appears in under 15% of observations.
+
+  non-empty rate of array-typed fields (content, not key presence):
+
+    1.3%  (  3/230)  statusEffects
+    0.0%  (  0/230)  activeEffects
+    0.0%  (  0/230)  gearBoons
+    0.0%  (  0/230)  triggeredBoons
+```
+
+Supplementary check (scratch, not committed as a script — folded into
+`fieldFrequency.ts`'s array-field section above): every rolled-stat key
+(`evasion`/`block`/`lck`/`tenacity`/`intuition`) is present on all 230/230
+sides; `intuition.current` is non-zero on 6/230. `battleArmorReduction` is
+the literal value `0` on all 230; `focusBuffs` is `[]` on all 230.
+
+### Why the staged Task 6 design wasn't second-guessed
+
+The session-08 brief's four-stage plan (dry run → one POST + hard stop → one
+full run → five runs) was written assuming a working JWT. Once the JWT turned
+out to be dead, the temptation was to treat the whole plan as moot and just
+build whatever seemed useful. Stuck to it anyway: `scripts/liveRun.ts`
+implements exactly those four stages as CLI modes (`--dry-run`, `--stage2`,
+`--runs=N`) rather than a single undifferentiated loop, so the staging is
+still what happens the moment the JWT is fixed — nobody has to reconstruct
+the plan from a "just make it work" implementation.
+
+### Test count progression, for anyone auditing the session
+
+```
+155 (session start)
+167 (+ guards.ts, config.ts, tests/guards.test.ts)
+172 (+ postDungeonAction tests in tests/api/client.test.ts)
+192 (+ scripts/liveRun.ts, tests/liveRun.test.ts, tests/orchestrator/config.test.ts)
+195 (+ unknownSideKeys tests, folded into tests/liveRun.test.ts)
+```
+
+### `KNOWN_SIDE_KEYS` (22), for reference — every key ever seen on a
+player/enemy side across the whole corpus as of this session
+
+```
+_id, activeEffects, battleArmorReduction, block, evasion, focusBuffs,
+gearBoons, health, id, intuition, lastMove, lck, otherPlayerWin, paper,
+pickedBoons, rock, scissor, shield, statusEffects, tenacity, thisPlayerWin,
+triggeredBoons
+```
