@@ -1,4 +1,4 @@
-# STATE — session 04 — 2026-08-15 — commit 2ff8c3b
+# STATE — session 04 — 2026-08-15 — commit 30f8896
 
 ## Status
 Task 4 "Simulator + fixtures": **GATE PASS.**
