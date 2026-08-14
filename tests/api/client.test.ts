@@ -76,6 +76,30 @@ describe("GigaverseClient", () => {
     await assertion;
   });
 
+  it("also treats HTTP 200 with data.run:null as 'no active run' — the idle-account shape found live in session 08", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({
+        status: 200,
+        body: { success: true, actionToken: 0, data: { run: null, entity: null } },
+      })),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const p = client.getDungeonState();
+    const assertion = expect(p).resolves.toBeNull();
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+
+  it("still fails closed on a 200 that matches neither the run shape nor the null-run idle shape", async () => {
+    vi.stubGlobal("fetch", mockFetch(() => ({ status: 200, body: { success: true, data: {} } })));
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const p = client.getDungeonState();
+    const assertion = expect(p).rejects.toBeInstanceOf(UnexpectedResponseError);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+
   it("throws on a 5xx from any OTHER endpoint — no blanket swallow", async () => {
     vi.stubGlobal("fetch", mockFetch(() => ({ status: 500, body: "oops" })));
     const client = new GigaverseClient({ jwt: "test-jwt" });

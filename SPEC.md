@@ -92,6 +92,18 @@ All authenticated calls take `Authorization: Bearer <jwt>`.
 | GET | `/gigajuice/player/{address}` | juice status **[CONFIRMED]** |
 | GET | `/contracts` | contract addresses, unauthenticated **[CONFIRMED]** |
 
+**[2026-08-14, session 08, live] `/game/dungeon/state`'s "no active run" has TWO
+wire shapes, not one.** DECISIONS 2026-08-14 recorded the first: a run that
+just ended returns HTTP 500 with an HTML error page. Task 6's first live read
+(an account with no run started at all this session) found a second: **HTTP
+200** with `{success:true, actionToken:0, data:{run:null, entity:null}}`. The
+original `DungeonStateSchema` required `data.run` to be a full run object and
+threw a zod validation error on this — CLAUDE.md §1, the live response is
+right and the schema was wrong. Fixed: `src/api/schemas.ts`'s
+`DungeonStateOrIdleSchema` allows `run`/`entity` to be `null`; the client
+parses against that and returns `null` from `getDungeonState()` on EITHER
+shape, so every caller still sees one "no active run" signal.
+
 ### Dungeon action envelope **[CONFIRMED]**
 
 ```json

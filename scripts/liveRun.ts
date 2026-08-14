@@ -33,7 +33,7 @@ import { join } from "node:path";
 
 import { GigaverseClient } from "../src/api/client.js";
 import type { DungeonAction, DungeonActionRequest, DungeonState } from "../src/api/schemas.js";
-import { TokenExpiredError } from "../src/api/errors.js";
+import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { toCombatant, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
@@ -262,7 +262,15 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
   // active already; poll once and, if idle, stop — there is nothing further
   // to decide against a hypothetical run.
   for (;;) {
-    const state: DungeonState | null = await client.getDungeonState();
+    let state: DungeonState | null;
+    try {
+      state = await client.getDungeonState();
+    } catch (e) {
+      if (e instanceof UnexpectedResponseError) {
+        log.write({ event: "unexpected_response", status: e.status, path: e.path, body: e.body });
+      }
+      throw e;
+    }
     if (!state) {
       log.write({ event: "run_ended_or_absent" });
       console.log(`  · no active run — stopping.`);
@@ -476,6 +484,7 @@ if (isMain) {
   main().catch((e) => {
     console.error(`\n✗ ${e instanceof Error ? e.message : e}\n`);
     if (e instanceof GuardTrip) console.error(`  detail: ${JSON.stringify(e.detail)}`);
+    if (e instanceof UnexpectedResponseError) console.error(`  status ${e.status}  path ${e.path}\n  body: ${e.body}`);
     process.exit(1);
   });
 }

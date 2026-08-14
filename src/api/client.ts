@@ -19,7 +19,7 @@ import {
   AccountSchema,
   EnergySchema,
   DungeonTodaySchema,
-  DungeonStateSchema,
+  DungeonStateOrIdleSchema,
   ItemsBalancesSchema,
   JuiceSchema,
   DungeonActionResponseSchema,
@@ -224,9 +224,13 @@ export class GigaverseClient {
   }
 
   /**
-   * SPEC: `/game/dungeon/state` returns a 500 HTML error page once a run
-   * ends — that means "no active run", not a server failure. Every other
-   * non-2xx still throws.
+   * "No active run" has TWO wire shapes (session 08, live — SPEC was only
+   * built around the first):
+   *  1. A run that just ENDED: HTTP 500, an HTML error page.
+   *  2. An account that was never in a run this session (or IS between runs):
+   *     HTTP 200, `{success:true, data:{run:null, entity:null}, actionToken:0}`.
+   * Both mean the same thing to a caller — return `null` either way. Every
+   * other non-2xx, or a 2xx that fails even the nullable shape, still throws.
    */
   async getDungeonState(): Promise<DungeonState | null> {
     const { status, text } = await this.raw("/game/dungeon/state", { method: "GET" });
@@ -240,7 +244,7 @@ export class GigaverseClient {
     } catch {
       throw new UnexpectedResponseError(status, "/game/dungeon/state", text);
     }
-    const parsed = DungeonStateSchema.safeParse(json);
+    const parsed = DungeonStateOrIdleSchema.safeParse(json);
     if (!parsed.success) {
       throw new UnexpectedResponseError(
         status,
@@ -249,7 +253,9 @@ export class GigaverseClient {
       );
     }
     this.actionToken = parsed.data.actionToken;
-    return parsed.data;
+    if (parsed.data.data.run === null) return null;
+    // Narrowed above: `run` is non-null here, matching DungeonState's stricter shape.
+    return parsed.data as DungeonState;
   }
 
   async getItemsBalances(): Promise<ItemsBalances> {

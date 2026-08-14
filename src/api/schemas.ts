@@ -157,6 +157,31 @@ export const DungeonStateSchema = z
   .passthrough();
 export type DungeonState = z.infer<typeof DungeonStateSchema>;
 
+/**
+ * [session 08, live] The "no active run" shape is NOT only the 500-HTML page
+ * the client already special-cases — a genuinely idle account (no run ever
+ * started, as opposed to one that just ended) returns HTTP 200 with
+ * `{success:true, data:{run:null, entity:null}, actionToken:0}`. The old
+ * `DungeonStateSchema` required `data.run` to be a full `RunSchema` object
+ * and rejected this as a zod failure. CLAUDE.md §1: the live response is
+ * right, the schema was wrong. This schema is what the client actually
+ * parses against; `DungeonStateSchema` above stays the stricter "a run IS
+ * present" shape everything downstream of `getDungeonState()`'s non-null
+ * return continues to rely on.
+ */
+export const DungeonStateOrIdleSchema = z
+  .object({
+    success: z.boolean(),
+    actionToken: z.number(),
+    data: z
+      .object({
+        run: RunSchema.nullable(),
+        entity: z.object({ ROOM_NUM_CID: z.number() }).passthrough().nullable().optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
 const ItemBalanceSchema = z
   .object({
     PLAYER_CID: z.string(),
