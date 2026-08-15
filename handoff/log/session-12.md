@@ -1,4 +1,4 @@
-# STATE — session 12 — 2026-08-15 — commit (pending)
+# STATE — session 12 — 2026-08-15 — commit bc58822
 
 (Full version of `handoff/STATE.md` as of this session, with verbose detail
 kept here that STATE.md trims for length.)
