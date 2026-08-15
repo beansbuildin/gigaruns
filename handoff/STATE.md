@@ -1,4 +1,4 @@
-# STATE — session 12 — 2026-08-15 — commit (pending, see below)
+# STATE — session 12 — 2026-08-15 — commit bc58822
 
 ## Status
 Task 8 "Fishing strategy": **GATE PASS.** Task 6's live-run capability:
