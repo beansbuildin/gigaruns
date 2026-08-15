@@ -87,26 +87,24 @@ variations 500 too, accept it as server flakiness, record it, and stop looking.
 
 Not a session's work. One test, opportunistically, during whatever else runs.
 
-## 4. Your Q4 and Task 7 are the same capture — ask once
+## 4. Your Q4 and Task 7 are the same capture
 
 Item metadata has no confirmed endpoint, and `/items/balances` returns bare
 numeric IDs. But **the game client displays item names**, so it fetches them from
-somewhere. Don't guess the URL.
+somewhere. Don't guess the URL — the user's browser knows, and a HAR capture is
+already the blocker on Task 7 (fishing). One capture, not two.
 
-The user's browser knows. And a HAR capture is already the blocker on Task 7
-(fishing). So it's one request, not two:
+The user has been given this checklist; the file lands at
+`fixtures/fishing-cast.har` (gitignored, stays local):
 
-> Open gigaverse.io, DevTools → Network → Fetch/XHR, then:
-> 1. Open the inventory and let item names render.
-> 2. Play one complete Dendren fishing cast, start to finish.
-> 3. Save as HAR → `fixtures/fishing-cast.har`.
+1. DevTools → Network → Fetch/XHR, recording before playing.
+2. Open the inventory, let item names render.
+3. Play one complete Dendren cast, start to finish.
+4. Save all as HAR with content.
 
-Write that into `QUESTIONS.md` as a numbered checklist. One ten-minute capture
-unblocks the item-metadata endpoint *and* the entire fishing half of the project,
-which has been blocked since session 01.
-
-Consumables may well be the biggest available lever on deaths — but that's a
-hypothesis, and it stays one until we can read what's in the inventory.
+If it's present, parse it: extract the item-metadata endpoint **and** the fishing
+API surface, and generate `SPEC-fishing.md` per TASKS.md Task 7. If it's absent,
+don't block — note it and continue.
 
 ## 5. Your Q2 and Q3
 
@@ -114,6 +112,71 @@ The no-Safe-tier rate (33%) — agreed, `pickLowestTier()` handles it, just trac
 it. Note that generalising from "always Safe" to "lowest offered" preserved the
 original zero-tradeoff reasoning rather than abandoning it; that was the right
 shape of fix.
+
+---
+
+## 6. Run economics — user-confirmed, treat as authoritative
+
+The user has a **240 energy/day** dungeon budget: 12 runs at 20 energy, or 4
+"juiced" runs at 60 energy (`isJuiced: true` in `start_run`). 5/12 used at the
+time of writing.
+
+Three facts, confirmed directly by the user — these close open questions, don't
+re-verify them:
+
+1. **Potions: hard cap of 3 per dungeon**, regardless of run type, consumed on
+   use. This is a per-**dungeon** allowance, not a per-run cost.
+2. **Juiced runs are mechanically identical** — 3× energy, 3× rewards, same
+   dungeon. The corpus, combat model, boon models, and all tuning transfer.
+3. **The 3× multiplier is real and explicitly disclosed by the game.**
+
+### Production target: juiced only
+
+Once the bot produces consistent results, production switches to juiced runs
+permanently. The economics are now unambiguous: three potions cover 3× the
+rewards, with no proportional consumption to erode the saving. Fewer runs, less
+wall-clock time, same consumable cost.
+
+Record in `DECISIONS.md` as the production target. Still worth one diff check on
+the first juiced run as cheap insurance — but don't gate the switch on it.
+
+### Testing stays on 20-energy runs
+
+**For this session: 20-energy runs only, batches of 3.** Not juiced.
+
+Juiced gives 4 samples/day instead of 12, at 3× cost per sample. The death-room
+histogram needs *count*, not value — sample size is the measurement. The sim
+carries the statistics; live batches are drift checks against it.
+
+Budget: 3 runs (60 energy) for the retuned config, plus up to 2 runs (40 energy)
+if the §3 envelope test needs its own attempts. **Cap at 100 energy.**
+
+**Do not change run type mid-batch.** It would confound the before/after
+death-room comparison, which is this session's actual result.
+
+## 7. Potion timing — new task, not this session
+
+Three uses across up to 16 rooms is an **optimal stopping problem**, not a
+threshold rule. Spend at room 2 and you may lack it at room 6; hold all three and
+you die at room 3 holding them. Given every run so far dies at rooms 2–4,
+mistimed potions are plausibly a larger loss than anything remaining in the
+combat model.
+
+Prerequisites, in order — the policy is undefinable without them:
+
+- **Item metadata** (§4 HAR): what each potion actually does. Flat heal,
+  percentage, cure, buff.
+- **`use_item` confirmed.** Still `[VERIFY]`, from the same source that got
+  `loot_one` and `enemy_two` wrong. Never send speculatively mid-run.
+- **`start_run`'s `consumables: []`** — are potions declared at entry or used
+  mid-run? This changes the policy shape entirely: pre-committed loadout versus
+  in-run decision.
+
+Then model as expected rooms-cleared over remaining potions and remaining rooms,
+tuned in the sim against the death-room histogram.
+
+Add to `TASKS.md` as its own task with its own gate. **Do not bolt it onto this
+session's retune** — the death-room comparison needs a single variable changed.
 
 ---
 
@@ -125,14 +188,48 @@ shape of fix.
    validated against the sim's mean-rooms-cleared. Mark boon-preference
    conclusions provisional per §2.
 3. Update `TASKS.md`: Task 5 gate retired to reported-metrics, Task 11 gate
-   promoted per §2.
-4. **Five more live runs** with the retuned config. Budget **120 energy**.
-   Compare death-room distribution before and after — that's the real result,
-   not the win rate.
+   promoted per §2, potion-timing task added per §7.
+4. **Three live runs** with the retuned config, 20-energy, per §6. Compare
+   death-room distribution before and after — that's the real result, not the
+   win rate.
 5. The §3 envelope test, opportunistically.
-6. `QUESTIONS.md` capture checklist, per §4.
+6. Parse the HAR if present, per §4. Don't block if it isn't.
+7. `DECISIONS.md`: juiced production target, potion cap, confirmed mechanics.
 
 If the retune doesn't move mean rooms cleared, say so plainly. A negative result
 here is genuinely informative: it would mean attrition isn't the binding
 constraint and something else is — most likely enemy scaling past room 3, which
 the corpus can barely see.
+
+Addendum — potions confirmed pre-committed; HAR captured:
+
+USER-CONFIRMED: potions are chosen as a PRE-COMMITTED LOADOUT before
+entering, not used mid-run. This supersedes the optimal-stopping
+framing in SPEC and session 10 §7.
+
+Consequences:
+  - It is a static 3-item selection maximizing expected rooms
+    cleared, not a sequential decision. Fully solvable in sim.
+  - `use_item` likely never needs sending. The loadout goes in
+    start_run's `consumables: []` (currently always sent empty).
+    Keep use_item [VERIFY] but drop it off the critical path.
+  - Downgrade from a standalone task to an extension of loot
+    ranking. Update TASKS.md accordingly.
+
+STILL OPEN — how do committed potions take effect? Auto-trigger on a
+condition (HP threshold), or passive run-long buffs? This determines
+whether the sim models them as conditional heals or as flat stat
+deltas. Answer from item descriptions or a captured start_run; ask
+the user if neither resolves it.
+
+HAR: user reports it placed in the project. VERIFY IT IS AT
+fixtures/fishing-cast.har and gitignored before any commit — a HAR
+carries a live Authorization header and this repo is public. If it
+is anywhere else, move it and confirm `git status` is clean.
+
+Parse it for BOTH:
+  1. The item-metadata endpoint (names/descriptions for the numeric
+     IDs in /items/balances) -- unblocks the loadout policy.
+  2. The fishing API surface -> SPEC-fishing.md, per TASKS.md Task 7.
+
+Commit only redacted extractions, never the HAR.
