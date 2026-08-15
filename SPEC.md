@@ -1418,10 +1418,53 @@ figures). The argmax over `f` above is therefore over **reachable** `f`
 only (`src/sim/fishing/geometry.ts`'s `reachableCells`), not the whole
 grid — `cardChoice.ts`'s `chooseCard`/`bestFocusForCard` take an optional
 `FocusBudget` for this, threaded through by the live loop
-(`scripts/liveFishing.ts`) but **not yet modelled in the sim**
-(`src/sim/fishing/castSim.ts`), whose catch-rate figures assume free focus
-movement every turn and are consequently an optimistic ceiling, not a
-prediction of real Dendren performance.
+(`scripts/liveFishing.ts`).
+
+**[MODELLED 2026-08-15, session 14]** `focusMeter` is now modelled in the
+sim too (`src/sim/fishing/castSim.ts` tracks a `FOCUS_METER_MAX = 3` budget
+per cast, never regenerating, starting at the grid's center cell per the
+one live cast's observed `[2,2]` starting `focusPoint` — see
+`defaultStartFocus`). This was the session-14 brief's central question:
+does `focusMeter` explain why the sim's 92.4% (500-cast, session 13) and
+live's 0/6 casts disagreed so badly? **Answer: only partly.** Modelling it
+alone drops the 500-cast catch rate to **69.9–71.6%** (two independent runs,
+n=500 and n=3000) — real and substantial (P(0 catches in 6 live casts) at
+that rate is ~0.05%, still statistically incompatible with the live
+result), but nowhere near a full explanation.
+
+**The dominant explanation turns out to be a different, larger gap: the
+sim's true fish pattern is always drawn from the SAME synthetic pool the
+matcher searches**, so the matcher can, in principle, always identify it —
+unlike real Dendren, where the pattern library is still unknown (only one
+5-move human capture and five live bot casts exist, all of which ran the
+matcher on `emptyFallback`/uniform the entire session, per STATE.md
+session 13, because none of them ever matched a candidate in the synthetic
+stand-in library). `castSim.ts` gained a `matcherPool` option (separate
+from `candidatePool`, which still controls what the TRUE pattern is drawn
+from) specifically to make this condition reproducible: `matcherPool: []`
+forces the matcher permanently blind. Result: catch rate collapses to
+**~7–10%** (two independent runs) — statistically indistinguishable from
+the random baseline (8.4%) and fully consistent with the live 0/6 result
+(P(0/6) ≈ 55–65%). See `scripts/fishFocusMeter.ts` for the full comparison
+and `tests/fishing/castSim.test.ts`'s "session 14" describe block for the
+regression tests pinning both findings.
+
+**Consequence for the "hedge throughout" policy shape below and for
+Task 11:** the honest current expectation for live Dendren performance
+under today's algorithm is close to random (~7–10%), not 92.4% or even
+71.6% — because the algorithm has nothing to identify against yet. This
+reframes `scripts/mineFishPatterns.ts` (Task 11) from "nice to have, mine
+more data when there's time" to **the actual blocker**: until a real
+pattern library exists (mined from `data/fish-patterns.jsonl`), the
+hypothesis-elimination matcher cannot outperform random by more than
+`focusMeter`'s own contribution, and the "hedge throughout" vs. "identify
+then cash in" tradeoff below is moot — there is currently nothing to
+identify. The `FocusBudget`-aware code itself needs no further rewrite:
+`bestFocusForCard`'s search over `reachableCells` already degrades
+correctly as the budget depletes (a near-exhausted budget naturally
+narrows the search to the current focus, which is what a "commitment"
+policy would do by hand) — the gap was never in this formula, it was in
+the library the formula searches.
 
 ### Open question this design doesn't answer yet: does identification ever finish?
 
@@ -1450,6 +1493,35 @@ as the default policy shape until real transition logs (Task 9) show
 otherwise. See the script's own output for the current numbers — do not
 hardcode a turn-count threshold into the
 policy from this synthetic measurement alone.
+
+**[session 14]** The six real casts to date (1 human + 5 bot) never
+identified anything — `|H|` never collapsed even once, because the
+synthetic stand-in library this section's own measurement used doesn't
+contain the real pattern(s). This isn't a new finding so much as this
+open question's own worst case turning out to be the live one: "hedge
+throughout" isn't just the safe default until real patterns are known, it
+is currently the ONLY policy in effect, live, right now. Task 11's
+`mineFishPatterns.ts` (still unbuilt — `data/fish-patterns.jsonl` has 25
+transitions from 5 casts, session 13) is what would move this project off
+that default for the first time.
+
+### A standing rule: sim authority is earned per domain, never inherited
+
+**[session 14]** This session set out to explain a 92.4%-sim-vs-0/6-live
+gap and found two real, additive causes (`focusMeter`, ~21pp; the
+pattern-library mismatch, the other ~60pp) rather than one clean answer —
+worth stating as a standing rule because the dungeon side already had the
+opposite experience and it would be easy to over-generalize from it.
+Session 11's dungeon sim predicted 1.946 mean rooms cleared against a live
+2.0 — close enough that trusting the dungeon sim's other conclusions was
+reasonable. The fishing sim had no such check before this session, and its
+92.4% headline (session 13) had already been used to gate Task 8 in. A
+sim's authority to inform a design decision comes from a demonstrated
+agreement with live outcomes, and that agreement is **earned separately
+per domain** — the dungeon sim being trustworthy said nothing about the
+fishing sim, and it wasn't. Until `castSim.ts` predicts live catch rates
+(which needs a real pattern library, not just `focusMeter`), no number it
+produces should be used to justify a fishing design decision on its own.
 
 ---
 

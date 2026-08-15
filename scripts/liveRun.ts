@@ -214,8 +214,9 @@ export function buildEnvelope(
   dungeonId: number,
   actionToken: number,
   index = 0,
+  consumables: number[] = [],
 ): DungeonActionRequest {
-  return { action, dungeonId, actionToken, data: { consumables: [], isJuiced: false, index } };
+  return { action, dungeonId, actionToken, data: { consumables, isJuiced: false, index } };
 }
 
 /**
@@ -340,6 +341,16 @@ export interface LiveRunDeps {
    * spent").
    */
   guardStatePath?: string;
+  /**
+   * Task 12 Stage B (session-14 brief §3): `consumables` on `start_run` is
+   * otherwise always sent empty (`[]`) — this is the one-shot override that
+   * puts a REAL item id in the loadout to observe what the field actually
+   * takes (item id / slot index / object) and how `GET /game/dungeon/state`
+   * reports it back. Only affects the `start_run` POST, never combat/
+   * reward/path actions, which always send `[]` regardless. `undefined`
+   * (the default) preserves the existing always-empty behavior exactly.
+   */
+  startConsumables?: number[];
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -522,7 +533,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
     return;
   } else {
     guards.assertCanStartRun(config.energyCostPerRun);
-    const body = buildEnvelope("start_run", config.dungeonId, client.getActionToken());
+    const body = buildEnvelope("start_run", config.dungeonId, client.getActionToken(), 0, deps.startConsumables);
     log.write({ event: "post", body });
     let resp;
     try {
@@ -755,7 +766,13 @@ function parseArgs(argv: string[]) {
   const probeUseItemFlag = argv.includes("--probe-use-item");
   const runsArg = argv.find((a) => a.startsWith("--runs="));
   const runs = runsArg ? Number(runsArg.split("=")[1]) : 1;
-  return { dryRun, stage2, runs, probeUseItemFlag };
+  // Task 12 Stage B (session-14 brief §3): one-shot `consumables` field-shape
+  // probe. `--probe-consumables=131` sends `start_run` with `consumables:
+  // [131]` (Big Heal Juice) instead of the always-empty default, on the
+  // NEXT genuinely new start_run only (never on a resumed run).
+  const probeConsumablesArg = argv.find((a) => a.startsWith("--probe-consumables="));
+  const probeConsumablesItemId = probeConsumablesArg ? Number(probeConsumablesArg.split("=")[1]) : undefined;
+  return { dryRun, stage2, runs, probeUseItemFlag, probeConsumablesItemId };
 }
 
 /**
@@ -804,6 +821,9 @@ async function main() {
     console.log(`  · --probe-use-item: will send one use_item probe the first time own HP drops to ≤${Math.round(PROBE_HP_FRACTION * 100)}%.`);
   }
   const probeUseItemState = args.probeUseItemFlag ? { fired: false } : undefined;
+  if (args.probeConsumablesItemId !== undefined) {
+    console.log(`  · --probe-consumables=${args.probeConsumablesItemId}: next genuinely new start_run will send consumables: [${args.probeConsumablesItemId}].`);
+  }
 
   const targetRuns = args.dryRun || args.stage2 ? 1 : args.runs;
   for (let i = 0; i < targetRuns; i++) {
@@ -820,7 +840,18 @@ async function main() {
     let runError: unknown = null;
     try {
       await runOnce(
-        { client, config, guards, model, strategyConfig: LIVE_CONFIG, fixtures, log, dryRun: args.dryRun, probeUseItem: probeUseItemState },
+        {
+          client,
+          config,
+          guards,
+          model,
+          strategyConfig: LIVE_CONFIG,
+          fixtures,
+          log,
+          dryRun: args.dryRun,
+          probeUseItem: probeUseItemState,
+          startConsumables: args.probeConsumablesItemId !== undefined ? [args.probeConsumablesItemId] : undefined,
+        },
         { stage2Only: args.stage2 },
       );
     } catch (e) {

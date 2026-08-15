@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(30); // +2 session 13: 1 more live run (Task 12 Stage A probe, not this session's focus)
+    expect(pickups.length).toBe(32); // +2 session 14: resuming the stuck run (brief §4) added a room-3 CorrosiveMagic pickup, and the Task 12 Stage B consumables probe run added a room-1 AddTenacity pickup
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -146,11 +146,13 @@ describe("fail-closed on unmodelled types", () => {
       // pickup pairs (moveDelta), now modelled.
       // AddMaxArmor/CorrosiveShield moved OUT — session 11 gave both live
       // pickup pairs (maxArmor / latent), now modelled.
+      // CorrosiveMagic moved OUT — session 14 gave it a live pickup pair
+      // (latent, same shape as AddBurnSword/CorrosiveShield), now modelled.
       "AddBurnMagic", // session 12: first sighting, live room-1 offer, not picked
-      "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked
+      "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
       "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
+      "ArmorDepletedWeak", // session 14: first sighting, room-1 offer (Task 12 Stage B probe run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
-      "CorrosiveMagic", // session 09: first sighting, room-3 offer, not picked
       "Regen",
       "TieDamageReduction",
       "TieVulnerable", // session 12: first sighting, live room-3 offer, not picked
@@ -192,8 +194,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 13] +1 more room-1 offer (3 options: UpgradeScissor/AddBlock/
     // AddTenacity — Task 12 Stage A probe's run, not this session's focus).
     // UpgradeScissor is clean, adding a SECOND clean UpgradeScissor entry.
+    // [session 14] +1 more room-1 offer (3 options: AddTenacity/AddBlock/
+    // ArmorDepletedWeak — Task 12 Stage B's consumables probe run). All
+    // three are rolled-stat or still-unmodelled; the clean set is unchanged.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(48);
+    expect(roomOne.length).toBe(51);
 
     const clean: string[] = [];
     for (const option of roomOne) {

@@ -1,224 +1,202 @@
-# STATE — session 13 — 2026-08-15 — commit 63ae54d
+# STATE — session 14 — 2026-08-15 — commit PENDING
 
 ## Status
-Task 9 "Live fishing, supervised": **GATE MET.** §1's mana-divisor bug in
-`chooseCard` (Task 8's own strategy code) is fixed, and fixing it uncovered a
-second, dependent bug in `shouldRedraw` — together they move the 500-cast
-sim's catch rate from 19.0% to 92.4%. Five live Dendren casts ran end to
-end, transitions logged to `data/fish-patterns.jsonl` (25 real transitions
-now on disk, up from 0). A genuine undocumented mechanic (`focusMeter`'s
-spend rule) was discovered live mid-session, root-caused from a guard trip,
-fixed, and re-verified across the remaining four casts with zero further
-incidents. Task 12 Stage A (`use_item` confirmation) landed as a zero-cost
-side effect of an ordinary live dungeon run: CONFIRMED via a clean HTTP 400.
-Task 11's dungeon-tuning half is now PARKED with stated revival conditions.
-Next per TASKS.md: Task 12 Stage B (potion loadout + timing policy, needs a
-real potion in `consumables` first) or more live fishing casts to grow
-`data/fish-patterns.jsonl` toward Task 11's fishing-side pattern mining.
+No TASKS.md gate newly MET this session — the session's work was diagnostic
+(session-14 brief's own framing) plus two live probes riding along on it.
+**Primary finding: session 13's 92.4% fishing-sim catch rate does NOT survive
+contact with live data, and now we know why in two parts.** `focusMeter`
+(confirmed live session 13) is now MODELLED in `src/sim/fishing/castSim.ts` —
+alone it drops the 500-cast catch rate to 69.9–71.6%, real but still
+statistically incompatible with live's 0/6 (P≈0.05%). The DOMINANT cause is
+separate and larger: the sim's true fish pattern is always drawn from the
+same synthetic pool the matcher searches, so it can always identify it in
+principle — none of this project's six real casts ever have, because the
+real pattern isn't in that library. Forcing the matcher blind (new
+`matcherPool: []` option) drops the rate to ~7–10%, consistent with live 0/6
+(P≈55–65%). **This reclassifies `scripts/mineFishPatterns.ts` (unbuilt) from
+"nice to have" to the actual blocker for fishing** — no volume of
+`data/fish-patterns.jsonl` transitions helps until it exists.
 
-Overall: fishing went from "built but never run" to "run, and meaningfully
-better than the number that gated it in" in one session — the corpus-vs-spec
-discipline (CLAUDE.md §9) caught a real, load-bearing bug in the strategy
-code itself, not just in SPEC prose, before it ever touched live play.
+Also this session: resumed the run session 13 left stuck at room 3 (survived,
+died room 4 instead); confirmed Task 12 Stage B's `consumables` field shape
+(raw item ID) plus a bigger finding (potion consumed at `start_run`/loadout
+time, not at `use_item` time); recorded a standing rule (sim authority is
+earned per domain, never inherited). Both today's live-play budgets are now
+FULLY EXHAUSTED (dungeon 12/12 runs, fishing 5/5 casts) — no more live play
+possible today regardless of what's asked.
+
+Next per TASKS.md: Task 11's `mineFishPatterns.ts` is now the priority (see
+above) — but note `data/fish-patterns.jsonl` still only has 25 transitions
+from 5 casts, and fishing's daily budget is spent, so more casts to grow it
+can't happen until tomorrow. Task 12 Stage B's timing policy is still fully
+unbuilt and was deliberately not started.
+
+Overall: a brief that asked "does this one mechanic explain the gap" got an
+honest "partly, and here's the bigger thing" instead of a rescoped
+confirmation — the sim's headline numbers were never wrong about the
+algorithm, they were wrong about what the algorithm is being tested against.
 
 ## What works
-- **Task 8's mana-divisor bug: FIXED.** `src/strategy/fishing/cardChoice.ts`'s
-  `chooseCard` picked `argmax EV/manaCost`; SPEC.md §5 said the same thing,
-  and both were wrong — the one real cast escaped with 5/10 mana unspent
-  because the MISS counter capped it, not mana. Fixed to `argmax P_hit`
-  (mana as an affordability filter only, `argmax EV/mana` kept solely as a
-  late-cast correction via `isManaConstrained`). Fixing it exposed a SECOND
-  bug: `shouldRedraw` compared `best.evPerMana` against its threshold when
-  SPEC always said raw `ev` — harmless while `chooseCard`'s own objective
-  was also EV/mana, but once it wasn't, redraw fired almost every turn.
-  Fixed (`best.ev`), `REDRAW_THRESHOLD` re-tuned 3→0 in
-  `src/sim/fishing/castSim.ts` (a 500-cast sweep across {-∞,0,1,2,3,5,8}
-  found catch rate falls monotonically as the threshold rises). **Net: the
-  500-synthetic-cast catch rate moved from 19.0% (95/500) to 92.4%
-  (462/500)**, unchanged 7.8% (39/500) random baseline. Verified by:
-  `npx vitest run tests/fishing` (24/24 pass, up from 18), a standalone
-  re-run of `simulateCasts`.
-- **Task 9 (live fishing): GATE MET.** `scripts/liveFishing.ts` (new, staged
-  like `scripts/liveRun.ts`: `--dry-run`, `--casts=N`), `GigaverseClient`
-  gained `getFishingState`/`postFishingAction` with their OWN action-token
-  sequence (`src/api/client.ts`), `config/bot.json`/`config.ts` gained a
-  `dendren` budget block. Five live casts completed (1 resumed after a
-  mid-session fix + 4 fresh), all ended `escaped` (0 catches — consistent
-  with the one prior human capture also escaping; catch response shape
-  stays `[VERIFY]`), 25 real transitions appended to
-  `data/fish-patterns.jsonl`. Verified by: live run output, fixture writes
-  under `fixtures/fishing-casts/live/cast-*/`, `data/fish-patterns.jsonl`
-  line count.
-- **`focusMeter`'s spend rule: CONFIRMED live**, resolving a `[VERIFY]` the
-  one prior capture left open (it never moved the meter off 3/3). Moving the
-  focus costs its Manhattan distance from the CURRENT focus, out of a
-  3-point per-cast budget that does NOT regenerate — 4 clean data points,
-  the 4th a real HTTP 400 rejection (not a display-only cap). Fixed live,
-  mid-session: `bestFocusForCard`/`chooseCard` gained an optional
-  `FocusBudget` param (`src/sim/fishing/geometry.ts`'s new `reachableCells`);
-  the live loop always supplies one. The sim does NOT model this yet, so its
-  92.4% catch-rate figure assumes free focus movement and is an optimistic
-  ceiling, not a live prediction. Verified by: 4 more live casts with zero
-  further focus-related rejections, `tests/fishing/geometry.test.ts` (+4
-  tests), `tests/fishing/cardChoice.test.ts` (+2 tests).
-- **Task 12 Stage A: `use_item` CONFIRMED.** `POST /game/dungeon/action`
-  `{action:"use_item", dungeonId:5, actionToken:<real>, data:{consumables:[],
-  isJuiced:false, index:0, itemId:0}}` (combat-style envelope) returned
-  **HTTP 400 `{"success":false,"message":"Item not found in index"}`** — a
-  clean, meaningful rejection (not 404/405 wrong-endpoint, not a crash),
-  confirming the action name, the envelope, and that `itemId` addresses the
-  item. Zero exposure: `consumables` is always sent empty, so there was
-  never a real item to lose. `scripts/liveRun.ts` gained a `--probe-use-item`
-  flag (fires once, own HP ≤34%, never touches the 3-strikes guard). Fixture:
-  `fixtures/dungeon-runs/run-2026-08-15-20-44-28/state-039.json`.
+- **`focusMeter` MODELLED in the sim.** `src/sim/fishing/castSim.ts` gained
+  `FOCUS_METER_MAX=3`, `defaultStartFocus` (grid-center, matching the one
+  live cast's observed `[2,2]` start), and per-cast budget tracking threaded
+  through `chooseCard`/`bestFocusForCard` via the existing `FocusBudget`
+  param (built session 13 for the live loop, now also fed by the sim).
+  500-cast catch rate: 71.6% (n=500) / 69.9% (n=3000, independent seed) —
+  down from session 13's unconstrained 92.4%. Verified by:
+  `npx vitest run tests/fishing` (26/26 pass), `scripts/fishFocusMeter.ts`.
+- **Library-mismatch diagnostic: the dominant explanation, isolated
+  cleanly.** `castSim.ts`'s new `matcherPool` option separates "what the
+  TRUE pattern is drawn from" (`candidatePool`, unchanged) from "what the
+  matcher searches" (new) — `matcherPool: []` forces the matcher permanently
+  blind. Result: 7.0% (n=500) / 10.3% (n=3000) — indistinguishable from the
+  8.4% random baseline, and statistically consistent with live's 0/6
+  (P≈55–65%, vs. P≈0.05% for the focus-only 71.6% figure and P≈0.00002% for
+  session 13's unconstrained 92.4%). Two new regression tests in
+  `tests/fishing/castSim.test.ts` pin both findings.
+- **Task 12 Stage B — `consumables` field shape CONFIRMED, live.**
+  `scripts/checkPotions.ts` (new, read-only) found real inventory (Big Heal
+  Juice ×8, Mid Heal Juice ×7). `scripts/liveRun.ts` gained
+  `--probe-consumables=<itemId>` (mirrors `--probe-use-item`): sent
+  `start_run` with `consumables: [131]`, run started normally — **the field
+  takes a raw item ID.** Bigger finding: the Big Heal Juice balance dropped
+  8→7 immediately at `start_run`, before any combat, and the run never
+  called `use_item` once (died room 2 via the normal combat loop, zero heal
+  events). **The potion is consumed at loadout commitment, not at
+  point-of-use.** Fixture: `fixtures/dungeon-runs/run-2026-08-15-23-02-36/state-000.json`.
+- **Stuck run (session 13) resumed and resolved.** `npx tsx
+  scripts/liveRun.ts --runs=1` — survived room 3 at HP 1/36, picked up
+  `CorrosiveMagic` for the first time ever (now MODELLED as `{kind:"latent"}`,
+  zero delta at pickup, contaminates STATUS_EFFECT — same shape as
+  `AddBurnSword`/`CorrosiveShield`), cleared into room 4 Safe-tier, died
+  there. Cost 0 energy / 0 run slots (a resume, not a new start — session 09's
+  rule still holds).
 - `npx tsc --noEmit` — clean, exit 0.
-- `npx vitest run` — **292 tests, 20 files, all pass** (272 → 292; 18 new
-  fishing/live tests, 8 corpus-total assertions re-derived — not just
-  bumped — after this session's 2 new live captures, per the established
-  "expected to fail after every capture" convention, DECISIONS 2026-08-15).
+- `npx vitest run` — **296 tests, 20 files, all pass** (292 → 296; 2 new
+  fishing tests plus 2 more from corpus-total re-derivation; 9 corpus-total
+  assertions re-derived from the live corpus after this session's 2 new live
+  runs, per the established "expected to fail after every capture"
+  convention — every one checked against the actual new corpus data, not
+  guessed).
 - `npx tsx scripts/sim.ts` — Task 5's gate report still passes (room-1
   battle win rate always-Sword 85.6% vs ev-engine 92.9%, non-overlapping),
-  re-measured against the grown corpus and the new PLAYER baseline
-  (hpMax 34→36 this session).
+  re-verified against the further-grown corpus.
 
 ## What's broken
-- **Zero catches across all 5 live casts.** Not a strategy failure so much
-  as small-sample variance against an unknown pattern set — the matcher ran
-  on `emptyFallback` (uniform, then thinly empirical) the whole session
-  since the real pattern library is still unknown. Catch response shape
-  (rarity, reward fields — TASKS.md Task 9's "fish logged with rarity")
-  remains `[VERIFY]`, now across 6 total real casts (1 prior + 5 this
-  session), all escapes.
-- **One dungeon run left stuck mid-combat, not resolved this session.**
-  `run-2026-08-15-20-44-28`, room 3, own HP 4/36 vs Enemy Room 65 (full
-  38/38) — the `use_item` probe's own run hit an HTTP 500 on the following
-  combat move; a live re-check confirmed the move did NOT apply (run still
-  active, HP unchanged), so this is a genuinely resumable, not-yet-lost run,
-  left alone deliberately (session's daily energy/run budget was nearly
-  exhausted: 229/240 energy, 11/12 runs). Resume with `npx tsx
-  scripts/liveRun.ts --runs=1` next session before starting anything new.
-- **Task 12 Stage B is still fully unbuilt.** Stage A landing cleanly does
-  NOT mean the timing/loadout policy exists — turn-cost, multi-use, and
-  consumed-on-loss are all still open, and none of them are answerable
-  without a REAL potion in `consumables` at `start_run` (still untested
-  whether that field takes item IDs, slot indices, or objects). Per the
-  session-13 brief's own instruction, this was deliberately NOT started
-  this session so Stage B gets a clean one.
-- **`data/fish-patterns.jsonl`'s `turn` field resets to 0 on a resumed
-  cast** (turn-in-invocation, not turn-in-cast) — cosmetic, since pattern
-  mining keys on `(fromCell, toCell)` pairs not turn index, but worth fixing
-  before Task 11's `mineFishPatterns.ts` is built if turn position ever
-  matters to that algorithm.
+- **The fishing strategy's honest current live expectation is ~7–10% catch
+  rate, not 92.4%.** This isn't a new bug in `chooseCard`/`shouldRedraw`
+  (session 13's fixes were real and are still correct) — it's that the
+  matcher currently has nothing to identify against. Until
+  `mineFishPatterns.ts` exists and produces a real pattern library from
+  `data/fish-patterns.jsonl`, the "hedge throughout vs. identify-then-cash-in"
+  tradeoff in SPEC.md §5 is moot: hedge-throughout is the only policy
+  actually in effect, live, right now.
+- **Task 12 Stage B's timing policy is still fully unbuilt.** Field shape is
+  now known, but turn-cost and multi-use-per-battle are still open — neither
+  is answerable without a run that actually calls `use_item` on a loaded
+  potion, which didn't happen this session (deliberately, per the brief).
+- **`focusMeter` regeneration is still `[VERIFY]`.** The session-14 brief
+  asked for a deliberate live test (spend all 3 points early, watch for
+  refill) — NOT attempted: `data/guard-budget-fishing.json` already showed
+  5/5 casts spent for today's date before this session began (session 13's
+  own spend, date-keyed guard), so the cap was exhausted at session start.
+  Next session's first fishing action, once the date rolls over.
+- **Both live-play budgets are now fully exhausted for today.** Dungeon:
+  12/12 runs, 216/240 energy. Fishing: 5/5 casts, 59/100 energy. No further
+  live play is possible until the date-keyed guards reset.
 
 ## Corrections to SPEC.md
-- §5: "pick `argmax EV(card, f) / card.manaCost` — mana is the real budget"
-  was WRONG, not just superseded — the one real cast's own trajectory
-  (escaped with mana 5/10 unspent) already refuted it before this session,
-  but nobody had checked `cardChoice.ts` against that fact until now.
-  Corrected to `argmax P_hit(card, f)`, EV/mana demoted to a late-cast-only
-  correction. Full derivation in SPEC.md §5.
-- §5: added `focusMeter`'s CONFIRMED spend rule (Manhattan distance from
-  current focus, 3-point non-regenerating per-cast budget) — previously
-  `[VERIFY]`, the one prior capture never moved it off 3/3.
-- SPEC-fishing.md §4: `focusMeter`/`focusMeterMax` row updated with the
-  same confirmation and the four supporting data points.
+- §5: `focusMeter` is now MODELLED in the sim (previously flagged as
+  unmodelled, making the 92.4% figure "an optimistic ceiling"). New finding:
+  modelling it only explains ~30% of the sim-vs-live gap; the pattern-library
+  mismatch explains the rest. Full derivation and numbers in SPEC.md §5.
+- §5: new subsection, "A standing rule: sim authority is earned per domain,
+  never inherited" — a sim's authority to inform a design decision comes
+  from demonstrated agreement with live outcomes IN THAT DOMAIN specifically;
+  the dungeon sim's own good agreement (session 11) said nothing about the
+  fishing sim's trustworthiness.
+- §5: "does identification ever finish?" section updated — all six real
+  casts to date never converged even once, confirming this open question's
+  own worst case is the live reality, not a hypothetical.
+- SPEC-fishing.md §4: `focusMeter` row updated to say the sim now models it,
+  with a pointer to SPEC.md §5 for the fuller finding.
 - Resolved IDs unchanged: **forbiddenWoods=5**, **dendren nodeId="5" /
   pondId=2**.
 - Move charges: unchanged, PRESENT, hard-pruned.
 
 ## Dead ends
-- None new. No hypothesis was tried and abandoned this session — both
-  discoveries (mana-divisor, focusMeter) were confirmed-and-fixed, not
-  disproven.
+- None new. Both this session's live probes (resumed run, consumables field
+  shape) landed clean, confirmatory results — nothing was tried and
+  abandoned.
 
 ## Metrics
-- Fishing sim (500 synthetic casts, matcher-EV policy): catch rate 92.4%
-  (462/500) vs random 7.8% (39/500) — up from 19.0% (95/500) before this
-  session's fix. `meanTurns` moved 2.80 (matcher) vs 3.43 (random) —
-  matcher now resolves faster AND catches far more often.
-- Live fishing: 5 casts, 0 catches, 0 guard trips in the final 4 (1 guard
-  trip in the first, root-caused to `focusMeter` and fixed live — see "What's
-  broken" and DECISIONS.md). 25 real transitions logged. Energy: 59/100
-  fishing budget spent (5/5 session cap reached).
-- Live dungeon: 1 run this session (carrying the `use_item` probe), halted
-  mid-combat by an HTTP 500 that a re-check showed did not apply — not a
-  new confirmed death. Death-room histogram UNCHANGED at 11 confirmed
-  deaths (room 1 ×0, room 2 ×3, room 3 ×4, room 4 ×4). Energy: 229/240
-  spent, 11/12 runs.
-- Gear sweep, RE-MEASURED this session under the new PLAYER baseline
-  (hpMax 34→36; armor and all move ATK/DEF unchanged) — full ranked table,
-  1000 runs/candidate, ev-engine policy:
-  ```
-  upgrade                      mean rooms cleared        delta vs baseline
-  rock (Sword) ATK +4          2.429 ± 0.070        +0.249
-  rock (Sword) DEF +4          2.427 ± 0.073        +0.247   (ties ATK — CIs overlap)
-  scissor (Spell) DEF +4       2.350 ± 0.073        +0.170
-  paper (Shield) ATK +4        2.342 ± 0.074        +0.162
-  paper (Shield) DEF +4        2.304 ± 0.072        +0.124
-  max armor +4                 2.287 ± 0.073        +0.107
-  scissor (Spell) ATK +4       2.280 ± 0.071        +0.100
-  max HP +4                    2.221 ± 0.071        +0.041
-  ```
-  baseline (no upgrade): 2.180 ± 0.072. Sword ATK is still the top pick but
-  is now statistically TIED with Sword DEF (2.429±0.070 vs 2.427±0.073,
-  intervals overlap) — a change from session 12's report under the old
-  hp-34 baseline, where Sword ATK led alone. Re-measuring under a changed
-  loadout is exactly why this project doesn't quote old-session numbers
-  (DECISIONS 2026-08-16).
-- Tests: 292 passed, 0 skipped, 0 failed (272 → 292).
+- Fishing sim, `focusMeter` modelled, library KNOWN (matcher can identify):
+  71.6% (358/500, n=500) / 69.9% (2097/3000, n=3000, independent seed) —
+  down from session 13's unconstrained 92.4%.
+- Fishing sim, `focusMeter` modelled, library BLIND (`matcherPool: []`):
+  7.0% (35/500) / 10.3% (308/3000) — statistically indistinguishable from
+  random (8.4%, 42/500) and consistent with the live 0/6 result.
+- Random baseline, `focusMeter` modelled: 8.4% (42/500) — essentially
+  unchanged from session 13's unconstrained figure (a 4×4 grid still leaves
+  most cells reachable within a 3-point budget for a policy with no
+  placement preference).
+- Live dungeon: 2 runs this session (1 resumed from session 13: survived
+  room 3, died room 4; 1 fresh, carrying Task 12 Stage B's consumables probe:
+  died room 2). Death-room histogram now **13 confirmed deaths: room 1 ×0,
+  room 2 ×4, room 3 ×4, room 4 ×5** — same even spread every session, two
+  more data points, no shape change. Energy: 216/240 spent, 12/12 runs
+  (session/day cap reached).
+- Live fishing: 0 casts this session (budget already exhausted at session
+  start — see "What's broken"). `data/fish-patterns.jsonl` unchanged at 25
+  transitions.
+- Tests: 296 passed, 0 skipped, 0 failed (292 → 296).
 
 ## Open questions for Claude
-1. **Task 12 Stage B vs more fishing casts — which is the next session's
-   spine?** Stage B needs a real potion in `consumables` first (untested
-   field shape) before ANY policy work, and the session-13 brief explicitly
-   asked to leave it alone this session. Meanwhile `data/fish-patterns.jsonl`
-   has only 25 transitions from 5 casts — probably not enough for Task 11's
-   `mineFishPatterns.ts` to find real cycles yet, but every additional
-   session of live casts compounds. Worth deciding whether the next session
-   spends its live-play budget on potion-loadout discovery or on growing
-   the fishing transition log toward pattern-mining viability.
-2. **The stuck dungeon run at room 3 (HP 4/36) — resume first, or abandon
-   and start fresh?** It's genuinely still alive and resumable at zero
-   additional run-slot cost (session 09's resume-fix still holds), but at
-   4/36 HP against a full-health enemy it's very likely a loss either way.
-   Worth 20 seconds of the next session's first action either way, just to
-   close it out cleanly rather than leave it dangling indefinitely.
-3. **`focusMeter`'s regeneration behavior is still unknown** — this
-   session's cast never went long enough (or never played wastefully
-   enough) to observe whether the 3-point budget refills at all (per turn,
-   per hand-refill, never). The sim doesn't model `focusMeter` at all yet;
-   worth deciding whether Task 11's fishing-side mining effort should
-   extend to this mechanic too, or stay scoped to movement-pattern
-   identification as originally designed.
+1. **`mineFishPatterns.ts` is now the clear priority — is it the next
+   session's spine?** This session's finding reframes it from "mine once
+   there's enough volume" to "nothing else in fishing matters until this
+   exists." But `data/fish-patterns.jsonl` still has only 25 transitions
+   from 5 casts (unchanged this session — fishing budget was exhausted
+   before the session started), and it's unclear whether that's enough
+   volume for the miner to find real cycles even once built. Worth deciding
+   whether next session builds the miner against the current 25-line log
+   (and reports honestly if it's too thin), or spends live-play budget
+   growing the log first (once the date-keyed guard resets) and defers the
+   miner.
+2. **Task 12 Stage B's timing policy — worth starting now, or still wait?**
+   The field-shape blocker is resolved (raw item ID, consumed at loadout
+   time) and there's a real potion balance to work with (7 Big Heal Juice
+   left after this session's probe). The turn-cost/multi-use questions still
+   need a live `use_item` call on a loaded potion to answer, which needs
+   dungeon run budget (currently 0 remaining today).
+3. **Should the live fishing/dungeon loops report their date-keyed budget
+   status BEFORE a session starts trying to plan around it?** Both guards
+   were already at cap this session before any live action was taken
+   (fishing from session 13's own spend), which wasted no budget but did
+   cost early-session investigation time to discover. A `--status`-only
+   flag on `liveRun.ts`/`liveFishing.ts` that just prints remaining
+   budget without needing a dry-run might be worth it — not built this
+   session, just noticed.
 
 ## Files changed
 ```
-21 non-fixture files changed, 747 insertions(+), 67 deletions(-)
-(+2 new fixture dirs: fixtures/dungeon-runs/run-2026-08-15-20-44-28/,
-fixtures/fishing-casts/live/ [5 cast subdirs];
-+2 new source files: scripts/liveFishing.ts, tests/liveFishing.test.ts)
+12 non-fixture files changed, 356 insertions(+), 42 deletions(-)
+(+3 new fixture dirs: fixtures/dungeon-runs/run-2026-08-15-22-50-29/ [empty,
+dry-run],  run-2026-08-15-22-50-38/, run-2026-08-15-23-02-36/;
++2 new source files: scripts/checkPotions.ts, scripts/fishFocusMeter.ts)
 
-SPEC-fishing.md                    |   2 +-
-SPEC.md                            |  63 ++++++++++++++++++++-
-TASKS.md                           | 107 +++++++++++++++++++++++++----------
-config/bot.json                    |   5 ++
-handoff/DECISIONS.md               |   5 ++
-scripts/liveRun.ts                 | 100 ++++++++++++++++++++++++++++++---
-src/api/client.ts                  |  89 +++++++++++++++++++++++++++++
-src/orchestrator/config.ts         |  47 ++++++++++++++++
-src/sim/boons.ts                   |  13 +++++
-src/sim/enemies.ts                 |  10 ++--
-src/sim/fishing/castSim.ts         |  17 +++++-
-src/sim/fishing/geometry.ts        |  19 +++++++
-src/strategy/fishing/cardChoice.ts | 103 ++++++++++++++++++++++++++++++----
-tests/boons.test.ts                |   9 ++-
-tests/dungeonSim.test.ts           |   5 +-
-tests/enemies.test.ts              |   4 +-
-tests/fishing/cardChoice.test.ts   |  35 ++++++++++--
-tests/fishing/geometry.test.ts     |  28 +++++++++-
-tests/liveRun.test.ts              | 112 +++++++++++++++++++++++++++++++++++++
-tests/orchestrator/config.test.ts  |  32 +++++++++++
-tests/replay.test.ts               |   9 ++-
+SPEC-fishing.md                    |  2 +-
+SPEC.md                            | 80 ++++++++++++++++++++++++++++++++++--
+TASKS.md                           | 72 ++++++++++++++++++++++++++++------
+handoff/DECISIONS.md               |  6 +++
+scripts/liveRun.ts                 | 39 +++++++++++++++++--
+src/sim/boons.ts                   | 41 ++++++++++++++++++-
+src/sim/fishing/castSim.ts         | 70 ++++++++++++++++++++++++++++-----
+src/strategy/fishing/cardChoice.ts |  6 ++-
+tests/boons.test.ts                | 13 +++++--
+tests/dungeonSim.test.ts           | 14 ++++++-
+tests/fishing/castSim.test.ts      | 42 ++++++++++++++++++++
+tests/replay.test.ts               | 13 ++++++-
 
-full stat: `git diff 8a83f8a..HEAD --stat` (before this commit)
+full stat: `git diff 56a4320..HEAD --stat` (before this commit)
 ```

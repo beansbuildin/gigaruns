@@ -217,7 +217,13 @@ describe("the Task 4 gate", () => {
     // [session 13] 1094 -> 1097 — one more live run added 2 room-1/2 offers
     // (no new clean types) plus PLAYER.hpMax 34->36 (src/sim/enemies.ts),
     // same reshuffling, not a regression.
-    expect(s.battleCoverage.scored).toBe(1097);
+    // [session 14] 1097 -> 1099 -> 1087 — two more live runs this session
+    // (brief §4's resumed run: new room-3 CorrosiveMagic offer, now modelled
+    // as `{kind:"latent"}`, contaminates STATUS_EFFECT; brief §3's Stage B
+    // probe run: new room-1 ArmorDepletedWeak offer, unmodelled). Neither is
+    // a new clean type — both reshuffle which random draws land scorable at
+    // this same seed, same drift as every prior session.
+    expect(s.battleCoverage.scored).toBe(1087);
     expect(s.deepestScorableRoom).toBe(4);
   });
 
@@ -251,6 +257,10 @@ describe("the Task 4 gate", () => {
     // session-11 zero nor this session's nonzero is itself informative about
     // the strategy — both are boon-offer-table artifacts at a fixed seed, per
     // the note on the previous test.
-    expect(s.scoredWinRate).toBeCloseTo(2 / 251);
+    // [session 14] Back to 0/255 — two more live runs' worth of new offers
+    // (CorrosiveMagic, ArmorDepletedWeak) reshuffled the scored set again
+    // (1099 -> 1087 scored battles, previous test). Same non-finding as
+    // session 11: possible by construction, just not drawn at this seed.
+    expect(s.scoredWinRate).toBeCloseTo(0);
   });
 });

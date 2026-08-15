@@ -181,6 +181,20 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-15-15-38-09 state-029→state-030",
     observed: "selectedVal1 2 → no change to any player field",
   },
+  CorrosiveMagic: {
+    // [session 14, LIVE] First pair — offered since session 09 (room 3,
+    // never picked) but landed for the first time this session, resuming
+    // the run left stuck at the end of session 13 (STATE.md). Same shape as
+    // AddBurnSword/CorrosiveShield: zero change to any player field at
+    // pickup. Per DECISIONS 2026-08-15, effect is never inferred from name
+    // — this is NOT assumed to be Scissor/Spell's analogue of AddBurnSword
+    // just because the naming pattern suggests it; it is latent and
+    // unconfirmed like the other two, for the same STATUS_EFFECT reason.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-15-22-50-38 state-010→state-011",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
 };
 
 /**
@@ -433,8 +447,9 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
   },
   {
     // [session 09, LIVE] Room-3 offer, Run B. First sighting of
-    // `CorrosiveMagic` (offered, not picked — stays unmodelled). AddBlock
-    // (picked) already modelled.
+    // `CorrosiveMagic` (offered, not picked here — see session 14's offer
+    // below for its first pickup and BOON_MODELS above for the resulting
+    // model). AddBlock (picked) already modelled.
     room: 3,
     source: "run-2026-08-15-01-53-36/state-047",
     options: [opt("TieWeak", 1), opt("CorrosiveMagic", 2), opt("AddBlock", 2)],
@@ -530,6 +545,28 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 2,
     source: "run-2026-08-15-20-44-28/state-033",
     options: [opt("UpgradeRock", 8), opt("AddTenacity", 2), opt("AddEvasion", 5)],
+  },
+  {
+    // [session 14, LIVE] Room-3 offer, same underlying attempt (cid
+    // 24811259) resumed after the stuck-run recovery per this session's
+    // brief §4 — the run that carried the use_item probe survived room 3
+    // this time. `CorrosiveMagic` picked here for the first time (offered
+    // twice before, session 09, never picked) — first pair, now modelled
+    // (`{kind:"latent"}`, zero delta at pickup — see BOON_MODELS above).
+    room: 3,
+    source: "run-2026-08-15-22-50-38/state-010",
+    options: [opt("CorrosiveMagic", 2), opt("TieWeak", 1), opt("AddLifestealShield", 2)],
+  },
+  {
+    // [session 14, LIVE] Room-1 offer, Task 12 Stage B's `--probe-consumables`
+    // run (brief §3 — a real Big Heal Juice, itemId 131, sent in
+    // `consumables` at `start_run`; see DECISIONS.md for the field-shape
+    // finding, not this session's boon focus). First sighting of
+    // `ArmorDepletedWeak` (offered, not picked — stays unmodelled).
+    // AddTenacity (picked) already modelled.
+    room: 1,
+    source: "run-2026-08-15-23-02-36/state-011",
+    options: [opt("AddTenacity", 2), opt("AddBlock", 3), opt("ArmorDepletedWeak", 2)],
   },
 ];
 

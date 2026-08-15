@@ -368,6 +368,25 @@ transition log (`data/fish-patterns.jsonl`, 25 lines from 5 live casts, session
 13) to mine once there's enough volume. Not attempted yet; needs more live
 casts than one session produced.
 
+**[session 14] `mineFishPatterns.ts` is now the BLOCKER, not a volume
+question.** The session-14 brief asked whether `focusMeter` (confirmed live
+session 13, 3-point non-regenerating focus-move budget) explains the sim's
+92.4%-vs-live-0/6 divergence. Modelling it in `castSim.ts` (new
+`FOCUS_METER_MAX`/`defaultStartFocus`) drops the 500-cast catch rate to
+69.9–71.6% — real, but still statistically incompatible with 0/6
+(P≈0.05%). The dominant cause is separate: the sim's true fish pattern is
+always drawn from the same synthetic pool the matcher searches, so it can
+always identify it in principle — none of this project's six real casts
+(1 human + 5 bot) ever have, because the real pattern isn't in that
+library. Forcing the matcher blind (`castSim.ts`'s new `matcherPool: []`
+option) drops the rate to ~7–10%, indistinguishable from random and
+consistent with live 0/6 (P≈55–65%) — see `scripts/fishFocusMeter.ts` and
+SPEC.md §5. Consequence: 25 transitions was never "not quite enough yet,"
+it's that NO volume of transitions helps until `mineFishPatterns.ts`
+exists to turn them into a real library the matcher can search. This is
+now the single most consequential piece of unbuilt fishing code in the
+project.
+
 **Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
 superseding the item-per-energy form above for the dungeon side** — Task 5's
 gate served its purpose and is retired to reported-metrics (see Task 5). The
@@ -528,10 +547,36 @@ first REAL potion:**
   cost side of the decision — a turn cost makes it a tempo-vs-survival
   trade; free makes it pure scarcity allocation.
 - Can two potions be used in the same battle?
-- Does `consumables: []` take item IDs, slot indices, or objects? The three
-  heal potion IDs are known (`SPEC-fishing.md §5`: Lil Heal Juice 151, Mid
-  Heal Juice 155, Big Heal Juice 131).
-- Are potions consumed on use even if the run then fails?
+- ~~Does `consumables: []` take item IDs, slot indices, or objects?~~
+  **ANSWERED [2026-08-15, session 14, live]** — raw item IDs, confirmed
+  below.
+- ~~Are potions consumed on use even if the run then fails?~~ **ANSWERED,
+  and more specific than the question anticipated** — see below.
+
+**[2026-08-15, session 14, live] `consumables` field shape: CONFIRMED, plus
+a bigger surprise.** `scripts/checkPotions.ts` (new, read-only) found real
+inventory: Big Heal Juice (itemId 131) balance 8, Mid Heal Juice (155)
+balance 7, Lil Heal Juice (151) balance 0. `scripts/liveRun.ts` gained
+`--probe-consumables=<itemId>` (mirrors the existing `--probe-use-item`
+pattern; only overrides the ONE `start_run` POST, everything else stays
+`consumables: []`) and sent `start_run` with `consumables: [131]` — the
+run started normally (`"Dungeon run started"`), and **the raw item ID is
+what the field takes**, settling that question. The surprise: **the Big
+Heal Juice balance dropped from 8 to 7 immediately, at `start_run` time —
+before any combat, and the run never called `use_item` even once** (it
+played out normally via the existing combat loop and died at room 2 with
+zero heals fired, zero HP anomalies in the log). This means the potion is
+consumed at **loadout commitment**, not at point-of-use — the two-decision
+model (TASKS.md's own framing above: "Loadout" then separately "Timing")
+is confirmed structurally, but "are potions consumed on use even if the
+run fails" undersells it: this potion was consumed despite never being
+used at all. Full request/response in
+`fixtures/dungeon-runs/run-2026-08-15-23-02-36/state-000.json`; the item
+balance re-check is `scripts/checkPotions.ts`'s own output, not a fixture.
+Per the session-14 brief's explicit instruction, no timing policy or
+`use_item`-triggering attempt was made this session — Stage B's
+turn-cost/multi-use questions above are still open and need a run that
+actually calls `use_item` on a loaded potion.
 
 **Gate**, two stages — the second is not meetable until the first lands, per
 CLAUDE.md §6 (state what has to be captured, don't let the gate outrun it):
@@ -549,13 +594,18 @@ CLAUDE.md §6 (state what has to be captured, don't let the gate outrun it):
   trigger rule) against the current death-room histogram, and the live loop
   uses the result on real runs with heals observed firing. Report
   items-per-energy / mean-rooms-cleared before vs. after, same form as
-  Task 11's own gate. **Not started this session** — per the session-13
-  brief's explicit instruction, Stage A confirming cleanly means Stage B
-  gets its own clean session rather than being rushed in behind it.
+  Task 11's own gate. **Field-shape sub-step MET [2026-08-15, session 14,
+  live]** — see above: `consumables` takes a raw item ID, and the item is
+  consumed at `start_run` (loadout commitment), not at `use_item` time. The
+  POLICY itself (loadout selection + timing rule, sim-scored, live-verified)
+  is **still not started** — per the session-14 brief's explicit
+  instruction ("establish the field shape and stop"), deliberately, so
+  Stage B's policy work gets its own clean session.
 
-Sequencing: this did **not** displace Task 9 (fishing) as this session's
-spine — the Stage A probe was a zero-cost side effect of an ordinary live
-dungeon run already in progress for other reasons.
+Sequencing: neither Stage A (session 13) nor Stage B's field-shape check
+(session 14) has displaced Task 9/11 (fishing) as the session's actual
+spine — both were low-cost, brief-directed probes riding along on live
+dungeon runs already happening for other reasons.
 
 ---
 

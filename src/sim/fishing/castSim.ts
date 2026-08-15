@@ -12,7 +12,7 @@
  * scope for Task 8's gate.
  */
 
-import { chooseCard, shouldRedraw, type FishingCardLike } from "../../strategy/fishing/cardChoice.js";
+import { chooseCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../../strategy/fishing/cardChoice.js";
 import {
   emptyFallback,
   initMatcher,
@@ -21,7 +21,7 @@ import {
   type MatcherState,
 } from "../../strategy/fishing/matcher.js";
 import type { Cell } from "./geometry.js";
-import { cellKey, zonesToCells } from "./geometry.js";
+import { cellKey, manhattan, reachableCells, zonesToCells } from "./geometry.js";
 import { loadDendrenDeck } from "./deck.js";
 import { buildPatternPool, toCandidate, type Pattern } from "./patterns.js";
 import { makeRng, type Rng } from "../rng.js";
@@ -40,6 +40,34 @@ export interface FishPolicyContext {
   dist: ReadonlyMap<string, { cell: Cell; p: number }>;
   gridSize: number;
   fishHp: number;
+  focusBudget: FocusBudget;
+}
+
+/**
+ * **[MODELLED session 14]** `focusMeter`'s confirmed spend rule
+ * (`geometry.ts`'s `reachableCells` doc comment / SPEC.md §5): a 3-point
+ * per-cast budget, costing the Manhattan distance from the CURRENT focus,
+ * that does NOT regenerate within a cast (the one live cast never showed
+ * regeneration — still `[VERIFY]` per the session-13 brief's open question 3,
+ * so this sim assumes the conservative reading, never, until a live probe
+ * says otherwise). Session 13 shipped `FocusBudget` as an optional parameter
+ * on `chooseCard`/`bestFocusForCard` that the live loop threaded through but
+ * the sim never supplied, so its 92.4% catch-rate figure assumed free focus
+ * movement every turn. This constant and `defaultStartFocus` below make the
+ * sim supply a real, tracked budget instead.
+ */
+export const FOCUS_METER_MAX = 3;
+
+/**
+ * **[CONFIRMED 2026-08-15, session 13, live]** The one real cast's
+ * `focusPoint` before any move was `[2,2]` on the confirmed 4×4 grid
+ * (SPEC-fishing.md §4) — the grid's center cell, not a corner or (1,1).
+ * `Math.ceil(gridSize/2)` reproduces `[2,2]` at `gridSize=4` and generalizes
+ * sanely to other sizes without inventing a new mechanic.
+ */
+export function defaultStartFocus(gridSize: number): Cell {
+  const c = Math.ceil(gridSize / 2);
+  return { x: c, y: c };
 }
 
 export type FishAction =
@@ -60,8 +88,7 @@ export const randomFishPolicy: FishPolicy = {
       .filter((i) => ctx.hand[i]!.manaCost <= ctx.mana);
     if (affordable.length === 0) return { type: "pass" };
     const handIndex = rng.pick(affordable);
-    const cells: Cell[] = [];
-    for (let x = 1; x <= ctx.gridSize; x++) for (let y = 1; y <= ctx.gridSize; y++) cells.push({ x, y });
+    const cells = reachableCells(ctx.gridSize, ctx.focusBudget.current, ctx.focusBudget.remaining);
     return { type: "play", handIndex, focus: rng.pick(cells) };
   },
 };
@@ -87,7 +114,7 @@ export const matcherFishPolicy: FishPolicy = {
   name: "matcher-ev",
   act(ctx) {
     const missPenaltyMultiplier = 1;
-    const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp);
+    const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget);
     if (!best) {
       if (ctx.mana >= ctx.hand.length && ctx.hand.length > 0) return { type: "redraw" };
       return { type: "pass" };
@@ -108,8 +135,21 @@ export interface CastOptions {
   fishMaxHp?: number;
   startFishHpRatio?: number;
   maxTurns?: number;
-  /** Override the candidate pool the matcher searches. Defaults to the full synthetic pool. */
+  /** Pool the TRUE fish pattern is drawn from. Defaults to the full synthetic pool. */
   candidatePool?: Pattern[];
+  /**
+   * **[ADDED session 14]** Pool the MATCHER searches when identifying the
+   * fish — defaults to `candidatePool` (i.e. the matcher can always, in
+   * principle, identify the true pattern; the corpus's own 92.4% figure
+   * assumed this). Set to `[]` to force the matcher permanently blind
+   * (`emptyFallback`/uniform every turn) regardless of the true pattern —
+   * this is what actually happened on all 5 real live casts (STATE.md
+   * session 13: the real Dendren pattern isn't in this synthetic library at
+   * all), and separating the two pools is what makes that condition
+   * reproducible in the sim instead of conflated with "matcher searches
+   * correctly but hasn't converged yet."
+   */
+  matcherPool?: Pattern[];
 }
 
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
@@ -137,13 +177,16 @@ export function simulateCast(opts: CastOptions): CastResult {
 
   let { hand, nextIdx: drawIdx } = drawHand(deck, 0, handSize);
 
-  const pool = opts.candidatePool ?? buildPatternPool();
+  const truePool = opts.candidatePool ?? buildPatternPool();
   const startCell: Cell = { x: rng.int(gridSize) + 1, y: rng.int(gridSize) + 1 };
-  const truePattern = pool[rng.int(pool.length)]!;
+  const truePattern = truePool[rng.int(truePool.length)]!;
   const trueTrajectory = truePattern.path(startCell, gridSize, maxTurns + 2);
 
-  const candidates = pool.map((p) => toCandidate(p, startCell, gridSize, maxTurns + 1));
+  const matcherPool = opts.matcherPool ?? truePool;
+  const candidates = matcherPool.map((p) => toCandidate(p, startCell, gridSize, maxTurns + 1));
   let matcher: MatcherState = initMatcher(candidates, startCell);
+
+  let focus: FocusBudget = { current: defaultStartFocus(gridSize), remaining: FOCUS_METER_MAX };
 
   let turn = 0;
   while (turn < maxTurns) {
@@ -155,7 +198,7 @@ export function simulateCast(opts: CastOptions): CastResult {
         ? predictDistribution(matcher)
         : emptyFallback(matcher.history[matcher.history.length - 1]!, new Map(), gridSize);
 
-    const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp }, rng);
+    const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp, focusBudget: focus }, rng);
 
     if (action.type === "pass") {
       return { outcome: "stalled", turns: turn, finalFishHp: fishHp };
@@ -169,6 +212,13 @@ export function simulateCast(opts: CastOptions): CastResult {
     const card = hand[action.handIndex]!;
     mana -= card.manaCost;
     hand = hand.filter((_, i) => i !== action.handIndex);
+
+    // focusMeter never regenerates within a cast [CONFIRMED session 13] — a
+    // policy that ignores its budget (or a bug) is clamped here rather than
+    // trusted, since exceeding it is the one thing the live server rejects
+    // outright (HTTP 400).
+    const moveCost = manhattan(focus.current, action.focus);
+    focus = { current: action.focus, remaining: Math.max(0, focus.remaining - moveCost) };
 
     const actualCell = trueTrajectory[matcher.turn]!;
     matcher = observe(matcher, actualCell);

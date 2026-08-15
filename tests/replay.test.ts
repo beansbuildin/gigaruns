@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(315); // +14 session 13: 1 more live run, halted mid-combat at room 3 (not a death — the run is still active, see DECISIONS 2026-08-15)
+    expect(exchanges(runs).length).toBe(334); // +12 session 14: resumed the stuck run (survived room 3, died room 4, brief §4) + a fresh run carrying Task 12 Stage B's consumables probe (died room 2, brief §3)
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -103,7 +103,16 @@ describe("combat model vs recordings", () => {
     // combat move that a live re-check confirmed did NOT apply (DECISIONS
     // 2026-08-15). Clean model still matched every exchange, 0 clean
     // failures, now 11 live dungeon runs total.
-    expect(report.sideUpdates).toBe(630);
+    // [session 14] Resumed that same stuck run (brief §4, first action this
+    // session) — it survived room 3 at HP 1/36, picked up CorrosiveMagic
+    // (now modelled, see boons.ts), cleared into room 4, and died there. A
+    // second, fresh run carried Task 12 Stage B's `--probe-consumables`
+    // capture (brief §3): `consumables: [131]` on `start_run` decremented
+    // the account's Big Heal Juice balance immediately, before any combat —
+    // see DECISIONS.md. That run died room 2. Clean model matched every
+    // exchange across both, 0 clean failures, now 13 confirmed deaths /
+    // death-room histogram 0/4/4/5 (scripts/deathRooms.ts).
+    expect(report.sideUpdates).toBe(668);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

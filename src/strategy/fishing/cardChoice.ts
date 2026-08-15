@@ -31,8 +31,10 @@ export type Distribution = ReadonlyMap<string, { cell: Cell; p: number }>;
  * its Manhattan distance from the CURRENT focus out of a per-cast budget
  * that does not regenerate within a cast — `geometry.ts`'s `reachableCells`
  * doc comment has the four data points. Optional here (and last in every
- * signature) so the sim, which doesn't model this mechanic at all yet, is
- * unaffected: omit it and the full grid is searched, exactly as before.
+ * signature) so a caller with no budget to track (a test, an old call site)
+ * is unaffected: omit it and the full grid is searched. `castSim.ts` DOES
+ * supply this now (session 14) — see its own `FOCUS_METER_MAX` for the
+ * sim-side tracking.
  */
 export interface FocusBudget {
   current: Cell;
