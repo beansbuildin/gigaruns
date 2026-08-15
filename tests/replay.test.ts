@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(117);
+    expect(exchanges(runs).length).toBe(138);
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -80,15 +80,14 @@ describe("combat model vs recordings", () => {
 
   it("reports the headline numbers", () => {
     // Not an assertion so much as a record of where the model stands.
-    // [session 08] LIVE exchanges in the corpus now (not supervised
-    // human-played captures): the bot played ONE FULL RUN start to finish
-    // (Task 6 stage 3) -- rooms 1-4, including room 3's enemy 65 AT SAFE
-    // TIER (the capture gap open since session 06) -- ending in a death at
-    // room 4. The clean combat model matched EVERY exchange exactly,
-    // including the fatal one (0 clean failures across all of it) --
-    // real-world confirmation the model holds up against the bot's own
-    // live play, not just recorded human sessions, right up to the end.
-    expect(report.sideUpdates).toBe(234);
+    // [session 09] LIVE exchanges in the corpus now include a second full
+    // bot-played run (Task 6 five-run stage run 1: room 1 -> room 2, on the
+    // lowest-tier pick after no Safe tier was offered -> room 3, dying to
+    // enemy 65). The clean combat model matched EVERY exchange exactly again,
+    // 0 clean failures, extending session 08's "the model held through one
+    // full live run" to a second live run with a different loadout (scissor
+    // +4/+4 gear) and, for the first time, a non-Safe-tier battle (room 2).
+    expect(report.sideUpdates).toBe(276);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

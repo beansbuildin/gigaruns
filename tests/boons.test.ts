@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(8); // +1 session 08: AddBlock, room 4, the bot's own live pick
+    expect(pickups.length).toBe(10); // +1 session 09: AddLuck, room 2, the bot's own live pick (2nd pickup this session)
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -146,6 +146,7 @@ describe("fail-closed on unmodelled types", () => {
       "CorrosiveShield",
       "Regen",
       "TieDamageReduction",
+      "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
       "UpgradePaper",
       "UpgradeRock", // session 08: offered in the new room-3 offer, not picked
       "UpgradeScissor",
@@ -154,18 +155,28 @@ describe("fail-closed on unmodelled types", () => {
   });
 });
 
-describe("Wall 1 — the finding that keeps deepestScorableRoom at 1", () => {
-  it("has no room-1 option that is both modelled and clean", () => {
+describe("Wall 1 — HELD through session 08, first hole session 09 LIVE", () => {
+  // [session 09, LIVE] This describe block used to assert "no room-1 option
+  // is both modelled and clean" outright — true through session 08's corpus,
+  // false now. Live play captured the corpus's first-ever room-1 offer
+  // containing Heal (the one boon with `contaminates: []`), so exactly one
+  // room-1 option is both modelled and clean; every OTHER room-1 option
+  // (still 15 of them) is not. This is why `deepestScorableRoom` moved 1 -> 3
+  // this session (tests/dungeonSim.test.ts, "the Task 4 gate").
+  it("has exactly one room-1 option that is both modelled and clean — Heal", () => {
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(15);
+    expect(roomOne.length).toBe(18);
 
+    const clean: string[] = [];
     for (const option of roomOne) {
       const { reasons } = applyBoon(toCombatant(pickups[0]!.before.run.players[0]!), option);
-      expect(reasons.length, `${option.type} came back clean`).toBeGreaterThan(0);
+      if (reasons.length === 0) clean.push(option.type);
+      else expect(reasons.length, `${option.type} came back clean`).toBeGreaterThan(0);
     }
+    expect(clean).toEqual(["Heal"]);
   });
 
-  it("Heal is the only clean boon anywhere in the corpus, and it is offered at room 2", () => {
+  it("Heal is the only clean boon anywhere in the corpus, and it is now offered at rooms 1 AND 2", () => {
     const clean = Object.entries(BOON_MODELS)
       .filter(([, m]) => m.contaminates.length === 0)
       .map(([t]) => t);
@@ -174,6 +185,6 @@ describe("Wall 1 — the finding that keeps deepestScorableRoom at 1", () => {
     const healRooms = OBSERVED_OFFERS.filter((o) =>
       o.options.some((x) => x.type === "Heal"),
     ).map((o) => o.room);
-    expect(healRooms).toEqual([2]);
+    expect(healRooms).toEqual([1, 2]);
   });
 });

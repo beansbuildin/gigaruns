@@ -42,8 +42,13 @@ describe("compare — rock > scissor > paper > rock", () => {
 describe("resolveExchange", () => {
   it("reproduces the recorded Spell-vs-Spell tie from SPEC §4 (state 003→004)", () => {
     // Both sides regenerate their own Spell DEF, then both deal full ATK.
+    // Pinned to the HISTORICAL scissor stats this exchange actually recorded
+    // (ATK 12 / DEF 8, SPEC §4's worked example), not the live-drifting
+    // `PLAYER` constant — the point of this test is reproducing one specific
+    // real capture, so it must not silently change meaning when the user's
+    // current gear changes (session 09: PLAYER.moves.scissor moved to 16/12).
     const state: BattleState = {
-      me: { ...me(), hp: 31, armor: 0 },
+      me: { ...me(), hp: 31, armor: 0, moves: { ...me().moves, scissor: { atk: 12, def: 8, charges: 3, maxCharges: 3 } } },
       foe: { ...e63(), hp: 22, armor: 2 },
       room: 1,
     };
@@ -72,14 +77,17 @@ describe("resolveExchange", () => {
   });
 
   it("regenerates on ANY winning move, not just Shield — the branch that kills the rejected model", () => {
-    // Winning with Spell (DEF 8) must restore 8. The superseded model restored 0.
+    // Winning with Spell must restore its DEF. The superseded model restored 0.
+    // [session 09] PLAYER.moves.scissor.def is 12 (was 8 through session 08 —
+    // +4 Spell DEF gear); starting armor kept low enough to stay clear of the
+    // armorMax 16 cap so this demonstrates plain regen, not the cap.
     const state: BattleState = {
-      me: { ...me(), armor: 4 },
+      me: { ...me(), armor: 2 },
       foe: { ...e63(), charges: 3 } as Combatant,
       room: 1,
     };
     const { state: next } = resolveExchange(state, "scissor", "paper"); // Spell beats Shield
-    expect(next.me.armor).toBe(12); // 4 + 8, well under the cap of 15
+    expect(next.me.armor).toBe(14); // 2 + 12, well under the cap of 16
   });
 
   it("wastes armor regenerated above the cap", () => {

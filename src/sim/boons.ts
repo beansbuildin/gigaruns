@@ -254,9 +254,33 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     options: [opt("AddIntuition", 5), opt("AddLuck", 1), opt("Regen", 2)],
   },
   {
+    // [session 09, LIVE] Second room-1 offer from the bot's own live play.
+    // AddEvasion (picked) already had a pair from session 06 — this adds a
+    // second, val1 5 here vs val1 1 there (rarity varies the roll: this one
+    // was "Epic" vs the earlier "Common"). Confirms the additive rule holds
+    // across different roll magnitudes, not just the one previously seen.
+    room: 1,
+    source: "run-2026-08-15-01-16-03/state-011",
+    options: [opt("AddEvasion", 5), opt("AddTenacity", 2), opt("Heal", 16)],
+  },
+  {
     room: 2,
     source: "run-2026-08-14-01-00-08/state-027",
     options: [opt("Heal", 16), opt("UpgradeScissor", 4), opt("AddIntuition", 1)],
+  },
+  {
+    // [session 09, LIVE] First room-2 offer following a NON-Safe enemy-tier
+    // pick (session 09: no Safe tier was offered for this room's fight, see
+    // enemyTier.ts). All three options here carry `tier`/`tierName: "Risky"`
+    // on the wire (new fields, never seen on `rewardPathOptions[]` before —
+    // reward offers apparently inherit the risk tier of the fight just won,
+    // not just the enemy-path offer itself). Logged, not modelled or acted
+    // on (DECISIONS 2026-08-15) — `wireBoonToOption` still reads only
+    // boonTypeString/selectedVal1/selectedVal2. Also the corpus's first
+    // sighting of `TieWeak` (offered, not picked — stays unmodelled).
+    room: 2,
+    source: "run-2026-08-15-01-42-35/state-022",
+    options: [opt("CorrosiveShield", 2), opt("AddLuck", 1), opt("TieWeak", 1)],
   },
   {
     room: 3,

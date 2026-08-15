@@ -57,7 +57,7 @@ import type { BoonOption } from "../src/sim/boons.js";
 import { decide, formatDecision, type Decision } from "../src/strategy/decide.js";
 import { LIVE_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
 import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
-import { pickSafeTier, UnsafeTierError } from "../src/strategy/enemyTier.js";
+import { pickLowestTier } from "../src/strategy/enemyTier.js";
 import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 
@@ -189,19 +189,24 @@ export function locateRewardOption(run: WireRun, chosen: BoonOption): number | n
 }
 
 /**
- * [session 09] Re-locates the Safe-tier option by its identity — tier === 0
- * — rather than trusting the array position captured at decision time. Under
- * the hard Safe-tier rule (CLAUDE.md §8) there is only ever one correct
- * option regardless of what else is on offer, so identity here is simpler
- * than the reward case: find whichever position currently holds tier 0.
- * Returns `null` if no Safe tier is offered on a retry, which halts the run
- * rather than ever picking a non-Safe tier as a fallback.
+ * [session 09] Re-locates the intended tier option by identity — "whichever
+ * position currently holds the LOWEST tier offered" — rather than trusting
+ * the array position captured at decision time. Under the generalized
+ * lowest-tier rule (CLAUDE.md §8, `pickLowestTier`) this is dynamic by
+ * design: the rule doesn't target a specific tier number, it targets
+ * "whatever's lowest right now," so re-deriving from fresh state on every
+ * retry attempt is exactly correct, not an approximation. Returns `null`
+ * only on a genuinely empty offer, which halts the run rather than guessing.
  */
-export function locateSafeTierOption(run: WireRun): number | null {
+export function locateLowestTierOption(run: WireRun): number | null {
   const r = run as WireRun & { enemyPathOptions?: Array<{ tier: number; index: number }> };
   const options = r.enemyPathOptions ?? [];
-  const i = options.findIndex((o) => o.tier === SAFE_TIER);
-  return i === -1 ? null : i;
+  if (options.length === 0) return null;
+  let bestIdx = 0;
+  for (let i = 1; i < options.length; i++) {
+    if (options[i]!.tier < options[bestIdx]!.tier) bestIdx = i;
+  }
+  return bestIdx;
 }
 
 export function buildEnvelope(
@@ -315,6 +320,16 @@ export interface LiveRunDeps {
   fixtures: FixtureWriter;
   log: RunLog;
   dryRun: boolean;
+  /**
+   * Where `saveGuardBudget` persists after every guard mutation. Defaults to
+   * `DEFAULT_GUARD_STATE_PATH` (`data/guard-budget.json`) in `main()`.
+   * Injectable so tests exercising `runOnce` against a mocked client never
+   * write to the real project `data/` dir — session 09 found exactly this
+   * happening (a test run left a stale `runsStarted: 1` seed on disk that a
+   * later real `--dry-run` invocation then reported back as "already
+   * spent").
+   */
+  guardStatePath?: string;
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -403,7 +418,7 @@ export async function postWithVerifiedRetry(
  * it polls state and logs every decision it WOULD have sent.
  */
 export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } = {}): Promise<void> {
-  const { client, config, guards, model, strategyConfig, fixtures, log, dryRun } = deps;
+  const { client, config, guards, model, strategyConfig, fixtures, log, dryRun, guardStatePath } = deps;
 
   let prevFoeMove: MoveKey | null = null;
   let lastFoeId: string | null = null;
@@ -443,7 +458,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
     }
     guards.recordActionResult(true);
     guards.recordRunStarted();
-    saveGuardBudget(guards.spentEnergy, guards.runCount); // [session 09] persist immediately — see guardPersistence.ts
+    saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath); // [session 09] persist immediately — see guardPersistence.ts
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
     console.log(`  ✓ start_run sent — actionToken now ${client.getActionToken()}`);
@@ -549,32 +564,38 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
       const options = r.enemyPathOptions ?? [];
       let chosen: { tier: number; index: number };
       try {
-        chosen = pickSafeTier(options);
+        chosen = pickLowestTier(options);
       } catch (e) {
-        if (e instanceof UnsafeTierError) {
-          log.write({ event: "unsafe_tier_halt", error: e.message, options });
-          console.log(`  ✗ ${e.message}`);
-        }
+        // Only an empty offer throws here now (see enemyTier.ts) — a
+        // genuinely new kind of surprise, unlike "no Safe tier" (session 09,
+        // no longer treated as an error — see below).
+        log.write({ event: "empty_enemy_path_options", error: (e as Error).message, options });
+        console.log(`  ✗ ${(e as Error).message}`);
         throw e;
       }
-      console.log(`  ▸ enemy path: choosing Safe tier, index ${chosen.index}`);
-      log.write({ event: "tier_choice", chosen, options });
+      const safeOffered = options.some((o) => o.tier === SAFE_TIER);
+      const posn = options.indexOf(chosen); // array position — what selectEnemyPathByIndex needs, NOT the wire's own .index field
+      console.log(
+        `  ▸ enemy path: choosing lowest offered tier ${chosen.tier}${chosen.tier === SAFE_TIER ? " (Safe)" : " — NOT Safe, none was offered (session-09: expected, not a bug)"}`,
+      );
+      log.write({ event: "tier_choice", chosen, position: posn, options, safeOffered });
 
       if (dryRun) {
-        console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(chosen.index)} (data.index 0 — see buildPathSelectionEnvelope)`);
+        console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(posn)} (data.index 0 — see buildPathSelectionEnvelope)`);
         return;
       }
-      // Index is re-derived by identity (tier === SAFE_TIER) on every
-      // attempt, including this first one — never resent from `chosen.index`
-      // captured above, per postWithVerifiedRetry's doc comment (session-09
-      // brief §1). data.index in the POST body is 0 regardless of position —
-      // confirmed live, see buildPathSelectionEnvelope.
+      // Index is re-derived by identity — "whichever position currently
+      // holds the lowest tier" — on every attempt, including this first
+      // one, never resent from `posn` captured above, per
+      // postWithVerifiedRetry's doc comment (session-09 brief §1). data.index
+      // in the POST body is 0 regardless of position — confirmed live, see
+      // buildPathSelectionEnvelope.
       const resp = await postWithVerifiedRetry(
         client,
         guards,
         log,
         run,
-        (freshRun) => locateSafeTierOption(freshRun),
+        (freshRun) => locateLowestTierOption(freshRun),
         (index) => buildPathSelectionEnvelope(selectEnemyPathByIndex(index), 0),
         (freshRun) => classifyPhase(freshRun) === "enemyPath",
         "enemy path selection rejected",
@@ -692,10 +713,23 @@ async function main() {
   for (let i = 0; i < targetRuns; i++) {
     console.log(`\n▸ run ${i + 1}/${targetRuns}`);
     const before = args.dryRun ? null : await currentEnergy(client, me.address);
-    await runOnce(
-      { client, config, guards, model, strategyConfig: LIVE_CONFIG, fixtures, log, dryRun: args.dryRun },
-      { stage2Only: args.stage2 },
-    );
+    // [session 09, LIVE] `runOnce` can throw mid-run (a guard trip is exactly
+    // what it's FOR — see the no-Safe-tier halt this session). The energy
+    // accounting below used to sit after an unguarded `await runOnce(...)`,
+    // so a thrown run skipped it entirely: real energy had already been
+    // spent (start_run), but the persisted budget never recorded it. Caught
+    // here so accounting always runs, then re-thrown so the process still
+    // exits non-zero exactly as before — CLAUDE.md §5's fail-closed behavior
+    // is unchanged, only the bookkeeping around it.
+    let runError: unknown = null;
+    try {
+      await runOnce(
+        { client, config, guards, model, strategyConfig: LIVE_CONFIG, fixtures, log, dryRun: args.dryRun },
+        { stage2Only: args.stage2 },
+      );
+    } catch (e) {
+      runError = e;
+    }
     if (before !== null) {
       // Regen runs concurrently (SPEC: ~18/hr, more if juiced), so a real
       // spend can be masked by a few seconds of regen on a short action —
@@ -715,6 +749,7 @@ async function main() {
       log.write({ event: "energy_accounting", before, after, delta });
       console.log(`  ▸ energy: ${before} -> ${after}  (spent ${delta})`);
     }
+    if (runError) throw runError;
     if (args.stage2) break;
   }
 

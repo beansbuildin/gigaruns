@@ -8,6 +8,10 @@
  * `tests/api/client.test.ts` — nothing here touches the real network.
  */
 
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -16,8 +20,8 @@ import {
   buildPathSelectionEnvelope,
   classifyPhase,
   KNOWN_SIDE_KEYS,
+  locateLowestTierOption,
   locateRewardOption,
-  locateSafeTierOption,
   moveToAction,
   postWithVerifiedRetry,
   runOnce,
@@ -32,7 +36,6 @@ import type { BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { OpponentModel } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
-import { UnsafeTierError } from "../src/strategy/enemyTier.js";
 import type { WireBoon, WireRun, WireSide } from "../src/sim/corpus.js";
 
 // ---------------------------------------------------------------------------
@@ -99,12 +102,16 @@ function mockFetch(handler: (url: string, init?: RequestInit) => { status: numbe
   });
 }
 
+let guardStateTestDir: string;
+
 beforeEach(() => {
   vi.useFakeTimers();
+  guardStateTestDir = mkdtempSync(join(tmpdir(), "gigaruns-liverun-test-"));
 });
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  rmSync(guardStateTestDir, { recursive: true, force: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -241,17 +248,27 @@ describe("locateRewardOption", () => {
   });
 });
 
-describe("locateSafeTierOption", () => {
+describe("locateLowestTierOption", () => {
   it("finds whichever position currently holds tier 0, regardless of where it was before", () => {
     const runA = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 0, index: 0 }, { tier: 1, index: 1 }, { tier: 2, index: 2 }] });
     const runB = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 2, index: 0 }, { tier: 0, index: 1 }, { tier: 1, index: 2 }] });
-    expect(locateSafeTierOption(runA)).toBe(0);
-    expect(locateSafeTierOption(runB)).toBe(1);
+    expect(locateLowestTierOption(runA)).toBe(0);
+    expect(locateLowestTierOption(runB)).toBe(1);
   });
 
-  it("returns null — never falls back to a non-Safe tier — if no Safe tier is offered", () => {
-    const run = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 1, index: 0 }, { tier: 2, index: 1 }] });
-    expect(locateSafeTierOption(run)).toBeNull();
+  // [session 09, live] Room 2's first live encounter offered NO Safe tier at
+  // all — three options, tiers {2, 1, 1}. User-confirmed: expected game
+  // behavior, not a capture gap. The generalized rule takes the lowest
+  // offered tier regardless — no fallback to a "safer" option that isn't
+  // actually present.
+  it("falls back to the lowest NON-Safe tier when Safe isn't offered — session 09, live", () => {
+    const run = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 2, index: 0 }, { tier: 1, index: 1 }, { tier: 1, index: 2 }] });
+    expect(locateLowestTierOption(run)).toBe(1); // first of the two tier-1 options
+  });
+
+  it("returns null only on a genuinely empty offer", () => {
+    const run = fakeRun({ enemyPathPhase: true, enemyPathOptions: [] });
+    expect(locateLowestTierOption(run)).toBeNull();
   });
 });
 
@@ -310,6 +327,11 @@ function makeDeps(dryRun: boolean): LiveRunDeps {
     fixtures: { write: vi.fn(), dir: "test-fixtures" } as unknown as LiveRunDeps["fixtures"],
     log: { write: vi.fn(), filePath: "test.jsonl" } as unknown as LiveRunDeps["log"],
     dryRun,
+    // [session 09] runOnce persists guard budget on every start_run — point
+    // it at a throwaway path so exercising runOnce here never touches the
+    // real data/guard-budget.json (session 09 caught this happening: a test
+    // run left a stale seed a later real --dry-run then reported back).
+    guardStatePath: join(guardStateTestDir, "guard-budget.json"),
   };
 }
 
@@ -362,7 +384,7 @@ describe("postWithVerifiedRetry", () => {
   // every attempt, including the first, re-derives its index from whatever
   // state is passed in rather than trusting a captured position. These tests
   // aren't about identity resolution itself (locateRewardOption/
-  // locateSafeTierOption have their own tests below); `locate` here just
+  // locateLowestTierOption have their own tests below); `locate` here just
   // mirrors "still in reward phase" -> index 0, same as the old static body.
   const initialRun = fakeRun({ rewardPathPhase: true });
   const locate = (r: ReturnType<typeof fakeRun>) => (classifyPhase(r) === "rewardPath" ? 0 : null);
@@ -525,11 +547,12 @@ describe("runOnce — enemy path phase", () => {
     await expect(p).resolves.toBeUndefined();
   });
 
-  it("halts with UnsafeTierError if Safe is somehow not the resolved choice — hard rule, CLAUDE.md §8", async () => {
-    // Regression guard: pickSafeTier always chooses the lowest tier and then
-    // asserts it. If the corpus ever offered no tier-0 option, this is
-    // exactly the halt CLAUDE.md §8 requires, not a silent Dangerous pick.
-    const dangerousOnly = {
+  // [session 09, live] Room 2's first live encounter offered no Safe tier at
+  // all — refuted the original assumption that Safe is always present.
+  // User-confirmed expected behavior, not a bug: generalized to "lowest tier
+  // offered, Safe or not" rather than halting whenever Safe is absent.
+  it("picks the lowest NON-Safe tier when Safe isn't offered, rather than halting — CLAUDE.md §8, generalized session 09", async () => {
+    const noSafeOffered = {
       enemyPathPhase: true,
       enemyPathOptions: [
         { index: 0, tier: 1, tierName: "Risky" },
@@ -540,12 +563,24 @@ describe("runOnce — enemy path phase", () => {
       "fetch",
       mockFetch(() => ({
         status: 200,
-        body: { success: true, actionToken: 1, data: { run: fakeRun(dangerousOnly) } },
+        body: { success: true, actionToken: 1, data: { run: fakeRun(noSafeOffered) } },
       })),
+    );
+    const deps = makeDeps(true); // dry-run — logs the pick, never POSTs
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it("still halts on a genuinely empty enemyPathOptions offer", async () => {
+    const emptyOffer = { enemyPathPhase: true, enemyPathOptions: [] };
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(emptyOffer) } } })),
     );
     const deps = makeDeps(true);
     const p = runOnce(deps);
-    const assertion = expect(p).rejects.toBeInstanceOf(UnsafeTierError);
+    const assertion = expect(p).rejects.toThrow();
     await vi.runAllTimersAsync();
     await assertion;
   });

@@ -72,8 +72,19 @@ export const DANGEROUS_TIER = 2;
  * one and reports how many distinct loadouts it can see, so the drift is visible
  * rather than silently biasing every armor-fraction number in the sim.
  *
- * Consequence for cross-session comparisons: a baseline measured at armorMax 15
- * is not strictly comparable to one measured at 16. Re-measure both sides of any
+ * [session 09, live] `scissor` (Spell) moved from ATK 12/DEF 8 to ATK 16/DEF 12
+ * — the user equipped gear adding +4 Spell ATK and +4 Spell DEF, confirmed
+ * against `startingATK`/`currentATK` on the newest live capture
+ * (run-2026-08-15-01-16-03/state-000.json: scissor startingATK 12,
+ * currentATK 16). `rock`/`paper` unaffected. This only updates the OFFLINE
+ * sim's baseline (`scripts/sim.ts`) — the live loop itself never used this
+ * constant; `buildBattleState`/`toCombatant` already read `currentATK`/
+ * `currentDEF` straight off each poll's wire response, so live play picked
+ * up the gear change automatically, with no code change needed there.
+ *
+ * Consequence for cross-session comparisons: a baseline measured at scissor
+ * 12/8 is not strictly comparable to one measured at 16/12 (higher still
+ * than the 2026-08-16 depth-ablation loadout). Re-measure both sides of any
  * comparison in the same run rather than quoting a number from an old recap.
  */
 export const PLAYER: Combatant = {
@@ -85,7 +96,7 @@ export const PLAYER: Combatant = {
   moves: {
     rock: mv(16, 0), // Sword
     paper: mv(6, 12), // Shield
-    scissor: mv(12, 8), // Spell
+    scissor: mv(16, 12), // Spell — +4 ATK / +4 DEF gear, session 09
   },
   // The player starts every run with all rolled stats at zero; the only way
   // they become non-zero is a boon (src/sim/boons.ts).

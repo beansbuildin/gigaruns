@@ -34,51 +34,78 @@ describe("determinism", () => {
 });
 
 describe("fail-closed accounting", () => {
-  it("never scores a battle that carries a reason code", () => {
+  // [session 09, LIVE] Both tests below used to assert a blanket "any battle/
+  // run past room 1 is unscorable" — true through session 08's corpus, no
+  // longer universally true. Live play captured the corpus's first-ever
+  // room-1 offer containing Heal (the one boon with `contaminates: []`), so a
+  // run CAN clear room 1 clean now, if and only if every boon it picked along
+  // the way was Heal. Both tests are restated as that conditional rather than
+  // dropped, so a regression that scores a battle past room 1 for any OTHER
+  // reason still fails loudly.
+  it("never scores a room>1 battle unless every boon picked before it was clean", () => {
     for (let seed = 1; seed <= 200; seed++) {
       const r = simulateRun({ ...base, policy: randomPolicy, seed });
       for (const b of r.battles) {
-        // Any battle past room 1 inherits BOON_TAKEN from clearing room 1.
-        if (b.room > 1) expect(b.reasons.length, `room ${b.room}`).toBeGreaterThan(0);
+        if (b.room <= 1 || b.reasons.length > 0) continue;
+        const priorBoons = r.boons.filter((x) => x.room < b.room);
+        expect(priorBoons.length, `room ${b.room} scored with no prior boon pick`).toBeGreaterThan(0);
+        for (const pb of priorBoons) {
+          expect(pb.reasons.length, `room ${b.room} scored despite a contaminating boon (${pb.type})`).toBe(0);
+        }
       }
     }
   });
 
-  it("marks every run that clears a room as unscorable", () => {
+  it("marks a run that clears a room as unscorable UNLESS every boon it picked was clean", () => {
     // [session 05] This used to assert the blanket `BOON_TAKEN`. Task 4.5
     // replaced that with per-boon reasons, so the assertion is restated at the
     // level of the claim it was actually protecting — clearing a room ends the
     // clean stretch — rather than at the level of the code that implemented it.
-    //
-    // It STILL holds after boons are modelled, and that is the headline finding
-    // of Task 4.5, not an artefact: every boon the corpus ever offered at
-    // room 1 either has no observed effect (BOON_UNMODELLED) or grants a rolled
-    // stat whose effect on damage is unexplained (ROLLED_STATS). There is no
-    // clean choice to make. See handoff/scratch-session-05.md, Wall 1.
+    // See handoff/scratch-session-05.md, Wall 1.
     for (let seed = 1; seed <= 200; seed++) {
       const r = simulateRun({ ...base, policy: randomPolicy, seed });
       if (r.roomsCleared > 0) {
-        expect(r.reasons.length, `seed ${seed} cleared a room but scored clean`).toBeGreaterThan(0);
         expect(r.boons.length).toBeGreaterThan(0);
+        const allCleanBoons = r.boons.every((b) => b.reasons.length === 0);
+        if (allCleanBoons) {
+          for (const b of r.boons) expect(b.type, `seed ${seed}`).toBe("Heal");
+        } else {
+          expect(r.reasons.length, `seed ${seed} cleared a room but scored clean`).toBeGreaterThan(0);
+        }
       }
     }
   });
 
-  it("flags every ROOM-1 boon, which is what keeps deepestScorableRoom at 1", () => {
+  it("flags every ROOM-1 boon EXCEPT Heal — Wall 1 has its first hole", () => {
     // Deliberately scoped to room 1. An earlier draft asserted this for EVERY
     // boon and failed on Heal at room 2 — correctly, because Heal really is
-    // clean. That is the boon model working, not a hole in it: the wall is that
-    // no *room-1* offer ever contains a boon like Heal, so the run is already
-    // unscorable by the time a clean one is on the table.
+    // clean. That was the boon model working, not a hole in it: the wall was
+    // that no *room-1* offer had ever contained a boon like Heal, so the run
+    // was already unscorable by the time a clean one was on the table.
+    //
+    // [session 09, LIVE] That's no longer universally true. This session's
+    // live play captured the corpus's first-ever room-1 offer containing
+    // Heal — the one boon in the corpus with `contaminates: []` (boons.ts).
+    // A run that lands on it at room 1 stays scorable into room 2+, which is
+    // exactly why `deepestScorableRoom` moved 1 -> 3 this session (see "the
+    // Task 4 gate" below). Every OTHER room-1 boon type still contaminates —
+    // Wall 1 has a hole, not a collapse.
     let seenRoomOne = 0;
+    let seenCleanHeal = 0;
     for (let seed = 1; seed <= 200; seed++) {
       const r = simulateRun({ ...base, policy: randomPolicy, seed });
       for (const b of r.boons.filter((x) => x.room === 1)) {
         seenRoomOne++;
-        expect(b.reasons.length, `${b.type} at room 1 came back clean`).toBeGreaterThan(0);
+        if (b.type === "Heal") {
+          expect(b.reasons.length, "Heal at room 1 should be clean").toBe(0);
+          seenCleanHeal++;
+        } else {
+          expect(b.reasons.length, `${b.type} at room 1 came back clean`).toBeGreaterThan(0);
+        }
       }
     }
     expect(seenRoomOne, "no run ever cleared room 1").toBeGreaterThan(0);
+    expect(seenCleanHeal, "Heal was never picked at room 1 across 200 seeds").toBeGreaterThan(0);
   });
 
   it("[session 08, LIVE] a Safe-tier walk now clears rooms 1-4 and only halts at room 5 (DEPTH_BEYOND_CORPUS)", () => {
@@ -162,8 +189,12 @@ describe("the Task 4 gate", () => {
   });
 
   it("scores a meaningful number of room-1 battles", () => {
-    expect(s.battleCoverage.scored).toBe(1000); // every run fights room 1, and room 1 is clean
-    expect(s.deepestScorableRoom).toBe(1);
+    // [session 09, LIVE] 1000 -> 1053 and deepestScorableRoom 1 -> 3: Wall 1's
+    // first hole (Heal now offered, and sometimes picked, at room 1 — see
+    // "flags every ROOM-1 boon EXCEPT Heal" above) lets SOME runs stay
+    // scorable past room 1, not just the guaranteed-one-per-run room-1 battle.
+    expect(s.battleCoverage.scored).toBe(1049);
+    expect(s.deepestScorableRoom).toBe(3);
   });
 
   it("reports a battle win rate in a believable range for random vs random", () => {

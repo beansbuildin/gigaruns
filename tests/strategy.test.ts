@@ -212,7 +212,15 @@ describe("decide — SPEC §4b's worked sanity check", () => {
 
     for (const mv of MOVES) expect(row[mv]!.worst).toBe(deathPenalty(1, cfg()));
     expect(row.paper!.ev).toBeGreaterThan(row.rock!.ev);
-    expect(row.paper!.ev).toBeGreaterThan(row.scissor!.ev);
+    // [session 09] Spell's DEF rose from 8 to 12 (+4 gear), which is now
+    // enough to survive the Spell-tie cell too — Spell goes from "1 kill, 1
+    // survivable tie, 1 death" to "2 kills (one via the tie), 1 death",
+    // exactly mirroring Shield's cell shape, so their EV is now genuinely
+    // tied (333.33 == 333.33), not just close. `decide()` still resolves the
+    // tie to paper deterministically (asserted below via `d.move`) — the
+    // conclusion SPEC §4b states is unchanged, only the EV margin is gone.
+    expect(row.paper!.ev).toBeGreaterThanOrEqual(row.scissor!.ev);
+    expect(d.move).toBe("paper");
 
     // Two of Shield's three replies end with the enemy dead and us alive.
     const kills = row.paper!.cells.filter((c) => c.value === cfg().winValue);
