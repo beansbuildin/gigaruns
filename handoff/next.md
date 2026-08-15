@@ -1,168 +1,127 @@
-# BRIEF — session 12
+# BRIEF — session 13
 
-Task 7 passed and the fishing half is open after eleven sessions blocked. Item
-metadata fell out of the same capture. And the death histogram held its shape at
-n=9 — exactly even across rooms 2/3/4, replicating n=6 independently.
-
-Flagging the gear-change discipline first: re-measuring the gate against the new
-loadout and explicitly marking session 10's numbers non-comparable is the right
-handling. 92.9% vs 86.4% would have looked like a huge model win. It's Sword ATK
-16→20.
+Task 8 passed, and replaying the real cast against SPEC before writing strategy
+code caught two contradictions that would otherwise have been baked into the
+matcher. That ordering — validate the spec against the corpus, *then* build — is
+now the third time it's paid off.
 
 ---
 
-## 1. Answering Q1: fishing. And your dungeon framing left out the real lever.
+## 1. My §5 was backwards on every count, and one consequence isn't propagated yet
 
-You framed the dungeon's remaining options as opponent-model depth or capture
-past room 4. Both are thin-data problems that **fill themselves** as production
-runs accumulate — slopes, not steps, and neither needs a session dedicated to it.
+I wrote the catch meter as rising on a hit and falling on a miss. Reality is the
+inverse: a hit drives `fishHp` toward 0 (the catch), a miss drives it toward
+`fishMaxHp` (the escape). Every sentence I wrote about it was wrong.
 
-The lever you listed separately under Q3 is the big one: **potions are +4/+8/+20
-flat against a ~32 HP pool.** Three of them is potentially 60 HP — roughly two
-full health bars — in runs that currently die at room 2, 3, or 4. Nothing in the
-utility function is that size. Weight tuning moved 0.03 rooms.
+But the detail that matters most is the one you found incidentally: **the real
+cast escaped at `fishHp == fishMaxHp` with mana still at 5/10.**
 
-But it's blocked on one user answer (§3), so it can't be the session's spine.
+That refutes a load-bearing assumption in my §5 design. I wrote:
 
-**So: Task 8, fishing strategy.** Reasons, in order:
+> pick `argmax EV(card) / card.manaCost` — mana is the real budget
 
-- It's the only fully unblocked direction, and it's half the original project.
-- The dungeon bot already works and produces value. Running it in production
-  *while* fishing gets built accumulates exactly the rooms 2–4 opponent data the
-  dungeon diagnostic needs. The blocked path unblocks itself in the background.
-- Splitting effort across both is the thing worth avoiding, and you were right
-  to ask rather than guess.
+**Mana is not the budget. Misses are.** The cast ended with half the mana
+unspent, because the miss counter hit the ceiling first. Dividing EV by mana
+cost optimises against a constraint that isn't binding, and it will systematically
+prefer cheap low-probability cards over expensive reliable ones — exactly
+backwards when every miss is a step toward losing the cast.
 
-If the user answers §3 mid-session, fold the potion work in — it's small once
-the trigger mechanism is known.
+Check whether `cardChoice.ts` still carries that divisor. If it does:
 
-## 2. SPEC §5 was wrong, and it breaks more of the fishing design than it looks
+- **Maximise hit probability per turn.** Mana becomes a feasibility filter
+  (can I afford this card?), not a denominator.
+- Keep a mana-aware term only for the endgame — if remaining mana can't cover
+  enough turns to finish the fish, efficiency starts mattering again. That's a
+  late-cast correction, not the primary objective.
+- Re-run the 500-cast sim after the change. If catch rate moves from 19.0%,
+  the divisor was costing real performance.
 
-I wrote "3×3 grid" from the public docs. Live capture: **4×4 with the
-bobber/focus mechanic enabled**, hitboxes relative to a movable `focusPoint`,
-not absolute cells. Good catch, and correcting SPEC with the capture cited
-rather than patching around it was right.
+This also composes with your convergence finding. Hedge-throughout plus
+maximise-hit-probability is one coherent policy: **wide hitboxes, focus placed
+over the highest-probability region, damage and mana both sacrificed for the
+chance to connect.** Identification is a bonus when it happens, never the plan.
 
-Two consequences the correction doesn't yet carry, both of which change §5's
-strategy design:
+## 2. Q1: Task 9 is the spine — and Task 12's blocker is free, not a session
 
-**The hypothesis-elimination core survives; the card-choice math doesn't.**
-Pattern identification still works — fish movement is still drawn from a finite
-pattern library, and each observed transition still prunes candidates. But EV
-per card was written for fixed hitboxes over absolute cells. With a movable
-focus, the action is a **(card, focus placement) pair**, and EV integrates over
-where you put the focus. Re-derive that section; don't adapt it.
+You framed these as competing for one supervised session. I don't think Task 12
+needs one.
 
-**Convergence may be too slow to matter, and that's the strategic finding.**
-16 cells instead of 9, and the captured cast ended after ~5 card plays. If the
-pattern library is large, `|H|` may never reach 1 before the fish escapes — in
-which case the "identify then exploit" framing is wrong for Dendren and the
-right policy is **hedging throughout**: wide hitboxes, focus placed to cover the
-highest-probability region, damage sacrificed for hit probability.
+**`consumables: []` is currently always empty.** So sending `use_item` right now
+risks nothing — there is no item in the loadout to consume. The response
+resolves the question by itself:
 
-Don't assume either way. Measure it: from the captured cast plus whatever the
-sim can generate, report **how many observations `|H|` needs to converge versus
-how many plays a cast actually affords.** That ratio decides the entire policy
-shape, and it's answerable before writing the card chooser.
+- `404`/`405` → the action name is wrong, same as `loot_one` and `enemy_two`.
+- `400` with a meaningful error (no such item / invalid index) → **the action
+  exists**, and the error text usually names the argument it wanted.
+- `200` → unexpected with an empty loadout. Dump it and stop.
 
-## 3. Q3: yes, ask — and I've asked the user directly
+Either way `use_item` gets confirmed with zero exposure. Do it late in a run
+that's already going badly, so a burned action token costs the least, and let
+`postWithVerifiedRetry` re-sync afterwards.
 
-`OnUseBattle` reading as a manual action **contradicts** the pre-committed
-loadout I recorded in session 11, and I may have downgraded the task too early on
-that basis. The branches differ substantially:
+That's a probe, not a stage. **Task 12 doesn't need doomed-state detection at
+all** — that requirement came from my session-11 addendum, which assumed the
+loadout would be populated. It isn't yet, and that makes the probe safe.
 
-- **Auto-proc on a threshold** → loadout selection only. Which three potions,
-  static, solvable in sim. Small.
-- **Manual mid-battle** → the optimal-stopping problem is back. Loadout
-  selection *and* timing, and `use_item` needs confirming before any live use.
+So: **Task 9 (live fishing) is the session's spine.** The matcher and EV engine
+are built and idle, and every cast produces real transition data that feeds §3.
 
-Put both branches in `TASKS.md` so whichever answer arrives is ready to build.
-Do not model either speculatively.
+Note Task 9 doesn't need the user to play — same staging as Task 6 (dry run →
+one cast → five), run by you. Add a fishing energy budget line to
+`config/bot.json` before the first cast: casts are 12/16/20 energy against the
+same pool the dungeon draws from, capped at 10/day.
 
-Either way, `use_item` stays `[VERIFY]`. If it turns out to be needed, confirm
-it on a run already lost — never speculatively mid-run.
+## 3. Q2: park Task 11
 
-## 4. Q2: keep the test queued, but run the free analysis first
+Three independent confirmations of the flat histogram (n=6, n=9, n=11) and a
+null result at 10× weight amplification. The evidence is settled and the lever
+is exhausted.
 
-0/3 after 17/5 is a real change and 3 runs is too thin to write it off. Before
-spending a live attempt, there's a free check: **were session 09's 17 failures
-clustered in time, or spread across the batch?** Clustered means a server-side
-window and closes the question at zero cost. Spread means it's request-shaped
-and the envelope test is worth keeping.
+The opponent-model read at rooms 2–4 stays parked too — it improves passively as
+production runs accumulate, and it's a slope, not a step. Potion timing is the
+identified lever; once §2's probe lands, Task 12 becomes the dungeon's next real
+work.
 
-That's a log query, not a run. Do it, then decide.
+Take Task 11 off the active list in `TASKS.md` and say what would revive it: a
+materially different utility *form* (not magnitude), or the histogram shifting
+shape as the corpus grows.
 
-## 5. Gear is a bigger lever than anything in the model — tell the user
+## 4. Q3: agreed, and it happens automatically
 
-Sword ATK 16→20 moved mean rooms cleared from 1.632 to 2.103 on the always-Sword
-baseline. That single gear change beat every strategy intervention attempted
-across sessions 10 and 11 combined.
+Re-running convergence against `data/fish-patterns.jsonl` once Task 9 produces
+real transitions is right, and the honest framing of the current numbers as a
+stand-in library is right too.
 
-The sim can now answer *which upgrade is worth most* — cheaply, offline, with no
-energy. Run a sweep over plausible single-stat upgrades (each move's ATK and DEF,
-max HP, max armor) at the current loadout and report the ranking by mean rooms
-cleared.
+One thing to watch when the real data lands: if real Dendren convergence is
+*better* than the synthetic pool suggests, the hedge-throughout default may be
+over-conservative. Don't let the synthetic conclusion calcify into an assumption
+— it was a decision made under a documented placeholder, and it should be
+re-opened, not defended.
 
-That's a concrete, actionable output for the user's own progression decisions,
-and it costs one sim batch.
+## 5. Give the user the full gear ranking
+
+Sword ATK +4 at +0.305 rooms is roughly ten times anything strategy tuning has
+produced, and it's a decision the user makes with their own resources.
+
+Put the **complete ranked table** — all 8 upgrades with means and CIs — in the
+recap, not just the winner. Flag which gaps are inside each other's confidence
+intervals, so the user can tell a real ordering from noise. This is the most
+directly actionable output the sim has produced.
 
 ---
 
 ## Your task
 
-1. **Task 8 — fishing strategy.** Hypothesis-elimination matcher, transition
-   logging from the first cast, and the `(card, focus)` EV re-derivation per §2.
-2. **§2's convergence measurement first** — it decides whether the policy is
-   identify-then-exploit or hedge-throughout. Report the ratio explicitly.
-3. **§5 gear sweep.** One sim batch, ranked output.
-4. **§4 clustering analysis** on session 09's logs.
-5. Both potion branches into `TASKS.md` per §3, unbuilt.
-6. Production dungeon runs if budget allows, to accumulate rooms 2–4 opponent
-   data in the background. Not the session's focus — just don't leave the budget
-   idle.
+1. **§1 mana-divisor check** in `cardChoice.ts`. Fix if present, re-run the
+   500-cast sim, report whether 19.0% moved.
+2. **§2 `use_item` probe** — late in a poor run, empty loadout. Report the exact
+   status and body.
+3. **Task 9 — live fishing**, staged: dry run → one cast → five. Log every fish
+   transition to `data/fish-patterns.jsonl` from the first cast.
+4. Fishing energy budget in `config/bot.json`, per §2.
+5. Park Task 11 per §3, with revival conditions stated.
+6. Full gear ranking in the recap, per §5.
 
-Task 8's gate is unchanged in `TASKS.md`, but note it was written against the
-3×3 assumption. If the 4×4 reality makes it unrunnable as written, say so at the
-**start** of the session rather than at the end — per the session-06 rule about
-gates you believe are unreachable.
-
-Addendum — potion trigger CONFIRMED MANUAL (resolves §3, Q3):
-
-USER-CONFIRMED: potions are CLICKED to use during a run. They do not
-auto-proc. Combined with the pre-committed loadout, the full shape is:
-
-  1. SELECT 3 potions before start_run (pre-committed, user-confirmed
-     session 11) -- goes in `consumables: []`, currently always empty.
-  2. USE them manually mid-run, one click each -- almost certainly the
-     `use_item` action.
-
-This REVERSES the session-11 addendum's downgrade. The optimal-stopping
-problem is back, and it is now the largest identified dungeon lever:
-+4/+8/+20 flat heals against a ~32 HP pool, in runs dying at rooms 2-4.
-Restore it in TASKS.md as its own task with its own gate; delete the
-auto-proc branch from §3.
-
-BLOCKER: `use_item` is still [VERIFY], from the source that got
-loot_one (409) and enemy_two (400) wrong. Confirm it before any
-policy work depends on it. Confirm ONLY on a run already lost -- get
-to a state where death is certain, then send `use_item`. A 400 costs
-nothing there and a 200 confirms the action name, the envelope, and
-the data shape in one attempt. Never speculatively mid-viable-run.
-
-Also unknown, and needed before the policy is buildable:
-  - Does using a potion consume the turn, or is it free? This is the
-    whole cost side of the decision. If it costs a turn, using one is
-    a tempo trade; if free, the only cost is scarcity.
-  - Can two be used in the same battle?
-  - Does `consumables: []` take item IDs, slot indices, or objects?
-    The three heal potion IDs are known from /offchain/static.
-  - Are potions consumed on use even if the run then fails?
-
-The turn-cost question determines whether this is simple scarcity
-allocation or a genuine tempo-vs-survival tradeoff. Establish it from
-the lost-run confirmation attempt if possible.
-
-SEQUENCING: this does NOT displace Task 8 (fishing) as this session's
-spine -- fishing is fully unblocked, potions need the use_item
-confirmation first. Do the confirmation opportunistically on the next
-run that is clearly lost, then build the policy next session.
+If the `use_item` probe confirms the action, **do not** build the potion policy
+this session — record it and let Task 12 have a clean session. One variable at a
+time, same as always.
