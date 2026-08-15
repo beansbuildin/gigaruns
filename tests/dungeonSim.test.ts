@@ -214,7 +214,10 @@ describe("the Task 4 gate", () => {
     // random boon draws a run gets at this same seed; a boon-offer-table
     // change moving `scored` in either direction is expected, not a
     // regression — see the corpus-total-drift note in tests/replay.test.ts.
-    expect(s.battleCoverage.scored).toBe(1094);
+    // [session 13] 1094 -> 1097 — one more live run added 2 room-1/2 offers
+    // (no new clean types) plus PLAYER.hpMax 34->36 (src/sim/enemies.ts),
+    // same reshuffling, not a regression.
+    expect(s.battleCoverage.scored).toBe(1097);
     expect(s.deepestScorableRoom).toBe(4);
   });
 

@@ -138,12 +138,37 @@ describe("lethal check", () => {
   });
 });
 
+describe("FocusBudget — session 13, live [CONFIRMED]", () => {
+  it("restricts the focus search to cells within Manhattan distance of the current focus", () => {
+    const d = dist([[{ x: 4, y: 4 }, 1]]); // fish certainly at the far corner
+    // realCard79 hits [2,4,6,8] around its focus — only reachable from [4,4]
+    // itself or its immediate neighbours would put [4,4] in range, but a
+    // focus pinned at [1,1] with 0 remaining meter can never reach it.
+    const pinned = bestFocusForCard(realCard79, 0, d, 4, 1, 20, { current: { x: 1, y: 1 }, remaining: 0 });
+    expect(pinned.focus).toEqual({ x: 1, y: 1 });
+    expect(pinned.pHit).toBe(0); // can't reach anywhere near the fish
+
+    const free = bestFocusForCard(realCard79, 0, d, 4, 1, 20, { current: { x: 1, y: 1 }, remaining: 6 });
+    expect(free.pHit + free.pCrit).toBeGreaterThan(0); // enough budget to reach the fish's corner
+  });
+
+  it("chooseCard threads the budget through to every affordable card", () => {
+    const d = dist([[{ x: 1, y: 1 }, 1]]);
+    const choice = chooseCard([realCard79], 5, d, 4, 1, 20, { current: { x: 4, y: 4 }, remaining: 0 });
+    expect(choice?.focus).toEqual({ x: 4, y: 4 }); // pinned — can't move toward the fish
+  });
+});
+
 describe("shouldRedraw", () => {
+  // [session 13] Reads `best.ev`, not `.evPerMana` — SPEC.md §5 always said
+  // raw EV; the old evPerMana read was a real bug, not a rename (see
+  // cardChoice.ts's doc comment and src/sim/fishing/castSim.ts's
+  // REDRAW_THRESHOLD re-tuning for why it mattered).
   it("redraws only when EV is weak AND mana comfortably covers the cost", () => {
-    const weak = { evPerMana: 0.5 } as ReturnType<typeof bestFocusForCard>;
-    expect(shouldRedraw(weak, 3, 10, 3)).toBe(true);
-    expect(shouldRedraw(weak, 3, 2, 3)).toBe(false); // not enough mana
-    const strong = { evPerMana: 5 } as ReturnType<typeof bestFocusForCard>;
-    expect(shouldRedraw(strong, 3, 10, 3)).toBe(false);
+    const weak = { ev: -0.5 } as ReturnType<typeof bestFocusForCard>;
+    expect(shouldRedraw(weak, 3, 10, 0)).toBe(true);
+    expect(shouldRedraw(weak, 3, 2, 0)).toBe(false); // not enough mana
+    const strong = { ev: 5 } as ReturnType<typeof bestFocusForCard>;
+    expect(shouldRedraw(strong, 3, 10, 0)).toBe(false);
   });
 });

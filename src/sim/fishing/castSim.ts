@@ -66,7 +66,22 @@ export const randomFishPolicy: FishPolicy = {
   },
 };
 
-export const REDRAW_THRESHOLD = 3;
+/**
+ * **[RE-TUNED session 13]** Was `3`, calibrated back when `shouldRedraw`
+ * compared against `evPerMana` (a bug — SPEC.md §5 always said raw `ev`;
+ * fixed in `cardChoice.ts` this session). Under the corrected hit-
+ * probability-first `chooseCard`, `ev` is on a different scale and a hand's
+ * best card is almost always genuinely worth playing — a 500-cast sweep of
+ * {-∞, 0, 1, 2, 3, 5, 8} found catch rate falls monotonically as the
+ * threshold rises (92.8% at -∞, 92.4% at 0, down to 0.4% at 8): every extra
+ * redraw burns `hand.length` mana for a re-roll that's rarely needed once
+ * card choice targets hit probability, and mana is scarce enough now that
+ * the burn matters. `0` (redraw only when even the best card has negative
+ * EV) is 462/500 vs -∞'s 464/500 — inside noise at n=500 — and matches
+ * SPEC's literal "max EV < threshold" more honestly than disabling redraw
+ * outright.
+ */
+export const REDRAW_THRESHOLD = 0;
 
 export const matcherFishPolicy: FishPolicy = {
   name: "matcher-ev",

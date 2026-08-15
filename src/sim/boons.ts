@@ -518,6 +518,19 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-15-18-10-21/state-088",
     options: [opt("TieVulnerable", 1), opt("TieWeak", 1), opt("UpgradeScissor", 12)],
   },
+  {
+    // [session 13, LIVE] Room-1 offer, the run carrying Task 12 Stage A's
+    // use_item probe (not this session's focus). No new boon type.
+    room: 1,
+    source: "run-2026-08-15-20-44-28/state-011",
+    options: [opt("UpgradeScissor", 4), opt("AddBlock", 2), opt("AddTenacity", 2)],
+  },
+  {
+    // [session 13, LIVE] Room-2 offer, same run. No new boon type.
+    room: 2,
+    source: "run-2026-08-15-20-44-28/state-033",
+    options: [opt("UpgradeRock", 8), opt("AddTenacity", 2), opt("AddEvasion", 5)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

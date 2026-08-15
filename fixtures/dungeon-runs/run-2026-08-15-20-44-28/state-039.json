@@ -1,0 +1,20 @@
+{
+  "probe": "use_item",
+  "request": {
+    "action": "use_item",
+    "dungeonId": 5,
+    "actionToken": 1786826735969,
+    "data": {
+      "consumables": [],
+      "isJuiced": false,
+      "index": 0,
+      "itemId": 0
+    }
+  },
+  "status": 400,
+  "response": {
+    "success": false,
+    "message": "Item not found in index",
+    "actionToken": 1786826738249
+  }
+}

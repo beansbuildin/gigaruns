@@ -321,6 +321,16 @@ export interface LiveRunDeps {
   log: RunLog;
   dryRun: boolean;
   /**
+   * Task 12 Stage A (session-13 brief §2): `consumables` is always sent
+   * empty right now, so `use_item` costs nothing to confirm — no item in
+   * the loadout to consume, so a 200 would be surprising and a 400/404/405
+   * is pure information. Fires AT MOST ONCE across the whole process
+   * (shared `fired` flag across every run in this invocation, not per-run),
+   * late in a room that's already going badly (own HP fraction low), never
+   * in `--dry-run`.
+   */
+  probeUseItem?: { fired: boolean };
+  /**
    * Where `saveGuardBudget` persists after every guard mutation. Defaults to
    * `DEFAULT_GUARD_STATE_PATH` (`data/guard-budget.json`) in `main()`.
    * Injectable so tests exercising `runOnce` against a mocked client never
@@ -412,6 +422,55 @@ export async function postWithVerifiedRetry(
   }
 }
 
+/** Below this own-HP fraction counts as "already going badly" for the use_item probe (session-13 brief §2). */
+const PROBE_HP_FRACTION = 0.34;
+
+/**
+ * Task 12 Stage A confirmation probe (session-13 brief §2). Sends exactly
+ * one `use_item` with `itemId: 0` on an empty `consumables` loadout —
+ * CLAUDE.md §4/§7's "confirm only on a run already lost" is honoured by the
+ * caller's HP-fraction gate, not by anything in here. Never touches
+ * `guards.recordActionResult` — a 400 here is the EXPECTED, informative
+ * outcome, not a failure the 3-strikes guard should count against. Always
+ * re-syncs state afterward via `getDungeonState()` regardless of outcome,
+ * since a 400 might still be an "action name is right, argument is wrong"
+ * response that mutated nothing, or (per the established `reward_*`/`path_*`
+ * precedent) an error that doesn't reliably mean nothing happened.
+ */
+export async function probeUseItem(
+  client: GigaverseClient,
+  config: BotConfig,
+  log: RunLog,
+  fixtures: FixtureWriter,
+): Promise<void> {
+  const envelope = buildEnvelope("use_item", config.dungeonId, client.getActionToken(), 0);
+  const body: DungeonActionRequest = { ...envelope, data: { ...envelope.data, itemId: 0 } };
+  console.log(`  ★ Task 12 Stage A probe: sending use_item (empty loadout, itemId 0) — expect 400/404/405, informative either way`);
+  log.write({ event: "use_item_probe_post", body });
+  try {
+    const resp = await client.postDungeonAction(body);
+    log.write({ event: "use_item_probe_response", status: 200, resp });
+    fixtures.write({ probe: "use_item", request: body, status: 200, response: resp });
+    console.log(`  ★ use_item probe: HTTP 200 — UNEXPECTED with an empty loadout. Full response logged.`);
+  } catch (e) {
+    if (e instanceof TokenExpiredError) throw e;
+    if (e instanceof UnexpectedResponseError) {
+      log.write({ event: "use_item_probe_response", status: e.status, body: e.body });
+      let parsedBody: unknown = e.body;
+      try {
+        parsedBody = JSON.parse(e.body);
+      } catch {
+        // not JSON — keep the raw text
+      }
+      fixtures.write({ probe: "use_item", request: body, status: e.status, response: parsedBody });
+      console.log(`  ★ use_item probe: HTTP ${e.status} — ${e.body.slice(0, 300)}`);
+    } else {
+      log.write({ event: "use_item_probe_error", error: (e as Error).message });
+      console.log(`  ★ use_item probe: request failed — ${(e as Error).message}`);
+    }
+  }
+}
+
 /**
  * One dungeon run, start to finish. Returns when the run ends (win, death, or
  * flee) or a guard trips. In `--dry-run`, never calls `postDungeonAction` —
@@ -423,6 +482,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
   let prevFoeMove: MoveKey | null = null;
   let lastFoeId: string | null = null;
   const playCounts: Record<MoveKey, number> = { rock: 0, paper: 0, scissor: 0 };
+  // Set right after the use_item probe's own resync (below) — that resync
+  // legitimately re-reads a state that hasn't changed (the whole point of a
+  // probe that didn't apply), and without this the stall guard would trip on
+  // its own follow-up read, mistaking "we just looked twice" for "the run is
+  // stuck".
+  let skipNextStateCheck = false;
 
   // Check BEFORE deciding to start_run — CLAUDE.md §1, don't assume. A prior
   // stage (or a prior crashed process) can leave a run active; sending
@@ -500,11 +565,15 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
     const phase = classifyPhase(run);
 
     const stateKey = JSON.stringify({ run: run, room: roomNum, phase });
-    try {
-      guards.checkStateProgress(stateKey);
-    } catch (e) {
-      log.write({ event: "guard_trip", error: (e as Error).message });
-      throw e;
+    if (skipNextStateCheck) {
+      skipNextStateCheck = false;
+    } else {
+      try {
+        guards.checkStateProgress(stateKey);
+      } catch (e) {
+        log.write({ event: "guard_trip", error: (e as Error).message });
+        throw e;
+      }
     }
 
     const [meWire, foeWire] = run.players as [WireSide, WireSide];
@@ -541,6 +610,18 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
       if (dryRun) {
         console.log(`  [dry-run] would POST ${d.move}`);
         return; // one decision is enough to prove stage 1 works; don't loop forever on a live read.
+      }
+
+      if (deps.probeUseItem && !deps.probeUseItem.fired && battle.me.hp / battle.me.hpMax <= PROBE_HP_FRACTION) {
+        deps.probeUseItem.fired = true; // exactly once per process, win or lose — never retried
+        await probeUseItem(client, config, log, fixtures);
+        // The top of the loop re-fetches state next iteration anyway — no
+        // need for a second manual read here. A probe that didn't apply
+        // means that next read is genuinely IDENTICAL to this one, so the
+        // stall guard is told in advance not to mistake that for the run
+        // being stuck (see `skipNextStateCheck`'s own comment).
+        skipNextStateCheck = true;
+        continue;
       }
 
       const body = buildEnvelope(moveToAction(d.move), config.dungeonId, client.getActionToken());
@@ -671,9 +752,10 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
 function parseArgs(argv: string[]) {
   const dryRun = argv.includes("--dry-run");
   const stage2 = argv.includes("--stage2");
+  const probeUseItemFlag = argv.includes("--probe-use-item");
   const runsArg = argv.find((a) => a.startsWith("--runs="));
   const runs = runsArg ? Number(runsArg.split("=")[1]) : 1;
-  return { dryRun, stage2, runs };
+  return { dryRun, stage2, runs, probeUseItemFlag };
 }
 
 /**
@@ -718,6 +800,10 @@ async function main() {
   const account = await client.getAccount(me.address);
   const fixtures = new FixtureWriter(me.address, client.maskedJwt().split("...")[0]!);
   console.log(`  account <USER> noobId ${account.noob?.docId ? "<NOOB>" : "(none)"}`);
+  if (args.probeUseItemFlag) {
+    console.log(`  · --probe-use-item: will send one use_item probe the first time own HP drops to ≤${Math.round(PROBE_HP_FRACTION * 100)}%.`);
+  }
+  const probeUseItemState = args.probeUseItemFlag ? { fired: false } : undefined;
 
   const targetRuns = args.dryRun || args.stage2 ? 1 : args.runs;
   for (let i = 0; i < targetRuns; i++) {
@@ -734,7 +820,7 @@ async function main() {
     let runError: unknown = null;
     try {
       await runOnce(
-        { client, config, guards, model, strategyConfig: LIVE_CONFIG, fixtures, log, dryRun: args.dryRun },
+        { client, config, guards, model, strategyConfig: LIVE_CONFIG, fixtures, log, dryRun: args.dryRun, probeUseItem: probeUseItemState },
         { stage2Only: args.stage2 },
       );
     } catch (e) {

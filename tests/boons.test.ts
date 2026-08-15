@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(28); // +5 session 12: 2 more live runs, see DECISIONS.md session 12
+    expect(pickups.length).toBe(30); // +2 session 13: 1 more live run (Task 12 Stage A probe, not this session's focus)
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -189,8 +189,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // WeakeningMastery/AddLuck and AddEvasion/AddBurnSword/AddBurnMagic),
     // none newly clean either — all either rolled-stat (contaminated) or
     // still-unmodelled types.
+    // [session 13] +1 more room-1 offer (3 options: UpgradeScissor/AddBlock/
+    // AddTenacity — Task 12 Stage A probe's run, not this session's focus).
+    // UpgradeScissor is clean, adding a SECOND clean UpgradeScissor entry.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(45);
+    expect(roomOne.length).toBe(48);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -198,7 +201,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       if (reasons.length === 0) clean.push(option.type);
       else expect(reasons.length, `${option.type} came back clean`).toBeGreaterThan(0);
     }
-    expect(clean.sort()).toEqual(["AddMaxArmor", "Heal", "Heal", "UpgradeRock", "UpgradeScissor"]);
+    expect(clean.sort()).toEqual(["AddMaxArmor", "Heal", "Heal", "UpgradeRock", "UpgradeScissor", "UpgradeScissor"]);
   });
 
   it("Heal, UpgradeScissor, UpgradeRock and AddMaxArmor are the only clean boons in the corpus", () => {

@@ -64,3 +64,22 @@ export function allCells(gridSize: number): Cell[] {
   }
   return out;
 }
+
+export function manhattan(a: Cell, b: Cell): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+/**
+ * Every grid cell reachable from `current` without exceeding `maxDistance`
+ * of `focusMeter` — **[CONFIRMED 2026-08-15, session 13, live]**: moving the
+ * focus point costs its Manhattan distance from the current focus, out of a
+ * budget that never regenerated within the one cast observed. Four clean
+ * data points, no counterexample: (2,2)→(2,2) dist 0, meter 3→3;
+ * (2,2)→(1,2) dist 1, meter 3→2; (1,2)→(1,1) dist 1, meter 2→1;
+ * (1,1)→(2,2) dist 2 with only 1 meter left — REJECTED (HTTP 400) by the
+ * live server, confirming the cap rather than just the cost. See
+ * SPEC-fishing.md §4.
+ */
+export function reachableCells(gridSize: number, current: Cell, maxDistance: number): Cell[] {
+  return allCells(gridSize).filter((c) => manhattan(c, current) <= maxDistance);
+}

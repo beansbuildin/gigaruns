@@ -115,7 +115,9 @@ describe("player loadout matches the fixtures", () => {
     // 32→34, a level-up or gear change); 34/20 is 34/16 mid-run AFTER an
     // AddMaxArmor pickup (armorMax 16→20) — a real in-run state, not a
     // fourth distinct starting loadout. See src/sim/enemies.ts's PLAYER doc.
-    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20"]);
+    // [session 13] One new combo: 36/16 is the new starting loadout (hpMax
+    // 34→36, armorMax and every move's ATK/DEF unchanged this time).
+    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16"]);
   });
 });
 

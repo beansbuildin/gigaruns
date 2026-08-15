@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { inGrid, zoneToCell, zonesToCells } from "../../src/sim/fishing/geometry.js";
+import { inGrid, manhattan, reachableCells, zoneToCell, zonesToCells } from "../../src/sim/fishing/geometry.js";
 
 describe("zoneToCell", () => {
   it("centres zone 5 on the focus point", () => {
@@ -37,5 +37,31 @@ describe("zoneToCell", () => {
 
   it("throws on an unknown zone rather than guessing", () => {
     expect(() => zoneToCell({ x: 2, y: 2 }, 10, 4)).toThrow();
+  });
+});
+
+describe("reachableCells / manhattan — focusMeter budget [CONFIRMED session 13, live]", () => {
+  // The four data points from this project's first-ever live cast:
+  // (2,2)->(2,2) dist 0, meter 3->3; (2,2)->(1,2) dist 1, meter 3->2;
+  // (1,2)->(1,1) dist 1, meter 2->1; (1,1)->(2,2) dist 2, meter=1 -> REJECTED.
+  it("matches the live cast's own move-cost sequence", () => {
+    expect(manhattan({ x: 2, y: 2 }, { x: 2, y: 2 })).toBe(0);
+    expect(manhattan({ x: 2, y: 2 }, { x: 1, y: 2 })).toBe(1);
+    expect(manhattan({ x: 1, y: 2 }, { x: 1, y: 1 })).toBe(1);
+    expect(manhattan({ x: 1, y: 1 }, { x: 2, y: 2 })).toBe(2);
+  });
+
+  it("excludes a cell the live server rejected (distance 2, only 1 meter left)", () => {
+    const cells = reachableCells(4, { x: 1, y: 1 }, 1);
+    expect(cells).not.toContainEqual({ x: 2, y: 2 });
+  });
+
+  it("always includes the current cell even at zero remaining meter", () => {
+    const cells = reachableCells(4, { x: 2, y: 3 }, 0);
+    expect(cells).toEqual([{ x: 2, y: 3 }]);
+  });
+
+  it("matches allCells' count when remaining meter is large enough to reach the whole grid", () => {
+    expect(reachableCells(4, { x: 1, y: 1 }, 6).length).toBe(16);
   });
 });

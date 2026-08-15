@@ -355,13 +355,18 @@ generated. Energy spend within budget.
 
 ---
 
-### 11 — Tuning
+### 11 — Tuning ← DUNGEON HALF PARKED 2026-08-15, session 13 (see below)
 
 `scripts/mineFishPatterns.ts` promotes recurring cycles from the transition log
 into named patterns. Sweep dungeon utility weights (`w₁, w₂, w₃`) in sim against
 the accumulated real opponent model.
 
 **Gate:** Report of items-per-energy before vs. after tuning, for both loops.
+
+**Fishing half is UNPARKED and active** — Task 9 (live fishing) now has a real
+transition log (`data/fish-patterns.jsonl`, 25 lines from 5 live casts, session
+13) to mine once there's enough volume. Not attempted yet; needs more live
+casts than one session produced.
 
 **Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
 superseding the item-per-energy form above for the dungeon side** — Task 5's
@@ -444,6 +449,38 @@ runs (Task 6 follow-up) will add real death-room data under the retuned
 config; if the live distribution also stays even across rooms 2–4 rather than
 shifting later, that is independent confirmation.
 
+**PARKED [2026-08-15, session 13 brief §3].** Three independent live
+confirmations now (n=6 → n=9 → n=11 confirmed deaths, sessions 10/11/12),
+plus the 10× weight-amplification null result above: the death-room
+histogram stays flat at room 1 ×0 / 2 ×3 / 3 ×4 / 4 ×4 every time, and
+nothing in the current utility *form* moves it. The evidence is settled and
+this lever is exhausted — re-running the same sweep a fourth time would not
+be a hard task, it would be a pointless one (CLAUDE.md §6).
+
+**What would revive it** (per CLAUDE.md §6 — a parked task states its own
+revival condition, not just its parking reason):
+
+1. **A materially different utility *form*, not magnitude.** The sweep
+   tested ×3/×5/×10 amplifications of the SAME terms (`weights.hp`,
+   `depthBonus`) and found no daylight — that rules out mistuned magnitude,
+   not a wrong shape. A genuinely different term (e.g. one that prices a
+   specific opponent's rolled stats, or a lookahead past the current-room
+   horizon) is untested and could move the number where amplitude couldn't.
+2. **The histogram itself shifting shape** as the corpus grows past n=11 —
+   a skew toward early rooms appearing where three independent measurements
+   found none would be new evidence, not a repeat of old evidence.
+3. **Task 12 Stage B landing** (potion timing — see below): it is now the
+   identified lever for attrition instead, per the session-11/12 sizing
+   (+4/+8/+20 flat heals against a ~32-36 HP pool). If Stage B's own gate
+   moves mean-rooms-cleared, Task 11 stays parked on the strength of that
+   result; if Stage B ALSO finds nothing, that would be worth revisiting
+   Task 11's parking reasoning specifically, since two independent levers
+   both moving nothing would be a stronger claim than either alone.
+
+The room 2-4 opponent-model read (thin at n<30/1%, DECISIONS 2026-08-15/16)
+stays parked for the same reason it was before — it improves passively as
+production runs accumulate and isn't itself a dedicated task.
+
 ---
 
 ### 12 — Potion timing ← restored 2026-08-15, session 12 (see Task 5's retracted extension)
@@ -465,18 +502,27 @@ during a run — they do not auto-proc, and they are not chosen once at
    identified against attrition, bigger in principle than anything the
    Task 11 weight sweep found.
 
-**Blocker, confirm before any policy work depends on it:** `use_item` is
-still `[VERIFY]` — sourced from Gigaverse's published agent skill, which has
-already been wrong twice for this project (`loot_one`, `enemy_two`). Confirm
-it **only on a run already lost** — reach a state where death is certain,
-then send `use_item`. A 400 costs nothing there; a 200 confirms the action
-name, the envelope, and the response data shape in one attempt. Never send
-it speculatively mid-viable-run — CLAUDE.md §4/§7.
+**Blocker — `use_item` action name: CONFIRMED [2026-08-15, session 13,
+live].** Session-13 brief §2's key insight: `consumables` is currently
+ALWAYS sent empty, so there is no item in the loadout to consume — sending
+`use_item` risked nothing regardless of run state, and the doomed-state
+detection this blocker originally asked for was never actually needed.
+Probed once, opportunistically, at room 3 with own HP critically low (4/36,
+not a literal certain-death state but "already going badly" per the brief's
+relaxed criterion — `scripts/liveRun.ts --probe-use-item` fires at ≤34% own
+HP): `POST /game/dungeon/action` with `{action: "use_item", dungeonId: 5,
+actionToken: <real numeric>, data: {consumables: [], isJuiced: false,
+index: 0, itemId: 0}}` (the COMBAT-style envelope, not the reward/path-style
+one) returned **HTTP 400, `{"success":false,"message":"Item not found in
+index"}`** — a clean, meaningful rejection naming the actual problem (no
+item at itemId 0), not a 404/405 wrong-endpoint rejection or a crash. This
+confirms: the action name is real, the combat-style envelope is accepted at
+the routing/validation level, and `itemId` is (at least part of) how the
+target item is specified. Full request/response in
+`fixtures/dungeon-runs/run-2026-08-15-20-44-28/state-039.json`.
 
-**Also unknown, and needed before the timing policy is buildable** (answer
-these from the same lost-run confirmation attempt where possible, else ask
-the user directly per CLAUDE.md's "write to `QUESTIONS.md`, keep going"
-rule):
+**Still open — an empty-loadout probe cannot answer these; need Stage B's
+first REAL potion:**
 
 - Does using a potion consume the turn, or is it free? This is the entire
   cost side of the decision — a turn cost makes it a tempo-vs-survival
@@ -490,21 +536,26 @@ rule):
 **Gate**, two stages — the second is not meetable until the first lands, per
 CLAUDE.md §6 (state what has to be captured, don't let the gate outrun it):
 
-- **Stage A (capture):** `use_item` sent once, on a run already lost, with a
-  non-empty `consumables` loadout. Real response logged (success or a clean
-  400, not a crash), and the turn-cost/multi-use/consumed-on-loss questions
-  above answered from it or from a direct user response in `QUESTIONS.md`.
-- **Stage B (policy, blocked on A):** given the confirmed cost model, the
-  sim scores loadout selection (which 3 potions) and timing (an HP-threshold
-  or EV-based trigger rule) against the current death-room histogram, and
-  the live loop uses the result on real runs with heals observed firing.
-  Report items-per-energy / mean-rooms-cleared before vs. after, same form
-  as Task 11's own gate.
+- **Stage A (capture): MET [2026-08-15, session 13].** `use_item` sent
+  once, response logged cleanly (400, not a crash) — see above. The
+  turn-cost/multi-use/consumed-on-loss questions are NOT answered by this
+  (an empty loadout has nothing to observe those mechanics with) and stay
+  open for Stage B's first real-item attempt or a direct user answer in
+  `QUESTIONS.md`.
+- **Stage B (policy, blocked on A no longer):** needs a real potion in
+  `consumables` at `start_run` first (still untested — does it take an item
+  ID directly, per the open question above?), then the sim scores loadout
+  selection (which 3 potions) and timing (an HP-threshold or EV-based
+  trigger rule) against the current death-room histogram, and the live loop
+  uses the result on real runs with heals observed firing. Report
+  items-per-energy / mean-rooms-cleared before vs. after, same form as
+  Task 11's own gate. **Not started this session** — per the session-13
+  brief's explicit instruction, Stage A confirming cleanly means Stage B
+  gets its own clean session rather than being rushed in behind it.
 
-Sequencing: this does **not** displace Task 8 (fishing) as a session's
-spine while Stage A is unconfirmed. Do the Stage A confirmation
-opportunistically on the next live run that is clearly lost; build Stage B
-once it lands.
+Sequencing: this did **not** displace Task 9 (fishing) as this session's
+spine — the Stage A probe was a zero-cost side effect of an ordinary live
+dungeon run already in progress for other reasons.
 
 ---
 

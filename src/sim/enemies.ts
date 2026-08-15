@@ -68,8 +68,10 @@ export const DANGEROUS_TIER = 2;
  *
  * **This drifts.** `armorMax` was 15 through sessions 03–05, 16 as of
  * run-2026-08-14-03-26-57, and `hpMax` moved 32 → 34 as of session 11's
- * newest capture (run-2026-08-15-15-38-09) — the user changed gear/leveled
- * again. The corpus therefore contains more than one loadout, and
+ * newest capture (run-2026-08-15-15-38-09), then 34 → 36 as of session 13's
+ * (run-2026-08-15-20-44-28) — the user changed gear/leveled again both
+ * times; `armorMax` and every move's ATK/DEF held steady this time. The
+ * corpus therefore contains more than one loadout, and
  * `tests/enemies.test.ts` pins this to the newest one and reports how many
  * distinct loadouts it can see, so the drift is visible rather than silently
  * biasing every armor-fraction number in the sim.
@@ -92,8 +94,8 @@ export const DANGEROUS_TIER = 2;
  */
 export const PLAYER: Combatant = {
   id: "player",
-  hp: 34,
-  hpMax: 34,
+  hp: 36,
+  hpMax: 36,
   armor: 16,
   armorMax: 16,
   moves: {

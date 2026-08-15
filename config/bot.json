@@ -4,6 +4,11 @@
     "dailyEnergyBudget": 240,
     "maxRunsPerSession": 12
   },
+  "dendren": {
+    "_comment": "Session 13, Task 9's first live fishing budget. maxCastsPerSession set conservatively at 5 to match Task 9's staged gate (dry-run, one cast, then five) rather than the game's own maxCastsPerDay cap (10, config/discovered.json) — same conservative-first-session posture as forbiddenWoods' original 3-run figure (session 08). Tier-1 casts (12 energy, the free tier — SPEC-fishing.md §3) are what the live loop uses unless told otherwise; dailyEnergyBudget covers 5 tier-1 casts with margin. [VERIFY] whether this energy is the SAME account-wide pool forbiddenWoods spends from (both read via GET /offchain/player/energy in the dungeon client, and fishing's node0/1/2Energy fields describe costs in the same units) — plausible but not confirmed by a captured fishing energy delta yet; Task 9's live run settles it.",
+    "dailyEnergyBudget": 100,
+    "maxCastsPerSession": 5
+  },
   "guards": {
     "maxConsecutiveActionFailures": 3
   }

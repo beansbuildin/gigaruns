@@ -1341,9 +1341,51 @@ cards (e.g. id 10/77/78) have `hitZones: []` and only a `critZones: [5]` —
 for these, `P_hit` collapses to `P_crit` and the plain-hit term is zero,
 which the formula already handles without a special case.
 
-Then pick `argmax EV(card, f) / card.manaCost` over both the card and the
-focus placement — mana is the real budget, and a cheap reliable hit usually
-beats an expensive gamble.
+**[RE-DERIVED 2026-08-15, session 13]** The line above originally read "pick
+`argmax EV(card, f) / card.manaCost` — mana is the real budget." **That's
+backwards, and it cost real performance.** The one real capture escaped at
+`fishHp == fishMaxHp` with mana still at 5/10 — the cast ended because the
+MISS counter (the catch meter rising toward its cap) hit its ceiling first,
+not because mana ran out. Mana was never the binding constraint in the one
+data point available. Dividing EV by mana cost optimises against a
+constraint that mostly isn't binding, and does it systematically: it prefers
+cheap low-probability cards over expensive reliable ones, exactly backwards
+when every miss is a step toward the escape condition.
+
+Corrected: pick **argmax `P_anyHit(card, f)`** (`= P_hit(card,f) +
+P_crit(card,f)`, both as defined above) over both card and focus placement —
+**maximise hit probability, not EV/mana** — with `EV(card, f)` (raw, not
+divided by mana) as the tie-break between two placements that land the same
+hit probability. Mana is a **feasibility filter** (can this card be afforded
+at all this turn?), not a denominator in the objective.
+
+Mana-awareness returns only as a **late-cast correction**: when the mana on
+hand genuinely can't cover finishing the fish even under optimistic
+best-case play (`src/strategy/fishing/cardChoice.ts`'s `isManaConstrained` —
+a lower bound: turns-needed = `⌈fishHp / bestHitEffectInHand⌉`, mana-needed
+= `turnsNeeded × cheapestAffordableManaCost`), the objective falls back to
+`argmax EV(card, f) / card.manaCost` for that turn. This is a correction
+that fires rarely, not a blend that fires always — the ratio-as-denominator
+form is retired as the *primary* objective, not deleted.
+
+**Consequence for `shouldRedraw` — a bug this uncovered, not just a
+rename.** `shouldRedraw`'s implementation compared `best.evPerMana` against
+`redrawThreshold`, while this SPEC section (below) always specified raw
+`ev`. That divergence was silent while `chooseCard`'s own primary objective
+was also EV/mana — the two scales happened to agree often enough not to
+matter. The moment `chooseCard` stopped optimising EV/mana, `evPerMana` on
+the chosen card became a poor proxy for "is this hand worth keeping," and
+the mismatch surfaced immediately in the 500-cast sim: redraw fired on
+nearly every turn, burning `hand.length` mana per re-roll before a card was
+ever played, and catch rate barely moved off the old (wrong) baseline.
+Fixed by reading `best.ev` (matching this section, always), and
+`REDRAW_THRESHOLD` re-tuned from `3` to `0` in the sim — see
+`src/sim/fishing/castSim.ts`'s own comment for the sweep. **Net effect of
+both fixes together: 500-synthetic-cast catch rate moved from 19.0%
+(95/500) to 92.4% (462/500)**, against an unchanged 7.8% random baseline —
+confirming the divisor (and the redraw-threshold bug it exposed) was
+costing the large majority of the matcher's real edge, not a marginal
+amount.
 
 Two overrides, unchanged in spirit from the original design:
 
@@ -1365,6 +1407,21 @@ measurement note below before assuming it.**
 
 **Redraw** when `max EV < redrawThreshold` and mana comfortably exceeds the
 redraw cost. Tune the threshold in the sim, not live.
+
+**A third constraint on `f`, discovered live and not in the original
+design: `focusMeter`.** **[CONFIRMED 2026-08-15, session 13, live]** moving
+the focus costs its Manhattan distance from the CURRENT focus, out of a
+3-point per-cast budget that does not regenerate — four clean data points
+from this project's first live cast, the last one a server-side HTTP 400
+rejection of a move it couldn't afford (see SPEC-fishing.md §4 for the
+figures). The argmax over `f` above is therefore over **reachable** `f`
+only (`src/sim/fishing/geometry.ts`'s `reachableCells`), not the whole
+grid — `cardChoice.ts`'s `chooseCard`/`bestFocusForCard` take an optional
+`FocusBudget` for this, threaded through by the live loop
+(`scripts/liveFishing.ts`) but **not yet modelled in the sim**
+(`src/sim/fishing/castSim.ts`), whose catch-rate figures assume free focus
+movement every turn and are consequently an optimistic ceiling, not a
+prediction of real Dendren performance.
 
 ### Open question this design doesn't answer yet: does identification ever finish?
 

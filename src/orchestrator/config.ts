@@ -15,6 +15,12 @@ const BotJsonSchema = z.object({
     dailyEnergyBudget: z.number().positive(),
     maxRunsPerSession: z.number().int().positive(),
   }),
+  dendren: z
+    .object({
+      dailyEnergyBudget: z.number().positive(),
+      maxCastsPerSession: z.number().int().positive(),
+    })
+    .optional(),
   guards: z.object({
     maxConsecutiveActionFailures: z.number().int().positive(),
   }),
@@ -27,6 +33,18 @@ const DiscoveredJsonSchema = z.object({
     maxRoom: z.number().int().positive(),
     maxRunsPerDay: z.number().int().positive(),
   }),
+  dendren: z
+    .object({
+      nodeId: z.string(),
+      pondId: z.number(),
+      gridSize: z.number(),
+      tiers: z.record(
+        z.string(),
+        z.object({ name: z.string(), energyCost: z.number().positive() }).passthrough(),
+      ),
+      maxCastsPerDay: z.number().int().positive(),
+    })
+    .optional(),
 });
 
 export interface BotConfig {
@@ -37,6 +55,14 @@ export interface BotConfig {
   dailyEnergyBudget: number;
   maxRunsPerSession: number;
   maxConsecutiveActionFailures: number;
+  dendren?: {
+    nodeId: string;
+    tierId: number;
+    energyCostPerCast: number;
+    maxCastsPerDayGame: number;
+    dailyEnergyBudget: number;
+    maxCastsPerSession: number;
+  };
 }
 
 export class MissingConfigError extends Error {
@@ -63,6 +89,26 @@ export function loadBotConfig(
   const bot = BotJsonSchema.parse(JSON.parse(readFileSync(botJsonPath, "utf8")));
   const discovered = DiscoveredJsonSchema.parse(JSON.parse(readFileSync(discoveredJsonPath, "utf8")));
 
+  // Dendren is optional on both sides — a repo that hasn't run Task 7/9 yet
+  // (or a discovered.json predating the dendren block) still gets a valid
+  // dungeon-only BotConfig, per this file's own fail-closed-per-feature
+  // convention rather than a monolithic all-or-nothing parse.
+  let dendren: BotConfig["dendren"];
+  if (discovered.dendren && bot.dendren) {
+    const tier1 = discovered.dendren.tiers["1"];
+    if (!tier1) {
+      throw new MissingConfigError(discoveredJsonPath, "dendren.tiers['1'] (the free tier) is missing — re-run Task 7's discovery.");
+    }
+    dendren = {
+      nodeId: discovered.dendren.nodeId,
+      tierId: 1,
+      energyCostPerCast: tier1.energyCost,
+      maxCastsPerDayGame: discovered.dendren.maxCastsPerDay,
+      dailyEnergyBudget: bot.dendren.dailyEnergyBudget,
+      maxCastsPerSession: bot.dendren.maxCastsPerSession,
+    };
+  }
+
   return {
     dungeonId: discovered.forbiddenWoods.id,
     energyCostPerRun: discovered.forbiddenWoods.energyCost,
@@ -71,5 +117,6 @@ export function loadBotConfig(
     dailyEnergyBudget: bot.forbiddenWoods.dailyEnergyBudget,
     maxRunsPerSession: bot.forbiddenWoods.maxRunsPerSession,
     maxConsecutiveActionFailures: bot.guards.maxConsecutiveActionFailures,
+    dendren,
   };
 }

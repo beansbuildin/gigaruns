@@ -69,4 +69,36 @@ describe("loadBotConfig", () => {
     writeFileSync(discoveredPath, JSON.stringify(validDiscovered));
     expect(() => loadBotConfig(botPath, discoveredPath)).toThrow();
   });
+
+  it("merges an optional dendren block when both bot.json and discovered.json carry one (session 13, Task 9)", () => {
+    writeFileSync(botPath, JSON.stringify({ ...validBot, dendren: { dailyEnergyBudget: 100, maxCastsPerSession: 5 } }));
+    writeFileSync(
+      discoveredPath,
+      JSON.stringify({
+        ...validDiscovered,
+        dendren: {
+          nodeId: "5",
+          pondId: 2,
+          gridSize: 4,
+          tiers: { "1": { name: "dendrenpond-tier1", energyCost: 12 }, "2": { name: "dendrenpond-tier2", energyCost: 16 } },
+          maxCastsPerDay: 10,
+        },
+      }),
+    );
+
+    expect(loadBotConfig(botPath, discoveredPath).dendren).toEqual({
+      nodeId: "5",
+      tierId: 1,
+      energyCostPerCast: 12,
+      maxCastsPerDayGame: 10,
+      dailyEnergyBudget: 100,
+      maxCastsPerSession: 5,
+    });
+  });
+
+  it("leaves dendren undefined when discovered.json has no dendren block, rather than guessing", () => {
+    writeFileSync(botPath, JSON.stringify({ ...validBot, dendren: { dailyEnergyBudget: 100, maxCastsPerSession: 5 } }));
+    writeFileSync(discoveredPath, JSON.stringify(validDiscovered));
+    expect(loadBotConfig(botPath, discoveredPath).dendren).toBeUndefined();
+  });
 });

@@ -625,3 +625,115 @@ describe("runOnce — enemy path phase", () => {
     await assertion;
   });
 });
+
+describe("runOnce — use_item probe (Task 12 Stage A, session 13)", () => {
+  it("fires exactly once when own HP is critically low, then continues normally without tripping the stall guard", async () => {
+    const lowHpRun = fakeRun({ players: [fakeSide("player", 5, 30), fakeSide("Enemy Room 63")] });
+    let getCount = 0;
+    let probePosts = 0;
+    let runEnded = false;
+
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          if (getCount === 1 || runEnded) {
+            return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 1, data: { run: lowHpRun } } };
+        }
+        const body = JSON.parse((init?.body as string) ?? "{}");
+        if (body.action === "use_item") {
+          probePosts++;
+          return { status: 400, body: { success: false, message: "no such item" } };
+        }
+        if (body.action === "start_run") {
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: lowHpRun } } };
+        }
+        // a real combat move — end the run so the loop terminates
+        runEnded = true;
+        return { status: 200, body: { success: true, actionToken: 3, data: {} } };
+      }),
+    );
+
+    const deps: LiveRunDeps = { ...makeDeps(false), probeUseItem: { fired: false } };
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+
+    expect(probePosts).toBe(1); // exactly once, never retried
+    expect(deps.probeUseItem?.fired).toBe(true);
+  });
+
+  it("never fires when own HP is healthy", async () => {
+    const healthyRun = fakeRun({ players: [fakeSide("player", 28, 30), fakeSide("Enemy Room 63")] });
+    let probePosts = 0;
+    let runEnded = false;
+    let getCount = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          if (getCount === 1 || runEnded) {
+            return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 1, data: { run: healthyRun } } };
+        }
+        const body = JSON.parse((init?.body as string) ?? "{}");
+        if (body.action === "use_item") probePosts++;
+        if (body.action === "start_run") {
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: healthyRun } } };
+        }
+        runEnded = true;
+        return { status: 200, body: { success: true, actionToken: 3, data: {} } };
+      }),
+    );
+
+    const deps: LiveRunDeps = { ...makeDeps(false), probeUseItem: { fired: false } };
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+
+    expect(probePosts).toBe(0);
+    expect(deps.probeUseItem?.fired).toBe(false);
+  });
+
+  it("is a no-op when probeUseItem is not supplied at all, regardless of HP", async () => {
+    const lowHpRun = fakeRun({ players: [fakeSide("player", 1, 30), fakeSide("Enemy Room 63")] });
+    let probePosts = 0;
+    let runEnded = false;
+    let getCount = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          if (getCount === 1 || runEnded) {
+            return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 1, data: { run: lowHpRun } } };
+        }
+        const body = JSON.parse((init?.body as string) ?? "{}");
+        if (body.action === "use_item") probePosts++;
+        if (body.action === "start_run") {
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: lowHpRun } } };
+        }
+        runEnded = true;
+        return { status: 200, body: { success: true, actionToken: 3, data: {} } };
+      }),
+    );
+
+    const deps = makeDeps(false); // no probeUseItem field at all
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect(probePosts).toBe(0);
+  });
+});

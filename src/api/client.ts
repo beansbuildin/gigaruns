@@ -33,6 +33,13 @@ import {
   type DungeonActionRequest,
   type DungeonActionResponse,
 } from "./schemas.js";
+import {
+  FishingStateSchema,
+  FishingActionResponseSchema,
+  type FishingState,
+  type FishingActionRequest,
+  type FishingActionResponse,
+} from "./fishing.js";
 
 const BASE = "https://gigaverse.io/api";
 const MIN_GAP_MS = 1200;
@@ -85,6 +92,17 @@ export class GigaverseClient {
   private readonly limiter = new RateLimiter();
   /** Newest actionToken seen from any dungeon endpoint. SPEC §2: always send the newest. */
   private actionToken = 0;
+  /**
+   * Fishing's own action-token sequence — kept SEPARATE from the dungeon
+   * one above rather than sharing `get()`/`post()`'s auto-update, because
+   * `SPEC-fishing.md §2` confirms it's a different chain with a different
+   * wire shape (request token is a STRING, response token is a top-level
+   * NUMBER that must be `String()`-ed for the next request; the dungeon
+   * side's request token is a bare number). The real capture's first
+   * `start_run` sends `actionToken: ""` (empty string), not a stale numeric
+   * token — `fixtures/fishing-casts/cast.json` request 0, confirmed.
+   */
+  private fishingActionToken = "";
 
   constructor(opts: ClientOptions = {}) {
     this.jwt = opts.jwt ?? loadJwt();
@@ -97,6 +115,11 @@ export class GigaverseClient {
 
   getActionToken(): number {
     return this.actionToken;
+  }
+
+  /** Current fishing actionToken, as the STRING the next request needs (`""` before any fishing action this session). */
+  getFishingActionToken(): string {
+    return this.fishingActionToken;
   }
 
   /**
@@ -278,5 +301,71 @@ export class GigaverseClient {
 
   async getJuice(address: string): Promise<Juice> {
     return this.get(`/gigajuice/player/${address}`, JuiceSchema);
+  }
+
+  /**
+   * `GET /api/fishing/state/{address}` — SPEC-fishing.md §1 (CONFIRMED).
+   * Does not advance `fishingActionToken`: the token chain only moves via
+   * `POST /fishing/action` responses (SPEC-fishing.md §2), and this read
+   * carries no `actionToken` field at all to update from.
+   */
+  async getFishingState(address: string): Promise<FishingState> {
+    const path = `/fishing/state/${address}`;
+    const { status, text } = await this.raw(path, { method: "GET" });
+
+    if (status === 401 || status === 403) throw new TokenExpiredError(status, text);
+    if (status < 200 || status >= 300) throw new UnexpectedResponseError(status, path, text);
+
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new UnexpectedResponseError(status, path, text);
+    }
+    const parsed = FishingStateSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new UnexpectedResponseError(
+        status,
+        path,
+        `zod validation failed: ${parsed.error.message}\n\nbody: ${text.slice(0, 2000)}`,
+      );
+    }
+    return parsed.data;
+  }
+
+  /**
+   * `POST /api/fishing/action` — SPEC-fishing.md §2 (CONFIRMED envelope,
+   * one write endpoint covering both `start_run` and `play_cards`). Updates
+   * `fishingActionToken` from the response's TOP-LEVEL `actionToken`
+   * (a number — `String()`-ed here since the next request needs it as a
+   * string), never from `data.doc` or anywhere else.
+   */
+  async postFishingAction(body: FishingActionRequest): Promise<FishingActionResponse> {
+    const path = "/fishing/action";
+    const { status, text } = await this.raw(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (status === 401 || status === 403) throw new TokenExpiredError(status, text);
+    if (status < 200 || status >= 300) throw new UnexpectedResponseError(status, path, text);
+
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      throw new UnexpectedResponseError(status, path, text);
+    }
+    const parsed = FishingActionResponseSchema.safeParse(json);
+    if (!parsed.success) {
+      throw new UnexpectedResponseError(
+        status,
+        path,
+        `zod validation failed: ${parsed.error.message}\n\nbody: ${text.slice(0, 2000)}`,
+      );
+    }
+    this.fishingActionToken = String(parsed.data.actionToken);
+    return parsed.data;
   }
 }
