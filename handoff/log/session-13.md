@@ -1,4 +1,4 @@
-# SESSION 13 — 2026-08-15
+# STATE — session 13 — 2026-08-15 — commit 63ae54d
 
 Full detail behind `handoff/STATE.md`'s session-13 entries. Same status/
 what-works/what's-broken/corrections/dead-ends/metrics, expanded with the
