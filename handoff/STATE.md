@@ -1,133 +1,154 @@
-# STATE — session 08 — 2026-08-14 — commit 04dddad
+# STATE — session 09 — 2026-08-15 — commit 447f700
 
 ## Status
-Task 6 "Live dungeon, supervised": **GATE PARTIALLY MET.** One completed live
-run, full log, run summary derivable, model validated. Five-run stage NOT
-attempted.
-Next per TASKS.md: Task 6's five-run stage, now that the client is
-live-battle-tested. Then Task 7 (fishing HAR, still blocked on the user's
-capture) or Task 10/11 (orchestrator persistence, tuning).
-Overall: this session went from a rejected JWT to the bot completing a full
-Forbidden Woods run (rooms 1→4, died in room 4) unattended for most of it,
-finding and fixing five distinct live bugs along the way. The combat model
-held exactly through all of it — 0 mismatches across every live exchange.
+Task 6 "Live dungeon, supervised": **GATE PASS on its numeric terms — five
+completed runs, zero clean-model failures — but two of the five runs' path
+there involved real guard trips that had to be fixed, not just logged.**
+Next per TASKS.md: Task 7 (fishing HAR, still blocked on the user's capture)
+or Task 10/11 (orchestrator persistence, tuning) — but see "Open questions"
+below, since this session also broke an assumption behind Task 5's gate.
+Overall: five live runs completed (rooms reached 3/4/2/2/3, all deaths), two
+real bugs found and fixed via regression tests (not workarounds), and the
+biggest capture-driven finding of the project so far — `deepestScorableRoom`
+moved from 1 (pinned since Task 4.5, session 05) to **4**, the corpus's
+entire known depth, because the bot's own live play captured pickup pairs
+for two new clean boon types.
 
 ## What works
-- Privacy fix, CLAUDE.md §9, `config/bot.json`+`guards.ts`, the client's POST
-  path — all from earlier this session, unchanged, still solid.
-- `npm run check-auth` — JWT refreshed mid-session by the user, confirmed
-  live: real account, corrupted-JWT halt still clean.
-- `scripts/liveRun.ts` — all 4 stages now **live-verified**, not just
-  unit-tested: `--dry-run` correctly reads live state and stops when idle;
-  `--stage2` sent the project's first-ever POST (`start_run`) and halted as
-  designed; `--runs=1` played one complete run start to death.
-- `postWithVerifiedRetry()` — re-checks live state after any path-selection
-  POST failure before deciding whether to retry (never assumes a 500 means
-  "nothing happened" either way). This is what let the run continue past two
-  genuinely flaky `reward_one` 500s without human help.
-- Confirmed live action names: `start_run`/`rock`/`paper`/`scissor` (already
-  known), **`reward_one`/`reward_three`** (reward-path pick — NOT `loot_one`,
-  which was rejected HTTP 409), **`path_two`** (enemy-tier pick — NOT
-  `enemy_two`, which failed 3/3 including one HTTP 400). Envelope for both
-  families: `dungeonId: 0`, `actionToken: ""` (empty string). `reward_*`'s
-  `data.index` matches the option's array position; `path_*`'s does not — it's
-  always `0`.
-- **Room 3's Safe-tier capture gap (open since session 06/07) is closed** —
-  the bot fought enemy 65 live, all rolled stats zero, both buffs null.
-  `src/sim/enemies.ts`'s `MAX_SAFE_ROOM` is now **4**, not 2.
-  `AddBlock` also got its first-ever pickup pair (block 0→7, room 4) and is
-  now in `BOON_MODELS`.
+- Everything from session 08 (client, guards skeleton, `liveRun.ts`'s
+  staged CLI, combat model) — unchanged, still solid.
+- **Reward/tier picks now address by IDENTITY, not array position.**
+  `postWithVerifiedRetry` re-derives the intended option from freshly-fetched
+  state on every attempt (including the first), halting via `GuardTrip`
+  rather than ever picking whatever now sits at a stale index. Verified this
+  session it was never actually needed (no offer changed mid-retry in 17
+  observed 500s), but the safety net is real and unit-tested.
+- **Guard budget now persists across process invocations.**
+  `src/orchestrator/guardPersistence.ts` writes `data/guard-budget.json`
+  keyed by UTC date; `GuardState` takes an optional seed. Caught its own bug
+  immediately (a test was writing to the REAL file — fixed via injectable
+  `guardStatePath`) and then, once genuinely enforcing, immediately exposed
+  a second real bug (below).
+- **`assertCanStartRun` no longer blocks resuming an active run.** It used
+  to run unconditionally at the top of `runOnce`, before the check for an
+  existing run — invisible through session 08 (state never persisted), real
+  the moment persistence started working: it stranded a live run at room 2,
+  HP 2/32. Fixed and regression-tested (both directions: resuming is never
+  blocked, a genuinely NEW start still is).
+- **`pickLowestTier()` replaces the strict Safe-only rule as the live
+  loop's default.** `enemyPathOptions[]` is confirmed NOT to always include
+  a Safe (tier 0) option (recurred 3× this session) — user-confirmed
+  expected game behavior, not a bug. The generalized rule (lowest tier
+  actually offered, Safe or not) keeps the original zero-tradeoff reasoning
+  (identical loot table across whatever's offered) intact. `pickSafeTier`
+  kept for a stricter caller.
+- **Two new boon types modelled from live pickup pairs**: `UpgradeScissor`,
+  `UpgradeRock` — a new `moveDelta` `BoonEffect` kind
+  (`atk += val1; def += val2`), `contaminates: []`. The bot's own loot
+  ranking picked both; neither was a supervised capture.
+- Scissor gear change (+4 ATK/+4 DEF) verified live and reflected in
+  `PLAYER` (offline sim baseline) — the LIVE loop needed no code change,
+  since it already reads `currentATK`/`currentDEF` off the wire every poll.
 - `npx tsc --noEmit` — clean, exit 0, throughout.
-- `npx vitest run` — **209 tests, 13 files, all pass** (155 → 209 this
+- `npx vitest run` — **236 tests, 14 files, all pass** (209 → 236 this
   session).
 
 ## What's broken
-- **Five-run stage not attempted.** This run took 5 rounds of live-discovered
-  bugs and 2 human-assisted unblocks to complete — not the clean baseline
-  TASKS.md's five-run gate wants to build on.
-- **The root cause of the two `reward_one` HTTP 500s is still unknown.** One
-  silently applied server-side despite the error, one didn't. Handled
-  robustly now (verify-then-retry), but genuinely not explained — possibly
-  server-side flakiness unrelated to the request.
-- `path_one`/`path_three` and `reward_two`/`reward_four` are still inferred
-  by naming pattern only, not individually confirmed.
-- **Energy accounting resets every process.** Each `npm run live` invocation
-  builds a fresh `GuardState`, so the 60-energy session budget isn't tracked
-  across the several separate invocations this session actually used. Not a
-  correctness bug (nothing overspent — the account has 300+ energy), but a
-  real gap before unattended multi-run use: Task 10's persistence
-  (`data/opponent-model.json`-style) needs to cover this too, or `guards.ts`
-  needs a way to seed prior spend.
-- `intuition`'s true effect is still unconfirmed. `unknownSideKeys()` is live
-  and watching every poll this session; it never fired (no new key appeared).
+- **`reward_*`/`path_*` HTTP 500s recur substantially, root cause still
+  unknown.** 17 occurrences across 5 runs (9 reward, 8 path) — not the rare
+  event session 08's 2 occurrences suggested. All cleanly retried via
+  `postWithVerifiedRetry`, 0 split-brain applies, 0 needing the identity
+  relocation to actually redirect. Handled robustly; not explained.
+- **No run has cleared past room 4.** All five runs this session died
+  (rooms 3, 4, 2, 2, 3) — one non-Safe-tier Dangerous fight (enemy 64 at
+  HP46/ARM19, rolled stats) among the deaths. `MAX_OBSERVED_ROOM` is still 4;
+  nothing has ever reached room 5.
+- `path_one`/`path_three` and `reward_two`/`reward_four` still inferred by
+  naming pattern only, never individually confirmed this session either.
+- `use_item`/`heal_or_damage`/`flee`/`cancel_run` remain `[VERIFY]` in
+  SPEC — source (Gigaverse's published agent skill) already wrong twice
+  (`loot_one`, `enemy_two`), never sent live this session (correctly — no
+  run needed abandoning).
+- No item-metadata endpoint is confirmed. `/items/balances` returns numeric
+  IDs and balances only, no names/descriptions — can't tell which held
+  items are consumables from this endpoint alone. `start_run`'s
+  `consumables: []` field is entirely client-controlled (we always send
+  empty); nothing server-side populates it that's been observed.
 
 ## Corrections to SPEC.md
-- §2: dungeon action envelope is NOT universal — `reward_*`/`path_*` use
-  `dungeonId: 0`/`actionToken: ""` plus four extra `data` fields, unlike
-  combat/`start_run`.
-- §2 (Action token): `GET /game/dungeon/state`'s `actionToken` field is not
-  fresh — it reports `0` regardless of real state; only POST responses
-  update the tracked token now.
-- §2: `/game/dungeon/state`'s "no active run" has two wire shapes (500-HTML,
-  and 200 with `data.run: null`).
+- §2: `enemy_one/two/three` corrected to `path_two` CONFIRMED (already
+  known from session 08, but SPEC's own action-list section hadn't been
+  updated to say so — now fixed).
+- §2: `use_item`/`heal_or_damage`/`flee`/`cancel_run` explicitly marked
+  `[VERIFY]` with the compromised-source rationale.
+- §3e: `enemyPathOptions[]` is NOT guaranteed to include a Safe (tier 0)
+  option — new finding this session, generalizes the tier-choice rule.
+- §3e: `rewardPathOptions[]` entries can carry `tier`/`tierName` fields
+  when the preceding enemy-tier pick was non-Safe (new fields, one sample).
 - Resolved IDs unchanged: **forbiddenWoods=5**, **dendren=NOT FOUND**.
 - Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- `enemy_one`/`two`/`three` for the enemy-tier pick — wrong, refuted live
-  (3/3 failures, one HTTP 400 on an identical retry). Real name: `path_two`.
-- `RestrictedToDungeons` + `dungeonId: 0` as the cause of the reward-pick
-  500s — refuted: a later successful pick (`AddBlock`) also carried
-  `RestrictedToDungeons` and worked fine. The 500s remain unexplained.
-- `loot_one` for the reward pick — wrong (HTTP 409). Real name: `reward_one`.
+- None new this session — no hypothesis was tried and refuted from scratch.
+  (The no-Safe-tier and Wall-1 findings were surprises, not failed guesses.)
 
 ## Metrics
-- Live: **1 complete run**, rooms 1→4, ended in death at room 4 (HP hit 0 on
-  a losing exchange). 2 human-assisted unblocks (room 1's reward and
-  enemy-tier picks, while the real action names were still unknown);
-  everything from room 2 onward ran through `postWithVerifiedRetry`
-  unattended.
-- Model validation: **0 clean-model failures** across all 117 exchanges now
-  in the corpus (up from 92 at session start), including the run's fatal
-  exchange.
-- Tests: 209 passed, 0 skipped, 0 failed (155 → 209, +54 this session).
+- Live: **5 completed runs** this session (Task 6 five-run stage), rooms
+  reached 3/4/2/2/3, all deaths, no full clear. 78 energy spent (session
+  budget raised 60/3 → 120/5 in `config/bot.json` to match the session-09
+  brief's stated 120-energy figure, which the config had never been updated
+  to reflect).
+- Model validation: **0 clean-model failures** across all 214 exchanges now
+  in the corpus (up from 117 at session start), including this session's
+  first-ever live Dangerous-tier battle and every death.
+- Sim: `deepestScorableRoom` **1 → 4** (`MAX_OBSERVED_ROOM`, the corpus's
+  entire known depth) in the same 1000-run batch (`battleCoverage.scored`
+  1000 → 1108). `scoredWinRate` **0% → ~0.32%** — no longer exactly 0 "by
+  construction" (DECISIONS 2026-08-15's own framing), since three boon
+  types are now clean (Heal, UpgradeRock, UpgradeScissor) and a run
+  threading clean picks while also winning every battle can now clear all
+  the way through, rarely.
+- Tests: 236 passed, 0 skipped, 0 failed (209 → 236, +27 this session).
 
 ## Open questions for Claude
-1. Should the next session go straight to Task 6's five-run stage, or spend
-   one session hardening energy-budget persistence across process
-   invocations first (see "What's broken")? My read: the budget gap is real
-   but not urgent at 60 energy/session — five runs is ~100 energy against a
-   300+ balance either way. Worth fixing before truly unattended (Task 10)
-   operation, not necessarily before five more supervised runs.
-2. `path_one`/`path_three`/`reward_two`/`reward_four` — confirm opportunistically
-   as they come up in play; not worth a dedicated capture effort.
-3. The unexplained `reward_one` 500s — if they recur at a meaningful rate
-   across five more runs, worth a closer look (retry-storm risk, or a real
-   pattern that `postWithVerifiedRetry`'s current logic doesn't fully
-   protect against, e.g. if a retry lands on a DIFFERENT reward than
-   intended because the offer itself changed between attempts — not observed
-   yet, but not ruled out either).
+1. **Task 5's strategy gate and Task 11's rooms-cleared gate were both
+   explicitly deferred pending `deepestScorableRoom` climbing past 1.** It
+   just did, to 4. Worth deciding whether either should be revisited now,
+   or whether the corpus is still too thin (only 3 clean room-1 offers
+   sampled) to trust a re-run yet.
+2. **The 17 `reward_*`/`path_*` 500s per 5 runs is a real rate, not noise.**
+   Worth a closer look at whether there's a pattern (timing, specific
+   action families, server load) now that there's enough volume to look
+   for one — or whether `postWithVerifiedRetry`'s current handling is
+   simply the right permanent answer and this is just accepted server
+   flakiness.
+3. **No-Safe-tier offers recurred 3/9 times this session (~33%).** Worth
+   tracking whether that rate holds or whether it correlates with anything
+   (room number, prior picks) as more data comes in — not urgent, since
+   `pickLowestTier()` already handles it correctly either way.
+4. Item metadata (names/descriptions) has no confirmed endpoint. If
+   consumables (mentioned in the session-09 brief's addendum as the
+   possible "biggest lever" on deaths) matter for a future task, that
+   endpoint needs discovering first — `/items/balances` alone isn't enough.
 
 ## Files changed
 ```
- 85 files changed, 26280 insertions(+), 171 deletions(-)
- (fixtures/dungeon-runs/** dominate the count — 8 new capture directories,
- the first ever from the bot's own live play rather than supervised human
- sessions)
+19 non-fixture files changed, 950 insertions(+), 123 deletions(-)
+(239 fixture files also added — 4 new capture directories from this
+ session's five live runs)
 
- Key non-fixture files:
- scripts/liveRun.ts                  | 639 (new)
- src/api/schemas.ts                  | 136 ++
- src/orchestrator/guards.ts          | 132 (new)
- src/api/client.ts                   |  85 ++
- src/orchestrator/config.ts          |  75 (new)
- tests/liveRun.test.ts               | 485 (new)
- tests/api/client.test.ts            | 137 ++
- tests/guards.test.ts                | 102 (new)
- tests/orchestrator/config.test.ts   |  72 (new)
- scripts/fieldFrequency.ts           |  83 (new)
- src/sim/enemies.ts                  |  42 +-
- src/sim/boons.ts                    |  18 +
+Key non-fixture files:
+scripts/liveRun.ts                          | 206 +++++++++++++++++++++++-----
+src/sim/boons.ts                            | 132 +++++++++++++++++-
+tests/liveRun.test.ts                       | 170 +++++++++++++++++++++--
+tests/dungeonSim.test.ts                    |  91 ++++++++----
+src/orchestrator/guardPersistence.ts        |  72 ++++++++++ (new)
+tests/orchestrator/guardPersistence.test.ts |  66 +++++++++ (new)
+src/strategy/enemyTier.ts                   |  58 ++++++--
+SPEC.md                                     |  61 ++++++--
+src/sim/enemies.ts                          |  17 ++-
+tests/boons.test.ts                         |  38 +++--
+config/bot.json                             |   6 +-
 
- full stat: `git diff 44a43ce..04dddad --stat`
+full stat: `git diff 8df2736~1..447f700 --stat`
 ```
