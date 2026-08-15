@@ -116,7 +116,18 @@ shape, so every caller still sees one "no active run" signal.
 ```
 
 Actions: `start_run`, `rock`, `paper`, `scissor`, `loot_one`…`loot_four`,
-`use_item`, `heal_or_damage`, `flee`, `cancel_run`.
+`use_item` **[VERIFY]**, `heal_or_damage` **[VERIFY]**, `flee` **[VERIFY]**,
+`cancel_run` **[VERIFY]**.
+
+**[2026-08-14, session 09] The last four are unconfirmed and the source is
+compromised.** This whole list came from Gigaverse's published agent skill,
+and two of its documented index-selecting names (`loot_one`, and the
+`enemy_*` guess below) were both wrong when checked live. Treat `use_item`,
+`heal_or_damage`, `flee`, `cancel_run` as hypotheses, not facts — confirm
+opportunistically when a run is already being abandoned (for `flee`/
+`cancel_run`) or an item is already in hand (for `use_item`), never
+speculatively mid-run: CLAUDE.md §2 forbids inventing an endpoint, and a 400
+in the middle of a live run costs the run.
 
 **[2026-08-14, session 08, live] This list was incomplete, and the envelope
 above is NOT universal.** Task 6 stage 3's first live run reached a
@@ -125,10 +136,19 @@ reward-path pick (three boon cards) and guessed `loot_one` for "pick option
 `loot_one`…`loot_four` were the only index-selecting names it documented.
 Rejected with HTTP 409. The user captured the real client's request via
 DevTools: it sends **`reward_one`**, not `loot_one`. `reward_two`/`three`/
-`four` are inferred by the naming pattern, not individually confirmed;
-`enemy_one`/`enemy_two`/`enemy_three` for the enemy-tier pick are a new
-hypothesis on the same pattern, not yet confirmed at all (that pick was
-resolved by the user clicking in-browser on this run, not through the bot).
+`four` are inferred by the naming pattern, not individually confirmed
+**[VERIFY]**.
+
+**The enemy-tier pick is `path_two`, CONFIRMED — the `enemy_*` hypothesis
+above was wrong.** `enemy_two` failed 3/3 live in session 08 (2×HTTP 500,
+1×HTTP 400 on an otherwise byte-identical retry — the 400 is the tell that
+this was a wrong name, not flakiness), and the user then captured the real
+client sending `path_two` via DevTools for the same pick. `path_one`/
+`path_three` are inferred by the naming pattern, not individually confirmed
+**[VERIFY]**. `path_two`'s `data.index` is **0 regardless of the option's
+array position** (the captured request picked `enemyPathOptions[1]` but sent
+`index: 0`) — unlike `reward_*`, where `data.index` tracks position exactly.
+See DECISIONS 2026-08-14 (session 08, live).
 
 **The envelope itself also differs for this action family.** The real
 `reward_one` request captured live:
@@ -200,9 +220,9 @@ had just set, and the following action was sent stale and rejected (HTTP
 token now (`src/api/client.ts`). "Every response returns a fresh
 actionToken" is true for actions, not for this one read endpoint.
 
-**Path-selection actions (`reward_*`, and presumably `enemy_*`) don't use a
-numeric token at all** — the real client sends `actionToken: ""` (empty
-string) for these, confirmed live for `reward_one`. See "Dungeon action
+**Path-selection actions (`reward_*` and `path_*`) don't use a numeric token
+at all** — the real client sends `actionToken: ""` (empty string) for these,
+confirmed live for both `reward_one` and `path_two`. See "Dungeon action
 envelope" above.
 
 Model this as a single owned mutable in the client with a mutex — concurrent

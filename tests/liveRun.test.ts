@@ -16,6 +16,8 @@ import {
   buildPathSelectionEnvelope,
   classifyPhase,
   KNOWN_SIDE_KEYS,
+  locateRewardOption,
+  locateSafeTierOption,
   moveToAction,
   postWithVerifiedRetry,
   runOnce,
@@ -31,7 +33,7 @@ import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { OpponentModel } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
 import { UnsafeTierError } from "../src/strategy/enemyTier.js";
-import type { WireRun, WireSide } from "../src/sim/corpus.js";
+import type { WireBoon, WireRun, WireSide } from "../src/sim/corpus.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -197,6 +199,62 @@ describe("buildPathSelectionEnvelope", () => {
   });
 });
 
+// [session 09] The identity-not-position fix, session-09 brief §1: a retry
+// must re-locate the intended option by stable fields, never resend the
+// array position captured at decision time.
+describe("locateRewardOption", () => {
+  const boon = (type: string, val1: number, val2 = 0): WireBoon => ({ boonTypeString: type, selectedVal1: val1, selectedVal2: val2 });
+
+  it("finds the intended boon by identity even at a different array position than before", () => {
+    const run = fakeRun({
+      rewardPathPhase: true,
+      rewardPathOptions: [
+        { index: 0, boon: boon("UpgradeRock", 4) },
+        { index: 1, boon: boon("Heal", 8) },
+        { index: 2, boon: boon("AddLuck", 1) },
+      ],
+    });
+    // "Heal" was at position 1 when the decision was made; here it has
+    // shifted to position 0 — identity must still find it there, not fail
+    // or silently accept whatever sits at the old position 1.
+    const shifted = fakeRun({
+      rewardPathPhase: true,
+      rewardPathOptions: [
+        { index: 0, boon: boon("Heal", 8) },
+        { index: 1, boon: boon("UpgradeRock", 4) },
+        { index: 2, boon: boon("AddLuck", 1) },
+      ],
+    });
+    expect(locateRewardOption(run, { type: "Heal", val1: 8, val2: 0 })).toBe(1);
+    expect(locateRewardOption(shifted, { type: "Heal", val1: 8, val2: 0 })).toBe(0);
+  });
+
+  it("returns null — never a stale guess — when the intended boon is no longer offered", () => {
+    const run = fakeRun({
+      rewardPathPhase: true,
+      rewardPathOptions: [
+        { index: 0, boon: boon("UpgradeRock", 4) },
+        { index: 1, boon: boon("AddLuck", 1) },
+      ],
+    });
+    expect(locateRewardOption(run, { type: "Heal", val1: 8, val2: 0 })).toBeNull();
+  });
+});
+
+describe("locateSafeTierOption", () => {
+  it("finds whichever position currently holds tier 0, regardless of where it was before", () => {
+    const runA = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 0, index: 0 }, { tier: 1, index: 1 }, { tier: 2, index: 2 }] });
+    const runB = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 2, index: 0 }, { tier: 0, index: 1 }, { tier: 1, index: 2 }] });
+    expect(locateSafeTierOption(runA)).toBe(0);
+    expect(locateSafeTierOption(runB)).toBe(1);
+  });
+
+  it("returns null — never falls back to a non-Safe tier — if no Safe tier is offered", () => {
+    const run = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 1, index: 0 }, { tier: 2, index: 1 }] });
+    expect(locateSafeTierOption(run)).toBeNull();
+  });
+});
+
 describe("buildEnvelope", () => {
   it("matches SPEC §2's confirmed request envelope shape", () => {
     expect(buildEnvelope("start_run", 5, 0)).toEqual({
@@ -299,7 +357,16 @@ describe("postWithVerifiedRetry", () => {
   // [session 08, live] reward_one returned HTTP 500 twice on an otherwise
   // byte-identical request — once where the pick had silently applied
   // server-side anyway, once where it hadn't. This is the fix.
-  const rewardBody = buildPathSelectionEnvelope("reward_one", 0);
+  //
+  // [session 09] `locate`/`buildBody` replace the old static `body` param —
+  // every attempt, including the first, re-derives its index from whatever
+  // state is passed in rather than trusting a captured position. These tests
+  // aren't about identity resolution itself (locateRewardOption/
+  // locateSafeTierOption have their own tests below); `locate` here just
+  // mirrors "still in reward phase" -> index 0, same as the old static body.
+  const initialRun = fakeRun({ rewardPathPhase: true });
+  const locate = (r: ReturnType<typeof fakeRun>) => (classifyPhase(r) === "rewardPath" ? 0 : null);
+  const buildBody = (index: number) => buildPathSelectionEnvelope("reward_one", index);
   const stillInRewardPhase = (r: ReturnType<typeof fakeRun>) => classifyPhase(r) === "rewardPath";
 
   function makeLog() {
@@ -314,7 +381,7 @@ describe("postWithVerifiedRetry", () => {
     const client = new GigaverseClient({ jwt: "test-jwt" });
     const guards = new GuardState(TEST_CONFIG);
     const log = makeLog();
-    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    const p = postWithVerifiedRetry(client, guards, log, initialRun, locate, buildBody, stillInRewardPhase, "reward selection rejected");
     await vi.runAllTimersAsync();
     const resp = await p;
     expect(resp).not.toBeNull();
@@ -337,7 +404,7 @@ describe("postWithVerifiedRetry", () => {
     const client = new GigaverseClient({ jwt: "test-jwt" });
     const guards = new GuardState(TEST_CONFIG);
     const log = makeLog();
-    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    const p = postWithVerifiedRetry(client, guards, log, initialRun, locate, buildBody, stillInRewardPhase, "reward selection rejected");
     await vi.runAllTimersAsync();
     const resp = await p;
     expect(resp).toBeNull(); // applied despite the error — nothing further to write to fixtures
@@ -362,7 +429,7 @@ describe("postWithVerifiedRetry", () => {
     const client = new GigaverseClient({ jwt: "test-jwt" });
     const guards = new GuardState(TEST_CONFIG);
     const log = makeLog();
-    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    const p = postWithVerifiedRetry(client, guards, log, initialRun, locate, buildBody, stillInRewardPhase, "reward selection rejected");
     await vi.runAllTimersAsync();
     const resp = await p;
     expect(resp).not.toBeNull();
@@ -382,7 +449,7 @@ describe("postWithVerifiedRetry", () => {
     const client = new GigaverseClient({ jwt: "test-jwt" });
     const guards = new GuardState(TEST_CONFIG); // maxConsecutiveActionFailures: 3
     const log = makeLog();
-    const p = postWithVerifiedRetry(client, guards, log, rewardBody, stillInRewardPhase, "reward selection rejected");
+    const p = postWithVerifiedRetry(client, guards, log, initialRun, locate, buildBody, stillInRewardPhase, "reward selection rejected");
     const assertion = expect(p).rejects.toBeInstanceOf(GuardTrip);
     await vi.runAllTimersAsync();
     await assertion;

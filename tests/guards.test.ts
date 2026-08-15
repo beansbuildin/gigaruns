@@ -30,6 +30,25 @@ describe("GuardState — energy budget", () => {
   });
 });
 
+describe("GuardState — seeded from prior spend", () => {
+  it("starts spentEnergy/runCount from the seed rather than zero", () => {
+    const g = new GuardState(BUDGET, { energySpent: 20, runsStarted: 1 });
+    expect(g.spentEnergy).toBe(20);
+    expect(g.runCount).toBe(1);
+  });
+
+  it("a seed already at budget trips on the very next spend — the point of persisting it", () => {
+    const g = new GuardState(BUDGET, { energySpent: 60, runsStarted: 3 });
+    expect(() => g.assertCanStartRun(20)).toThrow(GuardTrip);
+  });
+
+  it("defaults to zero when no seed is given — unseeded behavior is unchanged", () => {
+    const g = new GuardState(BUDGET);
+    expect(g.spentEnergy).toBe(0);
+    expect(g.runCount).toBe(0);
+  });
+});
+
 describe("GuardState — session run cap", () => {
   it("allows exactly maxRunsPerSession runs", () => {
     const g = new GuardState(BUDGET);

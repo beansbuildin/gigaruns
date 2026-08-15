@@ -34,13 +34,33 @@ export interface SessionBudget {
   maxConsecutiveActionFailures: number;
 }
 
+/**
+ * Prior spend to seed a fresh `GuardState` from — e.g. energy/runs already
+ * spent today by an earlier process invocation. [session 09] A guard rebuilt
+ * fresh per `npm run live` invocation enforced nothing across invocations:
+ * the daily budget reset to zero every time the process restarted, even
+ * though CLAUDE.md lists it as a hard rule. Persisting and reloading this is
+ * `src/orchestrator/guardPersistence.ts`'s job — kept separate so this class
+ * stays fs-free and trivially testable, per its own header comment.
+ */
+export interface GuardSeed {
+  energySpent?: number;
+  runsStarted?: number;
+}
+
 export class GuardState {
-  private energySpent = 0;
-  private runsStarted = 0;
+  private energySpent: number;
+  private runsStarted: number;
   private consecutiveFailures = 0;
   private lastStateKey: string | null = null;
 
-  constructor(private readonly budget: SessionBudget) {}
+  constructor(
+    private readonly budget: SessionBudget,
+    seed: GuardSeed = {},
+  ) {
+    this.energySpent = seed.energySpent ?? 0;
+    this.runsStarted = seed.runsStarted ?? 0;
+  }
 
   get spentEnergy(): number {
     return this.energySpent;

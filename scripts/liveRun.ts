@@ -50,6 +50,7 @@ import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, Dungeo
 import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
+import { loadGuardBudget, saveGuardBudget } from "../src/orchestrator/guardPersistence.js";
 import { toCombatant, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
 import type { BoonOption } from "../src/sim/boons.js";
@@ -57,6 +58,7 @@ import { decide, formatDecision, type Decision } from "../src/strategy/decide.js
 import { LIVE_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
 import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
 import { pickSafeTier, UnsafeTierError } from "../src/strategy/enemyTier.js";
+import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 
 // ---------------------------------------------------------------------------
@@ -161,6 +163,45 @@ export function selectEnemyPathByIndex(index: number): DungeonAction {
 /** `rewardPathOptions[].boon` -> the sim's BoonOption shape (src/sim/boons.ts). */
 export function wireBoonToOption(w: WireBoon): BoonOption {
   return { type: w.boonTypeString, val1: w.selectedVal1, val2: w.selectedVal2 };
+}
+
+/** Value equality for a boon option — never reference equality, since a re-fetched offer builds fresh objects. */
+function boonOptionsEqual(a: BoonOption, b: BoonOption): boolean {
+  return a.type === b.type && a.val1 === b.val1 && a.val2 === b.val2;
+}
+
+/**
+ * [session 09] Re-locates the INTENDED reward by identity (type + applied
+ * values), never by the array position captured at decision time. Session
+ * 08's `postWithVerifiedRetry` re-checked whether the pick was still pending
+ * before retrying, but retried by resending the original `data.index` — if a
+ * retry landed after the offer itself changed underneath it, that index
+ * could now point at a different boon, and the fixture would record the
+ * INTENDED boon rather than the one actually applied (session-09 brief §1).
+ * Returns `null` if the intended boon is no longer present, so the caller
+ * halts instead of guessing.
+ */
+export function locateRewardOption(run: WireRun, chosen: BoonOption): number | null {
+  const r = run as WireRun & { rewardPathOptions?: Array<{ index: number; boon: WireBoon }> };
+  const options = r.rewardPathOptions ?? [];
+  const i = options.findIndex((o) => boonOptionsEqual(wireBoonToOption(o.boon), chosen));
+  return i === -1 ? null : i;
+}
+
+/**
+ * [session 09] Re-locates the Safe-tier option by its identity — tier === 0
+ * — rather than trusting the array position captured at decision time. Under
+ * the hard Safe-tier rule (CLAUDE.md §8) there is only ever one correct
+ * option regardless of what else is on offer, so identity here is simpler
+ * than the reward case: find whichever position currently holds tier 0.
+ * Returns `null` if no Safe tier is offered on a retry, which halts the run
+ * rather than ever picking a non-Safe tier as a fallback.
+ */
+export function locateSafeTierOption(run: WireRun): number | null {
+  const r = run as WireRun & { enemyPathOptions?: Array<{ tier: number; index: number }> };
+  const options = r.enemyPathOptions ?? [];
+  const i = options.findIndex((o) => o.tier === SAFE_TIER);
+  return i === -1 ? null : i;
 }
 
 export function buildEnvelope(
@@ -291,7 +332,21 @@ function fail(guards: GuardState, log: RunLog, reason: string, detail?: Record<s
  * once where it hadn't. Blindly retrying risks double-applying a pick;
  * blindly giving up on the first 500 means every transient server error
  * needs a human to unblock it. This checks live state after every failure
- * and only retries while `stillPending` says the action truly never landed.
+ * and only retries while `isPending` says the action truly never landed.
+ *
+ * [session 09] `reward_*`/`path_*` address their option by ARRAY POSITION,
+ * and session 08's version resent the position captured at decision time on
+ * every retry. That's a stale-index bug waiting to happen: if the offer
+ * itself changed between the failed attempt and a retry, a resent index
+ * could land on a DIFFERENT option than intended, and the fixture would
+ * record the option we MEANT to pick, not the one the server actually
+ * applied — silently poisoning `BOON_MODELS` (session-09 brief §1). Fixed by
+ * re-deriving the index from the freshly-fetched state on every attempt,
+ * including the first: `locate` finds the intended option by STABLE IDENTITY
+ * (a boon's type+values, or "whichever position is tier 0"), never by
+ * position. If identity lookup fails — the intended option is genuinely gone
+ * — this halts via GuardTrip rather than ever picking whatever now sits at
+ * the old position.
  *
  * Relies on `guards.recordActionResult(false)` to throw once
  * `maxConsecutiveActionFailures` (config/bot.json) is reached — that's the
@@ -302,11 +357,20 @@ export async function postWithVerifiedRetry(
   client: GigaverseClient,
   guards: GuardState,
   log: RunLog,
-  body: DungeonActionRequest,
-  stillPending: (run: WireRun) => boolean,
+  initialRun: WireRun,
+  locate: (run: WireRun) => number | null,
+  buildBody: (index: number) => DungeonActionRequest,
+  isPending: (run: WireRun) => boolean,
   reason: string,
 ): Promise<DungeonActionResponse | null> {
+  let run = initialRun;
   for (;;) {
+    const index = locate(run);
+    if (index === null) {
+      log.write({ event: "intended_option_missing", reason });
+      throw new GuardTrip(`${reason}: intended option no longer present in live offer`, {});
+    }
+    const body = buildBody(index);
     log.write({ event: "post", body });
     try {
       const resp = await client.postDungeonAction(body);
@@ -318,7 +382,8 @@ export async function postWithVerifiedRetry(
       log.write({ event: "post_attempt_failed", reason, error: (e as Error).message });
 
       const fresh = await client.getDungeonState();
-      const pending = fresh ? stillPending(fresh.data.run as unknown as WireRun) : false;
+      const freshRun = fresh ? (fresh.data.run as unknown as WireRun) : null;
+      const pending = freshRun ? isPending(freshRun) : false;
       if (!pending) {
         // Applied despite the error response (or the run moved on for some
         // other reason) — never retry an action that already landed.
@@ -327,6 +392,7 @@ export async function postWithVerifiedRetry(
         return null;
       }
       guards.recordActionResult(false); // throws GuardTrip once the configured limit is hit
+      run = freshRun!; // re-derive `index` against this freshly-fetched offer next loop
     }
   }
 }
@@ -377,6 +443,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
     }
     guards.recordActionResult(true);
     guards.recordRunStarted();
+    saveGuardBudget(guards.spentEnergy, guards.runCount); // [session 09] persist immediately — see guardPersistence.ts
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
     console.log(`  ✓ start_run sent — actionToken now ${client.getActionToken()}`);
@@ -497,15 +564,18 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
         console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(chosen.index)} (data.index 0 — see buildPathSelectionEnvelope)`);
         return;
       }
-      // data.index is 0 here, NOT chosen.index — confirmed live (see
-      // buildPathSelectionEnvelope's doc comment): path_* does not use the
-      // array-position convention reward_* does.
-      const body = buildPathSelectionEnvelope(selectEnemyPathByIndex(chosen.index), 0);
+      // Index is re-derived by identity (tier === SAFE_TIER) on every
+      // attempt, including this first one — never resent from `chosen.index`
+      // captured above, per postWithVerifiedRetry's doc comment (session-09
+      // brief §1). data.index in the POST body is 0 regardless of position —
+      // confirmed live, see buildPathSelectionEnvelope.
       const resp = await postWithVerifiedRetry(
         client,
         guards,
         log,
-        body,
+        run,
+        (freshRun) => locateSafeTierOption(freshRun),
+        (index) => buildPathSelectionEnvelope(selectEnemyPathByIndex(index), 0),
         (freshRun) => classifyPhase(freshRun) === "enemyPath",
         "enemy path selection rejected",
       );
@@ -535,12 +605,18 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
         console.log(`  [dry-run] would POST ${selectRewardByIndex(chosenIndex)} (index ${chosenIndex})`);
         return;
       }
-      const body = buildPathSelectionEnvelope(selectRewardByIndex(chosenIndex), chosenIndex);
+      // Index is re-derived by identity (boon type + applied values) on
+      // every attempt, including this first one — never resent from
+      // `chosenIndex` captured above, per postWithVerifiedRetry's doc
+      // comment (session-09 brief §1): a retry after the offer changed must
+      // not silently pick whatever now sits at the old position.
       const resp = await postWithVerifiedRetry(
         client,
         guards,
         log,
-        body,
+        run,
+        (freshRun) => locateRewardOption(freshRun, chosenOption),
+        (index) => buildPathSelectionEnvelope(selectRewardByIndex(index), index),
         (freshRun) => classifyPhase(freshRun) === "rewardPath",
         "reward selection rejected",
       );
@@ -589,11 +665,21 @@ async function main() {
 
   const config = loadBotConfig();
   const client = new GigaverseClient();
-  const guards = new GuardState({
-    dailyEnergyBudget: config.dailyEnergyBudget,
-    maxRunsPerSession: config.maxRunsPerSession,
-    maxConsecutiveActionFailures: config.maxConsecutiveActionFailures,
-  });
+  // [session 09] Seed from today's already-spent energy/runs so the budget
+  // holds across separate process invocations, not just within one — see
+  // guardPersistence.ts.
+  const seed = loadGuardBudget();
+  if (seed.energySpent > 0 || seed.runsStarted > 0) {
+    console.log(`  · resuming today's budget: ${seed.energySpent} energy / ${seed.runsStarted} runs already spent`);
+  }
+  const guards = new GuardState(
+    {
+      dailyEnergyBudget: config.dailyEnergyBudget,
+      maxRunsPerSession: config.maxRunsPerSession,
+      maxConsecutiveActionFailures: config.maxConsecutiveActionFailures,
+    },
+    seed,
+  );
   const model = new OpponentModel();
   const log = new RunLog();
 
@@ -616,7 +702,16 @@ async function main() {
       // clamp at 0 rather than ever recording a negative spend.
       const after = await currentEnergy(client, me.address);
       const delta = Math.max(0, before - after);
-      guards.recordEnergySpent(delta);
+      try {
+        guards.recordEnergySpent(delta);
+      } finally {
+        // Persist even if this throws (budget exceeded) — `energySpent` is
+        // already mutated by the time the check runs (guards.ts), and the
+        // energy was genuinely spent in-game either way. Under-persisting a
+        // failed call would let a process restart forget real spend and
+        // re-attempt past the budget.
+        saveGuardBudget(guards.spentEnergy, guards.runCount);
+      }
       log.write({ event: "energy_accounting", before, after, delta });
       console.log(`  ▸ energy: ${before} -> ${after}  (spent ${delta})`);
     }
