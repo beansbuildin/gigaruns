@@ -17,7 +17,7 @@ import { describe, expect, it } from "vitest";
 
 import { legalMoves, resolveExchange } from "../src/sim/combat.js";
 import { bestKnownProfile, PLAYER } from "../src/sim/enemies.js";
-import { cloneCombatant, MOVES, type BattleState, type Combatant } from "../src/sim/types.js";
+import { cloneCombatant, isDead, MOVES, type BattleState, type Combatant } from "../src/sim/types.js";
 import { DEFAULT_CONFIG, LIVE_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
 import { decide } from "../src/strategy/decide.js";
 import { categorise, rankBoons, upgradeTarget } from "../src/strategy/loot.js";
@@ -222,8 +222,17 @@ describe("decide — SPEC §4b's worked sanity check", () => {
     expect(row.paper!.ev).toBeGreaterThanOrEqual(row.scissor!.ev);
     expect(d.move).toBe("paper");
 
-    // Two of Shield's three replies end with the enemy dead and us alive.
-    const kills = row.paper!.cells.filter((c) => c.value === cfg().winValue);
+    // Two of Shield's three replies end with the enemy dead and us alive — one
+    // via an outright win (rock), one via a lethal tie (paper, per the comment
+    // above). [session 10] Checked by actually resolving the exchange, not via
+    // `.value === cfg().winValue` or `.outcome > 0`: a win's value is now
+    // `winValue + base` (the HP/armor margin utility.ts adds so the engine can
+    // tell a comfortable win from a bare one), so the exact constant no longer
+    // identifies a win — and `outcome` alone would miss the lethal TIE.
+    const kills = row.paper!.cells.filter((c) => {
+      const result = resolveExchange(s, "paper", c.foeMove).state;
+      return isDead(result.foe) && !isDead(result.me);
+    });
     expect(kills.map((c) => c.foeMove).sort()).toEqual(["paper", "rock"]);
   });
 });

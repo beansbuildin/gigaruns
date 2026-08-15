@@ -103,6 +103,17 @@ DECISIONS 2026-08-16.
 
 ### 5 — Dungeon strategy
 
+**GATE RETIRED [2026-08-16, session-10 brief §2].** `deepestScorableRoom`
+climbing 1 → 4 (Task 6, session 09) made the room-1-only framing this gate was
+built around stale: combat is solved (0 model failures across 214 exchanges,
+room-1 battle win rate 81.8% vs a 67.9% baseline, both non-overlapping), but
+every one of the bot's own five live runs died before room 5, and dying with
+low HP after a "won" room-1 battle is not the same thing as winning the run.
+Room-1 battle win rate now goes in the **reported-metrics block permanently**
+— it is not re-run and not tuned against — and Task 11's mean-rooms-cleared
+gate is **promoted to the live objective**. See Task 11 for the current gate
+and this session's outcome against it.
+
 Implement SPEC §4: EV engine, utility function, opponent model with charge
 pruning and first-order transition tracking, maximin fallback, loot ranking.
 Pure functions only. Must use `netDamageOnTie` rather than raw ATK — see the
@@ -290,6 +301,87 @@ into named patterns. Sweep dungeon utility weights (`w₁, w₂, w₃`) in sim a
 the accumulated real opponent model.
 
 **Gate:** Report of items-per-energy before vs. after tuning, for both loops.
+
+**Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
+superseding the item-per-energy form above for the dungeon side** — Task 5's
+gate served its purpose and is retired to reported-metrics (see Task 5). The
+death-room histogram is the diagnostic that decides where retuning effort
+should go, and it is now cheap to compute (`scripts/deathRooms.ts`), so it is
+part of the gate's own reporting, not a separate task:
+
+> Mean rooms cleared per run, on the scored subset, beating the current
+> configuration by a margin exceeding the 95% CI over ≥1000 runs. Report
+> alongside: room-1 battle win rate, coverage %, `deepestScorableRoom`, and the
+> distribution of death rooms.
+
+**Outcome [2026-08-16, session 10]: GATE NOT MET — retune attempted, sim
+validation found no measurable lever, and that null result is itself the
+finding.**
+
+`scripts/deathRooms.ts` (new) groups the corpus by `DUNGEON_ID_CID` **across**
+capture directories (one bot-driven run often spans several — each `npm run
+live` invocation writes its own directory) and counts only attempts that
+actually end at player HP 0, excluding pre-session-08 human research captures
+that were never played to a death. Of the corpus's 15 distinct dungeon
+attempts, **6 are confirmed deaths**: room 2 ×2, room 3 ×2, room 4 ×2, room 1
+×0. Deaths are **spread evenly across rooms 2–4**, not clustered at 2–3 — per
+the brief's own diagnostic, that reads as **enemy scaling**, not early-room HP
+mismanagement, though n=6 is thin.
+
+Retuned `src/strategy/utility.ts`: a win used to score a flat `cfg.winValue`
+regardless of remaining HP/armor, so among winning lines the engine was
+indifferent between finishing a kill at full HP and finishing it one hit from
+death — exactly "optimising each battle as if it were the last one" (brief
+§1). Fixed by adding the same continuous HP/armor margin the non-terminal case
+already uses on top of `winValue` (death is left flat — a death forfeits
+everything, so there is no margin to reward there, unlike a win, which
+continues the run). All 236 tests pass; one test rewritten to check the
+outcome directly (`isDead(...)`) rather than an exact `.value === winValue`
+equality the change necessarily breaks. Also loosened §4c's `Heal` urgency
+bonus from a step function (`+60` below 50% HP, `+0` at or above) to continuous
+in `(1 - hpFraction)`, since HP does not regenerate between rooms and a heal
+at 51% HP scoring identically to one at 100% undervalues it.
+
+**Both changes are correct in isolation and validated harmless (tests green,
+`npm run sim`'s own Task 5 report unaffected) — but a weight sweep found
+neither has ANY measurable effect on `meanRoomsCleared` or room-1 win rate,
+even amplified 10×:**
+
+```
+baseline (current DEFAULT)   mean rooms 1.946 ± 0.017   room1 win 86.4% ± 0.5   deepest 3
+hp weight x3                 mean rooms 1.967 ± 0.017   room1 win 86.5% ± 0.5   deepest 3
+hp weight x10                mean rooms 1.945 ± 0.017   room1 win 86.5% ± 0.5   deepest 3
+depthBonus x5 (1.75)         mean rooms 1.955 ± 0.017   room1 win 86.4% ± 0.5   deepest 3
+depthBonus x10 (3.5)         mean rooms 1.956 ± 0.017   room1 win 86.4% ± 0.5   deepest 3
+hp x3 + depthBonus x5        mean rooms 1.975 ± 0.017   room1 win 86.4% ± 0.5   deepest 3
+```
+(N=20000 each, seed 1.) Every number sits inside the others' CIs. This is not
+"we haven't found the right weights yet" — 10× is not a subtle nudge, and
+nothing moved. The room-1 battle win rate (86.4%) is unchanged to one decimal
+across every row, meaning the argmax move barely ever flips: this game's 9-cell
+RPS payoff structure has large enough ATK/DEF asymmetries that one move
+usually dominates in expectation regardless of the HP/armor margin, so there is
+little near-tie EV gap left for a margin term to break.
+
+**Reads the same direction as the death-room histogram**: if the binding
+constraint were cross-room HP mismanagement, amplifying the weight that prices
+HP preservation should have shown *something*. It didn't, and deaths are not
+clustered in the early rooms a mispriced HP term would predict. Both point at
+single-battle lethality escalating with room depth (enemy 65's Risky-tier
+stats at room 3, the observed room-4 mutual-kill tie) as the dominant risk —
+which weight-tuning the current utility form cannot address, because it prices
+resource preservation, not survival of a specific hard fight. Confirming this
+needs either a real opponent-model read at rooms 2–4 (thin today — the 30/1%
+observation floors in DECISIONS 2026-08-15/16 apply) or capture past room 4,
+neither of which is a tuning task.
+
+Both code changes are kept — they are correct fixes to a real bug and a real
+inconsistency, not reverted for producing a null result — but neither is
+reported as *the* fix for attrition, because the evidence says attrition
+(as a cross-room HP-management problem) is not what's binding. Five more live
+runs (Task 6 follow-up) will add real death-room data under the retuned
+config; if the live distribution also stays even across rooms 2–4 rather than
+shifting later, that is independent confirmation.
 
 ---
 

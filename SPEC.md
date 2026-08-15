@@ -880,6 +880,29 @@ the other everything. Task 5's EV engine must score a candidate move by
 enemies and it holds exactly — our Shield's 6 ATK clears DEF 2 and 4, and makes
 zero progress at DEF 6 and 8.
 
+**Win terminal is not flat — a win with more HP/armor left scores higher than
+a bare one [2026-08-16, session 10].** "Enemy dead → +1000" above is what
+Task 5 built, and it has a real gap: among several move sequences that all
+lead to a win within the search horizon, a flat +1000 makes the engine
+indifferent between finishing at full HP and finishing one hit from death — it
+scores THIS battle as if it were the last one, pricing the option value of
+carried-over HP at zero. `src/strategy/utility.ts` now returns
+`winValue + base` at a win, where `base` is the same continuous HP/armor term
+the non-terminal case already computes (the enemy-side terms in it are always
+zero at a win, since the combat model fully depletes armor before HP drops, so
+a dead foe has 0 armor too) — the margin composes with the ongoing evaluation
+rather than being a separate constant, and still can't override the ±1000
+win/death gap. Death is deliberately NOT given the same margin: a death ends
+the run regardless of leftover HP/armor, so there is nothing left to price.
+
+**Tested and found to have no measurable effect on `meanRoomsCleared` or
+room-1 win rate, even with the weight sweep amplified 10×** — see TASKS.md
+Task 11's session-10 outcome for the numbers. Kept anyway (it fixes a real
+inconsistency and is validated harmless), but it is not the fix for
+attrition — the evidence points at single-battle lethality escalating with
+room depth as the binding constraint at the corpus's observable depth, not
+cross-room HP mismanagement that a margin term could price.
+
 ### 4c. Loot selection
 
 **[CORRECTED 2026-08-14]** This section was written against zero evidence and
@@ -899,11 +922,18 @@ currently unspecified.
 
 After each win you pick one of three boons. Rank by:
 
-1. **Heal**, if HP fraction < 0.5 and rooms remain. Survival compounds; nothing
-   else matters if the run ends. **[CONFIRMED 2026-08-13]** this card is the
-   *only* way HP is ever restored — there is no in-combat healing — so a heal
-   offered at low HP is worth more than any stat upgrade, and passing one up is
-   effectively choosing to end the run early.
+1. **Heal**, weighted up continuously as HP fraction falls (not a step at 0.5),
+   while rooms remain. Survival compounds; nothing else matters if the run
+   ends. **[CONFIRMED 2026-08-13]** this card is the *only* way HP is ever
+   restored — there is no in-combat healing — so a heal offered at low HP is
+   worth more than any stat upgrade, and passing one up is effectively
+   choosing to end the run early. **[2026-08-16, session 10]** The original
+   rule was a hard step (full urgency bonus below 50% HP, none at or above)
+   — a heal at 51% scored the same as one at 100%, which undervalues it: HP
+   does not regenerate between rooms (DECISIONS 2026-08-17) or in combat, so
+   banked HP is available several rooms later regardless of which side of one
+   threshold it happened to sit on. `src/strategy/loot.ts` now scales the
+   urgency term by `(1 - hpFraction)` directly.
 2. **Upgrade the move you actually play most** (read it off your own logged move
    distribution, not off a guess about what's theoretically strongest).
 3. **Max HP / armor**, weighted up in early rooms where a long run is still ahead.

@@ -35,22 +35,38 @@ export function deathPenalty(room: number, cfg: StrategyConfig): number {
  * Mutual death scores as death: a dead player ends the run whatever happened to
  * the enemy, so the room's loot is forfeit either way. The sim can produce this
  * — Sword mirrored at low HP kills both sides on one exchange — and an engine
- * that scored it as a win would walk into it.
+ * that scored it as a win would walk into it. Death is a flat `deathPenalty`
+ * with no margin: the run is over, so leftover HP/armor buys nothing.
+ *
+ * A win is NOT flat. [session 10] `winValue` used to be returned bare, so among
+ * winning lines the engine was indifferent between finishing a kill at full HP
+ * and finishing it one hit from death — it was scoring THIS battle as if it
+ * were the last one, exactly the attrition bug the brief identified: HP that
+ * survives a room has option value for the rooms after it, and a flat win
+ * score prices that at zero. A win's value is now `winValue + base`, where
+ * `base` is the same continuous HP/armor term the non-terminal case uses (the
+ * enemy-side terms in it are always zero at a win — the combat model fully
+ * depletes armor before HP ever drops, so a dead foe has armor 0 too) — the
+ * margin composes smoothly with the ongoing evaluation instead of being a
+ * separate constant, and a win still strictly dominates every non-terminal and
+ * every loss because `winValue`/`deathPenalty` (±1000) dwarf `base`'s ±~2
+ * range.
  */
 export function utility(state: BattleState, cfg: StrategyConfig): number {
   const { me, foe, room } = state;
 
   if (isDead(me)) return deathPenalty(room, cfg);
-  if (isDead(foe)) return cfg.winValue;
 
   const w = cfg.weights;
   // Both pools normalised by the side's OWN hpMax, so `w.hp > w.armor` means
   // what it reads as: a point of HP is worth more than a point of armor. See
   // config.ts for why normalising armor by armorMax gets this backwards.
-  return (
+  const base =
     w.hp * (me.hp / me.hpMax) +
     w.armor * (me.armor / me.hpMax) -
     w.foeHp * (foe.hp / foe.hpMax) -
-    w.foeArmor * (foe.armor / foe.hpMax)
-  );
+    w.foeArmor * (foe.armor / foe.hpMax);
+
+  if (isDead(foe)) return cfg.winValue + base;
+  return base;
 }

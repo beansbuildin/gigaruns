@@ -113,8 +113,16 @@ export function rankBoons(
           // 2026-08-13), so passing one up at low HP is choosing to end the run.
           // Scaled by how much of the heal is actually usable — at full HP it is
           // worth nothing, and the cap wastes the excess.
+          //
+          // [session 10] The urgency bonus used to be a step function (+60 below
+          // 50% HP, +0 at or above it) — a heal offered at 51% HP scored the same
+          // as one at 100%, which undervalues it: HP does not regenerate between
+          // rooms (DECISIONS 2026-08-17) or in combat, so HP banked now is HP
+          // available several rooms later regardless of which side of 50% it sits
+          // on. Made continuous in `(1 - hpFraction)` so the bonus tracks how much
+          // HP is actually missing, not which side of one threshold it's on.
           const usable = Math.min(option.val1, player.hpMax - player.hp);
-          score = 100 * (usable / player.hpMax) + (hpFraction < 0.5 && roomsRemaining > 0 ? 60 : 0);
+          score = 100 * (usable / player.hpMax) + (roomsRemaining > 0 ? 60 * (1 - hpFraction) : 0);
           rationale = `heals ${usable} usable of ${option.val1} at HP ${player.hp}/${player.hpMax}`;
           break;
         }

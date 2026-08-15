@@ -5,6 +5,46 @@ these block it.
 
 ---
 
+## 8. Daily guard budget already spent — blocks this session's five-run stage [session 10]
+
+`config/bot.json`'s `dailyEnergyBudget: 120` / `maxRunsPerSession: 5` is keyed
+by UTC date in `data/guard-budget.json`, and today's entry already reads
+`{"date":"2026-08-15","energySpent":78,"runsStarted":5}` — session 09's
+five-run stage spent it all earlier today. `npm run live -- --dry-run` this
+session correctly refused a 6th run:
+
+```
+✗ Guard tripped: session run cap reached {"attemptedRun":6,"cap":5}
+```
+
+This is the guard working as designed, not a bug — the whole point of session
+09's persistence fix was making this cap real across process invocations. But
+the session-10 brief asks for five MORE live runs (with the retuned
+`utility.ts`/`loot.ts` from this session) to compare death-room distribution
+before/after, which needs either a raised budget for today or waiting for
+tomorrow's UTC rollover. Raising `dailyEnergyBudget`/`maxRunsPerSession`
+myself is exactly CLAUDE.md's "Ask first" list ("spend energy above the
+configured daily budget") — not something to do unilaterally the way session
+09 did (that raise matched a budget the user's own brief had already stated
+explicitly; this one would not).
+
+**What's needed:** either (a) confirm raising today's budget (e.g. to 240
+energy / 10 runs, covering both sessions' worth) so the five-run stage can run
+now, or (b) let it run tomorrow once the date key rolls over. The five-run
+stage and the opportunistic `reward_*`/`path_*` envelope test (§9 below) are
+both blocked on the same thing.
+
+## 9. `reward_*`/`path_*` envelope test — piggybacks on §8, not separately blocking
+
+Session-10 brief §3: on the next live reward pick, send the tracked
+`actionToken` and the real `dungeonId` instead of `""`/`0` (current behavior),
+one variation at a time, falling back to current handling if it 500s too. Not
+attempted this session — no live reward pick happened, since §8 blocked every
+live run before one was reached. Do opportunistically during the next
+unblocked five-run stage; no separate capture needed.
+
+---
+
 ## 7. JWT rejected — blocks all of Task 6 [session 08, TOP OF SESSION]
 
 `~/.secrets/gigaverse-jwt.txt` exists (1729 chars) but the server rejects it.
@@ -267,17 +307,35 @@ Still open, and worth one line in any future capture: both samples are at room 2
 If a deeper room shows a tier premium in `LOOT_AMOUNT_CID_array`, this becomes a
 real risk/reward tradeoff rather than a free choice.
 
-## 3. Fishing HAR — still blocks Task 7 (carried from session 01)
+## 3. Fishing HAR — blocks Task 7 AND item metadata (carried from session 01, expanded session 10)
 
 Confirmed this session that fishing is on a genuinely undiscovered surface:
 **zero** matches for `/dendren|fish|cast|bait|node/i` across all seven probed
 endpoints. There is nothing further to try without the capture.
 
-Per SPEC §3a: gigaverse.io → DevTools → Network → filter Fetch/XHR → play one
-Dendren cast start to finish → right-click → Save all as HAR →
-`fixtures/fishing-cast.har` (already gitignored).
+**[2026-08-16, session 10]** This is now also the only lead on item metadata.
+`/items/balances` returns bare numeric IDs and balances, no names or
+descriptions — can't tell which held items are consumables from that endpoint
+alone. But the game client clearly displays item names somewhere, so it fetches
+them from an endpoint that exists; per CLAUDE.md §2 ("never invent an
+endpoint"), the way to find it without guessing a URL is the same HAR capture
+already blocking fishing. One ten-minute capture unblocks both.
 
-Not urgent — Tasks 4, 5 and 6 are all unblocked without it.
+**One capture, one checklist:**
+
+1. Open gigaverse.io in a browser with DevTools open, Network tab, filter to
+   Fetch/XHR.
+2. Open the inventory and let item names render on screen (this is what
+   captures the item-metadata endpoint).
+3. Play one complete Dendren fishing cast, start to finish.
+4. Right-click the network panel → Save all as HAR → save as
+   `fixtures/fishing-cast.har` (repo root; already gitignored).
+
+Not urgent for the dungeon side — Tasks 4, 5 and 6 are all unblocked without
+it — but it is the single highest-value capture left for the project as a
+whole: it unblocks the entire fishing half (blocked since session 01) and the
+item-metadata question the session-09 brief flagged as possibly "the biggest
+lever" on live-run deaths (consumables), in one action.
 
 ## 4. `dungeonId` in the action envelope — unverifiable until Task 6
 
