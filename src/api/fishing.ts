@@ -1,0 +1,212 @@
+/**
+ * src/api/fishing.ts — Task 7. Zod schemas for the fishing API surface,
+ * written against `fixtures/fishing-casts/*.json` (redacted, from
+ * `scripts/parseHar.ts`), never against SPEC-fishing.md prose — same rule as
+ * `schemas.ts`'s header comment.
+ *
+ * Every object uses `.passthrough()` for the same reason: CLAUDE.md §1, a
+ * live field the schema doesn't name should ride along, not get stripped.
+ *
+ * CONFIRMED (this file's schemas are built to accept exactly what was
+ * captured) vs INFERRED — see SPEC-fishing.md for the full breakdown. The
+ * short version: everything here matched one live capture of one complete
+ * cast (`start_run` + 5 `play_cards`, ending `FISH_ESCAPED`). Field
+ * *presence* is confirmed; field *range* (e.g. `hand`'s length, `events[]`
+ * ordering under a catch instead of an escape) is not — there was only one
+ * cast to observe, and it never caught anything.
+ */
+
+import { z } from "zod";
+
+// ── deck / card definitions (GET /api/fishing/cards, and echoed in every
+//    fishing/action response as `doc.data.deckCardData`) ────────────────────
+
+const CardEffectSchema = z.object({ type: z.string(), amount: z.number() }).passthrough();
+
+export const FishingCardSchema = z
+  .object({
+    id: z.number(),
+    // Nullable AND optional — LIVE FINDING (CLAUDE.md §1, spec guess was
+    // wrong): `isDayCard: true` cards in `deckCardData` (mid-cast) carry
+    // `startingAmount: null`/`unlockLevel: null` explicitly (ids 39, 40); the
+    // same fields are entirely ABSENT (not even `null`) on many entries of
+    // the full GET /fishing/cards catalog. Two different wire shapes for
+    // "this card has no fixed starting amount / unlock level", not one.
+    startingAmount: z.number().nullable().optional(),
+    manaCost: z.number(),
+    hitZones: z.array(z.number()),
+    critZones: z.array(z.number()),
+    hitEffects: z.array(CardEffectSchema),
+    missEffects: z.array(CardEffectSchema),
+    critEffects: z.array(CardEffectSchema),
+    unlockLevel: z.number().nullable().optional(),
+    earnable: z.boolean(),
+    rarity: z.number(),
+    isDayCard: z.boolean(),
+    foundInPonds: z.array(z.number()),
+  })
+  .passthrough();
+export type FishingCard = z.infer<typeof FishingCardSchema>;
+
+export const FishingCardsSchema = z.object({ entities: z.array(FishingCardSchema) }).passthrough();
+export type FishingCards = z.infer<typeof FishingCardsSchema>;
+
+// ── board state — the identical shape rides under two different wrappers:
+//    GET /fishing/state → { gameState: {...} }, POST /fishing/action →
+//    { data: { doc: {...} } }. Normalise both to this one schema. ───────────
+
+const FishingBoardDataSchema = z
+  .object({
+    deckCardData: z.array(FishingCardSchema),
+    playerMaxHp: z.number(),
+    playerHp: z.number(),
+    fishHp: z.number(),
+    fishMaxHp: z.number(),
+    fishPosition: z.array(z.number()),
+    previousFishPosition: z.array(z.number()),
+    gridSize: z.number(),
+    focusPoint: z.array(z.number()),
+    focusMeter: z.number(),
+    focusMeterMax: z.number(),
+    focusMechanicEnabled: z.boolean(),
+    patternIndex: z.number(),
+    fullDeck: z.array(z.number()),
+    nextCardIndex: z.number(),
+    cardInDrawPile: z.number(),
+    hand: z.array(z.number()),
+    discard: z.array(z.number()),
+  })
+  .passthrough();
+
+export const FishingGameDocSchema = z
+  .object({
+    docId: z.string(),
+    docType: z.literal("FISHING_GAME"),
+    data: FishingBoardDataSchema,
+    COMPLETE_CID: z.boolean(),
+    // Absent on GET /fishing/state before a cast resolves; present (bool) on
+    // every POST /fishing/action response, including mid-cast (false).
+    SUCCESS_CID: z.boolean().optional(),
+    IS_JUICED_CID: z.boolean(),
+    MULTIPLIER_CID: z.number(),
+  })
+  .passthrough();
+export type FishingGameDoc = z.infer<typeof FishingGameDocSchema>;
+
+// ── GET /fishing/state/:address ─────────────────────────────────────────────
+
+const PondEntryTierSchema = z
+  .object({
+    name: z.string(),
+    tier: z.number(),
+    pondId: z.number(),
+    inputItems: z.array(z.number()),
+    inputAmounts: z.array(z.number()),
+    dropMultiplier: z.number(),
+  })
+  .passthrough();
+
+export const FishingStateSchema = z
+  .object({
+    gameState: FishingGameDocSchema.nullable(),
+    pondEntryTiers: z.array(PondEntryTierSchema),
+    maxPerDay: z.number(),
+    maxPerDayJuiced: z.number(),
+    // node0/1/2 — INFERRED to be per-tier energy cost within the ONE pond
+    // this capture saw (Dendren, pondId 2: 12/16/20 energy for tier 1/2/3,
+    // matching the dungeon side's per-tier cost pattern). Never independently
+    // confirmed against a second pond — see SPEC-fishing.md §3.
+    node0Energy: z.number(),
+    node1Energy: z.number(),
+    node2Energy: z.number(),
+  })
+  .passthrough();
+export type FishingState = z.infer<typeof FishingStateSchema>;
+
+// ── POST /fishing/action ────────────────────────────────────────────────────
+
+export const FishingActionSchema = z.enum(["start_run", "play_cards"]);
+export type FishingAction = z.infer<typeof FishingActionSchema>;
+
+/**
+ * `nodeId`/`tierId` only meaningful on `start_run` (nodeId "5" resolved
+ * this cast to Dendren Pond — see SPEC-fishing.md §3 for why that's
+ * CONFIRMED-BY-CAPTURE, not confirmed by an explicit name field). `cards`/
+ * `focusPoint` only meaningful on `play_cards`. Sent as `""`/`[]`/`0`
+ * respectively when not applicable — CONFIRMED literal envelope, not
+ * inferred; both action types were captured.
+ */
+export interface FishingActionRequest {
+  action: FishingAction;
+  actionToken: string;
+  data: {
+    cards: number[];
+    nodeId: string;
+    focusPoint: number[];
+    itemId: number;
+    slotIndex: number;
+    tierId: number;
+  };
+}
+
+const FishingEventSchema = z
+  .object({
+    type: z.string(),
+    playerId: z.number(),
+    batch: z.number(),
+  })
+  .passthrough();
+
+export const FishingActionResponseSchema = z
+  .object({
+    success: z.boolean(),
+    message: z.string(),
+    data: z
+      .object({
+        doc: FishingGameDocSchema,
+        events: z.array(FishingEventSchema),
+      })
+      .passthrough(),
+    actionToken: z.number(),
+  })
+  .passthrough();
+export type FishingActionResponse = z.infer<typeof FishingActionResponseSchema>;
+
+// ── item metadata (GET /offchain/static's `gameItems[]`) — resolves the
+//    bare numeric IDs in GET /items/balances into names/effects. Confirmed
+//    the same capture: item 845 → "Hard Core", 131/151/155 → the three heal
+//    potions with flat OnUseBattle heal amounts (20/4/8). See
+//    SPEC-fishing.md §5. ───────────────────────────────────────────────────
+
+const ItemEffectStepSchema = z
+  .object({
+    type: z.string(),
+    amount: z.number(),
+    playerType: z.string(),
+    statusType: z.string(),
+  })
+  .passthrough();
+
+const ItemEffectTriggerSchema = z
+  .object({
+    triggerType: z.string(),
+    effects: z.array(ItemEffectStepSchema),
+    durabilityChange: z.number(),
+    playerType: z.string(),
+  })
+  .passthrough();
+
+export const GameItemSchema = z
+  .object({
+    docId: z.string(),
+    NAME_CID: z.string(),
+    DESCRIPTION_CID: z.string().optional(),
+    TYPE_CID: z.string().optional(),
+    RARITY_CID: z.number().optional(),
+    RARITY_NAME: z.string().optional(),
+    itemEffect: z.object({ effects: z.array(ItemEffectTriggerSchema) }).passthrough().optional(),
+  })
+  .passthrough();
+export type GameItem = z.infer<typeof GameItemSchema>;
+
+export const GameItemsSampleSchema = z.array(GameItemSchema);

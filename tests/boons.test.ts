@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(17); // +7 session 09: full five-run live stage, see DECISIONS 2026-08-15
+    expect(pickups.length).toBe(23); // +6 session 11: retuned-config 3-run live stage, see STATE.md session 11
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -144,13 +144,17 @@ describe("fail-closed on unmodelled types", () => {
       // AddBlock moved OUT — session 08 gave it a live pickup pair, now modelled.
       // UpgradeRock/UpgradeScissor moved OUT — session 09 gave both live
       // pickup pairs (moveDelta), now modelled.
-      "AddMaxArmor",
+      // AddMaxArmor/CorrosiveShield moved OUT — session 11 gave both live
+      // pickup pairs (maxArmor / latent), now modelled.
+      "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked
+      "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
+      "BurnMastery", // session 11: first sighting, room-1 offer, not picked
       "CorrosiveMagic", // session 09: first sighting, room-3 offer, not picked
-      "CorrosiveShield",
       "Regen",
       "TieDamageReduction",
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
       "UpgradePaper",
+      "VulnerableEvade", // session 11: first sighting, room-2 offer, not picked
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
       "WeakeningMastery", // session 08: same offer, not picked
     ]);
@@ -170,9 +174,16 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
   // corpus's absolute depth ceiling) this session (tests/dungeonSim.test.ts,
   // "the Task 4 gate") — not from a single lucky pick, but three independent
   // clean room-1 options now.
-  it("has clean+modelled room-1 options — Heal, UpgradeRock and UpgradeScissor", () => {
+  it("has clean+modelled room-1 options — Heal, UpgradeRock, UpgradeScissor and AddMaxArmor", () => {
+    // [session 11] +3 room-1 offers (9 options), none of them newly clean —
+    // AddMaxArmor's own first pair landed at room 2 this session (see
+    // below), but the corpus already had an UNPICKED room-1 AddMaxArmor
+    // offer since session 06 (run-2026-08-14-03-26-57/state-016) that was
+    // unmodelled until now. Modelling a type retroactively makes every past
+    // offer containing it clean too — a fourth room-1 hole, discovered here
+    // rather than by a fresh room-1 capture.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(30);
+    expect(roomOne.length).toBe(39);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -180,14 +191,16 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       if (reasons.length === 0) clean.push(option.type);
       else expect(reasons.length, `${option.type} came back clean`).toBeGreaterThan(0);
     }
-    expect(clean.sort()).toEqual(["Heal", "Heal", "UpgradeRock", "UpgradeScissor"]);
+    expect(clean.sort()).toEqual(["AddMaxArmor", "Heal", "Heal", "UpgradeRock", "UpgradeScissor"]);
   });
 
-  it("Heal, UpgradeScissor and UpgradeRock are the only clean boons in the corpus", () => {
+  it("Heal, UpgradeScissor, UpgradeRock and AddMaxArmor are the only clean boons in the corpus", () => {
+    // [session 11] AddMaxArmor joined this session — captured at room 2, not
+    // room 1, so it doesn't move the room-1-scoped test above.
     const clean = Object.entries(BOON_MODELS)
       .filter(([, m]) => m.contaminates.length === 0)
       .map(([t]) => t);
-    expect(clean).toEqual(["Heal", "UpgradeScissor", "UpgradeRock"]);
+    expect(clean).toEqual(["Heal", "UpgradeScissor", "UpgradeRock", "AddMaxArmor"]);
 
     const healRooms = OBSERVED_OFFERS.filter((o) =>
       o.options.some((x) => x.type === "Heal"),

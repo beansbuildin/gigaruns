@@ -1,8 +1,8 @@
 {
-  "_comment": "User-editable budget knobs. Dungeon economics (energyCost, maxRoom, maxRunsPerDay) come from config/discovered.json (generated, gitignored) — this file only holds the numbers a human chooses. Session-08: conservative first-session budget, 3 runs at 20 energy each per session-08 brief §5. Session-09: raised to 120/5 per session-09 brief's explicit stated budget ('120 energy this session... covers five runs with margin') for Task 6's five-run stage — the guard-persistence fix landed this session made maxRunsPerSession a REAL cap across process invocations for the first time, and it was still holding at the session-08 conservative value, capping the session at 3 runs before the five-run gate could be attempted.",
+  "_comment": "User-editable budget knobs. Dungeon economics (energyCost, maxRoom, maxRunsPerDay) come from config/discovered.json (generated, gitignored) — this file only holds the numbers a human chooses. Session-08: conservative first-session budget, 3 runs at 20 energy each per session-08 brief §5. Session-09: raised to 120/5 per session-09 brief's explicit stated budget ('120 energy this session... covers five runs with margin') for Task 6's five-run stage — the guard-persistence fix landed this session made maxRunsPerSession a REAL cap across process invocations for the first time, and it was still holding at the session-08 conservative value, capping the session at 3 runs before the five-run gate could be attempted. Session-11: raised to 240/12, matching the user's own confirmed REAL daily budget (session-11 brief §6: '240 energy/day dungeon budget, 12 runs at 20 energy') rather than a session-scoped guess — the guard is date-keyed, so this is now a standing calibration to reality, not a one-day bump. Confirmed directly by the user this session (not raised unilaterally) after today's 78/5 spend from sessions 09-10 blocked the session-11 brief's ask of 3 more 20-energy runs. See DECISIONS.md.",
   "forbiddenWoods": {
-    "dailyEnergyBudget": 120,
-    "maxRunsPerSession": 5
+    "dailyEnergyBudget": 240,
+    "maxRunsPerSession": 12
   },
   "guards": {
     "maxConsecutiveActionFailures": 3

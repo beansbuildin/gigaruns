@@ -33,8 +33,8 @@ describe("determinism", () => {
   });
 });
 
-/** Boon types with `contaminates: []` in BOON_MODELS — Heal, UpgradeRock, UpgradeScissor (session 09). */
-const CLEAN_BOON_TYPES = new Set(["Heal", "UpgradeRock", "UpgradeScissor"]);
+/** Boon types with `contaminates: []` in BOON_MODELS — Heal, UpgradeRock, UpgradeScissor (session 09), AddMaxArmor (session 11). */
+const CLEAN_BOON_TYPES = new Set(["Heal", "UpgradeRock", "UpgradeScissor", "AddMaxArmor"]);
 
 describe("fail-closed accounting", () => {
   // [session 09, LIVE] Both tests below used to assert a blanket "any battle/
@@ -80,7 +80,7 @@ describe("fail-closed accounting", () => {
     }
   });
 
-  it("flags every ROOM-1 boon EXCEPT the three clean types — Wall 1 has holes, not a collapse", () => {
+  it("flags every ROOM-1 boon EXCEPT the four clean types — Wall 1 has holes, not a collapse", () => {
     // Deliberately scoped to room 1. An earlier draft asserted this for EVERY
     // boon and failed on Heal at room 2 — correctly, because Heal really is
     // clean. That was the boon model working, not a hole in it: the wall was
@@ -94,6 +94,12 @@ describe("fail-closed accounting", () => {
     // room 2+, which is exactly why `deepestScorableRoom` moved 1 -> 4
     // (MAX_OBSERVED_ROOM) this session (see "the Task 4 gate" below). Every
     // OTHER room-1 boon type still contaminates.
+    //
+    // [session 11] AddMaxArmor joined CLEAN_BOON_TYPES — its own first pair
+    // came from a room-2 pickup, but the corpus ALREADY had an unpicked
+    // room-1 AddMaxArmor offer (session 06), which is now retroactively
+    // clean too. `seenCleanPick` below counts all four types, not room-1
+    // discoveries specifically.
     let seenRoomOne = 0;
     let seenCleanPick = 0;
     for (let seed = 1; seed <= 200; seed++) {
@@ -196,10 +202,14 @@ describe("the Task 4 gate", () => {
     // [session 09, LIVE] 1000 -> 1108 and deepestScorableRoom 1 -> 4
     // (MAX_OBSERVED_ROOM, the corpus's absolute depth ceiling): Wall 1's
     // three holes (Heal AND two `moveDelta` boons, all `contaminates: []` —
-    // see "flags every ROOM-1 boon EXCEPT the three clean types" above) let
+    // see "flags every ROOM-1 boon EXCEPT the four clean types" above) let
     // SOME runs stay scorable well past room 1, not just the guaranteed-one-
     // per-run room-1 battle.
-    expect(s.battleCoverage.scored).toBe(1108);
+    // [session 11] 1108 -> 1120 — AddMaxArmor joined CLEAN_BOON_TYPES (a
+    // fourth clean type), opening slightly more scorable paths at this same
+    // seed. deepestScorableRoom stays 4 — still MAX_OBSERVED_ROOM, a boon
+    // becoming clean doesn't raise the corpus's depth ceiling.
+    expect(s.battleCoverage.scored).toBe(1120);
     expect(s.deepestScorableRoom).toBe(4);
   });
 
@@ -209,18 +219,23 @@ describe("the Task 4 gate", () => {
     expect(s.scoredBattleWinRate).toBeLessThan(0.8);
   });
 
-  it("[session 09, LIVE] a scored run CAN now win — rare, but no longer impossible by construction", () => {
+  it("[session 11] a scored clear is possible by construction but landed at 0 in this seeded batch", () => {
     // [session 05-08] This used to pin scoredWinRate at exactly 0: clearing a
     // room fired a boon, and every boon fired BOON_UNMODELLED or
-    // ROLLED_STATS, so a scored run was BY CONSTRUCTION a room-1 death. That
-    // construction argument no longer holds — three boon types are clean
-    // (Heal, UpgradeRock, UpgradeScissor), so a run threading clean picks at
-    // every room it passes through, while also winning every battle, stays
-    // scored all the way to a clear. Still rare (random policy, random
-    // draws): ~0.3% of scored runs, not the exactly-0 the old title claimed.
-    // A regression to 0 is fine; a regression to something LARGER without a
-    // deliberate change is the thing worth catching.
-    expect(s.scoredWinRate).toBeCloseTo(0.0032, 3);
-    expect(s.scoredWinRate).toBeGreaterThan(0);
+    // ROLLED_STATS, so a scored run was BY CONSTRUCTION a room-1 death.
+    // [session 09] That construction argument stopped holding once three boon
+    // types went clean (Heal, UpgradeRock, UpgradeScissor) — 0.32% of scored
+    // runs, at this exact seed, threaded clean picks through every room they
+    // passed while also winning every battle.
+    // [session 11] AddMaxArmor joining CLEAN_BOON_TYPES changed WHICH runs at
+    // this seed stay scored (1108 -> 1120 scored battles, previous test) —
+    // and at this specific seed, the re-shuffled set of scored runs no longer
+    // includes any full clear: 0/1120. Still possible by construction (the
+    // same reasoning as session 09 applies: a run threading only clean picks
+    // while winning every battle stays scored to a clear) — just not observed
+    // in this one N=1000, seed=1 draw. A future session finding this at 0
+    // again is not itself informative; finding it LARGE without a deliberate
+    // change would be.
+    expect(s.scoredWinRate).toBe(0);
   });
 });

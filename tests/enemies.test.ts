@@ -111,7 +111,11 @@ describe("player loadout matches the fixtures", () => {
         }),
       ),
     );
-    expect([...seen].sort()).toEqual(["32/15", "32/16"]);
+    // [session 11] Two new combos: 34/16 is the new starting loadout (hpMax
+    // 32→34, a level-up or gear change); 34/20 is 34/16 mid-run AFTER an
+    // AddMaxArmor pickup (armorMax 16→20) — a real in-run state, not a
+    // fourth distinct starting loadout. See src/sim/enemies.ts's PLAYER doc.
+    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20"]);
   });
 });
 
@@ -160,12 +164,32 @@ describe("unmodelled annotations match what the corpus actually shows, PER TIER"
     expect(hit, "enemy 65 with non-zero block").toBeDefined();
   });
 
-  it("confirms room 4's recorded battle carries Burn on the enemy but activeEnemyBuff stays null throughout", () => {
+  it("confirms room 4's Safe-tier battle carries Burn on the enemy but activeEnemyBuff stays null", () => {
     const runs = loadCorpus();
+    // Scoped to the three pre-session-11 Safe-tier captures — see the next
+    // test for why this can no longer say "every room4 state".
+    const safeDirs = ["run-2026-08-14-01-00-08", "run-2026-08-14-22-13-30", "run-2026-08-15-01-53-36"];
     const room4States = runs
+      .filter((r) => safeDirs.includes(r.name))
       .flatMap((r) => r.states)
       .filter((s) => s.run.players[1]!.id === "Enemy Room 66");
+    expect(room4States.length).toBeGreaterThan(0);
     expect(room4States.some((s) => (s.run.players[1]!.statusEffects?.length ?? 0) > 0)).toBe(true);
     expect(room4States.every((s) => (s.run.activeEnemyBuff ?? null) === null)).toBe(true);
+  });
+
+  it("[session 11, LIVE] room 4's RISKY-tier capture carries a real activeEnemyBuff — Withering", () => {
+    // No Safe tier was offered for the room-3→4 transition this session
+    // (pickLowestTier() resolved to Risky, per CLAUDE.md §8's generalized
+    // rule) — the FIRST room-4 capture at a non-Safe tier, and the first
+    // time `activeEnemyBuff` has ever been non-null in this corpus. Logged
+    // only, per DECISIONS 2026-08-15's rule against acting on anything but a
+    // verified pair — this enemy instance is not added to ROOM_ENEMIES.
+    const runs = loadCorpus();
+    const withBuff = runs
+      .flatMap((r) => r.states)
+      .filter((s) => s.run.players[1]!.id === "Enemy Room 66" && (s.run.activeEnemyBuff ?? null) !== null);
+    expect(withBuff.length).toBeGreaterThan(0);
+    expect((withBuff[0]!.run.activeEnemyBuff as { id: string }).id).toBe("withering");
   });
 });

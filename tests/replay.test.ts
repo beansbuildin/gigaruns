@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(214);
+    expect(exchanges(runs).length).toBe(264); // +50 session 11: retuned-config 3-run live stage
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -89,7 +89,13 @@ describe("combat model vs recordings", () => {
     // model held through one full live run" through an entire five-run
     // stage, a gear change mid-session, and non-Safe-tier battles for the
     // first time.
-    expect(report.sideUpdates).toBe(428);
+    // [session 11] Three more retuned-config live runs (rooms reached: 4, 3,
+    // 2 — died every time), a gear re-spec (see enemies.ts's PLAYER doc), and
+    // the corpus's first-ever non-Safe-tier room-4 battle (Withering buff,
+    // see tests/enemies.test.ts). The clean model matched EVERY exchange
+    // again — 0 clean failures, still holding through 8 live dungeon runs
+    // total.
+    expect(report.sideUpdates).toBe(528);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

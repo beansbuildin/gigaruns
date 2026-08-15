@@ -174,6 +174,26 @@ Log the EV table for one full battle and eyeball it — every chosen move should
 be justifiable from its numbers. If one isn't, the utility weights are wrong,
 not the logs. `npm run sim` prints one, from a warmed model at a fixed seed.
 
+**Extension [2026-08-15, session 11] — potion loadout, folded into §4c loot
+ranking, not a standalone task.** Session 10 §7 asked for a standalone
+"potion timing" task (an optimal-stopping problem — spend now or hold?); the
+same brief's addendum then superseded that framing with a user confirmation:
+**potions are a PRE-COMMITTED loadout chosen before `start_run`, not used
+mid-run.** That makes it a static 3-item selection maximizing expected rooms
+cleared — solvable in the sim exactly like any other loot-ranking choice, not
+a sequential decision needing its own task or gate. This TASKS.md entry
+records that downgrade; no separate task was ever created to retire.
+
+Prerequisites, updated this session (`SPEC-fishing.md §5`): item metadata is
+now resolved — the three heal potions are confirmed flat heals (+4/+8/+20
+HP), not percentage. **Still open**: the auto-trigger CONDITION
+(`itemEffect.triggerType: "OnUseBattle"` says WHEN the effect is eligible,
+not HOW it fires — an HP-threshold proc and a manual mid-battle action are
+both consistent with that string, and this session's fishing capture
+contains no dungeon battle to disambiguate). Needs a live dungeon run with a
+non-empty `consumables` in `start_run` and an observed heal firing, or a
+direct answer from the user, before the loadout policy can be built.
+
 ---
 
 ### 6 — Live dungeon, supervised
@@ -258,6 +278,40 @@ Requires the user's HAR capture (SPEC §3a) at `fixtures/fishing-cast.har`. Buil
 committed as `SPEC-fishing.md`. Dendren's node ID resolved into
 `config/discovered.json`. If fishing is websocket-based, stop and write to
 `QUESTIONS.md` instead.
+
+**Outcome [2026-08-15, session 11]: GATE MET.** The user's HAR landed at
+`fixtures/fishing-casts/fishing-cast.har` (not the exact path named above,
+but correctly gitignored — `scripts/parseHar.ts` searches `fixtures/**/*.har`
+rather than a hardcoded name). It is REST, one write endpoint (`POST
+/api/fishing/action`), same action-token discipline as the dungeon side, so
+no `QUESTIONS.md` block was needed. `SPEC-fishing.md` documents the full
+endpoint map and every schema, `src/api/fishing.ts` implements them (zod,
+`.passthrough()`, same convention as `src/api/schemas.ts`), and
+`tests/api/fishing.test.ts` re-derives every schema against the redacted
+fixtures.
+
+Dendren resolved into `config/discovered.json`'s new `dendren` block, with a
+stated caveat: `nodeId: "5"` (the value that worked, sent on the request) and
+`pondId: 2` (independently named `"dendrenpond-tier1/2/3"` in a response) are
+recorded SEPARATELY rather than assumed to be the same field under two
+names — see `SPEC-fishing.md §3`.
+
+One live finding along the way (CLAUDE.md §1): `deckCardData`'s
+`startingAmount`/`unlockLevel` are `null` on `isDayCard` entries and entirely
+ABSENT on some catalog entries — two different wire shapes for "no fixed
+value", not one. `FishingCardSchema` types both fields
+`.nullable().optional()`.
+
+Also resolved, opportunistically, per session-11 brief §4: the item-metadata
+endpoint from `QUESTIONS.md §3`'s other half. `GET /offchain/static`'s
+`gameItems[]` carries names, descriptions AND a structured `itemEffect` —
+confirms the three heal potions are flat heals (+4/+8/+20 HP), not
+percentage, settling that branch of the potion-loadout question. See
+`SPEC-fishing.md §5`.
+
+Not attempted (genuinely uncaptured in this one cast, not overlooked): a
+catch, a redraw, a second pond, or fish movement pattern identification
+(Task 8's job, needs more than 5 moves of signal). See `SPEC-fishing.md §7`.
 
 ---
 

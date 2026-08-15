@@ -38,6 +38,8 @@ export type BoonEffect =
   | { kind: "heal" }
   /** `moves[move].atk += val1; moves[move].def += val2`. [session 09] */
   | { kind: "moveDelta"; move: MoveKey }
+  /** `armorMax += val1`, current armor unchanged. [session 11, LIVE] */
+  | { kind: "maxArmor" }
   /** Verified to change nothing at pickup. The effect is latent, in combat. */
   | { kind: "latent" };
 
@@ -152,6 +154,33 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-14-01-00-08 state-038→state-039",
     observed: "selectedVal1 3 → no change to any player field",
   },
+  AddMaxArmor: {
+    // [session 11, LIVE] First pair for the boon QUESTIONS.md §5b called "the
+    // highest-value single action left in the project" — captured at room 2,
+    // not room 1 (the ask was for either), by the bot's own loot ranking.
+    // FOURTH clean+modelled boon overall (after Heal, UpgradeRock,
+    // UpgradeScissor), and the first that grows a max pool rather than
+    // touching current HP/armor or a move's ATK/DEF. `armor` itself did NOT
+    // jump to the new max (14/16 → 14/20, not 20/20) — same "current stat
+    // doesn't auto-fill" pattern every rolled-stat boon already showed.
+    effect: { kind: "maxArmor" },
+    contaminates: [],
+    evidence: "run-2026-08-15-15-38-09 state-090→state-091",
+    observed: "selectedVal1 4 → armorMax 16 → 20, armor unchanged (14/14)",
+  },
+  CorrosiveShield: {
+    // [session 11, LIVE] First pair — offered at room 1 as far back as
+    // session 03 (run-2026-08-13-23-29-39) but never picked until this
+    // session's bot-driven room-2 offer. Same shape as AddBurnSword: zero
+    // change to any player field at pickup, so whatever "corrosive" does
+    // (most likely a status armed on a Shield/paper win, mirroring
+    // AddBurnSword arming Sword) is latent in combat and unconfirmed —
+    // unscorable for the same STATUS_EFFECT reason, not modelled as a no-op.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-15-15-38-09 state-029→state-030",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
 };
 
 /**
@@ -230,6 +259,13 @@ export function applyBoon(player: Combatant, option: BoonOption): BoonApplicatio
       next.moves[model.effect.move].atk += option.val1;
       next.moves[model.effect.move].def += option.val2;
       break;
+    case "maxArmor":
+      // [session 11] Additive on the pool ceiling, current armor untouched —
+      // matches Heal's "cap, don't autofill" discipline in spirit but in the
+      // opposite direction: Heal raises `hp` toward an unchanged `hpMax`,
+      // this raises `armorMax` and leaves `armor` exactly where it was.
+      next.armorMax += option.val1;
+      break;
     case "latent":
       break;
   }
@@ -247,17 +283,20 @@ export interface BoonOffer {
 const opt = (type: string, val1: number, val2 = 0): BoonOption => ({ type, val1, val2 });
 
 /**
- * Every reward offer the corpus contains. Four triples: two at room 1, one each
- * at rooms 2 and 3. The deepest run died in room 4 without clearing it, so
- * there is no room-4 offer and nothing beyond.
+ * Every reward offer the corpus contains. [Stale count corrected session 11 —
+ * this said "four triples" through session 05's Task 4.5 era; the corpus has
+ * grown with every live session since. Read the length below, not this
+ * comment, for the current total.] No room-4+ offer exists — the deepest run
+ * has died in room 4 without clearing it, so there is nothing past room 3.
  *
  * The sim draws from these and does not synthesise offers. A generated offer
  * distribution would be inventing the single thing that decides how a run
- * develops, off a sample of four.
+ * develops, off a small, non-random sample.
  *
- * Note what these show: of the 6 distinct options ever offered at room 1, ZERO
- * are both modelled and clean. That is Wall 1 in `handoff/scratch-session-05.md`
- * and it is why this task's gate cannot be met.
+ * What these showed at the end of Task 4.5 (session 05): of the 6 distinct
+ * options then offered at room 1, ZERO were both modelled and clean. That was
+ * Wall 1 (`handoff/scratch-session-05.md`) and why that task's gate could not
+ * be met. It no longer holds — see "Wall 1" in tests/boons.test.ts.
  */
 export const OBSERVED_OFFERS: BoonOffer[] = [
   {
@@ -399,6 +438,51 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 3,
     source: "run-2026-08-15-01-53-36/state-047",
     options: [opt("TieWeak", 1), opt("CorrosiveMagic", 2), opt("AddBlock", 2)],
+  },
+  {
+    // [session 11, LIVE] Room-1 offer, Run A (this session's 3-run stage,
+    // retuned config). Two DISTINCT `UpgradePaper` rolls in the same offer —
+    // an ATK variant (4,0) and a DEF variant (0,4), same two-variant shape
+    // `UpgradeRock`/`UpgradeScissor` already showed. Neither picked.
+    room: 1,
+    source: "run-2026-08-15-15-38-09/state-009",
+    options: [opt("AddIntuition", 1), opt("UpgradePaper", 4), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    // [session 11, LIVE] Room-2 offer, Run A. `CorrosiveShield` (picked) now
+    // has a pair — see BOON_MODELS above. First sighting of `VulnerableEvade`
+    // (offered, not picked — stays unmodelled).
+    room: 2,
+    source: "run-2026-08-15-15-38-09/state-029",
+    options: [opt("CorrosiveShield", 2), opt("Regen", 1), opt("VulnerableEvade", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-15-15-38-09/state-053",
+    options: [opt("AddLuck", 1), opt("AddIntuition", 1), opt("AddIntuition", 2)],
+  },
+  {
+    // [session 11, LIVE] Room-1 offer, Run B. First sighting of
+    // `AddWeakSword` (offered, not picked — stays unmodelled).
+    room: 1,
+    source: "run-2026-08-15-15-38-09/state-078",
+    options: [opt("AddEvasion", 1), opt("AddBlock", 5), opt("AddWeakSword", 2)],
+  },
+  {
+    // [session 11, LIVE] Room-2 offer, Run B. `AddMaxArmor` (picked) now has
+    // a pair — see BOON_MODELS above. The highest-value single capture
+    // QUESTIONS.md §5b asked for, though it landed at room 2, not room 1.
+    room: 2,
+    source: "run-2026-08-15-15-38-09/state-090",
+    options: [opt("Regen", 2), opt("AddMaxArmor", 4), opt("AddBlock", 7)],
+  },
+  {
+    // [session 11, LIVE] Room-1 offer, Run C (third distinct dungeon attempt
+    // this session's stage). First sighting of `AddLifestealShield` and
+    // `BurnMastery` (both offered, not picked — stay unmodelled).
+    room: 1,
+    source: "run-2026-08-15-15-38-09/state-111",
+    options: [opt("AddLifestealShield", 3), opt("BurnMastery", 1), opt("AddTenacity", 3)],
   },
 ];
 

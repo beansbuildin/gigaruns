@@ -5,7 +5,16 @@ these block it.
 
 ---
 
-## 8. Daily guard budget already spent — blocks this session's five-run stage [session 10]
+## 8. Daily guard budget already spent — RESOLVED 2026-08-15 [session 11]
+
+User confirmed raising the budget in-chat this session (not unilateral) — see
+DECISIONS 2026-08-15 (session 11). `config/bot.json` now reads 240/12,
+matching the user's own stated real daily budget (240 energy/day, 12 runs at
+20 energy) rather than a session-scoped patch. The three retuned-config runs
+this asked for ran successfully (rooms reached 4, 3, 2 — see STATE.md
+session 11). Original text kept below for the record.
+
+<details><summary>Original [session 10]</summary>
 
 `config/bot.json`'s `dailyEnergyBudget: 120` / `maxRunsPerSession: 5` is keyed
 by UTC date in `data/guard-budget.json`, and today's entry already reads
@@ -34,14 +43,27 @@ now, or (b) let it run tomorrow once the date key rolls over. The five-run
 stage and the opportunistic `reward_*`/`path_*` envelope test (§9 below) are
 both blocked on the same thing.
 
-## 9. `reward_*`/`path_*` envelope test — piggybacks on §8, not separately blocking
+</details>
+
+## 9. `reward_*`/`path_*` envelope test — STILL OPEN, opportunistic window closed without firing [session 11]
 
 Session-10 brief §3: on the next live reward pick, send the tracked
 `actionToken` and the real `dungeonId` instead of `""`/`0` (current behavior),
 one variation at a time, falling back to current handling if it 500s too. Not
 attempted this session — no live reward pick happened, since §8 blocked every
-live run before one was reached. Do opportunistically during the next
-unblocked five-run stage; no separate capture needed.
+live run before one was reached.
+
+**[session 11] Still not attempted — but this time because the opportunity
+never arose, not because it was blocked.** The three retuned-config live runs
+this session had ZERO HTTP 500s of any kind (confirmed: `grep -c "HTTP 5"
+logs/session11-liverun.log` → 0), unlike session 09's 17-across-5-runs and
+session 08's 2. Either the earlier 500s really were transient server-side
+flakiness (per the session-10 brief's own fallback: "if both variations 500
+too, accept it as server flakiness, record it, and stop looking" — this
+session's zero occurrences over 3 more runs leans that direction, though 3
+runs is thin evidence either way), or this batch got lucky. Keep the test
+queued opportunistically for the next live session that hits a `reward_*`/
+`path_*` 500; do not spend a dedicated session chasing it.
 
 ---
 
@@ -307,7 +329,17 @@ Still open, and worth one line in any future capture: both samples are at room 2
 If a deeper room shows a tier premium in `LOOT_AMOUNT_CID_array`, this becomes a
 real risk/reward tradeoff rather than a free choice.
 
-## 3. Fishing HAR — blocks Task 7 AND item metadata (carried from session 01, expanded session 10)
+## 3. Fishing HAR — RESOLVED 2026-08-15 [session 11]
+
+The HAR landed (`fixtures/fishing-casts/fishing-cast.har`, at a slightly
+different path than the checklist below asked for but correctly gitignored)
+and was parsed. Both halves this item was blocking are done: `SPEC-fishing.md`
+documents the fishing API in full, and the item-metadata endpoint is
+resolved (`GET /offchain/static`'s `gameItems[]`) — see DECISIONS
+2026-08-15 (session 11) and TASKS.md Task 7. Original text kept below for
+the record.
+
+<details><summary>Original (carried from session 01, expanded session 10)</summary>
 
 Confirmed this session that fishing is on a genuinely undiscovered surface:
 **zero** matches for `/dendren|fish|cast|bait|node/i` across all seven probed
@@ -336,6 +368,8 @@ it — but it is the single highest-value capture left for the project as a
 whole: it unblocks the entire fishing half (blocked since session 01) and the
 item-metadata question the session-09 brief flagged as possibly "the biggest
 lever" on live-run deaths (consumables), in one action.
+
+</details>
 
 ## 4. `dungeonId` in the action envelope — unverifiable until Task 6
 

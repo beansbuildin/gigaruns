@@ -66,37 +66,40 @@ export const DANGEROUS_TIER = 2;
  * above the base 30/12 because of gear, so these are the live values, not the
  * class defaults.
  *
- * **This drifts.** `armorMax` was 15 through sessions 03–05 and is 16 as of
- * run-2026-08-14-03-26-57 — the user changed gear. The corpus therefore contains
- * more than one loadout, and `tests/enemies.test.ts` pins this to the newest
- * one and reports how many distinct loadouts it can see, so the drift is visible
- * rather than silently biasing every armor-fraction number in the sim.
+ * **This drifts.** `armorMax` was 15 through sessions 03–05, 16 as of
+ * run-2026-08-14-03-26-57, and `hpMax` moved 32 → 34 as of session 11's
+ * newest capture (run-2026-08-15-15-38-09) — the user changed gear/leveled
+ * again. The corpus therefore contains more than one loadout, and
+ * `tests/enemies.test.ts` pins this to the newest one and reports how many
+ * distinct loadouts it can see, so the drift is visible rather than silently
+ * biasing every armor-fraction number in the sim.
  *
- * [session 09, live] `scissor` (Spell) moved from ATK 12/DEF 8 to ATK 16/DEF 12
- * — the user equipped gear adding +4 Spell ATK and +4 Spell DEF, confirmed
- * against `startingATK`/`currentATK` on the newest live capture
- * (run-2026-08-15-01-16-03/state-000.json: scissor startingATK 12,
- * currentATK 16). `rock`/`paper` unaffected. This only updates the OFFLINE
+ * [session 11, live] `rock` (Sword) moved from ATK 16/DEF 0 to ATK 20/DEF 4;
+ * `scissor` (Spell) moved from ATK 16/DEF 12 BACK DOWN to ATK 12/DEF 8 — a
+ * gear re-spec from Spell-favoring to Sword-favoring between session 09 and
+ * this session, not monotonic growth. `paper` (Shield) unchanged at 6/12.
+ * Confirmed against the newest unbooned capture's `currentATK`/`currentDEF`
+ * (run-2026-08-15-15-38-09/state-000.json). This only updates the OFFLINE
  * sim's baseline (`scripts/sim.ts`) — the live loop itself never used this
  * constant; `buildBattleState`/`toCombatant` already read `currentATK`/
  * `currentDEF` straight off each poll's wire response, so live play picked
  * up the gear change automatically, with no code change needed there.
  *
- * Consequence for cross-session comparisons: a baseline measured at scissor
- * 12/8 is not strictly comparable to one measured at 16/12 (higher still
- * than the 2026-08-16 depth-ablation loadout). Re-measure both sides of any
+ * Consequence for cross-session comparisons: a baseline measured at one
+ * loadout is not strictly comparable to another — scissor in particular
+ * moved non-monotonically (12/8 → 16/12 → 12/8). Re-measure both sides of any
  * comparison in the same run rather than quoting a number from an old recap.
  */
 export const PLAYER: Combatant = {
   id: "player",
-  hp: 32,
-  hpMax: 32,
+  hp: 34,
+  hpMax: 34,
   armor: 16,
   armorMax: 16,
   moves: {
-    rock: mv(16, 0), // Sword
+    rock: mv(20, 4), // Sword — +4 ATK / +4 DEF gear, session 11
     paper: mv(6, 12), // Shield
-    scissor: mv(16, 12), // Spell — +4 ATK / +4 DEF gear, session 09
+    scissor: mv(12, 8), // Spell — reverted from the session 09 +4/+4 gear
   },
   // The player starts every run with all rolled stats at zero; the only way
   // they become non-zero is a boon (src/sim/boons.ts).
