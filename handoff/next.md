@@ -1,127 +1,133 @@
-# BRIEF — session 13
+# BRIEF — session 14
 
-Task 8 passed, and replaying the real cast against SPEC before writing strategy
-code caught two contradictions that would otherwise have been baked into the
-matcher. That ordering — validate the spec against the corpus, *then* build — is
-now the third time it's paid off.
+The mana fix was worth more than either of us expected — 19.0% → 92.4%, and it
+only surfaced because you checked whether the second bug was *downstream* of the
+first rather than stopping at one. `shouldRedraw` comparing `evPerMana` was
+invisible while `chooseCard` shared the same wrong objective. Finding a latent
+bug that only becomes reachable after fixing another is the hard kind.
+
+The `use_item` probe landing a clean 400 with `"Item not found in index"` is
+exactly the outcome hoped for: action name, envelope, and `itemId` semantics all
+confirmed at zero exposure.
+
+Now the thing I want to reframe.
 
 ---
 
-## 1. My §5 was backwards on every count, and one consequence isn't propagated yet
+## 1. The fishing sim says 92.4%. Live says 0 for 6. That's the alarm.
 
-I wrote the catch meter as rising on a hit and falling on a miss. Reality is the
-inverse: a hit drives `fishHp` toward 0 (the catch), a miss drives it toward
-`fishMaxHp` (the escape). Every sentence I wrote about it was wrong.
+You filed this as "an optimistic ceiling, not a live prediction." It's much
+stronger than that.
 
-But the detail that matters most is the one you found incidentally: **the real
-cast escaped at `fishHp == fishMaxHp` with mana still at 5/10.**
+Six real casts (1 human + 5 bot), zero catches. If the true catch rate were even
+50%, the odds of six straight escapes are about 1.6%. At 92.4% it's roughly one
+in five million. **The sim and reality are not describing the same game.**
 
-That refutes a load-bearing assumption in my §5 design. I wrote:
+Session 11 established the sim-vs-live divergence check for exactly this
+situation, and it's worth noting the contrast: the dungeon sim predicted 1.946
+mean rooms cleared against a live 2.0, which is what licensed trusting its
+conclusions. The fishing sim has no such license. **Until it predicts live
+outcomes, no number it produces should be used to justify a design decision —
+including the 92.4% that gated Task 8 in.**
 
-> pick `argmax EV(card) / card.manaCost` — mana is the real budget
+Treat that as the standing rule the session-11 check implied but didn't spell
+out: a sim's authority comes from its agreement with live, and it's held per
+domain, not inherited across them.
 
-**Mana is not the budget. Misses are.** The cast ended with half the mana
-unspent, because the miss counter hit the ceiling first. Dividing EV by mana
-cost optimises against a constraint that isn't binding, and it will systematically
-prefer cheap low-probability cards over expensive reliable ones — exactly
-backwards when every miss is a step toward losing the cast.
+## 2. `focusMeter` probably explains it — and it guts the strategy I specified
 
-Check whether `cardChoice.ts` still carries that divisor. If it does:
+The 3-point non-regenerating budget, with movement costing Manhattan distance,
+is a hard constraint on the exact thing my §5 policy depends on.
 
-- **Maximise hit probability per turn.** Mana becomes a feasibility filter
-  (can I afford this card?), not a denominator.
-- Keep a mana-aware term only for the endgame — if remaining mana can't cover
-  enough turns to finish the fish, efficiency starts mattering again. That's a
-  late-cast correction, not the primary objective.
-- Re-run the 500-cast sim after the change. If catch rate moves from 19.0%,
-  the divisor was costing real performance.
+I wrote: *hedge throughout — wide hitboxes, focus placed over the
+highest-probability region.* That assumes focus placement is free. It costs a
+scarce, non-refilling resource across a cast that only affords ~5 plays. Under
+that constraint, you get roughly **one meaningful repositioning per cast**, not
+one per turn. Hedge-throughout as written isn't affordable.
 
-This also composes with your convergence finding. Hedge-throughout plus
-maximise-hit-probability is one coherent policy: **wide hitboxes, focus placed
-over the highest-probability region, damage and mana both sacrificed for the
-chance to connect.** Identification is a bonus when it happens, never the plan.
+So the policy needs re-deriving under the real budget, and the shape probably
+inverts: focus placement becomes a **commitment decision** — where do I spend my
+one move, and when — while card choice does the per-turn adapting from a mostly
+fixed position. That's a different optimisation from the one in SPEC §5.
 
-## 2. Q1: Task 9 is the spine — and Task 12's blocker is free, not a session
+**This is the session's work, and it's offline and free.** Model `focusMeter` in
+`castSim.ts`, re-run the 500-cast sim, and report the new catch rate. Two
+possible outcomes, both informative:
 
-You framed these as competing for one supervised session. I don't think Task 12
-needs one.
+- **Catch rate collapses toward the live 0/6** → the sim is now faithful, the
+  divergence is explained, and the strategy gets re-derived under a constraint
+  we understand.
+- **It stays high** → `focusMeter` isn't the explanation and something else is
+  wrong. Next suspects in order: the synthetic pattern library bearing no
+  resemblance to real Dendren (the matcher ran on `emptyFallback` for all five
+  casts), the deck/card set, and `fishHp` or damage scaling.
 
-**`consumables: []` is currently always empty.** So sending `use_item` right now
-risks nothing — there is no item in the loadout to consume. The response
-resolves the question by itself:
+Don't spend more casts until this resolves. More live data against an
+unfaithful sim buys transitions but not understanding, and the transitions
+accumulate cheaply once the sim is worth trusting.
 
-- `404`/`405` → the action name is wrong, same as `loot_one` and `enemy_two`.
-- `400` with a meaningful error (no such item / invalid index) → **the action
-  exists**, and the error text usually names the argument it wanted.
-- `200` → unexpected with an empty loadout. Dump it and stop.
+## 3. Q1: the fishing sim is the spine — neither of your options
 
-Either way `use_item` gets confirmed with zero exposure. Do it late in a run
-that's already going badly, so a burned action token costs the least, and let
-`postWithVerifiedRetry` re-sync afterwards.
+You framed it as Stage B versus more casts. I'd do neither as the spine, for the
+reason in §2: fishing's blocker isn't data volume, it's that the model is wrong.
+25 transitions won't mine patterns, and 50 won't either if the simulator around
+them is describing a different game.
 
-That's a probe, not a stage. **Task 12 doesn't need doomed-state detection at
-all** — that requirement came from my session-11 addendum, which assumed the
-loadout would be populated. It isn't yet, and that makes the probe safe.
+**Task 12 Stage B rides along cheaply.** The only thing blocking it is the
+`consumables` field shape, which is one `start_run` away. Check
+`/items/balances` for an actual heal potion first, then send `start_run` with a
+single potion in `consumables` and see what the state reports. If the field
+takes item IDs it'll work; if it wants slot indices or objects, the error names
+it — same logic as the `use_item` probe.
 
-So: **Task 9 (live fishing) is the session's spine.** The matcher and EV engine
-are built and idle, and every cast produces real transition data that feeds §3.
+Don't build the timing policy from that. Just establish the field shape and stop,
+so Stage B still gets a clean session.
 
-Note Task 9 doesn't need the user to play — same staging as Task 6 (dry run →
-one cast → five), run by you. Add a fishing energy budget line to
-`config/bot.json` before the first cast: casts are 12/16/20 energy against the
-same pool the dungeon draws from, capped at 10/day.
+## 4. Q2: resume the stuck run first
 
-## 3. Q2: park Task 11
+Yes — first action, before anything else. At 4/36 against a full-health enemy
+it's likely a loss, but closing it out cleanly beats leaving live state dangling
+across sessions, and it costs no run slot.
 
-Three independent confirmations of the flat histogram (n=6, n=9, n=11) and a
-null result at 10× weight amplification. The evidence is settled and the lever
-is exhausted.
+It's also the natural place for §5's focus probe if any fishing budget remains.
 
-The opponent-model read at rooms 2–4 stays parked too — it improves passively as
-production runs accumulate, and it's a slope, not a step. Potion timing is the
-identified lever; once §2's probe lands, Task 12 becomes the dungeon's next real
-work.
+## 5. Q3: `focusMeter` regeneration is now critical, and it's nearly free to test
 
-Take Task 11 off the active list in `TASKS.md` and say what would revive it: a
-materially different utility *form* (not magnitude), or the histogram shifting
-shape as the corpus grows.
+This moved from optional to blocking — §2's re-derivation can't be done without
+knowing whether the budget refills per turn, per hand-refill, or never.
 
-## 4. Q3: agreed, and it happens automatically
+Test it deliberately on the next cast: **spend all 3 points early**, then keep
+playing and watch whether the meter moves. Normally that would be a wasteful
+line, but at 0 catches in 6 there's nothing to protect, and the answer determines
+the whole policy shape.
 
-Re-running convergence against `data/fish-patterns.jsonl` once Task 9 produces
-real transitions is right, and the honest framing of the current numbers as a
-stand-in library is right too.
+Scope Task 11's fishing-side mining to include `focusMeter` — it's not a side
+mechanic, it's the binding constraint.
 
-One thing to watch when the real data lands: if real Dendren convergence is
-*better* than the synthetic pool suggests, the hedge-throughout default may be
-over-conservative. Don't let the synthetic conclusion calcify into an assumption
-— it was a decision made under a documented placeholder, and it should be
-re-opened, not defended.
+## 6. For the user: Sword ATK and Sword DEF are now tied
 
-## 5. Give the user the full gear ranking
+The re-measured sweep puts them at 2.429 ± 0.070 and 2.427 ± 0.073 — overlapping
+intervals, so the session-12 ranking that put ATK alone at the top no longer
+holds under the hp 34→36 baseline. Either is the right pick; nothing else is
+close.
 
-Sword ATK +4 at +0.305 rooms is roughly ten times anything strategy tuning has
-produced, and it's a decision the user makes with their own resources.
-
-Put the **complete ranked table** — all 8 upgrades with means and CIs — in the
-recap, not just the winner. Flag which gaps are inside each other's confidence
-intervals, so the user can tell a real ordering from noise. This is the most
-directly actionable output the sim has produced.
+Keep re-measuring the sweep whenever the loadout changes. That's twice now that
+a gear shift has reordered results.
 
 ---
 
 ## Your task
 
-1. **§1 mana-divisor check** in `cardChoice.ts`. Fix if present, re-run the
-   500-cast sim, report whether 19.0% moved.
-2. **§2 `use_item` probe** — late in a poor run, empty loadout. Report the exact
-   status and body.
-3. **Task 9 — live fishing**, staged: dry run → one cast → five. Log every fish
-   transition to `data/fish-patterns.jsonl` from the first cast.
-4. Fishing energy budget in `config/bot.json`, per §2.
-5. Park Task 11 per §3, with revival conditions stated.
-6. Full gear ranking in the recap, per §5.
+1. **Resume the stuck run**, per §4. First.
+2. **Model `focusMeter` in `castSim.ts`**, re-run the 500-cast sim, report the
+   new catch rate against the live 0/6. This is the spine.
+3. **Re-derive SPEC §5's policy** under the real focus budget, per §2 — only
+   after the sim's new number is known.
+4. **`focusMeter` regeneration probe**, per §5, if fishing budget allows.
+5. **`consumables` field-shape test only**, per §3. Do not build the policy.
+6. Record the §1 rule: sim authority is earned per domain against live outcomes,
+   never inherited.
 
-If the `use_item` probe confirms the action, **do not** build the potion policy
-this session — record it and let Task 12 have a clean session. One variable at a
-time, same as always.
+If §2's re-run leaves the catch rate high, say so plainly and list what you'd
+check next. A sim that survives an attempt to break it is worth more than one
+that was never tested — but it has to be a real attempt.
