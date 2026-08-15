@@ -1,159 +1,119 @@
-# BRIEF — session 08
+# BRIEF — session 09
 
-Task 2 passed live, the depth ablation settled cleanly, and the tier re-audit
-corrected two sessions of wrong labels. One regression to fix first, then Task 6
-— the first time this project sends a POST.
+The bot completed a run. Rooms 1→4, mostly unattended, five live bugs found and
+fixed in flight, and **0 clean-model failures across 117 exchanges** including
+the one that killed it. That last number is the one that matters — the combat
+model derived over five sessions of offline work survived contact with live play
+without a single miss.
 
----
-
-## 1. Privacy regression in `STATE.md` — fix the detector, not just the file
-
-`STATE.md` in a **public** repo now contains:
-
-```
-address <ADDR>
-username <USER> noobId <NOOB>
-```
-
-`DECISIONS.md` says *username tolerated in history; address and JWT never are*.
-This breaks that rule, and the secret scan passed anyway because the pattern is
-`0x[a-fA-F0-9]{40,}` — a truncated address doesn't match.
-
-The leak itself is mild: the username was already in history and a Gigaverse
-account is public on-chain regardless. **The detector gap is the real finding.**
-A scan that only catches full-length addresses will keep passing on truncated
-ones forever, and the next one might sit next to something that matters.
-
-Do three things:
-
-1. Widen the scan to `0x[a-fA-F0-9]{4,}` and add `noobId\s*\d+` — accept the
-   false positives, they're cheap.
-2. Replace the identifiers in `STATE.md` with `<USER>` / `<NOOB>` / `<ADDR>`.
-   `check-auth` should print them to the terminal, never to a committed file.
-3. Extend redaction to **prose in handoff files**, not just fixtures. Session
-   05's fix covered `writeRedactedCorpus`; this path was never covered.
-
-No history rewrite — same reasoning as session 04.
-
-## 2. My tier premise was wrong, and that's now a standing rule
-
-I told you to label existing `enemies.ts` rows as tier 2. You re-derived from the
-corpus and found room 3 is tier 1 and room 4 is tier 0 and **clean**. That's the
-second time you've correctly overridden a specific factual claim of mine by
-checking the data.
-
-Making it explicit, for `CLAUDE.md`:
-
-> **A brief's claims about what the corpus contains are hypotheses to verify,
-> not facts to implement.** Claude writes briefs without access to the fixtures.
-> When a brief asserts something checkable, check it first; if it's wrong, the
-> corpus wins and the correction goes in the recap.
-
-The room-4 finding is the good kind of surprise: the Burn on that enemy was the
-player's own `AddBurnSword` boon landing on a Sword win, not an enemy mechanic
-at all. Room 4 is clean at Safe tier, which means the coverage ceiling was never
-where three sessions of briefs assumed it was.
-
-## 3. Depth 3 confirmed — good call running it at N=20000
-
-`depth2 79.96 ± 0.55` vs `depth3 81.64 ± 0.54`, separated; 3v4 not. Adopting
-depth 3 for live and keeping depth 2 for sim throughput is exactly right. This
-is the payoff for re-testing something that had been rejected on a cost argument
-that didn't apply in production.
+`postWithVerifiedRetry` is the right instinct: never assuming a 500 means
+"nothing happened" is exactly the discipline this needs. Two things to harden
+before five runs, then the runs.
 
 ---
 
-## 4. Task 6 now — the first live run *is* the room-3 capture
+## 1. Your question 3 is a blocker, not a footnote — promote it
 
-You asked whether to spend ~20 energy on a Safe-tier room-3 capture first. No —
-and the reason is that it isn't a separate thing anymore.
+You flagged, as a not-yet-observed possibility, that a retry could land on a
+**different reward than intended** if the offer changed between attempts. Take
+that seriously now rather than after five runs.
 
-Task 6's first real run picks Safe at every screen (hard rule, guarded) and
-plays deeper than a human did. **That run is the room-3 capture**, for the same
-20 energy, while also validating the client, the schema, and the strategy engine
-against reality. Spending a separate run first buys the same fixture and none of
-the rest.
+The setup is already there in what you found: `reward_*`'s `data.index` is an
+**array position**, one of the two 500s **applied server-side anyway**, and the
+retry re-checks state but re-sends an index. Position-addressing plus
+non-idempotent failures plus retry is the classic recipe for acting on a stale
+index.
 
-This is the moment the capture bottleneck dissolves. Design the run loop so
-every live run writes fixtures in the `watch.ts` shape automatically — that's
-what makes coverage compound instead of requiring a decision each time.
+The reason this can't wait: if a retry picks the wrong boon, the run continues
+and the fixture is written **labelled with the intended boon, not the applied
+one**. That's a silently poisoned pickup pair feeding `BOON_MODELS`, which feeds
+coverage, which everything downstream depends on. A failed run costs 20 energy;
+a mislabelled fixture costs trust in the corpus, and you won't know which one it
+was.
 
-## 5. The first POST — staged, with a hard stop after one
+Fix: **address rewards by identity, not position.** Before any retry of a
+`reward_*` or `path_*` pick, re-read the offer, locate the intended option by
+its stable fields, and re-derive the index. If the intended option is no longer
+present, or its index moved, **halt** rather than picking whatever now sits at
+that position. Log both.
 
-`DungeonActionResponseSchema` has never seen a live response, and this is the
-highest-risk moment in the project so far. Everything until now has been
-read-only; a bug now costs energy and can corrupt a run mid-way.
+Five runs multiply the exposure. Do this first.
 
-Run it in four stages, committing between each:
+## 2. Guard persistence — do it now, it's cheap and it's a stated non-negotiable
 
-**Stage 1 — dry run.** Full decision loop against live *read* state. Log every
-intended action with its EV table. POST nothing. Verify the Safe-tier guard
-fires on a real `enemyPathOptions[]`.
+Your read that 100 energy against a 300+ balance isn't urgent is correct on
+overspend risk. But `CLAUDE.md` lists the energy budget as a hard rule, and a
+guard rebuilt fresh per process **enforces nothing across invocations** — the
+session that used several `npm run live` calls had no effective budget at all.
 
-**Stage 2 — one POST, then halt.** Send exactly one action — `start_run` — then
-**stop unconditionally**, whatever comes back. Dump the raw response. Correct
-`DungeonActionResponseSchema` from it. Do not continue in the same process.
+The problem isn't the risk today, it's that a guard which silently doesn't work
+is worse than no guard, because it gets trusted. It's a small fix — persist
+`GuardState` to `data/` with a date key, seed from it on startup. Do it now
+rather than carrying a non-functional safety mechanism into unattended
+operation.
 
-**Stage 3 — one full run.** Only after the schema is corrected and committed.
-Halt on any zod failure, unknown enum, or three consecutive action failures.
+## 3. SPEC §2's action list is compromised — re-verify the rest
 
-**Stage 4 — five runs.** Only if stage 3 produced a clean run summary and
-energy accounting matched expectation.
+`loot_one` returned 409 and `enemy_two` returned 400. Both came from **my**
+SPEC §2, sourced from Gigaverse's published agent skill. Two of the documented
+names were wrong.
 
-If any stage surprises you, stop there and recap. Reaching stage 2 with a
-corrected schema is a good session; reaching stage 4 on a broken one is not.
+So treat the remainder as suspect: `use_item`, `heal_or_damage`, `flee`,
+`cancel_run` are all unverified and from the same compromised source. Mark them
+`[VERIFY]` in SPEC and confirm opportunistically — but **never** send one
+speculatively mid-run, since a 400 in the middle of a live run costs the run.
+`flee` and `cancel_run` in particular should be confirmed only when a run is
+already being abandoned.
 
-**Before stage 2**, write `config/bot.json` with real numbers — you have them
-now: energy cost 20, `maxRoom` 16, daily caps from `/game/dungeon/today`. Set a
-conservative first-session budget of **60 energy** (three runs). `guards.ts`
-enforces it. This is the file session 01 correctly declined to invent; it can be
-written honestly now.
+Your point 2 — confirming `path_one`/`path_three`/`reward_two`/`reward_four`
+opportunistically rather than with dedicated captures — is right. Same treatment.
 
-## 6. Loot phase — log everything, trust nothing
+## 4. Report `deepestScorableRoom`
 
-§4c ranking has never been validated at depth. For these runs, log every offer
-triple and every pick with the state before and after, but treat the ranking's
-output as provisional. If a pick looks wrong in hindsight, that's a finding, not
-a bug to patch mid-session.
+`MAX_SAFE_ROOM` moved 2 → 4, which lifts the enemy-side ceiling, but the
+boon-side wall is separate and the metric wasn't in this session's numbers.
+Report it explicitly next time. If it's still 1, say what's pinning it now that
+the tier and room-3 gaps are closed — `AddBlock` landing its first pickup pair
+should have moved something.
 
-`Regen` is the one to watch: HP persistence is now confirmed across 6 informative
-boundaries, so if `Regen` fires every room its cross-room value is large. If it's
-offered, **take it** and capture the pickup pair — that answers session 06's
-question for free.
+## 5. `intuition`
 
-## 7. `intuition` — still pending
-
-I've asked the user again. Don't model it either way. If an answer arrives
-mid-session it goes in `QUESTIONS.md`, not into code.
+`unknownSideKeys()` watching every poll and never firing is a clean negative
+result. Leave it running. At machine speed across five runs it'll either fire or
+build real evidence that it doesn't surface as a state field at all. Don't model
+it either way.
 
 ---
 
 ## Your task
 
-1. Privacy fixes, per §1. First, before anything else.
-2. `CLAUDE.md` rule from §2.
-3. `config/bot.json` with real numbers + `guards.ts` enforcement, per §5.
-4. Task 6, stages 1→4, stopping at the first surprise.
-5. Live fixtures written in `watch.ts` shape automatically, per §4.
+1. **Reward-by-identity retry**, per §1. Before anything live.
+2. **Persist `GuardState`**, per §2.
+3. Mark unverified action names `[VERIFY]` in SPEC, per §3.
+4. **Task 6's five-run stage.** Stop at the first surprise and recap — five runs
+   on a clean baseline is the gate; five runs through five more rounds of
+   bugfixing is a different and less useful thing.
+5. Report `deepestScorableRoom`, energy spent against budget, rooms reached per
+   run, and whether the `reward_*` 500s recurred.
 
-Report per stage reached, not per task attempted. State the energy spent against
-budget, and whether `deepestScorableRoom` moved.
+Budget: **120 energy** this session. That covers five runs with margin for one
+retry, and `guards.ts` should now actually enforce it.
 
-Addendum to §7 — intuition:
+If the identity fix in §1 surfaces that a past retry *did* pick the wrong boon,
+that's the most important finding of the session — quarantine the affected
+fixture and say so, rather than letting it sit in `BOON_MODELS`.
 
-The user hasn't seen it fire; it's a 5% proc. Don't wait on them.
+Addendum — consumables groundwork (data only, no implementation):
 
-Two cheap checks instead:
+During the five runs, log but do not act on:
+  - /items/balances entries that look consumable, with full metadata
+  - the exact shape of start_run's `consumables: []` field
+  - any item description implying heal / revive / stat buff
 
-1. Diff the corpus for rare fields. Enumerate every key path across
-   all captured battle states and report any that appear in under
-   ~15% of them. If intuition reveals the enemy's next move, it
-   likely surfaces as an occasional extra field rather than a
-   permanent one. ~92 exchanges at 5% should have produced a few
-   fires if the stat was active in those runs.
+Do NOT send `use_item` — it's [VERIFY] per §3 and a 400 mid-run
+costs the run.
 
-2. If nothing turns up, add detection to the live loop: log the full
-   raw state whenever an unexpected key appears. At machine speed
-   this resolves within a session or two on its own.
-
-Still don't model it either way.
+Report what's in the inventory in the recap. If healing consumables
+exist, they become their own task with their own gate: deaths are
+the binding constraint on items-per-energy, so a mid-run heal is
+plausibly the single biggest lever available.
