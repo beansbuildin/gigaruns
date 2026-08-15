@@ -155,12 +155,12 @@ Observed types, one array per response, describing what happened that turn:
 
 | type | seen when | payload |
 |---|---|---|
-| `FISH_MOVED` | every turn | `data.path`: array of the cell(s) traversed |
-| `CARD_PLAYED` | every turn | `value`: 0 (miss) or 1 (hit), `data.result`: new catch meter |
+| `FISH_MOVED` | every turn | `data.path`: array of the cell(s) traversed, encoded as a single 1-based **column-major** index over the grid (`(x-1)*gridSize + y`, verified against `fishPosition` on every turn of the real cast — e.g. `[4,3]` on a 4×4 grid ⇒ `(4-1)*4+3 = 15`, matching the captured `value` exactly) |
+| `CARD_PLAYED` | every turn | `value`: **the hand index played** (**[CORRECTED 2026-08-15, session 12]** — NOT "0 (miss) or 1 (hit)" as this row previously said; refuted directly by the real cast, where the one genuine hit has `value: 0` and three of the four misses have `value: 1`, tracking the played hand index exactly), `data.result`: **1 on a hit, 0 on a miss** (this is the actual hit/miss flag this row's `value` was wrongly assumed to be) |
 | `HIT` | on a hit only | `value`: damage dealt, `data.result`: catch meter after |
-| `FISH_HP_DIFF` | every turn | `value`: signed delta to the catch meter, `data.result`: meter after |
-| `NEW_HAND` | when the hand changes | `value`: the new hand array |
-| `FISH_ESCAPED` | cast-ending escape | no payload |
+| `FISH_HP_DIFF` | every turn | `value`: the effect amount applied this turn (`hitEffects[0].amount`, positive, on a hit; `missEffects[0].amount`, negative, on a miss) — **[CORRECTED]** applied as `fishHp -= value`, not `fishHp += value`: a hit's positive value *subtracts* (meter falls toward 0, the catch condition), a miss's negative value *subtracts a negative* (meter rises toward `fishMaxHp`, the escape condition). Verified turn-by-turn against the real cast's own `fishHp` field: `13→16→19→14→17→20`, exactly matching `old − value` at every step. `data.result`: meter after. |
+| `NEW_HAND` | when the hand is played down to empty | `value`: the new hand array (**[CORRECTED]** not "when the hand changes" generally — in the real cast this fired exactly once, the turn the hand reached 0 cards, not on every card played; the hand refills to its starting size from `fullDeck` via `nextCardIndex` on empty, not per turn and not tied to hit/miss) |
+| `FISH_ESCAPED` | cast-ending escape | no payload. **[CORRECTED]** fires when `fishHp` reaches `fishMaxHp` (confirmed: the real cast escaped at `fishHp 20/20`, `playerHp` still 5/10) — not when mana reaches zero, which `SPEC.md §5` wrongly claimed before this session; see `SPEC.md §5`'s own correction. |
 
 **Not observed, so [VERIFY]:** a catch-ending event (presumably
 `FISH_CAUGHT` or similar, by naming symmetry with `FISH_ESCAPED` — do not
@@ -240,15 +240,20 @@ Field-by-field, from the captured board (`doc.data`):
 | `hand`/`discard`/`fullDeck`/`nextCardIndex`/`cardInDrawPile` | **[CONFIRMED]** — `hand` shrinks by the played index and `discard` grows by the played card's id every turn, exactly as needed to implement `cards: [handIndex]`. |
 | `deckCardData` | the card catalog **as it applies to this cast** — see §6 for a live finding about `isDayCard` entries here. |
 
-**Card hitboxes are bobber-relative, not absolute, on this grid.** Not
-independently re-derived from the capture (would need the fish to sit inside
-a played card's hitbox on a non-centred `focusPoint` and confirm the hit/miss
-outcome against the offset template) — flagged here as **[VERIFY, but very
-likely correct]** because it follows directly from `focusMechanicEnabled:
-true` plus every card's `hitZones` being defined in the same fixed 1-9
-numbering used when `focusPoint` was still `[2,2]`. Do not build a
-fixed-absolute-zone model for Dendren; the community note explicitly warns
-this "looks right on 3×3 and breaks on 4×4."
+**Card hitboxes are bobber-relative, not absolute, on this grid — [CONFIRMED
+2026-08-15, session 12]**, upgraded from "[VERIFY, but very likely correct]"
+by independently re-deriving it from the capture: turn 3 is the cast's one
+genuine hit (card id 79, `hitZones [2,4,6,8]`, submitted `focusPoint [3,3]`),
+and the fish's post-move cell `[3,4]` equals `focusPoint + offset(zone 8) =
+[3,3]+(0,1)`, matching the 1–9 template exactly — no other reading of
+"absolute cell 8" produces a hit here. The submitted `focusPoint` scores
+against the fish's position **after** that turn's move, not before (you're
+betting on where it lands, not where it already is) — also confirmed by this
+same replay, since the fish's *pre*-move cell `[4,4]` is not in the
+translated hit set. Full derivation and the zone-offset table in
+`SPEC.md §5`. Do not build a fixed-absolute-zone model for Dendren; the
+community note explicitly warns this "looks right on 3×3 and breaks on
+4×4," and this capture confirms it rather than just corroborating it.
 
 ---
 

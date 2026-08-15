@@ -174,25 +174,16 @@ Log the EV table for one full battle and eyeball it — every chosen move should
 be justifiable from its numbers. If one isn't, the utility weights are wrong,
 not the logs. `npm run sim` prints one, from a warmed model at a fixed seed.
 
-**Extension [2026-08-15, session 11] — potion loadout, folded into §4c loot
-ranking, not a standalone task.** Session 10 §7 asked for a standalone
-"potion timing" task (an optimal-stopping problem — spend now or hold?); the
-same brief's addendum then superseded that framing with a user confirmation:
-**potions are a PRE-COMMITTED loadout chosen before `start_run`, not used
-mid-run.** That makes it a static 3-item selection maximizing expected rooms
-cleared — solvable in the sim exactly like any other loot-ranking choice, not
-a sequential decision needing its own task or gate. This TASKS.md entry
-records that downgrade; no separate task was ever created to retire.
-
-Prerequisites, updated this session (`SPEC-fishing.md §5`): item metadata is
-now resolved — the three heal potions are confirmed flat heals (+4/+8/+20
-HP), not percentage. **Still open**: the auto-trigger CONDITION
-(`itemEffect.triggerType: "OnUseBattle"` says WHEN the effect is eligible,
-not HOW it fires — an HP-threshold proc and a manual mid-battle action are
-both consistent with that string, and this session's fishing capture
-contains no dungeon battle to disambiguate). Needs a live dungeon run with a
-non-empty `consumables` in `start_run` and an observed heal firing, or a
-direct answer from the user, before the loadout policy can be built.
+**Extension [2026-08-15, session 11] — RETRACTED [2026-08-15, session 12].**
+Session 11 downgraded potion timing to a static pre-run loadout choice,
+folded into §4c loot ranking with no standalone task or gate, on the
+reasoning that potions are selected before `start_run` and not used
+mid-run. **This was wrong — the session-12 brief's addendum carries a direct
+user confirmation that reverses it: potions are CLICKED to use during a
+run.** They do not auto-proc, and they are not fire-and-forget at
+`start_run` either. The auto-proc branch this extension used to describe is
+deleted; see Task 12 below, which restores potion timing as its own task
+with its own gate.
 
 ---
 
@@ -326,6 +317,22 @@ monotonically and predicts correctly once `|H| == 1`. Sim over 500 synthetic
 casts beats random card choice on catch rate. Empty-hypothesis-set fallback is
 tested.
 
+**Outcome [2026-08-15, session 12]: GATE MET, and the gate was runnable as
+written despite the 4×4/focus correction (session 11) — checked this at the
+start of the session per CLAUDE.md §6 rather than discovering it at the
+end.** The 3×3-vs-4×4 change affects the EV formula's derivation (now a
+`(card, focus)` pair, `SPEC.md §5`), not the gate's own success criteria,
+which never named a grid shape. `src/strategy/fishing/matcher.ts`,
+`src/strategy/fishing/cardChoice.ts`, `src/sim/fishing/castSim.ts`; tests in
+`tests/fishing/`. Matcher narrows monotonically and predicts the real cast's
+actual next cell correctly once `|H| == 1` (`tests/fishing/matcher.test.ts`,
+built from the real cast's decoded position sequence). 500-synthetic-cast
+sim: matcher-EV policy 19.0% catch rate vs random 7.8% (`tests/fishing/
+castSim.test.ts`). Empty-`|H|` fallback tested directly and confirmed to
+trigger on the real cast replayed against the synthetic pool
+(`scripts/fishConvergence.ts`'s own output). Verified by:
+`npx vitest run tests/fishing` (18/18 pass), `npx tsc --noEmit` clean.
+
 ---
 
 ### 9 — Live fishing, supervised
@@ -436,6 +443,68 @@ reported as *the* fix for attrition, because the evidence says attrition
 runs (Task 6 follow-up) will add real death-room data under the retuned
 config; if the live distribution also stays even across rooms 2–4 rather than
 shifting later, that is independent confirmation.
+
+---
+
+### 12 — Potion timing ← restored 2026-08-15, session 12 (see Task 5's retracted extension)
+
+**Restores the standalone task session 10 §7 originally asked for, superseding
+session 11's downgrade to a static pre-run loadout choice.** The session-12
+brief carries a direct user confirmation: **potions are CLICKED to use
+during a run — they do not auto-proc, and they are not chosen once at
+`start_run` and left alone.** The shape is two decisions, not one:
+
+1. **Loadout** — select 3 potions before `start_run` (pre-committed,
+   user-confirmed session 11; goes in `consumables: []`, currently always
+   sent empty).
+2. **Timing** — use them manually mid-run, one click each, almost certainly
+   the `use_item` action. This is the optimal-stopping problem session 11
+   downgraded away: spend a heal now, or hold it for a worse spot later.
+   +4/+8/+20 flat heals against a ~32 HP pool, in runs currently dying at
+   rooms 2–4 (Task 11's death-room histogram) — the largest single lever
+   identified against attrition, bigger in principle than anything the
+   Task 11 weight sweep found.
+
+**Blocker, confirm before any policy work depends on it:** `use_item` is
+still `[VERIFY]` — sourced from Gigaverse's published agent skill, which has
+already been wrong twice for this project (`loot_one`, `enemy_two`). Confirm
+it **only on a run already lost** — reach a state where death is certain,
+then send `use_item`. A 400 costs nothing there; a 200 confirms the action
+name, the envelope, and the response data shape in one attempt. Never send
+it speculatively mid-viable-run — CLAUDE.md §4/§7.
+
+**Also unknown, and needed before the timing policy is buildable** (answer
+these from the same lost-run confirmation attempt where possible, else ask
+the user directly per CLAUDE.md's "write to `QUESTIONS.md`, keep going"
+rule):
+
+- Does using a potion consume the turn, or is it free? This is the entire
+  cost side of the decision — a turn cost makes it a tempo-vs-survival
+  trade; free makes it pure scarcity allocation.
+- Can two potions be used in the same battle?
+- Does `consumables: []` take item IDs, slot indices, or objects? The three
+  heal potion IDs are known (`SPEC-fishing.md §5`: Lil Heal Juice 151, Mid
+  Heal Juice 155, Big Heal Juice 131).
+- Are potions consumed on use even if the run then fails?
+
+**Gate**, two stages — the second is not meetable until the first lands, per
+CLAUDE.md §6 (state what has to be captured, don't let the gate outrun it):
+
+- **Stage A (capture):** `use_item` sent once, on a run already lost, with a
+  non-empty `consumables` loadout. Real response logged (success or a clean
+  400, not a crash), and the turn-cost/multi-use/consumed-on-loss questions
+  above answered from it or from a direct user response in `QUESTIONS.md`.
+- **Stage B (policy, blocked on A):** given the confirmed cost model, the
+  sim scores loadout selection (which 3 potions) and timing (an HP-threshold
+  or EV-based trigger rule) against the current death-room histogram, and
+  the live loop uses the result on real runs with heals observed firing.
+  Report items-per-energy / mean-rooms-cleared before vs. after, same form
+  as Task 11's own gate.
+
+Sequencing: this does **not** displace Task 8 (fishing) as a session's
+spine while Stage A is unconfirmed. Do the Stage A confirmation
+opportunistically on the next live run that is clearly lost; build Stage B
+once it lands.
 
 ---
 

@@ -1209,16 +1209,58 @@ capture's own `pondEntryTiers` data hints at more than one pond), but they
 are not this bot's target and were never captured. Do not build a
 fixed-absolute-hitbox model for Dendren — see `SPEC-fishing.md §4`.
 
-Fish occupies one cell. You play a spell card from your hand; the fish then
-moves to a different cell. Cards have a mana cost, a **hitbox** (a template of
-cells centred on the bobber, on Dendren), and damage. Hit → catch meter
-rises. Miss → catch meter falls. Fill the meter to catch. Run out of mana, or
-let the meter hit zero, and the fish escapes and the cast is over. `playerHp`
-on the wire is this mana pool, not health — **[CONFIRMED]**, `SPEC-fishing.md
-§4`.
+Fish occupies one cell. On each turn you submit one card and a **focus
+point** (Dendren only — see the correction below); the server then moves the
+fish per its own deterministic pattern and checks the fish's **new** cell
+against the card's hitbox, translated to be centred on the focus point you
+submitted. Cards have a mana cost, a hitbox, and a flat hit/miss effect on
+the catch meter (`fishHp`).
+
+**[CORRECTED 2026-08-15, session 12]** This paragraph previously said "Hit →
+catch meter rises. Miss → catch meter falls. Fill the meter to catch. Run
+out of mana, or let the meter hit zero, and the fish escapes" — backwards on
+every count, refuted by replaying the real captured cast turn-by-turn
+against its own wire values:
+
+- **A hit decreases `fishHp` toward 0** (`fishHp -= hitEffects[0].amount`,
+  amount positive) — reaching 0 is the catch condition (never observed in
+  this one-cast corpus, inferred from the meter's own trajectory and
+  `SPEC-fishing.md §4`'s field description, which had this right even
+  though this section didn't).
+- **A miss increases `fishHp` toward `fishMaxHp`**
+  (`fishHp -= missEffects[0].amount`, amount negative, so the subtraction
+  adds) — reaching `fishMaxHp` is the escape condition, **[CONFIRMED]**
+  directly: the real cast's `FISH_ESCAPED` fires exactly the turn `fishHp`
+  reaches `fishMaxHp` (20/20), with `playerHp` (mana) still at 5/10, not 0.
+  Running out of mana may be a *separate* escape trigger — never observed,
+  since this cast escaped by meter first — but "let the meter hit zero" was
+  simply wrong; zero is the goal, not the failure.
+
+`playerHp` on the wire is the mana pool, not health — **[CONFIRMED]**,
+`SPEC-fishing.md §4`.
+
+**Hitbox geometry, [CONFIRMED 2026-08-15, session 12]** (previously
+"[VERIFY, but very likely correct]" in `SPEC-fishing.md §4`): zones are
+numbered 1–9 in a fixed 3×3 template, row-major, centred on the submitted
+`focusPoint` — `1=(-1,-1) 2=(0,-1) 3=(1,-1) 4=(-1,0) 5=(0,0) 6=(1,0)
+7=(-1,1) 8=(0,1) 9=(1,1)`, absolute cell = `focusPoint + offset`, clipped to
+the grid (an off-grid translated zone is simply unreachable that turn, which
+matters near edges). Verified by replaying the real cast's one genuine hit
+(turn 3, card id 79, `hitZones [2,4,6,8]`, submitted `focusPoint [3,3]`): the
+fish's post-move cell `[3,4]` equals `focusPoint + zone8's (0,1)` exactly,
+and no other turn's miss contradicts it. The **submitted `focusPoint`
+applies to the fish's position AFTER that turn's move**, not before — you
+are placing a bet on where the fish will land, not where it already is. This
+is the mechanical fact `SPEC.md`'s hypothesis-elimination section already
+assumed; now it's load-bearing and confirmed, not just assumed.
 
 You may **redraw** your hand instead of casting, at 1 mana per card still
-held — **[VERIFY]**, never captured; see `SPEC-fishing.md §0`.
+held — **[VERIFY]**, never captured; see `SPEC-fishing.md §0`. Separately
+**[CONFIRMED]**: the hand refills to its starting size automatically, drawn
+from `fullDeck` via `nextCardIndex`, the moment it hits zero cards — not
+every turn, and not tied to hit/miss (the real cast's `NEW_HAND` event fired
+the turn the hand was played down to empty, turn 3, immediately after that
+turn's card resolved).
 
 Cast tiers cost energy: Small 12, Normal 16, Big 20. Daily cap 10 casts (20 if
 juiced). **[INFERRED, corroborated by capture]** — `SPEC-fishing.md §3`
@@ -1269,26 +1311,88 @@ offline pattern mining.
 
 ### Card choice
 
-For each affordable card:
+**[RE-DERIVED 2026-08-15, session 12]** The formula below was originally
+written for fixed hitboxes over absolute cells — wrong the moment
+`SPEC-fishing.md` corrected Dendren to a 4×4 grid with the focus mechanic
+enabled (session 11). With a movable focus, the action space is a **(card,
+focus point) pair**, not a card alone: the same hitbox template scores
+differently depending on where you centre it, so EV must be maximized over
+focus placement too, not just over the card.
+
+For each affordable card and each focus point `f` the grid allows:
 
 ```
-EV(card) = Σ_{c ∈ card.hitbox} P(next = c) · card.damage
-         − missPenalty · (1 − Σ_{c ∈ card.hitbox} P(next = c))
+hitSet(card, f) = { f + offset(z) : z ∈ card.hitZones, f + offset(z) ∈ grid }
+critSet(card, f) = { f + offset(z) : z ∈ card.critZones, f + offset(z) ∈ grid }
+
+P_hit(card, f)  = Σ_{c ∈ hitSet(card,f)}  P(next = c)
+P_crit(card, f) = Σ_{c ∈ critSet(card,f)} P(next = c)   (only where crit adds value — see below)
+
+EV(card, f) = P_crit · critEffect + (P_hit − P_crit) · hitEffect
+            − missPenalty · (1 − P_hit)
 ```
 
-Then pick `argmax EV(card) / card.manaCost` — mana is the real budget, and a
-cheap reliable hit usually beats an expensive gamble.
+where `hitEffect`/`critEffect` are each card's flat `hitEffects[0].amount` /
+`critEffects[0].amount` (**[CONFIRMED]** real cards carry a single flat
+amount, not a per-cell table — `fixtures/fishing-casts/cards.json`), and a
+cell counted in `critSet` is excluded from the plain-hit term so it isn't
+double-counted. `offset(z)` is the 1–9 zone template above. A handful of
+cards (e.g. id 10/77/78) have `hitZones: []` and only a `critZones: [5]` —
+for these, `P_hit` collapses to `P_crit` and the plain-hit term is zero,
+which the formula already handles without a special case.
 
-Two overrides:
+Then pick `argmax EV(card, f) / card.manaCost` over both the card and the
+focus placement — mana is the real budget, and a cheap reliable hit usually
+beats an expensive gamble.
 
-- **Lethal check first.** If a card can fill the catch meter this turn, play it
-  and ignore efficiency entirely.
-- **Uncertainty shapes the choice.** When `|H|` is large, prefer wide hitboxes —
-  they hedge. When `|H| == 1`, prefer maximum damage into the known cell. Early
-  turns are for identifying the pattern; later turns are for cashing it in.
+Two overrides, unchanged in spirit from the original design:
+
+- **Lethal check first.** If some `(card, f)` can drive `fishHp` to ≤ 0 this
+  turn with certainty (or with the only nonzero-probability outcomes all
+  lethal), play it and ignore efficiency entirely.
+- **Uncertainty shapes the choice.** When `|H|` is large, prefer the `f` that
+  maximizes `P_hit` over the *union* of live hypotheses' next-cell
+  predictions — i.e. hedge by covering the spread, not by picking a wide
+  hitbox in the abstract (a wide hitbox centred on the wrong focus point
+  hedges nothing). When `|H| == 1`, centre `f` so the single predicted cell
+  falls in `critSet` if any affordable card offers one there, else `hitSet`,
+  and maximize damage. Early turns are for identifying the pattern; later
+  turns are for cashing it in.
+
+**Whether "early turns identify, late turns cash in" is even the right
+policy shape depends on convergence speed vs. cast length — see the
+measurement note below before assuming it.**
 
 **Redraw** when `max EV < redrawThreshold` and mana comfortably exceeds the
 redraw cost. Tune the threshold in the sim, not live.
+
+### Open question this design doesn't answer yet: does identification ever finish?
+
+The one real capture escaped after 5 plays with `|H|` never computed (no
+matcher existed yet). Whether hypothesis-elimination is even the right frame
+for Dendren specifically — as opposed to a permanent hedge — depends on how
+many turns convergence needs relative to how many turns a cast affords. That
+ratio is measured, not assumed, in `scripts/fishConvergence.ts`
+(session 12), against a synthetic stand-in pattern library (the real
+pattern set is still unknown — only one 5-move cast exists, nowhere near
+enough to fit one), swept over plausible library sizes (4/8/16/23
+patterns, 400 trials each): the result is **bimodal**, not "usually a bit
+slow" — when convergence happens it's fast (median 1–2 turns, well inside a
+cast's affordance), but a share of trials **never** converge at all (18% at
+the smallest pool swept, up to 58% at the largest), because some
+stand-in patterns are permanently indistinguishable from each other for
+certain start cells. Separately, replaying the real captured cast's actual
+5-move sequence against the full synthetic pool hits `|H| == 0` at turn 4 —
+expected, since the real pattern almost certainly isn't in this stand-in
+set, but it's a second independent data point for the same conclusion:
+the policy has to be sound when identification never completes, not only
+when it does. Treat "identify then exploit" as a *bonus* the policy exploits
+opportunistically when `|H|` does collapse, and "hedge throughout" (maximize
+`P_hit` over the live spread every turn, never assuming eventual certainty)
+as the default policy shape until real transition logs (Task 9) show
+otherwise. See the script's own output for the current numbers — do not
+hardcode a turn-count threshold into the
+policy from this synthetic measurement alone.
 
 ---
 

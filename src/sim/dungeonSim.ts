@@ -104,6 +104,17 @@ export interface SimOptions {
    * describe what live play would actually fight.
    */
   enemyTier?: number;
+  /**
+   * Override the player's starting stats. Defaults to `PLAYER` (the current
+   * live-confirmed gear loadout, `src/sim/enemies.ts`).
+   *
+   * Exists for ONE purpose: `scripts/gearSweep.ts`'s counterfactual —
+   * "which single-stat gear upgrade is worth the most rooms cleared" — a
+   * question about progression choices, not about current play. A result
+   * produced with this override is a HYPOTHETICAL gear loadout and must be
+   * labelled as one; never use it to report the live win rate.
+   */
+  player?: Combatant;
 }
 
 export type RunOutcome = "cleared" | "died" | "stalled" | "halted";
@@ -199,7 +210,7 @@ export function simulateRun(opts: SimOptions): RunResult {
   const runReasons = new Set<Reason>();
   const battles: BattleRecord[] = [];
 
-  let player = cloneCombatant(PLAYER);
+  let player = cloneCombatant(opts.player ?? PLAYER);
   let roomsCleared = 0;
   let exchanges = 0;
   let outcome: RunOutcome = "cleared";

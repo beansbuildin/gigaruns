@@ -484,6 +484,40 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-15-15-38-09/state-111",
     options: [opt("AddLifestealShield", 3), opt("BurnMastery", 1), opt("AddTenacity", 3)],
   },
+  {
+    // [session 12, LIVE] Room-1 offer, run reached room 3 before dying.
+    // First sighting of `WeakeningMastery` (offered, not picked — unmodelled).
+    room: 1,
+    source: "run-2026-08-15-18-10-21/state-013",
+    options: [opt("UpgradePaper", 0, 6), opt("WeakeningMastery", 10), opt("AddLuck", 1)],
+  },
+  {
+    // [session 12, LIVE] Room-2 offer, same run.
+    room: 2,
+    source: "run-2026-08-15-18-10-21/state-027",
+    options: [opt("AddTenacity", 2), opt("AddIntuition", 1), opt("UpgradeScissor", 0, 4)],
+  },
+  {
+    // [session 12, LIVE] Room-1 offer, run reached room 4 before dying. First
+    // sighting of `AddBurnMagic` (offered, not picked — unmodelled).
+    room: 1,
+    source: "run-2026-08-15-18-10-21/state-050",
+    options: [opt("AddEvasion", 10), opt("AddBurnSword", 5), opt("AddBurnMagic", 3)],
+  },
+  {
+    // [session 12, LIVE] Room-2 offer, same run. First sighting of
+    // `VulnerableMastery` (offered, not picked — unmodelled).
+    room: 2,
+    source: "run-2026-08-15-18-10-21/state-072",
+    options: [opt("VulnerableMastery", 10), opt("AddLuck", 5), opt("AddBlock", 2)],
+  },
+  {
+    // [session 12, LIVE] Room-3 offer, same run. First sighting of
+    // `TieVulnerable` (offered, not picked — unmodelled).
+    room: 3,
+    source: "run-2026-08-15-18-10-21/state-088",
+    options: [opt("TieVulnerable", 1), opt("TieWeak", 1), opt("UpgradeScissor", 12)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

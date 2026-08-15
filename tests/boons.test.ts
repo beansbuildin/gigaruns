@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(23); // +6 session 11: retuned-config 3-run live stage, see STATE.md session 11
+    expect(pickups.length).toBe(28); // +5 session 12: 2 more live runs, see DECISIONS.md session 12
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -146,15 +146,18 @@ describe("fail-closed on unmodelled types", () => {
       // pickup pairs (moveDelta), now modelled.
       // AddMaxArmor/CorrosiveShield moved OUT — session 11 gave both live
       // pickup pairs (maxArmor / latent), now modelled.
+      "AddBurnMagic", // session 12: first sighting, live room-1 offer, not picked
       "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked
       "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
       "CorrosiveMagic", // session 09: first sighting, room-3 offer, not picked
       "Regen",
       "TieDamageReduction",
+      "TieVulnerable", // session 12: first sighting, live room-3 offer, not picked
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
       "UpgradePaper",
       "VulnerableEvade", // session 11: first sighting, room-2 offer, not picked
+      "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
       "WeakeningMastery", // session 08: same offer, not picked
     ]);
@@ -182,8 +185,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // unmodelled until now. Modelling a type retroactively makes every past
     // offer containing it clean too — a fourth room-1 hole, discovered here
     // rather than by a fresh room-1 capture.
+    // [session 12] +2 more room-1 offers (6 options: UpgradePaper/
+    // WeakeningMastery/AddLuck and AddEvasion/AddBurnSword/AddBurnMagic),
+    // none newly clean either — all either rolled-stat (contaminated) or
+    // still-unmodelled types.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(39);
+    expect(roomOne.length).toBe(45);
 
     const clean: string[] = [];
     for (const option of roomOne) {

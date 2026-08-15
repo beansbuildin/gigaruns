@@ -209,7 +209,12 @@ describe("the Task 4 gate", () => {
     // fourth clean type), opening slightly more scorable paths at this same
     // seed. deepestScorableRoom stays 4 — still MAX_OBSERVED_ROOM, a boon
     // becoming clean doesn't raise the corpus's depth ceiling.
-    expect(s.battleCoverage.scored).toBe(1120);
+    // [session 12] 1120 -> 1094 — two more live runs added 5 room-1/2/3
+    // offers to OBSERVED_OFFERS (no new clean types), which reshuffles which
+    // random boon draws a run gets at this same seed; a boon-offer-table
+    // change moving `scored` in either direction is expected, not a
+    // regression — see the corpus-total-drift note in tests/replay.test.ts.
+    expect(s.battleCoverage.scored).toBe(1094);
     expect(s.deepestScorableRoom).toBe(4);
   });
 
@@ -236,6 +241,13 @@ describe("the Task 4 gate", () => {
     // in this one N=1000, seed=1 draw. A future session finding this at 0
     // again is not itself informative; finding it LARGE without a deliberate
     // change would be.
-    expect(s.scoredWinRate).toBe(0);
+    // [session 12] Back to nonzero at this same seed: two more live runs'
+    // worth of new OBSERVED_OFFERS reshuffled which runs stay scored (1120 ->
+    // 1094 scored battles, previous test), and this reshuffle happens to
+    // include 2 full clean clears out of 251 scored runs (2/251). Neither the
+    // session-11 zero nor this session's nonzero is itself informative about
+    // the strategy — both are boon-offer-table artifacts at a fixed seed, per
+    // the note on the previous test.
+    expect(s.scoredWinRate).toBeCloseTo(2 / 251);
   });
 });

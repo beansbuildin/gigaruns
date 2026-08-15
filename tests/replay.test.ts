@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(264); // +50 session 11: retuned-config 3-run live stage
+    expect(exchanges(runs).length).toBe(301); // +37 session 12: 2 more live runs (died rooms 3, 4)
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -95,7 +95,10 @@ describe("combat model vs recordings", () => {
     // see tests/enemies.test.ts). The clean model matched EVERY exchange
     // again — 0 clean failures, still holding through 8 live dungeon runs
     // total.
-    expect(report.sideUpdates).toBe(528);
+    // [session 12] Two more live runs (died rooms 3, 4 — Task 6's live
+    // capability exercised again, not this session's focus). 0 clean
+    // failures again, now 10 live dungeon runs total.
+    expect(report.sideUpdates).toBe(602);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

@@ -65,6 +65,46 @@ runs is thin evidence either way), or this batch got lucky. Keep the test
 queued opportunistically for the next live session that hits a `reward_*`/
 `path_*` 500; do not spend a dedicated session chasing it.
 
+**[session 12] Free check done (log query, not a live run, per the session-12
+brief §4): session 09's 17 failures are SPREAD across the batch, not
+clustered into one server-side window — keep the envelope test queued.**
+
+Method: every `logs/run-*.jsonl` line matching `HTTP 500` with reason
+`reward selection rejected` or `enemy path selection rejected` carries a
+real UTC timestamp. Session 09's own commits (`git log --date=iso-strict`)
+run `2026-08-14T18:12:52-07:00` to `2026-08-14T19:36:55-07:00`, i.e.
+`2026-08-15T01:12` to `02:36` **UTC** — the date-flip is just the -07:00
+offset, not a different day. Filtering the logs to that UTC window and
+counting by reason produces **exactly** 9 reward + 8 path = 17, matching
+`session-09.md`'s own breakdown (§D) precisely, and lands across **5**
+distinct run files (`run-2026-08-15-01-16-01`, `-01-42-33`, `-01-53-35`,
+`-01-58-11`, `-02-03-21`) — session 09's 5 completed runs, confirmed by
+`start_run` counts per file.
+
+The distribution across those 5 runs: **1, 2, 8, 4, 2** failures per run.
+**Every one of the 5 runs hit at least one 500** — not one bad run dragging
+the average up, and not one contiguous block of wall-clock time with a
+quiet period on either side inside the ~50-minute session. That's the
+"spread, request-shaped" signature the session-12 brief's decision
+framework named, not the "clustered, one server-side window" signature that
+would have let this get written off as transient. **Conclusion: keep
+`reward_*`/`path_*` handled defensively (current `postWithVerifiedRetry`
+behavior) and keep this envelope test queued** — it is not dead server
+flakiness, even though session 11's own 3-run batch happened to see zero.
+
+(In the course of this check, a separate stray log file,
+`logs/run-2026-08-15-15-38-07.jsonl`, was found with 12 more reward_/path_
+500s at a timestamp that initially looked like it fell inside session 11's
+own commit window — appearing to contradict session 11's "0 HTTP 500s"
+claim. It does not: the authoritative log session 11 actually measured
+against, `logs/session11-liverun.log`, has zero `HTTP 500` lines, and the
+real 3-run batch fixture directory is `fixtures/dungeon-runs/
+run-2026-08-15-15-38-09` (note the `-09`, not the stray file's `-07`) —
+two seconds apart, different artifacts. session 11's claim stands; the
+stray file is most likely an earlier discarded/aborted attempt from the
+same morning, not part of the reported batch. Flagging only so a future
+session doesn't re-discover the same false lead.)
+
 ---
 
 ## 7. JWT rejected — blocks all of Task 6 [session 08, TOP OF SESSION]

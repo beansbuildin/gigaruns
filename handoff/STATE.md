@@ -1,169 +1,204 @@
-# STATE — session 11 — 2026-08-15 — commit 52d8e0a
+# STATE — session 12 — 2026-08-15 — commit (pending, see below)
 
 ## Status
-Task 7 "Fishing API discovery": **GATE PASS.** Task 11 "Tuning" (dungeon
-half, live objective since session 10): **live confirmation gathered, still
-no positive result** — three more retuned-config runs replicate session 10's
-null finding exactly. Task 6's live-run capability: exercised again cleanly
-(3/3 runs, 0 clean-model failures, 0 HTTP 500s).
-Next per TASKS.md: two independent unblocked directions — Task 8 (fishing
-strategy, now unblocked by Task 7) and Task 11's own open question (the
-retune lever is exhausted; needs an opponent-model read at rooms 2-4 or
-capture past room 4, not more weight-tuning). See Open Questions below for
-the tradeoff.
-Overall: this session did NOT touch strategy code. It (a) got the human
-sign-off session 10 was blocked on and ran the live confirmation batch that
-sign-off unblocked, (b) closed out the entire fishing-discovery half of the
-project via the user's HAR capture, and (c) picked up two new clean boon
-models plus a real gear change that the new live captures forced into the
-corpus. No regressions; 249/249 tests pass.
+Task 8 "Fishing strategy": **GATE PASS.** Task 6's live-run capability:
+exercised again (2 more runs, 0 clean-model failures, 0 HTTP 500s, deaths at
+rooms 3/4). Task 11's dungeon gate: unchanged this session (still the
+session-10/11 null result — not re-attempted; see Open Questions).
+Next per TASKS.md: Task 9 (live fishing, supervised — needs a real Dendren
+cast, blocked on user availability the same way Task 6 was) or Task 12
+(potion timing, newly restored — blocked on a `use_item` confirmation that
+needs a live run reached to certain death, not yet attempted).
+Overall: fishing's core algorithm (matcher, EV card-choice, cast sim) is
+built and gate-passing, grounded in the one real captured cast rather than
+guesswork — replaying that cast turn-by-turn caught two real spec-vs-corpus
+contradictions, both corrected. A convergence measurement answered SPEC.md's
+open policy-shape question (hedge-throughout, not identify-then-exploit, is
+the right default). A gear-upgrade sweep gives the user a concrete
+progression ranking. Potion timing is restored as a real task after a user
+correction reversed session 11's downgrade.
 
 ## What works
-- **Task 7 (fishing API): GATE MET.** `SPEC-fishing.md` documents the full
-  endpoint map from a real captured cast; `src/api/fishing.ts` implements
-  every schema (zod, same `.passthrough()` convention as the dungeon side);
-  `scripts/parseHar.ts` (new) extracts it from any `fixtures/**/*.har`;
-  `tests/api/fishing.test.ts` (new, 6 tests) verifies the schemas against
-  the redacted fixtures. Verified by: `npx vitest run tests/api/fishing.test.ts`.
-- **Task 6 (live dungeon), exercised again**: 3 more live 20-energy runs,
-  retuned config from session 10, rooms reached 4/3/2 (all deaths). 0 clean
-  combat-model failures across all of them, 0 HTTP 500s. Verified by:
-  `logs/session11-liverun.log`, `npm run sim`'s replay report
-  (`513/528 matched, 0 cleanFailures`).
-- **Item metadata resolved** — the other half of `QUESTIONS.md §3`, found
-  opportunistically while parsing the fishing HAR. `GET /offchain/static`'s
-  `gameItems[]` gives names, descriptions, AND a structured `itemEffect` —
-  the three heal potions are confirmed flat heals (+4/+8/+20 HP), not
-  percentage. Verified by: `tests/api/fishing.test.ts`'s item-metadata test.
-- **Two new clean+modelled boon types** from this session's live picks:
-  `AddMaxArmor` (`armorMax += val1`, current armor untouched — the boon
-  `QUESTIONS.md §5b` called the highest-value capture left) and
-  `CorrosiveShield` (latent, zero delta like `AddBurnSword`). Verified by:
-  `npx vitest run tests/boons.test.ts` (35/35 pass).
+- **Task 8 (fishing strategy): GATE MET.** `src/strategy/fishing/matcher.ts`
+  (hypothesis elimination), `src/strategy/fishing/cardChoice.ts` (re-derived
+  `(card, focus)` EV per the corrected SPEC.md §5), `src/sim/fishing/`
+  (geometry, synthetic pattern library, deck loader, cast simulator).
+  Verified by: `npx vitest run tests/fishing` (18/18 pass) —matcher narrows
+  monotonically and predicts the real cast's actual next cell correctly once
+  `|H| == 1`; 500-synthetic-cast sim, matcher-EV policy 19.0% catch rate vs
+  random 7.8% (caught 95/500 vs 39/500); empty-`|H|` fallback tested
+  directly and shown to trigger for real when the actual cast is replayed
+  against the synthetic pool. `npx tsc --noEmit` clean throughout.
+- **Two real corpus-vs-spec corrections**, found by replaying
+  `fixtures/fishing-casts/cast.json` against `SPEC.md`/`SPEC-fishing.md`'s
+  own claims before writing strategy code (CLAUDE.md §9): the catch meter's
+  direction was backwards in `SPEC.md` (a hit decreases `fishHp` toward 0,
+  the catch; a miss increases it toward `fishMaxHp`, the escape — confirmed
+  directly, the real cast's escape fires exactly at `fishHp == fishMaxHp`
+  with mana still 5/10, not 0), and `CARD_PLAYED`'s `value` field is the
+  hand index played, not a hit/miss flag as `SPEC-fishing.md` claimed (the
+  real cast's one genuine hit has `value: 0`; three of its misses have
+  `value: 1`). Hitbox geometry upgraded from `[VERIFY, but very likely
+  correct]` to `[CONFIRMED]` by the same replay.
+- **Fish-convergence measurement** (`scripts/fishConvergence.ts`, session-12
+  brief §2): against a documented synthetic stand-in library (the real
+  pattern set is still unknown), convergence is bimodal — fast (median 1-2
+  turns) when it happens, but up to 58% of trials never converge at the
+  largest pool swept. Decides SPEC.md §5's open question: hedge-throughout
+  is the default policy shape, identify-then-exploit is a bonus, not an
+  assumption. Written into `SPEC.md §5`.
+- **Gear-upgrade sweep** (`scripts/gearSweep.ts`, session-12 brief §5): all 8
+  single-stat +4 upgrades ranked by mean rooms cleared, 1000 runs each,
+  ev-engine policy, real `PLAYER` baseline. Sword ATK tops the list (+0.305),
+  consistent with session 11's own live gear change already being the
+  biggest lever found this project. Required adding an optional `player`
+  override to `SimOptions`/`simulateRun` (`src/sim/dungeonSim.ts`),
+  documented diagnostic-only like the existing `offers` override.
+- **Task 6 (live dungeon), exercised again**: 2 more live 20-energy runs (not
+  this session's focus — ran in the background to use the day's remaining
+  budget rather than leave it idle), rooms reached 3 and 4 (both deaths). 0
+  HTTP 500s, 0 guard trips, exit 0. 0 clean-model failures across the now-
+  larger corpus. Verified by: `logs/run-2026-08-15-18-10-20.jsonl`,
+  `fixtures/dungeon-runs/run-2026-08-15-18-10-21/`.
 - `npx tsc --noEmit` — clean, exit 0.
-- `npx vitest run` — **249 tests, 15 files, all pass** (+13 vs session 10's
-  236: 6 new fishing schema tests, plus corpus-total assertions that
-  shifted with the new live captures and had to be re-derived, not just
-  bumped — see Corrections).
-- `npx tsx scripts/sim.ts` — Task 5's gate report still passes, re-measured
-  against the new gear loadout (see Metrics; do not compare its win-rate
-  numbers to session 10's without accounting for the gear change).
+- `npx vitest run` — **272 tests, 21 files, all pass** (267 → 272 this
+  session's fishing build, then 4 corpus-total assertions re-derived — not
+  just bumped — after the 2 new live runs; see Corrections).
+- `npx tsx scripts/sim.ts` — Task 5's gate report still passes (500 runs,
+  intervals non-overlapping), `deepestScorableRoom` still 4, re-measured
+  against the now-larger corpus.
 
 ## What's broken
-- **Task 11's dungeon gate: still NOT MET, and now doubly confirmed.** The
-  three new live runs replicate session 10's finding exactly — deaths still
-  spread evenly across rooms 2/3/4 (now 3 each, was 2 each), not clustering
-  early. The retuned utility function did not shift the distribution. This
-  is the SAME conclusion as session 10, now with independent live
-  confirmation rather than resting on the sim + a thin n=6 histogram alone.
-  Retuning the current utility form is a dead end; the next lever has to be
-  a better opponent-model read at rooms 2-4 or capture past room 4 (both
-  still thin), not more weight sweeps.
-- **The `reward_*`/`path_*` 500 pattern from sessions 08/09 (2, then 17
-  occurrences) did not recur at all this session — 0/3 runs.** Genuinely
-  ambiguous whether this means the earlier 500s were transient server noise
-  (as the session-10 brief's own fallback anticipated) or this batch was
-  lucky; 3 runs is too thin to call it either way. The §3 envelope test
-  (`QUESTIONS.md §9`) stays queued, unexercised for a second session running
-  — not blocked this time, just no opportunity arose.
-- **Potion trigger mechanism still unconfirmed.** Flat heal amounts are now
-  known (+4/+8/+20), but whether `OnUseBattle` means an automatic HP-
-  threshold proc or a manual mid-battle action is not settled by this
-  capture (a fishing cast, not a dungeon battle) — needs a live dungeon run
-  with a non-empty `consumables` loadout, or a direct user answer.
+- **Task 11's dungeon gate: still NOT MET, not re-attempted this session.**
+  Session 10/11's null result (weight-tuning the current utility form moves
+  nothing) stands unchanged. The 2 new live runs this session (died rooms 3,
+  4) are a THIRD independent confirmation of the death-room histogram's even
+  spread across rooms 2-4 (now 0/3/4/4 at n=11, was 0/3/3/3 at n=9) — still
+  no shift toward early rooms, still reads as single-battle lethality
+  scaling with depth, not cross-room HP mismanagement. No code changed here
+  this session.
+- **Task 12 (potion timing)'s Stage A blocker is unresolved.** `use_item` is
+  still `[VERIFY]` and the live loop doesn't send it — confirming it needs a
+  live run reached to certain death, which didn't come up in this session's
+  2 background runs (both died mid-fight, not spotted as "certain" in
+  advance by the current loop, which has no such detection). Needs either
+  code to detect a doomed state and attempt the confirmation, or a
+  supervised session watching for the moment.
+- **Task 9 (live fishing) hasn't started.** The matcher/EV code is built and
+  gate-passing in sim, but has never been run against a real cast — needs a
+  real Dendren cast (dry-run, then real, then five) same as Task 6's staging.
+- The fish-convergence numbers in `scripts/fishConvergence.ts` are against a
+  SYNTHETIC stand-in library (documented as such throughout) — real
+  convergence behavior is unknown until Task 9's transition log exists.
 
 ## Corrections to SPEC.md
-- §5 (fishing) said "3×3 grid" as an unverified guess. Live capture: Dendren
-  is a **4×4 grid with the bobber/focus mechanic ENABLED** — card hitboxes
-  are relative to a movable `focusPoint`, not absolute cells. Corrected in
-  SPEC.md with the real capture cited; `SPEC-fishing.md §4` has the detail.
-  The simpler 3×3/focus-off pond this text originally described may still
-  exist but was never captured — not this bot's target.
-- `src/api/fishing.ts`'s `FishingCardSchema`: `startingAmount`/`unlockLevel`
-  are NOT always numbers — `isDayCard: true` entries carry explicit `null`
-  in the live board state, and the same fields are entirely ABSENT (not
-  even `null`) on some entries of the full card catalog. Two different wire
-  shapes for "no fixed value", not one; schema now `.nullable().optional()`
-  on both fields.
-- Resolved IDs: `forbiddenWoods=5` (unchanged, session 03).
-  `dendren`: **two separately-recorded identifiers, not one** — `nodeId:
-  "5"` (the value sent on the captured `start_run`, confirmed only by
-  working) and `pondId: 2` (independently confirmed by
-  `pondEntryTiers[]` naming its entries `"dendrenpond-tier1/2/3"`). Do not
-  assume they're interchangeable without a second pond's capture. Both in
-  `config/discovered.json`'s new `dendren` block.
-- Move charges: unchanged this session — PRESENT, hard-pruned
-  (`chargesAreHardLimit: true`), per session 04/05.
+- §5: "Hit → catch meter rises. Miss → catch meter falls. Fill the meter to
+  catch. Run out of mana, or let the meter hit zero, and the fish escapes"
+  was BACKWARDS on every count. Real: hit decreases `fishHp` toward 0 (the
+  catch), miss increases it toward `fishMaxHp` (the escape). Confirmed
+  directly against the real cast's own `fishHp` trajectory and its
+  `FISH_ESCAPED` firing point.
+- §5: hitbox geometry upgraded `[VERIFY, but very likely correct]` →
+  `[CONFIRMED]` — the 1-9 zone template, focus-relative, scored against the
+  fish's POST-move cell, re-derived exactly from the real cast's one genuine
+  hit (turn 3).
+- §5: Card choice re-derived for the confirmed movable-focus mechanic — the
+  action is now a `(card, focus)` pair, EV maximized over both, per the full
+  formula in `SPEC.md §5`. The old fixed-hitbox formula is retired.
+- §5: added a convergence-vs-affordance section answering whether hypothesis
+  elimination is even the right frame — see `scripts/fishConvergence.ts`.
+- SPEC-fishing.md §4: `CARD_PLAYED`'s `value` field is the hand index
+  played, not "0 (miss) or 1 (hit)" as previously written. The real hit/miss
+  flag is `data.result` (1/0). `FISH_MOVED`'s `data.path` decoded as a
+  1-based column-major cell index. `NEW_HAND` fires when the hand is played
+  down to empty, not "when the hand changes" generally.
+- Resolved IDs unchanged: **forbiddenWoods=5**, **dendren nodeId="5" /
+  pondId=2** (still two separately-recorded identifiers, not confirmed
+  interchangeable).
+- Move charges: unchanged, PRESENT, hard-pruned.
 
 ## Dead ends
-- None new this session on the strategy side — no strategy code was
-  touched. The session 10 dead end (utility-weight amplification up to 10×
-  moves nothing) stands, and is now reinforced by live data rather than
-  contradicted or resolved.
+- None new on the strategy side. The session-10/11 dungeon-tuning dead end
+  (utility-weight amplification moves nothing) stands, untouched this
+  session — Task 11 was not re-attempted.
 
 ## Metrics
-- Live: **3 runs this session**, 20-energy, retuned config. Rooms reached
-  4, 3, 2 — all deaths, no full clear. 137 total energy spent today (78
-  carried in from sessions 09/10 + 59 this session), 8 total runs today.
-  0 HTTP 500s (vs 17 across session 09's 5 runs). 0 clean combat-model
-  failures.
-- Death-room histogram (whole corpus, 9 confirmed deaths, `scripts/deathRooms.ts`):
-  room 1 ×0, room 2 ×3, room 3 ×3, room 4 ×3 — exactly even, exactly the
-  same shape as session 10's n=6 read, now at n=9.
-- Sim, N=1000, seed 1, retuned config, **NEW gear loadout (Sword ATK
-  16→20)** — room-1 battle win rate: always-Sword 85.6% ± 2.2, ev-engine
-  92.9% ± 1.6 (both scored subsets). **Not comparable to session 10's
-  86.4%/86.5% figures** — those were measured under the OLD Sword ATK 16
-  loadout; this jump is gear, not model. Mean rooms cleared: always-Sword
-  1.632 ± 0.066, ev-engine 2.103 ± 0.070. `deepestScorableRoom` 4 for both
-  (MAX_OBSERVED_ROOM, unchanged — a gear or boon-model change doesn't raise
-  the corpus's depth ceiling). Gate intervals still non-overlapping — GATE
-  MET, re-confirmed post-gear-change.
-- Fishing: 1 cast (the HAR capture), 0 catches (fish escaped after 5
-  card plays) — insufficient signal to measure a catch rate or pattern
-  convergence. Not a live-loop run; Task 9 hasn't started.
-- Tests: 249 passed, 0 skipped, 0 failed (+13 vs session 10's 236).
+- Fishing sim: 500 synthetic casts, matcher-EV policy catch rate 19.0% (95/500)
+  vs random 7.8% (39/500). Convergence sweep (400 trials/library size,
+  synthetic pool): converged fraction ranges 42.3%-84.5% within a 5-turn
+  affordance depending on library size (4-23 patterns); never-converged
+  fraction ranges 15.5%-57.8% at 40-turn cutoff.
+- Gear sweep: 1000 runs/candidate, ev-engine policy. Top upgrade Sword ATK
+  +4: mean rooms cleared 2.408 ± 0.069 vs baseline 2.103 ± 0.070 (+0.305).
+  Full ranking in `scripts/gearSweep.ts` output.
+- Live dungeon: 2 runs this session, 20 energy each, rooms reached 3 and 4
+  (both deaths). 176/240 energy spent today, 10/12 runs. 0 HTTP 500s, 0
+  guard trips. Death-room histogram (corpus-wide, 11 confirmed deaths):
+  room 1 ×0, room 2 ×3, room 3 ×4, room 4 ×4.
+- Tests: 272 passed, 0 skipped, 0 failed (267 → 272 net; 18 new fishing
+  tests, 4 corpus-total assertions re-derived to match the larger corpus).
+- Replay: 602 side-updates (up from 528), 0 clean failures, 22 unscorable
+  mismatches (all reason-coded, none unexplained).
 
 ## Open questions for Claude
-1. **Two independent unblocked directions exist now, and this session
-   didn't pick one.** Task 8 (fishing strategy — matcher, EV-per-mana) is
-   newly unblocked by Task 7's gate passing. Task 11's dungeon diagnostic
-   (opponent-model read at rooms 2-4, or capture past room 4) is still the
-   live objective from session 10's promotion and now has doubly-confirmed
-   evidence the current lever is exhausted. Both are legitimate next moves;
-   worth deciding which one gets the next session rather than splitting
-   effort thin across both.
-2. **The `reward_*`/`path_*` 500 pattern went silent for a full 3-run
-   batch after being frequent for two sessions running (2, then 17
-   occurrences).** Worth deciding whether to keep the opportunistic
-   envelope test queued indefinitely, or treat 0/3 as enough evidence to
-   write it off as transient server flakiness and stop tracking it
-   explicitly.
-3. **Potion trigger mechanism (auto-proc vs manual) is the one piece of
-   the loadout policy still missing**, now that heal amounts are known.
-   Worth asking the user directly rather than waiting for a live dungeon
-   capture to maybe show it — a direct answer is cheap and this has been
-   open since session 10.
+1. **Task 9 (live fishing) vs Task 12 Stage A (potion `use_item`
+   confirmation) — which gets the next session's live-play attention?** Both
+   need a supervised live session to make progress: Task 9 needs a real
+   Dendren cast start-to-finish (dry-run, then real, then five, same staging
+   as Task 6). Task 12 needs a dungeon run watched to a certain-death state
+   so `use_item` can be sent once, safely, per CLAUDE.md §4/§7. Fishing has
+   more code riding on it (Task 8's full matcher/EV engine is built and
+   idle until Task 9 runs), but potion timing is the largest identified
+   dungeon lever (+4/+8/+20 flat heals against a ~32 HP pool, deaths
+   currently spread evenly across rooms 2-4). Worth deciding which is the
+   spine rather than splitting a session thin across both, same reasoning
+   as the session-12 brief's own Task 8-vs-Task 11 call.
+2. **Task 11's dungeon gate is now doubly stale** — untouched for two
+   sessions running while the corpus grew from n=9 to n=11 confirmed deaths,
+   still 0/3/4/4 across rooms 1-4. The session-10/11 finding (weight-tuning
+   the current utility form moves nothing; the real lever is either potion
+   timing or a genuine opponent-model/depth-of-capture change) stands
+   unchallenged. Worth deciding whether Task 11 stays parked until Task 12
+   lands, or whether the opponent-model-read option (rooms 2-4, still thin)
+   is worth a dedicated look now that n=11 exists.
+3. **The convergence numbers in `scripts/fishConvergence.ts` are the
+   algorithm's behavior against a documented STAND-IN library, not a claim
+   about real Dendren.** Once Task 9 produces real transition logs, this
+   measurement should be re-run against `data/fish-patterns.jsonl`-derived
+   patterns and the SPEC.md §5 policy-shape conclusion (hedge-throughout as
+   default) should be checked against real data, not assumed to transfer.
 
 ## Files changed
 ```
-12 files changed, 349 insertions(+), 74 deletions(-)
-(+1 new file: SPEC-fishing.md; +3 new fixture files under fixtures/fishing-casts/;
-+1 new fixture directory under fixtures/dungeon-runs/; +3 new source files:
-scripts/parseHar.ts, src/api/fishing.ts, tests/api/fishing.test.ts)
+22 non-fixture files changed, 1742 insertions(+), 60 deletions(-)
+(+96 new fixture files under fixtures/dungeon-runs/run-2026-08-15-18-10-21/;
++9 new source files: scripts/fishConvergence.ts, scripts/gearSweep.ts,
+src/sim/fishing/{castSim,deck,geometry,patterns}.ts,
+src/strategy/fishing/{cardChoice,matcher}.ts;
++4 new test files under tests/fishing/)
 
-QUESTIONS.md             | 44 +++++++++++++++++++---
-SPEC.md                  | 51 ++++++++++++++++++++-----
-TASKS.md                 | 54 ++++++++++++++++++++++++++
-config/bot.json          |  6 +--
-handoff/DECISIONS.md     |  9 +++++
-src/sim/boons.ts         | 98 ++++++++++++++++++++++++++++++++++++++++++++----
-src/sim/enemies.ts       | 37 +++++++++---------
-tests/boons.test.ts      | 29 ++++++++++----
-tests/combat.test.ts     | 10 +++--
-tests/dungeonSim.test.ts | 47 +++++++++++++++--------
-tests/enemies.test.ts    | 28 +++++++++++++-
-tests/replay.test.ts     | 10 ++++-
+QUESTIONS.md                       |  40 +++++++
+SPEC-fishing.md                    |  33 +++---
+SPEC.md                            | 144 +++++++++++++++++++++----
+TASKS.md                           | 107 ++++++++++++++----
+handoff/DECISIONS.md               |   5 +
+scripts/fishConvergence.ts         | 190 ++++++++
+scripts/gearSweep.ts               | 113 ++++++
+src/sim/boons.ts                   |  34 ++++
+src/sim/dungeonSim.ts              |  13 ++-
+src/sim/fishing/castSim.ts         | 216 +++++++
+src/sim/fishing/deck.ts            |  28 +++
+src/sim/fishing/geometry.ts        |  66 ++++
+src/sim/fishing/patterns.ts        | 187 ++++++
+src/strategy/fishing/cardChoice.ts | 163 ++++++
+src/strategy/fishing/matcher.ts    |  98 +++++
+tests/boons.test.ts                |  11 +-
+tests/dungeonSim.test.ts           |  16 ++-
+tests/fishing/cardChoice.test.ts   | 149 +++++
+tests/fishing/castSim.test.ts      |  36 +++
+tests/fishing/geometry.test.ts     |  41 +++
+tests/fishing/matcher.test.ts      | 105 +++
+tests/replay.test.ts               |   7 +-
 
-full stat: `git diff e3b21b7..HEAD --stat` (before this commit)
+full stat: `git diff 7f5b070..HEAD --stat` (before this commit)
 ```
