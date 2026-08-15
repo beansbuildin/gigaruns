@@ -525,6 +525,46 @@ describe("runOnce — stage 2 (single POST then halt)", () => {
     expect(calls[0]!.method).toBe("GET");
     expect(deps.guards.runCount).toBe(0); // no start_run was sent, so no run was "started" by this call
   });
+
+  // [session 09, LIVE] `assertCanStartRun` used to run unconditionally at the
+  // top of `runOnce`, before the existing-run check — invisible through
+  // session 08 since guard state never persisted across process invocations,
+  // so the session cap never actually bound. Session 09's guard-persistence
+  // fix made it bind for real, and it immediately stranded a live run at
+  // room 2 (HP 2/32) that had started under the cap but couldn't be resumed
+  // once a later run pushed the count to the cap.
+  it("resumes an already-active run even at the session cap — resuming costs no new run slot", async () => {
+    const calls: { url: string; method: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        calls.push({ url, method: init?.method ?? "GET" });
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    // Guard already at the cap — a genuinely NEW start_run would throw here.
+    deps.guards = new GuardState(TEST_CONFIG, { runsStarted: TEST_CONFIG.maxRunsPerSession });
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined(); // does NOT throw GuardTrip
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.method).toBe("GET");
+  });
+
+  it("still blocks a genuinely NEW start_run at the session cap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } })),
+    );
+    const deps = makeDeps(false);
+    deps.guards = new GuardState(TEST_CONFIG, { runsStarted: TEST_CONFIG.maxRunsPerSession });
+    const p = runOnce(deps, { stage2Only: true });
+    const assertion = expect(p).rejects.toBeInstanceOf(GuardTrip);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
 });
 
 describe("runOnce — enemy path phase", () => {

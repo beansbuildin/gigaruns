@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(10); // +1 session 09: AddLuck, room 2, the bot's own live pick (2nd pickup this session)
+    expect(pickups.length).toBe(17); // +7 session 09: full five-run live stage, see DECISIONS 2026-08-15
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -142,30 +142,37 @@ describe("fail-closed on unmodelled types", () => {
   it("names the types the corpus offered but never showed the effect of", () => {
     expect(UNMODELLED_TYPES).toEqual([
       // AddBlock moved OUT — session 08 gave it a live pickup pair, now modelled.
+      // UpgradeRock/UpgradeScissor moved OUT — session 09 gave both live
+      // pickup pairs (moveDelta), now modelled.
       "AddMaxArmor",
+      "CorrosiveMagic", // session 09: first sighting, room-3 offer, not picked
       "CorrosiveShield",
       "Regen",
       "TieDamageReduction",
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
       "UpgradePaper",
-      "UpgradeRock", // session 08: offered in the new room-3 offer, not picked
-      "UpgradeScissor",
+      "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
       "WeakeningMastery", // session 08: same offer, not picked
     ]);
   });
 });
 
-describe("Wall 1 — HELD through session 08, first hole session 09 LIVE", () => {
+describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 LIVE", () => {
   // [session 09, LIVE] This describe block used to assert "no room-1 option
   // is both modelled and clean" outright — true through session 08's corpus,
-  // false now. Live play captured the corpus's first-ever room-1 offer
-  // containing Heal (the one boon with `contaminates: []`), so exactly one
-  // room-1 option is both modelled and clean; every OTHER room-1 option
-  // (still 15 of them) is not. This is why `deepestScorableRoom` moved 1 -> 3
-  // this session (tests/dungeonSim.test.ts, "the Task 4 gate").
-  it("has exactly one room-1 option that is both modelled and clean — Heal", () => {
+  // false now. Session 09's five-run live stage captured, independently: a
+  // second room-1 Heal offer (this time PICKED, not just offered) and a
+  // room-1 UpgradeRock offer (picked) — `moveDelta` is `contaminates: []`,
+  // same reasoning as Heal (see BOON_MODELS). `UpgradeScissor` also turns out
+  // to be offered at room 1 (session 06's AddMaxArmor/AddLuck/UpgradeScissor
+  // offer, not picked there — its own pair came from a room-2 pick this
+  // session). `deepestScorableRoom` moved 1 -> 4 (MAX_OBSERVED_ROOM, the
+  // corpus's absolute depth ceiling) this session (tests/dungeonSim.test.ts,
+  // "the Task 4 gate") — not from a single lucky pick, but three independent
+  // clean room-1 options now.
+  it("has clean+modelled room-1 options — Heal, UpgradeRock and UpgradeScissor", () => {
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(18);
+    expect(roomOne.length).toBe(30);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -173,18 +180,18 @@ describe("Wall 1 — HELD through session 08, first hole session 09 LIVE", () =>
       if (reasons.length === 0) clean.push(option.type);
       else expect(reasons.length, `${option.type} came back clean`).toBeGreaterThan(0);
     }
-    expect(clean).toEqual(["Heal"]);
+    expect(clean.sort()).toEqual(["Heal", "Heal", "UpgradeRock", "UpgradeScissor"]);
   });
 
-  it("Heal is the only clean boon anywhere in the corpus, and it is now offered at rooms 1 AND 2", () => {
+  it("Heal, UpgradeScissor and UpgradeRock are the only clean boons in the corpus", () => {
     const clean = Object.entries(BOON_MODELS)
       .filter(([, m]) => m.contaminates.length === 0)
       .map(([t]) => t);
-    expect(clean).toEqual(["Heal"]);
+    expect(clean).toEqual(["Heal", "UpgradeScissor", "UpgradeRock"]);
 
     const healRooms = OBSERVED_OFFERS.filter((o) =>
       o.options.some((x) => x.type === "Heal"),
     ).map((o) => o.room);
-    expect(healRooms).toEqual([1, 2]);
+    expect(healRooms).toEqual([1, 1, 2]);
   });
 });

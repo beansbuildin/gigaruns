@@ -22,7 +22,7 @@
  */
 
 import type { Reason } from "./coverage.js";
-import { cloneCombatant, type Combatant, type RolledStat } from "./types.js";
+import { cloneCombatant, type Combatant, type MoveKey, type RolledStat } from "./types.js";
 
 /** One entry of `rewardPathOptions[].boon`, reduced to what the sim needs. */
 export interface BoonOption {
@@ -36,6 +36,8 @@ export type BoonEffect =
   | { kind: "rolled"; stat: RolledStat }
   /** `hp = min(hpMax, hp + val1)`. */
   | { kind: "heal" }
+  /** `moves[move].atk += val1; moves[move].def += val2`. [session 09] */
+  | { kind: "moveDelta"; move: MoveKey }
   /** Verified to change nothing at pickup. The effect is latent, in combat. */
   | { kind: "latent" };
 
@@ -106,6 +108,39 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     contaminates: [],
     evidence: "run-2026-08-14-01-00-08 state-027→state-028",
     observed: "selectedVal1 16 → health.current 15 → 31 (hpMax 32)",
+  },
+  UpgradeScissor: {
+    // [session 09, LIVE] First `moveDelta` boon with a pair — the bot's own
+    // loot ranking picked it (room 2 offer), not a supervised capture.
+    // val1 0 / val2 4: ATK unchanged, DEF +4. `contaminates: []` — this lands
+    // on the same plain ATK/DEF numbers gear already modifies, and this
+    // session's own +4/+4 gear change confirmed the clean model holds
+    // through exactly that kind of shift.
+    //
+    // `Upgrade*` boons are NOT fixed to one stat: the corpus also has an
+    // UNPICKED room-2 UpgradeScissor offer (session 02) whose raw fixture
+    // shows val1Min/Max 2/2, val2Min/Max 0/0, selectedVal1 4 — the ATK
+    // variant, not this DEF one. Which of val1/val2 rolls non-zero varies per
+    // instance; the generic `atk += val1; def += val2` handles both without
+    // a special case, same additive reading every other boon here uses.
+    effect: { kind: "moveDelta", move: "scissor" },
+    contaminates: [],
+    evidence: "run-2026-08-15-01-53-36 state-031→state-032",
+    observed: "selectedVal1 0 / selectedVal2 4 → scissor.currentATK unchanged (16), currentDEF 12 → 16",
+  },
+  UpgradeRock: {
+    // [session 09, LIVE] Second `moveDelta` boon with a pair, same session
+    // (room 1 offer, a different run) — a THIRD independent hole in Wall 1,
+    // and the first NON-Heal one (Heal, above, is the other two). Same shape
+    // as UpgradeScissor: val1 0 / val2 4, ATK unchanged, DEF +4 (0 → 4 here
+    // since Sword's base DEF is 0). Confirms the reading generalizes across
+    // two of the three `Upgrade*` types, not a one-off coincidence. Also has
+    // an ATK-variant sighting (session 08, room 3, val1 4/val2 0, not picked
+    // there either) — same two-variant shape as UpgradeScissor.
+    effect: { kind: "moveDelta", move: "rock" },
+    contaminates: [],
+    evidence: "run-2026-08-15-01-58-13 state-046→state-047",
+    observed: "selectedVal1 0 / selectedVal2 4 → rock.currentATK unchanged (16), currentDEF 0 → 4",
   },
   AddBurnSword: {
     // A zero delta is a RESULT here, not a gap: the pair proves the pickup
@@ -186,6 +221,15 @@ export function applyBoon(player: Combatant, option: BoonOption): BoonApplicatio
       // choice — HP has never been recorded above `currentMax` anywhere.
       next.hp = Math.min(next.hpMax, next.hp + option.val1);
       break;
+    case "moveDelta":
+      // [session 09] Additive on the specific move's ATK/DEF, same reading as
+      // every other numeric boon here. Not a rolled proc-stat — this lands on
+      // fields combat.ts already treats as plain numbers (gear does the same
+      // thing, and the clean model held through this session's own gear
+      // change) — so it contaminates nothing.
+      next.moves[model.effect.move].atk += option.val1;
+      next.moves[model.effect.move].def += option.val2;
+      break;
     case "latent":
       break;
   }
@@ -264,6 +308,45 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     options: [opt("AddEvasion", 5), opt("AddTenacity", 2), opt("Heal", 16)],
   },
   {
+    // [session 09, LIVE] Room-1 offer, a fresh dungeon attempt (Run B, this
+    // session). First sighting of `WeakeningBlock` (offered, not picked —
+    // stays unmodelled). AddBlock (picked) already modelled.
+    room: 1,
+    source: "run-2026-08-15-01-53-36/state-007",
+    options: [opt("WeakeningBlock", 4), opt("AddBlock", 2), opt("AddIntuition", 1)],
+  },
+  {
+    // [session 09, LIVE] Room-1 offer, a THIRD distinct dungeon attempt (Run
+    // C, same fixture directory as the one above — one process invocation
+    // spanned two runs). `WeakeningBlock` seen again, still not picked.
+    room: 1,
+    source: "run-2026-08-15-01-53-36/state-072",
+    options: [opt("AddIntuition", 1), opt("WeakeningBlock", 4), opt("AddLuck", 1)],
+  },
+  {
+    // [session 09, LIVE] Room-1 offer, Run D. Second distinct room-1 offer
+    // containing Heal, and this time Heal is the one PICKED (the session-09
+    // discovery above had AddEvasion picked instead, with Heal merely on
+    // offer) — a second, independent confirmation that Wall 1 has a hole.
+    room: 1,
+    source: "run-2026-08-15-01-58-13/state-021",
+    options: [opt("AddIntuition", 1), opt("AddBlock", 2), opt("Heal", 16)],
+  },
+  {
+    // [session 09, LIVE] Room-1 offer, Run E. `UpgradeRock` (picked) now has
+    // a pair — see BOON_MODELS above. `val1`/`val2` here (0, 4) are the
+    // DEF-roll variant; the SAME type at room 3 below rolled the ATK variant
+    // (4, 0) — `Upgrade*` boons are not fixed to one stat, which val*Min/Max
+    // is non-zero on the specific roll decides which. `moveDelta`'s generic
+    // `atk += val1; def += val2` already handles both without a special
+    // case. A THIRD independent hole in Wall 1, and the first NON-Heal one:
+    // `UpgradeRock` is clean and modelled, and it is offered (and was taken)
+    // at room 1.
+    room: 1,
+    source: "run-2026-08-15-01-58-13/state-046",
+    options: [opt("AddBlock", 3), opt("AddTenacity", 2), opt("UpgradeRock", 0, 4)],
+  },
+  {
     room: 2,
     source: "run-2026-08-14-01-00-08/state-027",
     options: [opt("Heal", 16), opt("UpgradeScissor", 4), opt("AddIntuition", 1)],
@@ -283,6 +366,21 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     options: [opt("CorrosiveShield", 2), opt("AddLuck", 1), opt("TieWeak", 1)],
   },
   {
+    // [session 09, LIVE] Room-2 offer, Run B. `UpgradeScissor` (picked) now
+    // has a pair — see BOON_MODELS above. DEF-roll variant (0, 4); the
+    // room-2 offer above rolled the ATK variant (4, 0) for the same type.
+    room: 2,
+    source: "run-2026-08-15-01-53-36/state-031",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddBlock", 2), opt("AddIntuition", 1)],
+  },
+  {
+    // [session 09, LIVE] Room-2 offer, Run E (the room2->3 transition). Same
+    // rolled-stat pattern as every other AddTenacity sighting.
+    room: 2,
+    source: "run-2026-08-15-02-03-23/state-004",
+    options: [opt("AddBurnSword", 5), opt("AddTenacity", 2), opt("AddEvasion", 1)],
+  },
+  {
     room: 3,
     source: "run-2026-08-14-01-00-08/state-038",
     options: [opt("AddBurnSword", 3), opt("TieDamageReduction", 8), opt("AddEvasion", 1)],
@@ -293,6 +391,14 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 3,
     source: "run-2026-08-14-21-30-55/state-015",
     options: [opt("UpgradeRock", 4), opt("WeakeningMastery", 10), opt("AddBlock", 7)],
+  },
+  {
+    // [session 09, LIVE] Room-3 offer, Run B. First sighting of
+    // `CorrosiveMagic` (offered, not picked — stays unmodelled). AddBlock
+    // (picked) already modelled.
+    room: 3,
+    source: "run-2026-08-15-01-53-36/state-047",
+    options: [opt("TieWeak", 1), opt("CorrosiveMagic", 2), opt("AddBlock", 2)],
   },
 ];
 

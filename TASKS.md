@@ -195,6 +195,46 @@ handoff/log/session-08.md.
 live-discovered bugs and several human-assisted unblocks to get through, not
 a clean pass to build five more on. Next session's first move.
 
+**Outcome [session 09]: GATE MET on its numeric terms — five completed runs,
+zero clean-model failures — but "no guard trips" did NOT hold, and the trips
+were real findings, not noise.** Two genuine live surprises before the first
+run even finished: `enemyPathOptions[]` is not guaranteed to include a Safe
+(tier 0) option (user-confirmed expected behavior — `pickLowestTier()`
+replaces the old strict Safe-only rule, see DECISIONS 2026-08-15 and CLAUDE.md
+§8), and a stranded run at room 2 (HP 2/32) exposed a real ordering bug —
+`assertCanStartRun` ran unconditionally before checking whether a run already
+existed, so resuming a run could be blocked by the session cap meant only for
+NEW starts. Both fixed with regression tests, not worked around live.
+
+Five runs completed: rooms reached 3, 4, 2, 2, 3 (all deaths, no full clear).
+78 energy spent (`config/bot.json` raised 60/3 → 120/5 to match the session-09
+brief's stated budget, which the config file had never been updated to
+reflect). The `reward_*`/`path_*` HTTP-500 pattern from session 08 recurred
+substantially — 17 occurrences across the 5 runs (9 reward, 8 path), all
+cleanly retried via `postWithVerifiedRetry`, 0 landing as the split-brain
+"applied despite the error" case, 0 needing the reward-by-identity fix to
+actually redirect (the offer never changed under a retry this session, but
+the safety net is now in place for when it does).
+
+**The biggest finding: Wall 1 (`deepestScorableRoom` stuck at 1 since Task
+4.5) is broken.** Live play captured pickup pairs for two more clean boon
+types (`UpgradeRock`, `UpgradeScissor` — a new `moveDelta` effect kind,
+`contaminates: []`, same footing as `Heal`) plus a second clean room-1 Heal
+pickup, giving THREE independent clean+modelled room-1 options where session
+08 had zero. `deepestScorableRoom` moved 1 → **4**, `MAX_OBSERVED_ROOM` — the
+corpus's entire known depth, in one session. The "run win rate is exactly 0
+BY CONSTRUCTION" invariant (DECISIONS 2026-08-15) is also gone: a scored run
+can now, rarely (~0.3%), actually win. See DECISIONS 2026-08-15 (session 09)
+for the full derivation and `tests/boons.test.ts`/`tests/dungeonSim.test.ts`
+for the restated (not just re-numbered) invariants.
+
+Not carried forward as a re-opened gate — this is a capture-driven change to
+what the corpus supports, the kind of thing Task 4.5's retirement already
+anticipated ("remaining work is capture, not code"). Worth Claude(chat)
+weighing whether Task 5's strategy gate or Task 11's rooms-cleared gate should
+move given the new depth. Full detail in DECISIONS.md and
+handoff/log/session-09.md.
+
 ---
 
 ### 7 — Fishing API discovery

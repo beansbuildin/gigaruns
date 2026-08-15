@@ -33,15 +33,19 @@ describe("determinism", () => {
   });
 });
 
+/** Boon types with `contaminates: []` in BOON_MODELS — Heal, UpgradeRock, UpgradeScissor (session 09). */
+const CLEAN_BOON_TYPES = new Set(["Heal", "UpgradeRock", "UpgradeScissor"]);
+
 describe("fail-closed accounting", () => {
   // [session 09, LIVE] Both tests below used to assert a blanket "any battle/
   // run past room 1 is unscorable" — true through session 08's corpus, no
-  // longer universally true. Live play captured the corpus's first-ever
-  // room-1 offer containing Heal (the one boon with `contaminates: []`), so a
-  // run CAN clear room 1 clean now, if and only if every boon it picked along
-  // the way was Heal. Both tests are restated as that conditional rather than
-  // dropped, so a regression that scores a battle past room 1 for any OTHER
-  // reason still fails loudly.
+  // longer universally true. Live play captured pickup pairs for Heal AND
+  // two `moveDelta` boons (UpgradeRock, UpgradeScissor — see BOON_MODELS,
+  // `contaminates: []`), so a run CAN clear room 1 clean now, if and only if
+  // every boon it picked along the way was one of these three types. Both
+  // tests are restated as that conditional rather than dropped, so a
+  // regression that scores a battle past room 1 for any OTHER reason still
+  // fails loudly.
   it("never scores a room>1 battle unless every boon picked before it was clean", () => {
     for (let seed = 1; seed <= 200; seed++) {
       const r = simulateRun({ ...base, policy: randomPolicy, seed });
@@ -68,7 +72,7 @@ describe("fail-closed accounting", () => {
         expect(r.boons.length).toBeGreaterThan(0);
         const allCleanBoons = r.boons.every((b) => b.reasons.length === 0);
         if (allCleanBoons) {
-          for (const b of r.boons) expect(b.type, `seed ${seed}`).toBe("Heal");
+          for (const b of r.boons) expect(CLEAN_BOON_TYPES.has(b.type), `seed ${seed}: ${b.type}`).toBe(true);
         } else {
           expect(r.reasons.length, `seed ${seed} cleared a room but scored clean`).toBeGreaterThan(0);
         }
@@ -76,36 +80,36 @@ describe("fail-closed accounting", () => {
     }
   });
 
-  it("flags every ROOM-1 boon EXCEPT Heal — Wall 1 has its first hole", () => {
+  it("flags every ROOM-1 boon EXCEPT the three clean types — Wall 1 has holes, not a collapse", () => {
     // Deliberately scoped to room 1. An earlier draft asserted this for EVERY
     // boon and failed on Heal at room 2 — correctly, because Heal really is
     // clean. That was the boon model working, not a hole in it: the wall was
     // that no *room-1* offer had ever contained a boon like Heal, so the run
     // was already unscorable by the time a clean one was on the table.
     //
-    // [session 09, LIVE] That's no longer universally true. This session's
-    // live play captured the corpus's first-ever room-1 offer containing
-    // Heal — the one boon in the corpus with `contaminates: []` (boons.ts).
-    // A run that lands on it at room 1 stays scorable into room 2+, which is
-    // exactly why `deepestScorableRoom` moved 1 -> 3 this session (see "the
-    // Task 4 gate" below). Every OTHER room-1 boon type still contaminates —
-    // Wall 1 has a hole, not a collapse.
+    // [session 09, LIVE] That's no longer universally true. Live play
+    // captured room-1 pickup pairs for Heal AND two `moveDelta` boons
+    // (UpgradeRock, UpgradeScissor — `contaminates: []`, boons.ts). A run
+    // that lands on any of these three at room 1 stays scorable into
+    // room 2+, which is exactly why `deepestScorableRoom` moved 1 -> 4
+    // (MAX_OBSERVED_ROOM) this session (see "the Task 4 gate" below). Every
+    // OTHER room-1 boon type still contaminates.
     let seenRoomOne = 0;
-    let seenCleanHeal = 0;
+    let seenCleanPick = 0;
     for (let seed = 1; seed <= 200; seed++) {
       const r = simulateRun({ ...base, policy: randomPolicy, seed });
       for (const b of r.boons.filter((x) => x.room === 1)) {
         seenRoomOne++;
-        if (b.type === "Heal") {
-          expect(b.reasons.length, "Heal at room 1 should be clean").toBe(0);
-          seenCleanHeal++;
+        if (CLEAN_BOON_TYPES.has(b.type)) {
+          expect(b.reasons.length, `${b.type} at room 1 should be clean`).toBe(0);
+          seenCleanPick++;
         } else {
           expect(b.reasons.length, `${b.type} at room 1 came back clean`).toBeGreaterThan(0);
         }
       }
     }
     expect(seenRoomOne, "no run ever cleared room 1").toBeGreaterThan(0);
-    expect(seenCleanHeal, "Heal was never picked at room 1 across 200 seeds").toBeGreaterThan(0);
+    expect(seenCleanPick, "no clean type was ever picked at room 1 across 200 seeds").toBeGreaterThan(0);
   });
 
   it("[session 08, LIVE] a Safe-tier walk now clears rooms 1-4 and only halts at room 5 (DEPTH_BEYOND_CORPUS)", () => {
@@ -189,12 +193,14 @@ describe("the Task 4 gate", () => {
   });
 
   it("scores a meaningful number of room-1 battles", () => {
-    // [session 09, LIVE] 1000 -> 1053 and deepestScorableRoom 1 -> 3: Wall 1's
-    // first hole (Heal now offered, and sometimes picked, at room 1 — see
-    // "flags every ROOM-1 boon EXCEPT Heal" above) lets SOME runs stay
-    // scorable past room 1, not just the guaranteed-one-per-run room-1 battle.
-    expect(s.battleCoverage.scored).toBe(1049);
-    expect(s.deepestScorableRoom).toBe(3);
+    // [session 09, LIVE] 1000 -> 1108 and deepestScorableRoom 1 -> 4
+    // (MAX_OBSERVED_ROOM, the corpus's absolute depth ceiling): Wall 1's
+    // three holes (Heal AND two `moveDelta` boons, all `contaminates: []` —
+    // see "flags every ROOM-1 boon EXCEPT the three clean types" above) let
+    // SOME runs stay scorable well past room 1, not just the guaranteed-one-
+    // per-run room-1 battle.
+    expect(s.battleCoverage.scored).toBe(1108);
+    expect(s.deepestScorableRoom).toBe(4);
   });
 
   it("reports a battle win rate in a believable range for random vs random", () => {
@@ -203,10 +209,18 @@ describe("the Task 4 gate", () => {
     expect(s.scoredBattleWinRate).toBeLessThan(0.8);
   });
 
-  it("has a run win rate of exactly 0 on the scored subset, BY CONSTRUCTION", () => {
-    // Worth pinning: clearing a room fires a boon, so a scored run is exactly a
-    // room-1 death. If this ever becomes non-zero, either boons got modelled or
-    // the fail-closed rule has been weakened — both need to be deliberate.
-    expect(s.scoredWinRate).toBe(0);
+  it("[session 09, LIVE] a scored run CAN now win — rare, but no longer impossible by construction", () => {
+    // [session 05-08] This used to pin scoredWinRate at exactly 0: clearing a
+    // room fired a boon, and every boon fired BOON_UNMODELLED or
+    // ROLLED_STATS, so a scored run was BY CONSTRUCTION a room-1 death. That
+    // construction argument no longer holds — three boon types are clean
+    // (Heal, UpgradeRock, UpgradeScissor), so a run threading clean picks at
+    // every room it passes through, while also winning every battle, stays
+    // scored all the way to a clear. Still rare (random policy, random
+    // draws): ~0.3% of scored runs, not the exactly-0 the old title claimed.
+    // A regression to 0 is fine; a regression to something LARGER without a
+    // deliberate change is the thing worth catching.
+    expect(s.scoredWinRate).toBeCloseTo(0.0032, 3);
+    expect(s.scoredWinRate).toBeGreaterThan(0);
   });
 });

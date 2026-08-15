@@ -424,8 +424,6 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
   let lastFoeId: string | null = null;
   const playCounts: Record<MoveKey, number> = { rock: 0, paper: 0, scissor: 0 };
 
-  guards.assertCanStartRun(config.energyCostPerRun);
-
   // Check BEFORE deciding to start_run — CLAUDE.md §1, don't assume. A prior
   // stage (or a prior crashed process) can leave a run active; sending
   // start_run on top of one is rejected by the server (HTTP 400, "Error
@@ -434,6 +432,16 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
   const existing = await client.getDungeonState();
 
   if (existing) {
+    // [session 09, LIVE] `assertCanStartRun` deliberately does NOT run in
+    // this branch — resuming an already-active run costs no new run slot and
+    // must never be blocked by the session cap. This used to be a real
+    // ordering bug: the check ran unconditionally at the top of this
+    // function, before this branch even existed to skip it. Invisible
+    // through session 08 because guard state never persisted across process
+    // invocations, so the cap never actually bound. Session 09's persistence
+    // fix made it bind for the first time, and it immediately stranded a run
+    // at room 2 (HP 2/32, mid-combat) that had started under the cap but
+    // then couldn't be resumed once a later run pushed the count to the cap.
     const room = existing.data.entity?.ROOM_NUM_CID ?? "?";
     console.log(`  · active run already exists at room ${room} — resuming rather than starting a new one`);
     log.write({ event: "resuming_existing_run", room });
@@ -442,11 +450,13 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
       return;
     }
   } else if (dryRun) {
+    guards.assertCanStartRun(config.energyCostPerRun); // simulate the real gate — dry-run's whole purpose
     log.write({ event: "dry_run_start_run_intended", dungeonId: config.dungeonId });
     console.log(`  [dry-run] would POST start_run (dungeonId ${config.dungeonId})`);
     console.log(`  · no active run — nothing further to decide against, stopping.`);
     return;
   } else {
+    guards.assertCanStartRun(config.energyCostPerRun);
     const body = buildEnvelope("start_run", config.dungeonId, client.getActionToken());
     log.write({ event: "post", body });
     let resp;

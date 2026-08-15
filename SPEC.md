@@ -411,6 +411,31 @@ Caveat: two samples, both at room 2. If a deeper room shows a tier premium in
 `LOOT_AMOUNT_CID_array`, this reverses into a real risk/reward tradeoff. Re-check
 whenever a capture reaches a new depth.
 
+**[2026-08-15, session 09, LIVE] Tier 0 ("Safe") is not guaranteed to be
+offered.** A third room-2 sample (live, this session) had three options,
+tiers `{2, 1, 1}` — two DIFFERENT tier-1 ("Risky") variants, different
+`enemyBuff`s (`Stalwart`, applies Weak on Shield wins; `hardy`, +3 max HP/+2
+armor), plus one tier-2 (`bloodguard`, heals 4 HP on Shield wins) — no tier 0
+at all. The loot table was still identical across all three (`LT_D5_Room_2`,
+same item/weight/amount), so the rule above is **generalized rather than
+reversed**: always take the *lowest tier actually offered*, which usually is
+but is not always Safe. `src/strategy/enemyTier.ts`'s `pickLowestTier()`
+implements this; `pickSafeTier()` (the old strict "must be tier 0" assertion)
+is kept for a caller that wants it, but the live loop no longer uses it by
+default. User-confirmed live: this is expected game behavior, not a capture
+gap or a bug in the halt that caught it.
+
+**[2026-08-15, session 09, LIVE] `rewardPathOptions[]` can also carry
+`tier`/`tierName`.** Observed once, immediately following the non-Safe pick
+above: all three of that room's reward options were tagged `"tier": 1,
+"tierName": "Risky"` — a field never seen on this array when the preceding
+enemy-tier pick was Safe. Logged in `src/sim/boons.ts`'s `OBSERVED_OFFERS`
+comment; not modelled or acted on (`wireBoonToOption` still reads only
+`boonTypeString`/`selectedVal1`/`selectedVal2`, per the DECISIONS
+2026-08-15 rule against acting on anything short of a pickup pair). One
+sample — whether reward pools actually differ by risk tier, or this is
+cosmetic labeling, is unknown.
+
 **`enemyBuff` is machine-readable, not prose.** Two observed:
 
 ```json

@@ -63,10 +63,20 @@ describe("player loadout matches the fixtures", () => {
    * sessions — `armorMax` was 15 through sessions 03–05 and is 16 as of
    * run-2026-08-14-03-26-57 — so a test pinned to one run keeps passing while
    * the sim quietly models a loadout that no longer exists.
+   *
+   * [session 09] "First state of the last directory" broke the moment a
+   * fixture directory could start mid-run: `scripts/liveRun.ts` resuming an
+   * already-active run (session 09's stranded-run fix) writes its first
+   * fixture from wherever the run already was, boons and all, not a fresh
+   * room-1 opening. Gear itself only changes BETWEEN sessions, not mid-run,
+   * so any state with an empty `pickedBoons` reads the current loadout
+   * correctly — this takes the chronologically LAST such state across the
+   * whole corpus, not just the last directory's first file.
    */
   const newestOpening = () => {
     const runs = loadCorpus().filter((r) => r.states.length > 0);
-    return runs[runs.length - 1]!.states[0]!;
+    const unboonedStates = runs.flatMap((r) => r.states).filter((s) => !(s.run.players[0]!.pickedBoons ?? []).length);
+    return unboonedStates[unboonedStates.length - 1]!;
   };
 
   it("uses the live values, not the class base of HP 30 / armor 12", () => {
