@@ -1,119 +1,138 @@
-# BRIEF — session 09
+# BRIEF — session 10
 
-The bot completed a run. Rooms 1→4, mostly unattended, five live bugs found and
-fixed in flight, and **0 clean-model failures across 117 exchanges** including
-the one that killed it. That last number is the one that matters — the combat
-model derived over five sessions of offline work survived contact with live play
-without a single miss.
+Five runs, `deepestScorableRoom` 1 → 4, two new boons modelled from the bot's
+own play, and two real bugs caught by guard persistence the moment it started
+working. The identity-retry fix was never exercised (0 of 17 offers moved) —
+worth saying plainly rather than claiming vindication, though at 17 500s the
+exposure was much higher than session 08's two suggested.
 
-`postWithVerifiedRetry` is the right instinct: never assuming a 500 means
-"nothing happened" is exactly the discipline this needs. Two things to harden
-before five runs, then the runs.
+Now the thing I think the recap under-framed.
 
 ---
 
-## 1. Your question 3 is a blocker, not a footnote — promote it
+## 1. Every run dies. That's the project's actual problem now.
 
-You flagged, as a not-yet-observed possibility, that a retry could land on a
-**different reward than intended** if the offer changed between attempts. Take
-that seriously now rather than after five runs.
+Rooms reached: **3, 4, 2, 2, 3** out of 16. All deaths. `scoredWinRate` 0.32%.
+Nothing has ever reached room 5, across the bot's runs and the user's.
 
-The setup is already there in what you found: `reward_*`'s `data.index` is an
-**array position**, one of the two 500s **applied server-side anyway**, and the
-retry re-checks state but re-sends an index. Position-addressing plus
-non-idempotent failures plus retry is the classic recipe for acting on a stale
-index.
+Put the two numbers next to each other. Room-1 battle win rate is **81.8%**. If
+battles were independent, sixteen of them would clear at `0.818^16 ≈ 4%`.
+Observed is **0.32%** — an order of magnitude worse.
 
-The reason this can't wait: if a retry picks the wrong boon, the run continues
-and the fixture is written **labelled with the intended boon, not the applied
-one**. That's a silently poisoned pickup pair feeding `BOON_MODELS`, which feeds
-coverage, which everything downstream depends on. A failed run costs 20 energy;
-a mislabelled fixture costs trust in the corpus, and you won't know which one it
-was.
+That gap is the finding. Battles are *not* independent, because HP persists
+across rooms (confirmed, 7 boundaries) and armor doesn't reset. **The run is a
+war of attrition, and the bot is optimising each battle as if it were the last
+one.** Winning a room at 81.8% while arriving at room 5 with 4 HP is not
+winning.
 
-Fix: **address rewards by identity, not position.** Before any retry of a
-`reward_*` or `path_*` pick, re-read the offer, locate the intended option by
-its stable fields, and re-derive the index. If the intended option is no longer
-present, or its index moved, **halt** rather than picking whatever now sits at
-that position. Log both.
+So the objective was wrong, and it was wrong because I set it. Task 5's gate —
+room-1 battle win rate — was the right *measurable* thing when
+`deepestScorableRoom` was 1. It is no longer the right *target*. Combat is
+solved: 0 model failures across 214 exchanges, 81.8% against a 67.9% baseline.
+**Attrition management is untouched.**
 
-Five runs multiply the exposure. Do this first.
+Concretely, three things follow:
 
-## 2. Guard persistence — do it now, it's cheap and it's a stated non-negotiable
+- **`w₁` (survival) is far too low.** HP is a cross-room resource being spent
+  like a per-battle one. Early-room HP has option value for late rooms that the
+  current utility function doesn't price.
+- **Loot ranking is the main lever, and it's barely grounded** — three clean
+  room-1 offers sampled. SPEC §4c ranks Heal first only below 50% HP; given
+  attrition, healing and armor boons are probably underweighted throughout.
+- **The right metric is mean rooms cleared**, which is finally measurable now
+  that scorable depth (4) covers every run that has ever happened.
 
-Your read that 100 energy against a 300+ balance isn't urgent is correct on
-overspend risk. But `CLAUDE.md` lists the energy budget as a hard rule, and a
-guard rebuilt fresh per process **enforces nothing across invocations** — the
-session that used several `npm run live` calls had no effective budget at all.
+## 2. Answering your Q1: revisit Task 11's gate, retire Task 5's
 
-The problem isn't the risk today, it's that a guard which silently doesn't work
-is worse than no guard, because it gets trusted. It's a small fix — persist
-`GuardState` to `data/` with a date key, seed from it on startup. Do it now
-rather than carrying a non-functional safety mechanism into unattended
-operation.
+Task 5's gate has served its purpose — don't re-run it, don't tune against it.
+Room-1 battle win rate now goes in the reported-metrics block permanently.
 
-## 3. SPEC §2's action list is compromised — re-verify the rest
+**Promote Task 11's rooms-cleared gate to the live objective:**
 
-`loot_one` returned 409 and `enemy_two` returned 400. Both came from **my**
-SPEC §2, sourced from Gigaverse's published agent skill. Two of the documented
-names were wrong.
+> Mean rooms cleared per run, on the scored subset, beating the current
+> configuration by a margin exceeding the 95% CI over ≥1000 runs. Report
+> alongside: room-1 battle win rate, coverage %, `deepestScorableRoom`, and the
+> distribution of death rooms.
 
-So treat the remainder as suspect: `use_item`, `heal_or_damage`, `flee`,
-`cancel_run` are all unverified and from the same compromised source. Mark them
-`[VERIFY]` in SPEC and confirm opportunistically — but **never** send one
-speculatively mid-run, since a 400 in the middle of a live run costs the run.
-`flee` and `cancel_run` in particular should be confirmed only when a run is
-already being abandoned.
+That last one — **the death-room histogram** — is the diagnostic that matters. If
+deaths cluster at rooms 2–3, the bot is entering room 2 already damaged and the
+problem is early-room HP economy. If they spread evenly, it's enemy scaling.
+Those need different fixes, and right now we can't tell which it is.
 
-Your point 2 — confirming `path_one`/`path_three`/`reward_two`/`reward_four`
-opportunistically rather than with dedicated captures — is right. Same treatment.
+Your caution about the corpus being thin is right and it bounds what to do: tune
+the **weights** against the sim, but treat any conclusion about *which boon to
+prefer* as provisional until more offers are sampled. Say which is which in the
+recap.
 
-## 4. Report `deepestScorableRoom`
+## 3. The 500s — one cheap test before accepting them
 
-`MAX_SAFE_ROOM` moved 2 → 4, which lifts the enemy-side ceiling, but the
-boon-side wall is separate and the metric wasn't in this session's numbers.
-Report it explicitly next time. If it's still 1, say what's pinning it now that
-the tier and room-3 gaps are closed — `AddBlock` landing its first pickup pair
-should have moved something.
+17 across 5 runs isn't flakiness-shaped, and there's a pattern already visible
+in what you reported: **all 17 are in the `reward_*`/`path_*` family. Zero are in
+the combat family.**
 
-## 5. `intuition`
+That's also the family with the anomalous envelope — `dungeonId: 0` and
+`actionToken: ""`. Combat actions send a real dungeon ID and a real token and
+never 500.
 
-`unknownSideKeys()` watching every poll and never firing is a clean negative
-result. Leave it running. At machine speed across five runs it'll either fire or
-build real evidence that it doesn't surface as a state field at all. Don't model
-it either way.
+So before treating this as server-side noise, test whether the envelope is
+subtly wrong: on the next reward pick, send the **tracked `actionToken`** from
+the previous POST response instead of `""`, and the real `dungeonId` instead of
+`0`. One variation at a time, on a live pick, with the current handling as
+fallback.
+
+It might be nothing — the empty token was inferred from a working request. But a
+100% correlation between an odd envelope and a 17-occurrence error rate is worth
+one cheap test before writing it off as someone else's problem. If both
+variations 500 too, accept it as server flakiness, record it, and stop looking.
+
+Not a session's work. One test, opportunistically, during whatever else runs.
+
+## 4. Your Q4 and Task 7 are the same capture — ask once
+
+Item metadata has no confirmed endpoint, and `/items/balances` returns bare
+numeric IDs. But **the game client displays item names**, so it fetches them from
+somewhere. Don't guess the URL.
+
+The user's browser knows. And a HAR capture is already the blocker on Task 7
+(fishing). So it's one request, not two:
+
+> Open gigaverse.io, DevTools → Network → Fetch/XHR, then:
+> 1. Open the inventory and let item names render.
+> 2. Play one complete Dendren fishing cast, start to finish.
+> 3. Save as HAR → `fixtures/fishing-cast.har`.
+
+Write that into `QUESTIONS.md` as a numbered checklist. One ten-minute capture
+unblocks the item-metadata endpoint *and* the entire fishing half of the project,
+which has been blocked since session 01.
+
+Consumables may well be the biggest available lever on deaths — but that's a
+hypothesis, and it stays one until we can read what's in the inventory.
+
+## 5. Your Q2 and Q3
+
+The no-Safe-tier rate (33%) — agreed, `pickLowestTier()` handles it, just track
+it. Note that generalising from "always Safe" to "lowest offered" preserved the
+original zero-tradeoff reasoning rather than abandoning it; that was the right
+shape of fix.
 
 ---
 
 ## Your task
 
-1. **Reward-by-identity retry**, per §1. Before anything live.
-2. **Persist `GuardState`**, per §2.
-3. Mark unverified action names `[VERIFY]` in SPEC, per §3.
-4. **Task 6's five-run stage.** Stop at the first surprise and recap — five runs
-   on a clean baseline is the gate; five runs through five more rounds of
-   bugfixing is a different and less useful thing.
-5. Report `deepestScorableRoom`, energy spent against budget, rooms reached per
-   run, and whether the `reward_*` 500s recurred.
+1. **Death-room histogram** from the existing 5 runs plus all prior captures.
+   Cheap, and it decides where §1's effort goes. Do this first.
+2. **Retune for attrition**, per §1 — `w₁`, depth bonus, and §4c loot ranking,
+   validated against the sim's mean-rooms-cleared. Mark boon-preference
+   conclusions provisional per §2.
+3. Update `TASKS.md`: Task 5 gate retired to reported-metrics, Task 11 gate
+   promoted per §2.
+4. **Five more live runs** with the retuned config. Budget **120 energy**.
+   Compare death-room distribution before and after — that's the real result,
+   not the win rate.
+5. The §3 envelope test, opportunistically.
+6. `QUESTIONS.md` capture checklist, per §4.
 
-Budget: **120 energy** this session. That covers five runs with margin for one
-retry, and `guards.ts` should now actually enforce it.
-
-If the identity fix in §1 surfaces that a past retry *did* pick the wrong boon,
-that's the most important finding of the session — quarantine the affected
-fixture and say so, rather than letting it sit in `BOON_MODELS`.
-
-Addendum — consumables groundwork (data only, no implementation):
-
-During the five runs, log but do not act on:
-  - /items/balances entries that look consumable, with full metadata
-  - the exact shape of start_run's `consumables: []` field
-  - any item description implying heal / revive / stat buff
-
-Do NOT send `use_item` — it's [VERIFY] per §3 and a 400 mid-run
-costs the run.
-
-Report what's in the inventory in the recap. If healing consumables
-exist, they become their own task with their own gate: deaths are
-the binding constraint on items-per-energy, so a mid-run heal is
-plausibly the single biggest lever available.
+If the retune doesn't move mean rooms cleared, say so plainly. A negative result
+here is genuinely informative: it would mean attrition isn't the binding
+constraint and something else is — most likely enemy scaling past room 3, which
+the corpus can barely see.
