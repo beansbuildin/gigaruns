@@ -1,4 +1,4 @@
-# STATE — session 17 — 2026-08-16 — commit PENDING
+# STATE — session 17 — 2026-08-16 — commit 8e8c7b2
 
 ## Status
 Task 12 ("Potion timing") is now fully **CLOSED** — Stage C's threshold
