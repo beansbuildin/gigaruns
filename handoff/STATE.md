@@ -1,4 +1,4 @@
-# STATE — session 17 — 2026-08-16 — commit PENDING
+# STATE — session 17 — 2026-08-16 — commit 45c9093
 
 ## Status
 Task 12 "Potion timing": **GATE PASS (task CLOSED, no further stages).**
