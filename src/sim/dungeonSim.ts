@@ -115,6 +115,32 @@ export interface SimOptions {
    * labelled as one; never use it to report the live win rate.
    */
   player?: Combatant;
+  /**
+   * Task 12 Stage B: a loadout of potions used at a real HP threshold,
+   * instead of `scripts/potionSweep.ts`'s original all-committed-at-room-1
+   * model. Still an UPPER BOUND, and still an explicit assumption, not a
+   * confirmed mechanic: applying the heal is modelled as free — no exchange
+   * consumed, no charges affected — because whether a live `use_item` costs
+   * a turn is UNCONFIRMED (QUESTIONS.md / TASKS.md Task 12 Stage B). This is
+   * a closer upper bound than pre-healing at turn 1 (a potion sim can no
+   * longer "spend" a heal on a battle it never reaches), not a claim about
+   * turn cost. Correct this the moment a live run answers the question.
+   */
+  potions?: PotionPlan;
+}
+
+export interface PotionPlan {
+  /** Heal amounts, consumed in array order. E.g. [20, 20, 20] for 3 Big Heal Juice. */
+  heals: number[];
+  /** Use the next potion the instant own HP fraction drops to/at-or-below this, checked once before each exchange. */
+  threshold: number;
+}
+
+export interface PotionUse {
+  room: number;
+  heal: number;
+  hpBefore: number;
+  hpAfter: number;
 }
 
 export type RunOutcome = "cleared" | "died" | "stalled" | "halted";
@@ -128,6 +154,7 @@ export interface BattleRecord {
   reasons: Reason[];
   hpAfter: number;
   armorAfter: number;
+  potionsUsed: PotionUse[];
 }
 
 export interface BoonRecord {
@@ -146,6 +173,7 @@ export interface RunResult {
   boons: BoonRecord[];
   /** Empty means the whole run is inside the clean model. */
   reasons: Reason[];
+  potionsUsed: PotionUse[];
 }
 
 const DEFAULT_MAX_EXCHANGES = 60;
@@ -158,16 +186,29 @@ function fightBattle(
   opts: SimOptions,
   rng: Rng,
   carried: Reason[],
+  potionsRemaining: number[],
 ): { state: BattleState; record: BattleRecord; stalled: boolean; halted: boolean } {
   const limit = opts.maxExchangesPerBattle ?? DEFAULT_MAX_EXCHANGES;
   const reasons = new Set<Reason>(carried);
   let state = start;
   let count = 0;
   let halted = false;
+  const potionsUsed: PotionUse[] = [];
 
   opts.policy.onBattleStart?.(state);
 
   while (!isDead(state.me) && !isDead(state.foe) && count < limit) {
+    // Checked before every exchange, so a heal taken mid-battle can still
+    // change that exchange's outcome — see PotionPlan's doc comment on the
+    // "free" assumption this rests on.
+    if (opts.potions && potionsRemaining.length > 0 && state.me.hp / state.me.hpMax <= opts.potions.threshold) {
+      const heal = potionsRemaining.shift()!;
+      const hpBefore = state.me.hp;
+      const hpAfter = Math.min(state.me.hpMax, hpBefore + heal);
+      state = { ...state, me: { ...state.me, hp: hpAfter } };
+      potionsUsed.push({ room: state.room, heal, hpBefore, hpAfter });
+    }
+
     const mine = legalMoves(state.me, opts.chargesAreHardLimit);
     const theirs = legalMoves(state.foe, opts.chargesAreHardLimit);
     // Under a hard limit both sides can in principle lock every move at once.
@@ -200,6 +241,7 @@ function fightBattle(
       reasons: [...reasons],
       hpAfter: state.me.hp,
       armorAfter: state.me.armor,
+      potionsUsed,
     },
   };
 }
@@ -215,6 +257,11 @@ export function simulateRun(opts: SimOptions): RunResult {
   let exchanges = 0;
   let outcome: RunOutcome = "cleared";
   const boons: BoonRecord[] = [];
+  const potionsUsed: PotionUse[] = [];
+  // Cloned once per run — a fresh loadout every simulateRun call, mutated
+  // in place (via .shift()) by fightBattle as potions are consumed across
+  // rooms within THIS run only.
+  const potionsRemaining = [...(opts.potions?.heals ?? [])];
 
   const tier = opts.enemyTier ?? SAFE_TIER;
 
@@ -240,9 +287,11 @@ export function simulateRun(opts: SimOptions): RunResult {
       opts,
       rng,
       [...runReasons],
+      potionsRemaining,
     );
     exchanges += battle.record.exchanges;
     battles.push(battle.record);
+    potionsUsed.push(...battle.record.potionsUsed);
     player = battle.state.me;
 
     if (battle.halted) {
@@ -302,6 +351,7 @@ export function simulateRun(opts: SimOptions): RunResult {
     battles,
     boons,
     reasons: [...runReasons],
+    potionsUsed,
   };
 }
 
@@ -336,6 +386,8 @@ export interface SimSummary {
    * coverage climbs. [session 06]
    */
   battlesByRoom: Map<number, RoomStats>;
+  /** Task 12 Stage B: mean potions consumed per run, over ALL runs (not just scored) — a potion fires whether or not the run stayed clean. */
+  meanPotionsUsed: number;
 }
 
 /** Scored battles at one room depth, with a binomial CI on the win rate. */
@@ -379,12 +431,14 @@ export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1)
   let deepestScorableRoom = 0;
   let totalRooms = 0;
   let sumSqRooms = 0;
+  let totalPotionsUsed = 0;
 
   for (let i = 0; i < runs; i++) {
     const r = simulateRun({ ...opts, seed: seed + i });
     outcomes[r.outcome]++;
     totalRooms += r.roomsCleared;
     sumSqRooms += r.roomsCleared * r.roomsCleared;
+    totalPotionsUsed += r.potionsUsed.length;
 
     runCoverage.record(r.reasons);
     if (r.reasons.length === 0 && r.outcome === "cleared") scoredWins++;
@@ -434,6 +488,7 @@ export function simulate(runs: number, opts: Omit<SimOptions, "seed">, seed = 1)
     boonCoverage,
     boonsTaken,
     roomsClearedCi95,
+    meanPotionsUsed: runs === 0 ? 0 : totalPotionsUsed / runs,
     battlesByRoom: new Map(
       [...perRoom.entries()]
         .sort((a, b) => a[0] - b[0])

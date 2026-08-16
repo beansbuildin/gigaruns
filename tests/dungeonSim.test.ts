@@ -223,7 +223,14 @@ describe("the Task 4 gate", () => {
     // probe run: new room-1 ArmorDepletedWeak offer, unmodelled). Neither is
     // a new clean type — both reshuffle which random draws land scorable at
     // this same seed, same drift as every prior session.
-    expect(s.battleCoverage.scored).toBe(1087);
+    // [session 16] 1087 -> 1083 -> 1126 — two live runs (Task 12 Stage B's
+    // potion-timing runs) added five new offers total (first run — room 1:
+    // CorrosiveMagic/BurningTenacity/AddLifestealMagic; room 2:
+    // UpgradeScissor/AddIntuition/AddMaxArmor; room 3: AddLuck/AddEvasion/
+    // SecondWind. Second run — room 1: UpgradeScissor/AddMaxArmor/AddBlock;
+    // room 2: AddBlock/AddIntuition/AddMaxArmor). No new clean type — same
+    // reshuffling, not a regression.
+    expect(s.battleCoverage.scored).toBe(1126);
     expect(s.deepestScorableRoom).toBe(4);
   });
 
@@ -262,5 +269,73 @@ describe("the Task 4 gate", () => {
     // (1099 -> 1087 scored battles, previous test). Same non-finding as
     // session 11: possible by construction, just not drawn at this seed.
     expect(s.scoredWinRate).toBeCloseTo(0);
+  });
+});
+
+describe("potion timing (Task 12 Stage B)", () => {
+  it("does nothing when no potions are configured — exact regression match", () => {
+    const withoutOpt = simulateRun({ ...base, policy: randomPolicy, seed: 3 });
+    const withEmptyPlan = simulateRun({
+      ...base,
+      policy: randomPolicy,
+      seed: 3,
+      potions: { heals: [], threshold: 0.9 },
+    });
+    expect(withEmptyPlan).toEqual(withoutOpt);
+  });
+
+  it("fires a heal mid-battle once HP crosses the threshold, and never overheals past hpMax", () => {
+    // Threshold 0.99 fires on essentially the first exchange that costs any
+    // HP at all, so a long enough run should show at least one use with
+    // hpAfter <= hpMax at the moment it fired.
+    let sawUse = false;
+    for (let seed = 1; seed <= 30 && !sawUse; seed++) {
+      const r = simulateRun({
+        ...base,
+        policy: randomPolicy,
+        seed,
+        potions: { heals: [20, 20, 20], threshold: 0.99 },
+      });
+      for (const u of r.potionsUsed) {
+        sawUse = true;
+        expect(u.hpAfter).toBeLessThanOrEqual(u.hpBefore + 20);
+        expect(u.hpAfter).toBeGreaterThan(u.hpBefore); // 0.99 threshold means it never fires at full HP
+      }
+    }
+    expect(sawUse, "no potion ever fired across 30 seeds at threshold 0.99").toBe(true);
+  });
+
+  it("consumes potions in order and never uses more than the loadout size across a whole run", () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const r = simulateRun({
+        ...base,
+        policy: randomPolicy,
+        seed,
+        potions: { heals: [20, 20, 20], threshold: 0.5 },
+      });
+      expect(r.potionsUsed.length).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("stays deterministic with a potion plan configured", () => {
+    const opts = {
+      ...base,
+      policy: randomPolicy,
+      potions: { heals: [20, 20, 20], threshold: 0.5 },
+    };
+    const a = simulateRun({ ...opts, seed: 11 });
+    const b = simulateRun({ ...opts, seed: 11 });
+    expect(a).toEqual(b);
+  });
+
+  it("a generous loadout/threshold raises mean rooms cleared over the 0-potion baseline", () => {
+    const baseline = simulate(1500, { ...base, policy: randomPolicy }, 1);
+    const withPotions = simulate(
+      1500,
+      { ...base, policy: randomPolicy, potions: { heals: [20, 20, 20], threshold: 0.5 } },
+      1,
+    );
+    expect(withPotions.meanRoomsCleared).toBeGreaterThan(baseline.meanRoomsCleared);
+    expect(withPotions.meanPotionsUsed).toBeGreaterThan(0);
   });
 });

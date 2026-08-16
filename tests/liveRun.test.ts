@@ -737,3 +737,171 @@ describe("runOnce — use_item probe (Task 12 Stage A, session 13)", () => {
     expect(probePosts).toBe(0);
   });
 });
+
+describe("runOnce — real potion policy (Task 12 Stage B live half)", () => {
+  it("fires use_item with the real itemId once HP crosses the threshold, and decrements remaining", async () => {
+    const lowHpRun = fakeRun({ players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63")] });
+    // A real heal genuinely changes the wire state (HP goes up) — mocked
+    // here so the stall guard sees real progress, same as live play would.
+    const healedRun = fakeRun({ players: [fakeSide("player", 30, 30), fakeSide("Enemy Room 63")] });
+    let potionPosts: unknown[] = [];
+    let runEnded = false;
+    let getCount = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          if (getCount === 1 || runEnded) {
+            return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 1, data: { run: potionPosts.length > 0 ? healedRun : lowHpRun } } };
+        }
+        const body = JSON.parse((init?.body as string) ?? "{}");
+        if (body.action === "use_item") {
+          potionPosts.push(body);
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: healedRun } } };
+        }
+        if (body.action === "start_run") {
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: lowHpRun } } };
+        }
+        // a real combat move — end the run so the loop terminates
+        runEnded = true;
+        return { status: 200, body: { success: true, actionToken: 3, data: {} } };
+      }),
+    );
+
+    const deps: LiveRunDeps = { ...makeDeps(false), potionPolicy: { itemId: 131, threshold: 0.5, remaining: 2, used: 0 } };
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+
+    expect(potionPosts).toHaveLength(1);
+    expect((potionPosts[0] as { data: { itemId: number; index: number } }).data.itemId).toBe(131);
+    expect((potionPosts[0] as { data: { itemId: number; index: number } }).data.index).toBe(0);
+    expect(deps.potionPolicy?.remaining).toBe(1); // decremented from 2
+    expect(deps.potionPolicy?.used).toBe(1);
+  });
+
+  it("sends index: 1 on the SECOND use in a run — live-confirmed 2026-08-16: index addresses loadout position, not itemId", async () => {
+    // Battle 1: HP drops low, one potion fires and heals. Battle continues,
+    // HP drops low again (a fresh enemy in a later room), second potion
+    // fires. Both share the same itemId, so only `index` distinguishes them.
+    const lowHp1 = fakeRun({ players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63")] });
+    const healed1 = fakeRun({ players: [fakeSide("player", 30, 30), fakeSide("Enemy Room 63")] });
+    const lowHp2 = fakeRun({ players: [fakeSide("player", 8, 30), fakeSide("Enemy Room 64")] });
+    const healed2 = fakeRun({ players: [fakeSide("player", 28, 30), fakeSide("Enemy Room 64")] });
+    const potionPosts: Array<{ data: { itemId: number; index: number } }> = [];
+    let getCount = 0;
+    let runEnded = false;
+
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          if (getCount === 1 || runEnded) {
+            return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          }
+          const run = potionPosts.length >= 2 ? healed2 : potionPosts.length === 1 ? lowHp2 : lowHp1;
+          return { status: 200, body: { success: true, actionToken: 1, data: { run } } };
+        }
+        const body = JSON.parse((init?.body as string) ?? "{}");
+        if (body.action === "use_item") {
+          potionPosts.push(body);
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: potionPosts.length === 1 ? healed1 : healed2 } } };
+        }
+        if (body.action === "start_run") {
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: lowHp1 } } };
+        }
+        runEnded = true;
+        return { status: 200, body: { success: true, actionToken: 3, data: {} } };
+      }),
+    );
+
+    const deps: LiveRunDeps = { ...makeDeps(false), potionPolicy: { itemId: 131, threshold: 0.5, remaining: 2, used: 0 } };
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+
+    expect(potionPosts).toHaveLength(2);
+    expect(potionPosts[0]!.data.index).toBe(0);
+    expect(potionPosts[1]!.data.index).toBe(1); // NOT 0 again — this is the live-confirmed fix
+    expect(deps.potionPolicy?.remaining).toBe(0);
+    expect(deps.potionPolicy?.used).toBe(2);
+  });
+
+  it("never fires when own HP is above the threshold", async () => {
+    const healthyRun = fakeRun({ players: [fakeSide("player", 28, 30), fakeSide("Enemy Room 63")] });
+    let potionPosts = 0;
+    let runEnded = false;
+    let getCount = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          if (getCount === 1 || runEnded) {
+            return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 1, data: { run: healthyRun } } };
+        }
+        const body = JSON.parse((init?.body as string) ?? "{}");
+        if (body.action === "use_item") potionPosts++;
+        if (body.action === "start_run") {
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: healthyRun } } };
+        }
+        runEnded = true;
+        return { status: 200, body: { success: true, actionToken: 3, data: {} } };
+      }),
+    );
+
+    const deps: LiveRunDeps = { ...makeDeps(false), potionPolicy: { itemId: 131, threshold: 0.5, remaining: 2, used: 0 } };
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+
+    expect(potionPosts).toBe(0);
+    expect(deps.potionPolicy?.remaining).toBe(2); // untouched
+  });
+
+  it("never fires once remaining hits 0, even at critical HP", async () => {
+    const criticalRun = fakeRun({ players: [fakeSide("player", 1, 30), fakeSide("Enemy Room 63")] });
+    let potionPosts = 0;
+    let runEnded = false;
+    let getCount = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          if (getCount === 1 || runEnded) {
+            return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 1, data: { run: criticalRun } } };
+        }
+        const body = JSON.parse((init?.body as string) ?? "{}");
+        if (body.action === "use_item") potionPosts++;
+        if (body.action === "start_run") {
+          return { status: 200, body: { success: true, actionToken: 2, data: { run: criticalRun } } };
+        }
+        runEnded = true;
+        return { status: 200, body: { success: true, actionToken: 3, data: {} } };
+      }),
+    );
+
+    const deps: LiveRunDeps = { ...makeDeps(false), potionPolicy: { itemId: 131, threshold: 0.5, remaining: 0, used: 0 } };
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+
+    expect(potionPosts).toBe(0);
+  });
+});

@@ -424,6 +424,16 @@ POST at Task 6 settles it. Do not "fix" it speculatively before then.
 
 ## 10. Fishing catch-reward action name — UNKNOWN, blocks all further live casts [session 15]
 
+**[session 16] Re-checked read-only at the top of this session, still stuck,
+unchanged.** `GET /fishing/state` still shows the same completed doc
+(`docId 12925779`, `COMPLETE_CID`/`SUCCESS_CID` both true, `fullDeck`
+length 10, never merged) — confirms this is a genuinely persistent account
+state, not a transient one that would clear on its own. No new guesses
+attempted (CLAUDE.md's stuck protocol already exhausted its two reasoned
+tries last session). Session 16 spent its time on the dungeon side instead
+(Task 12 Stage B, fully resolved — see TASKS.md), since this blocker still
+needs the user's own DevTools capture to move.
+
 **This project's first-ever live catch happened this session** (cast 4 of the
 day, `fixtures/fishing-casts/live/cast-2026-08-16-01-57-01/state-*.json`) —
 Zombo, item 521, rarity 2. The terminal `play_cards` response's `data.doc.data`

@@ -568,6 +568,47 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-15-23-02-36/state-011",
     options: [opt("AddTenacity", 2), opt("AddBlock", 3), opt("ArmorDepletedWeak", 2)],
   },
+  {
+    // [session 16, LIVE] Room-1 offer, Task 12 Stage B's first real live
+    // potion-timing run (--potions=2 --potion-threshold=0.5). First sighting
+    // of `CorrosiveMagic`, `BurningTenacity`, `AddLifestealMagic` as a room-1
+    // triple (CorrosiveMagic already modelled as latent, session 14 — first
+    // pair was room 3). Picked CorrosiveMagic.
+    room: 1,
+    source: "run-2026-08-16-15-30-03/state-003",
+    options: [opt("CorrosiveMagic", 2), opt("BurningTenacity", 8), opt("AddLifestealMagic", 2)],
+  },
+  {
+    // [session 16, LIVE] Room-2 offer, same run. AddMaxArmor (picked)
+    // already modelled, clean (session 11). UpgradeScissor already modelled.
+    room: 2,
+    source: "run-2026-08-16-15-30-03/state-019",
+    options: [opt("UpgradeScissor", 4), opt("AddIntuition", 1), opt("AddMaxArmor", 2)],
+  },
+  {
+    // [session 16, LIVE] Room-3 offer, same run — the first Safe-tier clear
+    // of enemy 65 (room 3) to also carry a live potion-timing use_item mid-
+    // battle (see DECISIONS.md). AddLuck (picked) and AddEvasion already
+    // modelled/pipelined. First sighting of `SecondWind`.
+    room: 3,
+    source: "run-2026-08-16-15-30-03/state-033",
+    options: [opt("AddLuck", 1), opt("AddEvasion", 1), opt("SecondWind", 10)],
+  },
+  {
+    // [session 16, LIVE] Room-1 offer, second live potion-timing run this
+    // session — the FIXED `usePotionLive` index handling confirmed working
+    // end-to-end for both uses in one run, with no manual intervention. Both
+    // options already modelled; AddMaxArmor (picked) already clean.
+    room: 1,
+    source: "run-2026-08-16-15-38-58/state-012",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddMaxArmor", 2), opt("AddBlock", 2)],
+  },
+  {
+    // [session 16, LIVE] Room-2 offer, same run.
+    room: 2,
+    source: "run-2026-08-16-15-38-58/state-040",
+    options: [opt("AddBlock", 3), opt("AddIntuition", 1), opt("AddMaxArmor", 2)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

@@ -696,25 +696,37 @@ CLAUDE.md §6 (state what has to be captured, don't let the gate outrun it):
   (an empty loadout has nothing to observe those mechanics with) and stay
   open for Stage B's first real-item attempt or a direct user answer in
   `QUESTIONS.md`.
-- **Stage B (policy, blocked on A no longer):** needs a real potion in
-  `consumables` at `start_run` first (still untested — does it take an item
-  ID directly, per the open question above?), then the sim scores loadout
-  selection (which 3 potions) and timing (an HP-threshold or EV-based
-  trigger rule) against the current death-room histogram, and the live loop
-  uses the result on real runs with heals observed firing. Report
-  items-per-energy / mean-rooms-cleared before vs. after, same form as
-  Task 11's own gate. **Field-shape sub-step MET [2026-08-15, session 14,
-  live]** — see above: `consumables` takes a raw item ID, and the item is
-  consumed at `start_run` (loadout commitment), not at `use_item` time. The
-  POLICY itself (loadout selection + timing rule, sim-scored, live-verified)
-  is **still not started** — per the session-14 brief's explicit
-  instruction ("establish the field shape and stop"), deliberately, so
-  Stage B's policy work gets its own clean session.
+- **Stage B: MET [2026-08-16, session 16].** Field-shape sub-step was MET
+  session 14 (raw item ID, consumed at `start_run`). This session built the
+  rest: **sim timing** — `dungeonSim.ts`'s `SimOptions.potions` (threshold-
+  triggered heal, superseding the old all-committed-at-room-1 upper bound;
+  DECISIONS 2026-08-16) and `scripts/potionTimingSweep.ts` (sweeps
+  threshold × loadout size, N=2000; best row 0.5 threshold / 3 potions:
+  3.477 ± 0.034 mean rooms cleared vs. 2.130 ± 0.051 baseline, **+1.347**).
+  **Live policy** — `src/strategy/potions.ts`'s `shouldUsePotion` (pure,
+  the sim's best threshold) wired into `scripts/liveRun.ts` via
+  `--potions=N --potion-threshold=X`, sending real Big Heal Juice in
+  `consumables` and firing `use_item` mid-combat. **Two live runs**
+  answered the remaining open mechanics (turn-cost: NO; multi-use: YES, but
+  `index` addresses loadout POSITION not itemId — a real bug the first run
+  found and the second run confirmed fixed end-to-end) — see DECISIONS
+  2026-08-16 and SPEC.md's `use_item` section for the full capture.
+  **Items-per-energy**: both runs spent 20 energy (1 run) and 2 potions
+  each; run 1 reached room 4 (vs. the even 0/4/4/6-ish baseline spread),
+  run 2 reached room 3 — two data points, not enough to move the death-room
+  histogram's shape on their own (now 0/4/5/6 across 15 confirmed deaths,
+  TASKS.md Task 11), but real potions firing at the right moments in both.
+  **Multi-use question ALSO settles the loadout-of-3 case is now safe to
+  ship**: a 3-potion loadout just needs indices 0, 1, 2 in order, which the
+  fixed code already does generically (`potionPolicy.used` tracks the next
+  index).
 
 Sequencing: neither Stage A (session 13) nor Stage B's field-shape check
 (session 14) has displaced Task 9/11 (fishing) as the session's actual
 spine — both were low-cost, brief-directed probes riding along on live
-dungeon runs already happening for other reasons.
+dungeon runs already happening for other reasons. Session 16 made potion
+timing itself the spine, since the fishing account was stuck all session
+(QUESTIONS.md §10, unresolved — needs the user's own DevTools capture).
 
 ---
 

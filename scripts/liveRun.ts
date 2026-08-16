@@ -60,6 +60,10 @@ import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
 import { pickLowestTier } from "../src/strategy/enemyTier.js";
 import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
+import { shouldUsePotion, DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
+
+/** Big Heal Juice — SPEC-fishing.md §5 (`GET /offchain/static`'s gameItems[131].itemEffect: OnUseBattle -> Heal, flat +20). */
+export const BIG_HEAL_ITEM_ID = 131;
 
 // ---------------------------------------------------------------------------
 // Pure decision helpers — no network, unit-testable directly.
@@ -351,6 +355,18 @@ export interface LiveRunDeps {
    * (the default) preserves the existing always-empty behavior exactly.
    */
   startConsumables?: number[];
+  /**
+   * Task 12 Stage B live half: fires a REAL `use_item` (not the itemId-0
+   * probe above) once own HP fraction crosses `threshold`, per
+   * `src/strategy/potions.ts`'s `shouldUsePotion` — the same rule
+   * `scripts/potionTimingSweep.ts` found best among the thresholds it swept.
+   * `remaining`/`used` are mutated in place across the whole process
+   * (matching `probeUseItem`'s `{ fired: boolean }` convention), since they
+   * track the REAL loadout committed at `start_run`, not a per-run reset.
+   * `used` doubles as the next `use_item` request's `index` — see
+   * `usePotionLive`'s doc comment for why that's load-bearing, not cosmetic.
+   */
+  potionPolicy?: { itemId: number; threshold: number; remaining: number; used: number };
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -479,6 +495,55 @@ export async function probeUseItem(
       log.write({ event: "use_item_probe_error", error: (e as Error).message });
       console.log(`  ★ use_item probe: request failed — ${(e as Error).message}`);
     }
+  }
+}
+
+/**
+ * Task 12 Stage B live half: fire one REAL `use_item` against a real
+ * loadout item, and re-sync state afterward regardless of outcome (same
+ * "an error doesn't reliably mean nothing happened" discipline as
+ * `postWithVerifiedRetry` and `probeUseItem` above). Unlike `probeUseItem`,
+ * a non-200 here IS a real failure — there's a genuine item at `itemId`,
+ * so `guards.recordActionResult` is fed here, not skipped.
+ *
+ * [2026-08-16, session 16, LIVE] `index` addresses a POSITION in the run's
+ * committed `consumables` loadout array, NOT a stable itemId lookup — the
+ * first use of two identical Big Heal Juice (itemId 131) succeeded at
+ * `index: 0`; the SECOND, sent with the same `index: 0`, failed HTTP 400
+ * "Item not found in index"; `index: 1` then succeeded, healing 4/36 ->
+ * 24/36. `usedCount` is the caller's running count of how many potions from
+ * THIS loadout have already been consumed, i.e. the next index to send —
+ * see `scripts/probeUseItemIndex1.ts` for the raw capture.
+ */
+export async function usePotionLive(
+  client: GigaverseClient,
+  config: BotConfig,
+  guards: GuardState,
+  log: RunLog,
+  fixtures: FixtureWriter,
+  itemId: number,
+  usedCount: number,
+): Promise<void> {
+  const envelope = buildEnvelope("use_item", config.dungeonId, client.getActionToken(), usedCount);
+  const body: DungeonActionRequest = { ...envelope, data: { ...envelope.data, itemId } };
+  console.log(`  ★ Task 12 Stage B: using potion (itemId ${itemId}, index ${usedCount})`);
+  log.write({ event: "use_item_post", body });
+  try {
+    const resp = await client.postDungeonAction(body);
+    guards.recordActionResult(true);
+    log.write({ event: "use_item_response", status: 200, resp });
+    fixtures.write(resp);
+    console.log(`  ✓ use_item: HTTP 200`);
+  } catch (e) {
+    if (e instanceof TokenExpiredError) throw e;
+    if (e instanceof UnexpectedResponseError) {
+      log.write({ event: "use_item_response", status: e.status, body: e.body });
+      console.log(`  ✗ use_item: HTTP ${e.status} — ${e.body.slice(0, 300)}`);
+    } else {
+      log.write({ event: "use_item_error", error: (e as Error).message });
+      console.log(`  ✗ use_item: request failed — ${(e as Error).message}`);
+    }
+    fail(guards, log, "use_item rejected", { itemId });
   }
 }
 
@@ -635,6 +700,22 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
         continue;
       }
 
+      if (
+        deps.potionPolicy &&
+        shouldUsePotion(battle.me.hp, battle.me.hpMax, deps.potionPolicy.remaining, deps.potionPolicy.threshold)
+      ) {
+        const p = deps.potionPolicy;
+        await usePotionLive(client, config, guards, log, fixtures, p.itemId, p.used);
+        p.remaining--;
+        p.used++;
+        // Re-fetching state next iteration will show us EMPIRICALLY whether
+        // use_item consumed a turn: if the enemy's lastMove/charges advanced
+        // despite us sending no rock/paper/scissor this iteration, it did.
+        // Deliberately not assumed either way — Task 12 Stage B's open
+        // question, answered by observation rather than modelled here.
+        continue;
+      }
+
       const body = buildEnvelope(moveToAction(d.move), config.dungeonId, client.getActionToken());
       log.write({ event: "post", body });
       let resp;
@@ -773,7 +854,16 @@ function parseArgs(argv: string[]) {
   // NEXT genuinely new start_run only (never on a resumed run).
   const probeConsumablesArg = argv.find((a) => a.startsWith("--probe-consumables="));
   const probeConsumablesItemId = probeConsumablesArg ? Number(probeConsumablesArg.split("=")[1]) : undefined;
-  return { dryRun, stage2, status, runs, probeUseItemFlag, probeConsumablesItemId };
+  // Task 12 Stage B policy (live half): `--potions=3` loads 3 real Big Heal
+  // Juice into `consumables` at start_run AND fires `use_item` mid-combat at
+  // `--potion-threshold` (default: potionTimingSweep.ts's best threshold).
+  // Independent of `--probe-consumables`/`--probe-use-item` above — those
+  // are the one-shot Stage A/field-shape probes; this is the real policy.
+  const potionsArg = argv.find((a) => a.startsWith("--potions="));
+  const potionCount = potionsArg ? Number(potionsArg.split("=")[1]) : undefined;
+  const thresholdArg = argv.find((a) => a.startsWith("--potion-threshold="));
+  const potionThreshold = thresholdArg ? Number(thresholdArg.split("=")[1]) : DEFAULT_POTION_THRESHOLD;
+  return { dryRun, stage2, status, runs, probeUseItemFlag, probeConsumablesItemId, potionCount, potionThreshold };
 }
 
 /**
@@ -862,6 +952,16 @@ async function main() {
   if (args.probeConsumablesItemId !== undefined) {
     console.log(`  · --probe-consumables=${args.probeConsumablesItemId}: next genuinely new start_run will send consumables: [${args.probeConsumablesItemId}].`);
   }
+  const potionPolicyState =
+    args.potionCount !== undefined
+      ? { itemId: BIG_HEAL_ITEM_ID, threshold: args.potionThreshold, remaining: args.potionCount, used: 0 }
+      : undefined;
+  if (potionPolicyState) {
+    console.log(
+      `  · --potions=${args.potionCount}: next genuinely new start_run will load ${args.potionCount}x Big Heal Juice` +
+        ` (itemId ${BIG_HEAL_ITEM_ID}), used at own HP ≤${Math.round(args.potionThreshold * 100)}%.`,
+    );
+  }
 
   const targetRuns = args.dryRun || args.stage2 ? 1 : args.runs;
   for (let i = 0; i < targetRuns; i++) {
@@ -888,7 +988,13 @@ async function main() {
           log,
           dryRun: args.dryRun,
           probeUseItem: probeUseItemState,
-          startConsumables: args.probeConsumablesItemId !== undefined ? [args.probeConsumablesItemId] : undefined,
+          startConsumables:
+            args.probeConsumablesItemId !== undefined
+              ? [args.probeConsumablesItemId]
+              : args.potionCount !== undefined
+                ? Array(args.potionCount).fill(BIG_HEAL_ITEM_ID)
+                : undefined,
+          potionPolicy: potionPolicyState,
         },
         { stage2Only: args.stage2 },
       );

@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(334); // +12 session 14: resumed the stuck run (survived room 3, died room 4, brief §4) + a fresh run carrying Task 12 Stage B's consumables probe (died room 2, brief §3)
+    expect(exchanges(runs).length).toBe(386); // +52 session 16: Task 12 Stage B's two live potion-timing runs — first cleared rooms 1-3 (died room 4, a stall-guard trip stranded it mid-combat first, then resumed), second confirmed the fixed index handling end-to-end and cleared rooms 1-2 (died room 3); four real use_item heals fired mid-battle across both
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -112,7 +112,22 @@ describe("combat model vs recordings", () => {
     // see DECISIONS.md. That run died room 2. Clean model matched every
     // exchange across both, 0 clean failures, now 13 confirmed deaths /
     // death-room histogram 0/4/4/5 (scripts/deathRooms.ts).
-    expect(report.sideUpdates).toBe(668);
+    // [session 16] Task 12 Stage B's live potion-timing policy, TWO runs:
+    // first `start_run` with `consumables: [131, 131]`, `use_item` fired
+    // mid-combat via the sim-chosen threshold (0.5). First use (index 0)
+    // healed 16/36 -> 36/36 with NO exchange resolved (enemy HP/ARM/model
+    // observation count all unchanged) — confirms `use_item` costs no
+    // combat turn. Second use at the SAME index 0 was rejected ("Item not
+    // found in index"); `index: 1` then succeeded (4/36 -> 24/36) — `index`
+    // addresses a position in the committed loadout, not the item id (see
+    // `usePotionLive`'s doc comment, liveRun.ts). Run resumed and played to
+    // a room-4 death. A SECOND run confirmed the resulting code fix
+    // end-to-end, with no manual intervention: both potions fired correctly
+    // (index 0 then 1) purely through `scripts/liveRun.ts`'s own policy,
+    // healing 12/36->32/36 then 18/36->36/36; died room 3. Clean model
+    // matched every exchange across both, 0 clean failures, now 15
+    // confirmed deaths.
+    expect(report.sideUpdates).toBe(772);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

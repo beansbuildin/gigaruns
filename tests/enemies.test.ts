@@ -117,7 +117,12 @@ describe("player loadout matches the fixtures", () => {
     // fourth distinct starting loadout. See src/sim/enemies.ts's PLAYER doc.
     // [session 13] One new combo: 36/16 is the new starting loadout (hpMax
     // 34→36, armorMax and every move's ATK/DEF unchanged this time).
-    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16"]);
+    // [session 16] Two new combos, both mid-run AFTER an AddMaxArmor pickup
+    // (armorMax +2 each), not new starting loadouts, same shape as 34/20
+    // above: 36/18 is 36/16 + one pickup (first potion-timing run, room 2);
+    // 36/20 is 36/16 + TWO pickups (second run, rooms 1 and 2 both offered
+    // AddMaxArmor and both were taken).
+    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20"]);
   });
 });
 

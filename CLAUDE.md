@@ -117,3 +117,14 @@ transaction that would spend ETH, or anything in the "Ask first" list below.
 
 Reading, playing dungeon runs, playing fishing casts, and looting are all fine
 to do autonomously within the configured budget.
+
+## Filesystem scope
+
+Never read, list, or search outside the project directory and
+~/.secrets. This includes find, ls, grep, cat, and any shell
+command with a path starting at / or ~ other than ~/.secrets.
+
+If you need a file you can't locate inside the project, say so and
+ask -- do not widen the search. A whole-filesystem search surfaced
+the user's personal paths once already (session 15); that is the
+failure mode this rule exists to prevent.

@@ -116,8 +116,28 @@ shape, so every caller still sees one "no active run" signal.
 ```
 
 Actions: `start_run`, `rock`, `paper`, `scissor`, `loot_one`…`loot_four`,
-`use_item` **[VERIFY]**, `heal_or_damage` **[VERIFY]**, `flee` **[VERIFY]**,
-`cancel_run` **[VERIFY]**.
+`use_item` **[CONFIRMED — see below]**, `heal_or_damage` **[VERIFY]**,
+`flee` **[VERIFY]**, `cancel_run` **[VERIFY]**.
+
+**`use_item` — CONFIRMED live, 2026-08-16, session 16 (Task 12 Stage B).**
+Same combat-style envelope as `rock`/`paper`/`scissor`, with `data.itemId`
+set to the item's ID (e.g. `131` for Big Heal Juice) and `data.index` set to
+**how many items from THIS run's committed `consumables` loadout have
+already been consumed** — NOT the item's stable id, and not a fixed 0. A
+loadout of `[131, 131]` (2× Big Heal Juice) needs `index: 0` for the first
+use and `index: 1` for the second; resending `index: 0` for the second use
+was rejected `HTTP 400 {"message":"Item not found in index"}`, and `index:
+1` then succeeded. Confirmed working two ways in the same battle:
+`scripts/liveRun.ts`'s own real-time policy (first use, index 0) and a
+one-off manual probe with a captured `actionToken` (second use, index 1) —
+see `scripts/probeUseItemIndex1.ts`.
+
+**Confirmed NOT to cost a combat turn.** A successful `use_item` heals HP
+(flat, matching `GET /offchain/static`'s `gameItems[131].itemEffect`, capped
+at `hpMax`) with the enemy's HP/ARM and the opponent model's observation
+count both UNCHANGED across the call — no exchange resolves. This settles
+Task 12 Stage B's open turn-cost question: a potion is a free action from
+combat's perspective, not a substitute for a move.
 
 **[2026-08-14, session 09] The last four are unconfirmed and the source is
 compromised.** This whole list came from Gigaverse's published agent skill,
