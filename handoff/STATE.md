@@ -1,159 +1,133 @@
-# STATE — session 17 — 2026-08-16 — commit 8e8c7b2
+# STATE — session 17 — 2026-08-16 — commit PENDING
 
 ## Status
-Task 12 ("Potion timing") is now fully **CLOSED** — Stage C's threshold
-extension confirmed 0.5 as a genuine interior optimum (not a boundary
-artifact), and a direct mid-session user instruction ("all potion crafting
-will be manually done by the player, only use in dungeon will be
-automated") retires the crafting-energy-pool question outright rather than
-answering it. A fresh `GET /offchain/static` dump (hunting for a craft
-endpoint, since none was ever confirmed anywhere in this repo) had already
-hit the same wall independently — no craft POST endpoint exists in that
-payload, only the already-known read-only recipe data.
-
-Potions now default ON in `scripts/liveRun.ts`, but **gated behind an
-explicit user-set config allowlist**, not free inventory auto-detection —
-my first cut auto-detected any Big Heal Juice in the wallet, and the user
-directly flagged the risk ("verify before doing runs which potions you are
-allowed to take... otherwise you might burn through my supply... without my
-intent") before any run actually used it. Redesigned around
-`config/bot.json`'s new `forbiddenWoods.potions` block
-(`{allowedItemId, maxPerRun}`) — absent, the loop uses 0 potions, full
-stop. Asked the user directly (not assumed) what `maxPerRun` should be;
-answer was **2**, not the sim's theoretical-best 3, matching what was
-actually live-tested in session 16.
-
-**QUESTIONS.md §10 — open for three sessions — is RESOLVED.** The user did
-a manual fishing run with DevTools open and captured the real
-catch-resolution action: `loot`, `data.cards: [<real card id from
-cardsToAdd, NOT a hand index>]`. Verified live (`fullDeck` grew 10→11,
-account stopped rejecting `start_run`). Wired into `scripts/liveFishing.ts`
-so the bot's own future catches resolve themselves automatically instead of
-stranding the account — not yet exercised end-to-end by the bot's own play,
-since account energy dropped to 2/420 (a real account-level floor, separate
-from our own 240/day spending policy) before the fix landed. That's this
-session's one clean carry-forward: confirm the automated `loot` path
-actually fires correctly the next time the bot's own play lands a catch.
+Task 12 "Potion timing": **GATE PASS (task CLOSED, no further stages).**
+No new TASKS.md task was targeted otherwise — this session worked
+session-17's `next.md` brief (extended sweep, craft probe, potion default,
+fishing capture-loop hardening) plus two live user corrections mid-session.
+Next per TASKS.md: Task 9 (live fishing) already reads GATE MET from prior
+sessions; its one remaining loose end (the guard-trip root cause) is now
+closed too — see below. No task is currently blocked on agent work; the
+real fishing account is at 2/420 energy (regen 18/hr), which is what's
+actually stopping further live action, not a task gate.
+Overall: potion policy is now safer (user-gated, not free-inventory-scan)
+and permanently simpler (crafting is the user's job, not the bot's
+decision); the fishing account's 3-session-old stuck-state mystery
+(QUESTIONS.md §10) is solved and wired into the live loop, not yet
+exercised by the bot's own play.
 
 ## What works
-- **`potionTimingSweep.ts` extended to {0.5..0.9} × {1,2,3}** (N=2000):
-  confirms 0.5 is a genuine interior optimum — the curve rises 0.2→0.5
-  (prior sweep) and falls 0.5→0.9 (this session), at every loadout size.
-  Best row unchanged in substance: 3.474 ± 0.034 mean rooms cleared (0.5
-  threshold, 3 potions) vs. 2.112 ± 0.050 baseline.
-- **`config/bot.json`'s `forbiddenWoods.potions` allowlist** (new,
-  `src/orchestrator/config.ts` schema) — `{allowedItemId: 131, maxPerRun:
-  2}`, user's explicit choice via `AskUserQuestion`. `scripts/liveRun.ts`
-  reads this before every run, prints the authorized item/cap and the live
-  balance, loads `min(config.maxPerRun, MAX_POTIONS_PER_RUN=3, balance)`.
-  Verified live via `--dry-run`. `--potions=N` CLI override still works
-  but is pinned to the config-allowed item id, can't smuggle in an
-  unauthorized item.
-- **`scripts/liveFishing.ts`'s unknown-terminal-field dump** (new,
-  `unknownDocKeys`/`KNOWN_DOC_DATA_KEYS`/`KNOWN_DOC_TOP_KEYS`/
-  `dumpUnknownTerminal`) — checks both the pre-`start_run` existing-doc
-  read and every `play_cards` terminal response against a hand-maintained
-  allowlist, writes a loudly-named `logs/fishing-unknown-terminal-
-  <stamp>.json` the moment something outside it appears. Immediately
-  useful: caught `cardChosenId` on the account's old doc mid-session,
-  which turned out to be the actual "is this catch resolved" signal.
-- **`action: "loot"` CONFIRMED** (QUESTIONS.md §10, three sessions open) —
-  user-captured real payload, `data.cards` addresses a card by its real id
-  from `cardsToAdd[].id`, the OPPOSITE of `play_cards`'s hand-index
-  convention despite an identical envelope shape. Added to
-  `FishingActionSchema`/`FishingBoardDataSchema` (`cardsToAdd`,
-  `cardChosenId` now typed). `runOneCast` sends it automatically after any
-  catch via new `chooseNewCard()` (`src/strategy/fishing/cardChoice.ts`,
-  argmax hit-power/mana — an explicit placeholder heuristic, not
-  sim-validated against deck-composition value).
-- **Live-confirmed: the fishing account is genuinely unblocked** and stays
-  that way now that `loot` is wired — one real bot-driven cast this
-  session (`--casts=1`) succeeded end to end (escaped, 2 turns).
-- **`GET /fishing/state`'s `fullDeck` length / `COMPLETE_CID`/
-  `SUCCESS_CID` are NOT reliable "still stuck" signals** once any game has
-  ever been resolved on the account — a real surprise mid-session
-  (`checkFishingStuck.ts` showed what looked exactly like session 16's
-  stuck doc, yet a real `start_run` succeeded immediately after).
-  `cardChosenId` is the real signal.
-- **`GET /offchain/player/energy`'s `maxEnergy` (420, `regenPerHour: 18`)
-  is the account's real absolute energy ceiling**, confirmed completely
-  independent of `config/bot.json`'s `dailyEnergyBudget` (240) — the
-  latter is purely this bot's own spending policy. Also clarifies
-  `isPlayerJuiced: true` on dungeon runs sent with `isJuiced:false`: an
-  account-level capability flag, not evidence of accidentally paying 3x
-  (both runs correctly cost the plain 20 energy).
-- **All 322 tests pass** (315 → 322), `npx tsc --noEmit` clean.
+- `potionTimingSweep.ts` extended to {0.5,0.6,0.7,0.8,0.9} × {1,2,3}
+  potions (N=2000): 0.5 confirmed a genuine INTERIOR optimum (curve rises
+  0.2→0.5, falls 0.5→0.9 at every loadout size) — not a boundary artifact
+  of the prior {0.2,0.34,0.5} sweep. Best row: 3.474 ± 0.034 mean rooms
+  cleared (0.5 threshold, 3 potions) vs. 2.112 ± 0.050 baseline.
+- `config/bot.json`'s new `forbiddenWoods.potions: {allowedItemId,
+  maxPerRun}` — required before `scripts/liveRun.ts` uses ANY potion;
+  absent, loads 0. Verified live via `--dry-run`: read the config, read
+  real Big Heal Juice balance, correctly capped the loadout at the
+  configured `maxPerRun` (2, user's own choice via `AskUserQuestion`, not
+  the sim's best-row 3).
+- `action: "loot"` on `POST /fishing/action` — CONFIRMED live (user
+  DevTools capture): resolves a catch's `cardsToAdd` offer, `data.cards:
+  [<real card id>]` (NOT a hand-relative index, unlike `play_cards`,
+  despite an identical envelope). Verified: `fullDeck` grew 10→11,
+  account stopped rejecting `start_run`. Wired into
+  `scripts/liveFishing.ts`'s `runOneCast` — fires automatically after any
+  catch via new `chooseNewCard()` (argmax hit-power/mana).
+- `scripts/liveFishing.ts`'s unknown-terminal-field dump (new
+  `unknownDocKeys`) — caught `cardChosenId` (the real resolved/unresolved
+  signal) on its very first live use, before the mechanism was even
+  fully understood.
+- One real live fishing cast this session (`--casts=1`): escaped after 2
+  turns, 12 energy spent, confirmed the account genuinely unblocked.
+- `npx tsc --noEmit` clean; `npx vitest run` 322/322 passed (was 315).
 
-## What's broken / paused
-- The `loot` auto-resolution path is wired and typechecks/tests clean, but
-  has NOT been exercised end-to-end by the bot's own live play — account
-  energy hit 2/420 before a bot-driven catch happened this session. First
-  thing to verify next time energy allows a live cast.
-- Today's fishing casts are under-spent relative to budget (13/15 used
-  including this session's 1) — the account's real energy floor (2/420),
-  not the bot's own daily policy, is what's actually blocking further live
-  action right now.
+## What's broken
+- The `loot` auto-resolution path is wired and unit-tested but has NOT
+  been exercised end-to-end by the bot's OWN live play — no bot-driven
+  catch happened this session (account energy hit 2/420 first). Real risk
+  if untested: `chooseNewCard`'s output type or the envelope could still
+  have a live-only bug the fixtures/mocks don't catch.
+- Today's fishing casts are under-spent (13/15) — not a bug, just blocked
+  by the account's real energy floor (2/420, regen 18/hr), unrelated to
+  the bot's own 240/day self-imposed budget.
 
-## Corrections to SPEC.md / this repo's own assumptions
-- `SPEC-fishing.md`'s catch-resolution blocker is RESOLVED — see `action:
-  "loot"` above, full detail in SPEC-fishing.md's request-envelope section.
-- `scripts/liveFishing.ts`'s known-field allowlist needed 16 more real
-  fields than `FishingBoardDataSchema` originally declared (`LEVEL_CID`,
-  `ID_CID`, `PLAYER_CID`, `FACTION_CID`, `GEAR_CID_array`, `DAY_CID`,
-  `_id`, `createdAt`, `updatedAt`, `__v` at top level; `jebaitorTriggered`,
-  `consumablesUsed`, `fishingConsumableSlotUsed`,
-  `fintuitionOilBoostPercent`, `dualYieldOilBoostPercent`, `day`, `week`
-  under `data`) — the schema's own `.passthrough()` already carried these,
-  they just weren't typed or accounted for anywhere.
-- Potion crafting is now explicitly, permanently OUT OF SCOPE for
-  automation (user directive) — any future task referencing "crafting
-  economics" as a bot decision is stale; it's the user's manual job.
+## Corrections to SPEC.md
+- SPEC-fishing.md's catch-resolution blocker (open since session 15) is
+  RESOLVED: `action: "loot"`, `data.cards: [<cardsToAdd[].id>]`. Full
+  envelope and the hand-index-vs-id distinction now in SPEC-fishing.md's
+  request section.
+- `FishingBoardDataSchema` was missing `cardsToAdd`/`cardChosenId`
+  entirely (silently passed through, untyped) — now declared.
+- `scripts/liveFishing.ts`'s field allowlist was built only from the
+  schema's DECLARED fields and undercounted the real wire shape by 16
+  fields (`LEVEL_CID`, `data.day`/`week`, etc.) — corrected against the
+  real captured fixture, not the schema.
+- `GET /fishing/state`'s `fullDeck` length and `COMPLETE_CID`/
+  `SUCCESS_CID` do NOT reliably distinguish "stuck" from "resolved" once
+  ANY game has ever closed out on the account — `cardChosenId` (non-null)
+  is the real signal. Found because a live `start_run` succeeded despite
+  a read that looked identical to the known stuck state.
+- `GET /offchain/player/energy`'s `maxEnergy` (420, `regenPerHour: 18`) is
+  the account's real absolute energy ceiling, confirmed independent of
+  `config/bot.json`'s `dailyEnergyBudget` (240, this bot's own policy).
+  `isPlayerJuiced: true` on a dungeon run response is an account-level
+  capability flag, not evidence the bot paid 3x energy — actual per-run
+  cost tracked correctly as plain 20 both times checked.
+- Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
+- Move charges: unchanged, PRESENT, hard-pruned.
 
 ## Dead ends
-- Hunting for a crafting POST endpoint via a fresh `GET /offchain/static`
+- Hunted for a crafting POST endpoint via a fresh `GET /offchain/static`
   dump (`scripts/probeCraftAction.ts`, new, read-only, kept) — found
-  nothing beyond the already-known read-only recipe data. Not wasted: this
-  is exactly CLAUDE.md §2's prescribed move, and the negative result
-  turned out to be moot anyway once crafting was declared out of scope.
-- First cut of "potions default ON" (free inventory auto-detection, no
-  config gate) — not shipped as final; superseded within the same session
-  by the user's direct safety correction. See DECISIONS.md for both.
+  nothing beyond the already-known read-only recipe data. Turned out moot
+  anyway once a direct user instruction put crafting permanently out of
+  scope for automation mid-session.
+- First cut of "potions default ON" auto-detected any Big Heal Juice in
+  inventory with no config gate — not shipped; the user flagged the risk
+  of unintended consumption before any run used it, superseded same
+  session by the config-allowlist design.
 
 ## Metrics
-- Sim (potion timing, extended sweep, N=2000): baseline 2.112 ± 0.050;
-  best row (0.5 threshold, 3 potions) 3.474 ± 0.034 — confirmed as an
-  interior optimum rather than a boundary artifact.
-- Live fishing this session: 1 real cast (escaped, 2 turns, 12 energy).
-  Guard budget: dungeon 40/240 energy, 2/12 runs (session 16 carryover,
-  unchanged); fishing 60/200 energy, 5/15 casts. Real account energy at
-  session end: 2/420 (the actual current constraint, not the bot's policy
-  caps).
-- Big Heal Juice balance: 3 → 45 mid-session — user crafting manually,
-  consistent with this session's own crafting-is-manual instruction
-  landing around the same time.
+- Sim (potion timing, N=2000): baseline 2.112 ± 0.050 mean rooms cleared;
+  best row (0.5 threshold, 3 potions) 3.474 ± 0.034.
+- Live fishing this session: 1 cast, escaped, 2 turns, 12 energy.
+- Live dungeon this session: 0 runs (dry-run verification only).
+- Guard budgets at session end: dungeon 40/240 energy, 2/12 runs; fishing
+  60/200 energy, 5/15 casts. Real account energy: 2/420 (the actual
+  binding constraint right now).
+- Big Heal Juice balance: 3 → 45 mid-session (user crafted manually,
+  consistent with this session's crafting-is-manual instruction).
 - Tests: 315 → 322 passed, 0 skipped, 0 failed.
 
 ## Open questions for Claude
-1. **Verify the automated `loot` path live the next time the bot's own
-   play lands a catch** — wired and unit-tested, not yet live-exercised.
-2. **Today's fishing casts are under-spent (13/15).** Real blocker now is
-   account energy (2/420, regen 18/hour), not guard budget — resume once
-   energy allows, no other blocker remains.
-3. **`chooseNewCard`'s argmax-hit-power/mana heuristic is a placeholder.**
-   Worth a real sim-based deck-composition analysis eventually (does grid
-   coverage / miss penalty / rarity matter more than raw damage?), not
-   urgent — the mechanism working at all was the session's actual goal.
+1. Verify the automated `loot` path fires correctly the next time the
+   bot's own live play lands a catch — wired, unit-tested, not yet
+   live-exercised. If it fails, the account will strand again exactly
+   like sessions 15/16, so this is worth a dedicated check early next
+   session once energy allows.
+2. `chooseNewCard`'s argmax-hit-power/mana heuristic for picking among a
+   catch's 3 new-card offers is an explicit placeholder — no
+   deck-composition sim exists to judge whether grid coverage, miss
+   penalty, or rarity matter more than raw damage/mana. Not urgent.
+3. Today's fishing casts (13/15) and dungeon runs (2/12) are both
+   under-spent purely because the account's real energy floor (2/420)
+   binds tighter than either guard budget right now — resume live volume
+   once energy regenerates (18/hr) or the user claims more; no other
+   blocker remains on either surface.
 
 ## Files changed
 ```
-15 files changed (session total, both commits)
+16 files changed across 3 commits this session
 +2 new: scripts/probeCraftAction.ts, fixtures/fishing-casts/live/cast-2026-08-16-16-18-37/
 
-QUESTIONS.md, TASKS.md, SPEC-fishing.md, config/bot.json, handoff/DECISIONS.md,
+QUESTIONS.md, SPEC-fishing.md, TASKS.md, config/bot.json, handoff/DECISIONS.md,
 scripts/liveFishing.ts, scripts/liveRun.ts, scripts/potionTimingSweep.ts,
 scripts/probeCraftAction.ts (new), src/api/fishing.ts, src/orchestrator/config.ts,
 src/sim/dungeonSim.ts, src/strategy/fishing/cardChoice.ts,
-tests/fishing/cardChoice.test.ts, tests/liveFishing.test.ts
+tests/fishing/cardChoice.test.ts, tests/liveFishing.test.ts,
+fixtures/fishing-casts/live/cast-2026-08-16-16-18-37/ (3 files, new)
 
-full stat: `git diff HEAD~2 HEAD --stat` (after this commit)
+full stat: `git diff c0eb91e..HEAD --stat`
 ```
