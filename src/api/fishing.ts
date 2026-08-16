@@ -75,6 +75,14 @@ const FishingBoardDataSchema = z
     cardInDrawPile: z.number(),
     hand: z.array(z.number()),
     discard: z.array(z.number()),
+    // Catch-resolution fields — CONFIRMED live, session 17 (QUESTIONS.md
+    // §10). Present on a terminal `SUCCESS_CID: true` doc: `cardsToAdd` is
+    // the 3 new-card offers (same shape as `deckCardData`); `cardChosenId`
+    // is null/absent until the `loot` action (below) sets it to one of
+    // `cardsToAdd[].id`, at which point `fullDeck` grows by one and the
+    // account stops rejecting `start_run`.
+    cardsToAdd: z.array(FishingCardSchema).optional(),
+    cardChosenId: z.number().nullable().optional(),
   })
   .passthrough();
 
@@ -125,16 +133,29 @@ export type FishingState = z.infer<typeof FishingStateSchema>;
 
 // ── POST /fishing/action ────────────────────────────────────────────────────
 
-export const FishingActionSchema = z.enum(["start_run", "play_cards"]);
+/**
+ * `loot` — CONFIRMED live, session 17 (QUESTIONS.md §10, three sessions
+ * open): resolves a caught cast's `cardsToAdd` offer. `data.cards: [id]`
+ * — the chosen card's real id from `cardsToAdd[].id`, NOT a hand-relative
+ * index like `play_cards` uses (the captured payload sent `cards: [22]`,
+ * far too large to be a hand position). User-captured via DevTools,
+ * one real payload: `{action:"loot", actionToken:"<string>",
+ * data:{cards:[22], nodeId:"", focusPoint:[], itemId:0, slotIndex:0,
+ * tierId:0}}` — same envelope shape as `play_cards`, only `cards` differs
+ * in what it addresses. Verified end to end: `GET /fishing/state`
+ * afterward showed `fullDeck` grown 10 -> 11 and the account no longer
+ * rejecting `start_run`.
+ */
+export const FishingActionSchema = z.enum(["start_run", "play_cards", "loot"]);
 export type FishingAction = z.infer<typeof FishingActionSchema>;
 
 /**
  * `nodeId`/`tierId` only meaningful on `start_run` (nodeId "5" resolved
  * this cast to Dendren Pond — see SPEC-fishing.md §3 for why that's
  * CONFIRMED-BY-CAPTURE, not confirmed by an explicit name field). `cards`/
- * `focusPoint` only meaningful on `play_cards`. Sent as `""`/`[]`/`0`
+ * `focusPoint` only meaningful on `play_cards`/`loot`. Sent as `""`/`[]`/`0`
  * respectively when not applicable — CONFIRMED literal envelope, not
- * inferred; both action types were captured.
+ * inferred; all three action types were captured.
  */
 export interface FishingActionRequest {
   action: FishingAction;

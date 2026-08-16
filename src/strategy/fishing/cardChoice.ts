@@ -224,6 +224,28 @@ export function chooseCard(
 }
 
 /**
+ * Session 17: which of the 3 `cardsToAdd` offers to keep after a catch
+ * (QUESTIONS.md §10 — the `loot` action, confirmed live this session).
+ * This is a ONE-TIME permanent deck addition, not an in-cast tactical
+ * pick, so `chooseCard`'s EV-against-a-live-distribution machinery doesn't
+ * apply — there's no fish position to aim at yet. Simple, defensible
+ * placeholder: argmax raw hit-power per mana (`max(hitEffect, critEffect)
+ * / manaCost`), the same "damage efficiency" intuition `chooseCard` uses
+ * when mana-constrained. Not sim-validated against a full-deck-composition
+ * objective — that's a real question (does this card's grid coverage,
+ * miss penalty, rarity synergy with the rest of the deck matter more than
+ * raw damage/mana?) deliberately left open rather than guessed at.
+ */
+export function chooseNewCard(offers: readonly FishingCardLike[]): FishingCardLike {
+  if (offers.length === 0) throw new Error("chooseNewCard: no offers");
+  const valueOf = (c: FishingCardLike): number => {
+    const power = Math.max(amountOf(c.hitEffects), amountOf(c.critEffects));
+    return c.manaCost > 0 ? power / c.manaCost : power;
+  };
+  return offers.reduce((best, c) => (valueOf(c) > valueOf(best) ? c : best));
+}
+
+/**
  * SPEC.md §5: "Redraw when max EV < redrawThreshold and mana comfortably
  * exceeds the redraw cost." Redraw cost is 1 mana per card still held —
  * [VERIFY], SPEC-fishing.md §0.

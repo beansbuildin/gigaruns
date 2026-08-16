@@ -95,7 +95,7 @@ Same envelope shape as the dungeon's `POST /game/dungeon/action`
 
 ```json
 {
-  "action": "start_run" | "play_cards",
+  "action": "start_run" | "play_cards" | "loot",
   "actionToken": "<string, from the previous response's actionToken>",
   "data": {
     "cards": [0],
@@ -120,6 +120,12 @@ Same envelope shape as the dungeon's `POST /game/dungeon/action`
   the community note's claim exactly. `nodeId`/`tierId` sent as `""`/`0` on
   this action (not applicable once the run exists); `focusPoint` carries the
   bobber's new position (see §4).
+- **`action: "loot"` [CONFIRMED 2026-08-16, session 17, live]** — resolves a
+  catch's `cardsToAdd` offer (§4a below). `cards` holds **the chosen card's
+  real id from `cardsToAdd[].id`**, the OPPOSITE convention from
+  `play_cards`'s hand-relative index — a genuine trap for pattern-matching
+  the two actions as identical. All other fields empty/zero, same as
+  `play_cards`.
 - `itemId`/`slotIndex` were `0` on every call in this capture —
   **[VERIFY]** for their actual meaning (the community note guesses
   "consumable slot", untested here).
@@ -180,20 +186,35 @@ project's first-ever live catch (cast `12925773`, fish "Zombo," item 521,
   is credited synchronously with the catch; it is NOT gated behind whatever
   blocks the account below.
 
-**[BLOCKER, still open — QUESTIONS.md §10] The account is stuck after a catch
-and no further casts could be started this session.** Every `start_run`
-after the catch returns `HTTP 400 "Player is already in a game"`, while
-`GET /fishing/state` shows the completed doc (`COMPLETE_CID`/`SUCCESS_CID`
-both `true`) with `fullDeck`/`deckCardData` UNCHANGED — the 3 `cardsToAdd`
-cards are not merged in. Two reasoned action-name guesses on the same
-confirmed `/fishing/action` endpoint (`select_card`, `claim`) both got a
-clean `HTTP 400 "Invalid action: <name>"` from the server's own whitelist —
-wrong names, not evidence either way about the real one. A third probe,
-resending `play_cards` against the completed doc, returned a DIFFERENT
-message (`"Player is not in a game"`) — the completed doc blocks `start_run`
-but doesn't count as active for `play_cards`, consistent with a genuinely
-separate, still-unknown action being the only way out. See QUESTIONS.md §10
-for the full response dumps and what capture would resolve it.
+**[RESOLVED 2026-08-16, session 17, live] The catch-resolution action is
+`loot`.** User-captured via DevTools, one real payload:
+
+```json
+{
+  "action": "loot",
+  "actionToken": "1786897508188",
+  "data": { "cards": [22], "nodeId": "", "focusPoint": [], "itemId": 0, "slotIndex": 0, "tierId": 0 }
+}
+```
+
+Same envelope shape as `play_cards`/`start_run`, only `data.cards` differs
+in what it addresses: **the chosen card's real id from `cardsToAdd[].id`**,
+NOT a hand-relative index (`22` is far too large to be a hand position — the
+hand is 3-5 cards; `play_cards`'s `cards: [i]` is unambiguously a small
+index by contrast). Verified end to end: `GET /fishing/state` afterward
+showed `fullDeck` grown 10 → 11 and the account no longer rejecting
+`start_run`. `doc.data.cardChosenId` (new field, `[CONFIRMED]`) is null/
+absent on an unresolved catch and set to the chosen id once `loot` lands —
+this, not `fullDeck` length or `COMPLETE_CID`/`SUCCESS_CID`, is the
+reliable "is this catch resolved" signal (the two-session-old guesses
+`select_card`/`claim` were both cleanly rejected by the server's own
+action whitelist — wrong names, informative rejections, not brute-forcing).
+`scripts/liveFishing.ts`'s `runOneCast` now sends this automatically the
+moment a catch's `cardsToAdd` offer needs resolving, via
+`chooseNewCard` (`src/strategy/fishing/cardChoice.ts`, argmax hit-power per
+mana — a placeholder heuristic, not sim-validated against full deck
+composition). See QUESTIONS.md §10 and DECISIONS.md 2026-08-16 (session 17)
+for the full history.
 
 ---
 

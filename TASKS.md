@@ -361,6 +361,16 @@ session 15 alone got a catch but also a trip. The honest summary is that the
 gate's four conditions were never all simultaneously true within one
 session, but every condition has now been demonstrated at least once.
 
+**[2026-08-16, session 17] The guard-trip's root cause is now CLOSED.**
+QUESTIONS.md §10's catch-resolution action is confirmed: `loot`, user-
+captured via DevTools, `data.cards: [<real card id from cardsToAdd>]`.
+`scripts/liveFishing.ts`'s `runOneCast` now sends it automatically the
+moment a catch needs resolving, so the bot's own future catches should no
+longer strand the account — untested end-to-end by the bot itself yet
+(account energy was too low, 2/420, to run a live cast this session after
+the fix landed). See SPEC-fishing.md's request-envelope section and
+DECISIONS.md 2026-08-16 (session 17).
+
 ---
 
 ### 10 — Orchestrator

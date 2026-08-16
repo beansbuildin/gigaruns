@@ -57,7 +57,7 @@ import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
-import { chooseCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
+import { chooseCard, chooseNewCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
 import {
   emptyFallback,
   initMatcher,
@@ -144,14 +144,14 @@ export const KNOWN_DOC_DATA_KEYS: ReadonlySet<string> = new Set([
   "lastMovePath",
   "activeFintuitionTurns",
   "activeCritBoostTurns",
-  // `caughtFish`/`cardsToAdd`/`cardChosenId` are DELIBERATELY NOT added
-  // here, even though session 17 now knows their rough meaning (a caught
-  // fish's metadata, the 3 spell-card options offered, and which one got
-  // picked — QUESTIONS.md §10). The actual action/endpoint that SETS
-  // `cardChosenId` is still unknown; the bot cannot perform that step
-  // itself yet. Keeping these flagged means the next time the bot's own
-  // play reaches a catch, it stays a loud, unmissable capture point
-  // instead of going quiet just because we now recognise the field names.
+  // `caughtFish`/`cardsToAdd`/`cardChosenId` — QUESTIONS.md §10, RESOLVED
+  // later this same session: `loot` (user-captured via DevTools) is the
+  // real action that sets `cardChosenId`, now sent automatically by
+  // `runOneCast` the moment a catch's `cardsToAdd` offer needs resolving
+  // (see below). Known now, not flagged.
+  "caughtFish",
+  "cardsToAdd",
+  "cardChosenId",
 ]);
 
 /** `data` handled separately via `KNOWN_DOC_DATA_KEYS` — see that constant's doc comment. */
@@ -208,7 +208,7 @@ export function focusBudget(doc: FishingGameDoc): FocusBudget {
 }
 
 export function buildFishingEnvelope(
-  action: "start_run" | "play_cards",
+  action: "start_run" | "play_cards" | "loot",
   actionToken: string,
   data: Partial<FishingActionRequest["data"]>,
 ): FishingActionRequest {
@@ -549,9 +549,36 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const outcome: CastOutcome = !doc.COMPLETE_CID ? "turn_cap" : doc.SUCCESS_CID ? "caught" : "escaped";
   log.write({ event: "cast_over", outcome, turns: turn, success: doc.SUCCESS_CID ?? null, complete: doc.COMPLETE_CID });
   console.log(`  ▸ cast over: ${outcome} after ${turn} turns${doc.SUCCESS_CID ? " — CAUGHT!" : ""}`);
-  if (doc.SUCCESS_CID) {
-    console.log(`  ★ first-ever live catch this session — full response fixture-written (rarity/reward shape was [VERIFY], SPEC-fishing.md §0/§7).`);
+
+  // Session 17, QUESTIONS.md §10 (CONFIRMED): a catch leaves `cardsToAdd`
+  // (3 new-card offers) unresolved until `loot` picks one by real card id
+  // — until then the account rejects every future `start_run` ("Player is
+  // already in a game"), the exact stuck state that blocked all of session
+  // 15/16's further fishing. Resolving it immediately here means the bot's
+  // OWN catches never leave the account stuck for a human to notice.
+  if (doc.SUCCESS_CID && doc.data.cardsToAdd && doc.data.cardsToAdd.length > 0 && doc.data.cardChosenId == null) {
+    const chosen = chooseNewCard(doc.data.cardsToAdd);
+    console.log(`  ★ caught! resolving cardsToAdd offer (${doc.data.cardsToAdd.map((c) => c.id).join(", ")}) -> chose id ${chosen.id}`);
+    const lootBody = buildFishingEnvelope("loot", client.getFishingActionToken(), { cards: [chosen.id] });
+    log.write({ event: "post", body: lootBody });
+    if (!dryRun) {
+      try {
+        const lootResp = await client.postFishingAction(lootBody);
+        guards.recordActionResult(true);
+        log.write({ event: "post_response", resp: lootResp });
+        fixtures.write(lootResp);
+        const resolvedDeck = lootResp.data.doc.data.fullDeck.length;
+        console.log(`  ✓ loot sent — fullDeck now ${resolvedDeck} card(s), cardChosenId ${lootResp.data.doc.data.cardChosenId ?? "still null?"}`);
+      } catch (e) {
+        if (e instanceof TokenExpiredError) throw e;
+        guards.recordActionResult(false);
+        log.write({ event: "action_failed", reason: "loot rejected", error: (e as Error).message });
+        console.log(`  ✗ loot rejected — account may be left in the stuck-until-resolved state; see QUESTIONS.md §10.`);
+        throw new GuardTrip("fishing loot rejected", { error: (e as Error).message });
+      }
+    }
   }
+
   return { outcome, turns: turn };
 }
 

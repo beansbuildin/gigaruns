@@ -422,7 +422,7 @@ Flagging it because the neighbouring evidence is suspicious — the API's own
 string. If `start_run` rejects `dungeonId: 5`, that naming is why. First real
 POST at Task 6 settles it. Do not "fix" it speculatively before then.
 
-## 10. Fishing catch-reward action name — UNKNOWN, blocks all further live casts [session 15]
+## 10. Fishing catch-reward action name — RESOLVED 2026-08-16, session 17: `loot`. See SPEC-fishing.md and DECISIONS.md for the full capture. [originally opened session 15]
 
 **[session 16] Re-checked read-only at the top of this session, still stuck,
 unchanged.** `GET /fishing/state` still shows the same completed doc

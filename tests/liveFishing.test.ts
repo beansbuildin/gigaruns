@@ -52,15 +52,15 @@ describe("unknownDocKeys", () => {
 
   it("flags an unmodelled top-level field", () => {
     const doc0 = cast[0]!.response.data.doc as unknown as Record<string, unknown>;
-    const withExtra = { ...doc0, cardsToAdd: [{ id: 23 }, { id: 14 }, { id: 7 }] };
-    expect(unknownDocKeys(withExtra)).toEqual(["cardsToAdd"]);
+    const withExtra = { ...doc0, someNewTopLevelField: true };
+    expect(unknownDocKeys(withExtra)).toEqual(["someNewTopLevelField"]);
   });
 
   it("flags an unmodelled data.* field, prefixed", () => {
     const doc0 = cast[0]!.response.data.doc as unknown as Record<string, unknown>;
     const data = doc0.data as Record<string, unknown>;
-    const withExtra = { ...doc0, data: { ...data, caughtFish: { itemId: 521, rarity: 2 } } };
-    expect(unknownDocKeys(withExtra)).toEqual(["data.caughtFish"]);
+    const withExtra = { ...doc0, data: { ...data, someNewMechanic: { amount: 5 } } };
+    expect(unknownDocKeys(withExtra)).toEqual(["data.someNewMechanic"]);
   });
 });
 
@@ -95,6 +95,15 @@ describe("buildFishingEnvelope", () => {
       action: "play_cards",
       actionToken: "1786764497517",
       data: { cards: [1], nodeId: "", focusPoint: [2, 2], itemId: 0, slotIndex: 0, tierId: 0 },
+    });
+  });
+
+  it("reproduces the real user-captured loot request shape — session 17, QUESTIONS.md §10", () => {
+    const body = buildFishingEnvelope("loot", "1786897508188", { cards: [22] });
+    expect(body).toEqual({
+      action: "loot",
+      actionToken: "1786897508188",
+      data: { cards: [22], nodeId: "", focusPoint: [], itemId: 0, slotIndex: 0, tierId: 0 },
     });
   });
 });

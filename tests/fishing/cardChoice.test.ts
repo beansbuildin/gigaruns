@@ -10,6 +10,7 @@ import { cellKey } from "../../src/sim/fishing/geometry.js";
 import {
   bestFocusForCard,
   chooseCard,
+  chooseNewCard,
   evaluateCardAtFocus,
   shouldRedraw,
   type Distribution,
@@ -204,6 +205,25 @@ describe("argmax EV, not argmax P_hit — session 15 [RE-DERIVED]", () => {
     const choice = chooseCard([safeButWeak, riskyButStrong], 5, d, 4, 1, /* fishHp */ 20);
     expect(choice?.card.id).toBe(2); // riskyButStrong — EV 4.8 beats safeButWeak's EV 1.7
     expect(choice?.pHit).toBeCloseTo(0.6); // lower P_hit than the rejected option, by design
+  });
+});
+
+describe("chooseNewCard — session 17, QUESTIONS.md §10", () => {
+  it("picks the offer with the highest hit-power per mana", () => {
+    const cheapWeak: FishingCardLike = { ...realCard79, id: 7, manaCost: 1, hitEffects: [{ amount: 3 }] };
+    const pricedStrong: FishingCardLike = { ...realCard79, id: 14, manaCost: 2, hitEffects: [{ amount: 8 }] }; // 4/mana
+    const pricedWeak: FishingCardLike = { ...realCard79, id: 23, manaCost: 3, hitEffects: [{ amount: 3 }] }; // 1/mana
+    expect(chooseNewCard([cheapWeak, pricedStrong, pricedWeak]).id).toBe(14);
+  });
+
+  it("uses critEffect when it beats hitEffect", () => {
+    const hitCard: FishingCardLike = { ...realCard79, id: 1, manaCost: 1, hitEffects: [{ amount: 5 }], critEffects: [{ amount: 5 }] };
+    const critCard: FishingCardLike = { ...realCard79, id: 2, manaCost: 1, hitEffects: [{ amount: 5 }], critEffects: [{ amount: 20 }] };
+    expect(chooseNewCard([hitCard, critCard]).id).toBe(2);
+  });
+
+  it("throws on an empty offer list rather than picking nothing", () => {
+    expect(() => chooseNewCard([])).toThrow(/no offers/);
   });
 });
 
