@@ -1,190 +1,138 @@
-# BRIEF — session 15
+# BRIEF — session 17
 
-Isolating the divergence into two causes and quantifying each — `focusMeter` at
-~30%, library mismatch as the dominant remainder, blind matcher at 7–10%
-consistent with live 0/6 at P≈55–65% — is the best diagnostic work in this
-project. The `matcherPool: []` split (what the true pattern is drawn from vs.
-what the matcher searches) is the move that made it possible.
+The stale-brief guard worked exactly as designed — you detected `next.md` was
+session 15's already-executed brief, didn't re-run it, didn't guess at what a
+session-16 brief would have said, and worked the next unblocked task with the
+reasoning stated. That's the protocol functioning. And Stage B was a better
+choice than the brief you didn't receive would have made.
 
-And "a brief that asked *does this one mechanic explain the gap* got *partly,
-and here's the bigger thing*" is exactly right. Don't let a brief's framing cap
-the answer.
+Three findings from it deserve calling out, then two corrections and the task.
 
 ---
 
-## 1. My `argmax P_hit` instruction was an overcorrection — fix it
+## 1. Three results that change the picture
 
-Session 13's brief told you to maximise hit probability with mana as a
-feasibility filter. Dropping the `/manaCost` divisor was right. Switching the
-objective to `P_hit` was not, and the user's screenshot shows why.
+**`use_item` costs no combat turn.** This resolves the question I flagged in
+session 11 as deciding the entire policy shape. It isn't a tempo trade — it's
+pure scarcity allocation. The only cost of healing early is overheal waste.
 
-**Cards differ in both damage and miss penalty.** Visible in hand: one card
-deals 2 on hit, two deal 5, and one shows a miss penalty of 3. Both numbers are
-per-card and printed on the card face.
+**The old `potionSweep.ts` modelled a heal as `hpMax += 20`** — a permanent stat
+boost, not a heal. That's the sweep whose `+1.26 rooms` figure I quoted back to
+the user in session 16 as the largest effect the project had measured. The
+conclusion survived (corrected: `+1.347`), but the number I cited came from a
+broken model, and you found it while building the replacement rather than
+inheriting it. Keep the old script marked as buggy so nobody re-quotes it.
 
-`argmax P_hit` discards both. It's indifferent between a 2-damage and a 5-damage
-card at equal hit chance, and it will take a marginally safer card over one worth
-2.5× as much progress.
+**`data.index` is a consumption counter, not an item ID.** `[131, 131]` needs
+`index: 0` then `index: 1`. Worth flagging in SPEC prominently — it's the kind
+of field that looks like an ID and silently isn't.
 
-The correct objective is **expected net progress in `fishHp` units**:
+## 2. Your threshold sweep stopped at its own optimum — extend it
 
-```
-EV(card, focus) = P_hit · card.damage − (1 − P_hit) · card.missPenalty
-```
+You swept `{0.2, 0.34, 0.5}` and 0.5 won at every loadout size. **0.5 is the
+highest value you tested**, so the sweep's best row sits on the boundary of the
+search space, and the true optimum may be outside it.
 
-That's what SPEC §5 originally said, minus the bad divisor. It naturally
-encodes "misses are the budget" — the penalty term is the miss cost, in the same
-units as the gain, so no separate weighting is needed.
+Your own explanation predicts this. If waiting risks a lethal exchange crossing
+the check point before the heal fires, *and* healing costs no turn, then the
+only argument against healing earlier is overheal waste. Against a 20 HP heal on
+a 36 HP pool, overheal only starts binding above roughly `1 − 20/36 ≈ 0.44`
+— which 0.5 already exceeds without losing.
 
-Keep `isManaConstrained` as the late-cast correction. Re-run the sim after the
-change in both library-known and blind configurations; the blind number is the
-one that should track live.
+Re-run at `{0.5, 0.6, 0.7, 0.8, 0.9}` × loadout `{1, 2, 3}`. Report the full
+curve, not just the winner, so the shape is visible. If the maximum lands on an
+interior point, that's the real optimum; if it lands at 0.9, extend again and
+say so.
 
-## 2. Four mechanics from the user's screenshot
+This is a free correction — pure sim, no energy, no materials.
 
-All from a live annotated client view. Treat as strong hypotheses, confirm
-against state fields.
+## 3. Q1 and Q3 are one question, and here's the break-even
 
-**Per-card miss penalty** — as §1. Confirm the field exists in the card schema;
-if the API exposes it, `chooseCard` should read it rather than using a constant.
+Q3 (default potions on?) reduces entirely to Q1 (does crafting draw from the
+240/day pool?), because stock is nearly gone — 3 Big Heal Juice against ~2
+consumed per run.
 
-**Spell rewards on catch.** After each successful catch you choose one of three
-new spells — structurally identical to dungeon boons. So the deck **grows within
-a session**, and card choice compounds. Nothing models this. It's also why the
-0-catch streak is worse than it looks: no catches means no deck growth, so the
-hand stays at its weakest all session.
+The math, so the craft probe returns a decision rather than a datum. Daily
+budget 240 energy ≈ 12 runs at 20 each, so both caps bind together and any
+energy spent crafting directly costs runs.
 
-**Rod equipment carries its own spell set.** A gear layer for fishing. Worth
-flagging because gear has been the single biggest lever found in this project —
-Sword ATK +4 beat every strategy intervention combined. Rod choice may dominate
-card policy the same way.
+- **No potions:** `12 × 2.130 = 25.6` rooms/day.
+- **3 potions/run**, crafting costing `X` energy per attempt at 70% success:
+  expected `X/0.7` per potion, so `20 + 4.29X` per run, and
+  `3.477 × 240/(20 + 4.29X)` rooms/day.
 
-**Fishing oils (potions).** A consumable layer, separate from dungeon potions,
-visible in the fishing UI. Unmodelled.
+Setting them equal gives **`X ≈ 2.9`**. So:
 
-Also confirming from the same image: mana ("Stamana") 6/6, cards cost 1 each,
-redraw costs 1 per card held (3 for a full hand), fish HP 18 max. The bobber
-starts centred and the meter reads 3/3, matching your live finding.
+- **Crafting costs no energy** → `12 × 3.477 = 41.7` rooms/day, a 63% gain.
+  Default potions on at 3 per run, immediately.
+- **Crafting costs under ~3 energy per attempt** → still net positive, scale
+  the loadout to the margin.
+- **Crafting costs more than ~3** → potions lose to simply running more.
+  Recommend spending the remaining free stock and then stopping.
 
-**One concrete consequence of the 3×3-stamp-on-4×4-grid geometry:** a card
-centred at a corner has most of its stamp clipped off-grid. There is no true
-centre on a 4×4, but the middle 2×2 cells maximise coverage. So focus placement
-has a *static* positional value independent of where the fish is — worth encoding
-directly, and cheap to verify in the sim.
+**Authorized: one craft attempt** with `GET /offchain/player/energy` immediately
+before and after. Materials are abundant (700–900 of each input) and a failed
+attempt answers the energy question just as well as a success. One attempt, then
+stop — don't build stock before the number is known.
 
-## 3. Q1: build the miner **and** collect casts — they don't compete
+Re-derive the break-even with the §2 sweep's corrected optimum before
+recommending, since a better threshold shifts the benefit side.
 
-You framed it as build-now-on-25-lines versus spend-budget-growing-the-log. Do
-both: the miner is offline work, the casts are live, and they run in parallel.
+## 4. Fishing — the user has to act, and I've asked again
 
-The order matters though. **Start casts first** — they're the long pole and the
-budget resets daily. The user reports **15 casts available today**; raise the
-fishing session cap in `config/bot.json` to use them. At ~5 transitions per cast
-that's ~75 new transitions against the current 25.
+Nothing here is an agent task. Two reasoned guesses were spent, both cleanly
+rejected, and the state is confirmed persistent rather than transient. Correct
+call not to guess a third time.
 
-Build `mineFishPatterns.ts` while they run, then mine the grown log at session
-end.
+The user has been asked twice. Framing it for them as two tiers this time:
 
-**On 25 lines being thin: your instinct is right and this project has a rule for
-it.** Enemy-63 and `ROLLED_STATS` were both confident reads off small samples,
-and the second was caught only because you applied a 30-observation floor to
-yourself. Apply the same discipline here — the miner should report candidate
-cycles **with their support counts**, and promote nothing to the pattern library
-below a stated threshold. A miner that outputs "no pattern is yet supported" on
-100 transitions is a correct miner.
+- **Minimum:** open Dendren in the browser and pick a card. That alone unblocks
+  the account, even with nothing captured.
+- **Better:** do it with DevTools → Network open and paste back the request
+  payload and URL.
 
-Feed whatever it finds back through `matcherPool` and report the sim rate. If the
-mined library moves the blind 7–10% figure upward, that's the first evidence the
-matcher can ever help live.
+If only the minimum happens, the account unblocks and the action name gets
+captured on the *next* catch instead — so build the live fishing loop to dump
+the full raw response on any terminal event it doesn't recognise. That turns the
+next catch into an automatic capture and removes the user from the loop
+permanently.
 
-## 4. Q2: potions are scarcer than the plan assumed
-
-The loadout-time consumption finding changes the economics, not just the
-mechanics. **A committed potion is spent whether or not it's used** — the probe
-burned a Big Heal Juice on a run that never called `use_item`.
-
-The user holds 7 Big and 7 Mid. Committing 3 per run at 12 runs/day exhausts
-that in under two days. So before any timing policy is worth building:
-
-- **Are potions purchasable or drop-only, and at what cost?** Check
-  `/offchain/static` and the vendor/market endpoints. If a +20 HP heal costs
-  more than the marginal loot from the rooms it buys, the policy is *don't
-  commit potions*, and that's a legitimate answer.
-- **Commit-time consumption means partial loadouts matter.** Committing 1 potion
-  costs 1. There's no reason to commit 3 by default.
-
-So Stage B's real first question is economic, not tactical. Answer it before
-modelling turn-cost and multi-use. If potions are cheaply farmable, proceed; if
-not, the honest recommendation to the user may be to save them.
-
-Don't spend dungeon runs on `use_item` timing this session — fishing has the
-larger unexplored surface and the budget is better spent there.
-
-## 5. Q3: yes, build `--status`
-
-Trivial and it pays for itself. Have it print remaining dungeon runs, dungeon
-energy, fishing casts, and fishing energy against the date-keyed guards, without
-needing a dry run. Call it at the top of every live session.
+Do that regardless of whether they act this session.
 
 ---
 
 ## Your task
 
-1. **`--status` first** (§5), so the session plans against real budget.
-2. **Start live fishing casts early** (§3) — raise the cap, use the day's
-   allowance, log every transition.
-3. **Fix `chooseCard`'s objective** to net `fishHp` EV (§1), re-run the sim in
-   both library-known and blind modes, report both.
-4. **Build `mineFishPatterns.ts`** (§3) with support counts and a promotion
-   threshold. Mine at session end against the grown log.
-5. **Potion economics** (§4) — purchasable or not, and at what cost. Read-only.
-6. Record §2's four mechanics in `SPEC-fishing.md` as `[VERIFY]` with the
-   screenshot as source, and confirm what you can against live state.
+1. **Extended threshold sweep**, per §2. First — it's free and it feeds §3.
+2. **One craft attempt with before/after energy**, per §3. Authorized.
+3. **Break-even recommendation**: default potions on or off, at what loadout,
+   with the numbers.
+4. **Unknown-terminal-event raw dump** in the fishing loop, per §4.
+5. If the user unblocks fishing: spend the day's casts. `perimeterWalk(cw)` is
+   still one confirming cast from promotion, and it remains the only evidence
+   the matcher can ever help.
 
-If the mined library still can't lift the blind sim rate, say so plainly. That
-would mean Dendren's movement isn't drawn from a small deterministic set at all,
-and the identification framing — mine, from SPEC §5, since session 01 — is simply
-wrong for this fish.
+Note the death histogram is now 15 deaths at `0/4/5/6` — still no room-1 death,
+still even. Task 11 stays parked; its revival condition was the histogram
+changing shape, and it hasn't.
 
-Addendum — potions are CRAFTABLE (revises §4):
+Addendum — fishing account UNBLOCKED by the user:
 
-USER-CONFIRMED: the user can craft potions. They are not a fixed
-stock, so "save them" is no longer the likely answer and the timing
-policy is worth building.
+The user opened the client and found a "COLLECT" screen for the most
+recent catch, clicked collect, then selected a spell card. The account
+is no longer stuck. Verify with scripts/checkFishingStuck.ts at session
+start -- expect a clean state and fullDeck length 11 (was 10, +1 for
+the card selected).
 
-But renewable is not free. §4's question changes from "can we get
-more" to "what does one cost, in inputs, versus what it buys."
+Note the sequence: COLLECT is a SEPARATE step before card selection.
+The stuck state was between those two, which is why select_card and
+claim were both rejected -- the collect step hadn't happened yet.
+Record in SPEC-fishing.md as the catch resolution flow.
 
-Find, read-only:
-  - The crafting recipe for Big/Mid Heal Juice -- exact input items
-    and quantities. Try /offchain/static first (it carries gameItems
-    with descriptions); the fishing bench in the client is the crafting
-    UI, so the HAR at fixtures/fishing-cast.har may contain the
-    endpoint if it was open during capture.
-  - Where those inputs come from: fishing catches, dungeon loot,
-    purchase, or a mix. This matters more than the raw number.
-  - Whether crafting itself costs energy or has a daily cap. If it
-    draws from the same 240/day pool, potions compete directly with
-    the runs they are meant to improve, and that changes everything.
+No request was captured, so the action names are still unknown. The
+§4 unknown-terminal-event raw dump is now MORE important, not less --
+it is the only remaining path to capturing them, and it fires on the
+next catch. Build it before spending casts.
 
-Then compute the trade, both sides in the same units:
-  - COST: inputs per potion, expressed in whatever produces them
-    (casts, runs, or energy).
-  - BENEFIT: run the sim with 1, 2, and 3 potions committed vs zero,
-    and report mean rooms cleared for each. This reuses the gear-sweep
-    harness -- same shape of question, same method. Note the sim
-    cannot yet model use_item timing, so treat these as an upper bound
-    (perfectly-timed heals) and say so.
-
-Report the break-even: how much loot must a room yield for a
-committed potion to pay for itself. That number, not the heal amount,
-decides whether to commit 0, 1, 2, or 3.
-
-IF THE INPUTS COME FROM FISHING: say so prominently. It would mean
-the two halves of this project are one economy -- fishing feeds
-crafting feeds dungeon depth -- and the orchestrator's loop priority
-in SPEC §6 (currently "dungeon first, it caps at 10/day") would need
-re-deriving from that, not from run caps.
-
-Still read-only this session. Do not craft anything -- CLAUDE.md's
-ask-first list covers spending the user's materials.
+Fishing casts are now unblocked. §5 applies: perimeterWalk(cw) is one
+confirming cast from promotion.
