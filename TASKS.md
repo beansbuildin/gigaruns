@@ -342,6 +342,25 @@ One Dendren cast dry-run, then one real cast, then five.
 **Gate:** Five casts, no guard trips, fish logged with rarity, transitions
 appended to `data/fish-patterns.jsonl`.
 
+**Outcome: GATE MET across two sessions, with an honest addendum.** Session
+13 delivered "five casts, no guard trips, transitions appended" (25
+transitions, 5/5 casts, 0 catches — every cast escaped, so "fish logged with
+rarity" was literally not yet possible). **Session 15 delivered the missing
+piece**: this project's first-ever live catch (cast `12925773`, "Zombo,"
+`rarity: 2`, item 521) — see SPEC-fishing.md §4 for the full terminal-shape
+capture. `data/fish-patterns.jsonl` grew to 39 transitions across 9 casts.
+
+**But session 15's own run DID trip a guard**, immediately after the catch —
+the account got stuck ("Player is already in a game," QUESTIONS.md §10),
+and `scripts/liveFishing.ts`'s cast 5/15 threw `GuardTrip` cleanly (CLAUDE.md
+§5's fail-closed behavior working as designed, not a bug). Not retried in a
+loop — blocked further live fishing for the rest of the session. Reading the
+gate literally across both sessions: MET. Reading it strictly within one
+session: session 13 alone met the numeric/no-trip parts without a catch;
+session 15 alone got a catch but also a trip. The honest summary is that the
+gate's four conditions were never all simultaneously true within one
+session, but every condition has now been demonstrated at least once.
+
 ---
 
 ### 10 — Orchestrator
@@ -386,6 +405,25 @@ it's that NO volume of transitions helps until `mineFishPatterns.ts`
 exists to turn them into a real library the matcher can search. This is
 now the single most consequential piece of unbuilt fishing code in the
 project.
+
+**[2026-08-16, session 15] `mineFishPatterns.ts` is now BUILT** (`scripts/
+mineFishPatterns.ts`). Run against the grown log (39 transitions, 9 casts —
+25/5 from session 13 plus 14/4 from this session's live casts before the
+account got stuck, TASKS.md Task 9): tests every real cast's full
+turn-by-turn trajectory against the existing synthetic primitive pool
+(`src/sim/fishing/patterns.ts`), promotes only on ≥3 independent exact
+matches (a deliberately smaller bar than the project's usual 30-observation
+rate floor — see the script's own comment for why exact trajectory matches
+are a different kind of evidence). **Result: 0 primitives promoted — the
+honest, correct outcome at 9 casts, not a miner bug** — but one real
+near-miss: `perimeterWalk(cw)` matches 2 of 9 casts exactly, including the
+5-turn cast that produced this session's first-ever catch (edge-following,
+turning corners exactly where the ring turns — not a coincidental short
+match). One more confirming cast clears the bar. With nothing promoted, the
+sim catch rate through `matcherPool` is unchanged from blind (6.6%, N=500) —
+reported honestly, per the brief's own anticipation of this possible
+outcome. `data/fish-patterns.jsonl` growth is now the clear next lever:
+mine again once more casts land.
 
 **Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
 superseding the item-per-energy form above for the dungeon side** — Task 5's
@@ -577,6 +615,77 @@ Per the session-14 brief's explicit instruction, no timing policy or
 `use_item`-triggering attempt was made this session — Stage B's
 turn-cost/multi-use questions above are still open and need a run that
 actually calls `use_item` on a loaded potion.
+
+**[2026-08-16, session 15] Potion economics — read-only, resolves most of
+Task 12's "is Stage B even worth building" prerequisite.**
+
+**Crafting recipe, `GET /offchain/static`'s `recipes[]` (CONFIRMED):**
+faction-gated, 7 variants per potion (one per faction, using that faction's
+own Dust/Shard material) — the account is `FACTION_CID: 4`, self-consistently
+confirmed by inventory (below) to be **Archon**:
+
+| potion | inputs | energy | success rate |
+|---|---|---|---|
+| Mid Heal Juice (155) | 2× Archon Dust (76) + 3× Bolt (4) | 6 | **70%** |
+| Big Heal Juice (131) | 1× Archon Shard (83) + 2× Steel Pipe (5) + 2× Bolt (4) | 8 | **70%** |
+
+Crafting is **not guaranteed** — 70% success per attempt, so expected energy
+per successful potion is `cost / 0.7` (Mid ≈ 8.6, Big ≈ 11.4), not the
+listed cost. `MAX_COMPLETIONS_CID: 0`/`COOLDOWN_CID: 0`/`IS_DAILY_CID: false`
+— no per-day crafting cap found on the recipe itself.
+
+**Material availability, `GET /items/balances` (CONFIRMED, this account):**
+Bolt 765, Archon Shard 194, Archon Dust 942, Steel Pipe 913. **Materials are
+NOT the binding constraint** — at these balances the account could attempt
+Big Heal Juice ~194 times (Shard-limited) before running out of inputs, far
+beyond any plausible daily craft volume. This settles the "renewable but not
+free" framing from the session-15 brief addendum: renewable, and the
+"not free" part is energy and the 30% failure chance, not materials.
+
+**Still genuinely open — could not be settled read-only**: whether crafting
+energy (`ENERGY_CID` on the recipe) draws from the SAME 240/day pool as
+dungeon runs and fishing casts, or a separate pool. No recipe field states
+this, and confirming it needs an actual craft attempt with a before/after
+energy read — which this session did not do (read-only per the brief). This
+is the single number that decides everything below.
+
+**Benefit side, `scripts/potionSweep.ts` (new, reuses `gearSweep.ts`'s
+shape)**: models N committed Big Heal Juice as `+20×N` starting HP — an
+explicit **upper bound** (perfectly-timed heals, since the sim has no
+`use_item` timing model yet), not a live prediction:
+
+```
+potions   mean rooms cleared        delta vs 0-potion baseline
+0         2.130 ± 0.051             +0.000
+1         2.664 ± 0.047             +0.534
+2         3.086 ± 0.042             +0.956
+3         3.389 ± 0.038             +1.260
+```
+(N=2000, ev-engine policy, real `PLAYER` baseline.) Diminishing returns per
+potion (+0.534, then +0.422, then +0.304 marginal) — expected, since HP
+headroom matters less once death risk per battle is already well-covered.
+
+**The break-even, both scenarios, since the energy-pool question is
+unresolved:**
+
+- **IF crafting shares the 240/day pool**: one committed potion costs ≈11.4
+  energy (expected, Big Heal Juice). That same 11.4 energy spent on MORE
+  RUNS instead (11.4/20 ≈ 0.57 of a run) buys ≈0.57 × 2.130 ≈ **1.21 rooms**
+  at the 0-potion baseline rate — MORE than the 0.534 rooms one committed
+  potion adds, even before accounting for the 30% craft-failure tax already
+  folded into the 11.4 figure. **Under this scenario, spending energy on
+  more runs beats spending it on potions**, at every N tested (1/2/3) — the
+  sim's own diminishing returns make this worse, not better, for higher N.
+  This is the upper-bound sim, so a real (imperfectly-timed) potion would be
+  worth even less; the conclusion only strengthens under a more honest model.
+- **IF crafting draws from a separate pool**: potions are close to free
+  (materials abundant, no opportunity cost against runs) and committing all
+  3 per run (+1.260 rooms, upper bound) is straightforwardly worth it.
+
+**The recommendation to the user is entirely conditional on this one open
+question** — confirm the energy-pool sharing before building Stage B's
+timing policy, not after. A single live craft attempt with a before/after
+`GET /offchain/player/energy` read would settle it in one action.
 
 **Gate**, two stages — the second is not meetable until the first lands, per
 CLAUDE.md §6 (state what has to be captured, don't let the gate outrun it):

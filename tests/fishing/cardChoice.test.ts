@@ -159,6 +159,54 @@ describe("FocusBudget — session 13, live [CONFIRMED]", () => {
   });
 });
 
+describe("argmax EV, not argmax P_hit — session 15 [RE-DERIVED]", () => {
+  // Session 13's `argmax P_hit` was an overcorrection (SPEC.md §5): it's
+  // blind to damage/miss-penalty differences between cards. Card A is wide
+  // (2 hit zones) and safe but weak (P_hit 0.9, hitEffect 2, missEffect 1):
+  // EV = 0.9*2 - 1*0.1 = 1.7. Card B is narrow (1 hit zone) but strong
+  // (P_hit 0.6, hitEffect 10, missEffect 3): EV = 0.6*10 - 3*0.4 = 4.8.
+  // Old P_hit-argmax picks A (0.9 > 0.6); correct EV-argmax picks B (4.8 > 1.7).
+  const safeButWeak: FishingCardLike = {
+    id: 1,
+    manaCost: 1,
+    hitZones: [5, 2], // (0,0) and (0,-1) relative to focus
+    critZones: [],
+    hitEffects: [{ amount: 2 }],
+    missEffects: [{ amount: -1 }],
+    critEffects: [],
+  };
+  const riskyButStrong: FishingCardLike = {
+    id: 2,
+    manaCost: 1,
+    hitZones: [5],
+    critZones: [],
+    hitEffects: [{ amount: 10 }],
+    missEffects: [{ amount: -3 }],
+    critEffects: [],
+  };
+  const d = dist([
+    [{ x: 2, y: 2 }, 0.6],
+    [{ x: 2, y: 1 }, 0.3],
+    [{ x: 1, y: 1 }, 0.1],
+  ]);
+
+  it("bestFocusForCard finds each card's own EV-maximizing focus, not P_hit-maximizing", () => {
+    const bestA = bestFocusForCard(safeButWeak, 0, d, 4, 1, 20);
+    expect(bestA.pHit).toBeCloseTo(0.9);
+    expect(bestA.ev).toBeCloseTo(1.7);
+
+    const bestB = bestFocusForCard(riskyButStrong, 1, d, 4, 1, 20);
+    expect(bestB.pHit).toBeCloseTo(0.6);
+    expect(bestB.ev).toBeCloseTo(4.8);
+  });
+
+  it("chooseCard picks the higher-EV card even though it has lower P_hit", () => {
+    const choice = chooseCard([safeButWeak, riskyButStrong], 5, d, 4, 1, /* fishHp */ 20);
+    expect(choice?.card.id).toBe(2); // riskyButStrong — EV 4.8 beats safeButWeak's EV 1.7
+    expect(choice?.pHit).toBeCloseTo(0.6); // lower P_hit than the rejected option, by design
+  });
+});
+
 describe("shouldRedraw", () => {
   // [session 13] Reads `best.ev`, not `.evPerMana` — SPEC.md §5 always said
   // raw EV; the old evPerMana read was a real bug, not a rename (see

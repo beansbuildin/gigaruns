@@ -106,12 +106,20 @@ function isLethal(card: FishingCardLike, pHit: number, pCrit: number, fishHp: nu
 }
 
 /**
- * argmax `P_hit` (`pHit + pCrit`) over every focus placement the grid
- * allows, for one card — accuracy, not efficiency, is what a focus
- * placement controls (SPEC.md §5, re-derived session 13: mana is a
- * per-card feasibility filter, not a per-focus one, so it plays no part
- * here). `ev` is the tie-break when two placements land the same hit
- * probability (e.g. a crit-heavy vs. plain-hit split of the same cells).
+ * **[RE-DERIVED 2026-08-16, session 15]** argmax raw `EV(card, f)` over
+ * every focus placement the grid allows, for one card. Session 13's
+ * argmax-`P_hit` primary objective is an OVERCORRECTION, not just a fix to
+ * the `/manaCost` divisor — the session-15 brief's own screenshot evidence:
+ * cards differ in both damage (2 vs. 5 in the observed hand) and miss
+ * penalty (3), and `argmax P_hit` is blind to both, indifferent between a
+ * 2-damage and a 5-damage card at equal hit chance. `ev` (already computed
+ * below as `P_hit·hitEffect + P_crit·critEffect − missPenalty·(1−P_hit)`,
+ * i.e. expected net progress in `fishHp` units) already encodes exactly what
+ * SPEC.md §5 originally specified before the session-13 correction went
+ * further than the bug required — the mana divisor was the defect, not the
+ * EV-vs-P_hit choice. `pHit`/`pCrit` are still computed and carried for
+ * `isLethal`/the mana-constrained fallback below, just no longer the primary
+ * sort key.
  */
 export function bestFocusForCard(
   card: FishingCardLike,
@@ -146,9 +154,7 @@ export function bestFocusForCard(
       continue;
     }
     if (!candidate.lethal && best.lethal) continue;
-    const candAnyHit = candidate.pHit + candidate.pCrit;
-    const bestAnyHit = best.pHit + best.pCrit;
-    if (candAnyHit > bestAnyHit || (candAnyHit === bestAnyHit && candidate.ev > best.ev)) {
+    if (candidate.ev > best.ev) {
       best = candidate;
     }
   }
@@ -178,17 +184,20 @@ function isManaConstrained(hand: readonly FishingCardLike[], mana: number, fishH
 /**
  * Choose the best (card, focus) among affordable cards.
  *
- * **[RE-DERIVED session 13]** Lethal overrides everything else — SPEC.md
- * §5's "lethal check first". Otherwise the primary objective is **argmax
- * hit probability** (`pHit + pCrit`, `ev` as tie-break): the real cast that
- * grounds this design escaped with half its mana unspent, because the MISS
- * counter capped it, not mana — dividing by mana cost optimises against a
- * constraint that mostly isn't binding, and systematically prefers cheap
- * low-probability cards over expensive reliable ones, exactly backwards
- * when every miss is a step toward losing the cast. `argmax EV/mana` is
- * kept only as the late-cast correction, gated by `isManaConstrained`: once
- * mana genuinely can't cover finishing the fish even under optimistic play,
- * efficiency starts mattering again.
+ * **[RE-DERIVED 2026-08-16, session 15]** Lethal overrides everything else —
+ * SPEC.md §5's "lethal check first". Otherwise the primary objective is
+ * **argmax raw `EV(card, f)`** — expected net progress in `fishHp` units,
+ * `P_hit·damage − (1−P_hit)·missPenalty`, using each card's own real
+ * `hitEffects[0].amount`/`missEffects[0].amount` rather than a global
+ * constant. Session 13's `argmax P_hit` was itself an overcorrection to the
+ * real session-13 bug (dividing by `manaCost`): switching the objective
+ * away from EV entirely threw out card damage/miss-penalty information that
+ * `argmax P_hit` cannot see, and per the session-15 brief's screenshot
+ * evidence, real cards vary 2.5x in damage and vary in miss penalty too —
+ * `argmax P_hit` is indifferent between them at equal hit chance, which is
+ * exactly wrong. `argmax EV/mana` is kept only as the late-cast correction,
+ * gated by `isManaConstrained`: once mana genuinely can't cover finishing
+ * the fish even under optimistic play, efficiency starts mattering again.
  */
 export function chooseCard(
   hand: readonly FishingCardLike[],
@@ -211,11 +220,7 @@ export function chooseCard(
   if (isManaConstrained(hand, mana, fishHp)) {
     return options.reduce((best, o) => (o.evPerMana > best.evPerMana ? o : best));
   }
-  return options.reduce((best, o) => {
-    const oAnyHit = o.pHit + o.pCrit;
-    const bestAnyHit = best.pHit + best.pCrit;
-    return oAnyHit > bestAnyHit || (oAnyHit === bestAnyHit && o.ev > best.ev) ? o : best;
-  });
+  return options.reduce((best, o) => (o.ev > best.ev ? o : best));
 }
 
 /**

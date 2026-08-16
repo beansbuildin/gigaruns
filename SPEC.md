@@ -1387,6 +1387,55 @@ confirming the divisor (and the redraw-threshold bug it exposed) was
 costing the large majority of the matcher's real edge, not a marginal
 amount.
 
+**[RE-DERIVED 2026-08-16, session 15]** Session 13's `argmax P_hit` fix
+above was itself an overcorrection, not just a fix. The real bug was
+dividing EV by `manaCost` — that part of the session-13 diagnosis holds.
+But switching the objective away from EV *entirely*, to plain hit
+probability, went further than the bug required: it discards `P_crit`
+either as-is or with it built in fine, but it discards **both cards' own
+damage and miss-penalty amounts** in the process. Cards genuinely differ on
+both — a live hand this session showed a 2-damage card, two 5-damage cards,
+and a card with a printed miss penalty of 3, all real per-card fields
+(`hitEffects[0].amount`/`missEffects[0].amount`). `argmax P_hit` is
+indifferent between the 2-damage and 5-damage card at equal hit chance, and
+will pick a marginally safer card over one worth 2.5× the progress — an
+error in the opposite direction from session 13's, but still an error.
+
+Corrected back to **argmax raw `EV(card, f)`** (no mana divisor — that part
+of session 13's fix stays) as the *primary* objective, i.e. expected net
+progress in `fishHp` units:
+
+```
+EV(card, focus) = P_hit(card,f)·hitEffect + P_crit(card,f)·critEffect
+                 − missPenalty·(1 − P_hit(card,f) − P_crit(card,f))
+```
+
+This is exactly the `ev` `evaluateCardAtFocus` already computed all along
+(session 12's original formula, unchanged) — the fix is entirely in
+`bestFocusForCard`/`chooseCard`'s SELECTION step, which stopped sorting by
+it in session 13. Both cards' own real damage and miss-penalty numbers were
+never thrown away by the formula, only by what was compared. `isManaConstrained`
+and its late-cast `EV/mana` fallback are unchanged — mana stays a
+feasibility filter, escalating to a denominator only when it's genuinely
+about to bind. `src/strategy/fishing/cardChoice.ts`'s `bestFocusForCard`/
+`chooseCard` updated accordingly; see `scripts/fishFocusMeter.ts`'s re-run
+for the sim-rate consequence in both library-known and blind
+(`matcherPool: []`) configurations.
+
+**Re-run result [2026-08-16, session 15]:** library-known 72.8% (364/500) /
+70.0% (2099/3000, independent seed) — barely moved from session 14's
+71.6%/69.9% (`P_hit`-argmax). Library-blind 6.6% (33/500) / 10.4%
+(311/3000) — also barely moved from 7.0%/10.3%. **The objective correction
+is real (SPEC §5's derivation, not just the sim number) but doesn't show up
+much in this aggregate**, because on most turns the top-`P_hit` card and the
+top-EV card already coincide — the two objectives only diverge on the turns
+where cards differ in both hit chance AND damage/penalty at once, which
+apparently isn't most turns in this synthetic corpus. The fix is kept
+because it is the theoretically correct objective per §1's derivation
+(indifference between a 2-damage and 5-damage card at equal `P_hit` is a
+real defect regardless of how often it bites in aggregate), not because the
+sim moved.
+
 Two overrides, unchanged in spirit from the original design:
 
 - **Lethal check first.** If some `(card, f)` can drive `fishHp` to ≤ 0 this
@@ -1504,6 +1553,25 @@ is currently the ONLY policy in effect, live, right now. Task 11's
 `mineFishPatterns.ts` (still unbuilt — `data/fish-patterns.jsonl` has 25
 transitions from 5 casts, session 13) is what would move this project off
 that default for the first time.
+
+**[session 15] `mineFishPatterns.ts` is now BUILT** (`scripts/
+mineFishPatterns.ts`) and run against the grown log (39 transitions, 9
+casts, after this session's live fishing). It tests every observed cast's
+full turn-by-turn trajectory against the existing synthetic primitive pool
+(`src/sim/fishing/patterns.ts`) anchored at that cast's own start cell, and
+promotes a primitive only once ≥3 independent casts match it exactly (a
+smaller bar than the project's usual ~30-observation floor, deliberately —
+see the script's own comment for why an exact multi-turn trajectory match is
+a different, stronger kind of evidence than a noisy rate). **Result: 0
+primitives promoted, correctly** — not enough real casts yet — but one
+genuine near-miss worth flagging: `perimeterWalk(cw)` matches **2 of 9**
+real casts exactly, including this session's 5-turn catch cast
+(`12925773`: `[3,4]→[2,4]→[1,4]→[1,3]→[1,2]→[1,1]`, walking the bottom edge
+then turning up the left edge exactly where the ring turns — not a short,
+easily-coincidental match). One more independent confirming cast clears the
+promotion bar. With 0 promoted, `matcherPool` stays empty and the sim catch
+rate is unchanged from blind (6.6%, N=500) — reported, not asserted as a
+final answer; see the script's own output.
 
 ### A standing rule: sim authority is earned per domain, never inherited
 

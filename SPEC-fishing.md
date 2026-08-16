@@ -161,10 +161,101 @@ Observed types, one array per response, describing what happened that turn:
 | `FISH_HP_DIFF` | every turn | `value`: the effect amount applied this turn (`hitEffects[0].amount`, positive, on a hit; `missEffects[0].amount`, negative, on a miss) — **[CORRECTED]** applied as `fishHp -= value`, not `fishHp += value`: a hit's positive value *subtracts* (meter falls toward 0, the catch condition), a miss's negative value *subtracts a negative* (meter rises toward `fishMaxHp`, the escape condition). Verified turn-by-turn against the real cast's own `fishHp` field: `13→16→19→14→17→20`, exactly matching `old − value` at every step. `data.result`: meter after. |
 | `NEW_HAND` | when the hand is played down to empty | `value`: the new hand array (**[CORRECTED]** not "when the hand changes" generally — in the real cast this fired exactly once, the turn the hand reached 0 cards, not on every card played; the hand refills to its starting size from `fullDeck` via `nextCardIndex` on empty, not per turn and not tied to hit/miss) |
 | `FISH_ESCAPED` | cast-ending escape | no payload. **[CORRECTED]** fires when `fishHp` reaches `fishMaxHp` (confirmed: the real cast escaped at `fishHp 20/20`, `playerHp` still 5/10) — not when mana reaches zero, which `SPEC.md §5` wrongly claimed before this session; see `SPEC.md §5`'s own correction. |
+| `FISH_DIED` | cast-ending catch — **[CONFIRMED 2026-08-16, session 15, live]**, resolves the row below | fires the turn `fishHp` reaches 0. `value`: the caught fish's `gameItemId`. `data.fish`: the full `caughtFish` object (see below) duplicated. **NOT** `FISH_CAUGHT` as the naming-symmetry guess below assumed — corrected now that a catch has actually been observed. |
 
-**Not observed, so [VERIFY]:** a catch-ending event (presumably
-`FISH_CAUGHT` or similar, by naming symmetry with `FISH_ESCAPED` — do not
-hardcode this name without a captured catch).
+**[RESOLVED 2026-08-16, session 15, live] A catch's terminal shape**, this
+project's first-ever live catch (cast `12925773`, fish "Zombo," item 521,
+`rarity: 2`, `fixtures/fishing-casts/live/cast-2026-08-16-01-57-01/`):
+
+- `doc.data.caughtFish`: `{gameItemId, name, moveDistances, rarity, size,
+  sizes:{weight,length,girth}, quality, plusOneRarity, plusOneQuality,
+  doubled, amountToCatch, findexResult:{newFish,newLength,newGirth,newWeight,
+  newQuality,totalCaught}, seaweedEarned, xpItemId}`.
+- `doc.data.cardsToAdd`: an array of **3 full card objects** (ids 23, 14, 7 in
+  this capture) — the first live confirmation of the session-15 brief's
+  screenshot hypothesis ("choose one of three new spells on catch"). **Not
+  yet resolved which/how many actually get added** — see the blocker below.
+- `response.data.gameItemBalanceChanges`: fires immediately, same response —
+  `[{id:521 (the fish), amount:1}, {id:845 ("Hard Core"), amount:320}]`. Loot
+  is credited synchronously with the catch; it is NOT gated behind whatever
+  blocks the account below.
+
+**[BLOCKER, still open — QUESTIONS.md §10] The account is stuck after a catch
+and no further casts could be started this session.** Every `start_run`
+after the catch returns `HTTP 400 "Player is already in a game"`, while
+`GET /fishing/state` shows the completed doc (`COMPLETE_CID`/`SUCCESS_CID`
+both `true`) with `fullDeck`/`deckCardData` UNCHANGED — the 3 `cardsToAdd`
+cards are not merged in. Two reasoned action-name guesses on the same
+confirmed `/fishing/action` endpoint (`select_card`, `claim`) both got a
+clean `HTTP 400 "Invalid action: <name>"` from the server's own whitelist —
+wrong names, not evidence either way about the real one. A third probe,
+resending `play_cards` against the completed doc, returned a DIFFERENT
+message (`"Player is not in a game"`) — the completed doc blocks `start_run`
+but doesn't count as active for `play_cards`, consistent with a genuinely
+separate, still-unknown action being the only way out. See QUESTIONS.md §10
+for the full response dumps and what capture would resolve it.
+
+---
+
+## 4a. Fishing oils — a full consumable layer, confirmed via `GET
+/offchain/static` [2026-08-16, session 15]
+
+Session-15 brief §2 flagged "fishing oils" from a live screenshot as
+unmodelled. `gameItems[]` (same source as the heal-potion table in §5)
+carries a complete, structured effect table for every oil, `triggerType:
+"OnUseFishing"`, three tiers each (Lil/Mid/Big):
+
+| effect | type | Lil / Mid / Big amount |
+|---|---|---|
+| draw extra cards | `FishingDrawCards` | 1 / 2 / 3 |
+| direct fish damage | `FishingDamageFish` | 1 / 2 / 3 |
+| restore mana (`playerHp`) | `FishingRestoreMana` | 1 / 2 / 3 |
+| boost Fintuition chance | `FishingFintuitionBoost` | 3 / 6 / 10 |
+| boost crit chance | `FishingCritBoost` | 1 / 2 / 3 |
+| **restore `focusMeter`** | `FishingRestoreFocus` | 1 / 2 / 3 |
+| boost Dual Yield chance | `FishingDualYieldBoost` | 20 (Lil) / 40 (Mid) / 60 (Big), no Big listed as of this capture |
+
+**`FishingRestoreFocus` directly answers part of DECISIONS.md 2026-08-15
+(session 13)'s open `focusMeter` regeneration question**: the meter does NOT
+regenerate on its own within a cast (still true, unchanged), but a Focus Oil
+is the mechanism to restore it mid-cast on purpose — not a bug or an
+unmodelled passive regen, a consumable choice.
+
+Corroborating live fields already present in every captured board state but
+previously unexplained: `fintuitionOilBoostPercent`, `dualYieldOilBoostPercent`
+(both 0 in every capture so far — no oil equipped), `consumablesUsed: 0`,
+`fishingConsumableSlotUsed: [false,false,false]` — **three consumable slots**,
+matching the dungeon side's 3-potion loadout cap (DECISIONS.md 2026-08-15,
+session 11) structurally, though not confirmed to be the same number for the
+same reason. `itemId`/`slotIndex` on the `play_cards`/`start_run` envelope
+(SPEC-fishing.md §2, previously "[VERIFY], community guesses consumable
+slot") are now very likely this — not independently confirmed by a captured
+oil-use request, but the field names and the 3-slot shape line up exactly.
+
+**Not modelled in the sim or the live loop** — this is a capture finding
+only, per this session's read-only-except-fishing-casts scope. `Rod`
+equipment (checked the same session, see below) does NOT carry oil slots or
+effects in `GET /gear/items`; oils are a separate consumable layer, matching
+the brief's framing.
+
+## 4b. Rod equipment — checked, found no encoded spell-set effect
+[2026-08-16, session 15]
+
+SPEC.md §5 has carried "Rods grant a starting spell set" as **[INFERRED,
+corroborated by capture]** since session 11. This session checked it directly
+against `GET /gear/items` (public, no auth) for all 8 rod entries
+(`GEAR_TYPE_CID: 9`, including "Dendren Rod" id 923 and the account's
+currently-equipped "Makeshift Rod" id 922, per `GEAR_CID_array` on the live
+fishing doc) — every rod's `itemEffects[].effects[].effects` array is
+**empty** at every one of its 4 durability tiers, `triggerType:
+"OnStartFishing"` with no listed effect. Whatever a rod's starting-spell-set
+effect is (if it's real), it is not encoded in this endpoint's `itemEffects`
+the way dungeon gear's stat bonuses are (§4a's oils and CLAUDE.md §1
+comparison: dungeon head gear like id 12 carries real
+`IncreaseDamage_Shield` effects in the identical field shape). **Stays
+[VERIFY]** — checked and found nothing, not narrowed to "no effect," same
+epistemic status as session 08's `intuition` rare-field check
+(DECISIONS.md 2026-08-14).
 
 ---
 

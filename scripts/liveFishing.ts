@@ -56,7 +56,7 @@ import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js
 import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from "../src/api/fishing.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
-import { loadGuardBudget, saveGuardBudget } from "../src/orchestrator/guardPersistence.js";
+import { loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { chooseCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
 import {
   emptyFallback,
@@ -423,9 +423,28 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
 
 function parseArgs(argv: string[]) {
   const dryRun = argv.includes("--dry-run");
+  const status = argv.includes("--status");
   const castsArg = argv.find((a) => a.startsWith("--casts="));
   const casts = castsArg ? Number(castsArg.split("=")[1]) : 1;
-  return { dryRun, casts };
+  return { dryRun, status, casts };
+}
+
+/**
+ * [session 15, brief §5] Mirrors scripts/liveRun.ts's `--status` — local
+ * state only (`config/bot.json`/`config/discovered.json` +
+ * `data/guard-budget-fishing.json`), no network call.
+ */
+function printStatus(config: BotConfig): void {
+  console.log(`\n▸ liveFishing.ts --status (${todayKey()})\n`);
+  if (!config.dendren) {
+    console.log(`  fishing: no dendren block in config — Task 7 not configured\n`);
+    return;
+  }
+  const seed = loadGuardBudget(FISHING_GUARD_STATE_PATH);
+  const castsRemaining = Math.max(0, config.dendren.maxCastsPerSession - seed.runsStarted);
+  const energyRemaining = Math.max(0, config.dendren.dailyEnergyBudget - seed.energySpent);
+  console.log(`  fishing casts:   ${seed.runsStarted}/${config.dendren.maxCastsPerSession} used  ->  ${castsRemaining} remaining`);
+  console.log(`  fishing energy:  ${seed.energySpent}/${config.dendren.dailyEnergyBudget} used  ->  ${energyRemaining} remaining\n`);
 }
 
 async function currentEnergy(client: GigaverseClient, address: string): Promise<number> {
@@ -441,6 +460,12 @@ const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+
+  if (args.status) {
+    printStatus(loadBotConfig());
+    return;
+  }
+
   console.log(`\n▸ liveFishing.ts — ${args.dryRun ? "dry-run" : `${args.casts} cast(s)`}\n`);
 
   const config = loadBotConfig();

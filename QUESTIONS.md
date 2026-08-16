@@ -421,3 +421,72 @@ Flagging it because the neighbouring evidence is suspicious — the API's own
 `DUNGEON_ID_CID` means "run instance id", and the dungeon type is `ID_CID` as a
 string. If `start_run` rejects `dungeonId: 5`, that naming is why. First real
 POST at Task 6 settles it. Do not "fix" it speculatively before then.
+
+## 10. Fishing catch-reward action name — UNKNOWN, blocks all further live casts [session 15]
+
+**This project's first-ever live catch happened this session** (cast 4 of the
+day, `fixtures/fishing-casts/live/cast-2026-08-16-01-57-01/state-*.json`) —
+Zombo, item 521, rarity 2. The terminal `play_cards` response's `data.doc.data`
+carries `caughtFish` (fish metadata, sizes, `findexResult`) and **`cardsToAdd`**,
+an array of 3 full card objects (ids 23, 14, 7 in this capture) — this is the
+first live confirmation of the session-15 brief §2 hypothesis ("choose one of
+three new spells on catch"). `gameItemBalanceChanges` in the SAME response
+already shows the fish (521, +1) and Hard Core (845, +320) credited — loot
+itself is NOT gated behind whatever this blocker is.
+
+**The account is now stuck.** Every subsequent `start_run` attempt (5 total,
+spaced ~15–90s apart, both through `liveFishing.ts`'s normal retry path and
+manual probes) returns:
+
+```
+HTTP 400 {"success":false,"message":"Player is already in a game","error":"Player is already in a game"}
+```
+
+`GET /fishing/state/:address` agrees: `gameState.COMPLETE_CID: true`,
+`SUCCESS_CID: true`, but the doc is still returned as the "current" game —
+`fullDeck`/`deckCardData` are UNCHANGED at the pre-catch 10 cards, i.e. the 3
+`cardsToAdd` cards have not been merged into the deck. Something has to
+acknowledge/select from `cardsToAdd` before the slot frees up — this reads as
+the exact mechanic the session-15 brief's screenshot flagged (§2, "choose one
+of three new spells"), now confirmed to be a required action, not cosmetic.
+
+**Two reasoned guesses tried on the same confirmed `/fishing/action` endpoint,
+both cleanly rejected by the server's own action whitelist (not brute-forced —
+CLAUDE.md §2 is about inventing endpoints, and this is testing an unconfirmed
+action-name value on an already-confirmed endpoint, same category as how
+`reward_one`/`path_two` were originally probed on the dungeon side):**
+
+```
+action: "select_card" → HTTP 400 {"message":"Invalid action: select_card"}
+action: "claim"       → HTTP 400 {"message":"Invalid action: claim"}
+action: "play_cards" (itemId:23, on the completed doc) →
+    HTTP 400 {"message":"Player is not in a game [0x...]"}
+```
+
+The `play_cards` response is the interesting one — it means the completed doc
+blocks `start_run` ("already in a game") but does NOT count as an active game
+for `play_cards` ("not in a game"). Consistent with a genuinely separate,
+still-unknown action being the only way out. Stopped guessing after these two
+clean "Invalid action" rejections — the server clearly enforces a real
+whitelist and further blind guesses would just be brute-forcing an enum, which
+CLAUDE.md's spirit (if not its literal endpoint-only wording) argues against
+doing indefinitely.
+
+**Checked `GET /gamewebui/actions`** (named in the community notes as "the
+client's own action registry") hoping it would list this — it does not; that
+endpoint is a UI-panel menu registry (marketplace, racing, duel, etc.), not the
+game-action enum for `/fishing/action` or `/game/dungeon/action`.
+
+**Consequence: fishing is blocked for the rest of today's session regardless
+of remaining budget.** `data/guard-budget-fishing.json` shows only 4 real casts
+completed (48 energy spent) before the stall — session 15's raised 200-energy/
+15-cast cap (config/bot.json) could not be used past this point. The account
+needs a `play_cards`-style card-selection action fired (in-browser, or via a
+DevTools capture of the real client resolving its own catch) before another
+cast can start.
+
+**What would unblock this**: same recipe as question 3 originally — one
+DevTools HAR capture (or even just the Network-tab request line) of a live
+catch's follow-up request, from a real cast played to a catch in the browser
+client. Specifically need to see what request fires when the client's own "pick
+a new spell" UI (if any) is dismissed/confirmed after a catch.

@@ -50,7 +50,7 @@ import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, Dungeo
 import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
-import { loadGuardBudget, saveGuardBudget } from "../src/orchestrator/guardPersistence.js";
+import { loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { toCombatant, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
 import type { BoonOption } from "../src/sim/boons.js";
@@ -763,6 +763,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
 function parseArgs(argv: string[]) {
   const dryRun = argv.includes("--dry-run");
   const stage2 = argv.includes("--stage2");
+  const status = argv.includes("--status");
   const probeUseItemFlag = argv.includes("--probe-use-item");
   const runsArg = argv.find((a) => a.startsWith("--runs="));
   const runs = runsArg ? Number(runsArg.split("=")[1]) : 1;
@@ -772,7 +773,35 @@ function parseArgs(argv: string[]) {
   // NEXT genuinely new start_run only (never on a resumed run).
   const probeConsumablesArg = argv.find((a) => a.startsWith("--probe-consumables="));
   const probeConsumablesItemId = probeConsumablesArg ? Number(probeConsumablesArg.split("=")[1]) : undefined;
-  return { dryRun, stage2, runs, probeUseItemFlag, probeConsumablesItemId };
+  return { dryRun, stage2, status, runs, probeUseItemFlag, probeConsumablesItemId };
+}
+
+/**
+ * [session 15, brief §5] Prints today's remaining dungeon budget purely from
+ * local state (`config/bot.json` + `config/discovered.json` +
+ * `data/guard-budget.json`) — no network call, no dry-run POST. Answers
+ * session-14 brief's open question 3: both date-keyed guards were already at
+ * cap at the START of session 14, discovered only after investigation time
+ * was spent. `main()` exits immediately after this, before constructing a
+ * `GigaverseClient` at all.
+ */
+function printStatus(config: BotConfig): void {
+  const seed = loadGuardBudget();
+  const runsRemaining = Math.max(0, config.maxRunsPerSession - seed.runsStarted);
+  const energyRemaining = Math.max(0, config.dailyEnergyBudget - seed.energySpent);
+  console.log(`\n▸ liveRun.ts --status (${todayKey()})\n`);
+  console.log(`  dungeon runs:    ${seed.runsStarted}/${config.maxRunsPerSession} used  ->  ${runsRemaining} remaining`);
+  console.log(`  dungeon energy:  ${seed.energySpent}/${config.dailyEnergyBudget} used  ->  ${energyRemaining} remaining`);
+  if (config.dendren) {
+    const fseed = loadGuardBudget(FISHING_GUARD_STATE_PATH);
+    const castsRemaining = Math.max(0, config.dendren.maxCastsPerSession - fseed.runsStarted);
+    const fenergyRemaining = Math.max(0, config.dendren.dailyEnergyBudget - fseed.energySpent);
+    console.log(`  fishing casts:   ${fseed.runsStarted}/${config.dendren.maxCastsPerSession} used  ->  ${castsRemaining} remaining`);
+    console.log(`  fishing energy:  ${fseed.energySpent}/${config.dendren.dailyEnergyBudget} used  ->  ${fenergyRemaining} remaining`);
+  } else {
+    console.log(`  fishing:         no dendren block in config — Task 7 not configured`);
+  }
+  console.log();
 }
 
 /**
@@ -789,8 +818,17 @@ async function currentEnergy(client: GigaverseClient, address: string): Promise<
   return value;
 }
 
+/** Matches scripts/liveFishing.ts's own constant — kept as a literal duplicate rather than a shared import, same footing as this file's other path constants. */
+const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+
+  if (args.status) {
+    printStatus(loadBotConfig());
+    return;
+  }
+
   console.log(`\n▸ liveRun.ts — ${args.dryRun ? "STAGE 1 dry-run" : args.stage2 ? "STAGE 2 single POST" : `${args.runs} run(s)`}\n`);
 
   const config = loadBotConfig();
