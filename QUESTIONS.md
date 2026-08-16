@@ -500,3 +500,29 @@ DevTools HAR capture (or even just the Network-tab request line) of a live
 catch's follow-up request, from a real cast played to a catch in the browser
 client. Specifically need to see what request fires when the client's own "pick
 a new spell" UI (if any) is dismissed/confirmed after a catch.
+
+**[session 17] The account IS unblocked — user resolved it in-browser between
+sessions ("COLLECT" screen, then picked a spell card) — but the resolution
+ACTION NAME is still uncaptured, so the bot still can't perform this step
+itself.** Confirmed two ways this session: (1) `scripts/liveFishing.ts`'s new
+pre-start check (`unknownDocKeys`) read the SAME old completed doc (`docId
+12925779`, still `fullDeck` length 10 on `GET /fishing/state` — the read
+endpoint apparently never updates this view once a game is fully resolved,
+so `fullDeck` length was never a reliable "still stuck" signal); (2) despite
+that, a real `start_run` immediately succeeded — the account was never
+actually stuck this session. The pre-check's raw dump (`logs/fishing-unknown-
+terminal-2026-08-16-16-18-39.json`) shows the RESOLVED doc's new fields:
+`cardChosenId: 23` (matches one of the 3 `cardsToAdd` ids from session 15's
+catch — 23/14/7), plus `caughtFish` (full fish metadata), `lastMovePath`,
+`activeFintuitionTurns`, `activeCritBoostTurns`. So the resolved state is
+distinguishable from the stuck state by `cardChosenId` being set (non-null)
+— a real, useful field — but the actual POST that SETS it was fired from the
+browser client, not captured. **Still needed**: a DevTools capture of that
+one request, offered by the user this session but not yet done as of this
+write (in progress). `scripts/liveFishing.ts` now dumps ANY unrecognised
+field on a terminal doc automatically (`unknownDocKeys`/
+`dumpUnknownTerminal`) — the next time the bot's OWN play reaches a catch,
+the resolution fields will be captured mechanically without a human needing
+to notice mid-session. This does not by itself capture the action name
+(the bot doesn't send that action), but it removes any risk of missing the
+signal in the response if a human capture also lands around the same time.

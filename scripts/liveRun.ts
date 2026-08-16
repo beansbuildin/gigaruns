@@ -62,8 +62,11 @@ import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import { shouldUsePotion, DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
 
-/** Big Heal Juice — SPEC-fishing.md §5 (`GET /offchain/static`'s gameItems[131].itemEffect: OnUseBattle -> Heal, flat +20). */
-export const BIG_HEAL_ITEM_ID = 131;
+/**
+ * Hard cap, DECISIONS.md 2026-08-15 (session 11): potions are a
+ * pre-committed loadout of at most 3 per dungeon attempt.
+ */
+export const MAX_POTIONS_PER_RUN = 3;
 
 // ---------------------------------------------------------------------------
 // Pure decision helpers — no network, unit-testable directly.
@@ -952,14 +955,48 @@ async function main() {
   if (args.probeConsumablesItemId !== undefined) {
     console.log(`  · --probe-consumables=${args.probeConsumablesItemId}: next genuinely new start_run will send consumables: [${args.probeConsumablesItemId}].`);
   }
+  // Session 17: potions default ON, but ONLY within an explicit user-set
+  // allowlist (config.potions, config/bot.json's forbiddenWoods.potions) —
+  // NOT by auto-detecting whatever heal item happens to sit in inventory.
+  // User directive this session, direct quote: "verify before doing runs
+  // which potions (juices) you are allowed to take into the dungeon.
+  // Otherwise you might burn through my supply of Big Heal Juice without
+  // my intent." Absent that config block, the loop uses NO potions at all,
+  // regardless of balance — silence is not authorization. `--potions=N` is
+  // still a manual override (a human typing the flag IS the intent) but
+  // stays pinned to the config-allowed item; it cannot smuggle in a
+  // different item id.
+  let potionItemId = config.potions?.allowedItemId;
+  let potionCount = args.potionCount;
+  if (potionCount === undefined) {
+    if (!config.potions) {
+      potionCount = 0;
+      console.log(
+        `  · potions: NOT configured (config/bot.json's forbiddenWoods.potions is absent) -> loading 0. This is the safe default, not a bug.`,
+      );
+    } else {
+      const balances = await client.getItemsBalances();
+      const balance = balances.entities.find((e) => e.ID_CID === String(config.potions!.allowedItemId))?.BALANCE_CID ?? 0;
+      potionCount = Math.min(config.potions.maxPerRun, MAX_POTIONS_PER_RUN, balance);
+      console.log(
+        `  · potions: config authorizes up to ${config.potions.maxPerRun}x itemId ${config.potions.allowedItemId}` +
+          ` (hard cap ${MAX_POTIONS_PER_RUN}); ${balance} in stock -> loading ${potionCount}. Pass --potions=N to override.`,
+      );
+    }
+  } else if (potionCount > 0 && !potionItemId) {
+    throw new Error(
+      `--potions=${potionCount} was passed but config/bot.json has no forbiddenWoods.potions.allowedItemId set — ` +
+        `the loop refuses to guess which item to load. Add that block first.`,
+    );
+  }
   const potionPolicyState =
-    args.potionCount !== undefined
-      ? { itemId: BIG_HEAL_ITEM_ID, threshold: args.potionThreshold, remaining: args.potionCount, used: 0 }
+    potionCount > 0 && potionItemId
+      ? { itemId: potionItemId, threshold: args.potionThreshold, remaining: potionCount, used: 0 }
       : undefined;
   if (potionPolicyState) {
     console.log(
-      `  · --potions=${args.potionCount}: next genuinely new start_run will load ${args.potionCount}x Big Heal Juice` +
-        ` (itemId ${BIG_HEAL_ITEM_ID}), used at own HP ≤${Math.round(args.potionThreshold * 100)}%.`,
+      `  · next genuinely new start_run will load ${potionCount}x itemId ${potionItemId}` +
+        `, used at own HP ≤${Math.round(args.potionThreshold * 100)}%.`,
     );
   }
 
@@ -991,8 +1028,8 @@ async function main() {
           startConsumables:
             args.probeConsumablesItemId !== undefined
               ? [args.probeConsumablesItemId]
-              : args.potionCount !== undefined
-                ? Array(args.potionCount).fill(BIG_HEAL_ITEM_ID)
+              : potionCount > 0 && potionItemId
+                ? Array(potionCount).fill(potionItemId)
                 : undefined,
           potionPolicy: potionPolicyState,
         },

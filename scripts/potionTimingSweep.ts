@@ -5,12 +5,15 @@
  * mechanism now in `dungeonSim.ts`'s `SimOptions.potions`: a potion fires
  * the instant own HP fraction drops to/below a threshold, not before.
  *
- * STILL AN UPPER BOUND, and still an explicit assumption about the one
- * thing this project cannot yet confirm from the sim alone: whether a live
- * `use_item` costs a turn. This sweep models it as free (see
- * `dungeonSim.ts`'s `PotionPlan` doc comment) — the timing question (WHEN
- * to fire, i.e. which threshold) is answered here; the cost question needs
- * a live run (Task 12 Stage B's live half).
+ * Models healing as free (no exchange/charges cost) — session 16 CONFIRMED
+ * this live (`use_item` costs no combat turn, see DECISIONS.md 2026-08-16).
+ * Still an upper bound in one other sense: the sim's threshold check is
+ * exact (own HP fraction, checked once per exchange), so it can't miss a
+ * window a live poll loop might.
+ *
+ * Session 17: the {0.2, 0.34, 0.5} sweep found 0.5 winning at every loadout
+ * size — the top of the tested range — so this extends to {0.5..0.9} to
+ * find where the curve actually turns over.
  *
  * Usage: npx tsx scripts/potionTimingSweep.ts [runs=2000]
  */
@@ -28,7 +31,9 @@ console.log(rule(`POTION TIMING SWEEP — ${RUNS} runs each, ev-engine policy, r
 console.log(
   `\nHeal fires the instant own HP fraction drops to/below the threshold — not pre-loaded at\n` +
   `room 1 (that was scripts/potionSweep.ts's model; kept for the record, not the current best\n` +
-  `answer). Still free (no exchange/charges cost) — UNCONFIRMED live, see the live half.\n`,
+  `answer). Modelled free (no exchange/charges cost) — CONFIRMED live, session 16: use_item\n` +
+  `costs no combat turn. Session 17: extending the threshold search past 0.5, which won at\n` +
+  `every loadout size in the {0.2, 0.34, 0.5} sweep and sat on the boundary of that search.\n`,
 );
 
 const baseline = simulate(RUNS, { policy, opponent: randomPolicy, chargesAreHardLimit: true }, 1);
@@ -42,7 +47,7 @@ interface Row {
   delta: number;
 }
 
-const THRESHOLDS = [0.2, 0.34, 0.5];
+const THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9];
 const rows: Row[] = [];
 for (const threshold of THRESHOLDS) {
   for (let n = 1; n <= 3; n++) {
@@ -79,7 +84,6 @@ for (const r of rows) {
 }
 
 console.log(
-  `\nStill an upper bound: heal application is modelled free (no turn/charges cost) because that half of\n` +
-  `the mechanic is UNCONFIRMED live (TASKS.md Task 12 Stage B). The THRESHOLD choice is real, though —\n` +
-  `every row here reflects a heal that only fires when actually needed, unlike the old preload model.`,
+  `\nHeal application modelled free (no turn/charges cost) — CONFIRMED live, session 16.\n` +
+  `Every row reflects a heal that only fires when actually needed, unlike the old preload model.`,
 );

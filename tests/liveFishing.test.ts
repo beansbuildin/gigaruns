@@ -17,6 +17,7 @@ import {
   cardsById,
   fishCell,
   loadTransitionLog,
+  unknownDocKeys,
   type TransitionRecord,
 } from "../scripts/liveFishing.js";
 import type { FishingGameDoc } from "../src/api/fishing.js";
@@ -40,6 +41,26 @@ describe("cardsById / buildHand", () => {
     const doc0 = cast[0]!.response.data.doc;
     const broken: FishingGameDoc = { ...doc0, data: { ...doc0.data, hand: [999999] } };
     expect(() => buildHand(broken)).toThrow(/999999/);
+  });
+});
+
+describe("unknownDocKeys", () => {
+  it("returns nothing for a real captured doc — the allowlist matches the actual wire shape", () => {
+    const doc0 = cast[0]!.response.data.doc;
+    expect(unknownDocKeys(doc0 as unknown as Record<string, unknown>)).toEqual([]);
+  });
+
+  it("flags an unmodelled top-level field", () => {
+    const doc0 = cast[0]!.response.data.doc as unknown as Record<string, unknown>;
+    const withExtra = { ...doc0, cardsToAdd: [{ id: 23 }, { id: 14 }, { id: 7 }] };
+    expect(unknownDocKeys(withExtra)).toEqual(["cardsToAdd"]);
+  });
+
+  it("flags an unmodelled data.* field, prefixed", () => {
+    const doc0 = cast[0]!.response.data.doc as unknown as Record<string, unknown>;
+    const data = doc0.data as Record<string, unknown>;
+    const withExtra = { ...doc0, data: { ...data, caughtFish: { itemId: 521, rarity: 2 } } };
+    expect(unknownDocKeys(withExtra)).toEqual(["data.caughtFish"]);
   });
 });
 

@@ -14,6 +14,17 @@ const BotJsonSchema = z.object({
   forbiddenWoods: z.object({
     dailyEnergyBudget: z.number().positive(),
     maxRunsPerSession: z.number().int().positive(),
+    // Session 17: explicit user opt-in required before the live loop uses
+    // ANY potion — absent, no potions are used, full stop. Prevents the
+    // loop from auto-consuming a limited/valuable consumable it merely
+    // finds in inventory without the user having actually authorized it,
+    // per the user's direct instruction this session.
+    potions: z
+      .object({
+        allowedItemId: z.number().int().positive(),
+        maxPerRun: z.number().int().positive(),
+      })
+      .optional(),
   }),
   dendren: z
     .object({
@@ -55,6 +66,8 @@ export interface BotConfig {
   dailyEnergyBudget: number;
   maxRunsPerSession: number;
   maxConsecutiveActionFailures: number;
+  /** User-authorized potion, session 17 — absent means "no potions," not "figure it out from inventory." */
+  potions?: { allowedItemId: number; maxPerRun: number };
   dendren?: {
     nodeId: string;
     tierId: number;
@@ -117,6 +130,7 @@ export function loadBotConfig(
     dailyEnergyBudget: bot.forbiddenWoods.dailyEnergyBudget,
     maxRunsPerSession: bot.forbiddenWoods.maxRunsPerSession,
     maxConsecutiveActionFailures: bot.guards.maxConsecutiveActionFailures,
+    potions: bot.forbiddenWoods.potions,
     dendren,
   };
 }

@@ -728,6 +728,30 @@ dungeon runs already happening for other reasons. Session 16 made potion
 timing itself the spine, since the fishing account was stuck all session
 (QUESTIONS.md §10, unresolved — needs the user's own DevTools capture).
 
+**Stage C: DONE [2026-08-16, session 17] — Task 12 is CLOSED, no further stages.**
+Two findings, one user decision, settling the task:
+
+1. Extended `potionTimingSweep.ts` to {0.5..0.9} × {1,2,3}: 0.5 is a genuine
+   interior optimum (curve rises to it, then falls away past it), not a
+   boundary artifact of the original {0.2, 0.34, 0.5} search. No config
+   change needed — `DEFAULT_POTION_THRESHOLD` was already 0.5.
+2. **User directive, mid-session: crafting is permanently manual, only
+   in-dungeon use is automated.** This retires the crafting-energy-pool
+   question outright (see DECISIONS.md) rather than answering it — before
+   the message landed, a fresh `GET /offchain/static` dump had already
+   found no craft POST endpoint anywhere in the payload, so the authorized
+   craft attempt was blocked on CLAUDE.md §2 regardless.
+3. Consequence: potions default ON in `scripts/liveRun.ts` — but gated
+   behind an explicit user-set allowlist (`config/bot.json`'s
+   `forbiddenWoods.potions`), not free inventory auto-detection, per a
+   direct user correction mid-session ("verify... which potions you are
+   allowed to take... otherwise you might burn through my supply... without
+   my intent"). No `--potions=N` flag needed for normal play; absent that
+   config block the loop uses 0 potions, full stop. Current config: itemId
+   131 (Big Heal Juice), 2 per run (user's own choice, not the sim's
+   theoretical best of 3) — threshold 0.5. See DECISIONS.md 2026-08-16
+   (session 17) for the live-verified detail and the superseded first cut.
+
 ---
 
 ## Later, if the user wants it

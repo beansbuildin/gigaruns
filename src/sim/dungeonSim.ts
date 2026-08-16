@@ -118,13 +118,11 @@ export interface SimOptions {
   /**
    * Task 12 Stage B: a loadout of potions used at a real HP threshold,
    * instead of `scripts/potionSweep.ts`'s original all-committed-at-room-1
-   * model. Still an UPPER BOUND, and still an explicit assumption, not a
-   * confirmed mechanic: applying the heal is modelled as free — no exchange
-   * consumed, no charges affected — because whether a live `use_item` costs
-   * a turn is UNCONFIRMED (QUESTIONS.md / TASKS.md Task 12 Stage B). This is
-   * a closer upper bound than pre-healing at turn 1 (a potion sim can no
-   * longer "spend" a heal on a battle it never reaches), not a claim about
-   * turn cost. Correct this the moment a live run answers the question.
+   * model. Applying the heal is modelled as free — no exchange consumed, no
+   * charges affected — CONFIRMED live, session 16: two live runs (4/4 real
+   * `use_item` calls) left the enemy's HP/ARM and the opponent model's
+   * observation count unchanged, i.e. a potion is a free action, not a
+   * substitute move. See DECISIONS.md 2026-08-16.
    */
   potions?: PotionPlan;
 }

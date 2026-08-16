@@ -99,6 +99,90 @@ export function buildHand(doc: FishingGameDoc): FishingCardLike[] {
   });
 }
 
+/**
+ * Session 17: every key seen on the real captured cast
+ * (`fixtures/fishing-casts/cast.json`), NOT just `FishingBoardDataSchema`'s
+ * declared fields — CLAUDE.md §1, "if a field you expected is missing from
+ * a live response, the spec is wrong and the live response is right." The
+ * schema's own `.passthrough()` already carries these fields through
+ * untyped; the first version of this allowlist only listed the schema's
+ * declared subset and immediately flagged 16 real, boring, already-known
+ * fields (`LEVEL_CID`, `data.day`/`week`, etc.) as "unknown" on every
+ * single doc — noise that would have buried the one signal this exists to
+ * catch. Mirrors `scripts/liveRun.ts`'s `KNOWN_SIDE_KEYS` pattern: a
+ * hand-maintained allowlist so a GENUINELY new field is a loud signal.
+ */
+export const KNOWN_DOC_DATA_KEYS: ReadonlySet<string> = new Set([
+  "deckCardData",
+  "playerMaxHp",
+  "playerHp",
+  "fishHp",
+  "fishMaxHp",
+  "fishPosition",
+  "previousFishPosition",
+  "gridSize",
+  "focusPoint",
+  "focusMeter",
+  "focusMeterMax",
+  "focusMechanicEnabled",
+  "patternIndex",
+  "fullDeck",
+  "nextCardIndex",
+  "cardInDrawPile",
+  "hand",
+  "discard",
+  "jebaitorTriggered",
+  "consumablesUsed",
+  "fishingConsumableSlotUsed",
+  "fintuitionOilBoostPercent",
+  "dualYieldOilBoostPercent",
+  "day",
+  "week",
+  // Found live, session 17's first real cast this session (escaped, 2
+  // turns) — boring, present on every response, unrelated to the
+  // catch-resolution mystery below.
+  "lastMovePath",
+  "activeFintuitionTurns",
+  "activeCritBoostTurns",
+  // `caughtFish`/`cardsToAdd`/`cardChosenId` are DELIBERATELY NOT added
+  // here, even though session 17 now knows their rough meaning (a caught
+  // fish's metadata, the 3 spell-card options offered, and which one got
+  // picked — QUESTIONS.md §10). The actual action/endpoint that SETS
+  // `cardChosenId` is still unknown; the bot cannot perform that step
+  // itself yet. Keeping these flagged means the next time the bot's own
+  // play reaches a catch, it stays a loud, unmissable capture point
+  // instead of going quiet just because we now recognise the field names.
+]);
+
+/** `data` handled separately via `KNOWN_DOC_DATA_KEYS` — see that constant's doc comment. */
+export const KNOWN_DOC_TOP_KEYS: ReadonlySet<string> = new Set([
+  "docId",
+  "docType",
+  "data",
+  "COMPLETE_CID",
+  "SUCCESS_CID",
+  "IS_JUICED_CID",
+  "MULTIPLIER_CID",
+  "LEVEL_CID",
+  "ID_CID",
+  "PLAYER_CID",
+  "FACTION_CID",
+  "GEAR_CID_array",
+  "DAY_CID",
+  "_id",
+  "createdAt",
+  "updatedAt",
+  "__v",
+]);
+
+/** Any key on `doc` or `doc.data` not in the allowlists above — e.g. `cardsToAdd`/`caughtFish` (QUESTIONS.md §10), reported prefixed `data.`. */
+export function unknownDocKeys(doc: Record<string, unknown>): string[] {
+  const topUnknown = Object.keys(doc).filter((k) => k !== "data" && !KNOWN_DOC_TOP_KEYS.has(k));
+  const dataObj = (doc.data ?? {}) as Record<string, unknown>;
+  const dataUnknown = Object.keys(dataObj).filter((k) => !KNOWN_DOC_DATA_KEYS.has(k));
+  return [...topUnknown, ...dataUnknown.map((k) => `data.${k}`)];
+}
+
 export function fishCell(doc: FishingGameDoc): Cell {
   const [x, y] = doc.data.fishPosition;
   if (typeof x !== "number" || typeof y !== "number") {
@@ -242,6 +326,26 @@ class RunLog {
   }
 }
 
+/**
+ * Session 17, QUESTIONS.md §10: the account got stuck after this project's
+ * first-ever live catch (session 15) because the terminal `play_cards`
+ * response carries fields (`cardsToAdd`, per that capture) this loop never
+ * modelled or acted on. `fixtures.write()` already saves every raw response
+ * regardless, but that's easy to miss buried in `fixtures/fishing-casts/`.
+ * This writes a SEPARATE, loudly-named dump the moment a terminal
+ * (`COMPLETE_CID: true`) response carries any field outside
+ * `KNOWN_DOC_DATA_KEYS`/`KNOWN_DOC_TOP_KEYS` — turning the next catch (or
+ * any future new terminal mechanic) into an automatic capture instead of
+ * something that needs a human to notice mid-session, per the session-17
+ * brief §4.
+ */
+function dumpUnknownTerminal(resp: unknown, keys: string[]): string {
+  mkdirSync("logs", { recursive: true });
+  const path = join("logs", `fishing-unknown-terminal-${stamp()}.json`);
+  writeFileSync(path, JSON.stringify({ ts: new Date().toISOString(), unknownKeys: keys, response: resp }, null, 2));
+  return path;
+}
+
 // ---------------------------------------------------------------------------
 // The live cast loop.
 // ---------------------------------------------------------------------------
@@ -282,6 +386,22 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const existing = await client.getFishingState(address);
   let doc: FishingGameDoc;
 
+  if (existing.gameState && existing.gameState.COMPLETE_CID) {
+    // Session 15/QUESTIONS.md §10: this exact shape (a completed-but-not-
+    // resumable doc) is what stuck the account for the rest of a session —
+    // `start_run` below will predictably reject "Player is already in a
+    // game" rather than clear it. Dump loudly here, before that opaque 400,
+    // so the unknown terminal field is visible immediately rather than only
+    // discoverable via a separate `checkFishingStuck.ts` run.
+    const unknown = unknownDocKeys(existing.gameState as unknown as Record<string, unknown>);
+    if (unknown.length > 0) {
+      const path = dumpUnknownTerminal(existing, unknown);
+      log.write({ event: "unknown_terminal_fields", source: "pre_start_state_check", keys: unknown, dump: path });
+      console.log(`  ★★★ UNKNOWN FIELD(S) on the existing completed-but-unresolved doc: ${unknown.join(", ")}`);
+      console.log(`  ★★★ full response dumped to ${path} — the account is likely stuck (QUESTIONS.md §10); start_run below will probably reject.`);
+    }
+  }
+
   if (existing.gameState && !existing.gameState.COMPLETE_CID) {
     console.log(`  · active cast already in progress — resuming rather than starting a new one`);
     log.write({ event: "resuming_existing_cast", docId: existing.gameState.docId });
@@ -315,6 +435,15 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     fixtures.write(resp);
     doc = resp.data.doc;
     console.log(`  ✓ start_run sent — fishing actionToken now ${client.getFishingActionToken()}`);
+    if (doc.COMPLETE_CID) {
+      const unknown = unknownDocKeys(doc as unknown as Record<string, unknown>);
+      if (unknown.length > 0) {
+        const path = dumpUnknownTerminal(resp, unknown);
+        log.write({ event: "unknown_terminal_fields", keys: unknown, dump: path });
+        console.log(`  ★★★ UNKNOWN TERMINAL FIELD(S) on start_run's returned doc: ${unknown.join(", ")}`);
+        console.log(`  ★★★ full response dumped to ${path} — this is the account-stuck mechanic (QUESTIONS.md §10), look here first.`);
+      }
+    }
   }
 
   const castId = doc.docId;
@@ -384,6 +513,15 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     fixtures.write(resp);
 
     const newDoc = resp.data.doc;
+    if (newDoc.COMPLETE_CID) {
+      const unknown = unknownDocKeys(newDoc as unknown as Record<string, unknown>);
+      if (unknown.length > 0) {
+        const path = dumpUnknownTerminal(resp, unknown);
+        log.write({ event: "unknown_terminal_fields", source: "play_cards_terminal", keys: unknown, dump: path });
+        console.log(`  ★★★ UNKNOWN TERMINAL FIELD(S) on this cast's final doc: ${unknown.join(", ")}`);
+        console.log(`  ★★★ full response dumped to ${path} — likely the catch-resolution mechanic (QUESTIONS.md §10), look here first.`);
+      }
+    }
     const fromCell = matcher.history[matcher.history.length - 1]!;
     const toCell = fishCell(newDoc);
 
