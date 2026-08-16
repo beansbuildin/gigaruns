@@ -1,133 +1,190 @@
-# BRIEF — session 14
+# BRIEF — session 15
 
-The mana fix was worth more than either of us expected — 19.0% → 92.4%, and it
-only surfaced because you checked whether the second bug was *downstream* of the
-first rather than stopping at one. `shouldRedraw` comparing `evPerMana` was
-invisible while `chooseCard` shared the same wrong objective. Finding a latent
-bug that only becomes reachable after fixing another is the hard kind.
+Isolating the divergence into two causes and quantifying each — `focusMeter` at
+~30%, library mismatch as the dominant remainder, blind matcher at 7–10%
+consistent with live 0/6 at P≈55–65% — is the best diagnostic work in this
+project. The `matcherPool: []` split (what the true pattern is drawn from vs.
+what the matcher searches) is the move that made it possible.
 
-The `use_item` probe landing a clean 400 with `"Item not found in index"` is
-exactly the outcome hoped for: action name, envelope, and `itemId` semantics all
-confirmed at zero exposure.
-
-Now the thing I want to reframe.
+And "a brief that asked *does this one mechanic explain the gap* got *partly,
+and here's the bigger thing*" is exactly right. Don't let a brief's framing cap
+the answer.
 
 ---
 
-## 1. The fishing sim says 92.4%. Live says 0 for 6. That's the alarm.
+## 1. My `argmax P_hit` instruction was an overcorrection — fix it
 
-You filed this as "an optimistic ceiling, not a live prediction." It's much
-stronger than that.
+Session 13's brief told you to maximise hit probability with mana as a
+feasibility filter. Dropping the `/manaCost` divisor was right. Switching the
+objective to `P_hit` was not, and the user's screenshot shows why.
 
-Six real casts (1 human + 5 bot), zero catches. If the true catch rate were even
-50%, the odds of six straight escapes are about 1.6%. At 92.4% it's roughly one
-in five million. **The sim and reality are not describing the same game.**
+**Cards differ in both damage and miss penalty.** Visible in hand: one card
+deals 2 on hit, two deal 5, and one shows a miss penalty of 3. Both numbers are
+per-card and printed on the card face.
 
-Session 11 established the sim-vs-live divergence check for exactly this
-situation, and it's worth noting the contrast: the dungeon sim predicted 1.946
-mean rooms cleared against a live 2.0, which is what licensed trusting its
-conclusions. The fishing sim has no such license. **Until it predicts live
-outcomes, no number it produces should be used to justify a design decision —
-including the 92.4% that gated Task 8 in.**
+`argmax P_hit` discards both. It's indifferent between a 2-damage and a 5-damage
+card at equal hit chance, and it will take a marginally safer card over one worth
+2.5× as much progress.
 
-Treat that as the standing rule the session-11 check implied but didn't spell
-out: a sim's authority comes from its agreement with live, and it's held per
-domain, not inherited across them.
+The correct objective is **expected net progress in `fishHp` units**:
 
-## 2. `focusMeter` probably explains it — and it guts the strategy I specified
+```
+EV(card, focus) = P_hit · card.damage − (1 − P_hit) · card.missPenalty
+```
 
-The 3-point non-regenerating budget, with movement costing Manhattan distance,
-is a hard constraint on the exact thing my §5 policy depends on.
+That's what SPEC §5 originally said, minus the bad divisor. It naturally
+encodes "misses are the budget" — the penalty term is the miss cost, in the same
+units as the gain, so no separate weighting is needed.
 
-I wrote: *hedge throughout — wide hitboxes, focus placed over the
-highest-probability region.* That assumes focus placement is free. It costs a
-scarce, non-refilling resource across a cast that only affords ~5 plays. Under
-that constraint, you get roughly **one meaningful repositioning per cast**, not
-one per turn. Hedge-throughout as written isn't affordable.
+Keep `isManaConstrained` as the late-cast correction. Re-run the sim after the
+change in both library-known and blind configurations; the blind number is the
+one that should track live.
 
-So the policy needs re-deriving under the real budget, and the shape probably
-inverts: focus placement becomes a **commitment decision** — where do I spend my
-one move, and when — while card choice does the per-turn adapting from a mostly
-fixed position. That's a different optimisation from the one in SPEC §5.
+## 2. Four mechanics from the user's screenshot
 
-**This is the session's work, and it's offline and free.** Model `focusMeter` in
-`castSim.ts`, re-run the 500-cast sim, and report the new catch rate. Two
-possible outcomes, both informative:
+All from a live annotated client view. Treat as strong hypotheses, confirm
+against state fields.
 
-- **Catch rate collapses toward the live 0/6** → the sim is now faithful, the
-  divergence is explained, and the strategy gets re-derived under a constraint
-  we understand.
-- **It stays high** → `focusMeter` isn't the explanation and something else is
-  wrong. Next suspects in order: the synthetic pattern library bearing no
-  resemblance to real Dendren (the matcher ran on `emptyFallback` for all five
-  casts), the deck/card set, and `fishHp` or damage scaling.
+**Per-card miss penalty** — as §1. Confirm the field exists in the card schema;
+if the API exposes it, `chooseCard` should read it rather than using a constant.
 
-Don't spend more casts until this resolves. More live data against an
-unfaithful sim buys transitions but not understanding, and the transitions
-accumulate cheaply once the sim is worth trusting.
+**Spell rewards on catch.** After each successful catch you choose one of three
+new spells — structurally identical to dungeon boons. So the deck **grows within
+a session**, and card choice compounds. Nothing models this. It's also why the
+0-catch streak is worse than it looks: no catches means no deck growth, so the
+hand stays at its weakest all session.
 
-## 3. Q1: the fishing sim is the spine — neither of your options
+**Rod equipment carries its own spell set.** A gear layer for fishing. Worth
+flagging because gear has been the single biggest lever found in this project —
+Sword ATK +4 beat every strategy intervention combined. Rod choice may dominate
+card policy the same way.
 
-You framed it as Stage B versus more casts. I'd do neither as the spine, for the
-reason in §2: fishing's blocker isn't data volume, it's that the model is wrong.
-25 transitions won't mine patterns, and 50 won't either if the simulator around
-them is describing a different game.
+**Fishing oils (potions).** A consumable layer, separate from dungeon potions,
+visible in the fishing UI. Unmodelled.
 
-**Task 12 Stage B rides along cheaply.** The only thing blocking it is the
-`consumables` field shape, which is one `start_run` away. Check
-`/items/balances` for an actual heal potion first, then send `start_run` with a
-single potion in `consumables` and see what the state reports. If the field
-takes item IDs it'll work; if it wants slot indices or objects, the error names
-it — same logic as the `use_item` probe.
+Also confirming from the same image: mana ("Stamana") 6/6, cards cost 1 each,
+redraw costs 1 per card held (3 for a full hand), fish HP 18 max. The bobber
+starts centred and the meter reads 3/3, matching your live finding.
 
-Don't build the timing policy from that. Just establish the field shape and stop,
-so Stage B still gets a clean session.
+**One concrete consequence of the 3×3-stamp-on-4×4-grid geometry:** a card
+centred at a corner has most of its stamp clipped off-grid. There is no true
+centre on a 4×4, but the middle 2×2 cells maximise coverage. So focus placement
+has a *static* positional value independent of where the fish is — worth encoding
+directly, and cheap to verify in the sim.
 
-## 4. Q2: resume the stuck run first
+## 3. Q1: build the miner **and** collect casts — they don't compete
 
-Yes — first action, before anything else. At 4/36 against a full-health enemy
-it's likely a loss, but closing it out cleanly beats leaving live state dangling
-across sessions, and it costs no run slot.
+You framed it as build-now-on-25-lines versus spend-budget-growing-the-log. Do
+both: the miner is offline work, the casts are live, and they run in parallel.
 
-It's also the natural place for §5's focus probe if any fishing budget remains.
+The order matters though. **Start casts first** — they're the long pole and the
+budget resets daily. The user reports **15 casts available today**; raise the
+fishing session cap in `config/bot.json` to use them. At ~5 transitions per cast
+that's ~75 new transitions against the current 25.
 
-## 5. Q3: `focusMeter` regeneration is now critical, and it's nearly free to test
+Build `mineFishPatterns.ts` while they run, then mine the grown log at session
+end.
 
-This moved from optional to blocking — §2's re-derivation can't be done without
-knowing whether the budget refills per turn, per hand-refill, or never.
+**On 25 lines being thin: your instinct is right and this project has a rule for
+it.** Enemy-63 and `ROLLED_STATS` were both confident reads off small samples,
+and the second was caught only because you applied a 30-observation floor to
+yourself. Apply the same discipline here — the miner should report candidate
+cycles **with their support counts**, and promote nothing to the pattern library
+below a stated threshold. A miner that outputs "no pattern is yet supported" on
+100 transitions is a correct miner.
 
-Test it deliberately on the next cast: **spend all 3 points early**, then keep
-playing and watch whether the meter moves. Normally that would be a wasteful
-line, but at 0 catches in 6 there's nothing to protect, and the answer determines
-the whole policy shape.
+Feed whatever it finds back through `matcherPool` and report the sim rate. If the
+mined library moves the blind 7–10% figure upward, that's the first evidence the
+matcher can ever help live.
 
-Scope Task 11's fishing-side mining to include `focusMeter` — it's not a side
-mechanic, it's the binding constraint.
+## 4. Q2: potions are scarcer than the plan assumed
 
-## 6. For the user: Sword ATK and Sword DEF are now tied
+The loadout-time consumption finding changes the economics, not just the
+mechanics. **A committed potion is spent whether or not it's used** — the probe
+burned a Big Heal Juice on a run that never called `use_item`.
 
-The re-measured sweep puts them at 2.429 ± 0.070 and 2.427 ± 0.073 — overlapping
-intervals, so the session-12 ranking that put ATK alone at the top no longer
-holds under the hp 34→36 baseline. Either is the right pick; nothing else is
-close.
+The user holds 7 Big and 7 Mid. Committing 3 per run at 12 runs/day exhausts
+that in under two days. So before any timing policy is worth building:
 
-Keep re-measuring the sweep whenever the loadout changes. That's twice now that
-a gear shift has reordered results.
+- **Are potions purchasable or drop-only, and at what cost?** Check
+  `/offchain/static` and the vendor/market endpoints. If a +20 HP heal costs
+  more than the marginal loot from the rooms it buys, the policy is *don't
+  commit potions*, and that's a legitimate answer.
+- **Commit-time consumption means partial loadouts matter.** Committing 1 potion
+  costs 1. There's no reason to commit 3 by default.
+
+So Stage B's real first question is economic, not tactical. Answer it before
+modelling turn-cost and multi-use. If potions are cheaply farmable, proceed; if
+not, the honest recommendation to the user may be to save them.
+
+Don't spend dungeon runs on `use_item` timing this session — fishing has the
+larger unexplored surface and the budget is better spent there.
+
+## 5. Q3: yes, build `--status`
+
+Trivial and it pays for itself. Have it print remaining dungeon runs, dungeon
+energy, fishing casts, and fishing energy against the date-keyed guards, without
+needing a dry run. Call it at the top of every live session.
 
 ---
 
 ## Your task
 
-1. **Resume the stuck run**, per §4. First.
-2. **Model `focusMeter` in `castSim.ts`**, re-run the 500-cast sim, report the
-   new catch rate against the live 0/6. This is the spine.
-3. **Re-derive SPEC §5's policy** under the real focus budget, per §2 — only
-   after the sim's new number is known.
-4. **`focusMeter` regeneration probe**, per §5, if fishing budget allows.
-5. **`consumables` field-shape test only**, per §3. Do not build the policy.
-6. Record the §1 rule: sim authority is earned per domain against live outcomes,
-   never inherited.
+1. **`--status` first** (§5), so the session plans against real budget.
+2. **Start live fishing casts early** (§3) — raise the cap, use the day's
+   allowance, log every transition.
+3. **Fix `chooseCard`'s objective** to net `fishHp` EV (§1), re-run the sim in
+   both library-known and blind modes, report both.
+4. **Build `mineFishPatterns.ts`** (§3) with support counts and a promotion
+   threshold. Mine at session end against the grown log.
+5. **Potion economics** (§4) — purchasable or not, and at what cost. Read-only.
+6. Record §2's four mechanics in `SPEC-fishing.md` as `[VERIFY]` with the
+   screenshot as source, and confirm what you can against live state.
 
-If §2's re-run leaves the catch rate high, say so plainly and list what you'd
-check next. A sim that survives an attempt to break it is worth more than one
-that was never tested — but it has to be a real attempt.
+If the mined library still can't lift the blind sim rate, say so plainly. That
+would mean Dendren's movement isn't drawn from a small deterministic set at all,
+and the identification framing — mine, from SPEC §5, since session 01 — is simply
+wrong for this fish.
+
+Addendum — potions are CRAFTABLE (revises §4):
+
+USER-CONFIRMED: the user can craft potions. They are not a fixed
+stock, so "save them" is no longer the likely answer and the timing
+policy is worth building.
+
+But renewable is not free. §4's question changes from "can we get
+more" to "what does one cost, in inputs, versus what it buys."
+
+Find, read-only:
+  - The crafting recipe for Big/Mid Heal Juice -- exact input items
+    and quantities. Try /offchain/static first (it carries gameItems
+    with descriptions); the fishing bench in the client is the crafting
+    UI, so the HAR at fixtures/fishing-cast.har may contain the
+    endpoint if it was open during capture.
+  - Where those inputs come from: fishing catches, dungeon loot,
+    purchase, or a mix. This matters more than the raw number.
+  - Whether crafting itself costs energy or has a daily cap. If it
+    draws from the same 240/day pool, potions compete directly with
+    the runs they are meant to improve, and that changes everything.
+
+Then compute the trade, both sides in the same units:
+  - COST: inputs per potion, expressed in whatever produces them
+    (casts, runs, or energy).
+  - BENEFIT: run the sim with 1, 2, and 3 potions committed vs zero,
+    and report mean rooms cleared for each. This reuses the gear-sweep
+    harness -- same shape of question, same method. Note the sim
+    cannot yet model use_item timing, so treat these as an upper bound
+    (perfectly-timed heals) and say so.
+
+Report the break-even: how much loot must a room yield for a
+committed potion to pay for itself. That number, not the heal amount,
+decides whether to commit 0, 1, 2, or 3.
+
+IF THE INPUTS COME FROM FISHING: say so prominently. It would mean
+the two halves of this project are one economy -- fishing feeds
+crafting feeds dungeon depth -- and the orchestrator's loop priority
+in SPEC §6 (currently "dungeon first, it caps at 10/day") would need
+re-deriving from that, not from run caps.
+
+Still read-only this session. Do not craft anything -- CLAUDE.md's
+ask-first list covers spending the user's materials.
