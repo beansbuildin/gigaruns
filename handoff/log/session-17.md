@@ -254,6 +254,71 @@ $ git diff c0eb91e..HEAD --stat
  tests/liveFishing.test.ts                                   |  32 ++-
  fixtures/fishing-casts/live/cast-2026-08-16-16-18-37/ (new) |   3 files
 ```
-Three commits this session: `3e7f0d4` (Task 12 + potion policy + fishing
-capture-loop), `364886d` (sha record), `8e8c7b2` (loot action confirmed),
-`5f9df13` (sha record) — final recap commit sha in `handoff/STATE.md`.
+Three commits before the first recap: `3e7f0d4` (Task 12 + potion policy +
+fishing capture-loop), `364886d` (sha record), `8e8c7b2` (loot action
+confirmed), `5f9df13` (sha record), `45c9093` (first recap commit),
+`268c129` (sha record).
+
+## 9. Post-recap: taking over an already-active dungeon run
+
+After the first recap landed, the user asked the bot to take over a
+Forbidden Woods run that was already active — started outside this
+session (not by any script this session ran), sitting at room 1 with 2
+Big Heal Juice already committed in the run's `consumables`.
+
+**Verification before acting**: ran `scripts/liveRun.ts --dry-run` first
+rather than trust the user's description blindly (CLAUDE.md's "discover,
+don't assume" applies to user reports too, not just briefs). Confirmed
+live:
+```
+· active run already exists at room 1 — resuming rather than starting a new one
+room 1  me HP 36/36 ARM 16  |  Enemy Room 63 HP 30/30 ARM 12
+[dry-run] would POST rock
+```
+Matched the user's description exactly (room 1, presumably-fresh HP).
+Also surfaced that Big Heal Juice balance had grown again, 45 → 80 (the
+user continuing to craft manually, as expected).
+
+**Real run** (`scripts/liveRun.ts --runs=1`, no dry-run): resumed cleanly,
+no new `start_run` sent (confirmed by the log: `resuming today's budget:
+40 energy / 2 runs already spent` — unchanged from before this action,
+i.e. resuming truly costs nothing extra). Full room-by-room outcome:
+
+- Room 1 (Enemy Room 63, HP30/ARM12): won cleanly across 4 exchanges, HP
+  36→28, ARM 16→0→8 (regen visible from wins). Reward: `AddBlock`.
+  Enemy path: Safe tier (0) offered and taken.
+- Room 2 (Enemy Room 64, HP35/ARM14): HP dropped 20→14 over several
+  exchanges (armor absorbing most hits); potion #1 fired at HP 14/36
+  (≤50% threshold), itemId 131 index 0, `HTTP 200` — HP 14→34. Continued,
+  won the room at HP 24. Reward: `AddTenacity`. Enemy path: Safe tier
+  offered and taken.
+- Room 3 (Enemy Room 65, HP38/ARM15): HP dropped 24→12 over several
+  exchanges; potion #2 fired at HP 12/36, itemId 131 index 1, `HTTP 200`
+  — HP 12→32. Won the room at HP 13. Reward: `AddLuck`. Enemy path: **no
+  Safe tier offered this time** — `pickLowestTier()` correctly fell back
+  to the lowest available (tier 1), matching the session-09 finding that
+  this is expected server behavior, not a bug, and logged as such inline
+  (`▸ enemy path: choosing lowest offered tier 1 — NOT Safe, none was
+  offered (session-09: expected, not a bug)`).
+- Room 4 (Enemy Room 66, HP40/ARM16, tier 1): started at HP 13/36 with
+  both potions already spent. Lost the exchange sequence — HP 13→5→5→5→3,
+  final exchange ended the run. `· no active run — stopping.` confirms a
+  clean death, not a stall or crash.
+
+**Energy accounting**: `▸ energy: 7 -> 8 (spent 0)` — the small increase
+is regen during the run's duration, not a spend; resuming an
+already-started run costs nothing beyond what the run's own original
+`start_run` already paid. Guard budget (`data/guard-budget.json`)
+unchanged at 40 energy / 2 runs after this action, confirming the
+accounting is correct.
+
+**Death-room histogram** (`scripts/deathRooms.ts`): 15 → 16 confirmed
+deaths, `0/4/5/6` → `0/4/5/7` across rooms 1-4. Still zero room-1 deaths.
+One more data point in the same even-ish spread Task 11 (parked) already
+noted — not enough on its own to revisit that parking decision.
+
+Fixtures written and redacted automatically: `fixtures/dungeon-runs/
+run-2026-08-16-17-55-21/` (the dry-run's one read) and `fixtures/
+dungeon-runs/run-2026-08-16-17-55-45/` (68 states, the real run).
+Committed in `1da0bc7`, pushed. `handoff/DECISIONS.md` gained one entry
+documenting the potion-policy-on-a-resumed-run confirmation.
