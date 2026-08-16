@@ -1,4 +1,4 @@
-# session 15 — 2026-08-16
+# STATE — session 15 — 2026-08-16 — commit 9679409
 
 Same content as `handoff/STATE.md` at commit time, plus verbose detail that
 doesn't belong in the always-loaded file.
