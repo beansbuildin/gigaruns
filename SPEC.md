@@ -502,6 +502,56 @@ re-read it per day, never cache it.
 `entryData` is ordered tier 2, 1, 3. **Array index is not tier.** Match on
 `tier`.
 
+**"Juice"/"juiced" is three unrelated game concepts sharing one word —
+user-clarified [2026-08-17, session 23], after this ambiguity caused a real
+live incident (see DECISIONS.md). Do not conflate them:**
+
+1. **`isPlayerJuiced`** (`GET /offchain/player/energy`'s own field) is an
+   **account-level purchasable buff** — increased energy, increased ROM
+   output, 4x Hard Cores earned across dungeons AND fishing. Nothing to do
+   with a specific dungeon run's mode. This account currently reads
+   `isPlayerJuiced: true`.
+2. **"Juice" as an item name** — Big Heal Juice, Mid Heal Juice, etc. —
+   ordinary consumable potions, unrelated to either of the other two senses.
+3. **A "Juiced" Forbidden Woods *run mode*** — the one this section is
+   about. Confirmed mechanics, user-stated:
+   - Costs **60 energy** (3x the normal 20) and consumes **3 of the 12
+     daily run-count units**, not 1 — confirmed against the real
+     `dayProgressEntities` counter this session (3 → 6 after the user
+     started one).
+   - Requires clearing **only 1 room's worth of fights**, same as a normal
+     run — NOT 3 full runs' worth of combat.
+   - Every room's reward is **3x** a normal run's (room 1's 5 Dendren Root
+     → 15 juiced) — this is the real multiplier the user live-confirmed;
+     `juicedMultiplier: 1` in `config/discovered.json`'s dungeon-entity
+     container does NOT represent this and should not be read as the reward
+     multiplier for anything.
+   - Economic rationale (user's own framing): 3 Big Heal Juice spent across
+     one juiced run buys the reward yield of 3 normal runs, vs. needing 9
+     Big Heal Juice (3/run × 3 runs) to match it via ordinary runs.
+
+**Real gap, checked directly rather than assumed: `start_run`'s captured
+envelope has never once carried a `tier` field or sent `isJuiced: true`** —
+the bot has no confirmed request shape for starting a juiced run itself.
+Current workaround: the user starts the run manually in-browser (juiced
+toggle, Tier 3) and the bot resumes via the standard live-loop resume path,
+which costs no extra energy/run-slot and doesn't care how a run was started.
+**Building a bot-initiated juiced `start_run` (TASKS.md Task 14) is blocked
+on a live DevTools capture of that real request body** — CLAUDE.md §2
+forbids guessing at it, and guessing here specifically is what already
+caused a real incident this session (see DECISIONS.md 2026-08-17).
+
+**The "dungeon sack" — user directive [2026-08-17, session 23]: left EMPTY
+going forward.** Whatever potions are loaded into it persist across dungeon
+entries and get committed at `start_run` regardless of the request's own
+`consumables` field (session 23's incident). Rather than relying on the sack
+being in a known state, the user will keep it empty; potion loading is the
+bot's job via its own `consumables` field on a genuinely NEW `start_run`,
+which already works correctly (confirmed this session: a fresh start with
+`consumables: []` left Big Heal Juice balance unchanged, 70 → 70). The next
+piece — equipping potions ONLY when entering a juiced run specifically — is
+scoped in TASKS.md Task 14, blocked on the same capture gap above.
+
 **Two traps in the id layer:**
 
 - `entity.ID_CID` is the dungeon *type* (`"5"`, **a string**), while

@@ -80,16 +80,17 @@ describe("resolveExchange", () => {
     // Winning with Spell must restore its DEF. The superseded model restored 0.
     // [session 09] PLAYER.moves.scissor.def was 12 (up from 8 through session
     // 08 — +4 Spell DEF gear). [session 11] Reverted to 8 — a gear re-spec
-    // away from Spell (see enemies.ts's PLAYER doc); starting armor kept low
-    // enough to stay clear of the armorMax 16 cap so this demonstrates plain
-    // regen, not the cap.
+    // away from Spell. [session 23] Re-spec'd back to Spell-favoring, DEF 13
+    // (see enemies.ts's PLAYER doc); starting armor kept low enough to stay
+    // clear of the armorMax 16 cap so this demonstrates plain regen, not the
+    // cap.
     const state: BattleState = {
       me: { ...me(), armor: 2 },
       foe: { ...e63(), charges: 3 } as Combatant,
       room: 1,
     };
     const { state: next } = resolveExchange(state, "scissor", "paper"); // Spell beats Shield
-    expect(next.me.armor).toBe(10); // 2 + 8, well under the cap of 16
+    expect(next.me.armor).toBe(15); // 2 + 13, well under the cap of 16
   });
 
   it("wastes armor regenerated above the cap", () => {

@@ -84,9 +84,27 @@ const DungeonEntitySchema = z
   })
   .passthrough();
 
+/**
+ * The server's own per-day run counter — `docId` is `DayCount#<address>#Dungeon#<id>`,
+ * `UINT256_CID` is the real count of attempts today for that dungeon. This is
+ * the authoritative source for "runs used today": it counts every attempt
+ * regardless of who or what started it (bot or manual browser play), unlike
+ * `GuardState`'s local counter, which only sees actions this process itself
+ * sent. Session 23 found the two can drift — the local guard read 8/12 while
+ * this field read 11/12, because a user-started juiced run was invisible to
+ * local tracking.
+ */
+const DayProgressEntitySchema = z
+  .object({
+    docId: z.string(),
+    UINT256_CID: z.number(),
+  })
+  .passthrough();
+
 export const DungeonTodaySchema = z
   .object({
     dungeonDataEntities: z.array(DungeonEntitySchema),
+    dayProgressEntities: z.array(DayProgressEntitySchema).optional(),
   })
   .passthrough();
 export type DungeonToday = z.infer<typeof DungeonTodaySchema>;

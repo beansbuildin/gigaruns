@@ -40,6 +40,8 @@ export type BoonEffect =
   | { kind: "moveDelta"; move: MoveKey }
   /** `armorMax += val1`, current armor unchanged. [session 11, LIVE] */
   | { kind: "maxArmor" }
+  /** `hpMax += val1; hp += val1` — unlike maxArmor, current HP moves WITH the ceiling. [session 23, LIVE] */
+  | { kind: "maxHealth" }
   /** Verified to change nothing at pickup. The effect is latent, in combat. */
   | { kind: "latent" };
 
@@ -195,6 +197,18 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-15-22-50-38 state-010→state-011",
     observed: "selectedVal1 2 → no change to any player field",
   },
+  AddMaxHealth: {
+    // [session 23, LIVE] First pair — picked at room 3 during this session's
+    // live batch (bot's own reward-pick logic, not a supervised choice).
+    // Grows a max pool like AddMaxArmor, but current HP moved WITH the new
+    // ceiling instead of staying put — a genuine mechanical difference, not
+    // an inconsistency to paper over. See the `maxHealth` case in
+    // `applyBoon` above.
+    effect: { kind: "maxHealth" },
+    contaminates: [],
+    evidence: "run-2026-08-17-17-03-45 state-196→state-197",
+    observed: "selectedVal1 8 → hpMax 42 → 50, hp 15 → 23 (both +8)",
+  },
 };
 
 /**
@@ -279,6 +293,16 @@ export function applyBoon(player: Combatant, option: BoonOption): BoonApplicatio
       // opposite direction: Heal raises `hp` toward an unchanged `hpMax`,
       // this raises `armorMax` and leaves `armor` exactly where it was.
       next.armorMax += option.val1;
+      break;
+    case "maxHealth":
+      // [session 23] The one recorded pair moved BOTH fields by the same
+      // amount: hpMax 42→50, hp 15→23 (selectedVal1 8). This is NOT the same
+      // shape as maxArmor's "ceiling only" pattern — current HP rose with the
+      // ceiling here, unprompted by any heal. One sample; if a future pair
+      // ever shows hp NOT moving, that would falsify this and need its own
+      // fix, not a silent revert.
+      next.hpMax += option.val1;
+      next.hp += option.val1;
       break;
     case "latent":
       break;
@@ -703,6 +727,76 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 2,
     source: "run-2026-08-17-04-47-48/state-021",
     options: [opt("AddIntuition", 1), opt("AddLuck", 1), opt("AddEvasion", 1)],
+  },
+  // [session 23, LIVE] 13 new offers from this session's live batch (9
+  // dungeon runs, see STATE.md/handoff/log for the incident this batch was
+  // part of). All options already modelled/seen except AddMaxHealth, its
+  // own first-ever pair — see BOON_MODELS above.
+  {
+    room: 1,
+    source: "run-2026-08-17-17-03-45/state-010",
+    options: [opt("AddBurnSword", 5), opt("AddEvasion", 1), opt("AddIntuition", 1)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-17-03-45/state-027",
+    options: [opt("UpgradeRock", 0, 4), opt("AddIntuition", 2), opt("AddEvasion", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-17-03-45/state-047",
+    options: [opt("AddBurnShield", 3), opt("AddBlock", 2), opt("AddWeakSword", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-17-17-03-45/state-063",
+    options: [opt("AddIntuition", 1), opt("AddLuck", 1), opt("AddLifestealShield", 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-17-03-45/state-086",
+    options: [opt("AddTenacity", 2), opt("AddBlock", 2), opt("AddLifestealShield", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-17-03-45/state-100",
+    options: [opt("AddEvasion", 2), opt("AddBlock", 2), opt("AddBlock", 5)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-17-03-45/state-125",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddIntuition", 1), opt("TieWeak", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-17-03-45/state-139",
+    options: [opt("UpgradeScissor", 0, 6), opt("AddBurnShield", 3), opt("AddTenacity", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-17-03-45/state-162",
+    options: [opt("AddIntuition", 1), opt("AddIntuition", 4), opt("UpgradeRock", 0, 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-17-03-45/state-180",
+    options: [opt("UpgradeScissor", 4), opt("Regen", 1), opt("AddEvasion", 1)],
+  },
+  {
+    // First-ever AddMaxHealth pickup pair — see BOON_MODELS above.
+    room: 3,
+    source: "run-2026-08-17-17-03-45/state-196",
+    options: [opt("AddLuck", 2), opt("AddTenacity", 2), opt("AddMaxHealth", 8)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-17-03-45/state-211",
+    options: [opt("AddTenacity", 2), opt("AddBlock", 2), opt("AddEvasion", 1)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-17-44-38/state-011",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddTenacity", 2), opt("AddEvasion", 1)],
   },
 ];
 

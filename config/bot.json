@@ -4,9 +4,9 @@
     "dailyEnergyBudget": 240,
     "maxRunsPerSession": 12,
     "potions": {
-      "_comment": "Session 17: explicit user authorization, required before the live loop uses ANY potion — user flagged that an unguarded auto-detect-from-inventory default could burn through a limited/valuable consumable without real intent. allowedItemId 131 = Big Heal Juice (the only potion type the bot is authorized to touch). maxPerRun 2, user's own choice this session (not the theoretical hard-cap-of-3 from DECISIONS.md 2026-08-15) — matches what was actually live-tested twice in session 16, leaves 1 in reserve against the current 3-unit stock. Change or remove this block to adjust; removing it disables automatic potion use entirely.",
+      "_comment": "Session 17: explicit user authorization, required before the live loop uses ANY potion — user flagged that an unguarded auto-detect-from-inventory default could burn through a limited/valuable consumable without real intent. allowedItemId 131 = Big Heal Juice (the only potion type the bot is authorized to touch). Session 23: maxPerRun raised 2 -> 3 (the theoretical hard-cap from DECISIONS.md 2026-08-15), user's explicit call for this session's juiced Tier-3 batch specifically — tier-3/juiced stakes (real entry-fee materials, 3x reward multiplier) justify the full 3 where the plain 20-energy case didn't. Stock is 70 units, far above what 3/run risks. Ask the user whether to revert to 2 after this batch. Change or remove this block to adjust; removing it disables automatic potion use entirely.",
       "allowedItemId": 131,
-      "maxPerRun": 2
+      "maxPerRun": 3
     }
   },
   "dendren": {

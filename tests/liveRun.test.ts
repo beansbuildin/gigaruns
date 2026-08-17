@@ -19,11 +19,13 @@ import {
   buildEnvelope,
   buildPathSelectionEnvelope,
   classifyPhase,
+  findRealRunsToday,
   KNOWN_SIDE_KEYS,
   locateLowestTierOption,
   locateRewardOption,
   moveToAction,
   postWithVerifiedRetry,
+  ResumeConfirmationRequired,
   runOnce,
   selectEnemyPathByIndex,
   selectRewardByIndex,
@@ -372,6 +374,77 @@ describe("runOnce — dry run", () => {
     // second start_run on top of an existing run), one to read it for the
     // decision.
     expect(getCalls).toBe(2);
+  });
+});
+
+describe("findRealRunsToday", () => {
+  it("finds the matching dungeon's row by docId suffix and returns its count", () => {
+    const today = {
+      dayProgressEntities: [
+        { docId: "DayCount#0xUSER#Dungeon#1", UINT256_CID: 12 },
+        { docId: "DayCount#0xUSER#Dungeon#5", UINT256_CID: 11 },
+      ],
+    };
+    expect(findRealRunsToday(today, 5)).toBe(11);
+    expect(findRealRunsToday(today, 1)).toBe(12);
+  });
+
+  it("returns null when no row exists yet for that dungeon (genuinely zero runs today)", () => {
+    expect(findRealRunsToday({ dayProgressEntities: [] }, 5)).toBeNull();
+    expect(findRealRunsToday({}, 5)).toBeNull();
+  });
+});
+
+describe("runOnce — resume confirmation (session 23)", () => {
+  // [session 23] A run that already existed before this invocation — the
+  // user's manually-started juiced run got silently resumed and played to a
+  // room-2 death by the ordinary policy, with no way for the bot to see that
+  // 3x Big Heal Juice / a Tier-3 entry was on the line. This is the fix.
+  it("refuses to resume a pre-existing active run without --resume-existing, sends no POST", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        calls.push(init?.method ?? "GET");
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(), entity: { ROOM_NUM_CID: 2 } } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    await expect(runOnce(deps, { requireResumeConfirmation: true, resumeExisting: false })).rejects.toBeInstanceOf(ResumeConfirmationRequired);
+    expect(calls.every((m) => m === "GET")).toBe(true);
+  });
+
+  it("proceeds to resume when --resume-existing is passed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(), entity: { ROOM_NUM_CID: 2 } } } })),
+    );
+    const deps = makeDeps(true); // dry-run so it stops after one decision, not a full combat loop
+    const p = runOnce(deps, { requireResumeConfirmation: true, resumeExisting: true });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it("dry-run never throws — it warns and simulates instead, since it never POSTs anyway", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(), entity: { ROOM_NUM_CID: 2 } } } })),
+    );
+    const deps = makeDeps(true);
+    const p = runOnce(deps, { requireResumeConfirmation: true, resumeExisting: false });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+  });
+
+  it("does not require confirmation when requireResumeConfirmation is unset (orchestrator's continuous-loop use)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(), entity: { ROOM_NUM_CID: 2 } } } })),
+    );
+    const deps = makeDeps(true);
+    const p = runOnce(deps); // no opts at all — matches orchestrator.ts's call site
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
   });
 });
 

@@ -96,16 +96,28 @@ export const DANGEROUS_TIER = 2;
  * moved non-monotonically (12/8 → 16/12 → 12/8). Re-measure both sides of any
  * comparison in the same run rather than quoting a number from an old recap.
  */
+/**
+ * [session 23] Updated to the newest unbooned capture
+ * (run-2026-08-17-17-03-45's chronologically-last empty-`pickedBoons` state):
+ * hpMax 38 → 42 (+4, matches two `IncreaseMaxHealth amount 2` OnStartDungeon
+ * gear effects now present), rock (Sword) 20/4 → 16/0 (the +4/+4 gear boost
+ * is GONE — a real re-spec, not a regression), scissor (Spell) 12/8 → 18/13
+ * (a NEW +6 ATK / +5 DEF OnStartDungeon gear boost, matching
+ * `IncreaseDamage_Spell`/`IncreaseArmor_Spell` effects in the wire capture).
+ * `paper` (Shield) and `armorMax` unchanged. Same non-monotonic gear-respec
+ * pattern as session 15 — re-measure any cross-session comparison rather
+ * than quoting an older number.
+ */
 export const PLAYER: Combatant = {
   id: "player",
-  hp: 38,
-  hpMax: 38,
+  hp: 42,
+  hpMax: 42,
   armor: 16,
   armorMax: 16,
   moves: {
-    rock: mv(20, 4), // Sword — +4 ATK / +4 DEF gear, session 11
+    rock: mv(16, 0), // Sword — no gear boost currently equipped, session 23
     paper: mv(6, 12), // Shield
-    scissor: mv(12, 8), // Spell — reverted from the session 09 +4/+4 gear
+    scissor: mv(18, 13), // Spell — +6 ATK / +5 DEF gear, session 23
   },
   // The player starts every run with all rolled stats at zero; the only way
   // they become non-zero is a boon (src/sim/boons.ts).

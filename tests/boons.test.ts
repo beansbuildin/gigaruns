@@ -232,8 +232,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // entries are the DEF-variant, already known clean/modelled — TWO new
     // clean picks join the set below (the first NEW room-1 clean type since
     // AddMaxArmor, session 06). UpgradePaper stays unmodelled.
+    // [session 23] +7 more room-1 offers (3 options each, this session's
+    // 9-run live batch). Two contain UpgradeRock (DEF-variant) and two
+    // contain UpgradeScissor (DEF-variant) — four more already-known clean
+    // picks; every other option is a rolled stat or still-unmodelled.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(69);
+    expect(roomOne.length).toBe(90);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -249,19 +253,25 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
+      "UpgradeRock",
+      "UpgradeRock",
+      "UpgradeScissor",
+      "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
     ]);
   });
 
-  it("Heal, UpgradeScissor, UpgradeRock and AddMaxArmor are the only clean boons in the corpus", () => {
+  it("Heal, UpgradeScissor, UpgradeRock, AddMaxArmor and AddMaxHealth are the only clean boons in the corpus", () => {
     // [session 11] AddMaxArmor joined this session — captured at room 2, not
     // room 1, so it doesn't move the room-1-scoped test above.
+    // [session 23] AddMaxHealth joined — captured at room 3, so it doesn't
+    // move the room-1-scoped test above either.
     const clean = Object.entries(BOON_MODELS)
       .filter(([, m]) => m.contaminates.length === 0)
       .map(([t]) => t);
-    expect(clean).toEqual(["Heal", "UpgradeScissor", "UpgradeRock", "AddMaxArmor"]);
+    expect(clean).toEqual(["Heal", "UpgradeScissor", "UpgradeRock", "AddMaxArmor", "AddMaxHealth"]);
 
     const healRooms = OBSERVED_OFFERS.filter((o) =>
       o.options.some((x) => x.type === "Heal"),

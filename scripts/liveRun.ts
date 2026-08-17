@@ -69,6 +69,21 @@ import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
  */
 export const MAX_POTIONS_PER_RUN = 3;
 
+/**
+ * [session 23] Thrown when `runOnce` finds an active run it didn't start
+ * itself and no `--resume-existing` confirmation was given. Deliberately NOT
+ * a `GuardTrip` — this isn't an anomalous game state, it's the process
+ * correctly refusing to guess at something it cannot see (a resumed run's
+ * consumables/juiced status). No action was sent, so no guard/energy
+ * accounting applies.
+ */
+export class ResumeConfirmationRequired extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ResumeConfirmationRequired";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pure decision helpers — no network, unit-testable directly.
 // ---------------------------------------------------------------------------
@@ -565,7 +580,7 @@ export async function usePotionLive(
  * flee) or a guard trips. In `--dry-run`, never calls `postDungeonAction` —
  * it polls state and logs every decision it WOULD have sent.
  */
-export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } = {}): Promise<void> {
+export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; requireResumeConfirmation?: boolean; resumeExisting?: boolean } = {}): Promise<void> {
   const { client, config, guards, model, strategyConfig, fixtures, log, dryRun, guardStatePath } = deps;
 
   let prevFoeMove: MoveKey | null = null;
@@ -597,6 +612,35 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
     // at room 2 (HP 2/32, mid-combat) that had started under the cap but
     // then couldn't be resumed once a later run pushed the count to the cap.
     const room = existing.data.entity?.ROOM_NUM_CID ?? "?";
+
+    // [session 23] A run this invocation didn't itself start is exactly what
+    // stranded the user's manually-started juiced Tier-3 run: it got silently
+    // resumed and auto-played to a room-2 death by the ordinary EV-engine
+    // policy, burning a real entry (7 crafting items, 3x Big Heal Juice
+    // pre-loaded via the "dungeon sack") on a decision the user never made.
+    // The state read here CANNOT tell us if a resumed run is juiced or has
+    // potions committed — `isJuiced`/`consumables` never appear on any state
+    // read, only (maybe) on the original start_run this process didn't send.
+    // Given that blindness, the only safe default is to refuse and ask,
+    // not guess. `opts.requireResumeConfirmation` is set by `main()` only on
+    // the FIRST iteration of a `--runs=N` loop — a run still active between
+    // iterations of the SAME invocation was started by this same process and
+    // needs no re-confirmation.
+    if (opts.requireResumeConfirmation && !opts.resumeExisting) {
+      const hp = existing.data.run?.players?.[0]?.health?.current ?? "?";
+      const hpMax = existing.data.run?.players?.[0]?.health?.currentMax ?? "?";
+      const message =
+        `An active run already exists (room ${room}, own HP ${hp}/${hpMax}) that this process didn't start. ` +
+        `Its consumables/juiced status is NOT visible from here — resuming it blind is exactly what burned a ` +
+        `real juiced entry in session 23. Re-run with --resume-existing only after confirming (from you, or by ` +
+        `checking what you actually started) that it's safe for the bot to auto-play this run to completion.`;
+      if (dryRun) {
+        console.log(`  ⚠ [dry-run] a REAL invocation would REFUSE here without --resume-existing: ${message}`);
+      } else {
+        throw new ResumeConfirmationRequired(message);
+      }
+    }
+
     console.log(`  · active run already exists at room ${room} — resuming rather than starting a new one`);
     log.write({ event: "resuming_existing_run", room });
     if (opts.stage2Only) {
@@ -882,7 +926,11 @@ function parseArgs(argv: string[]) {
   const potionCount = potionsArg ? Number(potionsArg.split("=")[1]) : undefined;
   const thresholdArg = argv.find((a) => a.startsWith("--potion-threshold="));
   const potionThreshold = thresholdArg ? Number(thresholdArg.split("=")[1]) : DEFAULT_POTION_THRESHOLD;
-  return { dryRun, stage2, status, runs, probeUseItemFlag, probeConsumablesItemId, potionCount, potionThreshold };
+  // [session 23] Required before this process will touch a run it didn't
+  // itself start this invocation — see the runOnce comment at the "existing"
+  // branch for why. Absence is fail-closed (refuse), not fail-open.
+  const resumeExisting = argv.includes("--resume-existing");
+  return { dryRun, stage2, status, runs, probeUseItemFlag, probeConsumablesItemId, potionCount, potionThreshold, resumeExisting };
 }
 
 /**
@@ -930,6 +978,18 @@ async function currentEnergy(client: GigaverseClient, address: string): Promise<
 /** Matches scripts/liveFishing.ts's own constant — kept as a literal duplicate rather than a shared import, same footing as this file's other path constants. */
 const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
 
+/**
+ * Session 23: pulls the REAL server-side runs-used-today count for a dungeon
+ * out of `GET /game/dungeon/today`, rather than trusting the local
+ * guard-budget file. Returns `null` if the server has no day-progress row
+ * yet (genuinely zero runs today). Pure/testable — takes the already-fetched
+ * response, not a client.
+ */
+export function findRealRunsToday(today: { dayProgressEntities?: { docId: string; UINT256_CID: number }[] }, dungeonId: number): number | null {
+  const row = today.dayProgressEntities?.find((e) => e.docId.endsWith(`#Dungeon#${dungeonId}`));
+  return row ? row.UINT256_CID : null;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -964,6 +1024,21 @@ async function main() {
   const account = await client.getAccount(me.address);
   const fixtures = new FixtureWriter(me.address, client.maskedJwt().split("...")[0]!);
   console.log(`  account <USER> noobId ${account.noob?.docId ? "<NOOB>" : "(none)"}`);
+
+  // [session 23] The local guard file only sees runs THIS bot started — a
+  // user-started manual run (juiced or not) is invisible to it. Checked here,
+  // every real invocation, so drift is caught before it compounds across a
+  // whole batch rather than discovered after the fact.
+  const dungeonToday = await client.getDungeonToday();
+  const realRunsToday = findRealRunsToday(dungeonToday, config.dungeonId);
+  if (realRunsToday !== null) {
+    const driftNote = realRunsToday !== seed.runsStarted ? `  ⚠ DRIFT from bot-tracked ${seed.runsStarted} — likely manual play outside this bot` : "  (matches bot-tracked count)";
+    console.log(`  · real server runs today: ${realRunsToday}/${config.maxRunsPerSession}${driftNote}`);
+    if (realRunsToday >= config.maxRunsPerSession) {
+      console.log(`  · real server cap already reached today — any start_run will be rejected server-side.`);
+    }
+  }
+
   if (args.probeUseItemFlag) {
     console.log(`  · --probe-use-item: will send one use_item probe the first time own HP drops to ≤${Math.round(PROBE_HP_FRACTION * 100)}%.`);
   }
@@ -1049,7 +1124,7 @@ async function main() {
                 : undefined,
           potionPolicy: potionPolicyState,
         },
-        { stage2Only: args.stage2 },
+        { stage2Only: args.stage2, requireResumeConfirmation: i === 0, resumeExisting: args.resumeExisting },
       );
     } catch (e) {
       runError = e;

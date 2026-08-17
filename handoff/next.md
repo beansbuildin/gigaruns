@@ -1,113 +1,97 @@
-# BRIEF — session 23
+# BRIEF — session 23 (corrected mid-session)
+
+**Read this instead of the original session-23 plan below the line.** The
+original plan (9 non-juiced runs first, then 3 juiced runs) collided with
+reality: the user had already manually started a juiced Tier-3 run (3x Big
+Heal Juice committed) at room 1 before this session's batch began. Since
+only one dungeon run can be active at a time, the batch's first "non-juiced"
+run almost certainly resumed and played THAT run instead — under the
+potions-off policy meant for the batch, not the potions-on policy meant for
+the juiced run. A later run in the same batch (6th) also got stranded
+mid-combat by a network failure. Nothing has been lost that can't be
+accounted for — potions are consumed at `start_run` commitment, not at use
+(session 14), so the 3 Big Heal Juice are gone from inventory regardless of
+what's discovered below; the open question is only whether they delivered
+any healing benefit or were wasted.
+
+**Do these in order. Don't skip the diagnostic — the juiced-run plan
+shouldn't restart until the state is actually understood, not assumed.**
+
+## 1. Resolve the stranded live run
+
+Currently active: room 2, HP 22/42, non-juiced enemy, stranded by a network
+fetch failure mid-combat. Resume and complete it via the normal live path,
+potions off (matches this run's own original policy — no reason to change
+it now). Costs no new run slot; it's already counted in today's used total.
+
+## 2. Read-only diagnostic on "run 1" of the batch — before anything else moves
+
+Check the logged fixture/state for whatever got recorded as the first run of
+this session's batch:
+
+- Does its `start_run`/state data show `isJuiced: true` and
+  `consumables: [131, 131, 131]` (or similar)? This confirms whether it was
+  actually the user's pre-existing juiced run.
+- Did any `use_item` calls fire during it, or none at all?
+- What room did it reach, and how did it end (win/death)?
+- Cross-check current Big Heal Juice (itemId 131) balance against session
+  22's ending balance — a drop of exactly 3 at that run's start would
+  independently confirm the timing.
+
+Report findings plainly before proceeding to step 3. If the potions were
+committed but never used, say so directly — that's a real finding, not
+something to soften.
+
+## 3. Report clean current state
+
+After steps 1-2: real dungeon runs remaining today, real energy remaining,
+current Big Heal Juice balance. Don't reuse any numbers from earlier in this
+session — get them fresh.
+
+## 4. Confirm potion config is actually at maxPerRun=3
+
+The original brief asked for `config/bot.json`'s
+`forbiddenWoods.potions.maxPerRun` to be raised 2→3 for the juiced batch.
+Verify this actually landed before the next juiced run — don't assume it
+did because it was asked for.
+
+## 5. Juiced Tier-3 runs — one at a time, strict sequencing
+
+For each of the remaining planned juiced runs:
+
+1. **User** starts it manually in the browser (juiced toggle, Tier 3,
+   whatever selection surfaces the "3 gold rings" offering) and confirms
+   it's showing active.
+2. **User** tells CC to proceed.
+3. **CC** resumes and completes ONLY that currently-active run — potions
+   on, `maxPerRun=3`. No reward-pick logic changes needed ("Gold Ring" only
+   affects Hard Cores payout on the same boon offers, not which offers
+   appear).
+4. **CC stops.** Does not loop, does not auto-start another run. Reports
+   the outcome (room reached, potions fired, real energy/reward numbers
+   observed) and waits for the user to start the next one.
+
+Repeat for however many juiced runs remain given real runs-left after
+steps 1-3.
+
+## 6. Still true from the original brief
+
+- Correct SPEC.md/`config/discovered.json`'s juiced-multiplier note — user
+  confirmed live, 3x reward multiplier is real, `juicedMultiplier: 1` was
+  wrong or measuring something else.
+- Do not attempt Task 10's 8-hour orchestrator run this session.
+
+---
+
+*Original pre-correction brief below, kept for reference only — superseded
+by the numbered list above.*
 
 Session 22 was the biggest single-session ROM result so far: all 37 ROMs
 enumerated, +392 energy claimed, account hit the real 420 cap twice.
 Fishing's daily budget is fully spent (240/240); dungeon sits at 3/12 runs
 used. Two time-sensitive, user-directed items for this session, in order.
 
----
-
-## 1. Opening move: spend the 9 remaining non-juiced runs, no potions
-
-The user has 9 of today's 12 dungeon runs left before the real per-day
-run-count resets (~2h window at time of writing, 11am PST). Spend them now
-via `scripts/liveRun.ts` (a bounded batch, not the orchestrator), with
-potions OFF (`--potions=0` or temporarily remove the
-`forbiddenWoods.potions` config block) — the user's explicit call: Big Heal
-Juice is not a good economic trade against a 20-energy run.
-
-Expect real variance across the 9 runs. The death-room histogram has
-consistently shown outcomes spread across rooms 2-4 (session 20 added the
-corpus's first room-5 death) — run `scripts/deathRooms.ts` fresh rather than
-citing a stale number, but a wide spread this batch is the expected shape,
-not a signal something's wrong. Feed results into the corpus as usual; no
-strategy changes expected from this batch alone.
-
-## 2. Then: 3 juiced Tier-3 runs, user-started, bot-finished
-
-**Correction to carry forward:** the user confirmed directly, live-tested —
-juiced Forbidden Woods runs give a real 3x reward multiplier (room 1's
-normal 5 Dendren Root drops 15 juiced). `config/discovered.json`'s
-`juicedMultiplier: 1` is CONTRADICTED by this and should not be trusted;
-note the correction in SPEC.md rather than reading that field at face value
-going forward.
-
-**Real gap, checked directly, not assumed:** `start_run`'s actual envelope
-(SPEC.md's confirmed dungeon action section) has never carried a `tier`
-field — every capture only shows `consumables`/`isJuiced`/`index`, and
-`isJuiced` has never once been sent as `true`. The bot has no confirmed way
-to construct a juiced-Tier-3 `start_run` request; this is genuinely unbuilt,
-not just untested. Given real entry-fee materials (Tier 3 requires 7
-distinct crafting items per `config/discovered.json`'s `entryData`) and 3
-real Big Heal Juice per run are at stake, don't have the bot guess at this
-request shape.
-
-**Use the already-proven pattern instead:** the user starts each of the 3
-juiced Tier-3 runs manually in the browser (juiced toggle, Tier 3, whatever
-selection surfaces the "3 gold rings" offering), then the bot takes over via
-the standard resume path — zero extra energy/run-slot cost for the resume
-itself (confirmed sessions 17/19), and the combat/potion loop doesn't care
-how a run was started. This sidesteps the unbuilt request shape entirely
-while still getting full bot-driven play for the actual combat.
-
-**Sequencing safety guardrail — this is a manual back-and-forth, not a
-batch.** There is no watcher polling the browser for a newly-started run;
-each of the 3 is a discrete round: user starts it and confirms it's active
-→ tells CC to resume and complete THAT ONE run → CC finishes it → user
-starts the next. **Do not let CC auto-start a new run after finishing one**
-(e.g. via `--runs=N` with N>1, or any loop) — if invoked while no run is
-active, the bot's default behavior is to start one itself, and it cannot
-construct a juiced-Tier-3 request. An auto-started run would silently be a
-plain free-tier run, burning one of the 3 juiced-eligible slots on the
-wrong thing. Scope every invocation this batch to "resume and complete the
-currently active run, then stop."
-
-**Before handoff, one thing to check** (down from two — see correction
-below):
-
-1. Raise `config/bot.json`'s `forbiddenWoods.potions.maxPerRun` from 2 to 3
-   for this batch, with a sourced comment (user's explicit call — tier-3/
-   juiced stakes justify 3 where the 20-energy case didn't). Ask the user
-   whether to revert after this batch or leave it at 3.
-
-**Correction from the user on "Gold Ring": no reward-pick logic changes
-needed.** It's not a distinct reward type the bot has to recognize — it's a
-modifier on the SAME character-upgrade boon offers (+2 burn, +4 sword DMG,
-etc.) that increases the Hard Cores bundled with whichever offer gets
-picked. The boon offers themselves are unchanged. So the existing reward-pick
-logic doesn't need to distinguish anything special here — whatever boon it
-would normally pick, it picks the same way, and the larger Hard Cores payout
-happens server-side regardless of which offer is chosen. Drop this as a
-pre-flight check entirely.
-
-Once these 3 runs complete, document what was actually observed (real
-energy cost, real reward multiplier, whatever `isJuiced`/tier looks like
-from the state reads even though the bot didn't construct the request) —
-this is real capture, satisfies CLAUDE.md's discovery discipline even
-though the bot didn't initiate the run itself.
-
-## 3. Task 10's 8-hour gate — delayed by the user's own choice, until after reset
-
-User confirmed: hold off until after today's reset. Worth noting why that's
-the right call independent of timing preference: fishing's guard budget is
-already maxed for today, and dungeon's will be near its own cap after item
-1 above — so an attempt today would just hit the orchestrator's own
-configured daily caps and idle, not exercise the real energy-regen
-sleep-and-resume behavior the gate is meant to prove. Wait for a day with
-real headroom on both budgets at the start.
-
----
-
-## Your task
-
-1. Spend the 9 remaining non-juiced dungeon runs now, potions off. Run
-   `deathRooms.ts` after and report the fresh histogram.
-2. Correct SPEC.md/`config/discovered.json`'s juiced-multiplier note per §2.
-3. Raise potion `maxPerRun` to 3 (sourced comment); confirm with the user
-   whether to revert after.
-4. When the user hands off each juiced Tier-3 run (started manually), resume
-   and play it out via the normal live path. Document real observed
-   energy/reward numbers afterward. No reward-pick logic changes needed
-   (see correction above — "Gold Ring" only affects Hard Cores payout, not
-   which boon offers appear).
-5. Do not attempt Task 10's 8-hour run this session — explicitly deferred.
+1. Spend the 9 remaining non-juiced runs (potions off).
+2. Then 3 juiced Tier-3 runs, user-started, bot-finished, potions on,
+   maxPerRun=3, one at a time, no auto-loop.
+3. Defer Task 10's 8-hour run until after today's reset.

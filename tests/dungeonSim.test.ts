@@ -272,8 +272,13 @@ describe("the Task 4 gate", () => {
 
   it("reports a battle win rate in a believable range for random vs random", () => {
     // Not a strategy claim — a sanity check that the sim is not degenerate.
+    // [session 23] Upper bound 0.8 -> 0.9: PLAYER's real gear re-spec'd this
+    // session (enemies.ts's PLAYER doc — scissor ATK/DEF 12/8 -> 18/13, a
+    // genuinely stronger move against these enemies), pushing even a random
+    // policy's measured rate to ~0.82. A real stat change, not a sim bug —
+    // margin added the same way the two bands above this one already were.
     expect(s.scoredBattleWinRate).toBeGreaterThan(0.3);
-    expect(s.scoredBattleWinRate).toBeLessThan(0.8);
+    expect(s.scoredBattleWinRate).toBeLessThan(0.9);
   });
 
   it("[session 11] a scored clear is possible by construction but landed at 0 in this seeded batch", () => {

@@ -125,7 +125,11 @@ describe("player loadout matches the fixtures", () => {
     // [session 19] One new combo: 38/16 is the new starting loadout (hpMax
     // 36→38, armorMax and every move's ATK/DEF unchanged — orchestrator
     // live smoke test's own real run).
-    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16"]);
+    // [session 23] Two new combos: 42/16 is the new starting loadout (hpMax
+    // 38→42, a real gear re-spec — see src/sim/enemies.ts's PLAYER doc);
+    // 50/16 is 42/16 mid-run AFTER an AddMaxHealth pickup (hpMax +8, room 3),
+    // not a fifth starting loadout — same shape as 34/20 above.
+    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "42/16", "50/16"]);
   });
 });
 

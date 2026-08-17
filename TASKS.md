@@ -932,6 +932,62 @@ already found and rejected once.
 
 ---
 
+### 14 — Bot-initiated juiced `start_run`, with per-mode potion equip ← scoped 2026-08-17, session 23; BLOCKED
+
+**Why this exists.** Session 23's incident (DECISIONS.md 2026-08-17): `liveRun.ts`
+silently resumed a run it hadn't started, and separately the local guard-tracked
+run count drifted from the real server count because manually-started runs are
+invisible to it. Both are now fixed (`ResumeConfirmationRequired` gate,
+`findRealRunsToday()`) — but the underlying reason the user has to start juiced
+runs manually at all is still true: **the bot cannot construct a juiced
+`start_run` request itself.** This task is that gap, made explicit rather than
+worked around again.
+
+**What's confirmed, user-stated [2026-08-17]** (see SPEC.md's Forbidden Woods
+section and DECISIONS.md for the full derivation — not repeated here):
+a Juiced run costs 60 energy, consumes 3 of the 12 daily run-count units,
+requires clearing only 1 room's worth of fights, and pays 3x every room's
+reward. The user has also committed to leaving the "dungeon sack" empty going
+forward, so potion loading is entirely the bot's responsibility via
+`consumables` on `start_run` — already working for ordinary runs.
+
+**What's missing, checked directly per CLAUDE.md §2:** `start_run`'s captured
+envelope has never once carried a `tier` field or sent `isJuiced: true`, in
+any capture across 23 sessions. There is no confirmed request shape for
+"start a Tier-3, juiced Forbidden Woods run." Guessing at this field is
+exactly the class of mistake that caused session 23's incident (a different
+guess, same failure mode: acting on an assumed request/response shape instead
+of a captured one) — this task must not repeat it.
+
+**Blocker:** a live DevTools capture (same method as `reward_one`/`path_two`
+in session 08) of the real request body the browser sends when the user
+manually starts a juiced Tier-3 run — Network tab, the `POST
+/game/dungeon/action` (or possibly a distinct endpoint) with `action:
+"start_run"`, captured at the moment the user clicks start with the juiced
+toggle and Tier 3 both selected. Paste the full request body (redact the JWT)
+into `QUESTIONS.md` or hand it directly to a session.
+
+**Once unblocked, two pieces, in order:**
+
+1. Wire the real juiced/tier fields into `buildEnvelope`'s `start_run` call,
+   confirmed against the captured shape, with its own test the same way
+   `reward_one`/`path_two` got theirs.
+2. A `--juiced` (or similar) CLI flag on `liveRun.ts` that, ONLY when starting
+   a genuinely new juiced run, loads potions from `config/bot.json`'s
+   allowlist into `consumables` — mirroring the existing `--potions=N`
+   mechanism but scoped to juiced starts only, per the user's stated
+   rationale (3 potions across 1 juiced run instead of 9 across 3 plain runs).
+   Plain (non-juiced) runs keep defaulting to an empty sack per the user's
+   own directive — this flag must never load potions into a plain run.
+
+**Gate:** one bot-initiated juiced Tier-3 `start_run`, live-verified — the
+response (or a follow-up state read) confirms the run is actually juiced
+(3x reward observed at the first reward pick, matching the user's stated
+5→15 Dendren Root example or equivalent), and the account's real
+`dayProgressEntities` counter for Dungeon#5 moves by exactly 3, not 1.
+
+---
+
 ## Later, if the user wants it
 
 - Path B — bot-owned EOA with full sign-in, so the JWT self-renews.
