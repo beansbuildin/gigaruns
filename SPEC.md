@@ -340,25 +340,79 @@ POST /roms/factory-claim
   successful claim** after two straight failures in session 19. Net +13
   energy from the 4 known ROMs this session.
 
+- **[session 22] Source endpoint for the ROM-list snapshot: CONFIRMED, item
+  1 below RESOLVED.** The user supplied the ROMULATOR panel's own request
+  URL directly: `GET /roms/player?id=<wallet address>` (CLAUDE.md §2 — a
+  user-supplied URL is not a guess). `scripts/probeRomsPlayer.ts` (new,
+  read-only) hit it live: **HTTP 200, `{entities: [...37 entries]}`**. Each
+  entry's `docId` is the same id `factory-claim` takes as `romId` —
+  cross-checked live: all 4 previously-known ids (`7959`, `2097`, `5345`,
+  `689`) appear verbatim as `docId` values in this list, and all 4 now read
+  `energyCollectable: 0` (all claimed session 21, nothing new accrued
+  since). The other 33 previously-unknown ROMs sum to **~3,259
+  `energyCollectable`**, matching session 20's ~3,252 hand-pasted snapshot
+  almost exactly (small delta is live accrual between snapshots, same
+  pattern as the 689/5345 finding above). Full enumeration, descending by
+  `energyCollectable`, is in `config/discovered.json`'s new `roms.allRoms`
+  (gitignored — real docIds/amounts, regenerated on next probe run) and a
+  redacted response sample at `fixtures/probe/roms/
+  player-response-redacted.json`. Wire schema: `RomsPlayerResponseSchema`
+  (`src/api/schemas.ts`), client method `getRomsPlayer(address)`.
+  Top-claimable ROMs this snapshot: two Gold ROMs at 540 each
+  (`docId` 2696 "Overseer", 6096 "Chobo"), then a cluster of Gold ROMs at
+  315 each — the account's real remaining stockpile is concentrated in a
+  small number of high-tier ROMs, not spread evenly across all 37.
+- **[session 22] Live-verified against a handful before trusting all 37:**
+  see the "ROM enumeration claiming" note below.
+
 **Still open (see QUESTIONS.md and TASKS.md for tracking):**
-1. **Source endpoint for the ROM-list snapshot** — the user captured the
-   response directly; the request URL/method that produced it hasn't been
-   confirmed yet. Needed before this can be scripted/probed rather than
-   pasted by hand each time (CLAUDE.md §2).
+1. ~~Source endpoint for the ROM-list snapshot~~ **RESOLVED [session 22]** —
+   see above.
 2. **Accrual RATE per ROM (energy/hour, not just current snapshot value)**
    — the `percentageOfAWeekSinceLastEnergyClaim` field suggests each ROM
    fills to its own `maxEnergy` over roughly a week, tier/boost-dependent,
    but this hasn't been confirmed by an independent second reading spaced
    in time. Matters for scheduling claims (how often is it worth
    re-checking the snapshot) more than for sizing the one-time stockpile,
-   which is already known (~3,252 energy, minus the ~23 already claimed
-   this session).
-3. **Batching strategy against the 420 energy cap** — the real account
-   ceiling (420) is far below the current total claimable (~3,252), so
-   claiming everything at once without spending it down first would waste
-   most of it to the cap. Not yet decided: claim-then-play-down-then-claim
-   cycles, vs. claiming just enough per session to top off before a play
-   session, vs. something else. User decision, not an engineering one.
+   which is now known precisely per-ROM via `getRomsPlayer` rather than
+   estimated from one hand-pasted total.
+3. **Batching strategy against the 420 energy cap — REFINED [session 22,
+   live].** Session 21's "non-wasting" finding is CONFIRMED, and now
+   verified at the ROM-list level too: `scripts/claimAllRoms.ts --limit=5`
+   claimed ROM `2696` (540 collectable) from an account starting at 88
+   energy — credited exactly 332 (88+332=420, the real cap), and a
+   re-probe of `2696` afterward shows `energyCollectable: 208`
+   (540−332=208, the untaken remainder correctly still banked, not lost).
+   The next 4 claims in the same pass (`6096`, `4586`, `2768`, `4543`, all
+   with the account already at 420) each returned `{"success":true}` but
+   **delta 0** — and a re-probe confirms their `energyCollectable` is
+   **completely unchanged** (still 540/315/315/315). So a claim while
+   already at the cap is a genuine no-op: not wasteful, but also not
+   productive. **Consequence, corrected from the session-21 framing**:
+   no batching logic is needed for CORRECTNESS (nothing is ever lost by
+   claiming in any order at any account energy level), but claiming
+   everything in one pass while near the cap wastes rate-limited request
+   time on 0-delta no-ops for no benefit — the productive move is to claim
+   opportunistically as energy gets spent down by normal dungeon/fishing
+   play, not to force a full 33-ROM pass in one sitting while capped.
+
+### ROM enumeration claiming **[session 22]**
+
+`scripts/claimAllRoms.ts` (new, supersedes the hardcoded-4-id
+`scripts/claimRoms.ts` for full-account claiming — `claimRoms.ts` is kept
+as-is, not deleted, since it's still a valid narrower tool) reads the full
+37-ROM list via `getRomsPlayer`, filters to `energyCollectable > 0`, sorts
+descending, and claims in that order — same "no batching logic needed"
+reasoning as `claimRoms.ts` (SPEC.md above, session 21 overflow finding),
+just applied to the real full list instead of 4 hardcoded ids.
+
+**Live-verified against the top 5 of the ranked list before assuming the
+pattern holds across all 37** (`--limit=5`): all 5 returned
+`{"success":true}`, one credited real energy (332, capped by the account's
+420 ceiling), four were correct 0-delta no-ops because the account was
+already at cap — re-probed and confirmed non-wasting on all 5, not just the
+one that moved the energy counter. See the batching-strategy note above for
+the full detail and STATE.md session 22 for the run transcript.
 
 ## 3. Unknowns — resolve via `scripts/probe.ts`
 

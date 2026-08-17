@@ -24,6 +24,7 @@ import {
   JuiceSchema,
   DungeonActionResponseSchema,
   RomClaimResponseSchema,
+  RomsPlayerResponseSchema,
   type UserMe,
   type Account,
   type Energy,
@@ -34,6 +35,7 @@ import {
   type DungeonActionRequest,
   type DungeonActionResponse,
   type RomClaimResponse,
+  type RomsPlayerResponse,
 } from "./schemas.js";
 import {
   FishingStateSchema,
@@ -383,5 +385,14 @@ export class GigaverseClient {
    */
   async claimRomEnergy(romId: string, amount = 0): Promise<RomClaimResponse> {
     return this.post("/roms/factory-claim", { romId, claimId: "energy", amount }, RomClaimResponseSchema);
+  }
+
+  /**
+   * `GET /roms/player?id=<address>` — CONFIRMED session 22 (user-supplied
+   * URL, SPEC.md "ROM enumeration"). Lists all owned ROMs with their current
+   * `factoryStats.energyCollectable`. Read-only.
+   */
+  async getRomsPlayer(address: string): Promise<RomsPlayerResponse> {
+    return this.get(`/roms/player?id=${address}`, RomsPlayerResponseSchema);
   }
 }

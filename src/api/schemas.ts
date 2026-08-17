@@ -214,6 +214,39 @@ export const RomClaimResponseSchema = z.object({ success: z.boolean() }).passthr
 export type RomClaimResponse = z.infer<typeof RomClaimResponseSchema>;
 
 /**
+ * `GET /roms/player?id=<address>` response — CONFIRMED session 22, the user
+ * captured this request URL directly from the ROMULATOR panel (CLAUDE.md
+ * §2: a user-supplied URL is not a guess). `docId` is the same id
+ * `POST /roms/factory-claim` takes as `romId` — cross-checked live against
+ * all 4 previously-known ROM ids, which appear verbatim in this list's
+ * `docId` field. `factoryStats.energyCollectable` is the real per-ROM
+ * claimable amount (the 4 known ROMs, all just claimed session 21, read 0
+ * here; the other 33 sum to ~3,259, matching session 20's ~3,252 stockpile
+ * snapshot).
+ */
+const RomFactoryStatsSchema = z
+  .object({
+    tier: z.string(),
+    faction: z.string(),
+    energyCollectable: z.number(),
+  })
+  .passthrough();
+
+const RomEntitySchema = z
+  .object({
+    docId: z.string(),
+    factoryStats: RomFactoryStatsSchema,
+  })
+  .passthrough();
+
+export const RomsPlayerResponseSchema = z
+  .object({
+    entities: z.array(RomEntitySchema),
+  })
+  .passthrough();
+export type RomsPlayerResponse = z.infer<typeof RomsPlayerResponseSchema>;
+
+/**
  * The dungeon action response envelope.
  *
  * **`start_run` CONFIRMED live 2026-08-14 (session 08, Task 6 stage 2)** —

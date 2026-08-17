@@ -847,6 +847,91 @@ Two findings, one user decision, settling the task:
 
 ---
 
+### 13 — `chooseNewCard` deck-composition scoring ← scoped 2026-08-17, session 22; NOT STARTED
+
+**Scoped, not implemented, per the session-22 brief's own instruction ("only
+write code after scoping is written down... if scoping reveals this needs
+more real catches before a sim comparison would mean anything, say so
+plainly and stop there — that's a legitimate outcome").** This is that
+outcome: scoping surfaced a real prerequisite gap and a thin validation
+floor, in that order, so no code lands this session.
+
+**What `chooseNewCard` optimizes for today, confirmed by reading
+`src/strategy/fishing/cardChoice.ts`:** argmax `max(hitEffect, critEffect)
+/ manaCost` over the 3 offered cards, in total isolation from the deck
+already held. No model of grid coverage, redundancy with cards already in
+`fullDeck`, or mana curve — exactly the gap the brief named.
+
+**The prerequisite gap, found by reading `src/sim/fishing/castSim.ts`
+before writing anything new:** `simulateCast` does not model "the deck a
+real account actually holds" at all. `deck.push(rng.pick(catalog))`
+(`castSim.ts` line ~186) builds a fresh RANDOM sample, sized to the full
+catalog, on every single simulated cast — it has no concept of a specific
+held card list, let alone one that grows over time as `chooseNewCard`
+picks. **Any deck-composition comparison needs this fixed first**: `
+simulateCast` (or a new sibling function) has to draw hands from an
+explicit, passed-in deck (a list of real card ids resolved against the
+catalog for their mechanical stats) instead of a fresh random draw each
+cast. This is well-scoped, needs no new live capture (the catalog already
+exists, `fullDeck` is already a live-readable list of ids), and is the
+one piece of this task that COULD be built today without more captures —
+but it is infrastructure, not the scoring logic itself, and was not built
+this session per the "scope first" instruction taking priority.
+
+**The validation floor, the harder problem:** even with deck-aware
+`simulateCast` in hand, any comparison it produces would rest on two
+un-stacked layers of unvalidated model:
+
+1. `castSim`'s own fish-pattern model is itself only weakly checked
+   against reality — matcher-blind sim catch rate 6.6% vs. matcher+mined
+   16.2% (this session's `mineFishPatterns.ts` run, 102 transitions/30
+   casts), with the REAL rate still unknown to any useful precision (1
+   catch in 30 real casts total across every session to date is 3.3%, a
+   single-digit-count estimate with no stated CI). A deck-composition
+   heuristic tuned against this sim inherits all of that uncertainty.
+2. `chooseNewCard` itself has essentially no live outcome data to check
+   against — this session's fishing batch (Task 4) produced exactly one
+   live card choice under the CURRENT heuristic (catch on cast `12945...`,
+   offers `{16, 34, 33}`, chose `34`; `fullDeck` grew to 15). One data
+   point cannot distinguish "the current heuristic chose well" from "it
+   chose adequately and got lucky" from "a better heuristic would have
+   done the same thing anyway" — the same "30-observation floor" reasoning
+   DECISIONS.md already applies everywhere else in this project applies
+   here with even less data than usual.
+
+**Consequence — this is genuinely Task 11's dungeon-tuning null result
+shape, recognized in advance rather than discovered after building
+something:** Task 11's parked dungeon half spent real session time
+sweeping utility weights ×3/×5/×10 in a sim before finding no measurable
+live-relevant signal. Building a full deck-composition scorer now, against
+a fish-pattern model with a ~30-cast real floor and a 1-choice real
+validation set for the very heuristic being replaced, risks the identical
+outcome: a sim number that moves, with no way to know if it means anything
+live. Scoping this BEFORE code, as the brief asked, catches that risk at
+its cheapest point.
+
+**Gate, once this is unparked (states what has to be captured, per
+CLAUDE.md §6):**
+
+> On real deck data (not a synthetic random sample), a candidate
+> `chooseNewCard` replacement beats the current argmax-hit-power/mana
+> heuristic on sim catch rate or mean turns-to-catch, non-overlapping 95%
+> CI, using the SAME fish-pattern model already in use elsewhere in this
+> project (not a bespoke one built to make this task easier to pass).
+> Reported alongside, not gated: how many real card choices exist to check
+> the sim's ranking against, and whether the sim and live agree on the
+> handful that do.
+
+**What would unpark it:** (1) the deck-aware `simulateCast` prerequisite
+built (cheap, no new capture needed — see above), AND (2) enough real
+catches that the "1 live choice" validation floor becomes double digits,
+so a sim-vs-live comparison has more than one point to check. Neither
+alone is sufficient — infrastructure without validation data just produces
+a confident-looking number with the same unearned confidence Task 11
+already found and rejected once.
+
+---
+
 ## Later, if the user wants it
 
 - Path B — bot-owned EOA with full sign-in, so the JWT self-renews.

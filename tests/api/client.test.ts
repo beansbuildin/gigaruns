@@ -340,4 +340,37 @@ describe("GigaverseClient", () => {
       await assertion;
     });
   });
+
+  describe("getRomsPlayer", () => {
+    it("hits /roms/player?id=<address> and returns the entities list", async () => {
+      let sentUrl: string | null = null;
+      const entity = {
+        docId: "2696",
+        factoryStats: { tier: "Gold", faction: "Overseer", energyCollectable: 540 },
+      };
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+          sentUrl = url;
+          return { status: 200, text: async () => JSON.stringify({ entities: [entity] }) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getRomsPlayer("0xUSER");
+      const assertion = expect(p).resolves.toEqual({ entities: [entity] });
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(sentUrl).toContain("/roms/player?id=0xUSER");
+    });
+
+    it("fails closed on a 500", async () => {
+      vi.stubGlobal("fetch", mockFetch(() => ({ status: 500, body: { error: {} } })));
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getRomsPlayer("0xUSER");
+      const assertion = expect(p).rejects.toBeInstanceOf(UnexpectedResponseError);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
+  });
 });
