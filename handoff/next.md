@@ -1,138 +1,106 @@
-# BRIEF — session 17
+# BRIEF — session 19
 
-The stale-brief guard worked exactly as designed — you detected `next.md` was
-session 15's already-executed brief, didn't re-run it, didn't guess at what a
-session-16 brief would have said, and worked the next unblocked task with the
-reasoning stated. That's the protocol functioning. And Stage B was a better
-choice than the brief you didn't receive would have made.
+Session 18 closed the fishing-side loose end for real this time — 9 bot-driven
+casts, 4 catches, `loot` fired cleanly every time, zero stranding. That's
+QUESTIONS.md §10 done on every axis it's ever been checked against. It also
+caught and fixed a real process gap (stale test-suite count from an
+out-of-band commit) rather than inheriting it silently. Endorsing the fix
+session 18 itself proposed in its open questions: add a line to CLAUDE.md's
+working-style section (or wherever the recap step lives) that the full suite
+gets re-run against the FINAL commit at recap time, not against whatever was
+last checked mid-session. Do that as a small housekeeping edit before the
+main task, not as its own session.
 
-Three findings from it deserve calling out, then two corrections and the task.
+One new thing changes this session's shape entirely.
 
 ---
 
-## 1. Three results that change the picture
+## 1. The user found a lever that may remove the real bottleneck
 
-**`use_item` costs no combat turn.** This resolves the question I flagged in
-session 11 as deciding the entire policy shape. It isn't a tempo trade — it's
-pure scarcity allocation. The only cost of healing early is overheal waste.
+Both dungeon and fishing hit the same wall at session 18's end: real account
+energy at 10/420, confirmed shared pool, nothing left to do but wait on
+18/hr regen. That's not a guard/config problem — every session since 17 has
+been throttled by it.
 
-**The old `potionSweep.ts` modelled a heal as `hpMax += 20`** — a permanent stat
-boost, not a heal. That's the sweep whose `+1.26 rooms` figure I quoted back to
-the user in session 16 as the largest effect the project had measured. The
-conclusion survived (corrected: `+1.347`), but the number I cited came from a
-broken model, and you found it while building the replacement rather than
-inheriting it. Keep the old script marked as buggy so nobody re-quotes it.
+The user reports ROMs (NFT assets tied to the wallet) can be claimed for
+energy via a UI button outside dungeon/fishing screens, and captured two real
+requests logged under `factory-claim`:
 
-**`data.index` is a consumption counter, not an item ID.** `[131, 131]` needs
-`index: 0` then `index: 1`. Worth flagging in SPEC prominently — it's the kind
-of field that looks like an ID and silently isn't.
+```json
+{"romId":"7959","claimId":"energy","amount":7}
+{"romId":"2097","claimId":"energy","amount":57}
+```
 
-## 2. Your threshold sweep stopped at its own optimum — extend it
+Confirmed directly with the user: **no wallet signature or gas prompt** when
+claiming. That puts this in the same bucket as the existing dungeon/fishing
+actions — an authenticated REST call, not an on-chain spend — so it does not
+fall under CLAUDE.md's ask-first list as written. Treat it as routine once
+verified live, same tier as `loot` or `use_item`.
 
-You swept `{0.2, 0.34, 0.5}` and 0.5 won at every loadout size. **0.5 is the
-highest value you tested**, so the sweep's best row sits on the boundary of the
-search space, and the true optimum may be outside it.
+**Endpoint CONFIRMED by the user:** `POST https://gigaverse.io/api/roms/factory-claim`.
+No need to probe for it — write it straight into `SPEC.md`/`config/discovered.json`
+as CONFIRMED (method + path from the user's own capture, per CLAUDE.md §2)
+and start from there. HTTP method assumed POST given the body carries
+`romId`/`claimId` (a write, not a query) — confirm this is actually correct
+against the captured request, not just assumed from the body shape.
 
-Your own explanation predicts this. If waiting risks a lethal exchange crossing
-the check point before the heal fires, *and* healing costs no turn, then the
-only argument against healing earlier is overheal waste. Against a 20 HP heal on
-a 36 HP pool, overheal only starts binding above roughly `1 − 20/36 ≈ 0.44`
-— which 0.5 already exceeds without losing.
+**Open questions once the endpoint is confirmed, in priority order:**
 
-Re-run at `{0.5, 0.6, 0.7, 0.8, 0.9}` × loadout `{1, 2, 3}`. Report the full
-curve, not just the winner, so the shape is visible. If the maximum lands on an
-interior point, that's the real optimum; if it lands at 0.9, extend again and
-say so.
+1. Is `amount` a request parameter or a response value? Reads much more like
+   a response (the two ROMs returned different amounts for the same
+   `claimId`) — if so, the request likely only needs `romId`/`claimId`, and
+   `amount` is server-determined per ROM. Don't assume either way; check the
+   full captured response, not just the body fragment above.
+2. How many ROMs does this wallet hold, and how are they enumerated? Two
+   IDs are known (7959, 2097) — there may be more. Look for a balances-style
+   read endpoint before assuming these are the only two.
+3. Is there a per-ROM cooldown (daily? one-time?)? This decides whether ROM
+   claiming is a one-time energy top-up or a recurring daily income source —
+   materially different for Task 10's budget model.
+4. Total claimable energy per day across all owned ROMs, once 2–3 are
+   answered — this is the number that actually matters for whether the real
+   10/420-style floor stops binding.
 
-This is a free correction — pure sim, no energy, no materials.
+**Gate, capture-first per CLAUDE.md §6:** document the confirmed endpoint,
+request/response schema, and cooldown behavior in `SPEC.md` (new section) and
+`config/discovered.json`. One live claim against a real ROM, before/after
+`GET /offchain/player/energy` read, confirms the amount actually lands in the
+spendable pool (not a separate currency). Don't build automation around this
+until that live confirmation exists — same discipline as the potion-timing
+task's Stage A/B split.
 
-## 3. Q1 and Q3 are one question, and here's the break-even
+## 2. Task 10 (Orchestrator) — still the next unstarted task, now worth more
 
-Q3 (default potions on?) reduces entirely to Q1 (does crafting draw from the
-240/day pool?), because stock is nearly gone — 3 Big Heal Juice against ~2
-consumed per run.
+Unchanged from last brief: `guards.ts` has no energy-regen sleep loop,
+`liveRun.ts` has no `SIGINT` handling. Still the real next task. But it's
+worth sequencing AFTER the ROM discovery above, not before — the orchestrator's
+energy-budget model is a different design if ROM claims can top up the pool
+mid-session versus if the only lever is waiting on 18/hr regen. Don't build
+the sleep-loop's energy math twice.
 
-The math, so the craft probe returns a decision rather than a datum. Daily
-budget 240 energy ≈ 12 runs at 20 each, so both caps bind together and any
-energy spent crafting directly costs runs.
+## 3. Carried forward, unchanged
 
-- **No potions:** `12 × 2.130 = 25.6` rooms/day.
-- **3 potions/run**, crafting costing `X` energy per attempt at 70% success:
-  expected `X/0.7` per potion, so `20 + 4.29X` per run, and
-  `3.477 × 240/(20 + 4.29X)` rooms/day.
-
-Setting them equal gives **`X ≈ 2.9`**. So:
-
-- **Crafting costs no energy** → `12 × 3.477 = 41.7` rooms/day, a 63% gain.
-  Default potions on at 3 per run, immediately.
-- **Crafting costs under ~3 energy per attempt** → still net positive, scale
-  the loadout to the margin.
-- **Crafting costs more than ~3** → potions lose to simply running more.
-  Recommend spending the remaining free stock and then stopping.
-
-**Authorized: one craft attempt** with `GET /offchain/player/energy` immediately
-before and after. Materials are abundant (700–900 of each input) and a failed
-attempt answers the energy question just as well as a success. One attempt, then
-stop — don't build stock before the number is known.
-
-Re-derive the break-even with the §2 sweep's corrected optimum before
-recommending, since a better threshold shifts the benefit side.
-
-## 4. Fishing — the user has to act, and I've asked again
-
-Nothing here is an agent task. Two reasoned guesses were spent, both cleanly
-rejected, and the state is confirmed persistent rather than transient. Correct
-call not to guess a third time.
-
-The user has been asked twice. Framing it for them as two tiers this time:
-
-- **Minimum:** open Dendren in the browser and pick a card. That alone unblocks
-  the account, even with nothing captured.
-- **Better:** do it with DevTools → Network open and paste back the request
-  payload and URL.
-
-If only the minimum happens, the account unblocks and the action name gets
-captured on the *next* catch instead — so build the live fishing loop to dump
-the full raw response on any terminal event it doesn't recognise. That turns the
-next catch into an automatic capture and removes the user from the loop
-permanently.
-
-Do that regardless of whether they act this session.
+- `mineFishPatterns.ts`: 1 of ~23 candidates promoted (`perimeterWalk(cw)`,
+  now live-wired). More casts compound this automatically — spend fishing
+  budget as energy allows (doubly true now if ROM claims add headroom).
+- `chooseNewCard` heuristic: still an explicit placeholder, still not urgent.
+- Death-room histogram: unchanged at 0/4/5/7 (no dungeon runs completed
+  session 18). Task 11 stays parked.
 
 ---
 
 ## Your task
 
-1. **Extended threshold sweep**, per §2. First — it's free and it feeds §3.
-2. **One craft attempt with before/after energy**, per §3. Authorized.
-3. **Break-even recommendation**: default potions on or off, at what loadout,
-   with the numbers.
-4. **Unknown-terminal-event raw dump** in the fishing loop, per §4.
-5. If the user unblocks fishing: spend the day's casts. `perimeterWalk(cw)` is
-   still one confirming cast from promotion, and it remains the only evidence
-   the matcher can ever help.
-
-Note the death histogram is now 15 deaths at `0/4/5/6` — still no room-1 death,
-still even. Task 11 stays parked; its revival condition was the histogram
-changing shape, and it hasn't.
-
-Addendum — fishing account UNBLOCKED by the user:
-
-The user opened the client and found a "COLLECT" screen for the most
-recent catch, clicked collect, then selected a spell card. The account
-is no longer stuck. Verify with scripts/checkFishingStuck.ts at session
-start -- expect a clean state and fullDeck length 11 (was 10, +1 for
-the card selected).
-
-Note the sequence: COLLECT is a SEPARATE step before card selection.
-The stuck state was between those two, which is why select_card and
-claim were both rejected -- the collect step hadn't happened yet.
-Record in SPEC-fishing.md as the catch resolution flow.
-
-No request was captured, so the action names are still unknown. The
-§4 unknown-terminal-event raw dump is now MORE important, not less --
-it is the only remaining path to capturing them, and it fires on the
-next catch. Build it before spending casts.
-
-Fishing casts are now unblocked. §5 applies: perimeterWalk(cw) is one
-confirming cast from promotion.
+1. Housekeeping: add the recap-against-final-commit line per session 18's
+   own suggestion.
+2. Write `POST /api/roms/factory-claim` into SPEC.md/`config/discovered.json`
+   as CONFIRMED (endpoint from the user's capture) with the two known
+   request bodies as fixture data. Confirm HTTP method against the actual
+   capture rather than assuming from body shape alone.
+3. Answer the four ROM questions above from the confirmed schema — most need
+   the FULL response body (not just the fragment already in hand) and a
+   ROM-enumeration read endpoint, both still to find.
+4. One live claim with before/after energy read. Document the result. Do not
+   automate yet.
+5. If time remains: start Task 10, informed by whatever the ROM energy model
+   turned out to be.
