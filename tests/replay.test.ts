@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(386); // +52 session 16: Task 12 Stage B's two live potion-timing runs — first cleared rooms 1-3 (died room 4, a stall-guard trip stranded it mid-combat first, then resumed), second confirmed the fixed index handling end-to-end and cleared rooms 1-2 (died room 3); four real use_item heals fired mid-battle across both
+    expect(exchanges(runs).length).toBe(414); // +28 live [2026-08-16/17]: the takeover run (resumed and completed via liveRun.ts, STATE.md session 17) — rooms 1-3 cleared, died room 4, both configured potions fired correctly on a run the bot didn't itself start
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -127,7 +127,14 @@ describe("combat model vs recordings", () => {
     // healing 12/36->32/36 then 18/36->36/36; died room 3. Clean model
     // matched every exchange across both, 0 clean failures, now 15
     // confirmed deaths.
-    expect(report.sideUpdates).toBe(772);
+    // [live, 2026-08-16/17] The takeover run (resumed and completed via
+    // liveRun.ts, STATE.md session 17): rooms 1-3 cleared, died room 4, both
+    // configured Big Heal Juice potions fired correctly at HP thresholds on
+    // a run the bot resumed rather than started — confirms the potion policy's
+    // remaining/used state, seeded fresh in main(), is safe to assume even on
+    // a resumed run. Clean model matched every exchange again, 0 clean
+    // failures, now 16 confirmed deaths.
+    expect(report.sideUpdates).toBe(828);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

@@ -609,6 +609,32 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-16-15-38-58/state-040",
     options: [opt("AddBlock", 3), opt("AddIntuition", 1), opt("AddMaxArmor", 2)],
   },
+  {
+    // [live, 2026-08-16/17] Room-1 offer, the takeover run (started outside
+    // any session, resumed and completed via liveRun.ts — STATE.md session
+    // 17). First sighting of `VulnerableBlock` and `CorrosiveShield` seen
+    // together (CorrosiveShield already known; VulnerableBlock is new,
+    // offered not picked — stays unmodelled). AddBlock (picked) already clean.
+    room: 1,
+    source: "run-2026-08-16-17-55-45/state-008",
+    options: [opt("VulnerableBlock", 4), opt("CorrosiveShield", 2), opt("AddBlock", 2)],
+  },
+  {
+    // [live, 2026-08-16/17] Room-2 offer, same takeover run. All three
+    // options already modelled/seen; AddTenacity (picked) already clean.
+    room: 2,
+    source: "run-2026-08-16-17-55-45/state-032",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddTenacity", 2), opt("AddBlock", 2)],
+  },
+  {
+    // [live, 2026-08-16/17] Room-3 offer, same takeover run — the run died in
+    // room 4, so this stays the deepest offer in the corpus. First sighting
+    // of `AddVulnerableShield` (offered, not picked — stays unmodelled).
+    // AddLuck (picked) already clean.
+    room: 3,
+    source: "run-2026-08-16-17-55-45/state-054",
+    options: [opt("AddVulnerableShield", 2), opt("AddLuck", 2), opt("AddBlock", 2)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

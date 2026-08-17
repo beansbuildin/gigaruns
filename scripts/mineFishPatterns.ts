@@ -32,7 +32,7 @@
  * Usage: npx tsx scripts/mineFishPatterns.ts [path-to-fish-patterns.jsonl]
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Cell } from "../src/sim/fishing/geometry.js";
@@ -223,6 +223,21 @@ function main() {
   } else {
     console.log(`  ${promoted.length} primitive(s) promoted: ${promoted.map((p) => p.pattern.name).join(", ")}`);
   }
+
+  // Persist whatever was promoted so scripts/liveFishing.ts can seed the
+  // matcher's candidate pool without re-running the miner mid-cast. Always
+  // overwritten (even to an empty list) so a pattern that regresses below
+  // threshold as more casts land doesn't linger stale in live play.
+  const mineOutPath = join("data", "minedFishPatterns.json");
+  writeFileSync(
+    mineOutPath,
+    JSON.stringify(
+      { patterns: promoted.map((p) => p.pattern.name), minedAt: new Date().toISOString(), castCount: casts.length },
+      null,
+      2,
+    ),
+  );
+  console.log(`\n  written to ${mineOutPath} — scripts/liveFishing.ts reads this to seed the matcher.`);
 
   // Feed whatever was promoted back through matcherPool and report the sim
   // rate — session-15 brief §3's explicit ask, whichever way it comes out.

@@ -67,6 +67,7 @@ import {
 } from "../src/strategy/fishing/matcher.js";
 import { cellKey, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
+import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 
 // ---------------------------------------------------------------------------
 // Pure(ish) helpers — no network, unit-testable directly.
@@ -189,6 +190,30 @@ export function fishCell(doc: FishingGameDoc): Cell {
     throw new Error(`doc.data.fishPosition malformed: ${JSON.stringify(doc.data.fishPosition)}`);
   }
   return { x, y };
+}
+
+const MINED_PATTERNS_PATH = join("data", "minedFishPatterns.json");
+
+/**
+ * Reads scripts/mineFishPatterns.ts's output (pattern names that hit the
+ * PROMOTION_THRESHOLD of independent exact-matching real casts) and resolves
+ * each name back against the synthetic pool it was tested against. Missing
+ * file, unparseable file, or an unrecognised name are all treated the same
+ * as "nothing mined yet" — never a crash — since a stale/absent mined file
+ * just means the matcher starts empty, exactly like every session before
+ * this wiring existed.
+ */
+export function loadMinedPatterns(path: string = MINED_PATTERNS_PATH): Pattern[] {
+  if (!existsSync(path)) return [];
+  let parsed: { patterns?: unknown };
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8")) as { patterns?: unknown };
+  } catch {
+    return [];
+  }
+  const names = Array.isArray(parsed.patterns) ? parsed.patterns.filter((n): n is string => typeof n === "string") : [];
+  const byName = new Map(buildPatternPool().map((p) => [p.name, p]));
+  return names.map((n) => byName.get(n)).filter((p): p is Pattern => p !== undefined);
 }
 
 /**
@@ -448,7 +473,13 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
 
   const castId = doc.docId;
   const gridSize = doc.data.gridSize;
-  let matcher: MatcherState = initMatcher([], fishCell(doc));
+  const startCell = fishCell(doc);
+  const minedPatterns = loadMinedPatterns();
+  const matcherCandidates = minedPatterns.map((p) => toCandidate(p, startCell, gridSize, MAX_TURNS));
+  if (matcherCandidates.length > 0) {
+    console.log(`  · matcher seeded with ${matcherCandidates.length} mined pattern(s): ${minedPatterns.map((p) => p.name).join(", ")}`);
+  }
+  let matcher: MatcherState = initMatcher(matcherCandidates, startCell);
   const transitionLog = loadTransitionLog(transitionsPath);
 
   let turn = 0;

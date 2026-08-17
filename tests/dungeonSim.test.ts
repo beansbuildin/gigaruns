@@ -230,8 +230,22 @@ describe("the Task 4 gate", () => {
     // SecondWind. Second run — room 1: UpgradeScissor/AddMaxArmor/AddBlock;
     // room 2: AddBlock/AddIntuition/AddMaxArmor). No new clean type — same
     // reshuffling, not a regression.
-    expect(s.battleCoverage.scored).toBe(1126);
-    expect(s.deepestScorableRoom).toBe(4);
+    // [live, 2026-08-16/17] 1126 -> 1108 — the takeover run added three new
+    // offers (room 1: VulnerableBlock/CorrosiveShield/AddBlock; room 2:
+    // UpgradeScissor/AddTenacity/AddBlock; room 3: AddVulnerableShield/
+    // AddLuck/AddBlock). No new clean type — same reshuffling, not a
+    // regression. `deepestScorableRoom` also moved 4 -> 3 for the first time
+    // through this reshuffling: it is the deepest room with a SCORED battle
+    // in THIS seeded 1000-run sample (dungeonSim.ts), capped by but distinct
+    // from `MAX_OBSERVED_ROOM` (enemies.ts, still 4 — untouched, since it
+    // comes from ROOM_ENEMIES, not OBSERVED_OFFERS). Growing the room-1/2/3
+    // option pools shifted which random boon each simulated run draws at
+    // this seed; the low-probability tail of "stay scorable all the way to
+    // a room-4 battle" happened to fall out of the sample this time. Not a
+    // regression in the model — same class of drift as `scored` above, just
+    // the first time it has touched this particular number.
+    expect(s.battleCoverage.scored).toBe(1108);
+    expect(s.deepestScorableRoom).toBe(3);
   });
 
   it("reports a battle win rate in a believable range for random vs random", () => {
