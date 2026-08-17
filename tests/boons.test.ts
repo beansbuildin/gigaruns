@@ -28,7 +28,7 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(40); // +3 live [2026-08-16/17]: the takeover run (resumed and completed via liveRun.ts, STATE.md session 17) cleared rooms 1-3 (died room 4) — AddBlock, AddTenacity, AddLuck
+    expect(pickups.length).toBe(41); // +1 live [session 19]: orchestrator smoke test's real dungeon run, room 1 — AddTenacity
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -149,6 +149,7 @@ describe("fail-closed on unmodelled types", () => {
       // CorrosiveMagic moved OUT — session 14 gave it a live pickup pair
       // (latent, same shape as AddBurnSword/CorrosiveShield), now modelled.
       "AddBurnMagic", // session 12: first sighting, live room-1 offer, not picked
+      "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked
       "AddLifestealMagic", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
       "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
       "AddVulnerableShield", // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
@@ -212,8 +213,13 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // CorrosiveShield/AddBlock — the takeover run). VulnerableBlock is newly
     // unmodelled; CorrosiveShield and AddBlock are already-known
     // modelled-but-contaminated types, so the clean set is unchanged.
+    // [live, session 19] +1 more room-1 offer (3 options: AddTenacity/
+    // AddBlock/AddBurnShield — the orchestrator smoke test's real run).
+    // AddBurnShield is newly unmodelled; AddTenacity and AddBlock are
+    // already-known rolled-stat (contaminated) types, so the clean set is
+    // unchanged.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(60);
+    expect(roomOne.length).toBe(63);
 
     const clean: string[] = [];
     for (const option of roomOne) {

@@ -635,6 +635,14 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-16-17-55-45/state-054",
     options: [opt("AddVulnerableShield", 2), opt("AddLuck", 2), opt("AddBlock", 2)],
   },
+  {
+    // [live, session 19, orchestrator smoke test] First sighting of
+    // `AddBurnShield` (offered, not picked — stays unmodelled). AddTenacity
+    // (picked) and AddBlock (offered) both already modelled.
+    room: 1,
+    source: "run-2026-08-17-01-23-21/state-006",
+    options: [opt("AddTenacity", 2), opt("AddBlock", 2), opt("AddBurnShield", 5)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

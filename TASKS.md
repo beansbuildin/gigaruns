@@ -382,6 +382,62 @@ abandon a run mid-turn).
 **Gate:** Eight-hour unattended session. Zero unhandled exceptions. Daily rollup
 generated. Energy spend within budget.
 
+**Outcome [2026-08-17, session 19]: PARTIALLY MET — built, unit-tested, and
+live-smoke-tested; the eight-hour unattended half is NOT attempted, stated
+explicitly per CLAUDE.md §6 rather than left ambiguous.**
+
+Built this session: `src/orchestrator/scheduler.ts` (pure `nextAction()` —
+decides dungeon vs. fishing vs. energy-regen sleep vs. "done for today" from
+real energy + each mode's own daily budget, balancing the two loops by
+relative headroom rather than always favoring one), `src/orchestrator/
+shutdown.ts` (graceful SIGINT — a shared `ShutdownSignal` flag checked once
+per turn inside `runOnce`/`runOneCast`, right after confirming the run/cast
+isn't already over and BEFORE the next action is sent, so an in-flight
+action always finishes and only the *next* one is skipped; a second SIGINT
+force-exits), `guards.ts`'s new `isBudgetGuardTrip()` (a narrow allowlist so
+one mode hitting its daily cap doesn't take the other mode's loop down with
+it — CLAUDE.md §5's "unexpected state" fail-closed is preserved for genuine
+anomalies; a designed, expected budget stop is not one), and
+`scripts/orchestrator.ts` (the entrypoint composing all of the above around
+the SAME `runOnce`/`runOneCast` Task 6/9 already gated live — no game logic
+duplicated).
+
+**Live-verified, not just unit-tested:** `--dry-run` against the real
+account correctly read live energy/guard state and picked the right next
+action. A real bounded run (`--hours=0.05`) started one genuine dungeon run,
+won the room-1 battle, picked a reward, and was SIGINT'd mid-run — it
+finished the in-flight reward pick, then stopped cleanly at the room-2 turn
+boundary ("run left active at room 2"), recorded the correct real energy
+delta (95→75, 20 spent), persisted `data/guard-budget.json` correctly, and
+printed a rollup (both modes' budgets + a live final energy read) before
+exiting 0 with no unhandled exception. This is the two genuinely new,
+risk-bearing mechanisms (scheduler choice + graceful SIGINT) verified live,
+not just against fixtures.
+
+**Known simplification, stated in the script's own header:** potion loading
+is not wired into the orchestrator yet — dungeon runs through it go
+potion-free regardless of `config/bot.json`'s `forbiddenWoods.potions`,
+matching the safe "unconfigured" default rather than silently changing
+behavior for a user who HAS configured potions. Small, separate follow-up.
+
+**What was NOT attempted, and why:** the gate's actual eight-hour unattended
+window. Nothing in an interactive coding session can run unattended for
+eight real hours while also being verified within that same session — the
+two are mutually exclusive. Per CLAUDE.md §6 (state what a gate needs before
+calling it met or silently reinterpreting it): what this needs is exactly
+what it says — someone starts `npx tsx scripts/orchestrator.ts --hours=8`
+and leaves it running, unattended, separately from any chat session, then
+the resulting log/rollup is checked afterward. The live smoke test above is
+the strongest evidence available *this session* that the mechanism works;
+it is not a substitute for the real duration the gate asks for.
+
+The one real live dungeon run this smoke test produced (fixture corpus +2
+new distinct player loadout `38/16`, +1 room-1 boon offer) tripped the exact
+class of stale hardcoded corpus-count assertions CLAUDE.md's own new
+recap-against-final-commit line (this session's housekeeping item, see
+DECISIONS.md) was written to catch — caught and fixed within this same
+session rather than left for the next one to discover.
+
 ---
 
 ### 11 — Tuning ← DUNGEON HALF PARKED 2026-08-15, session 13 (see below)

@@ -150,3 +150,23 @@ export function assertKnownEnum<T extends string>(value: string, allowed: readon
   }
   return value as T;
 }
+
+/**
+ * Task 10: the orchestrator runs both dungeon and fishing loops and must
+ * not let one mode's designed, expected stop (its daily budget or run/cast
+ * cap) take the other mode down with it — that's a policy boundary working
+ * as intended, not the kind of "unexpected state" CLAUDE.md §5 says to fail
+ * closed on. A GENUINE anomaly (consecutive action failures, a stalled
+ * state, an unknown enum) must still propagate and halt the whole process —
+ * this is deliberately a narrow allowlist of the reason strings that mean
+ * "this mode is done for today," not a blanket "any GuardTrip is fine."
+ */
+const BUDGET_GUARD_REASONS: ReadonlySet<string> = new Set([
+  "session run cap reached",
+  "daily energy budget would be exceeded",
+  "daily energy budget exceeded",
+]);
+
+export function isBudgetGuardTrip(trip: GuardTrip): boolean {
+  return BUDGET_GUARD_REASONS.has(trip.reason);
+}

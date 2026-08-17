@@ -61,6 +61,7 @@ import { pickLowestTier } from "../src/strategy/enemyTier.js";
 import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import { shouldUsePotion, DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
+import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 
 /**
  * Hard cap, DECISIONS.md 2026-08-15 (session 11): potions are a
@@ -270,7 +271,7 @@ function stamp(): string {
   return new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
 }
 
-class FixtureWriter {
+export class FixtureWriter {
   private n = 0;
   private readonly out: string;
   private readonly raw: string;
@@ -301,7 +302,7 @@ class FixtureWriter {
 // Structured JSONL logging — SPEC §7.
 // ---------------------------------------------------------------------------
 
-class RunLog {
+export class RunLog {
   private readonly path: string;
   constructor() {
     mkdirSync("logs", { recursive: true });
@@ -370,6 +371,15 @@ export interface LiveRunDeps {
    * `usePotionLive`'s doc comment for why that's load-bearing, not cosmetic.
    */
   potionPolicy?: { itemId: number; threshold: number; remaining: number; used: number };
+  /**
+   * Task 10: graceful SIGINT. Checked once per turn, right after confirming
+   * the run isn't already over and BEFORE deciding/sending the next action
+   * — so a signal received mid-network-call never aborts an in-flight
+   * action, it only skips the *next* one. `undefined` (the default, e.g.
+   * every existing caller/test) means "never asked to stop," identical to
+   * today's behavior.
+   */
+  shutdownSignal?: ShutdownSignal;
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -680,6 +690,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean } 
       return;
     }
 
+    if (deps.shutdownSignal?.requested) {
+      log.write({ event: "shutdown_requested", room: roomNum, phase });
+      console.log(`  ▸ SIGINT — stopping before the next action (turn boundary), run left active at room ${roomNum}.`);
+      return;
+    }
+
     if (phase === "combat") {
       const battle = buildBattleState(run, roomNum);
       const d: Decision = decide(battle, model, strategyConfig, prevFoeMove);
@@ -878,7 +894,7 @@ function parseArgs(argv: string[]) {
  * was spent. `main()` exits immediately after this, before constructing a
  * `GigaverseClient` at all.
  */
-function printStatus(config: BotConfig): void {
+export function printStatus(config: BotConfig): void {
   const seed = loadGuardBudget();
   const runsRemaining = Math.max(0, config.maxRunsPerSession - seed.runsStarted);
   const energyRemaining = Math.max(0, config.dailyEnergyBudget - seed.energySpent);

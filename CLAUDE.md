@@ -91,6 +91,10 @@ treat a third time as expected, not exceptional.
 
 - **TypeScript, Node 20+, `viem` for signing.** Abstract tooling is TS-first.
 - Run `npx tsc --noEmit` and the test suite before declaring a task done.
+- At recap time, re-run the full test suite against the FINAL commit you're
+  about to hand off — not against your last in-session check. Session 18
+  found `main` claiming a passing count that was stale by one out-of-band
+  commit; a mid-session check can go stale the moment anything lands after it.
 - Commit after each task with the verification output pasted in the message.
 - Keep the API client (`src/api/`) free of game logic, and the strategy modules
   (`src/strategy/`) free of network calls. Strategy takes a state object and

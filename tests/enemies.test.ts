@@ -122,7 +122,10 @@ describe("player loadout matches the fixtures", () => {
     // above: 36/18 is 36/16 + one pickup (first potion-timing run, room 2);
     // 36/20 is 36/16 + TWO pickups (second run, rooms 1 and 2 both offered
     // AddMaxArmor and both were taken).
-    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20"]);
+    // [session 19] One new combo: 38/16 is the new starting loadout (hpMax
+    // 36→38, armorMax and every move's ATK/DEF unchanged — orchestrator
+    // live smoke test's own real run).
+    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16"]);
   });
 });
 

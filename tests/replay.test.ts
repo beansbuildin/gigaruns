@@ -18,7 +18,7 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(414); // +28 live [2026-08-16/17]: the takeover run (resumed and completed via liveRun.ts, STATE.md session 17) — rooms 1-3 cleared, died room 4, both configured potions fired correctly on a run the bot didn't itself start
+    expect(exchanges(runs).length).toBe(417); // +3 live [session 19]: orchestrator smoke test's one real dungeon run (room 1 combat, won, SIGINT'd cleanly at the room-2 turn boundary)
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -134,7 +134,11 @@ describe("combat model vs recordings", () => {
     // remaining/used state, seeded fresh in main(), is safe to assume even on
     // a resumed run. Clean model matched every exchange again, 0 clean
     // failures, now 16 confirmed deaths.
-    expect(report.sideUpdates).toBe(828);
+    // [live, session 19] Orchestrator smoke test's one real dungeon run:
+    // room 1 combat only (3 exchanges), won, then a clean SIGINT stop at the
+    // room-2 turn boundary before any further action — no death, run left
+    // active/resumable. Clean model matched, 0 clean failures.
+    expect(report.sideUpdates).toBe(834);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

@@ -1,0 +1,8 @@
+{
+  "request": {"romId": "7959", "claimId": "energy"},
+  "httpStatus": 500,
+  "response": {"error": {}},
+  "energyBefore": 90,
+  "energyAfter": 90,
+  "delta": 0
+}

@@ -526,3 +526,35 @@ the resolution fields will be captured mechanically without a human needing
 to notice mid-session. This does not by itself capture the action name
 (the bot doesn't send that action), but it removes any risk of missing the
 signal in the response if a human capture also lands around the same time.
+
+---
+
+## 11. ROM factory-claim — enumeration + cooldown duration [session 19]
+
+`POST /roms/factory-claim` is CONFIRMED and live-verified (SPEC.md's "ROM
+factory-claim" section, DECISIONS 2026-08-16 session 19): claims land in the
+same spendable energy pool as dungeon/fishing, but a single live claim on
+romId 2097 delivered only ~1.0 real energy — not the 57 present in the
+user's captured request body, which turns out not to control the payout at
+all. Two things needed to size whether this is actually worth automating:
+
+1. **How many ROMs does this wallet own, and how are they enumerated?**
+   Only 7959 and 2097 are known (both from the user's own DevTools capture).
+   `GET /user/me`, `GET /game/account/{address}`, and `GET /offchain/static`
+   were all dumped and searched (CLAUDE.md §2) — none list owned ROM ids or
+   balances. There may be a dedicated read endpoint (parallel to
+   `/items/balances` or `/gigajuice/player/{address}`) that hasn't surfaced
+   yet, or ROM ownership may only be visible through an on-chain NFT read
+   this project doesn't otherwise touch. If the user can point at (or
+   DevTools-capture) whatever UI panel lists "your ROMs," that would resolve
+   this in one capture, same recipe as the fishing catch-resolution question
+   (§10) was resolved.
+2. **Cooldown duration.** Only lower-bounded at >34 seconds (an immediate
+   re-claim of a just-claimed ROM failed). Is it minutes? Hours? Once per
+   UTC day, like the dungeon/fishing guard budgets? This decides whether
+   claiming is worth polling for or is a background, infrequent action.
+
+Not blocking anything — Task 10 (orchestrator) doesn't need this resolved to
+proceed, and CLAUDE.md's own instruction (session-19 brief) was explicit:
+don't automate ROM claiming until the energy model is sized. Logged here per
+the "write the question, keep going" protocol rather than idling on it.

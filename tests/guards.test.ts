@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { assertKnownEnum, GuardState, GuardTrip } from "../src/orchestrator/guards.js";
+import { assertKnownEnum, GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
 
 const BUDGET = { dailyEnergyBudget: 60, maxRunsPerSession: 3, maxConsecutiveActionFailures: 3 };
 
@@ -117,5 +117,64 @@ describe("assertKnownEnum", () => {
 
   it("throws GuardTrip on a value outside the allowed set", () => {
     expect(() => assertKnownEnum("lizard", ["rock", "paper", "scissor"] as const, "move")).toThrow(GuardTrip);
+  });
+});
+
+describe("isBudgetGuardTrip — Task 10's mode-isolation classifier", () => {
+  it("is true for the run/energy-cap trips assertCanStartRun and recordEnergySpent throw", () => {
+    const g = new GuardState(BUDGET);
+    g.recordEnergySpent(60);
+    try {
+      g.recordEnergySpent(1);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(GuardTrip);
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(true);
+    }
+
+    const g2 = new GuardState(BUDGET);
+    g2.recordEnergySpent(50);
+    try {
+      g2.assertCanStartRun(20);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(true);
+    }
+
+    const g3 = new GuardState({ ...BUDGET, maxRunsPerSession: 0 });
+    try {
+      g3.assertCanStartRun(1);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(true);
+    }
+  });
+
+  it("is false for anomaly trips — consecutive failures, stalled state, unknown enum", () => {
+    const g = new GuardState(BUDGET);
+    try {
+      g.recordActionResult(false);
+      g.recordActionResult(false);
+      g.recordActionResult(false);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(false);
+    }
+
+    const g2 = new GuardState(BUDGET);
+    g2.checkStateProgress("A");
+    try {
+      g2.checkStateProgress("A");
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(false);
+    }
+
+    try {
+      assertKnownEnum("lizard", ["rock"] as const, "move");
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(false);
+    }
   });
 });

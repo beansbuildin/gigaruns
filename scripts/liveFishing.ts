@@ -68,6 +68,7 @@ import {
 import { cellKey, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
+import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 
 // ---------------------------------------------------------------------------
 // Pure(ish) helpers — no network, unit-testable directly.
@@ -310,7 +311,7 @@ function stamp(): string {
   return new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
 }
 
-class FixtureWriter {
+export class FixtureWriter {
   private n = 0;
   private readonly out: string;
   private readonly raw: string;
@@ -337,7 +338,7 @@ class FixtureWriter {
   }
 }
 
-class RunLog {
+export class RunLog {
   private readonly path: string;
   constructor() {
     mkdirSync("logs", { recursive: true });
@@ -385,9 +386,15 @@ export interface LiveFishingDeps {
   dryRun: boolean;
   transitionsPath?: string;
   guardStatePath?: string;
+  /**
+   * Task 10: graceful SIGINT, same contract as `LiveRunDeps.shutdownSignal`
+   * (`scripts/liveRun.ts`) — checked once per turn, after confirming the
+   * cast isn't already complete and BEFORE the next card is chosen/sent.
+   */
+  shutdownSignal?: ShutdownSignal;
 }
 
-export type CastOutcome = "dry_run" | "caught" | "escaped" | "turn_cap";
+export type CastOutcome = "dry_run" | "caught" | "escaped" | "turn_cap" | "shutdown";
 
 export interface CastRunResult {
   outcome: CastOutcome;
@@ -485,6 +492,12 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   let turn = 0;
   while (turn < MAX_TURNS) {
     if (doc.COMPLETE_CID) break;
+
+    if (deps.shutdownSignal?.requested) {
+      log.write({ event: "shutdown_requested", turn });
+      console.log(`  ▸ SIGINT — stopping before the next card (turn boundary), cast left in progress at turn ${turn}.`);
+      return { outcome: "shutdown", turns: turn };
+    }
 
     const hand = buildHand(doc);
     const mana = doc.data.playerHp;
@@ -652,7 +665,7 @@ async function currentEnergy(client: GigaverseClient, address: string): Promise<
   return value;
 }
 
-const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
+export const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));

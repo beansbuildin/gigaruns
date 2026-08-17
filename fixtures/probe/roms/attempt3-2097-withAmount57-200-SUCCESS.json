@@ -1,0 +1,12 @@
+{
+  "request": {"romId": "2097", "claimId": "energy", "amount": 57},
+  "httpStatus": 200,
+  "response": {"success": true},
+  "energyValueBefore": 90,
+  "energyValueAfter": 91,
+  "energyValueDelta": 1,
+  "rawEnergyBefore": 90172913417,
+  "rawEnergyAfter": 91187496750,
+  "rawEnergyDelta": 1014583333,
+  "note": "raw energy field is ~energyValue*1e9 fixed point (confirmed against regenPerSecond=4861111 matching pure-regen deltas between reads with no claim in between). Net of ~4-5s natural regen (~24M raw units) between the before/after reads, the claim itself credited ~1.0 energy (990M raw units) -- NOT the 57 present in the request body. The requested `amount` field did not determine the credited amount."
+}

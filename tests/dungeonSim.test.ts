@@ -244,7 +244,11 @@ describe("the Task 4 gate", () => {
     // a room-4 battle" happened to fall out of the sample this time. Not a
     // regression in the model — same class of drift as `scored` above, just
     // the first time it has touched this particular number.
-    expect(s.battleCoverage.scored).toBe(1108);
+    // [live, session 19] 1108 -> 1127 — the orchestrator smoke test's real
+    // run added one new room-1 offer (AddTenacity/AddBlock/AddBurnShield,
+    // all rolled-stat-contaminated or unmodelled). No new clean type, same
+    // reshuffling-not-regression pattern; `deepestScorableRoom` unchanged at 3.
+    expect(s.battleCoverage.scored).toBe(1127);
     expect(s.deepestScorableRoom).toBe(3);
   });
 

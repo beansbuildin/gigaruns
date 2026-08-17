@@ -1,0 +1,10 @@
+{
+  "request": {"romId": "2097", "claimId": "energy", "amount": 57},
+  "httpStatus": 500,
+  "response": {"error": {}},
+  "secondsSinceAttempt3": 34,
+  "energyValueBefore": 91,
+  "energyValueAfter": 91,
+  "delta": 0,
+  "note": "Immediate re-claim of the SAME romId that just succeeded 34s earlier fails with the identical empty-error 500 shape seen on romId 7959 (which failed on BOTH of its attempts this session, never having succeeded once). Consistent with (not proof of) a per-ROM cooldown gate: a ROM with nothing currently claimable returns this same uninformative 500."
+}
