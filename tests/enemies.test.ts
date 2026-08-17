@@ -129,7 +129,15 @@ describe("player loadout matches the fixtures", () => {
     // 38→42, a real gear re-spec — see src/sim/enemies.ts's PLAYER doc);
     // 50/16 is 42/16 mid-run AFTER an AddMaxHealth pickup (hpMax +8, room 3),
     // not a fifth starting loadout — same shape as 34/20 above.
-    expect([...seen].sort()).toEqual(["32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "42/16", "50/16"]);
+    // [session 25] Two new combos, both mid-run AFTER an AddMaxArmor pickup
+    // from the 42/16 starting loadout (Task 10's real 2-hour gate run, 12
+    // dungeon runs): 42/18 is +2 armorMax (three independent runs each took
+    // a +2 AddMaxArmor offer); 42/26 is +10 armorMax (one run's room-3 offer
+    // was AddMaxArmor val1 10, a bigger roll than any prior sighting).
+    // Neither is a new starting loadout.
+    expect([...seen].sort()).toEqual([
+      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "42/16", "42/18", "42/26", "50/16",
+    ]);
   });
 });
 

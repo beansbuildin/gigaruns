@@ -209,6 +209,28 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-17-17-03-45 state-196→state-197",
     observed: "selectedVal1 8 → hpMax 42 → 50, hp 15 → 23 (both +8)",
   },
+  VulnerableEvade: {
+    // [session 25, LIVE] First pair — Task 10's 2-hour orchestrator gate run
+    // picked it at room 1. Same shape as AddBurnSword/CorrosiveShield/
+    // CorrosiveMagic: zero change to any player field at pickup, so whatever
+    // it arms (most plausibly a Vulnerable debuff on an Evasion-triggering
+    // move, per DECISIONS 2026-08-15's rule) is latent in combat and
+    // unconfirmed — not assumed from the name.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-17-20-37-00 state-009→state-010",
+    observed: "selectedVal1 4 → no change to any player field",
+  },
+  AddLifestealMagic: {
+    // [session 25, LIVE] First pair — same run batch, picked at room 3. Same
+    // shape again: zero change to any player field at pickup. Offered (not
+    // picked) as far back as session 11; this is the first time it was
+    // taken.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-17-21-14-12 state-035→state-036",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
 };
 
 /**
@@ -821,6 +843,147 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 4,
     source: "run-2026-08-17-18-54-04/state-069",
     options: [opt("UpgradeRock", 4), opt("IntuitionArmor", 7), opt("UpgradeRock", 12)],
+  },
+  // [session 25, LIVE] Task 10's real 2-hour orchestrator gate, retried after
+  // session 24's potions leak was closed — 12 real dungeon runs, 25 reward
+  // offers. `VulnerableEvade` and `AddLifestealMagic` were PICKED here for
+  // the first time (both prior-seen offer-only types) and are now modelled
+  // above (latent, zero pickup delta, same shape as AddBurnSword). Six
+  // genuinely new types first sighted this batch, all offered-not-picked and
+  // left unmodelled per the standing name-inference rule: `BurningEvade`,
+  // `AddVulnerableSword`, `ArmorDepletedVulnerable`, `AddWeakMagic`,
+  // `WeakeningCrit`, `AddVulnerableMagic`.
+  {
+    room: 1,
+    source: "run-2026-08-17-20-33-23/state-009",
+    options: [opt("UpgradeScissor", 0, 4), opt("BurningEvade", 8), opt("AddLuck", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-20-33-23/state-025",
+    options: [opt("AddLuck", 1), opt("VulnerableBlock", 4), opt("AddLifestealMagic", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-17-20-33-23/state-043",
+    options: [opt("AddBurnShield", 3), opt("AddEvasion", 1), opt("Heal", 50)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-17-20-33-23/state-059",
+    options: [opt("AddEvasion", 1), opt("AddBlock", 2), opt("AddLuck", 1)],
+  },
+  {
+    // First pickup pair for VulnerableEvade — see BOON_MODELS.
+    room: 1,
+    source: "run-2026-08-17-20-37-00/state-009",
+    options: [opt("VulnerableEvade", 4), opt("UpgradePaper", 0, 4), opt("UpgradeScissor", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-20-37-00/state-027",
+    options: [opt("VulnerableMastery", 10), opt("UpgradePaper", 0, 4), opt("AddMaxArmor", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-17-20-37-00/state-041",
+    options: [opt("AddEvasion", 1), opt("AddTenacity", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-17-20-37-00/state-055",
+    options: [opt("UpgradePaper", 4), opt("AddBlock", 2), opt("TieWeak", 1)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-20-39-09/state-013",
+    options: [opt("VulnerableBlock", 4), opt("AddIntuition", 1), opt("AddLuck", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-20-39-09/state-029",
+    options: [opt("AddMaxArmor", 2), opt("UpgradeScissor", 4), opt("UpgradeRock", 8)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-17-20-39-09/state-043",
+    options: [opt("CorrosiveMagic", 2), opt("AddLuck", 1), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    // First sighting of `AddVulnerableSword`.
+    room: 1,
+    source: "run-2026-08-17-21-08-10/state-007",
+    options: [opt("AddBlock", 2), opt("AddTenacity", 2), opt("AddVulnerableSword", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-21-08-10/state-029",
+    options: [opt("AddBlock", 2), opt("AddBurnSword", 5), opt("UpgradeRock", 0, 6)],
+  },
+  {
+    // First sighting of `ArmorDepletedVulnerable`.
+    room: 1,
+    source: "run-2026-08-17-21-09-37/state-011",
+    options: [opt("ArmorDepletedVulnerable", 2), opt("AddBlock", 2), opt("AddTenacity", 5)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-21-10-32/state-007",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddTenacity", 2), opt("AddBlock", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-21-10-32/state-031",
+    options: [opt("AddIntuition", 2), opt("AddMaxArmor", 2), opt("UpgradeScissor", 0, 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-21-12-02/state-013",
+    options: [opt("AddBlock", 2), opt("AddIntuition", 1), opt("AddEvasion", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-21-12-02/state-027",
+    options: [opt("CorrosiveMagic", 2), opt("AddBlock", 2), opt("AddLuck", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-17-21-12-02/state-039",
+    options: [opt("AddEvasion", 2), opt("AddMaxArmor", 10), opt("CorrosiveMagic", 2)],
+  },
+  {
+    // First sighting of `AddWeakMagic`.
+    room: 1,
+    source: "run-2026-08-17-21-14-12/state-011",
+    options: [opt("AddBlock", 2), opt("AddEvasion", 1), opt("AddWeakMagic", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-21-14-12/state-025",
+    options: [opt("AddLuck", 1), opt("AddIntuition", 1), opt("UpgradeScissor", 4)],
+  },
+  {
+    // First pickup pair for AddLifestealMagic — see BOON_MODELS. First
+    // sighting of `WeakeningCrit`.
+    room: 3,
+    source: "run-2026-08-17-21-14-12/state-035",
+    options: [opt("AddLifestealMagic", 2), opt("Heal", 16), opt("WeakeningCrit", 1)],
+  },
+  {
+    // First sighting of `AddVulnerableMagic`.
+    room: 1,
+    source: "run-2026-08-17-21-16-02/state-007",
+    options: [opt("AddVulnerableMagic", 2), opt("AddBlock", 2), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-21-16-02/state-021",
+    options: [opt("AddTenacity", 2), opt("AddIntuition", 1), opt("LossBlockUp", 5)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-17-21-17-23/state-013",
+    options: [opt("AddIntuition", 1), opt("SecondWind", 5), opt("UpgradePaper", 0, 4)],
   },
 ];
 

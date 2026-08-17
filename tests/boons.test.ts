@@ -154,14 +154,21 @@ describe("fail-closed on unmodelled types", () => {
       // pickup pairs (maxArmor / latent), now modelled.
       // CorrosiveMagic moved OUT — session 14 gave it a live pickup pair
       // (latent, same shape as AddBurnSword/CorrosiveShield), now modelled.
+      // AddLifestealMagic/VulnerableEvade moved OUT — session 25's Task 10
+      // 2-hour gate run gave both their first live pickup pairs (latent,
+      // same shape), now modelled.
       "AddBurnMagic", // session 12: first sighting, live room-1 offer, not picked
       "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked
-      "AddLifestealMagic", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
       "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
+      "AddVulnerableMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddVulnerableShield", // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
+      "AddVulnerableSword", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
+      "AddWeakMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
+      "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "ArmorDepletedWeak", // session 14: first sighting, room-1 offer (Task 12 Stage B probe run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
+      "BurningEvade", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
       "CorrosiveSword", // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
       "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
@@ -173,9 +180,9 @@ describe("fail-closed on unmodelled types", () => {
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
       "UpgradePaper",
       "VulnerableBlock", // live [2026-08-16/17]: first sighting, the takeover run's room-1 offer, not picked
-      "VulnerableEvade", // session 11: first sighting, room-2 offer, not picked
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
+      "WeakeningCrit", // session 25: first sighting, live room-3 offer (Task 10 gate run), not picked
       "WeakeningMastery", // session 08: same offer, not picked
     ]);
   });
@@ -241,8 +248,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // AddLifestealShield/CorrosiveShield — Task 10's orchestrator gate run,
     // stopped early by the user over the potions incident). All three
     // already-known types, none newly clean.
+    // [session 25] +10 more room-1 offers (30 options, Task 10's real 2-hour
+    // gate run). Three contain the DEF-variant UpgradeScissor — three more
+    // already-known clean picks join the set below. Every other option is a
+    // rolled stat, a newly-modelled-but-latent type (VulnerableEvade), or
+    // still unmodelled (six of them first sightings this session — see
+    // UNMODELLED_TYPES above); none of those are newly clean.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(93);
+    expect(roomOne.length).toBe(123);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -260,6 +273,9 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
+      "UpgradeScissor",
+      "UpgradeScissor",
+      "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
@@ -283,6 +299,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     ).map((o) => o.room);
     // [session 20] +1 room-2 Heal offer (potion-orchestrator-wiring smoke
     // test, Run A) — a second independent room-2 sighting, not new depth.
-    expect(healRooms).toEqual([1, 1, 2, 2]);
+    // [session 25] +2 room-3 Heal offers (Task 10's real 2-hour gate run) —
+    // Heal's first sighting past room 2.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3]);
   });
 });

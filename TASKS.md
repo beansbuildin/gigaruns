@@ -456,6 +456,70 @@ recap-against-final-commit line (this session's housekeeping item, see
 DECISIONS.md) was written to catch — caught and fixed within this same
 session rather than left for the next one to discover.
 
+**Outcome [2026-08-17, session 25]: GATE MET.** Retried after session 24's
+potions leak was closed (see STATE.md/DECISIONS.md) — the user ran
+`caffeinate -i npx tsx scripts/orchestrator.ts --hours=2` unattended, in
+their own terminal, and it ran to completion on its own.
+
+- **Zero unhandled exceptions.** Clean exit, full rollup printed, no stack
+  trace, no crash.
+- **Zero potions used**, confirmed by the run's own output (no potion log
+  line ever appears — `config/bot.json` still has no `forbiddenWoods.potions`
+  block, and both `orchestrator.ts`'s `resolvePotionLoadout()` and
+  `liveRun.ts`'s loadout path fail safe to 0 potions when it's absent).
+- **Both real daily caps hit and recognized cleanly**: dungeon 12/12 runs
+  (216/240 energy), fishing 20/20 casts (239/240 energy) — `"done for today:
+  both modes' daily policy budget/cap exhausted"`, then idle, no busy-retry.
+- **Energy spend within budget** on both modes (24 and 1 energy of headroom
+  left respectively). Real account energy 139/420 at exit, regen 18/hr.
+- **Daily rollup generated** (`liveRun.ts --status` block: per-mode
+  runs/casts used and remaining, energy used and remaining, real account
+  energy).
+- **Real wall-clock time to exhaust both caps: ~45 minutes** (2,723,437ms
+  between the first and last `start_run`/cast token) — this project has been
+  guessing at this number for four sessions (originally 8h) and now has a
+  real one. Of that ~45 minutes, **~27 minutes (1600s) was a single
+  energy-regen sleep** (real account energy hit 4/420 partway through, below
+  the 12-energy floor needed for even the cheapest fishing cast) — active
+  play across all 32 actions took roughly **18 minutes**. The scheduler
+  interleaved dungeon and fishing throughout by relative daily-budget
+  headroom (`src/orchestrator/scheduler.ts`, session 19), not by draining
+  one mode before touching the other — confirmed live, not just unit-tested.
+- **Known gap, not a failure**: the scheduler has no way to learn about
+  energy gained outside its own tracking (e.g. a manual ROM claim mid-run) —
+  it only re-polls real energy when a sleep completes or the process
+  restarts, and a single SIGINT during a sleep ends the whole session rather
+  than just skipping the wait (`shutdown.ts` sets `requested` on the first
+  press, which the outer loop also checks). ROM auto-claiming itself remains
+  intentionally unbuilt per the standing instruction in `QUESTIONS.md`
+  (session 20) — not a gap introduced this session.
+- **Fresh corpus data**: 12 real dungeon runs, 20 real fishing casts,
+  including two boons' first-ever pickup pairs (`VulnerableEvade`,
+  `AddLifestealMagic` — both modelled `{kind:"latent"}`, zero delta at
+  pickup, same shape as `AddBurnSword`; see `src/sim/boons.ts` and
+  DECISIONS.md) and six brand-new unmodelled boon type sightings
+  (`BurningEvade`, `AddVulnerableSword`, `ArmorDepletedVulnerable`,
+  `AddWeakMagic`, `WeakeningCrit`, `AddVulnerableMagic` — offered, not
+  picked, left unmodelled per the standing name-inference rule). Two new
+  distinct player loadouts (`42/18`, `42/26`, both mid-run `AddMaxArmor`
+  pickups from the existing `42/16` starting loadout, not new gear). Full
+  `tests/boons.test.ts`/`tests/enemies.test.ts` corpus-total assertions
+  updated to match, 404/404 passing, `tsc --noEmit` clean.
+- **New open item, logged not fixed**: three fishing casts this session
+  returned `data.nextPosition`/`data.nextMovePath` as unknown terminal
+  fields — `scripts/liveFishing.ts`'s existing (pre-session) detector caught
+  and dumped all three non-fatally to `logs/fishing-unknown-terminal-*.json`,
+  tied to `QUESTIONS.md §10`'s open "account-stuck" mechanic. Worth a look
+  with these three fresh real dumps, not investigated this session — the
+  cast itself resolved normally (`"escaped after N turns"`) each time, so
+  this did not block or corrupt anything live.
+
+The eight-hour figure this gate originally asked for is retired per its own
+2026-08-17 revision (above) — the real per-day caps bind in under an hour at
+this project's pacing, so an eight-hour unattended window was never the
+right thing to gate on. Nothing further is owed to Task 10 unless a future
+session wants to re-verify after a mechanism change.
+
 ---
 
 ### 11 — Tuning ← DUNGEON HALF PARKED 2026-08-15, session 13 (see below)
