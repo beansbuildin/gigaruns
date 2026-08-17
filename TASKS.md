@@ -379,8 +379,26 @@ Budget-aware loop per SPEC §6, energy-regen sleeps, daily caps, guards
 centralised in `guards.ts`, graceful SIGINT (finish the current action, never
 abandon a run mid-turn).
 
-**Gate:** Eight-hour unattended session. Zero unhandled exceptions. Daily rollup
-generated. Energy spend within budget.
+**Gate [REVISED 2026-08-17, session 24]:** ~~Eight-hour unattended session~~ —
+retired. The eight-hour figure predates both the ROM energy discovery and the
+confirmed real per-day counts (12 dungeon runs, 20 fishing casts). It reads as
+though energy-regen was assumed to be the slow, scarce resource requiring
+hours to exhaust and recover; it is not the binding constraint. The real limit
+is the game's own per-day counts: at this project's pacing (1200ms + jitter,
+a handful of actions per run/cast), spending the full day's allowance is
+plausibly well under an hour. Once those caps are hit, the only remaining
+thing to verify is that the orchestrator recognizes it and idles cleanly
+rather than erroring or busy-retrying — the next real milestone after that
+(surviving to tomorrow's reset and resuming) is roughly 24 hours out, which
+even the original 8-hour figure was never going to reach.
+
+**New gate: a 2-hour unattended ceiling** (not a target to fill — if the real
+caps are exhausted sooner, clean idle + early exit is a PASS, not a
+shortfall). Zero unhandled exceptions. Correct recognition of hitting the
+daily dungeon (12) and fishing (20) caps, with clean idle after. Daily rollup
+generated. Energy spend within budget. Report the actual wall-clock time to
+exhaust both caps — this project has been guessing at that number for four
+sessions and should have a real one now.
 
 **Outcome [2026-08-17, session 19]: PARTIALLY MET — built, unit-tested, and
 live-smoke-tested; the eight-hour unattended half is NOT attempted, stated

@@ -798,6 +798,30 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-17-17-44-38/state-011",
     options: [opt("UpgradeScissor", 0, 4), opt("AddTenacity", 2), opt("AddEvasion", 1)],
   },
+  {
+    // [session 24] Task 10's live orchestrator gate run — 4 offers landed
+    // before the user Ctrl-C'd it over the potions incident (see DECISIONS.md
+    // 2026-08-17 session 24). All 3 types here are prior-seen unmodelled
+    // types; none picked, so no new pair.
+    room: 1,
+    source: "run-2026-08-17-18-54-04/state-015",
+    options: [opt("AddEvasion", 1), opt("AddLifestealShield", 2), opt("CorrosiveShield", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-17-18-54-04/state-033",
+    options: [opt("AddBurnShield", 3), opt("AddIntuition", 1), opt("AddEvasion", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-17-18-54-04/state-051",
+    options: [opt("AddTenacity", 2), opt("AddLifestealMagic", 2), opt("AddLuck", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-17-18-54-04/state-069",
+    options: [opt("UpgradeRock", 4), opt("IntuitionArmor", 7), opt("UpgradeRock", 12)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

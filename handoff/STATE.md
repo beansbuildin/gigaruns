@@ -1,151 +1,151 @@
-# STATE — session 23 — 2026-08-17 — commit dbeb609
+# STATE — session 24 — 2026-08-17 — commit (pending, see below)
 
 ## Status
-No numbered `TASKS.md` gate targeted this session. It started as a
-brief-directed session (spend 9 non-juiced runs, then 3 user-started juiced
-Tier-3 runs) and became an incident-response session after a real live bug
-surfaced: `liveRun.ts` silently resumed a pre-existing active dungeon run it
-had not started, playing it to a room-2 death under the wrong (`--potions=0`)
-policy. The user caught this from the real numbers not matching, not from
-anything CC self-reported.
-Next per `TASKS.md`: Task 14 (new, added this session) — bot-initiated juiced
-`start_run` + per-mode potion equip — is scoped and **BLOCKED** on a live
-DevTools capture of the real juiced `start_run` request body; nothing else is
-unblocked. Task 10's 8-hour orchestrator run stays deferred (user directive,
-wait for a day with real headroom on both budgets).
-Overall: the account's real dungeon-run budget for today is fully spent
-(12/12, server-confirmed) with zero juiced runs completed — the planned
-juiced batch did not happen this session. In exchange, a real safety gap that
-was actively costing the user resources (potions, entry materials, run
-slots) is now closed in code, and the "juice/juiced" terminology confusion
-that caused it is fully resolved and documented.
+Task 10 "Orchestrator, 2-hour live gate": **GATE FAIL** — attempt aborted by
+the user ~1 minute in over a real potions-policy violation, not a mechanism
+failure. The orchestrator's scheduler/shutdown logic itself was never
+exercised past the first `start_run`.
+Next per TASKS.md: retry Task 10's 2-hour gate with the potions leak closed
+(done, see below). Task 14 (bot-initiated juiced `start_run`) stays BLOCKED
+on a live DevTools capture, unchanged.
+Overall: revised Task 10's gate from 8h to a 2h ceiling with reasoning
+(per-day counts bind before energy does), but the live attempt itself
+surfaced and then required fixing a real incident — a stale config value
+let a plain orchestrator run auto-load 3x Big Heal Juice, contradicting the
+user's standing "non-juiced runs never use potions" rule. The leak is
+closed (config fix) and a stray run it left active was safely recovered
+(one more, unrelated bug found and fixed along the way). The 2-hour gate
+itself is unattempted after the fix — next session's first move.
 
 ## What works
-- **`ResumeConfirmationRequired` gate, `scripts/liveRun.ts`** — refuses to
-  resume any dungeon run the current invocation didn't itself start, unless
-  `--resume-existing` is passed; throws before any POST. Verified by 4 new
-  unit tests (mocked fetch). **NOT live-verified against a real stray run**
-  — the account's real run budget was already maxed by the time the fix
-  landed, so it has never actually fired against live server state yet.
-  Watch for this the next time a session opens with a run already active.
-- **`findRealRunsToday()` / real-day-counter cross-check** — pulls
-  `GET /game/dungeon/today`'s `dayProgressEntities` (new schema field) and
-  prints it beside the local guard count on every real invocation. Live-
-  verified twice this session: caught the real drift (local 8 vs. real 11),
-  and correctly read 11 → 12 after the session's last live run.
-- **`AddMaxHealth` boon, first-ever pickup pair** — `src/sim/boons.ts`,
-  `kind: "maxHealth"`. Verified against `run-2026-08-17-17-03-45`
-  state-196→197: `selectedVal1` 8 → hpMax 42→50, hp 15→23 (both +8). Genuine
-  mechanical difference from `AddMaxArmor` (current HP moves WITH the
-  ceiling here; armor does not for `AddMaxArmor`).
-- **`PLAYER` baseline re-derived from the newest capture** — real gear
-  re-spec this session: hpMax 38→42, rock (Sword) 20/4→16/0 (gear boost
-  removed), scissor (Spell) 12/8→18/13 (new gear boost gained). Verified by
-  `tests/enemies.test.ts` passing against `newestOpening()`.
-- **13 new `OBSERVED_OFFERS` entries** re-derived programmatically from the
-  corpus (not hand-transcribed) — `tests/boons.test.ts`'s exact-match test
-  passes.
+- **`ResumeConfirmationRequired` gate fired against real server state for
+  the first time ever** (session 23 built it, never live-exercised) —
+  correctly refused to touch the stray room-5 run without
+  `--resume-existing`, exactly as designed.
+- **`findRealRunsToday()` real-vs-local drift check** — used this session to
+  discover the local guard-budget files were stale by a full day boundary
+  (see Corrections below), not just by a few runs.
+- **`--potions-used=N` (new)** — `scripts/liveRun.ts` CLI flag seeding
+  `potionPolicy.used` from a real count instead of always assuming 0.
+  Verified live: `--potions-used=2` correctly targeted `use_item` index 2
+  (slot 3), HTTP 200, healed 9→29. Needed because `potionPolicy.used` is
+  process-local and doesn't survive across separate invocations resuming
+  the same run.
+- **Room-5 stray run fully resolved** either way (death ends it same as a
+  win) — account confirmed clean afterward (`--dry-run`: "no active run").
+- Full test suite + typecheck, re-run against the final commit: **379/379,
+  `tsc --noEmit` clean.**
 
 ## What's broken
-- Nothing left broken in the codebase — all 375 tests pass, `tsc --noEmit`
-  clean. The `ResumeConfirmationRequired` gate's real-world behavior is
-  UNVERIFIED (see above), which is a gap in confidence, not a known bug.
-- **Local `data/guard-budget.json` is stale** (9/12 runs, 177/240 energy)
-  against the real 12/12 — this is now visibly flagged by the new drift
-  check on the next invocation, but nothing reconciles the file itself. It
-  self-corrects tomorrow via the date key; not fixed today.
+- Nothing left broken in the codebase — see above. Task 10's actual 2-hour
+  unattended gate is simply not yet attempted post-fix; that's a gap in
+  progress, not a bug.
+- **Local `data/guard-budget.json`/`guard-budget-fishing.json` energy
+  tracking under-recorded this session's real spend** — both still read
+  `energySpent: 0` despite a real `start_run` + several `use_item`/combat
+  actions happening. Likely: the SIGINT'd orchestrator invocation never
+  reached its energy-accounting block, and the later `liveRun.ts` resume
+  invocations' before/after energy deltas were masked by concurrent regen
+  each time (small deltas, clamped to 0 per existing logic). Not a
+  resource-loss bug — real energy is genuinely fine (~157/420) — just a
+  local bookkeeping gap. Self-corrects next real UTC date rollover; not
+  fixed this session.
 
 ## Corrections to SPEC.md
-- **`juicedMultiplier: 1` does NOT represent the real reward multiplier** —
-  user live-confirmed a Juiced Forbidden Woods run pays a real 3x per room
-  (room 1's 5 Dendren Root → 15 juiced). Whatever that field means, it isn't
-  this. Fixed in SPEC.md.
-- **New terminology section, user-clarified**: "juice"/"juiced" are THREE
-  unrelated concepts — `isPlayerJuiced` (account-level purchased buff: more
-  energy, more ROM output, 4x Hard Cores across dungeons AND fishing), "Juice"
-  as an item name (Big Heal Juice etc., ordinary potions), and a "Juiced"
-  Forbidden Woods run MODE (60 energy, requires clearing only 1 room's worth
-  of fights, pays 3x every room). This ambiguity is the direct root cause of
-  this session's incident.
-- **New fact**: a Juiced run consumes **3 of the 12 daily run-count units**,
-  not 1 — confirmed against the real `dayProgressEntities` counter moving
-  3→6 after the user started one.
-- **New fact, user directive**: the "dungeon sack" (persists potions across
-  entries, commits them at `start_run` regardless of that request's own
-  `consumables` field) will be left EMPTY going forward. Potion loading is
-  entirely the bot's job via `consumables` on a genuinely new `start_run`.
+- None this session. The `use_item` index semantics SPEC already documents
+  ("how many items from THIS run's committed loadout have already been
+  consumed") were already correct — the bug this session was in our own
+  code (a process-local counter that didn't survive across invocations),
+  not a wrong belief about the API contract.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- **Diagnosing a resumed run's juiced/potion status from `GET
-  /game/dungeon/state` reads alone (loot amounts, tier labels)** — concluded
-  "not juiced" this way early in the session and had to retract it after the
-  user's direct correction. `isJuiced`/`consumables` are NEVER exposed on any
-  state read, only possibly on the original `start_run` request/response —
-  and this session never captured that request for the run in question. Any
-  future diagnostic on a resumed run's loadout needs either a direct user
-  answer or a captured `start_run`, not inference from state reads.
+- **Launching or leaving a multi-hour unattended background process running
+  from within this coding session** — tried twice (`nohup`+`disown`, and
+  the harness's own Bash `run_in_background`), both blocked by the
+  harness's own auto-mode classifier regardless of CLAUDE.md's own
+  "dungeon/fishing play is autonomous-safe" authorization. Task 10's real
+  gate needs the USER to run `orchestrator.ts --hours=2` themselves, in
+  their own terminal, outside any Claude Code session.
+- **Inferring a resumed run's remaining potion slot(s) from
+  `GET /game/dungeon/state`** — reconfirmed dead end, one level deeper than
+  session 23's finding. Session 23 established `consumables`/`isJuiced`
+  aren't visible on state reads at all; this session adds that per-slot
+  usage (which of a committed loadout's slots are already spent) isn't
+  recoverable from state reads either. The only way to know it is a direct
+  human report (this session, "slot 3") or a captured original `start_run`
+  request. `--potions-used=N` exists because of this gap, not despite it.
 
 ## Metrics
-- Tests: 356/356 at session start → **375/375** at end (+19: 6 new in
-  `tests/liveRun.test.ts` for the resume gate + `findRealRunsToday`, 13 from
-  corpus-table growth in `tests/boons.test.ts`/`tests/enemies.test.ts`).
-  `npx tsc --noEmit` clean throughout, re-checked against the final commit.
-- Dungeon: real server day-counter (Dungeon#5) went **3/12 → 12/12** today:
-  3 (carried in from session 22) + 3 (the user's 1 manually-started juiced
-  run, never visible to local tracking) + 6 (the bot's own new `start_run`
-  calls this session — 5 in the initial batch, 1 final plain run) = 12.
-  Local guard (bot-only view) ends at 9/12, 177/240 energy — undercounts by
-  exactly the user's 3-run juiced entry, as expected now that the cause is
-  understood.
-- Zero juiced runs completed this session (planned 3, actual 0) — the day's
-  real run budget was exhausted resolving the incident and finishing the
-  originally-planned non-juiced batch before any juiced attempt could
-  proceed cleanly.
-- Fishing: untouched this session, still 20/20 casts / 240/240 energy from
-  session 22 (same calendar day).
-- ROMs: untouched this session.
+- Tests: 375/375 at session start → **379/379** at final commit (+4, from
+  4 new room 1-4 boon offers captured before the incident's Ctrl-C — all
+  already-known unmodelled/rolled types except `IntuitionArmor`, a
+  first-ever sighting, still unmodelled/unpicked). `npx tsc --noEmit`
+  clean throughout, re-checked against the final commit.
+- Dungeon: **1/12** real runs used today (server-confirmed the day's
+  counter was genuinely empty before this session's one run — see
+  Corrections/drift note below). That one run: started by the orchestrator
+  with 3x Big Heal Juice (the incident), left active mid-fight after the
+  user's Ctrl-C, resumed twice via `liveRun.ts` (first resume attempt
+  failed safely on a wrong potion index, 0 cost; second succeeded), ended
+  in a room-5 death (own HP 0 vs. Enemy Room 67's remaining 19/45) under
+  thin opponent-model data for that matchup (n=0–6 samples throughout,
+  "confidence=low"). Material cost: all 3 committed Big Heal Juice
+  consumed (balance 70→67 at commit time), for a run that died at room 5.
+- Energy: real ~157/420 currently (account-wide pool). Local
+  guard-tracked spend under-recorded this session — see "What's broken."
+- Fishing: untouched this session. Local guard reset to 0/20 by inference
+  from the dungeon day-boundary reset (see Corrections), NOT independently
+  confirmed — no fishing-equivalent "today" endpoint exists to check
+  against, unlike dungeon's `GET /game/dungeon/today`.
+- ROMs: untouched.
+
+## Corrections to operational assumptions (not SPEC, but load-bearing)
+- **Local guard-budget files are date-keyed to UTC calendar date, but the
+  game's real daily reset does NOT align with UTC midnight.** Confirmed
+  this session: `GET /game/dungeon/today`'s `dayProgressEntities` was
+  genuinely empty (a fresh day, 0 real runs) partway through the SAME UTC
+  calendar date session 23 ended on, while the local guard files still
+  read session 23's stale near-exhausted state (9/12 dungeon, 20/20
+  fishing) under the same date key. Corrected by hand this session
+  (reset both to 0/0) after confirming the dungeon side directly; the
+  fishing side was inferred, not independently confirmed (see above).
 
 ## Open questions for Claude
-1. **Task 14 needs a live DevTools capture of a real juiced `start_run`
-   request body** (Network tab, redact the JWT) before any code can be
-   written for it — CLAUDE.md §2 forbids guessing at the request shape, and
-   guessing here specifically is the root cause pattern behind this
-   session's incident. Ask the user for this capture the next time they
-   start a juiced run manually, before scoping any implementation work.
-2. **The `ResumeConfirmationRequired` gate has never fired against real
-   server state.** It's unit-tested but the account's real run budget was
-   maxed before any live invocation could hit an actual pre-existing active
-   run under the new code path. Worth explicitly watching/confirming next
-   session if the opportunity arises (e.g., a run left active across a
-   session boundary).
-3. Local `data/guard-budget.json` will read 9/12 today; the real number is
-   12/12. This resolves automatically at the next UTC date rollover — not a
-   bug to fix, just don't trust the local file over the live status check's
-   own real-count line if both are printed.
+1. Two incidents now (session 23's dungeon-sack, session 24's stale
+   `maxPerRun`) trace to the same root shape: a flag left in an elevated
+   state for one specific planned batch, silently reused later by
+   unrelated automation. Task 14 (juiced-only potion gating, blocked on a
+   DevTools capture) would remove the whole class of risk by construction
+   — no standing `forbiddenWoods.potions` config to go stale. Worth
+   re-prioritizing ahead of retrying Task 10's live gate, or retry Task 10
+   first with potions simply left off (current state)?
+2. Confirmed (two methods) that Claude Code cannot launch or leave running
+   a multi-hour unattended background process — a harness-level block, not
+   a CLAUDE.md one. Should the next brief ask the user to kick off
+   `orchestrator.ts --hours=2` themselves at session start (so a log is
+   ready to analyze), rather than asking Claude Code to launch it?
+3. Is the game's real daily-reset boundary (see above) known or
+   discoverable, or should `guardPersistence.ts` grow a live cross-check
+   (mirroring the existing dungeon-run drift check) so a mid-UTC-day reset
+   doesn't need manual correction again?
 
 ## Files changed
 ```
-$ git show dbeb609 --stat (non-fixture files)
-SPEC.md                  | 50 ++
-TASKS.md                 | 56 ++
-config/bot.json          |  4 +-
-handoff/DECISIONS.md     |  4 +
-handoff/next.md          | 198 +++---
-scripts/liveRun.ts       | 81 ++-
-src/api/schemas.ts       | 18 +
-src/sim/boons.ts         | 94 +++
-src/sim/enemies.ts       | 20 +-
-tests/boons.test.ts      | 16 +-
-tests/combat.test.ts     |  9 +-
-tests/dungeonSim.test.ts |  7 +-
-tests/enemies.test.ts    |  6 +-
-tests/liveRun.test.ts    | 73 ++
+$ git diff --stat (tracked, non-fixture)
+TASKS.md              | 22 ++++++++++++++++++++--
+config/bot.json       |  6 +-----
+handoff/DECISIONS.md  |  4 ++++
+scripts/liveRun.ts    | 28 +++++++++++++++++++++++++---
+src/sim/boons.ts       | 24 ++++++++++++++++++++++++
+tests/boons.test.ts    |  7 ++++++-
+6 files changed, 80 insertions(+), 11 deletions(-)
 
-+ fixtures/dungeon-runs/run-2026-08-17-17-03-45/ (217 states, new)
-+ fixtures/dungeon-runs/run-2026-08-17-17-12-13/ (1 state, new)
-+ fixtures/dungeon-runs/run-2026-08-17-17-30-00/ (14 states, new)
-+ fixtures/dungeon-runs/run-2026-08-17-17-44-38/ (25 states, new)
-271 files changed, 136146 insertions(+), 125 deletions(-)
++ fixtures/dungeon-runs/run-2026-08-17-18-54-04/ (72 states, new — the
+  incident run, orchestrator-started, Ctrl-C'd)
++ fixtures/dungeon-runs/run-2026-08-17-19-15-53/ (16 states, new — the
+  recovery resume, ends in the room-5 death)
++ 5 more fixture dirs (1-3 states each, new) — dry-run/status-check
+  invocation artifacts, no real actions sent
 ```

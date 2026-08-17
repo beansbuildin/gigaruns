@@ -164,6 +164,7 @@ describe("fail-closed on unmodelled types", () => {
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
       "CorrosiveSword", // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
+      "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
       "LossBlockUp", // session 20: first sighting, live room-2 offer, not picked
       "Regen",
       "SecondWind", // session 16: first sighting, live room-3 offer, not picked
@@ -236,8 +237,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // 9-run live batch). Two contain UpgradeRock (DEF-variant) and two
     // contain UpgradeScissor (DEF-variant) — four more already-known clean
     // picks; every other option is a rolled stat or still-unmodelled.
+    // [session 24] +1 more room-1 offer (3 options: AddEvasion/
+    // AddLifestealShield/CorrosiveShield — Task 10's orchestrator gate run,
+    // stopped early by the user over the potions incident). All three
+    // already-known types, none newly clean.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(90);
+    expect(roomOne.length).toBe(93);
 
     const clean: string[] = [];
     for (const option of roomOne) {

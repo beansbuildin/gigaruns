@@ -926,11 +926,32 @@ function parseArgs(argv: string[]) {
   const potionCount = potionsArg ? Number(potionsArg.split("=")[1]) : undefined;
   const thresholdArg = argv.find((a) => a.startsWith("--potion-threshold="));
   const potionThreshold = thresholdArg ? Number(thresholdArg.split("=")[1]) : DEFAULT_POTION_THRESHOLD;
+  // [session 24] `potionPolicy.used` (the next `use_item` index to send) is
+  // process-local and always starts at 0 — correct for a run this same
+  // invocation started, WRONG when resuming a run whose committed
+  // consumables were already partly used by an earlier, separate invocation
+  // (the server's per-slot indexing doesn't reset; index 0 stays consumed).
+  // `--potions-used=N` seeds the real count so the resumed run's next
+  // `use_item` targets the correct still-available slot instead of
+  // re-guessing index 0 and getting HTTP 400 "Item not found in index".
+  const potionsUsedArg = argv.find((a) => a.startsWith("--potions-used="));
+  const potionsUsed = potionsUsedArg ? Number(potionsUsedArg.split("=")[1]) : 0;
   // [session 23] Required before this process will touch a run it didn't
   // itself start this invocation — see the runOnce comment at the "existing"
   // branch for why. Absence is fail-closed (refuse), not fail-open.
   const resumeExisting = argv.includes("--resume-existing");
-  return { dryRun, stage2, status, runs, probeUseItemFlag, probeConsumablesItemId, potionCount, potionThreshold, resumeExisting };
+  return {
+    dryRun,
+    stage2,
+    status,
+    runs,
+    probeUseItemFlag,
+    probeConsumablesItemId,
+    potionCount,
+    potionThreshold,
+    potionsUsed,
+    resumeExisting,
+  };
 }
 
 /**
@@ -1082,12 +1103,13 @@ async function main() {
   }
   const potionPolicyState =
     potionCount > 0 && potionItemId
-      ? { itemId: potionItemId, threshold: args.potionThreshold, remaining: potionCount, used: 0 }
+      ? { itemId: potionItemId, threshold: args.potionThreshold, remaining: potionCount, used: args.potionsUsed }
       : undefined;
   if (potionPolicyState) {
     console.log(
       `  · next genuinely new start_run will load ${potionCount}x itemId ${potionItemId}` +
-        `, used at own HP ≤${Math.round(args.potionThreshold * 100)}%.`,
+        `, used at own HP ≤${Math.round(args.potionThreshold * 100)}%.` +
+        (args.potionsUsed > 0 ? ` Resuming with ${args.potionsUsed} already used this run — next use_item targets index ${args.potionsUsed}.` : ""),
     );
   }
 
