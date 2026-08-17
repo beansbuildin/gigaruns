@@ -110,21 +110,31 @@ export const randomFishPolicy: FishPolicy = {
  */
 export const REDRAW_THRESHOLD = 0;
 
-export const matcherFishPolicy: FishPolicy = {
-  name: "matcher-ev",
-  act(ctx) {
-    const missPenaltyMultiplier = 1;
-    const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget);
-    if (!best) {
-      if (ctx.mana >= ctx.hand.length && ctx.hand.length > 0) return { type: "redraw" };
-      return { type: "pass" };
-    }
-    if (shouldRedraw(best, ctx.hand.length, ctx.mana, REDRAW_THRESHOLD) && ctx.mana >= ctx.hand.length) {
-      return { type: "redraw" };
-    }
-    return { type: "play", handIndex: best.handIndex, focus: best.focus };
-  },
-};
+/**
+ * Factory, not a hardcoded policy — added session 21 so
+ * `scripts/redrawThresholdSweep.ts` can sweep the threshold against the sim
+ * without duplicating `matcherFishPolicy`'s decision logic. `matcherFishPolicy`
+ * below is just `makeMatcherFishPolicy(REDRAW_THRESHOLD)`, unchanged behavior.
+ */
+export function makeMatcherFishPolicy(redrawThreshold: number): FishPolicy {
+  return {
+    name: `matcher-ev(redraw=${redrawThreshold})`,
+    act(ctx) {
+      const missPenaltyMultiplier = 1;
+      const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget);
+      if (!best) {
+        if (ctx.mana >= ctx.hand.length && ctx.hand.length > 0) return { type: "redraw" };
+        return { type: "pass" };
+      }
+      if (shouldRedraw(best, ctx.hand.length, ctx.mana, redrawThreshold) && ctx.mana >= ctx.hand.length) {
+        return { type: "redraw" };
+      }
+      return { type: "play", handIndex: best.handIndex, focus: best.focus };
+    },
+  };
+}
+
+export const matcherFishPolicy: FishPolicy = makeMatcherFishPolicy(REDRAW_THRESHOLD);
 
 export interface CastOptions {
   seed: number;

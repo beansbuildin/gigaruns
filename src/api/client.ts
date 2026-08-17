@@ -23,6 +23,7 @@ import {
   ItemsBalancesSchema,
   JuiceSchema,
   DungeonActionResponseSchema,
+  RomClaimResponseSchema,
   type UserMe,
   type Account,
   type Energy,
@@ -32,6 +33,7 @@ import {
   type Juice,
   type DungeonActionRequest,
   type DungeonActionResponse,
+  type RomClaimResponse,
 } from "./schemas.js";
 import {
   FishingStateSchema,
@@ -367,5 +369,19 @@ export class GigaverseClient {
     }
     this.fishingActionToken = String(parsed.data.actionToken);
     return parsed.data;
+  }
+
+  /**
+   * `POST /roms/factory-claim` — CONFIRMED session 19/20 (SPEC.md "ROM
+   * factory-claim"). `amount` is REQUIRED by the server (omitting it
+   * returns HTTP 500) but is fully cosmetic — the server always credits
+   * the ROM's own real-time `energyCollectable`, confirmed twice with a
+   * deliberately mismatched value. Promoted from `scripts/
+   * probeRomsFactoryClaim.ts`'s raw-fetch probe now that the endpoint is
+   * confirmed, so it gets the same rate-limit/mutex discipline as every
+   * other write.
+   */
+  async claimRomEnergy(romId: string, amount = 0): Promise<RomClaimResponse> {
+    return this.post("/roms/factory-claim", { romId, claimId: "energy", amount }, RomClaimResponseSchema);
   }
 }

@@ -296,4 +296,48 @@ describe("GigaverseClient", () => {
       expect(maxInFlight).toBe(1);
     });
   });
+
+  describe("claimRomEnergy", () => {
+    it("sends romId/claimId/amount and returns the bare success envelope", async () => {
+      let sent: { url: string; init?: RequestInit } | null = null;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          sent = { url, init };
+          return { status: 200, text: async () => JSON.stringify({ success: true }) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.claimRomEnergy("5345", 12);
+      const assertion = expect(p).resolves.toEqual({ success: true });
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(sent!.url).toContain("/roms/factory-claim");
+      expect(JSON.parse(sent!.init!.body as string)).toEqual({ romId: "5345", claimId: "energy", amount: 12 });
+    });
+
+    it("defaults amount to 0 when not given — SPEC.md: amount is cosmetic, server determines payout", async () => {
+      let sent: { url: string; init?: RequestInit } | null = null;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string, init?: RequestInit) => {
+          sent = { url, init };
+          return { status: 200, text: async () => JSON.stringify({ success: true }) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      await client.claimRomEnergy("7959");
+      expect(JSON.parse(sent!.init!.body as string)).toEqual({ romId: "7959", claimId: "energy", amount: 0 });
+    });
+
+    it("fails closed on a 500, the real failure mode observed live for a not-yet-accrued ROM", async () => {
+      vi.stubGlobal("fetch", mockFetch(() => ({ status: 500, body: { error: {} } })));
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.claimRomEnergy("689", 0);
+      const assertion = expect(p).rejects.toBeInstanceOf(UnexpectedResponseError);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
+  });
 });

@@ -328,6 +328,17 @@ POST /roms/factory-claim
 - Full request/response fixtures (no address/username, safe to commit):
   `fixtures/probe/roms/attempt{1,2,3,4}-*.json`,
   `claim-5345-withAmount.json`, `claim-689-withAmount.json`.
+- **[session 21, live]** The endpoint is now a proper `client.ts` method
+  (`claimRomEnergy`, promoted from `probeRomsFactoryClaim.ts`'s raw-fetch
+  probe now that it's confirmed) with a real response schema
+  (`RomClaimResponseSchema`, `src/api/schemas.ts`). `scripts/claimRoms.ts`
+  claims all 4 known ROM ids in one pass, opportunistically (no batching
+  logic needed — overflow past the 420 cap is confirmed non-wasting, user,
+  session 21). Result: **5345 and 689 both HTTP 500** (claimed the session
+  before, nothing new accrued yet — confirms the per-ROM-accrual model, not
+  a broken ROM), **2097 +8 energy, 7959 +5 energy — 7959's first-ever
+  successful claim** after two straight failures in session 19. Net +13
+  energy from the 4 known ROMs this session.
 
 **Still open (see QUESTIONS.md and TASKS.md for tracking):**
 1. **Source endpoint for the ROM-list snapshot** — the user captured the

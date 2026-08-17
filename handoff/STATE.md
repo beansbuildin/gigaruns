@@ -1,147 +1,134 @@
-# STATE — session 20 — 2026-08-16 — commit 64d4cc5
+# STATE — session 21 — 2026-08-17 — commit (pending, see below)
 
 ## Status
-Task 10 "Orchestrator": **IN PROGRESS** — potion wiring (this session's
-concrete piece of it) is DONE and live-verified. The task's actual GATE
-(eight-hour unattended run) is still NOT attempted; nothing in this session
-changes that.
-Next per TASKS.md: nothing else numbered is open. Kicking off the real 8h
-orchestrator run outside an interactive session is the concrete next step —
-see "Open questions" below.
-Overall: the bot can now run a full potion-aware dungeon loop unattended for
-short bursts (live-verified); the only thing standing between this project
-and its stated goal is someone starting `npx tsx scripts/orchestrator.ts
---hours=8` outside a chat session and letting it run.
-
-Also this session, unplanned but high-value: a user-provided data dump
-revealed the ROM energy-claiming lever is far larger than session 19 found
-(~3,252 energy unclaimed right now, not a ~1-energy trickle) — see Corpus/
-Metrics below. Not automated; sizing/decision work, reported to the user.
+No numbered TASKS.md task is open right now — this was a tuning/funding
+session per the session-21 brief, not a gated task. All 4 of the brief's
+required items are done: fishing budget raised (sourced), 4 known ROMs
+claimed (net +13 energy), a real redraw-threshold sweep built and run
+(confirms current default), and 6 real fishing casts spent with the miner
+re-run against the grown log.
+Next per TASKS.md: nothing numbered is blocked. Task 10's 8-hour unattended
+orchestrator run is still the single open item outside any session's
+control — see "Open questions" below, unchanged from session 20.
+Overall: fishing now has its real daily budget (240/20, matching the user's
+own confirmed cap) instead of a conservative placeholder, the sim-side
+redraw threshold is now verified rather than assumed, and the account is
++13 energy from ROM claims with one ROM (7959) claiming successfully for
+the first time ever. No strategy code changed — `chooseNewCard`'s
+placeholder heuristic (brief item 5) was explicitly deprioritized and not
+started, per the brief's own instruction not to touch it without scoping
+first.
 
 ## What works
-- **Potion policy wired into the orchestrator's dungeon path**
-  (`scripts/orchestrator.ts`'s new `resolvePotionLoadout()`) — reuses
-  `liveRun.ts`'s exact policy (`shouldUsePotion`/`DEFAULT_POTION_THRESHOLD`,
-  the `forbiddenWoods.potions` allowlist) but rebuilt fresh per dungeon
-  iteration rather than once per process, since the orchestrator starts many
-  independent runs across one long-lived process and each `start_run` commits
-  its own consumables loadout server-side. Live-verified: two orchestrator-
-  started dungeon runs, both real `use_item` calls (index 0 then 1) returned
-  HTTP 200 and healed correctly mid-battle.
-- Resuming a run that has NO committed consumables (started potion-free by
-  an earlier session/process) now visibly and correctly guard-trips on
-  `use_item` rather than silently doing nothing or crashing — confirmed live
-  (session 19's stuck room-2 run, resumed this session, hit exactly this
-  case; re-resuming with `--potions=0` finished it cleanly).
-- Corpus-count "bookkeeping tax" tests refactored
-  (`tests/replay.test.ts`, `tests/boons.test.ts`, `tests/dungeonSim.test.ts`)
-  — monotonic corpus-size counts (exchanges, sideUpdates, boon pickups) are
-  now floors (`toBeGreaterThanOrEqual`); the non-monotonic Task-4-gate sim
-  numbers (`battleCoverage.scored`, `deepestScorableRoom`) are now bounded
-  ranges/invariants. Live-exercised the same session it landed: this
-  session's own new fixture data would have broken 5+ hardcoded literals
-  under the old scheme; only genuine model-content gaps (a new enemy, new
-  boon offers) needed hand updates, not corpus-size bookkeeping.
-- **`POST /roms/factory-claim`'s payout mechanism is now understood
-  correctly.** `energyCollectable` (a real-time per-ROM field from a
-  user-provided ROMULATOR panel dump) maps directly to real credited
-  energy — two live verification claims both confirmed this (romId 5345:
-  snapshot 12, delta exactly 12; romId 689: snapshot 11, delta 12,
-  consistent with live accrual between snapshot and claim). `amount` in the
-  request remains fully cosmetic (re-confirmed with a deliberately
-  mismatched `amount:999`, same result).
+- **`GigaverseClient.claimRomEnergy(romId, amount?)`** — promoted from
+  session 20's raw-fetch probe now that the endpoint is confirmed; same
+  rate-limit/mutex/fail-closed discipline as every other client method.
+  Unit-tested (3 new tests: body shape, default `amount=0`, fail-closed on
+  500). Live-verified this session: 2 of 4 known ROMs claimed successfully.
+- **`scripts/claimRoms.ts`** — claims all known ROM ids in one pass, no
+  batching logic against the 420 cap needed (overflow confirmed
+  non-wasting, user, this session). Live run: 5345/689 → HTTP 500 (claimed
+  last session, nothing new accrued — consistent with per-ROM accrual, not
+  a bug); 2097 → +8 energy; **7959 → +5 energy, its first-ever successful
+  claim** after 2 straight failures in session 19. Net +13 energy.
+- **`scripts/redrawThresholdSweep.ts`** — sim-only, N=2000, 14 threshold
+  values from -1,000,000 ("never redraw") to 20. Confirms the current
+  `REDRAW_THRESHOLD` (0) is the true optimum: 70.7% ± 2.0% catch rate, an
+  interior point (curve rises from 67.6% at "never" to the peak at 0, then
+  collapses past 1, down to 0.4% by 8) — not a boundary artifact. No config
+  change needed.
+- **6 real fishing casts spent** against the raised budget (`config/bot.json`
+  dendren 200/15 → 240/20). 1 new catch (cast 5 of the batch). Guard budget
+  today (fishing): 180/240 energy, 15/20 casts used.
+- **`mineFishPatterns.ts` re-run** against the grown log (90 transitions, 25
+  casts, up from 75/~19 at session start): `perimeterWalk(cw)` stays
+  promoted at support=3 (no new independent match this batch, an honest
+  null result), plus two new support-1 near-misses (`bounce(2,0)`,
+  `bounce(-2,0)`) from a single cast — not promotable yet.
 
 ## What's broken
-- Nothing newly broken. One new friction point, not a bug: the harness's
-  auto-mode classifier blocked the first ROM-claim attempt outright,
-  requiring an explicit in-chat confirmation before either verification
-  claim could run — session 19's claims never hit this. Not something to
-  work around; just something the next session should expect.
+- Nothing newly broken. 5345/689's HTTP 500 on this session's claim attempt
+  is expected behavior under the per-ROM-accrual model (session 20), not a
+  regression — both were claimed one session earlier and evidently hadn't
+  accrued anything new yet.
 
 ## Corrections to SPEC.md
-- ROM factory-claim section substantially revised, not just extended:
-  session 19's "cooldown, ~1 energy trickle" framing is superseded — see
-  the new "REVISED, session 20" / "SUPERSEDED" bullets in SPEC.md's ROM
-  section for the full writeup (cooldown is real-time per-ROM accrual, not
-  a fixed timer; a real enumeration+balance snapshot exists via the
-  ROMULATOR panel, source endpoint not yet confirmed by URL; total claimable
-  right now is ~3,252 energy).
-- `MAX_OBSERVED_ROOM` (src/sim/enemies.ts) moved 4 → 5 — first-ever room-5
-  capture, Enemy Room 67, Safe tier, clean (no unmodelled mechanics).
+- ROM factory-claim section extended (not revised) with this session's live
+  claim result — see SPEC.md's new session-21 bullet under "ROM
+  factory-claim". `config/discovered.json`'s `roms.knownRomIds` corrected
+  from an incomplete 2-entry list (`["7959","2097"]`) to the actual known 4
+  (`["7959","2097","5345","689"]`) — this file is gitignored so the fix
+  doesn't appear in the commit, but it's now accurate for this session's
+  own future reads.
+- No dungeon-side corrections this session (dungeon untouched).
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- None new this session. (The potion/resumed-run mismatch below is a real
-  finding, not a dead end — the system did the right thing.)
+- None this session.
 
 ## Metrics
-- Tests: 343/343 at session start → 351/351 at end (+8, mostly test-file
-  literal/structure changes from the corpus-count refactor and new corpus
-  content, not new test cases). `npx tsc --noEmit` clean throughout.
-- Live dungeon: 3 runs this session — the resumed room-2 run finished (room
-  2 won, died room 3), plus two fresh orchestrator-started runs from the
-  potion-wiring smoke test (first: rooms 1-4 cleared, reached room 5 for
-  the first time ever, died there; second: room 1 won, died room 2).
-  Confirmed deaths now include two more room-3/room-5 entries (exact
-  histogram not recomputed this session — see `scripts/deathRooms.ts` if
-  needed next time).
-- ROM claims: 2 successful this session (romId 5345 +12 energy, romId 689
-  +12 energy), 0 failed. Combined with session 19's 1 successful claim
-  (+~1 energy) and 3 failed (uninformative HTTP 500s), lifetime total is 3
-  successful claims, +~25 energy actually credited so far — a small
-  fraction of the ~3,252 energy the ROMULATOR snapshot shows as currently
-  claimable across all 37 owned ROMs.
-- Fishing: untouched this session (0 casts).
-- Corpus growth: 4 fixture directories added
-  (`run-2026-08-17-04-35-04` through `run-2026-08-17-04-47-48`), covering
-  the resumed run's finish plus the two smoke-test runs. New content:
-  Enemy Room 67 (room 5, first-ever), 7 new `OBSERVED_OFFERS` entries
-  (including the corpus's first-ever room-4 offer), 2 new unmodelled boon
-  types (`CorrosiveSword`, `LossBlockUp`).
+- Tests: 351/351 at session start → 354/354 at end (+3, the new
+  `claimRomEnergy` tests). `npx tsc --noEmit` clean throughout.
+- ROM claims: 4 attempted, 2 succeeded (2097 +8, 7959 +5), 2 failed
+  HTTP 500 (5345, 689 — no new accrual). Net +13 energy this session.
+  Lifetime: 5 successful ROM claims, +~38 energy credited so far, still a
+  small fraction of the ~3,252-energy stockpile last snapshotted (session
+  20; not re-snapshotted this session, so that total is now stale — it only
+  ever grows).
+- Fishing: 6 real casts this session (1 catch), 12 energy each. Today's
+  guard-tracked totals (UTC-keyed, spans sessions): 15/20 casts,
+  180/240 energy.
+- Fishing sim: redraw-threshold sweep, N=2000 per threshold, 14 thresholds
+  — see "What works" above for the winning row. Baseline catch rate at the
+  current config is ~70%, not the older 92.4%/19.0% figures still cited
+  elsewhere in TASKS.md (those predate session 14's `focusMeter` modelling
+  fix and should not be read as current).
+- Corpus growth: `data/fish-patterns.jsonl` 75 → 90 lines (transitions),
+  ~19 → 25 casts. `mineFishPatterns.ts`: still 1 primitive promoted
+  (unchanged support), 2 new unpromoted near-misses logged.
+- Dungeon: untouched this session (0 runs, 0 energy spent from this
+  session's own actions — the 59/3 dungeon guard-budget total on disk is
+  carried over from sessions 19-20, not new).
 
 ## Open questions for Claude
-1. **The 8-hour orchestrator run is ready to start.** Potions are now wired
-   in and live-verified; nothing code-side is blocking it. This needs the
-   user to run `npx tsx scripts/orchestrator.ts --hours=8` outside an
-   interactive session and let a future session review the resulting log/
-   rollup. Flag this plainly — it's the last piece of Task 10's actual gate.
-2. **ROM batching strategy against the 420 energy cap is a user decision,
-   not an engineering one.** ~3,252 energy is claimable right now across 37
-   ROMs, but the account's own energy ceiling is 420 — claiming it all at
-   once without spending it down first would waste most of it to the cap.
-   Worth asking the user directly how they want to sequence claiming
-   (batches sized to top off before a play session? claim-then-play-down
-   cycles? something else?) before any of this gets built into anything.
-3. **The ROMULATOR snapshot's source endpoint is still unconfirmed by URL**
-   — the user pasted the response directly rather than a captured request.
-   Worth asking for the exact request (URL/method, or a DevTools capture)
-   so a read-only probe script can be built for future sessions instead of
-   relying on another manual paste.
-4. **ROM accrual RATE is still not independently confirmed** — only one
-   snapshot exists. Not urgent (the one-time stockpile size is already
-   known), but matters if this ever gets scheduled/automated: worth a second
-   snapshot read, spaced hours apart, to confirm the "~1 week to fill"
-   read from `percentageOfAWeekSinceLastEnergyClaim` before building
-   anything around it.
-5. Everything from session 19's brief §5 (potion-free orchestrator dungeon
-   runs) is now resolved — no longer an open item.
+1. **Task 10's 8-hour orchestrator run is still the single open item outside
+   any session's control** — unchanged from session 20's brief. Nothing
+   code-side blocks it; it needs the user to run
+   `npx tsx scripts/orchestrator.ts --hours=8` outside an interactive
+   session.
+2. **Full ROM enumeration is still incomplete** (4 of 37 known). The
+   ROMULATOR panel's request URL is still unconfirmed — worth asking the
+   user again if convenient, per session 20's same open item. Not blocking:
+   claiming the known 4 continues to work and nets real energy every time
+   any of them has accrued something.
+3. **`chooseNewCard`'s placeholder heuristic (Task 11 §5 in the session-21
+   brief) is unstarted, deliberately** — the brief asked for it to be
+   scoped as its own design question before any code, and items 1-4 filled
+   the session. Worth a dedicated brief section if this becomes the
+   priority: no deck-composition sim exists yet to judge alternatives
+   against the current argmax-hit-power/mana placeholder.
+4. **The sim's catch-rate baseline has drifted across TASKS.md** — Task 8's
+   original gate cited 92.4%/19.0% (matcher vs random, pre-`focusMeter`
+   modelling); session 14 corrected the matcher-informed figure to
+   ~69.9-71.6% once `focusMeter` was modelled, and this session's sweep
+   independently reproduces ~70.7% at the optimal threshold. Not a new
+   finding, but worth Claude(chat) knowing when citing "the sim number" in
+   a future brief — use the ~70% figure, not 92.4%/19.0%.
 
 ## Files changed
 ```
-$ git diff --stat 27ee836..HEAD (excluding fixtures/, which is 156 files of
-  redacted dungeon-run/ROM-claim captures — see commit 64d4cc5 directly)
-QUESTIONS.md             | 46 +++++++++++++++++++++++++
-SPEC.md                  | 90 ++++++++++++++++++++++++++++++++----------------
-handoff/DECISIONS.md     |  3 ++
-scripts/orchestrator.ts  | 56 ++++++++++++++++++++++++++----
-src/sim/boons.ts         | 65 ++++++++++++++++++++++++++++++++--
-src/sim/enemies.ts       | 29 ++++++++++++++--
-tests/boons.test.ts      | 28 ++++++++++++---
-tests/dungeonSim.test.ts | 22 ++++++++++--
-tests/replay.test.ts     | 17 +++++++--
-9 files changed, 307 insertions(+), 49 deletions(-)
+$ git diff --stat (tracked)
+SPEC.md                    | 11 +++++++++++
+TASKS.md                   | 27 +++++++++++++++++++++++++++
+config/bot.json            |  6 +++---
+src/api/client.ts          | 16 ++++++++++++++++
+src/api/schemas.ts         |  9 +++++++++
+src/sim/fishing/castSim.ts | 40 +++++++++++++++++++++++++---------------
+tests/api/client.test.ts   | 44 ++++++++++++++++++++++++++++++++++++++++++++
+7 files changed, 135 insertions(+), 18 deletions(-)
 
-+ 4 new fixture dirs under fixtures/dungeon-runs/ (redacted, raw/ gitignored)
-+ fixtures/probe/roms/claim-{5345,689}-withAmount.json (both {"success":true})
++ scripts/claimRoms.ts (new)
++ scripts/redrawThresholdSweep.ts (new)
++ fixtures/fishing-casts/live/cast-2026-08-17-05-34-25/ (new, redacted; raw/ gitignored)
 ```

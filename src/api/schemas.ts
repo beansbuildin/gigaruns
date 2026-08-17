@@ -205,6 +205,15 @@ export const JuiceSchema = z
 export type Juice = z.infer<typeof JuiceSchema>;
 
 /**
+ * `POST /roms/factory-claim` response — CONFIRMED session 19/20 (SPEC.md
+ * "ROM factory-claim"). Bare `{success: true}` on a real credit, no echoed
+ * amount (the server determines the payout from the ROM's own accrued
+ * `energyCollectable`, ignoring the request's `amount` field entirely).
+ */
+export const RomClaimResponseSchema = z.object({ success: z.boolean() }).passthrough();
+export type RomClaimResponse = z.infer<typeof RomClaimResponseSchema>;
+
+/**
  * The dungeon action response envelope.
  *
  * **`start_run` CONFIRMED live 2026-08-14 (session 08, Task 6 stage 2)** —

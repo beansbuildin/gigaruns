@@ -491,6 +491,33 @@ reported honestly, per the brief's own anticipation of this possible
 outcome. `data/fish-patterns.jsonl` growth is now the clear next lever:
 mine again once more casts land.
 
+**[session 18] `perimeterWalk(cw)` promoted** — its 3rd independent
+confirming cast landed, clearing the ≥3-match bar. (Not previously rolled up
+into this section — see `handoff/log/session-18.md` for the original entry.)
+
+**[2026-08-17, session 21] Sim-only redraw threshold sweep — built and run
+for the first time as a dedicated script (`scripts/redrawThresholdSweep.ts`),
+per SPEC.md §5's long-standing "tune in the sim, not live" instruction.**
+Swept `{-1e6 (never redraw), -5, -2, -1, -0.5, 0, 0.5, 1, 2, 3, 5, 8, 12, 20}`
+against `castSim.ts` (N=2000, matcher-ev policy, full synthetic pool — same
+setup the informal session-13 sweep used). **Result: 0 is confirmed as the
+true optimum** — 70.7% ± 2.0%, an interior point of the tested range (curve
+rises from 67.6% at "never redraw" to 70.7% at 0, then falls sharply past 1,
+down to 0.4% by threshold 8). No config change: `REDRAW_THRESHOLD` was
+already 0. This also re-surfaces that the sim's baseline catch rate is
+~70% now (not the older 92.4%/19.0% figures cited elsewhere in this file),
+consistent with session 14's `focusMeter` modelling correction — those older
+numbers predate that fix and should not be read as still current.
+
+Also this session: 6 more real casts spent (raised budget, `config/bot.json`
+dendren 200/15 → 240/20, sourced from both `config/discovered.json`'s
+probe-era `maxCastsPerDayJuiced: 20` and a fresh user confirmation), 1 new
+catch. `mineFishPatterns.ts` re-run against the grown log (90 transitions,
+25 casts): still 1 primitive promoted (`perimeterWalk(cw)`, support
+unchanged at 3 — no new independent match this batch), plus two new
+support-1 near-misses (`bounce(2,0)`, `bounce(-2,0)`) from a single cast,
+not yet promotable. Honest null result on new promotions, not a miner bug.
+
 **Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
 superseding the item-per-energy form above for the dungeon side** — Task 5's
 gate served its purpose and is retired to reported-metrics (see Task 5). The
