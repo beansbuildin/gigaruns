@@ -604,3 +604,65 @@ of it — this is a user decision (how they want to sequence claiming vs.
 playing it down), not something to decide unilaterally. Still no automation
 without explicit go-ahead — this update only changes the SIZE of the
 lever, not the standing instruction to ask before building it.
+
+## 12. Fishing `data.nextPosition`/`data.nextMovePath` — possible live fish-move look-ahead, not yet confirmed [session 25]
+
+Three fishing casts during Task 10's real 2-hour orchestrator gate run
+tripped `liveFishing.ts`'s existing unknown-terminal-field detector on a
+cast's final `play_cards` response:
+
+```
+★★★ UNKNOWN TERMINAL FIELD(S) on this cast's final doc: data.nextPosition, data.nextMovePath
+```
+
+Full dumps: `logs/fishing-unknown-terminal-2026-08-17-{20-41-10,20-41-14,
+21-10-29,21-11-47}.json` (gitignored, still on disk locally — not committed,
+per the `logs/` wholesale gitignore).
+
+The detector's own inline comment guesses this is "the catch-resolution
+mechanic" (question 10 above, resolved for the ACTION NAME but never for
+the exact request that fires it). **On inspection, that guess looks
+wrong.** `doc.data`'s key list places `nextPosition`/`nextMovePath` next to
+`fishPosition`/`previousFishPosition`/`lastMovePath` — the fish's own
+grid-position tracking — nowhere near `cardChosenId`/`caughtFish` (the real
+catch-resolution fields captured session 17).
+
+One dump (`...-21-10-29.json`) has concrete values:
+
+```
+fishPosition:         [2, 3]
+previousFishPosition: [3, 3]
+lastMovePath:         [7]
+nextPosition:         [1, 3]
+nextMovePath:         [3]
+gridSize:             4
+```
+
+`previousFishPosition` → `fishPosition` is the fish's LAST move; by the
+same pattern, `nextPosition`/`nextMovePath` alongside it would naturally be
+its NEXT one — a server-side reveal of where the fish moves next. Another
+dump (`...-20-41-10.json`) has both fields present but `null`, on a cast
+that had already fully "escaped" — consistent with "no next move to
+predict" once the fish is gone, which would strengthen rather than weaken
+this reading.
+
+**Not confirmed.** Only checked two of the four dumps closely. More
+importantly: the detector only fires on a cast's TERMINAL doc (`liveFishing.
+ts`'s `runOneCast`, the `if (newDoc.COMPLETE_CID)` branch) — it has never
+checked a NON-terminal `play_cards` response, so it's unknown whether these
+fields are present on every turn (which is where they'd actually be
+useful, live, mid-cast) or only ever appear once a cast is already over.
+
+**What would settle it**: a capture (live or fixture-replay) that checks
+`unknownDocKeys()` on EVERY `play_cards` response in a cast, not just the
+terminal one, and cross-references `nextPosition` against the FOLLOWING
+turn's real `fishPosition` to confirm the prediction actually holds.
+
+**If confirmed**, this would be a bigger lever for fishing accuracy than
+anything currently scoped in Task 11 (fishing pattern mining) or Task 13
+(deck-composition scoring) — a live look-ahead removes the need for
+`mineFishPatterns.ts`'s after-the-fact statistical inference on whichever
+turns it's present. Per CLAUDE.md §2, this is a field on the already-
+confirmed `/fishing/action` endpoint, not a new endpoint — reading it
+requires no new capture beyond widening where the existing detector
+already looks.

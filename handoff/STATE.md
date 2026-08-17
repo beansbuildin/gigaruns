@@ -1,151 +1,134 @@
-# STATE — session 24 — 2026-08-17 — commit (pending, see below)
+# STATE — session 25 — 2026-08-17 — commit 9e32109
 
 ## Status
-Task 10 "Orchestrator, 2-hour live gate": **GATE FAIL** — attempt aborted by
-the user ~1 minute in over a real potions-policy violation, not a mechanism
-failure. The orchestrator's scheduler/shutdown logic itself was never
-exercised past the first `start_run`.
-Next per TASKS.md: retry Task 10's 2-hour gate with the potions leak closed
-(done, see below). Task 14 (bot-initiated juiced `start_run`) stays BLOCKED
-on a live DevTools capture, unchanged.
-Overall: revised Task 10's gate from 8h to a 2h ceiling with reasoning
-(per-day counts bind before energy does), but the live attempt itself
-surfaced and then required fixing a real incident — a stale config value
-let a plain orchestrator run auto-load 3x Big Heal Juice, contradicting the
-user's standing "non-juiced runs never use potions" rule. The leak is
-closed (config fix) and a stray run it left active was safely recovered
-(one more, unrelated bug found and fixed along the way). The 2-hour gate
-itself is unattempted after the fix — next session's first move.
+Task 10 "Orchestrator, 2-hour live gate": **GATE PASS.** Retried after
+session 24's potions leak was closed; the user ran
+`caffeinate -i npx tsx scripts/orchestrator.ts --hours=2` unattended, in
+their own terminal, and it ran to completion on its own with zero unhandled
+exceptions, zero potions used, both real daily caps hit and recognized
+cleanly, and a rollup printed.
+Next per TASKS.md: Task 13 (`chooseNewCard` deck-composition scoring,
+scoped session 22, NOT STARTED) is the next unblocked task. Task 11's
+dungeon half is PARKED (weight-tuning dead end, session 13). Task 12
+(potion timing) is fully MET. Task 14 (bot-initiated juiced `start_run`)
+stays BLOCKED on a live DevTools capture.
+Overall: Task 10 is DONE — the project finally has a real number for "how
+long to exhaust a day's budget" (~45 minutes) instead of the original
+8-hour guess. A concrete new fishing-mechanic lead (`nextPosition`/
+`nextMovePath`, below) surfaced as a byproduct and is worth a look before
+diving into Task 13.
 
 ## What works
-- **`ResumeConfirmationRequired` gate fired against real server state for
-  the first time ever** (session 23 built it, never live-exercised) —
-  correctly refused to touch the stray room-5 run without
-  `--resume-existing`, exactly as designed.
-- **`findRealRunsToday()` real-vs-local drift check** — used this session to
-  discover the local guard-budget files were stale by a full day boundary
-  (see Corrections below), not just by a few runs.
-- **`--potions-used=N` (new)** — `scripts/liveRun.ts` CLI flag seeding
-  `potionPolicy.used` from a real count instead of always assuming 0.
-  Verified live: `--potions-used=2` correctly targeted `use_item` index 2
-  (slot 3), HTTP 200, healed 9→29. Needed because `potionPolicy.used` is
-  process-local and doesn't survive across separate invocations resuming
-  the same run.
-- **Room-5 stray run fully resolved** either way (death ends it same as a
-  win) — account confirmed clean afterward (`--dry-run`: "no active run").
-- Full test suite + typecheck, re-run against the final commit: **379/379,
+- **Orchestrator, real 2-hour unattended run, completed** — 12/12 dungeon
+  runs (216/240 energy), 20/20 fishing casts (239/240 energy), clean
+  `"done for today"` idle, full rollup, exit 0. Real wall-clock to exhaust
+  both real daily caps: **~45 minutes** (~27 of which was one
+  energy-regen sleep down to 4/420, ~18 minutes active play across 32
+  actions). Scheduler interleaved both modes by relative daily-budget
+  headroom throughout, confirmed live (not just unit-tested).
+- **Potions leak fix holds** — zero potion log lines anywhere in the run;
+  confirmed at both the config level (`forbiddenWoods.potions` absent) and
+  the code level (`orchestrator.ts`'s `resolvePotionLoadout()` and
+  `liveRun.ts`'s loadout path both fail safe to 0 when the block is
+  absent).
+- Two boons got their first-ever pickup pairs this session:
+  `VulnerableEvade` and `AddLifestealMagic`, both modelled
+  `{kind:"latent"}` (zero delta at pickup, same shape as `AddBurnSword`).
+- Full test suite + typecheck, re-run against the final commit: **404/404,
   `tsc --noEmit` clean.**
 
 ## What's broken
-- Nothing left broken in the codebase — see above. Task 10's actual 2-hour
-  unattended gate is simply not yet attempted post-fix; that's a gap in
-  progress, not a bug.
-- **Local `data/guard-budget.json`/`guard-budget-fishing.json` energy
-  tracking under-recorded this session's real spend** — both still read
-  `energySpent: 0` despite a real `start_run` + several `use_item`/combat
-  actions happening. Likely: the SIGINT'd orchestrator invocation never
-  reached its energy-accounting block, and the later `liveRun.ts` resume
-  invocations' before/after energy deltas were masked by concurrent regen
-  each time (small deltas, clamped to 0 per existing logic). Not a
-  resource-loss bug — real energy is genuinely fine (~157/420) — just a
-  local bookkeeping gap. Self-corrects next real UTC date rollover; not
-  fixed this session.
+- Nothing broken in the codebase from this session's own changes.
+- **Known, not fixed**: the scheduler cannot learn about energy gained
+  outside its own tracking (e.g. a manual ROM claim mid-run) — it only
+  re-polls real energy when a sleep completes or the process restarts, and
+  a single SIGINT during a sleep ends the WHOLE session (not just that
+  wait) because `shutdown.ts` sets `requested` on the first press, which
+  the outer loop also checks. Surfaced live this session when the user
+  topped energy up manually mid-sleep and had no way to tell the running
+  process.
+- **New lead, not chased down**: three fishing casts this session hit
+  `liveFishing.ts`'s unknown-terminal-field detector on
+  `data.nextPosition`/`data.nextMovePath`. The code's own inline comment
+  guesses this is "the catch-resolution mechanic" (`QUESTIONS.md §10`) —
+  **that guess looks wrong on inspection of the actual dumps.** These
+  fields sit alongside `fishPosition`/`previousFishPosition` in
+  `doc.data`, not near `cardChosenId`/`caughtFish` (the real
+  catch-resolution fields from session 17). One dump has concrete values —
+  `fishPosition: [2,3]`, `nextPosition: [1,3]`, `nextMovePath: [3]` — which
+  reads far more like a **look-ahead reveal of the fish's next move** than
+  anything catch-related. Only checked on a cast's TERMINAL doc (the
+  detector only fires there), so it's unknown whether this is present on
+  every turn's response and just never surfaced before, or genuinely new.
+  See QUESTIONS.md §12 (new) for the full dumps and reasoning. If this
+  holds up, it could remove the need for `mineFishPatterns.ts`'s
+  after-the-fact pattern mining entirely — worth checking before Task 13.
 
 ## Corrections to SPEC.md
-- None this session. The `use_item` index semantics SPEC already documents
-  ("how many items from THIS run's committed loadout have already been
-  consumed") were already correct — the bug this session was in our own
-  code (a process-local counter that didn't survive across invocations),
-  not a wrong belief about the API contract.
+- None this session — no SPEC claim was contradicted by a live response.
+  (The two new boon models and the fishing lead above are additions, not
+  corrections to an existing claim.)
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- **Launching or leaving a multi-hour unattended background process running
-  from within this coding session** — tried twice (`nohup`+`disown`, and
-  the harness's own Bash `run_in_background`), both blocked by the
-  harness's own auto-mode classifier regardless of CLAUDE.md's own
-  "dungeon/fishing play is autonomous-safe" authorization. Task 10's real
-  gate needs the USER to run `orchestrator.ts --hours=2` themselves, in
-  their own terminal, outside any Claude Code session.
-- **Inferring a resumed run's remaining potion slot(s) from
-  `GET /game/dungeon/state`** — reconfirmed dead end, one level deeper than
-  session 23's finding. Session 23 established `consumables`/`isJuiced`
-  aren't visible on state reads at all; this session adds that per-slot
-  usage (which of a committed loadout's slots are already spent) isn't
-  recoverable from state reads either. The only way to know it is a direct
-  human report (this session, "slot 3") or a captured original `start_run`
-  request. `--potions-used=N` exists because of this gap, not despite it.
+- None new this session. (Session 24's two dead ends — launching a
+  multi-hour background process from within Claude Code, and inferring a
+  resumed run's potion-slot usage from state reads — stand unchanged and
+  weren't re-attempted.)
 
 ## Metrics
-- Tests: 375/375 at session start → **379/379** at final commit (+4, from
-  4 new room 1-4 boon offers captured before the incident's Ctrl-C — all
-  already-known unmodelled/rolled types except `IntuitionArmor`, a
-  first-ever sighting, still unmodelled/unpicked). `npx tsc --noEmit`
-  clean throughout, re-checked against the final commit.
-- Dungeon: **1/12** real runs used today (server-confirmed the day's
-  counter was genuinely empty before this session's one run — see
-  Corrections/drift note below). That one run: started by the orchestrator
-  with 3x Big Heal Juice (the incident), left active mid-fight after the
-  user's Ctrl-C, resumed twice via `liveRun.ts` (first resume attempt
-  failed safely on a wrong potion index, 0 cost; second succeeded), ended
-  in a room-5 death (own HP 0 vs. Enemy Room 67's remaining 19/45) under
-  thin opponent-model data for that matchup (n=0–6 samples throughout,
-  "confidence=low"). Material cost: all 3 committed Big Heal Juice
-  consumed (balance 70→67 at commit time), for a run that died at room 5.
-- Energy: real ~157/420 currently (account-wide pool). Local
-  guard-tracked spend under-recorded this session — see "What's broken."
-- Fishing: untouched this session. Local guard reset to 0/20 by inference
-  from the dungeon day-boundary reset (see Corrections), NOT independently
-  confirmed — no fishing-equivalent "today" endpoint exists to check
-  against, unlike dungeon's `GET /game/dungeon/today`.
+- Tests: 404/404 at final commit (+5 from 399 at session start: 2 new
+  clean/latent boon models, corpus-total assertions updated for +30
+  offers). `npx tsc --noEmit` clean throughout.
+- Dungeon: **12/12 real runs used today**, 216/240 energy. 12 real runs
+  played this session (the full daily cap), outcomes not separately
+  tallied (not gated — Task 5/11's room-1 battle win rate is the gated
+  metric, unaffected by this session).
+- Fishing: **20/20 real casts used today**, 239/240 energy. 1 mined
+  pattern (`perimeterWalk(cw)`) seeded the matcher throughout; no catches
+  this session (all casts ended "escaped").
+- Energy: real account energy 139/420 at session end (regen 18/hr). Local
+  `data/guard-budget.json`/`guard-budget-fishing.json` correctly tracked
+  real spend end-to-end this time (216/239) — session 24's local
+  under-recording bug did not recur.
 - ROMs: untouched.
 
-## Corrections to operational assumptions (not SPEC, but load-bearing)
-- **Local guard-budget files are date-keyed to UTC calendar date, but the
-  game's real daily reset does NOT align with UTC midnight.** Confirmed
-  this session: `GET /game/dungeon/today`'s `dayProgressEntities` was
-  genuinely empty (a fresh day, 0 real runs) partway through the SAME UTC
-  calendar date session 23 ended on, while the local guard files still
-  read session 23's stale near-exhausted state (9/12 dungeon, 20/20
-  fishing) under the same date key. Corrected by hand this session
-  (reset both to 0/0) after confirming the dungeon side directly; the
-  fishing side was inferred, not independently confirmed (see above).
-
 ## Open questions for Claude
-1. Two incidents now (session 23's dungeon-sack, session 24's stale
-   `maxPerRun`) trace to the same root shape: a flag left in an elevated
-   state for one specific planned batch, silently reused later by
-   unrelated automation. Task 14 (juiced-only potion gating, blocked on a
-   DevTools capture) would remove the whole class of risk by construction
-   — no standing `forbiddenWoods.potions` config to go stale. Worth
-   re-prioritizing ahead of retrying Task 10's live gate, or retry Task 10
-   first with potions simply left off (current state)?
-2. Confirmed (two methods) that Claude Code cannot launch or leave running
-   a multi-hour unattended background process — a harness-level block, not
-   a CLAUDE.md one. Should the next brief ask the user to kick off
-   `orchestrator.ts --hours=2` themselves at session start (so a log is
-   ready to analyze), rather than asking Claude Code to launch it?
-3. Is the game's real daily-reset boundary (see above) known or
-   discoverable, or should `guardPersistence.ts` grow a live cross-check
-   (mirroring the existing dungeon-run drift check) so a mid-UTC-day reset
-   doesn't need manual correction again?
+1. Is `data.nextPosition`/`data.nextMovePath` (see "What's broken" above,
+   full dumps in `QUESTIONS.md §12`) worth a dedicated capture session
+   before Task 13? If it's a genuine live look-ahead of the fish's next
+   move on every turn (not just the terminal one), it would let the live
+   loop react to real information instead of `mineFishPatterns.ts`'s
+   after-the-fact statistical inference — a bigger win for fishing
+   accuracy than anything Task 13 scopes.
+2. Task 13's own brief (session 22) already flagged its validation floor
+   as the harder problem: `castSim`'s fish-pattern model is only weakly
+   checked against reality (matcher-blind 6.6% vs. matcher+mined 16.2% sim
+   catch rate, real rate ~3.3% off a single-digit sample). Does question 1
+   change that calculus, or should Task 13's deck-aware `simulateCast`
+   infrastructure step proceed regardless since it "needs no new live
+   capture" per its own scoping note?
+3. Should `shutdown.ts` grow a way to skip the current energy-regen sleep
+   without ending the whole session (e.g. a distinct signal/flag file), or
+   is a full restart (documented as safe — guard state persists across
+   process invocations) an acceptable answer to "I added energy, stop
+   waiting"?
 
 ## Files changed
 ```
-$ git diff --stat (tracked, non-fixture)
-TASKS.md              | 22 ++++++++++++++++++++--
-config/bot.json       |  6 +-----
-handoff/DECISIONS.md  |  4 ++++
-scripts/liveRun.ts    | 28 +++++++++++++++++++++++++---
-src/sim/boons.ts       | 24 ++++++++++++++++++++++++
-tests/boons.test.ts    |  7 ++++++-
-6 files changed, 80 insertions(+), 11 deletions(-)
+$ git show --stat HEAD (last commit, non-fixture)
+TASKS.md              |  64 ++++++++++++++++++++
+src/sim/boons.ts       | 163 ++++++++++++++++++++++++++++++++++++++++++++++++++
+tests/boons.test.ts    |  26 ++++++--
+tests/enemies.test.ts  |  10 +++-
+4 files changed, 258 insertions(+), 5 deletions(-)
 
-+ fixtures/dungeon-runs/run-2026-08-17-18-54-04/ (72 states, new — the
-  incident run, orchestrator-started, Ctrl-C'd)
-+ fixtures/dungeon-runs/run-2026-08-17-19-15-53/ (16 states, new — the
-  recovery resume, ends in the room-5 death)
-+ 5 more fixture dirs (1-3 states each, new) — dry-run/status-check
-  invocation artifacts, no real actions sent
++ fixtures/dungeon-runs/run-2026-08-17-{20-33-23,20-36-03,20-37-00,20-39-09,
+  21-08-10,21-09-37,21-10-32,21-12-02,21-14-12,21-16-02,21-17-23}/ (11 new
+  run dirs, 11 distinct DUNGEON_ID_CID values — one short of
+  `data/guard-budget.json`'s `runsStarted: 12` for the day; unexplained,
+  not investigated, doesn't affect the gate)
++ fixtures/fishing-casts/live/cast-2026-08-17-{20-35-46 .. 21-18-46}/ (20
+  new cast dirs, the session's 20 live fishing casts)
 ```
