@@ -1,100 +1,79 @@
-# BRIEF — session 24
+# BRIEF — session 25
 
-Session 23 was an incident-response session: `liveRun.ts` silently resumed
-a pre-existing active run under the wrong policy, wasting the user's
-potions before anyone caught it. The fix (`ResumeConfirmationRequired`
-gate, refuses to resume any run the invocation didn't start unless
-`--resume-existing` is passed) landed and is unit-tested, but has never
-fired against real server state — worth keeping in mind if anything today
-surfaces a stray active run.
+Session 24 revised Task 10's gate from 8h to 2h with reasoning (per-day
+counts bind before energy does — still correct, unchanged), but the live
+attempt itself surfaced a real incident: a stale `config/bot.json` value
+left over from session 23's never-run juiced batch let a plain orchestrator
+run auto-load 3 Big Heal Juice, violating the user's standing rule that
+non-juiced runs never use potions. The leak is closed structurally — the
+`forbiddenWoods.potions` block was removed entirely, not just reset to a
+safer number, so there's no config drift possible until Task 14 lands
+proper juiced-vs-plain gating. Confirmed by direct read this session: block
+absent, 0 potions load on any run this bot starts, full stop.
 
-Juiced runs are explicitly OUT of scope this session — queued for a
-separate, calmer session per the user's own call, partly for daily
-run-budget reasons (a juiced run costs 3 of the 12 daily units, confirmed
-session 23) and partly so the untested resume-safety gate gets its first
-live exercise on a day with full attention, not folded into today.
-
-Today's spine: **Task 10's real unattended gate**, on a day that finally has
-what it needed — full fresh 12/12 dungeon, 20/20 fishing at reset.
+Also confirmed hard this session: Claude Code cannot launch or leave a
+multi-hour background process running under any method tried — this is a
+harness-level constraint, settled, not worth re-attempting. The user runs
+`orchestrator.ts` themselves, in their own terminal, every time.
 
 ---
 
-## 1. Revise the 8-hour target before starting — with reasoning, not a guess
+## 1. Retry Task 10's 2-hour gate — nothing else needs to change first
 
-TASKS.md's "eight-hour unattended session" gate predates both the ROM
-energy discovery and the confirmed real per-day run/cast counts (12
-dungeon, 20 fishing). The gate's own language ("energy-regen sleeps") reads
-like it assumed energy was the slow, scarce resource requiring hours to
-exhaust and recover — that's no longer the actual binding constraint, and
-may never have been.
+The potions leak is closed. Real dungeon budget today: 1/12 used (the
+incident run). The `ResumeConfirmationRequired` gate fired correctly
+against real server state for the first time this past session (refused to
+touch a stray active run without explicit confirmation) — that mechanism is
+now live-validated, not just unit-tested.
 
-**The real limit is the game's own per-day counts, not energy.** At this
-project's action pacing (1200ms + jitter, a handful of actions per run/
-cast), spending the full day's allowance — 12 runs + 20 casts — is likely
-well under an hour of continuous play. Once those caps are hit, the only
-remaining thing to verify is that the orchestrator recognizes it and idles
-cleanly rather than erroring or busy-retrying. The NEXT real milestone
-after that — surviving to tomorrow's UTC reset and resuming — is roughly
-24 hours out, which even the original 8-hour figure was never going to
-reach anyway. So most of an 8-hour window would prove nothing new.
+**Answering session 24's own open question #1** (retry now with potions
+off, or prioritize Task 14 first?): retry now. The immediate risk class is
+already closed structurally (no potions block = no potions, regardless of
+Task 14's status). Task 14 still matters for the deferred juiced-run
+session, but nothing about today's retry depends on it.
 
-**Target 2 hours instead of 8** — enough to comfortably cover all real
-activity plus a solid buffer confirming graceful idle behavior with zero
-exceptions, without paying for hours that test nothing. Log the actual
-wall-clock time it takes to exhaust today's caps; this project has been
-guessing at this number for four sessions and should have a real one now.
+User runs, in their own terminal:
 
-**Update TASKS.md's Task 10 gate text itself** with this reasoning before
-running it — don't just quietly run a shorter window than what's written.
-State the new target and why, same discipline as every other gate revision
-in this project's history (see how Task 4.5/5/11's gates were each
-restated with reasoning, not silently reinterpreted).
+```
+caffeinate -i npx tsx scripts/orchestrator.ts --hours=2
+```
 
-## 1a. What "2 hours" actually means — read this before running
+Same ceiling-not-target framing as before: if real per-day caps get
+exhausted faster than 2 hours, clean idle-and-stop is the correct outcome,
+not something to pad out.
 
-`orchestrator.ts` is a plain background script, not an LLM loop — the 2-hour
-window is the SCRIPT's wall-clock runtime (rate-limited API calls, 1200ms +
-jitter per action), not a budget for Claude's own effort or token usage.
-Claude's actual work here is starting the process and later reading its
-output; the 2 hours in between is the script idling/pacing on its own.
+## 2. One loose end worth a look, not a blocker: local guard-budget UTC drift
 
-**2 hours is a ceiling, not a target to fill.** If the real caps get
-exhausted in 45 minutes as the math above suggests, let it idle cleanly and
-report that — do not manufacture extra activity, extend scope, or otherwise
-pad the session to consume the full window. The number exists to bound how
-long an unattended run is allowed to take, not to mandate that much work
-actually happen.
+Session 24 found the game's real daily reset doesn't align with the local
+guard files' UTC-date key — corrected by hand once this session (reset to
+0/0 dungeon; fishing side inferred, not independently confirmed against a
+real endpoint the way dungeon's `GET /game/dungeon/today` allows). If this
+recurs, it's a manual-correction annoyance, not a safety issue — energy and
+run counts still fail closed against the REAL server state regardless of
+what the local file says. Worth `guardPersistence.ts` growing a live
+cross-check eventually (session 24's own open question #3), but not urgent
+enough to block today's retry on.
 
-## 2. Run it
+## 3. Local energy-tracking gap, same non-urgency
 
-`npx tsx scripts/orchestrator.ts --hours=2` (or whatever the revised gate
-settles on), outside an interactive session so it actually runs unattended.
-Watch for:
-
-- Zero unhandled exceptions.
-- Correct recognition of hitting the daily dungeon (12) and fishing (20)
-  caps, with clean idle behavior after — not busy-polling, not erroring.
-- Daily rollup generated.
-- Energy spend within budget (should be trivially true today given ROM
-  headroom, but confirm rather than assume).
-- Whether `ResumeConfirmationRequired` ever fires (only relevant if
-  something leaves a run active mid-session — unlikely in a clean
-  orchestrator-only run, but note it either way).
-
-## 3. Report real numbers afterward
-
-How long it actually took to exhaust both caps, whether the 2-hour window
-was well-calibrated (too long, too short, about right), and whether the
-gate should be revised again based on what actually happened versus what
-was predicted above.
+Session 24 also found local guard files under-recorded real energy spend
+this session (small deltas getting clamped to 0). Real energy is fine
+(~157/420, confirmed live). Same as above — cosmetic/bookkeeping, not a
+resource-loss issue, self-corrects at next date rollover. Don't spend this
+session's time chasing it unless it starts actually causing wrong
+decisions, not just wrong displayed numbers.
 
 ---
 
 ## Your task
 
-1. Revise TASKS.md's Task 10 gate text to state the 2-hour target and the
-   reasoning (per-day counts bind before energy does).
-2. Run `orchestrator.ts` for that window, outside an interactive session.
-3. Report: wall-clock time to exhaust both caps, zero-exception confirmation,
-   idle-behavior correctness, daily rollup contents.
-4. Do not touch juiced runs this session — queued separately.
+1. Confirm `config/bot.json` still has no `forbiddenWoods.potions` block
+   before the retry starts (sanity check, shouldn't have changed).
+2. User runs the 2-hour orchestrator retry in their own terminal.
+3. After it completes or is stopped: report real wall-clock time to exhaust
+   daily caps (if reached), zero-exception confirmation, idle behavior,
+   daily rollup contents — same as the original ask.
+4. Note but don't fix this session: local guard-budget UTC drift and
+   energy-tracking gap (§2/§3) — both cosmetic, both self-correcting.
+5. Juiced runs and Task 14's DevTools capture remain queued for a separate
+   session, unchanged.
