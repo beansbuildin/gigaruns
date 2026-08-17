@@ -29,12 +29,22 @@
  * eight-hour run is the next thing to kick off and leave running,
  * separately — not something this session can also verify happened.
  *
- * Known simplification: potion loading (`main()`'s balance-lookup dance in
- * `liveRun.ts`) is NOT wired in here yet — dungeon runs go through this
- * orchestrator potion-free (matches the safe "no `forbiddenWoods.potions`
- * configured" default, never a silent behavior change for a user who HAS
- * configured potions). Folding that in is a small, separate follow-up, not
- * done here to keep this session's diff reviewable.
+ * Potion loading (session 20): reuses `liveRun.ts`'s exact policy
+ * (`shouldUsePotion`/`DEFAULT_POTION_THRESHOLD`, `MAX_POTIONS_PER_RUN`,
+ * `config/bot.json`'s `forbiddenWoods.potions` allowlist) rather than a
+ * fresh design — same gate, same defaults, same "absent config -> 0
+ * potions" fail-safe. One difference from `liveRun.ts`'s own `main()`,
+ * required by this script's shape rather than a design choice:
+ * `liveRun.ts` computes its potion loadout ONCE per process and reuses the
+ * same mutable `potionPolicy` object across however many runs that one
+ * invocation does (`remaining`/`used` intentionally NOT reset per run — see
+ * `LiveRunDeps.potionPolicy`'s own doc comment). That's fine for
+ * `liveRun.ts`, which in practice is one run per process. The orchestrator
+ * starts many independent dungeon runs across one long-lived process, and
+ * each genuinely new `start_run` commits its OWN fresh consumables loadout
+ * server-side — so `resolvePotionLoadout()` below is called fresh before
+ * every dungeon iteration, re-reading the live balance and building a new
+ * `potionPolicy` object each time, rather than reusing one across runs.
  *
  * Usage:
  *   npx tsx scripts/orchestrator.ts --dry-run        # one real decision, no action sent
@@ -49,7 +59,8 @@ import { nextAction, type EnergyState, type ModeBudget } from "../src/orchestrat
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
 import { OpponentModel } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
-import { runOnce, printStatus, FixtureWriter as DungeonFixtureWriter, RunLog as DungeonRunLog, type LiveRunDeps } from "./liveRun.js";
+import { DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
+import { runOnce, printStatus, MAX_POTIONS_PER_RUN, FixtureWriter as DungeonFixtureWriter, RunLog as DungeonRunLog, type LiveRunDeps } from "./liveRun.js";
 import { runOneCast, FixtureWriter as FishingFixtureWriter, RunLog as FishingRunLog, FISHING_GUARD_STATE_PATH, type LiveFishingDeps } from "./liveFishing.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -91,6 +102,29 @@ function fishingBudgetSnapshot(config: BotConfig, guards: GuardState): ModeBudge
     energySpentToday: guards.spentEnergy,
     maxActionsPerSession: d.maxCastsPerSession,
     actionsToday: guards.runCount,
+  };
+}
+
+/**
+ * Fresh per dungeon iteration — see this file's header comment for why this
+ * can't reuse liveRun.ts's once-per-process pattern. Mirrors `liveRun.ts`'s
+ * `main()` allowlist gate exactly: absent `config.potions` -> 0 potions,
+ * full stop (silence is not authorization, session 17). Config is the ONLY
+ * gate on the ITEM; the live balance only ever caps the per-run COUNT.
+ */
+async function resolvePotionLoadout(
+  client: GigaverseClient,
+  config: BotConfig,
+): Promise<{ startConsumables?: number[]; potionPolicy?: LiveRunDeps["potionPolicy"] }> {
+  if (!config.potions) return {};
+  const balances = await client.getItemsBalances();
+  const balance = balances.entities.find((e) => e.ID_CID === String(config.potions!.allowedItemId))?.BALANCE_CID ?? 0;
+  const potionCount = Math.min(config.potions.maxPerRun, MAX_POTIONS_PER_RUN, balance);
+  if (potionCount <= 0) return {};
+  const itemId = config.potions.allowedItemId;
+  return {
+    startConsumables: Array(potionCount).fill(itemId),
+    potionPolicy: { itemId, threshold: DEFAULT_POTION_THRESHOLD, remaining: potionCount, used: 0 },
   };
 }
 
@@ -174,6 +208,12 @@ async function main() {
     if (decision.kind === "dungeon") {
       console.log(`\n▸ [${iterations}] dungeon run — real energy ${energy.value}/${energy.max}`);
       const before = energy.value;
+      const { startConsumables, potionPolicy } = await resolvePotionLoadout(client, config);
+      if (potionPolicy) {
+        console.log(
+          `  · potions: loading ${startConsumables!.length}x itemId ${potionPolicy.itemId}, used at own HP ≤${Math.round(potionPolicy.threshold * 100)}%.`,
+        );
+      }
       try {
         await runOnce({
           client,
@@ -186,6 +226,8 @@ async function main() {
           dryRun: false,
           shutdownSignal,
           guardStatePath: DEFAULT_GUARD_STATE_PATH,
+          startConsumables,
+          potionPolicy,
         } satisfies LiveRunDeps);
       } catch (e) {
         if (e instanceof GuardTrip && isBudgetGuardTrip(e)) {

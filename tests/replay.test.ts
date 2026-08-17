@@ -18,7 +18,17 @@ describe("corpus", () => {
   it("loads the recorded captures", () => {
     const runs = loadCorpus();
     expect(runs.length).toBeGreaterThanOrEqual(4);
-    expect(exchanges(runs).length).toBe(417); // +3 live [session 19]: orchestrator smoke test's one real dungeon run (room 1 combat, won, SIGINT'd cleanly at the room-2 turn boundary)
+    // [session 20] Floor, not an exact literal — see this repo's recurring
+    // "corpus-count tax" (DECISIONS 2026-08-15/16/17, session-20 brief §3).
+    // The fixture corpus is append-only across sessions, so this count only
+    // ever grows; a human hand-bumping an exact number here after every live
+    // capture was pure bookkeeping churn with no protective value (it never
+    // once caught a real bug — every failure was a stale literal). A floor
+    // keeps the one thing worth protecting: a genuine regression (fixtures
+    // deleted, exchanges() silently dropping transitions) still fails loudly
+    // by pulling the count BELOW a known-good mark, while ordinary growth
+    // from new live play needs no edit here.
+    expect(exchanges(runs).length).toBeGreaterThanOrEqual(417);
   });
 
   it("excludes the boon pickup that follows a kill", () => {
@@ -138,7 +148,10 @@ describe("combat model vs recordings", () => {
     // room 1 combat only (3 exchanges), won, then a clean SIGINT stop at the
     // room-2 turn boundary before any further action — no death, run left
     // active/resumable. Clean model matched, 0 clean failures.
-    expect(report.sideUpdates).toBe(834);
+    // [session 20] Floor, not an exact literal — same reasoning as
+    // `exchanges(runs).length` above; sideUpdates only grows as the
+    // append-only corpus grows.
+    expect(report.sideUpdates).toBeGreaterThanOrEqual(834);
     expect(report.matched).toBeGreaterThanOrEqual(126);
   });
 });

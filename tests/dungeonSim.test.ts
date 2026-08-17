@@ -248,8 +248,26 @@ describe("the Task 4 gate", () => {
     // run added one new room-1 offer (AddTenacity/AddBlock/AddBurnShield,
     // all rolled-stat-contaminated or unmodelled). No new clean type, same
     // reshuffling-not-regression pattern; `deepestScorableRoom` unchanged at 3.
-    expect(s.battleCoverage.scored).toBe(1127);
-    expect(s.deepestScorableRoom).toBe(3);
+    // [session 20] 1127 -> 1159 — the potion-orchestrator-wiring smoke
+    // test's two runs added 7 more offers (no new clean type). This is the
+    // 10th time in a row this exact number has moved from ordinary corpus
+    // growth reshuffling the random draws, never from a real bug — so it's
+    // now a RANGE, not a bumped literal (DECISIONS 2026-08-15/16/17,
+    // session-20 brief §3's "recurring bookkeeping tax"). The band covers
+    // every value seen across 10 sessions (1083-1159) with margin on both
+    // sides; a real regression (scoring breaking, collapsing toward 0 or up
+    // near `battleCoverage.total`) still fails loudly.
+    expect(s.battleCoverage.scored).toBeGreaterThan(800);
+    expect(s.battleCoverage.scored).toBeLessThan(1400);
+    // [session 20] 3 -> 4 — same reshuffling as `scored` above, from the
+    // same new offers. This has bounced non-monotonically for sessions now
+    // (1 -> 4 -> 3 -> 4, per this describe block's own history above), so a
+    // floor alone doesn't fit; bounded instead by the two real invariants
+    // that actually hold: at least 1 (Wall 1 guarantees a scorable room-1
+    // battle) and never past `MAX_OBSERVED_ROOM` (can't score deeper than
+    // the corpus has ever been captured).
+    expect(s.deepestScorableRoom).toBeGreaterThanOrEqual(1);
+    expect(s.deepestScorableRoom).toBeLessThanOrEqual(MAX_OBSERVED_ROOM);
   });
 
   it("reports a battle win rate in a believable range for random vs random", () => {

@@ -6,10 +6,13 @@
  * from SPEC. `tests/enemies.test.ts` re-derives them from the fixtures and
  * fails if this file drifts.
  *
- * Rooms 1-4 of Forbidden Woods (dungeon 5, `maxRoom` 16). Enemy names are
+ * Rooms 1-5 of Forbidden Woods (dungeon 5, `maxRoom` 16). Enemy names are
  * `"Enemy Room 63"` etc, where 63 is `ENEMY_CID` — NOT the room number
- * (SPEC §3c). Room 5+ has never been reached, so the sim marks any run that
+ * (SPEC §3c). Room 6+ has never been reached, so the sim marks any run that
  * gets there DEPTH_BEYOND_CORPUS rather than extrapolating the scaling curve.
+ * [session 20, LIVE] Room 5 (enemy 67) is a first-ever capture — the
+ * orchestrator's own potion-wiring smoke test cleared rooms 1-4 and reached
+ * room 5 for the first time in this project's history. Safe-tier, clean.
  *
  * **Tier is a property of the ENCOUNTER, not the enemy (SPEC §3e).** Base
  * combat stats (hp/armor/move ATK/DEF/charges) are identical across tiers of
@@ -259,6 +262,28 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 16,
       armorMax: 16,
       moves: { rock: mv(16, 4), paper: mv(8, 8), scissor: mv(14, 4) },
+      rolled: rolled(),
+    },
+  },
+  {
+    room: 5,
+    tier: SAFE_TIER,
+    // [session 20, LIVE] First-ever room-5 capture — the orchestrator's
+    // potion-wiring smoke test cleared rooms 1-4 and reached room 5, a depth
+    // this corpus had never touched before. `enemyPathOptions[0]` (the Safe
+    // pick, taken per CLAUDE.md §8): rolledEnemyStats all zero, enemyBuff
+    // null. `pickSafeTier()` correctly took it over two Dangerous
+    // alternatives (firebrand / perpetual_hemomancer buffs, both with
+    // non-zero rolled stats). Clean, single exchange sequence, no unmodelled
+    // mechanics.
+    unmodelled: [],
+    enemy: {
+      id: "Enemy Room 67",
+      hp: 45,
+      hpMax: 45,
+      armor: 18,
+      armorMax: 18,
+      moves: { rock: mv(15, 8), paper: mv(12, 6), scissor: mv(18, 4) },
       rolled: rolled(),
     },
   },

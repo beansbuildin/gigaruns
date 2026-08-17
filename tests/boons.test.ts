@@ -28,7 +28,9 @@ const pickups = boonPickups(loadCorpus(), roomOf);
 
 describe("the corpus supports a boon model at all", () => {
   it("contains before/after pairs, each adding exactly one boon", () => {
-    expect(pickups.length).toBe(41); // +1 live [session 19]: orchestrator smoke test's real dungeon run, room 1 — AddTenacity
+    // [session 20] Floor, not an exact literal — see tests/replay.test.ts's
+    // matching comment. pickups only grows as the append-only corpus grows.
+    expect(pickups.length).toBeGreaterThanOrEqual(41);
     for (const p of pickups) {
       const before = p.before.run.players[0]!.pickedBoons ?? [];
       const after = p.after.run.players[0]!.pickedBoons ?? [];
@@ -122,8 +124,12 @@ describe("recorded offers match the fixtures", () => {
     expect(fromTable).toEqual(fromCorpus);
   });
 
-  it("has no offer past room 3 — the deepest run died in room 4 without clearing it", () => {
-    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(3);
+  it("has no offer past room 4 — the deepest run cleared room 4 and reached room 5", () => {
+    // [session 20, LIVE] Was `toBe(3)` through session 19 — the potion-
+    // orchestrator-wiring smoke test cleared room 4 for the first time,
+    // producing this corpus's first room-4 offer (see ROOM_ENEMIES' new
+    // room-5 entry, src/sim/enemies.ts).
+    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(4);
   });
 });
 
@@ -157,6 +163,8 @@ describe("fail-closed on unmodelled types", () => {
       "ArmorDepletedWeak", // session 14: first sighting, room-1 offer (Task 12 Stage B probe run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
+      "CorrosiveSword", // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
+      "LossBlockUp", // session 20: first sighting, live room-2 offer, not picked
       "Regen",
       "SecondWind", // session 16: first sighting, live room-3 offer, not picked
       "TieDamageReduction",
@@ -218,8 +226,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // AddBurnShield is newly unmodelled; AddTenacity and AddBlock are
     // already-known rolled-stat (contaminated) types, so the clean set is
     // unchanged.
+    // [session 20] +2 more room-1 offers (3 options each): AddTenacity/
+    // UpgradeRock/AddTenacity and AddBlock/UpgradePaper/UpgradeRock (the
+    // potion-orchestrator-wiring smoke test's two runs). Both UpgradeRock
+    // entries are the DEF-variant, already known clean/modelled — TWO new
+    // clean picks join the set below (the first NEW room-1 clean type since
+    // AddMaxArmor, session 06). UpgradePaper stays unmodelled.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(63);
+    expect(roomOne.length).toBe(69);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -232,6 +246,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "AddMaxArmor",
       "Heal",
       "Heal",
+      "UpgradeRock",
+      "UpgradeRock",
       "UpgradeRock",
       "UpgradeScissor",
       "UpgradeScissor",
@@ -250,6 +266,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     const healRooms = OBSERVED_OFFERS.filter((o) =>
       o.options.some((x) => x.type === "Heal"),
     ).map((o) => o.room);
-    expect(healRooms).toEqual([1, 1, 2]);
+    // [session 20] +1 room-2 Heal offer (potion-orchestrator-wiring smoke
+    // test, Run A) — a second independent room-2 sighting, not new depth.
+    expect(healRooms).toEqual([1, 1, 2, 2]);
   });
 });

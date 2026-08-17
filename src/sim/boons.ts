@@ -300,8 +300,9 @@ const opt = (type: string, val1: number, val2 = 0): BoonOption => ({ type, val1,
  * Every reward offer the corpus contains. [Stale count corrected session 11 —
  * this said "four triples" through session 05's Task 4.5 era; the corpus has
  * grown with every live session since. Read the length below, not this
- * comment, for the current total.] No room-4+ offer exists — the deepest run
- * has died in room 4 without clearing it, so there is nothing past room 3.
+ * comment, for the current total.] [session 20, LIVE] A room-4 offer now
+ * exists — the potion-orchestrator-wiring smoke test cleared room 4 and
+ * reached room 5, the corpus's first run ever to do either.
  *
  * The sim draws from these and does not synthesise offers. A generated offer
  * distribution would be inventing the single thing that decides how a run
@@ -642,6 +643,66 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 1,
     source: "run-2026-08-17-01-23-21/state-006",
     options: [opt("AddTenacity", 2), opt("AddBlock", 2), opt("AddBurnShield", 5)],
+  },
+  {
+    // [session 20, LIVE] Room-2 offer, the resumed session-19 smoke-test run
+    // (played to completion this session — died room 3). First sighting of
+    // `LossBlockUp` (offered, not picked — stays unmodelled). AddIntuition
+    // (picked) already modelled.
+    room: 2,
+    source: "run-2026-08-17-04-35-58/state-014",
+    options: [opt("WeakeningBlock", 4), opt("AddIntuition", 1), opt("LossBlockUp", 5)],
+  },
+  {
+    // [session 20, LIVE] Room-1 offer, potion-orchestrator-wiring smoke test,
+    // Run A (first of two dungeon runs this smoke test triggered). Second
+    // distinct AddTenacity roll (val1 3) offered alongside a DEF-variant
+    // UpgradeRock (picked) — both already modelled/clean.
+    room: 1,
+    source: "run-2026-08-17-04-45-33/state-007",
+    options: [opt("AddTenacity", 2), opt("UpgradeRock", 0, 8), opt("AddTenacity", 3)],
+  },
+  {
+    // [session 20, LIVE] Room-2 offer, same run. All three options already
+    // modelled; AddIntuition (picked) already clean.
+    room: 2,
+    source: "run-2026-08-17-04-45-33/state-019",
+    options: [opt("Heal", 16), opt("AddIntuition", 1), opt("AddEvasion", 1)],
+  },
+  {
+    // [session 20, LIVE] Room-3 offer, same run. First sighting of
+    // `AddLifestealMagic` alongside a DEF-variant UpgradeRock (picked,
+    // already clean/modelled) — same type, different roll variant from the
+    // room-1 ATK-variant UpgradeRock seen elsewhere in the corpus.
+    room: 3,
+    source: "run-2026-08-17-04-45-33/state-031",
+    options: [opt("UpgradeRock", 0, 4), opt("AddLifestealMagic", 4), opt("AddLuck", 2)],
+  },
+  {
+    // [session 20, LIVE] Room-4 offer, same run — the corpus's first-ever
+    // room-4 offer (every prior run either died in room 4 or never reached
+    // it; this run cleared room 4 and reached room 5, also a first). First
+    // sighting of `CorrosiveSword` (offered, not picked — stays unmodelled).
+    // AddBlock (picked) already clean.
+    room: 4,
+    source: "run-2026-08-17-04-45-33/state-049",
+    options: [opt("AddBlock", 2), opt("AddLuck", 1), opt("CorrosiveSword", 2)],
+  },
+  {
+    // [session 20, LIVE] Room-1 offer, Run B (second dungeon run this smoke
+    // test triggered, immediately after Run A above). UpgradeRock (picked,
+    // DEF-variant) already clean/modelled; AddBlock/UpgradePaper already
+    // known.
+    room: 1,
+    source: "run-2026-08-17-04-47-48/state-007",
+    options: [opt("AddBlock", 2), opt("UpgradePaper", 4), opt("UpgradeRock", 0, 8)],
+  },
+  {
+    // [session 20, LIVE] Room-2 offer, same run. All three options already
+    // modelled/seen; AddIntuition (picked) already clean.
+    room: 2,
+    source: "run-2026-08-17-04-47-48/state-021",
+    options: [opt("AddIntuition", 1), opt("AddLuck", 1), opt("AddEvasion", 1)],
   },
 ];
 

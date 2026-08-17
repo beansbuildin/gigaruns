@@ -558,3 +558,49 @@ Not blocking anything — Task 10 (orchestrator) doesn't need this resolved to
 proceed, and CLAUDE.md's own instruction (session-19 brief) was explicit:
 don't automate ROM claiming until the energy model is sized. Logged here per
 the "write the question, keep going" protocol rather than idling on it.
+
+**UPDATE [session 20, user-answered] — partially resolved, model revised, still open:**
+
+1. **37 ROMs**, listed in an in-game panel called **"ROMULATOR"** — real
+   volume, not the 2 known before. Still needed: a DevTools capture of that
+   panel to get the other 35 ROM ids (no enumeration endpoint has ever
+   surfaced in the three dumped candidates above).
+2. **Cooldown is NOT a fixed per-claim timer** — the mental model in the
+   question above was wrong. User: claim-to-claim cooldown is near-zero
+   (0-1s), but each ROM accrues energy independently, and a claim only
+   returns something once that ROM has accrued ≥~1 energy. This explains
+   BOTH session 19 oddities at once (2097's immediate re-claim failing —
+   nothing new accrued yet; 7959 never once succeeding — its own accrual
+   state is simply unknown, not necessarily broken).
+
+Consequence: the one successful claim (~1.0 energy, romId 2097) is NOT a
+usable per-ROM rate — it reflects an unknown, possibly long, unclaimed
+backlog on that one ROM, not a representative interval. Sizing this for real
+needs (a) the other 35 ROM ids and (b) multiple spaced claims per ROM to
+back out an actual accrual rate — a multi-session, multi-day measurement,
+not a single-session task. No automation work until that rate exists (still
+the standing instruction). See DECISIONS.md 2026-08-16 (session 20).
+
+**UPDATE 2 [same session, user-provided + live] — mostly resolved, and the
+number is much bigger than either prior estimate:**
+
+The user pasted the full ROMULATOR response (all 37 ROMs, each with a
+real-time `energyCollectable` field) mid-session. Summed: **~3,252 energy
+unclaimed right now** — ~7.7x the account's own 420 cap. Two live
+verification claims (small ROMs only, to avoid wasting a big accrual
+against the cap) confirm `energyCollectable` maps directly to real credited
+energy: romId 5345 claimed for an exact +12 (matching its snapshot value);
+romId 689 claimed for +12 against a snapshot value of 11, consistent with a
+few more seconds of live accrual. `amount` in the request remains fully
+ignored (re-confirmed with a deliberately wrong value, `amount:999`, same
++12 result). Session 19's ~1 energy finding is now understood as a real but
+unrepresentative single data point, not a rate.
+
+Two things genuinely still open, both logged in SPEC.md's "ROM factory-claim"
+section: (1) the exact endpoint/URL that produced the ROMULATOR snapshot —
+worth asking the user directly so it can be scripted; (2) a batching
+strategy for claiming ~3,252 energy against a 420 cap without wasting most
+of it — this is a user decision (how they want to sequence claiming vs.
+playing it down), not something to decide unilaterally. Still no automation
+without explicit go-ahead — this update only changes the SIZE of the
+lever, not the standing instruction to ask before building it.
