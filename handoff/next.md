@@ -1,106 +1,123 @@
-# BRIEF — session 19
+# BRIEF — session 20
 
-Session 18 closed the fishing-side loose end for real this time — 9 bot-driven
-casts, 4 catches, `loot` fired cleanly every time, zero stranding. That's
-QUESTIONS.md §10 done on every axis it's ever been checked against. It also
-caught and fixed a real process gap (stale test-suite count from an
-out-of-band commit) rather than inheriting it silently. Endorsing the fix
-session 18 itself proposed in its open questions: add a line to CLAUDE.md's
-working-style section (or wherever the recap step lives) that the full suite
-gets re-run against the FINAL commit at recap time, not against whatever was
-last checked mid-session. Do that as a small housekeeping edit before the
-main task, not as its own session.
+**Opening move, before anything else below:** the user resumed session 19's
+smoke-test dungeon run (left active at room 2, browser prompted
+abandon/resume when they next logged in). Finish it via the normal live
+path — it's already resumed, so this just needs `scripts/liveRun.ts` (or
+the orchestrator) to play it out to completion, win or death, same as any
+other live run. No new run slot or energy cost for the resume itself
+(confirmed session 17). Once it's done and the account shows a clean
+non-active state, tell the user directly so they can go capture the ROM
+panel — they're deliberately holding off on that capture until this run is
+out of the way.
 
-One new thing changes this session's shape entirely.
+Session 19 delivered both threads from its brief, honestly reported as
+partial where they're partial. Housekeeping (recap-against-final-commit)
+landed. Take the two threads below in order of what actually needs deciding
+first, after the resumed run is handled.
 
 ---
 
-## 1. The user found a lever that may remove the real bottleneck
+## 1. ROM claims: the number came back small — decide whether to keep going
 
-Both dungeon and fishing hit the same wall at session 18's end: real account
-energy at 10/420, confirmed shared pool, nothing left to do but wait on
-18/hr regen. That's not a guard/config problem — every session since 17 has
-been throttled by it.
+The live claim worked (romId 2097, HTTP 200, before/after energy read
+confirms it lands in the real spendable pool) — but credited **~1.0 energy**,
+not the 7 or 57 in the captured request bodies. Confirmed: `amount` in the
+request does NOT control the credited amount (sent 57, got ~1). Also
+confirmed the request needs `amount` present at all (omit it → HTTP 500), so
+it's a required-but-inert field, an odd but now-documented shape.
 
-The user reports ROMs (NFT assets tied to the wallet) can be claimed for
-energy via a UI button outside dungeon/fishing screens, and captured two real
-requests logged under `factory-claim`:
+**Worth doing the arithmetic before spending more session time on this.** The
+account's own passive regen is 18/hr against a 420 cap — that's up to 432/day,
+already above the bot's own 240/day configured budget. So the recurring
+"real energy at 10/420" wall isn't really a *daily total* shortage; it's
+sessions landing before regen catches back up. A ~1-energy trickle per ROM,
+gated by an unknown cooldown, only matters if there are enough ROMs and a
+short enough cooldown to add up to something comparable to that regen rate —
+and right now only 2 ROMs are known, one of which (7959) has never once
+succeeded a claim.
 
-```json
-{"romId":"7959","claimId":"energy","amount":7}
-{"romId":"2097","claimId":"energy","amount":57}
-```
+I asked the user directly for two things this brief needs before Task 10's
+energy model can use ROM claims at all:
 
-Confirmed directly with the user: **no wallet signature or gas prompt** when
-claiming. That puts this in the same bucket as the existing dungeon/fishing
-actions — an authenticated REST call, not an on-chain spend — so it does not
-fall under CLAUDE.md's ask-first list as written. Treat it as routine once
-verified live, same tier as `loot` or `use_item`.
+1. How many ROMs the wallet actually holds, and what UI panel lists them
+   (only 7959/2097 are known from two captured requests).
+2. Whether the claim cooldown is known/documented anywhere client-side
+   (session 19 only lower-bounded it at >34 seconds via one failed
+   re-claim).
 
-**Endpoint CONFIRMED by the user:** `POST https://gigaverse.io/api/roms/factory-claim`.
-No need to probe for it — write it straight into `SPEC.md`/`config/discovered.json`
-as CONFIRMED (method + path from the user's own capture, per CLAUDE.md §2)
-and start from there. HTTP method assumed POST given the body carries
-`romId`/`claimId` (a write, not a query) — confirm this is actually correct
-against the captured request, not just assumed from the body shape.
+**If the user's answer suggests real volume** (e.g., dozens of ROMs, or a
+short cooldown), size it properly: total claimable/day, and only then decide
+whether it's worth wiring into the orchestrator. **If not** — small ROM
+count, long cooldown, or the user doesn't know — deprioritize this. Don't
+spend a session empirically timing out a cooldown; that's exactly the kind
+of "wait and see" CLAUDE.md's fail-closed spirit argues against spending
+agent time on. Ask again rather than guess.
 
-**Open questions once the endpoint is confirmed, in priority order:**
+Regardless of the answer, `POST /roms/factory-claim`'s odd `amount`-required-
+but-inert shape is already documented (SPEC.md) — that part doesn't need
+redoing.
 
-1. Is `amount` a request parameter or a response value? Reads much more like
-   a response (the two ROMs returned different amounts for the same
-   `claimId`) — if so, the request likely only needs `romId`/`claimId`, and
-   `amount` is server-determined per ROM. Don't assume either way; check the
-   full captured response, not just the body fragment above.
-2. How many ROMs does this wallet hold, and how are they enumerated? Two
-   IDs are known (7959, 2097) — there may be more. Look for a balances-style
-   read endpoint before assuming these are the only two.
-3. Is there a per-ROM cooldown (daily? one-time?)? This decides whether ROM
-   claiming is a one-time energy top-up or a recurring daily income source —
-   materially different for Task 10's budget model.
-4. Total claimable energy per day across all owned ROMs, once 2–3 are
-   answered — this is the number that actually matters for whether the real
-   10/420-style floor stops binding.
+## 2. Task 10: real gate needs someone to press go outside a chat session
 
-**Gate, capture-first per CLAUDE.md §6:** document the confirmed endpoint,
-request/response schema, and cooldown behavior in `SPEC.md` (new section) and
-`config/discovered.json`. One live claim against a real ROM, before/after
-`GET /offchain/player/energy` read, confirms the amount actually lands in the
-spendable pool (not a separate currency). Don't build automation around this
-until that live confirmation exists — same discipline as the potion-timing
-task's Stage A/B split.
+Everything code-side is done and verified: scheduler dry-run reads real
+account state correctly, SIGINT is live-verified to finish the current
+action and stop cleanly at the next turn boundary (not mid-turn), guard-trip
+classification is unit-tested against every real reason string. This is not
+"needs more building" — it's "needs an unattended clock."
 
-## 2. Task 10 (Orchestrator) — still the next unstarted task, now worth more
+`npx tsx scripts/orchestrator.ts --hours=8` has to run outside an interactive
+session for the actual gate (eight hours, zero unhandled exceptions, daily
+rollup, energy within budget) to be checkable at all. That's not something
+this brief can hand to a Claude Code session the way the rest of the work
+gets handed off — an interactive session doesn't stay open eight hours. This
+needs the user to kick it off directly (background process, screen/tmux, or
+similar) and let a session review the resulting log/rollup afterward.
 
-Unchanged from last brief: `guards.ts` has no energy-regen sleep loop,
-`liveRun.ts` has no `SIGINT` handling. Still the real next task. But it's
-worth sequencing AFTER the ROM discovery above, not before — the orchestrator's
-energy-budget model is a different design if ROM claims can top up the pool
-mid-session versus if the only lever is waiting on 18/hr regen. Don't build
-the sleep-loop's energy math twice.
+**One decision before that run starts, not after:** the orchestrator's
+dungeon runs are currently potion-free (stated simplification in the
+script's own header). Task 12 already has a working, tested potion policy
+(`shouldUsePotion`, threshold 0.5) sitting unused in `liveRun.ts`. Wire it
+into the orchestrator's dungeon path before the real 8h run — running the
+long unattended gate on a known-weaker config just to re-run it later with
+potions wired in wastes the one long clock-block this needs. This is a small
+integration, not new design; the policy and its threshold are already
+settled.
 
-## 3. Carried forward, unchanged
+## 3. Recurring bookkeeping tax — worth fixing once instead of absorbing again
 
-- `mineFishPatterns.ts`: 1 of ~23 candidates promoted (`perimeterWalk(cw)`,
-  now live-wired). More casts compound this automatically — spend fishing
-  budget as energy allows (doubly true now if ROM claims add headroom).
-- `chooseNewCard` heuristic: still an explicit placeholder, still not urgent.
-- Death-room histogram: unchanged at 0/4/5/7 (no dungeon runs completed
-  session 18). Task 11 stays parked.
+Session 18 found 4 stale hardcoded corpus-count literals after an out-of-band
+commit. Session 19's own notes say the same failure mode "fired again this
+session, as expected." Twice now, in a row, with "expected" attached the
+second time — that's not a one-off, that's a structural gap: `tests/boons.test.ts`, `tests/dungeonSim.test.ts`, and `tests/replay.test.ts` assert
+against hand-maintained literal counts (exchange counts, pickup counts, room-1
+option counts) that drift every time new fixture data lands, live or
+otherwise.
+
+Worth a small refactor: derive those expected counts from the fixture corpus
+itself at test-run time (count what's actually in `fixtures/`) rather than
+hardcoding the numbers a human has to update by hand after every capture. The
+tests that check *model correctness* (exchange replay, delta re-derivation)
+stay exactly as strict as they are now — only the tests asserting "how big is
+the corpus right now" change shape, from a literal to a computed value. Small,
+one-session job, and it removes a recurring source of false "something broke"
+signals right when a session has just landed real new data — which is exactly
+the moment false alarms are most expensive to sort out.
 
 ---
 
 ## Your task
 
-1. Housekeeping: add the recap-against-final-commit line per session 18's
-   own suggestion.
-2. Write `POST /api/roms/factory-claim` into SPEC.md/`config/discovered.json`
-   as CONFIRMED (endpoint from the user's capture) with the two known
-   request bodies as fixture data. Confirm HTTP method against the actual
-   capture rather than assuming from body shape alone.
-3. Answer the four ROM questions above from the confirmed schema — most need
-   the FULL response body (not just the fragment already in hand) and a
-   ROM-enumeration read endpoint, both still to find.
-4. One live claim with before/after energy read. Document the result. Do not
-   automate yet.
-5. If time remains: start Task 10, informed by whatever the ROM energy model
-   turned out to be.
+1. Report back on the two ROM questions above (ask the user directly if not
+   already answered) and decide, with the arithmetic in §1, whether ROM
+   claiming is worth further investment. Don't automate it regardless of the
+   answer without a separate explicit go-ahead — this is a sizing decision,
+   not a build one, this session.
+2. Wire the existing potion policy into `scripts/orchestrator.ts`'s dungeon
+   path.
+3. Refactor the three corpus-count tests to compute expected counts from
+   fixtures rather than hardcoding them.
+4. Tell the user plainly, in the recap: the 8-hour orchestrator run is ready
+   to start and needs to be kicked off outside an interactive session. This
+   is the last thing standing between the project and its stated overall
+   goal (a fully functional autoplay bot) — flag it as such.
