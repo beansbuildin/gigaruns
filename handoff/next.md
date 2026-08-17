@@ -1,97 +1,100 @@
-# BRIEF — session 23 (corrected mid-session)
+# BRIEF — session 24
 
-**Read this instead of the original session-23 plan below the line.** The
-original plan (9 non-juiced runs first, then 3 juiced runs) collided with
-reality: the user had already manually started a juiced Tier-3 run (3x Big
-Heal Juice committed) at room 1 before this session's batch began. Since
-only one dungeon run can be active at a time, the batch's first "non-juiced"
-run almost certainly resumed and played THAT run instead — under the
-potions-off policy meant for the batch, not the potions-on policy meant for
-the juiced run. A later run in the same batch (6th) also got stranded
-mid-combat by a network failure. Nothing has been lost that can't be
-accounted for — potions are consumed at `start_run` commitment, not at use
-(session 14), so the 3 Big Heal Juice are gone from inventory regardless of
-what's discovered below; the open question is only whether they delivered
-any healing benefit or were wasted.
+Session 23 was an incident-response session: `liveRun.ts` silently resumed
+a pre-existing active run under the wrong policy, wasting the user's
+potions before anyone caught it. The fix (`ResumeConfirmationRequired`
+gate, refuses to resume any run the invocation didn't start unless
+`--resume-existing` is passed) landed and is unit-tested, but has never
+fired against real server state — worth keeping in mind if anything today
+surfaces a stray active run.
 
-**Do these in order. Don't skip the diagnostic — the juiced-run plan
-shouldn't restart until the state is actually understood, not assumed.**
+Juiced runs are explicitly OUT of scope this session — queued for a
+separate, calmer session per the user's own call, partly for daily
+run-budget reasons (a juiced run costs 3 of the 12 daily units, confirmed
+session 23) and partly so the untested resume-safety gate gets its first
+live exercise on a day with full attention, not folded into today.
 
-## 1. Resolve the stranded live run
-
-Currently active: room 2, HP 22/42, non-juiced enemy, stranded by a network
-fetch failure mid-combat. Resume and complete it via the normal live path,
-potions off (matches this run's own original policy — no reason to change
-it now). Costs no new run slot; it's already counted in today's used total.
-
-## 2. Read-only diagnostic on "run 1" of the batch — before anything else moves
-
-Check the logged fixture/state for whatever got recorded as the first run of
-this session's batch:
-
-- Does its `start_run`/state data show `isJuiced: true` and
-  `consumables: [131, 131, 131]` (or similar)? This confirms whether it was
-  actually the user's pre-existing juiced run.
-- Did any `use_item` calls fire during it, or none at all?
-- What room did it reach, and how did it end (win/death)?
-- Cross-check current Big Heal Juice (itemId 131) balance against session
-  22's ending balance — a drop of exactly 3 at that run's start would
-  independently confirm the timing.
-
-Report findings plainly before proceeding to step 3. If the potions were
-committed but never used, say so directly — that's a real finding, not
-something to soften.
-
-## 3. Report clean current state
-
-After steps 1-2: real dungeon runs remaining today, real energy remaining,
-current Big Heal Juice balance. Don't reuse any numbers from earlier in this
-session — get them fresh.
-
-## 4. Confirm potion config is actually at maxPerRun=3
-
-The original brief asked for `config/bot.json`'s
-`forbiddenWoods.potions.maxPerRun` to be raised 2→3 for the juiced batch.
-Verify this actually landed before the next juiced run — don't assume it
-did because it was asked for.
-
-## 5. Juiced Tier-3 runs — one at a time, strict sequencing
-
-For each of the remaining planned juiced runs:
-
-1. **User** starts it manually in the browser (juiced toggle, Tier 3,
-   whatever selection surfaces the "3 gold rings" offering) and confirms
-   it's showing active.
-2. **User** tells CC to proceed.
-3. **CC** resumes and completes ONLY that currently-active run — potions
-   on, `maxPerRun=3`. No reward-pick logic changes needed ("Gold Ring" only
-   affects Hard Cores payout on the same boon offers, not which offers
-   appear).
-4. **CC stops.** Does not loop, does not auto-start another run. Reports
-   the outcome (room reached, potions fired, real energy/reward numbers
-   observed) and waits for the user to start the next one.
-
-Repeat for however many juiced runs remain given real runs-left after
-steps 1-3.
-
-## 6. Still true from the original brief
-
-- Correct SPEC.md/`config/discovered.json`'s juiced-multiplier note — user
-  confirmed live, 3x reward multiplier is real, `juicedMultiplier: 1` was
-  wrong or measuring something else.
-- Do not attempt Task 10's 8-hour orchestrator run this session.
+Today's spine: **Task 10's real unattended gate**, on a day that finally has
+what it needed — full fresh 12/12 dungeon, 20/20 fishing at reset.
 
 ---
 
-*Original pre-correction brief below, kept for reference only — superseded
-by the numbered list above.*
+## 1. Revise the 8-hour target before starting — with reasoning, not a guess
 
-Session 22 was the biggest single-session ROM result so far: all 37 ROMs
-enumerated, +392 energy claimed, account hit the real 420 cap twice.
-Fishing's daily budget is fully spent (240/240); dungeon sits at 3/12 runs
-used. Two time-sensitive, user-directed items for this session, in order.
+TASKS.md's "eight-hour unattended session" gate predates both the ROM
+energy discovery and the confirmed real per-day run/cast counts (12
+dungeon, 20 fishing). The gate's own language ("energy-regen sleeps") reads
+like it assumed energy was the slow, scarce resource requiring hours to
+exhaust and recover — that's no longer the actual binding constraint, and
+may never have been.
 
-1. Spend the 9 remaining non-juiced runs (potions off).
-2. Then 3 juiced Tier-3 runs, user-started, bot-finished, potions on,
-   maxPerRun=3, one at a time, no auto-loop.
-3. Defer Task 10's 8-hour run until after today's reset.
+**The real limit is the game's own per-day counts, not energy.** At this
+project's action pacing (1200ms + jitter, a handful of actions per run/
+cast), spending the full day's allowance — 12 runs + 20 casts — is likely
+well under an hour of continuous play. Once those caps are hit, the only
+remaining thing to verify is that the orchestrator recognizes it and idles
+cleanly rather than erroring or busy-retrying. The NEXT real milestone
+after that — surviving to tomorrow's UTC reset and resuming — is roughly
+24 hours out, which even the original 8-hour figure was never going to
+reach anyway. So most of an 8-hour window would prove nothing new.
+
+**Target 2 hours instead of 8** — enough to comfortably cover all real
+activity plus a solid buffer confirming graceful idle behavior with zero
+exceptions, without paying for hours that test nothing. Log the actual
+wall-clock time it takes to exhaust today's caps; this project has been
+guessing at this number for four sessions and should have a real one now.
+
+**Update TASKS.md's Task 10 gate text itself** with this reasoning before
+running it — don't just quietly run a shorter window than what's written.
+State the new target and why, same discipline as every other gate revision
+in this project's history (see how Task 4.5/5/11's gates were each
+restated with reasoning, not silently reinterpreted).
+
+## 1a. What "2 hours" actually means — read this before running
+
+`orchestrator.ts` is a plain background script, not an LLM loop — the 2-hour
+window is the SCRIPT's wall-clock runtime (rate-limited API calls, 1200ms +
+jitter per action), not a budget for Claude's own effort or token usage.
+Claude's actual work here is starting the process and later reading its
+output; the 2 hours in between is the script idling/pacing on its own.
+
+**2 hours is a ceiling, not a target to fill.** If the real caps get
+exhausted in 45 minutes as the math above suggests, let it idle cleanly and
+report that — do not manufacture extra activity, extend scope, or otherwise
+pad the session to consume the full window. The number exists to bound how
+long an unattended run is allowed to take, not to mandate that much work
+actually happen.
+
+## 2. Run it
+
+`npx tsx scripts/orchestrator.ts --hours=2` (or whatever the revised gate
+settles on), outside an interactive session so it actually runs unattended.
+Watch for:
+
+- Zero unhandled exceptions.
+- Correct recognition of hitting the daily dungeon (12) and fishing (20)
+  caps, with clean idle behavior after — not busy-polling, not erroring.
+- Daily rollup generated.
+- Energy spend within budget (should be trivially true today given ROM
+  headroom, but confirm rather than assume).
+- Whether `ResumeConfirmationRequired` ever fires (only relevant if
+  something leaves a run active mid-session — unlikely in a clean
+  orchestrator-only run, but note it either way).
+
+## 3. Report real numbers afterward
+
+How long it actually took to exhaust both caps, whether the 2-hour window
+was well-calibrated (too long, too short, about right), and whether the
+gate should be revised again based on what actually happened versus what
+was predicted above.
+
+---
+
+## Your task
+
+1. Revise TASKS.md's Task 10 gate text to state the 2-hour target and the
+   reasoning (per-day counts bind before energy does).
+2. Run `orchestrator.ts` for that window, outside an interactive session.
+3. Report: wall-clock time to exhaust both caps, zero-exception confirmation,
+   idle-behavior correctness, daily rollup contents.
+4. Do not touch juiced runs this session — queued separately.
