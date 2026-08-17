@@ -1,4 +1,4 @@
-# STATE — session 19 — 2026-08-17 — commit (pending, see final commit this session)
+# STATE — session 19 — 2026-08-17 — commit 5b25778
 
 ## Status
 Two independent threads, both from `next.md`. Housekeeping (CLAUDE.md recap
