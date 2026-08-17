@@ -1,137 +1,150 @@
-# STATE — session 17 — 2026-08-16 — commit 6af00a4
+# STATE — session 18 — 2026-08-17 — commit 77b91ad
 
 ## Status
-Task 12 "Potion timing": **GATE PASS (task CLOSED, no further stages).**
-Off-brief but resolved this session: QUESTIONS.md §10 (fishing
-catch-resolution action, open since session 15) — RESOLVED. After the
-first recap, the user separately asked the bot to take over and complete
-an already-active dungeon run (started outside this session) — done, and
-it produced the first live confirmation that the potion policy also works
-correctly on a RESUMED run, not just one the bot itself starts.
-Next per TASKS.md: Task 9 (live fishing) already read GATE MET from prior
-sessions; its one remaining loose end (the account-stranding root cause)
-is closed too. No task is currently blocked on agent work.
-Overall: potion policy is safer (user-gated via config, not a free
-inventory scan) and simpler (crafting is the user's manual job now, not a
-bot decision); the fishing account's 3-session-old stuck-state mystery is
-solved and live-verified end-to-end on the bot's own automated path is
-still the top open item; one additional live dungeon run this session
-died at room 4, rooms 1-3 cleared, both potions fired correctly on a
-resumed run.
+No TASKS.md task was open going into this session — Task 12 closed session
+17, Task 9 (live fishing) already GATE MET. STATE.md's own "Open questions
+for Claude #1" (verify the `loot` catch-resolution path on the bot's OWN
+live play) was the de facto top-priority item, and it's now **GATE PASS**:
+4 catches across 9 real bot-driven casts, `loot` fired automatically every
+time, 0 rejections, account clean after (`checkFishingStuck.ts`).
+Also shipped, off that same open item's momentum: `perimeterWalk(cw)`'s
+3rd confirming cast landed in THIS session's own casts, crossed
+`mineFishPatterns.ts`'s promotion threshold, and is now wired into live
+play for the first time (was sim-only since session 15).
+Separately: found and fixed a broken test suite on `main` (pre-existing,
+not caused by this session — see Corrections).
+Next per TASKS.md: nothing numbered is open. Later-if-wanted items (Path B
+EOA, multi-account, auto-leveling) remain untouched by design. The
+practical next lever is `mineFishPatterns.ts` growing past 1 promoted
+primitive as more live casts land — see Open questions.
+Overall: both game loops are now blocked by the REAL account energy floor
+(10 of 420, regenPerHour 18) as of session end, not by any guard/config
+cap — confirmed the dungeon and fishing energy budgets are the SAME
+account-wide pool (previously `[VERIFY]`d as merely plausible).
 
 ## What works
-- `potionTimingSweep.ts` extended to {0.5,0.6,0.7,0.8,0.9} × {1,2,3}
-  potions (N=2000): 0.5 confirmed a genuine INTERIOR optimum (curve rises
-  0.2→0.5, falls 0.5→0.9 at every loadout size). Best row: 3.474 ± 0.034
-  mean rooms cleared vs. 2.112 ± 0.050 baseline.
-- `config/bot.json`'s `forbiddenWoods.potions: {allowedItemId,
-  maxPerRun}` — required before `scripts/liveRun.ts` uses ANY potion;
-  absent, loads 0. User's explicit choice: itemId 131 (Big Heal Juice),
-  maxPerRun 2. Verified live twice this session: once via `--dry-run`,
-  once for real on a resumed run (see below) — both potions fired at the
-  correct incrementing `use_item` index with no rejection.
-- `action: "loot"` on `POST /fishing/action` — CONFIRMED live via a
-  user DevTools capture: resolves a catch's `cardsToAdd` offer,
-  `data.cards: [<real card id>]` (NOT a hand-relative index, unlike
-  `play_cards`, despite an identical envelope). Verified: `fullDeck` grew
-  10→11, account stopped rejecting `start_run`. Wired into
-  `scripts/liveFishing.ts`'s `runOneCast` — fires automatically after any
-  catch via new `chooseNewCard()` (argmax hit-power/mana, an explicit
-  placeholder heuristic).
-- One real live fishing cast (`--casts=1`): escaped after 2 turns, 12
-  energy, confirmed the account genuinely unblocked.
-- **Took over and completed an already-active dungeon run** (started
-  outside this session, room 1, 2 Big Heal Juice pre-committed): resumed
-  via `scripts/liveRun.ts --runs=1`, played through rooms 1-3 (boons
-  AddBlock/AddTenacity/AddLuck), both potions fired correctly at HP
-  thresholds, died room 4 vs. Enemy Room 66. Confirms the potion policy's
-  `remaining/used` state seeded fresh in `main()` is safe to assume even
-  when RESUMING a run the bot didn't start itself. Resuming cost zero
-  additional energy (before/after delta 0, aside from natural regen).
-- `npx tsc --noEmit` clean; `npx vitest run` 322/322 passed (was 315 at
-  session start).
+- `loot` catch-resolution, bot's OWN live play (not just wired/tested):
+  9 real casts today, 4 catches (44%), every catch resolved automatically
+  via `loot` with the correct `cardsToAdd` id, `fullDeck` incrementing
+  cleanly 10→11→12→13, zero rejections, zero stranding. QUESTIONS.md §10's
+  root cause (open since session 15) is now closed on every axis: found,
+  fixed, AND exercised end-to-end by the bot itself.
+- `perimeterWalk(cw)` mined-pattern promotion, now LIVE: `support=3` (3rd
+  confirming cast was this session's own cast 1 of the 5-cast batch).
+  `mineFishPatterns.ts` now persists promoted names to
+  `data/minedFishPatterns.json` (gitignored, regenerated by re-running the
+  miner); `scripts/liveFishing.ts` reads it and seeds the matcher's
+  candidate pool via `toCandidate()` anchored at each cast's real start
+  cell — previously ALWAYS started empty (`initMatcher([], ...)`,
+  intentional per the file's own header comment, since nothing had been
+  promoted before this session). Live-verified not to crash: one cast ran
+  with "matcher seeded with 1 mined pattern(s): perimeterWalk(cw)" printed
+  and completed normally (escaped, 3 turns). Sim: matcher-BLIND 6.6% vs
+  matcher-with-mined-library 16.2% catch rate (N=500) — the improvement
+  this wiring is meant to realize live, not yet isolated live (n=1 cast
+  with the pool seeded so far).
+- Dungeon/fishing energy pool: CONFIRMED the same account-wide pool (was
+  `[VERIFY]`d in config/bot.json since session 15). Both `liveFishing.ts`
+  and `liveRun.ts` guard-tripped on real-energy-floor HTTP 400s ~10 minutes
+  apart, both against the same `GET /offchain/player/energy` reading
+  (10/420). `config/bot.json`'s `dendren._comment` updated.
+- Test suite repaired: `main` had 4 failing tests BEFORE this session's own
+  changes (verified in a clean `git worktree`, isolating this from
+  contamination) — see Corrections. Now 325/325 passing, `tsc --noEmit`
+  clean.
 
 ## What's broken
-- The `loot` auto-resolution path is wired and unit-tested but has NOT
-  been exercised end-to-end by the bot's OWN live play — no bot-driven
-  catch happened this session (account fishing-energy hit 2/420 before
-  one could occur). This is the single most important thing to verify
-  next: if it has a live-only bug the mocks don't catch, the account will
-  strand again exactly like sessions 15/16.
-- Today's fishing casts remain under-spent (5/15 used) — blocked by the
-  account's real energy floor at the time, not a code or guard issue.
+- Both game loops are blocked by the real account energy floor (10/420,
+  regenPerHour 18) as of session end — not a code/guard bug, confirmed via
+  a direct `GET /offchain/player/energy` read. Will clear on its own with
+  regen; next session (or later today) should have headroom again.
+- `mineFishPatterns.ts` has promoted exactly ONE primitive
+  (`perimeterWalk(cw)`) off 15 real casts (support=3, `bounce(0,-1)`
+  support=1, everything else 0). The live wiring landing this session
+  means every FUTURE promotion will automatically improve live play with
+  no further code change — but the library is still thin, and most casts
+  still fall through to `emptyFallback`.
 
 ## Corrections to SPEC.md
-- SPEC-fishing.md's catch-resolution blocker (open since session 15) is
-  RESOLVED: `action: "loot"`, `data.cards: [<cardsToAdd[].id>]`. Full
-  envelope now documented in SPEC-fishing.md's request section.
-- `FishingBoardDataSchema` was missing `cardsToAdd`/`cardChosenId`
-  entirely (silently passed through, untyped) — now declared.
-- `GET /fishing/state`'s `fullDeck` length and `COMPLETE_CID`/
-  `SUCCESS_CID` do NOT reliably distinguish "stuck" from "resolved" once
-  ANY game has ever closed out on the account — `cardChosenId` (non-null)
-  is the real signal.
-- `GET /offchain/player/energy`'s `maxEnergy` (420, `regenPerHour: 18`) is
-  the account's real absolute energy ceiling, confirmed independent of
-  `config/bot.json`'s `dailyEnergyBudget` (240, this bot's own policy).
-  `isPlayerJuiced: true` on a dungeon response is an account-level
-  capability flag, not evidence the bot paid 3x — actual per-run cost
-  tracked correctly as plain 20 every time checked.
+- None — no SPEC.md content was found wrong this session. (The test-suite
+  break below is a stale hardcoded assertion issue, not a spec/live
+  mismatch.)
+- Found `main` at commit `dfe0b34` (session 17's own final commit) already
+  had 4 failing tests, isolated and confirmed via a clean `git worktree`
+  build (not contamination from this session's edits). Root cause: an
+  out-of-band commit (`1da0bc7`, "took over and completed already-active
+  dungeon run") added 28 exchanges / 3 boon offers to the fixture corpus
+  without updating the hand-maintained literal counts in
+  `tests/replay.test.ts`, `tests/boons.test.ts`, and
+  `tests/dungeonSim.test.ts` that assert against corpus size. Every
+  individual model-correctness test (clean-exchange replay, per-pickup
+  delta re-derivation) passed throughout — this was stale bookkeeping, not
+  a real model break. Fixed: added the 3 new offers to
+  `OBSERVED_OFFERS` (`src/sim/boons.ts`, with sourced commentary matching
+  house style) and updated every literal (386→414 exchanges, 772→828
+  side-updates, 37→40 pickups, 57→60 room-1 options, 2 new
+  `UNMODELLED_TYPES` — `VulnerableBlock`, `AddVulnerableShield` — and
+  `deepestScorableRoom` 4→3 for the Task-4-gate's specific seed, pure
+  reshuffling from a larger option pool; `MAX_OBSERVED_ROOM` itself,
+  a different and unrelated constant, stays 4).
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
-- Move charges: unchanged, PRESENT, hard-pruned.
+- Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- Hunted for a crafting POST endpoint via a fresh `GET /offchain/static`
-  dump (`scripts/probeCraftAction.ts`, new, read-only, kept) — found
-  nothing beyond the already-known read-only recipe data. Moot anyway:
-  the user put crafting permanently out of scope for automation
-  mid-session.
-- First cut of "potions default ON" auto-detected any Big Heal Juice in
-  inventory with no config gate — not shipped; the user flagged the risk
-  of unintended consumption before any run used it, superseded same
-  session by the config-allowlist design.
+- None new this session.
 
 ## Metrics
-- Sim (potion timing, N=2000): baseline 2.112 ± 0.050 mean rooms cleared;
-  best row (0.5 threshold, 3 potions) 3.474 ± 0.034.
-- Live dungeon this session: 1 run completed (a resumed, not
-  bot-started, run) — rooms 1-3 cleared, died room 4, 2/2 potions fired
-  correctly. Death-room histogram: 16 confirmed deaths total,
-  0/4/5/7 across rooms 1-4 (was 0/4/5/6) — still zero room-1 deaths.
-- Live fishing this session: 1 cast, escaped, 2 turns, 12 energy.
-- Guard budgets at session end: dungeon 40/240 energy, 2/12 runs
-  (resuming a run costs neither); fishing 60/200 energy, 5/15 casts.
-- Big Heal Juice balance: 3 → 45 → 80 over the course of the session
-  (user crafting manually, consistent with the crafting-is-manual
-  instruction given mid-session).
-- Tests: 315 → 322 passed, 0 skipped, 0 failed.
+- Live fishing today: 9 real casts, 4 caught (44%), 0 guard-caused
+  failures — the one guard trip (cast 10 of the day) was a correct
+  fail-closed on real account energy (10 remaining < 12 needed), not a
+  bug. `data/fish-patterns.jsonl` now has more casts feeding the miner
+  (exact new total not re-read after the last live cast; re-run
+  `mineFishPatterns.ts` next session to get it).
+- Sim fishing catch rate (N=500, matcher w/ 1 mined pattern):
+  blind 6.6% → mined 16.2%.
+- Live dungeon today: 0 completed (guard-tripped on run 1's `start_run`,
+  real energy 10 < 20 needed — correct fail-closed, 0 energy spent, no
+  fixture data created).
+- Tests: 322 claimed at session 17 end → verified actually 4 FAILING at
+  that commit → 325/325 passing after this session's fix.
+- Guard budgets at session end (both freshly UTC-reset today,
+  `2026-08-17`): dungeon 0/240 energy, 0/12 runs (never actually spent —
+  the one attempt failed before any guard-tracked spend); fishing 108/200
+  energy, 9/15 casts.
 
 ## Open questions for Claude
-1. Verify the automated `loot` path fires correctly the next time the
-   bot's own live play lands a catch — wired, unit-tested, not yet
-   live-exercised. Top priority for the next session's opening move.
-2. `chooseNewCard`'s argmax-hit-power/mana heuristic for picking among a
-   catch's 3 new-card offers is an explicit placeholder — no
-   deck-composition sim exists yet. Not urgent.
-3. Death-room histogram (0/4/5/7, n=16) still shows zero room-1 deaths
-   and an even-ish spread across rooms 2-4 — consistent with Task 11's
-   parked "enemy-scaling, not cross-room HP mismanagement" finding. Still
-   thin data (one more room-4 death this session); worth revisiting the
-   parking decision only if a much larger sample shifts the shape.
+1. `mineFishPatterns.ts` needs MORE live casts to promote a second
+   primitive — currently 1 of ~23 candidates is promoted. Now that
+   promotion feeds live play automatically (this session's wiring), simply
+   spending more of the day's fishing budget as energy regens is the
+   direct lever; no further code change needed for this to compound.
+2. `chooseNewCard`'s argmax-hit-power/mana heuristic (picking among a
+   catch's 3 new-card offers) is still an explicit placeholder — unchanged
+   this session, not urgent.
+3. Death-room histogram unchanged this session (no dungeon runs completed)
+   — still 16 confirmed deaths, 0/4/5/7 across rooms 1-4. Task 11 stays
+   parked; nothing here moves its revival condition.
+4. Worth a general note for the next brief: this session found a real gap
+   in the session-end process — an out-of-band live-play commit
+   (`1da0bc7`) landed without the test suite being re-run against it, and
+   the following session's STATE.md claimed a passing count that wasn't
+   true at that commit. Worth Claude (chat) considering whether
+   `/recap`'s own checklist should explicitly say "re-run the full suite
+   against the FINAL commit, not against your last in-session check" —
+   this session's repair only happened because CLAUDE.md's working-style
+   rule ("run tsc + tests before declaring a task done") was applied to
+   the CURRENT session's own changes, which incidentally surfaced the
+   older break.
 
 ## Files changed
 ```
-$ git diff c0eb91e..HEAD --stat
-89 files changed, 39382 insertions(+), 172 deletions(-)
-(bulk is fixture captures: 3 fishing-cast dirs + 2 dungeon-run dirs, all
-redacted 0xUSER/<USER>/<JWT>)
+$ git diff dfe0b34..HEAD --stat
+23 files changed, 12940 insertions(+), 1 deletion(-)
+(bulk is fixture captures: 2 fishing-cast dirs, redacted 0xUSER/<USER>/<JWT>)
 
 Non-fixture files:
-QUESTIONS.md, SPEC-fishing.md, TASKS.md, config/bot.json,
-handoff/DECISIONS.md, handoff/STATE.md, handoff/log/session-17.md,
-scripts/liveFishing.ts, scripts/liveRun.ts, scripts/potionTimingSweep.ts,
-scripts/probeCraftAction.ts (new), src/api/fishing.ts,
-src/orchestrator/config.ts, src/sim/dungeonSim.ts,
-src/strategy/fishing/cardChoice.ts, tests/fishing/cardChoice.test.ts,
-tests/liveFishing.test.ts
+config/bot.json, handoff/DECISIONS.md, handoff/STATE.md,
+handoff/log/session-18.md, scripts/liveFishing.ts,
+scripts/mineFishPatterns.ts, src/sim/boons.ts, tests/boons.test.ts,
+tests/dungeonSim.test.ts, tests/replay.test.ts
 ```
