@@ -1,123 +1,88 @@
-# BRIEF — session 20
+# BRIEF — session 21
 
-**Opening move, before anything else below:** the user resumed session 19's
-smoke-test dungeon run (left active at room 2, browser prompted
-abandon/resume when they next logged in). Finish it via the normal live
-path — it's already resumed, so this just needs `scripts/liveRun.ts` (or
-the orchestrator) to play it out to completion, win or death, same as any
-other live run. No new run slot or energy cost for the resume itself
-(confirmed session 17). Once it's done and the account shows a clean
-non-active state, tell the user directly so they can go capture the ROM
-panel — they're deliberately holding off on that capture until this run is
-out of the way.
-
-Session 19 delivered both threads from its brief, honestly reported as
-partial where they're partial. Housekeeping (recap-against-final-commit)
-landed. Take the two threads below in order of what actually needs deciding
-first, after the resumed run is handled.
+Priority shift, decided directly with the user: dungeon tuning is
+deliberately parked with no live lever left to pull (Task 11, see
+DECISIONS/TASKS history — a 10x utility-weight sweep found nothing, and the
+lever that did work, potions, already shipped). Fishing is where the real
+tuning headroom is, and ROM energy resolves the thing that was starving it.
+This session's spine is fishing performance, funded by ROM claims.
 
 ---
 
-## 1. ROM claims: the number came back small — decide whether to keep going
+## 1. Raise the fishing budget — sourced, not guessed
 
-The live claim worked (romId 2097, HTTP 200, before/after energy read
-confirms it lands in the real spendable pool) — but credited **~1.0 energy**,
-not the 7 or 57 in the captured request bodies. Confirmed: `amount` in the
-request does NOT control the credited amount (sent 57, got ~1). Also
-confirmed the request needs `amount` present at all (omit it → HTTP 500), so
-it's a required-but-inert field, an odd but now-documented shape.
+`config/bot.json`'s `dendren` block is 200 energy / 15 casts. Raise to
+**240 energy / 20 casts**. This isn't a fresh guess: `config/discovered.json`
+already recorded `maxCastsPerDayJuiced: 20` (vs. 10 non-juiced) from
+probe-era data that was never wired into policy, and the user independently
+confirmed this session that the real daily cast limit is 20 at 12 energy
+each (240 total) — two independent sources landing on the same number.
+Write the config comment citing both, matching house style (see the
+existing `forbiddenWoods` block's sourcing comments for the pattern).
 
-**Worth doing the arithmetic before spending more session time on this.** The
-account's own passive regen is 18/hr against a 420 cap — that's up to 432/day,
-already above the bot's own 240/day configured budget. So the recurring
-"real energy at 10/420" wall isn't really a *daily total* shortage; it's
-sessions landing before regen catches back up. A ~1-energy trickle per ROM,
-gated by an unknown cooldown, only matters if there are enough ROMs and a
-short enough cooldown to add up to something comparable to that regen rate —
-and right now only 2 ROMs are known, one of which (7959) has never once
-succeeded a claim.
+The real per-day ceiling was never actually the constraint here — the
+account's own real energy floor was. That's what §2 is for.
 
-I asked the user directly for two things this brief needs before Task 10's
-energy model can use ROM claims at all:
+## 2. ROM claiming: fund the raised budget
 
-1. How many ROMs the wallet actually holds, and what UI panel lists them
-   (only 7959/2097 are known from two captured requests).
-2. Whether the claim cooldown is known/documented anywhere client-side
-   (session 19 only lower-bounded it at >34 seconds via one failed
-   re-claim).
+Lifetime so far: 3 successful claims (+~25 energy total), against ~3,252
+currently claimable across 37 owned ROMs. Known IDs: 7959 (never
+succeeded), 2097, 5345, 689. Overflow is confirmed non-wasting (user, this
+session) — whatever doesn't fit under the 420 cap stays banked in the ROM,
+so there's no batching logic to design. Claim opportunistically, biggest
+`energyCollectable` first, whenever there's room under 420.
 
-**If the user's answer suggests real volume** (e.g., dozens of ROMs, or a
-short cooldown), size it properly: total claimable/day, and only then decide
-whether it's worth wiring into the orchestrator. **If not** — small ROM
-count, long cooldown, or the user doesn't know — deprioritize this. Don't
-spend a session empirically timing out a cooldown; that's exactly the kind
-of "wait and see" CLAUDE.md's fail-closed spirit argues against spending
-agent time on. Ask again rather than guess.
+Still missing: full enumeration of all 37 ROMs (only 4 IDs known). Worth
+one more ask to the user for the ROMULATOR panel's request URL if they can
+grab it — that turns "claim the 4 ROMs we happen to know about" into "claim
+the actual best ROM out of 37." Not blocking — claim what's known now to
+start funding fishing casts, don't wait on full enumeration first.
 
-Regardless of the answer, `POST /roms/factory-claim`'s odd `amount`-required-
-but-inert shape is already documented (SPEC.md) — that part doesn't need
-redoing.
+## 3. Sim-only redraw threshold sweep — free, safe, and never actually done
 
-## 2. Task 10: real gate needs someone to press go outside a chat session
+SPEC.md §5 says explicitly: "Tune the threshold in the sim, not live." That
+sweep has never been run — `shouldRedraw` currently uses whatever threshold
+was set when the `evPerMana`-vs-raw-EV bug (SPEC.md, session 12ish) got
+fixed, not a value chosen by sweeping. This is the direct fishing-side
+analog of `potionTimingSweep.ts`: build `scripts/redrawThresholdSweep.ts`,
+sweep threshold values against `castSim.ts` (N≥500, report the full curve
+not just the winner, same discipline as the potion sweep — check the
+optimum isn't sitting on the boundary of whatever range gets tested). Zero
+energy cost, do this regardless of how ROM claiming and the budget raise go.
 
-Everything code-side is done and verified: scheduler dry-run reads real
-account state correctly, SIGINT is live-verified to finish the current
-action and stop cleanly at the next turn boundary (not mid-turn), guard-trip
-classification is unit-tested against every real reason string. This is not
-"needs more building" — it's "needs an unattended clock."
+## 4. Spend real casts to grow the mined-pattern library
 
-`npx tsx scripts/orchestrator.ts --hours=8` has to run outside an interactive
-session for the actual gate (eight hours, zero unhandled exceptions, daily
-rollup, energy within budget) to be checkable at all. That's not something
-this brief can hand to a Claude Code session the way the rest of the work
-gets handed off — an interactive session doesn't stay open eight hours. This
-needs the user to kick it off directly (background process, screen/tmux, or
-similar) and let a session review the resulting log/rollup afterward.
+`mineFishPatterns.ts` has promoted exactly 1 of ~23 candidates
+(`perimeterWalk(cw)`), already live-wired, already measured (sim: blind
+6.6% → 16.2% catch rate with just that one promotion, N=500). This is the
+highest-leverage lever fishing has and it compounds automatically with
+volume — no further code needed, just more real casts feeding the miner.
+With the raised budget and whatever ROM energy funds it, spend real casts
+this session and re-run the miner against the grown log.
 
-**One decision before that run starts, not after:** the orchestrator's
-dungeon runs are currently potion-free (stated simplification in the
-script's own header). Task 12 already has a working, tested potion policy
-(`shouldUsePotion`, threshold 0.5) sitting unused in `liveRun.ts`. Wire it
-into the orchestrator's dungeon path before the real 8h run — running the
-long unattended gate on a known-weaker config just to re-run it later with
-potions wired in wastes the one long clock-block this needs. This is a small
-integration, not new design; the policy and its threshold are already
-settled.
+## 5. Lower priority, only if time remains
 
-## 3. Recurring bookkeeping tax — worth fixing once instead of absorbing again
-
-Session 18 found 4 stale hardcoded corpus-count literals after an out-of-band
-commit. Session 19's own notes say the same failure mode "fired again this
-session, as expected." Twice now, in a row, with "expected" attached the
-second time — that's not a one-off, that's a structural gap: `tests/boons.test.ts`, `tests/dungeonSim.test.ts`, and `tests/replay.test.ts` assert
-against hand-maintained literal counts (exchange counts, pickup counts, room-1
-option counts) that drift every time new fixture data lands, live or
-otherwise.
-
-Worth a small refactor: derive those expected counts from the fixture corpus
-itself at test-run time (count what's actually in `fixtures/`) rather than
-hardcoding the numbers a human has to update by hand after every capture. The
-tests that check *model correctness* (exchange replay, delta re-derivation)
-stay exactly as strict as they are now — only the tests asserting "how big is
-the corpus right now" change shape, from a literal to a computed value. Small,
-one-session job, and it removes a recurring source of false "something broke"
-signals right when a session has just landed real new data — which is exactly
-the moment false alarms are most expensive to sort out.
+`chooseNewCard`'s argmax-hit-power/mana heuristic (picking among a catch's 3
+new-card offers) is still an explicit placeholder — no deck-composition sim
+exists to judge alternatives against it. Genuinely unexplored, but bigger
+scope than the other four items here. Don't start this unless 1-4 are done
+with session time left; if you do, scope it as its own design question
+before writing code, same as the dungeon utility-form caveat from the last
+brief.
 
 ---
 
 ## Your task
 
-1. Report back on the two ROM questions above (ask the user directly if not
-   already answered) and decide, with the arithmetic in §1, whether ROM
-   claiming is worth further investment. Don't automate it regardless of the
-   answer without a separate explicit go-ahead — this is a sizing decision,
-   not a build one, this session.
-2. Wire the existing potion policy into `scripts/orchestrator.ts`'s dungeon
-   path.
-3. Refactor the three corpus-count tests to compute expected counts from
-   fixtures rather than hardcoding them.
-4. Tell the user plainly, in the recap: the 8-hour orchestrator run is ready
-   to start and needs to be kicked off outside an interactive session. This
-   is the last thing standing between the project and its stated overall
-   goal (a fully functional autoplay bot) — flag it as such.
+1. Raise `config/bot.json`'s fishing budget to 240/20 with a sourced
+   comment.
+2. Claim available energy from the 4 known ROMs (highest `energyCollectable`
+   first); ask the user again for full enumeration if convenient, don't
+   block on it.
+3. Build and run `redrawThresholdSweep.ts` in sim; report the full curve.
+4. Spend real fishing casts against the newly-funded budget; re-run
+   `mineFishPatterns.ts` afterward and report what changed.
+5. `chooseNewCard` heuristic only if 1-4 finish with time left, and only as
+   a scoped design question first.
+6. Task 10's 8h orchestrator run is still the one open item outside any
+   session's control — keep it flagged in the recap, don't chase it here.
