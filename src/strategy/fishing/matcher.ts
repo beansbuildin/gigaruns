@@ -86,6 +86,38 @@ export function distributionFromMultiset(cells: readonly Cell[]): Map<string, { 
   return out;
 }
 
+/**
+ * Mixes two `cell -> p` distributions into one: `weight` is how much of `a`
+ * to keep (`1 - weight` of `b`). Union of both maps' keys — a cell present
+ * in only one input contributes `weight * 0` or `(1 - weight) * 0` on the
+ * other side, not an absent entry. Renormalizes by the actual output sum
+ * rather than assuming it's already 1, so a caller passing inputs that
+ * don't individually sum to exactly 1 (float drift, a partial distribution)
+ * still gets back something that does. [session 38, CODEXAUDIT #2] Shared
+ * home with `distributionFromMultiset`/`uniformDistribution` since this is a
+ * generic distribution operation, not something specific to the contextual
+ * fallback module that is its first caller.
+ */
+export function mixDistributions(
+  a: ReadonlyMap<string, { cell: Cell; p: number }>,
+  b: ReadonlyMap<string, { cell: Cell; p: number }>,
+  weight: number,
+): Map<string, { cell: Cell; p: number }> {
+  const out = new Map<string, { cell: Cell; p: number }>();
+  const keys = new Set([...a.keys(), ...b.keys()]);
+  for (const key of keys) {
+    const entryA = a.get(key);
+    const entryB = b.get(key);
+    const cell = entryA?.cell ?? entryB!.cell;
+    out.set(key, { cell, p: weight * (entryA?.p ?? 0) + (1 - weight) * (entryB?.p ?? 0) });
+  }
+  const total = [...out.values()].reduce((sum, { p }) => sum + p, 0);
+  if (total > 0 && Math.abs(total - 1) > 1e-9) {
+    for (const [key, { cell, p }] of out) out.set(key, { cell, p: p / total });
+  }
+  return out;
+}
+
 /** Uniform distribution over every cell of a `gridSize x gridSize` board. */
 export function uniformDistribution(gridSize: number): Map<string, { cell: Cell; p: number }> {
   const out = new Map<string, { cell: Cell; p: number }>();

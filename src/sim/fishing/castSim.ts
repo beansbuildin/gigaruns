@@ -23,7 +23,7 @@ import {
 import {
   contextualFallback,
   previousDisplacement,
-  DEFAULT_MIN_INDEPENDENT_CASTS,
+  DEFAULT_SHRINKAGE_K,
   type ContextStats,
 } from "../../strategy/fishing/contextualFallback.js";
 import type { Cell } from "./geometry.js";
@@ -202,7 +202,7 @@ export interface CastOptions {
   blindFallback?: {
     contextMap: ReadonlyMap<string, ContextStats>;
     cellOnlyMap: ReadonlyMap<string, readonly Cell[]>;
-    minIndependentCasts?: number;
+    shrinkageK?: number;
   };
 }
 
@@ -267,7 +267,7 @@ export function simulateCast(opts: CastOptions): CastResult {
               opts.blindFallback.contextMap,
               opts.blindFallback.cellOnlyMap,
               gridSize,
-              { minIndependentCasts: opts.blindFallback.minIndependentCasts ?? DEFAULT_MIN_INDEPENDENT_CASTS },
+              { shrinkageK: opts.blindFallback.shrinkageK ?? DEFAULT_SHRINKAGE_K },
             )
           : emptyFallback(matcher.history[matcher.history.length - 1]!, new Map(), gridSize);
 

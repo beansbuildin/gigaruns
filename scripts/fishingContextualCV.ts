@@ -220,22 +220,24 @@ function main() {
   console.log(`\n  Codex's reported numbers (for comparison): current cell only 16.4%/100.0%, current cell + turn 16.4%/82.4%,`);
   console.log(`  current cell + previous direction 33.9%/75.2%, current cell + turn + previous direction 24.2%/49.1%.\n`);
 
-  console.log("── Shipped hierarchical backoff (context -> cell-only -> uniform), log loss + Brier ──");
-  for (const minIndependentCasts of [2, 3, 4]) {
-    const hier = newEval(`hierarchical (minIndependentCasts=${minIndependentCasts})`);
-    const cellOnlyBaseline = newEval(`cell-only baseline (no context tier)`);
+  console.log("── Shipped hierarchical backoff (context -> cell-only -> uniform), continuous shrinkage, log loss + Brier ──");
+  console.log("  [session 38, CODEXAUDIT #2] sweeping shrinkageK — weight = n / (n + shrinkageK); large K ≈ disabled\n");
+  const cellOnlyBaseline = newEval(`cell-only baseline (no context tier, i.e. shrinkageK = ∞)`);
+  const shrinkageValues = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 5, 8, 13, 21, 34, 55, 100, 1000];
+  for (const shrinkageK of shrinkageValues) {
+    const hier = newEval(`hierarchical (shrinkageK=${shrinkageK})`);
     for (let i = 0; i < casts.length; i++) {
       const heldOut = casts[i]!;
       const training = casts.filter((_, j) => j !== i);
       const contextMap = buildContextualMap(training);
       const cellMap = buildCellOnlyMap(training);
       for (const hop of castHops(heldOut)) {
-        const dist = contextualFallback(hop.from, hop.prev, contextMap, cellMap, gridSize, { minIndependentCasts });
+        const dist = contextualFallback(hop.from, hop.prev, contextMap, cellMap, gridSize, { shrinkageK });
         const contextStats = hop.prev ? contextMap.get(contextKey(hop.from, hop.prev)) : undefined;
-        const usedContext = !!contextStats && contextStats.castIds.size >= minIndependentCasts;
+        const usedContext = !!contextStats && contextStats.castIds.size > 0;
         score(hier, dist, hop.to, usedContext);
 
-        if (minIndependentCasts === 2) {
+        if (shrinkageK === shrinkageValues[0]) {
           // only need to compute the cell-only baseline once
           const baselineDist = emptyFallback(hop.from, cellMap, gridSize);
           score(cellOnlyBaseline, baselineDist, hop.to, cellMap.has(cellKey(hop.from)));
@@ -243,9 +245,13 @@ function main() {
       }
     }
     report(hier);
-    if (minIndependentCasts === 2) report(cellOnlyBaseline);
   }
+  report(cellOnlyBaseline);
   console.log();
+  console.log(
+    `  gate (this session's brief): keep the context tier's live contribution at zero unless some shrinkageK\n` +
+      `  beats the cell-only baseline's logLoss=${(cellOnlyBaseline.logLossSum / cellOnlyBaseline.n).toFixed(3)} and brier=${(cellOnlyBaseline.brierSum / cellOnlyBaseline.n).toFixed(3)} above — on this real-corpus CV, not the synthetic ablation alone.\n`,
+  );
 }
 
 main();

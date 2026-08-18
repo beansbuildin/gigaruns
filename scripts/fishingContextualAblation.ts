@@ -33,7 +33,7 @@ import { buildPatternPool } from "../src/sim/fishing/patterns.js";
 import { simulateCasts, makeMatcherFishPolicy, REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { makeRng } from "../src/sim/rng.js";
 import type { Cast } from "../src/sim/fishing/transitionCorpus.js";
-import { buildCellOnlyMap, buildContextualMap, DEFAULT_MIN_INDEPENDENT_CASTS } from "../src/strategy/fishing/contextualFallback.js";
+import { buildCellOnlyMap, buildContextualMap, DEFAULT_SHRINKAGE_K } from "../src/strategy/fishing/contextualFallback.js";
 
 const GRID_SIZE = 4;
 const TRAINING_CASTS = 3000;
@@ -80,11 +80,11 @@ function main() {
   const baselineUniform = simulateCasts(N, baseOpts);
   const cellOnly = simulateCasts(N, {
     ...baseOpts,
-    blindFallback: { contextMap: new Map(), cellOnlyMap, minIndependentCasts: DEFAULT_MIN_INDEPENDENT_CASTS },
+    blindFallback: { contextMap: new Map(), cellOnlyMap, shrinkageK: DEFAULT_SHRINKAGE_K },
   });
   const hierarchical = simulateCasts(N, {
     ...baseOpts,
-    blindFallback: { contextMap, cellOnlyMap, minIndependentCasts: DEFAULT_MIN_INDEPENDENT_CASTS },
+    blindFallback: { contextMap, cellOnlyMap, shrinkageK: DEFAULT_SHRINKAGE_K },
   });
 
   console.log(`  matcher BLIND, fallback UNIFORM (today's actual live/default behavior):      ${baselineUniform.caught}/${N} = ${(baselineUniform.catchRate * 100).toFixed(1)}%`);

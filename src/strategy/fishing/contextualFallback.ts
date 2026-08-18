@@ -18,15 +18,19 @@
  * `scripts/fishingContextualCV.ts`).
  *
  * Hierarchical distributional backoff, most-specific first (brief's own
- * spec, requirement 3):
- *   1. current cell + previous displacement, gated on
- *      `minIndependentCasts` distinct casts contributing to that exact key
- *      (not just raw transition count — one cast revisiting the same
- *      (cell, displacement) combo on a short cycle must not look like
- *      independent evidence).
+ * spec, requirement 3). [session 38, CODEXAUDIT #2] Tier 1 no longer
+ * hard-switches: it is CONTINUOUSLY SHRUNK toward tier 2 by
+ * `n / (n + shrinkageK)`, where `n` is the distinct-cast support at that
+ * exact `(cell, displacement)` key (not just raw transition count — one
+ * cast revisiting the same combo on a short cycle must not look like
+ * independent evidence, same reasoning as the retired hard threshold).
+ *   1. current cell + previous displacement, mixed with tier 2 by
+ *      `matcher.ts`'s `mixDistributions()` at weight `n / (n + shrinkageK)`.
  *   2. current cell only (`matcher.ts`'s existing `emptyFallback`,
  *      unchanged) — used both when there's no previous displacement (a
- *      cast's first hop) and when the context tier lacks support.
+ *      cast's first hop) and as the other half of tier 1's mix (at `n = 0`
+ *      the mix collapses to pure cell-only, so the two tiers are
+ *      continuous with each other rather than a cliff).
  *   3. uniform over the grid (`emptyFallback`'s own last resort, unchanged).
  *
  * Turn number is deliberately NOT part of the context key — Codex's own
@@ -38,7 +42,7 @@
 import type { Cell } from "../../sim/fishing/geometry.js";
 import { cellKey } from "../../sim/fishing/geometry.js";
 import type { Cast } from "../../sim/fishing/transitionCorpus.js";
-import { distributionFromMultiset, emptyFallback } from "./matcher.js";
+import { distributionFromMultiset, emptyFallback, mixDistributions } from "./matcher.js";
 
 export interface Displacement {
   dx: number;
@@ -123,34 +127,55 @@ export function buildCellOnlyMap(casts: readonly Cast[]): Map<string, Cell[]> {
 }
 
 /**
- * Minimum distinct casts required before the context tier is trusted over
- * cell-only. [session 33] Chosen empirically via `scripts/
- * fishingContextualCV.ts`'s leave-one-cast-out sweep over {2, 3, 4} against
- * the real corpus — see that script's printed comparison for the actual
- * numbers this value was picked from. Same reasoning shape as
- * `mineFishPatterns.ts`'s `PROMOTION_THRESHOLD`: this is evidence for a
- * SPECIFIC (cell, displacement) combination reappearing across independent
- * casts, not a noisy proc-chance rate, so it does not need the project's
- * usual ~30-observation floor (DECISIONS.md 2026-08-15/16) — but it does
- * need more than "it happened once," which is what raw transition-count
- * gating would allow a single repeating cast to fake.
+ * [session 38, CODEXAUDIT #2] `DEFAULT_MIN_INDEPENDENT_CASTS`'s hard
+ * threshold is RETIRED — leave-one-cast-out CV against the real corpus
+ * showed it regressing log loss versus cell-only-forever (6.151 vs. 5.860,
+ * DECISIONS.md 2026-08-18/session 36) despite winning on top-1/Brier,
+ * because a hard switch assigns exactly zero probability to any cell
+ * outside a thin sample the instant the threshold clears, and `chooseCard`
+ * consumes the whole distribution, not just top-1. Continuous shrinkage
+ * (below) REPLACES it rather than sitting alongside it as a second gate —
+ * one smoothing mechanism, not two overlapping ones — per this session's
+ * brief.
+ *
+ * `1` is picked from `scripts/fishingContextualCV.ts`'s leave-one-cast-out
+ * sweep over shrinkageK in {0.25 .. 1000} against the real corpus (49
+ * clean casts / 165 hops, same corpus session 33/36 measured against):
+ * logLoss and Brier both bottom out in a flat plateau across roughly
+ * [0.6, 1.5] (logLoss 5.700-5.707, Brier 0.851-0.858), with `shrinkageK=1`
+ * landing at the logLoss minimum (5.700) and within 0.001 of the Brier
+ * minimum (0.852 vs. 0.851 at 1.1) — `n / (n + 1)` is also the simplest
+ * value in that plateau to reason about (the classic add-one/Laplace
+ * shrinkage weight), so there is no reason to pick a less legible number
+ * a few thousandths better on one metric and worse on the other. This
+ * CLEARS the session's gate with room to spare: logLoss 5.700 and Brier
+ * 0.852 both beat the cell-only baseline (5.860 / 0.932) — not a
+ * best-of-a-bad-set pick the way `DEFAULT_MIN_INDEPENDENT_CASTS=3` was.
+ * Every value from 0.4 through 3 in the sweep also clears both baselines;
+ * only past shrinkageK≈3 does top-1 start giving up ground, and past ~30
+ * the mixed distribution converges back to indistinguishable-from-cell-only
+ * (by construction: weight → 0 as shrinkageK → ∞ for any realistic n).
+ * See that script's printed table for the full sweep.
  */
-export const DEFAULT_MIN_INDEPENDENT_CASTS = 3;
+export const DEFAULT_SHRINKAGE_K = 1;
 
 export interface ContextualFallbackOptions {
-  minIndependentCasts: number;
+  /**
+   * Shrinkage strength: the context tier's weight at `n` supporting casts
+   * is `n / (n + shrinkageK)`, so it starts near 0 at `n = 1` and rises
+   * toward 1 as `n` grows, never hard-switching. A very large value (or
+   * `Number.POSITIVE_INFINITY`) makes the weight ~0 for any realistic `n`,
+   * i.e. disables the context tier's live contribution entirely — the
+   * explicit escape hatch this session's gate requires if no finite
+   * `shrinkageK` beats the cell-only baseline on the real corpus.
+   */
+  shrinkageK: number;
 }
 
 export const DEFAULT_CONTEXTUAL_FALLBACK_OPTIONS: ContextualFallbackOptions = {
-  minIndependentCasts: DEFAULT_MIN_INDEPENDENT_CASTS,
+  shrinkageK: DEFAULT_SHRINKAGE_K,
 };
 
-/**
- * The hierarchical backoff itself (this file's header, tiers 1-3). `prev`
- * is `null` for a cast's first hop — that turn skips straight to tier 2
- * (cell-only), same as brief requirement 7's turn-0 regression test asks
- * for.
- */
 /**
  * The displacement of the most recent hop in a position history (e.g.
  * `MatcherState.history`), or `null` before any hop has happened. Shared by
@@ -166,6 +191,16 @@ export function previousDisplacement(history: readonly Cell[]): Displacement | n
   return { dx: b.x - a.x, dy: b.y - a.y };
 }
 
+/**
+ * The hierarchical backoff itself (this file's header, tiers 1-3). `prev`
+ * is `null` for a cast's first hop — that turn skips straight to tier 2
+ * (cell-only), same as brief requirement 7's turn-0 regression test asks
+ * for. When there IS a previous displacement and the context key has any
+ * support at all (`n >= 1`), the context and cell-only distributions are
+ * mixed by `n / (n + shrinkageK)` rather than the old hard threshold — at
+ * `n = 0` (no support for this exact key) this collapses to pure cell-only,
+ * same as before shrinkage existed.
+ */
 export function contextualFallback(
   fromCell: Cell,
   prev: Displacement | null,
@@ -174,11 +209,12 @@ export function contextualFallback(
   gridSize: number,
   opts: ContextualFallbackOptions = DEFAULT_CONTEXTUAL_FALLBACK_OPTIONS,
 ): Map<string, { cell: Cell; p: number }> {
-  if (prev) {
-    const stats = contextMap.get(contextKey(fromCell, prev));
-    if (stats && stats.castIds.size >= opts.minIndependentCasts) {
-      return distributionFromMultiset(stats.observations);
-    }
-  }
-  return emptyFallback(fromCell, cellOnlyLog, gridSize);
+  const cellOnlyDist = emptyFallback(fromCell, cellOnlyLog, gridSize);
+  if (!prev) return cellOnlyDist;
+  const stats = contextMap.get(contextKey(fromCell, prev));
+  const n = stats?.castIds.size ?? 0;
+  if (n === 0) return cellOnlyDist;
+  const contextDist = distributionFromMultiset(stats!.observations);
+  const weight = n / (n + opts.shrinkageK);
+  return mixDistributions(contextDist, cellOnlyDist, weight);
 }

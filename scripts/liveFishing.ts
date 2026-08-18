@@ -49,20 +49,31 @@
  *
  * **[session 33, CODEXIMPROVE #3] The fallback is now conditioned on the
  * fish's PREVIOUS movement displacement, not just its current cell.**
- * `contextualFallback()` tries `${cell}|${prevDx},${prevDy}` first (gated on
- * `DEFAULT_MIN_INDEPENDENT_CASTS` distinct real casts supporting that exact
- * key — never just raw transition count, which one short repeating cast
- * could fake), falls back to the existing cell-only `emptyFallback` when
- * there's no previous displacement yet (a cast's first hop) or the context
- * tier lacks support, and from there to uniform as before. Shipped only
- * after `scripts/fishingContextualCV.ts`'s leave-one-cast-out held-out
- * evaluation reproduced Codex's core finding on the real corpus (previous
- * direction roughly doubling top-1 accuracy over cell-only) and `scripts/
- * fishingContextualAblation.ts`'s simulator ablation confirmed the
- * hierarchical backoff correctly exploits genuine previous-direction
- * structure when present — see both scripts' headers for the actual
- * numbers and the CLAUDE.md §9 caveats on what a simulator result is and
- * isn't evidence of.
+ * `contextualFallback()` tries `${cell}|${prevDx},${prevDy}` first, mixed
+ * with the existing cell-only `emptyFallback` distribution by continuous
+ * shrinkage (`n / (n + shrinkageK)` on `n` distinct real casts supporting
+ * that exact key — never just raw transition count, which one short
+ * repeating cast could fake), collapsing to pure cell-only when there's no
+ * previous displacement yet (a cast's first hop) or `n = 0`, and from there
+ * to uniform as before. Shipped only after `scripts/fishingContextualCV.ts`'s
+ * leave-one-cast-out held-out evaluation reproduced Codex's core finding on
+ * the real corpus (previous direction roughly doubling top-1 accuracy over
+ * cell-only) and `scripts/fishingContextualAblation.ts`'s simulator ablation
+ * confirmed the hierarchical backoff correctly exploits genuine
+ * previous-direction structure when present — see both scripts' headers for
+ * the actual numbers and the CLAUDE.md §9 caveats on what a simulator
+ * result is and isn't evidence of.
+ *
+ * **[session 38, CODEXAUDIT #2] The hard `minIndependentCasts` threshold
+ * this tier originally shipped with is RETIRED and replaced by the
+ * continuous shrinkage above** — leave-one-cast-out CV showed the hard
+ * switch regressing log loss versus cell-only-forever (thin support gets
+ * zero probability on every cell outside it, and `chooseCard` consumes the
+ * whole distribution, not just top-1). `DEFAULT_SHRINKAGE_K = 1` clears the
+ * gate this session's brief set: it beats the cell-only baseline's real-
+ * corpus log loss AND Brier score, not just top-1/the synthetic ablation —
+ * see `contextualFallback.ts`'s own doc comment and `fishingContextualCV.ts`'s
+ * printed sweep for the numbers.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -87,7 +98,7 @@ import {
   buildContextualMap,
   contextualFallback,
   previousDisplacement,
-  DEFAULT_MIN_INDEPENDENT_CASTS,
+  DEFAULT_SHRINKAGE_K,
 } from "../src/strategy/fishing/contextualFallback.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { cellKey, cellsEqual, type Cell } from "../src/sim/fishing/geometry.js";
@@ -791,7 +802,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
             contextMap,
             transitionLog,
             gridSize,
-            { minIndependentCasts: DEFAULT_MIN_INDEPENDENT_CASTS },
+            { shrinkageK: DEFAULT_SHRINKAGE_K },
           );
 
     const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, focusBudget(doc));

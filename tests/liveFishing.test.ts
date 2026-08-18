@@ -638,7 +638,7 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
     } as unknown as GigaverseClient;
   }
 
-  /** Three independent clean casts, each arriving at (2,1) via displacement (1,0) then continuing on — exactly `DEFAULT_MIN_INDEPENDENT_CASTS`' worth of support for the context key the fake live cast's turn 1 will query. */
+  /** Three independent clean casts, each arriving at (2,1) via displacement (1,0) then continuing on — support for the context key the fake live cast's turn 1 will query. [session 38] The shipped tier now shrinks continuously rather than gating on a cast-count threshold, but this test only asserts the corpus-stats log line, not the resulting distribution, so it's unaffected by that change. */
   function seedContextCorpus(path: string) {
     mkdirSync(dirname(path), { recursive: true });
     const lines: string[] = [];
