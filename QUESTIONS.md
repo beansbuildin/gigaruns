@@ -927,7 +927,7 @@ server need an explicit acknowledgment first, or does a fresh action just
 succeed past it? A capture of that follow-up request, taken while a stuck
 doc like this is still on the account, would close this out.
 
-## 16. Fishing oil-use action shape — unconfirmed, blocks heuristic (c) [session 43]
+## 16. Fishing oil-use action shape — RESOLVED 2026-08-18 [session 44]: user DevTools capture confirmed `use_fishing_item` — `{action:"use_fishing_item", actionToken:"<string>", data:{cards:[], nodeId:"", focusPoint:[], itemId:821, slotIndex:0, tierId:0}}`, captured using one "Lil Mana Oil" (itemId 821) mid-cast. Same six-field envelope as every other fishing action; `itemId`/`slotIndex` do address the item, confirming SPEC-fishing.md §4a's "very likely" hypothesis. `oilPolicy.ts`'s `shouldConsiderRelaxingOil` is now wired into a real call site in `scripts/liveFishing.ts`'s `runOneCast` (item 937, Mid Relaxing Oil) — `slotIndex:0` is a stated, fail-closed hypothesis for THAT item specifically (the capture confirms it only for item 821), see `src/api/fishing.ts`'s `FishingActionSchema` doc comment and DECISIONS.md 2026-08-18 (session 44). Original question preserved below for context. [session 43]
 
 `src/strategy/fishing/oilPolicy.ts`'s `shouldConsiderRelaxingOil` (session-43
 brief §3, "always hold at least one Mid Focus Oil and one Mid Relaxing Oil in

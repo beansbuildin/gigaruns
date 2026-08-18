@@ -250,8 +250,15 @@ matching the dungeon side's 3-potion loadout cap (DECISIONS.md 2026-08-15,
 session 11) structurally, though not confirmed to be the same number for the
 same reason. `itemId`/`slotIndex` on the `play_cards`/`start_run` envelope
 (SPEC-fishing.md §2, previously "[VERIFY], community guesses consumable
-slot") are now very likely this — not independently confirmed by a captured
-oil-use request, but the field names and the 3-slot shape line up exactly.
+slot") are these — **CONFIRMED 2026-08-18, session 44**, by a user DevTools
+capture of a real `use_fishing_item` action (item 821, Lil Mana Oil):
+`{action:"use_fishing_item", actionToken:"<string>", data:{cards:[],
+nodeId:"", focusPoint:[], itemId:821, slotIndex:0, tierId:0}}`. Resolves
+QUESTIONS.md §16. `slotIndex:0` is confirmed only for THIS item; whether
+Mid Relaxing Oil (937) also sits at slot 0 is an unconfirmed, fail-closed
+hypothesis at its live call site (`scripts/liveFishing.ts`) — see
+`src/api/fishing.ts`'s `FishingActionSchema` doc comment and DECISIONS.md
+2026-08-18 (session 44).
 
 **Not modelled in the sim or the live loop** — this is a capture finding
 only, per this session's read-only-except-fishing-casts scope. `Rod`
@@ -511,13 +518,17 @@ Mid Relaxing Oil. **A judgment call, encoded as a documented decision
 point, not a firing function**: `src/strategy/fishing/oilPolicy.ts` names
 the reserve floor (1 of each) and a low-fish-HP threshold as config
 constants, and a pure `shouldConsiderRelaxingOil(fishHp, fishMaxHp,
-relaxingOilHeld)` helper that returns whether the *situation* qualifies —
-it does NOT send anything. **This cannot go further than a recommendation
-yet**: per CLAUDE.md §2 ("never invent an endpoint"), no request shape for
-actually consuming a fishing oil mid-cast has ever been captured — §4a
-above already flags this exact gap (`itemId`/`slotIndex` on the existing
-envelope are "very likely" the mechanism, not confirmed). Recorded as an
-open capture blocker in `TASKS.md`/`QUESTIONS.md`, not guessed past.
+relaxingOilHeld)` helper that returns whether the *situation* qualifies.
+**[session 44] Now HAS a live call site**: a user DevTools capture
+confirmed `use_fishing_item` (§4a above, QUESTIONS.md §16 RESOLVED),
+and `scripts/liveFishing.ts`'s `runOneCast` now spends Mid Relaxing Oil
+when `shouldConsiderRelaxingOil` says so, reading the account's real
+balance via `GET /items/balances` once per cast. The captured request
+used a different item (821), so `slotIndex:0` for item 937 is a stated,
+fail-closed hypothesis (a rejection is caught, logged, and skipped —
+does not halt the cast), not an independently confirmed value. Mid Focus
+Oil's `aboveReserveFloor` gate has no captured trigger condition of its
+own and stays recommendation-only.
 
 **(d) No immediate return after a 1-cell move.** A fish that just made a
 1-cell move never returns to the cell it just came from on its next move.

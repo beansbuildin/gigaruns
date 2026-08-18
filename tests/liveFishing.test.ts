@@ -156,6 +156,15 @@ describe("buildFishingEnvelope", () => {
       data: { cards: [22], nodeId: "", focusPoint: [], itemId: 0, slotIndex: 0, tierId: 0 },
     });
   });
+
+  it("reproduces the real user-captured use_fishing_item request shape — session 44, QUESTIONS.md §16", () => {
+    const body = buildFishingEnvelope("use_fishing_item", "1787094007859", { itemId: 821, slotIndex: 0 });
+    expect(body).toEqual({
+      action: "use_fishing_item",
+      actionToken: "1787094007859",
+      data: { cards: [], nodeId: "", focusPoint: [], itemId: 821, slotIndex: 0, tierId: 0 },
+    });
+  });
 });
 
 describe("data/fish-patterns.jsonl round-trip", () => {

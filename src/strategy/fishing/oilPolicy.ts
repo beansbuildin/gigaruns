@@ -7,15 +7,22 @@
  * A JUDGMENT CALL, per the session-43 brief's own framing — not forced into
  * `cardChoice.ts`'s single scoring formula. This module names the reserve
  * floor and the low-fish-HP threshold as config, and exposes a pure
- * RECOMMENDATION function. It does NOT send anything: per CLAUDE.md §2
- * ("never invent an endpoint"), no request shape for consuming a fishing
- * oil mid-cast has ever been captured — SPEC-fishing.md §4a already flags
- * this as an open gap (`itemId`/`slotIndex` on the existing envelope are
- * "very likely" the mechanism, not confirmed). See TASKS.md/QUESTIONS.md
- * for the standing capture blocker. Once a real oil-use envelope is
- * captured, a live call site can consume this function's recommendation —
- * building that call site now would be guessing at the one thing CLAUDE.md
- * §2 forbids guessing at.
+ * RECOMMENDATION function; it does NOT send anything itself.
+ *
+ * [session 44] `shouldConsiderRelaxingOil`'s recommendation now HAS a live
+ * call site: `scripts/liveFishing.ts`'s `runOneCast`, gated the same as
+ * everywhere else in this file — only fires when the account actually
+ * holds a Relaxing Oil, never invents a positive balance. This was blocked
+ * on the request shape (CLAUDE.md §2, "never invent an endpoint") until a
+ * user DevTools capture confirmed `use_fishing_item` (QUESTIONS.md §16,
+ * DECISIONS.md 2026-08-18 session 44) — the capture used a different item
+ * (821, Lil Mana Oil), so the live call site's `slotIndex:0` for item 937
+ * is a stated, fail-closed hypothesis, not an independently confirmed
+ * value; see `src/api/fishing.ts`'s `FishingActionSchema` doc comment.
+ * Mid Focus Oil's `aboveReserveFloor` gate has no analogous trigger
+ * condition specified (only "keep one in reserve"), so it stays
+ * recommendation-only — wiring a spend rule for it now would be inventing
+ * behavior, not implementing a captured one.
  *
  * Item ids resolved against `fixtures/fishing-casts/item-metadata-sample.json`
  * (SPEC-fishing.md §4a addendum): Mid Focus Oil (942, `FishingRestoreFocus`

@@ -145,8 +145,24 @@ export type FishingState = z.infer<typeof FishingStateSchema>;
  * in what it addresses. Verified end to end: `GET /fishing/state`
  * afterward showed `fullDeck` grown 10 -> 11 and the account no longer
  * rejecting `start_run`.
+ *
+ * `use_fishing_item` — CONFIRMED live, session 44, user-captured DevTools
+ * payload while using one "Lil Mana Oil" (itemId 821, `FishingRestoreMana`
+ * +1 per `GET /offchain/static`'s `gameItems[]`) mid-cast: `{action:
+ * "use_fishing_item", actionToken:"1787094007859", data:{cards:[],
+ * nodeId:"", focusPoint:[], itemId:821, slotIndex:0, tierId:0}}` — same
+ * six-field envelope shape as every other fishing action, `itemId`/
+ * `slotIndex` are what actually address the item (matching SPEC-fishing.md
+ * §4a's "very likely" hypothesis, now confirmed). `slotIndex:0` is
+ * confirmed ONLY for this one item/slot combination — whether a different
+ * held item (e.g. Mid Relaxing Oil, itemId 937) also lives at slot 0 is
+ * UNCONFIRMED and stays a stated hypothesis at its one live call site
+ * (`scripts/liveFishing.ts`), same "fails closed on a wrong guess rather
+ * than corrupting state" discipline as the session-08 `enemy_one` guess.
+ * QUESTIONS.md §16 resolved by this capture; see DECISIONS.md 2026-08-18
+ * (session 44).
  */
-export const FishingActionSchema = z.enum(["start_run", "play_cards", "loot"]);
+export const FishingActionSchema = z.enum(["start_run", "play_cards", "loot", "use_fishing_item"]);
 export type FishingAction = z.infer<typeof FishingActionSchema>;
 
 /**

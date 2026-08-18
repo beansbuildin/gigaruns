@@ -102,6 +102,7 @@ import {
   DEFAULT_SHRINKAGE_K,
 } from "../src/strategy/fishing/contextualFallback.js";
 import { pruneReturnToPrevious } from "../src/strategy/fishing/heuristics.js";
+import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { cellKey, cellsEqual, inGrid, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
@@ -272,7 +273,7 @@ export function focusBudget(doc: FishingGameDoc): FocusBudget {
 }
 
 export function buildFishingEnvelope(
-  action: "start_run" | "play_cards" | "loot",
+  action: "start_run" | "play_cards" | "loot" | "use_fishing_item",
   actionToken: string,
   data: Partial<FishingActionRequest["data"]>,
 ): FishingActionRequest {
@@ -906,6 +907,33 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
   }
 
+  // [session 44] heuristic (c), QUESTIONS.md §16 now resolved by a live
+  // capture of `use_fishing_item`. Read once per cast (not per turn) — a
+  // second live call every turn just to check a count that only ever goes
+  // DOWN within this cast would be wasteful; `relaxingOilHeld` is decremented
+  // locally on each confirmed use instead. Best-effort: a failed balance
+  // read leaves the count at 0, which safely disables the heuristic for this
+  // cast rather than guessing a positive count.
+  let relaxingOilHeld = 0;
+  if (!dryRun) {
+    try {
+      const balances = await client.getItemsBalances();
+      relaxingOilHeld = Number(
+        balances.entities.find((e) => e.ID_CID === String(MID_RELAXING_OIL_ITEM_ID))?.BALANCE_CID ?? 0,
+      );
+      if (relaxingOilHeld > 0) {
+        console.log(`  · Mid Relaxing Oil held: ${relaxingOilHeld} (heuristic (c) reserve floor applies)`);
+      }
+    } catch (e) {
+      log.write({ event: "oil_balance_read_failed", error: (e as Error).message });
+    }
+  }
+  // Set once a `use_fishing_item` POST is rejected, so a still-unconfirmed
+  // `slotIndex` guess (see the schema's doc comment) doesn't get retried
+  // every remaining turn of the same cast — one rejection is informative
+  // enough without spamming the same failing request.
+  let relaxingOilUseFailedThisCast = false;
+
   while (turn < MAX_TURNS) {
     if (doc.COMPLETE_CID) break;
 
@@ -913,6 +941,45 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       log.write({ event: "shutdown_requested", turn });
       console.log(`  ▸ SIGINT — stopping before the next card (turn boundary), cast left in progress at turn ${turn}.`);
       return { outcome: "shutdown", turns: turn };
+    }
+
+    if (
+      !dryRun &&
+      !relaxingOilUseFailedThisCast &&
+      shouldConsiderRelaxingOil(doc.data.fishHp, doc.data.fishMaxHp, relaxingOilHeld)
+    ) {
+      console.log(
+        `  ★ heuristic (c): fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP (${relaxingOilHeld} Relaxing Oil held) — using one.`,
+      );
+      const oilBody = buildFishingEnvelope("use_fishing_item", client.getFishingActionToken(), {
+        itemId: MID_RELAXING_OIL_ITEM_ID,
+        // [session 44] slotIndex:0 is confirmed for item 821 only (the one
+        // real capture) — unconfirmed for item 937. A wrong guess fails
+        // closed via the catch block below, not a GuardTrip: this action is
+        // an optional rescue, not a required step in playing the cast.
+        slotIndex: 0,
+      });
+      log.write({ event: "post", body: oilBody });
+      try {
+        const oilResp = await client.postFishingAction(oilBody);
+        log.write({ event: "post_response", resp: oilResp });
+        fixtures.write(oilResp);
+        doc = oilResp.data.doc;
+        relaxingOilHeld -= 1;
+        console.log(`  ✓ use_fishing_item (Mid Relaxing Oil): fish now ${doc.data.fishHp}/${doc.data.fishMaxHp}`);
+        const unknown = unknownDocKeys(doc as unknown as Record<string, unknown>);
+        if (unknown.length > 0) {
+          const path = dumpUnknownTerminal(oilResp, unknown, "midcast", logsDir);
+          log.write({ event: "unknown_fields", source: "use_fishing_item", turn, keys: unknown, dump: path });
+          console.log(`  ★★★ UNKNOWN FIELD(S) on use_fishing_item's returned doc: ${unknown.join(", ")}`);
+        }
+      } catch (e) {
+        relaxingOilUseFailedThisCast = true;
+        if (e instanceof TokenExpiredError) throw e;
+        const message = (e as Error).message;
+        log.write({ event: "action_failed", reason: "use_fishing_item rejected", error: message });
+        console.log(`  ✗ use_fishing_item rejected (${message}) — continuing cast without it (unconfirmed slotIndex hypothesis), not retrying this cast.`);
+      }
     }
 
     const hand = buildHand(doc);
