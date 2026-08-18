@@ -140,8 +140,13 @@ describe("player loadout matches the fixtures", () => {
     // 42→43, armorMax 16→17 — see src/sim/enemies.ts's PLAYER doc); 43/25 is
     // 43/17 mid-run AFTER an AddMaxArmor(8) pickup at room 2 (armorMax +8),
     // not a second new starting loadout — same shape as 34/20 above.
+    // [session 42, same session] One more new combo, from the user's SECOND
+    // manually-started juiced run (Tier-2, silver rings): 38/17 is a THIRD
+    // starting loadout captured this session — hpMax dropped 43→38, armorMax
+    // stayed at 17. See enemies.ts's PLAYER doc for the open question about
+    // why (gear re-spec between manual starts vs. something tier-specific).
     expect([...seen].sort()).toEqual([
-      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16",
+      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16",
     ]);
   });
 });

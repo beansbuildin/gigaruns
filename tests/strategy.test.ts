@@ -318,10 +318,16 @@ describe("decide — contract", () => {
   });
 
   it("avoids the move that can kill us when a safe one scores nearly as well", () => {
-    // HP 8, armor 0, against enemy 63. Sword loses to their Shield for 8 —
+    // HP 5, armor 0, against enemy 63. Sword loses to their Shield for 5 —
     // exactly lethal. An engine that ignored terminal states would still play
     // Sword here for the damage.
-    const s = state({ hp: 8, armor: 0 }, 1, { hp: 30, armor: 12 });
+    // [session 42] HP lowered 8 → 5 — PLAYER's rock (Sword) grew much
+    // stronger this session (ATK 16→26, DEF 0→9), so at HP 8 its non-lethal
+    // branches now outscore Shield outright and the engine correctly plays
+    // it despite the lethal branch; HP 5 keeps rock's score close enough to
+    // Shield's (-722.2 vs -666.7) that the death-avoidance logic this test
+    // exists to check is still the deciding factor, not raw EV dominance.
+    const s = state({ hp: 5, armor: 0 }, 1, { hp: 30, armor: 12 });
     const d = decide(s, new OpponentModel(), cfg());
     const rock = d.table.find((r) => r.move === "rock")!;
     const lethal = rock.cells.find((c) => c.foeMove === "paper")!;

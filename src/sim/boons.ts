@@ -231,6 +231,20 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-17-21-14-12 state-035→state-036",
     observed: "selectedVal1 2 → no change to any player field",
   },
+  ArmorDepletedWeak: {
+    // [session 42, LIVE] First pair — the second manually-started juiced run
+    // (Tier-2, silver rings) picked it at room 2. Same shape as
+    // AddBurnSword/CorrosiveShield/CorrosiveMagic/VulnerableEvade/
+    // AddLifestealMagic: zero change to any player field at pickup —
+    // health, shield, all three moves, and every rolled stat identical
+    // before/after. Whatever it does (name suggests a Weak debuff armed
+    // once the player's own armor is depleted) is latent in combat and
+    // unconfirmed, not assumed from the name.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-18-21-15-25 state-026→state-027",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
 };
 
 /**
@@ -1024,6 +1038,40 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 6,
     source: "run-2026-08-18-19-50-14/state-109",
     options: [opt("AddVulnerableMagic", 2), opt("UpgradeScissor", 4), opt("AddLuck", 1)],
+  },
+  // [session 42, same session] The user's SECOND manually-started juiced
+  // run (this one Tier-2, silver rings — TASKS.md Task 14's `index==tier`
+  // question, settled by the user's own second live capture) — five new
+  // room-1..5 offers, in order. First-ever pickup pair for
+  // `ArmorDepletedWeak` (picked at room 2) — see BOON_MODELS.
+  {
+    room: 1,
+    source: "run-2026-08-18-21-15-25/state-003",
+    options: [opt("IntuitionArmor", 10), opt("AddIntuition", 1), opt("TieWeak", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-18-21-15-25/state-025",
+    options: [opt("ArmorDepletedWeak", 2), opt("BurningBlock", 8), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    // Content-identical to an earlier room-3 offer (AddEvasion(1)/
+    // AddTenacity(2)/AddIntuition(1)) — a genuine independent repeat, not a
+    // duplicate entry error; `OBSERVED_OFFERS` records every corpus sighting,
+    // not a deduplicated set.
+    room: 3,
+    source: "run-2026-08-18-21-15-25/state-039",
+    options: [opt("AddEvasion", 1), opt("AddTenacity", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-18-21-15-25/state-047",
+    options: [opt("AddTenacity", 2), opt("AddEvasion", 1), opt("AddEvasion", 4)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-18-21-15-25/state-083",
+    options: [opt("TieVulnerable", 1), opt("AddLuck", 1), opt("AddVulnerableShield", 2)],
   },
 ];
 

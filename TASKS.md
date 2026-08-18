@@ -1180,6 +1180,36 @@ that has not happened yet.
 integration tests, 2 `buildJuicedStartRunEnvelope` unit tests) — see
 DECISIONS.md and handoff/log/session-42.md for the full verification.
 
+**Follow-up, same session — `index == tier` is now CONFIRMED, and it's a
+different mechanic than assumed.** The user manually started a SECOND juiced
+run, this one Tier-2 (silver rings), and captured its real `start_run`
+request: `index: 2`. Combined with this session's own `index: 3` (gold
+rings, Tier-3) and the pre-existing `config/discovered.json` `entryData`
+table (three item-gated entry tiers — 1 free, 2 costs one Silver Ring per
+faction, 3 costs one Golden Ring per faction — `dropMultiplier` 1/2/4,
+already documented in SPEC.md §3c since session 03 but never connected to
+`start_run`'s `index` field before now), the mapping is settled: **`index`
+IS `entryData`'s `tier` field**, an axis entirely independent of `isJuiced`.
+This user-provided run was also resumed and played live (§0-style) —
+died room 6, own HP 0/38. Confirmed a THIRD time: `dayProgressEntities`
+moved exactly 3→6 at this second juiced `start_run` (read before and after,
+matching session 23's original finding and this session's own first
+resume). The item-crediting 3x-duplicate pattern (SPEC.md §3f) held
+identically regardless of entry tier (2 vs 3) — base per-room amounts were
+byte-for-byte the same progression (5,9,14,19,25) in both runs, so
+`entryData`'s own `dropMultiplier` (2 vs 4) is NOT visibly stacking with
+the juiced 3x on this specific reward channel — open question, not
+resolved this session (see STATE.md).
+
+**Genuinely unresolved, flagged rather than guessed at**: this second run's
+own opening state (zero picked boons) showed PLAYER's rock (Sword) move
+substantially stronger than the first run's capture 90 minutes earlier
+(ATK 16→26, DEF 0→9) while scissor's own gear boost from the first capture
+was gone (back to base 12/8) — either an ordinary gear re-spec between the
+two manual starts, or something tied to entry tier itself. Not
+distinguishable from this session's data alone; see `src/sim/enemies.ts`'s
+`PLAYER` doc comment.
+
 ---
 
 ## Later, if the user wants it

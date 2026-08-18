@@ -163,6 +163,9 @@ describe("fail-closed on unmodelled types", () => {
       // AddLifestealMagic/VulnerableEvade moved OUT — session 25's Task 10
       // 2-hour gate run gave both their first live pickup pairs (latent,
       // same shape), now modelled.
+      // ArmorDepletedWeak moved OUT — session 42's second manually-started
+      // juiced run (Tier-2, silver rings) gave it its first live pickup
+      // pair (latent, same shape), now modelled.
       "AddBurnMagic", // session 12: first sighting, live room-1 offer, not picked
       "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked
       "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
@@ -172,8 +175,8 @@ describe("fail-closed on unmodelled types", () => {
       "AddWeakMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
       "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
-      "ArmorDepletedWeak", // session 14: first sighting, room-1 offer (Task 12 Stage B probe run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
+      "BurningBlock", // session 42: first sighting, live room-2 offer (second manually-started juiced run), not picked
       "BurningEvade", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
       "CorrosiveSword", // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
@@ -263,8 +266,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 42] +1 more room-1 offer (3 options: AddLuck/AddBlock/AddLuck
     // — the resumed juiced Tier-3 run's own first reward pick). Neither type
     // is in the clean set, so the clean array is unchanged.
+    // [session 42, same session] +1 more room-1 offer (3 options:
+    // IntuitionArmor/AddIntuition/TieWeak — the second manually-started
+    // juiced run's, Tier-2). None of the three is in the clean set either.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(126);
+    expect(roomOne.length).toBe(129);
 
     const clean: string[] = [];
     for (const option of roomOne) {

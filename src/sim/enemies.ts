@@ -108,22 +108,37 @@ export const DANGEROUS_TIER = 2;
  * pattern as session 15 — re-measure any cross-session comparison rather
  * than quoting an older number.
  *
- * [session 42] Updated to the newest unbooned capture (the resumed juiced
- * Tier-3 run's own state-000, `pickedBoons: []`, TASKS.md Task 14 §0):
- * hpMax 42 → 43 (+1), armorMax 16 → 17 (+1), scissor (Spell) DEF 13 → 15
- * (+2, ATK unchanged at 18) — a gear change between sessions, not a regen/
- * boon effect (this state has zero picked boons). `rock`/`paper` unchanged.
+ * [session 42, first update] Updated to the newest unbooned capture (the
+ * resumed juiced Tier-3 run's own state-000, `pickedBoons: []`, TASKS.md
+ * Task 14 §0): hpMax 42 → 43 (+1), armorMax 16 → 17 (+1), scissor (Spell)
+ * DEF 13 → 15 (+2, ATK unchanged at 18) — a gear change between sessions,
+ * not a regen/boon effect (this state has zero picked boons). `rock`/
+ * `paper` unchanged.
+ *
+ * [session 42, SECOND update, same session] A second manually-started
+ * juiced run (Tier-2, silver rings) captured minutes later shows hpMax
+ * 43 → 38, armorMax unchanged at 17, rock (Sword) ATK 16 → 26 / DEF 0 → 9
+ * (a NEW gear boost), scissor (Spell) ATK/DEF 18/15 → 12/8 (the boost from
+ * the FIRST update is GONE — back to its unboosted base). Zero picked
+ * boons on this state too, so this is not an in-combat/boon effect either.
+ * Genuinely unresolved which explanation is right: an ordinary gear
+ * re-spec between the two manual starts (matching the established
+ * cross-session pattern, just at an unusually short timescale — nothing
+ * in the wire data distinguishes "between sessions" from "between two
+ * manual starts 90 minutes apart"), OR something tied to the entry TIER
+ * itself (Tier 2 vs Tier 3) rather than gear. Recorded as observed, not
+ * asserted — flagged for the next session rather than guessed at here.
  */
 export const PLAYER: Combatant = {
   id: "player",
-  hp: 43,
-  hpMax: 43,
+  hp: 38,
+  hpMax: 38,
   armor: 17,
   armorMax: 17,
   moves: {
-    rock: mv(16, 0), // Sword — no gear boost currently equipped, session 23
+    rock: mv(26, 9), // Sword — NEW gear boost, session 42 second update (was 16/0)
     paper: mv(6, 12), // Shield
-    scissor: mv(18, 15), // Spell — +6 ATK / +7 DEF gear, session 42 (DEF +2 over session 23)
+    scissor: mv(12, 8), // Spell — boost gone, session 42 second update (was 18/15)
   },
   // The player starts every run with all rolled stats at zero; the only way
   // they become non-zero is a boon (src/sim/boons.ts).

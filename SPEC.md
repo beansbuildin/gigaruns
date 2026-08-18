@@ -494,13 +494,32 @@ From `GET /game/dungeon/today` → `dungeonDataEntities[3]`:
 | `basicBoonMultiplier` | 2 (only dungeon with 2) |
 
 Three tiers in `entryData`, gated on **items, not energy**. Tier 1 is free
-(`inputItems: []`, `dropMultiplier: 1`); tier 2 and tier 3 each consume 7
-distinct items (`dropMultiplier` 2 and 4). Both gated tiers carry
-`inputsBasedOnFactionDay: true`, so **the required item list is not static** —
-re-read it per day, never cache it.
+(`inputItems: []`, `dropMultiplier: 1`); tier 2 requires one Silver Ring per
+faction (items 134–140: Chobo/Crusader/Overseer/Athena/Archon/Foxglove/
+Summoner Silver Ring, `dropMultiplier: 2`); tier 3 requires one Golden Ring
+per faction (items 243–249, same seven factions, `dropMultiplier: 4`) — item
+names confirmed against `GET /offchain/static`'s `gameItems[]`, session 42.
+This is the user's own "Tier 1/2/3, silver/gold rings" terminology. Both
+gated tiers carry `inputsBasedOnFactionDay: true`, so **the required item
+list is not static** — re-read it per day, never cache it.
 
-`entryData` is ordered tier 2, 1, 3. **Array index is not tier.** Match on
-`tier`.
+`entryData` is ordered tier 2, 1, 3 in the array as returned. **Array index
+is not tier** — match `entryData[].tier` explicitly when reading this
+endpoint's response.
+
+**[CONFIRMED 2026-08-18, session 42, LIVE] `start_run`'s `data.index` field
+IS this `entryData` tier — a separate axis from `isJuiced`, not a
+juiced-specific value.** Two independent user captures: a Tier-3 (gold
+rings) juiced start sent `index: 3`; a Tier-2 (silver rings) juiced start
+sent `index: 2`. Both are juiced (`isJuiced: true`, 3x energy/reward) at
+DIFFERENT entry tiers, proving `index` selects the entry tier independently
+of juiced status — TASKS.md Task 14's original "index == tier, not yet
+confirmed" question is settled. Whether `entryData`'s own `dropMultiplier`
+(2 vs 4) additionally stacks with the juiced 3x is NOT yet confirmed — the
+one reward channel checked so far (item 846 credits, §3f) showed identical
+base amounts across both tiers, suggesting `dropMultiplier` does not visibly
+affect that specific channel, but this is one observation, not a settled
+finding.
 
 **"Juice"/"juiced" is three unrelated game concepts sharing one word —
 user-clarified [2026-08-17, session 23], after this ambiguity caused a real

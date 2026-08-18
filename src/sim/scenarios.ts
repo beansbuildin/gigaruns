@@ -99,7 +99,12 @@ export const SCENARIOS: Scenario[] = [
   {
     name: "mutual-one-hit-from-death",
     note: "Both sides lethal to each other. A tie kills both; utility must not treat that as a win.",
-    state: { me: tweak(player(), { hp: 5, armor: 0 }), foe: tweak(enemy(1), { hp: 5, armor: 0 }), room: 1 },
+    // [session 42] `me.hp` lowered 5 → 3 — PLAYER's rock (Sword) DEF grew to
+    // 9 this session (was 0), so a rock/rock tie now regens the player 9
+    // armor BEFORE the enemy's 12 ATK lands (overflow 3, not the old 12);
+    // hp 5 survived that overflow, hp 3 doesn't. Foe's hp is unaffected —
+    // it dies to the player's much larger rock ATK (26) regardless.
+    state: { me: tweak(player(), { hp: 3, armor: 0 }), foe: tweak(enemy(1), { hp: 5, armor: 0 }), room: 1 },
   },
   {
     name: "zero-charge-enemy-sword",
