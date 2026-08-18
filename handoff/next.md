@@ -1,141 +1,153 @@
-# BRIEF — session 30
+# BRIEF — session 31
 
-Session 29 landed clean: 454/454 tests (+26), `tsc` clean, both CODEXREVIEW
-#5 and #6 fixed and verified. Both fishing pattern promotions
-(`perimeterWalk(cw)` support=4, `perimeterWalk(ccw)` support=3) survived
-the corrected miner — not inflated by the resumed-cast bug. Dungeon-side
-`GET /game/dungeon/today` reconciliation and Pacific-time guard date-keying
-are both live but only unit-tested against a mocked client so far; worth a
-real check next time `liveRun.ts`/`orchestrator.ts` runs live.
+Session 30 landed clean: 479/479 tests (+25), reporting live for both
+loops, the `9001`/`9002` mystery resolved (session 28's own
+`fishingCorpus.test.ts` was writing to the real `data/fish-patterns.jsonl`
+instead of a temp path — fixed, 14 pollution records cleaned out, nothing
+mined was ever actually affected). Real reward fields confirmed against
+live captures before the report code was written: Hard Core = item 845 via
+`gameItemBalanceChanges`; "Dendren Root" = item 846, wire name "Dendren
+Remnant"; fishing catches come from `data.events[]` `FISH_DIED`, not the
+documented-but-always-null `doc.data.caughtFish`. Also caught and fixed
+before shipping: `IS_JUICED_CID` is an account-level flag mirrored onto
+every entity (true on all 47 corpus attempts) — the real per-run signal is
+`WANTS_JUICED_MODE_CID`.
 
-This session: the three items you already confirmed, plus one thing to
-check first before touching fishing data at all.
-
----
-
-## 0. Check first: what wrote castId `9001`/`9002` into `data/fish-patterns.jsonl`
-
-Session 29's recap (QUESTIONS.md §14) found 8 records with a 4-digit
-castId shape never seen elsewhere in the real corpus, all zero-movement
-(`from`/`to` both `[0,0]`), that reappeared with new timestamps and
-incrementing turns WHILE that session was running — meaning something was
-actively writing to this file concurrently, even though no live fishing
-happened that session.
-
-**Strong hypothesis, worth ruling out before asking the user anything:**
-session 29 added two new test files, `tests/liveFishing.test.ts` and
-`tests/mineFishPatterns.test.ts`. Synthetic-looking 4-digit castIds with
-all-zero movement are exactly what a fabricated test fixture looks like,
-and the timing lines up exactly with when those tests would have been run
-repeatedly during the session. Check whether either test file (or any
-existing one that touches fishing logging) writes to the real
-`data/fish-patterns.jsonl` path instead of an isolated temp file or a
-mock. If so, that's the whole mystery — not an unidentified live process.
-
-- If confirmed: fix the test(s) to write to a temp directory, never the
-  real data path. Clean the 8 polluted `9001`/`9002` records out of the
-  real file. Re-run `mineFishPatterns.ts` and confirm whether the third
-  pattern (`twoCellCycle(0,-1)`) changes once the pollution is gone —
-  report the corrected support number either way.
-- If NOT confirmed (tests already isolate their I/O correctly): say so
-  plainly, don't paper over it, and surface it back as a real open
-  question for the user — something is appending to the corpus outside
-  the normal `liveFishing.ts`/`mineFishPatterns.ts` write paths, and that
-  needs a human to identify before session 31 touches fishing data again.
-
-Do this before §1's reporting work reads `data/fish-patterns.jsonl` for
-anything — no point building a catch-rate summary on top of a file with an
-unresolved pollution source.
+No live play in sessions 29 or 30 — both were pure engineering. This
+session returns to the CODEXREVIEW/CODEXIMPROVE queue that's been sitting
+untouched since session 28. Three items, ordered safety-then-performance
+per this project's standing priority discipline, plus a documentation-sync
+bundle and one small wiring fix.
 
 ---
 
-## 1. Run-visibility reporting
+## 1. Split committed-vs-observed energy accounting (CODEXREVIEW #8)
 
-Goal: something you can read after a session without pasting raw fixture
-dumps. Per-run/per-cast JSONL log (machine-readable, forward-compatible
-with a future frontend) plus an auto-generated markdown summary, both
-committed to the repo.
+Relevant code: `scripts/liveRun.ts:1154-1168`, `scripts/liveFishing.ts:
+733-740`, `scripts/orchestrator.ts:239-245, 272-278`.
 
-**Before writing any code:** verify, don't assume, that Dendren Root and
-Hard Cores are actually present and extractable in dungeon-run response
-data — check real fixtures/live response shapes for the reward fields
-rather than guessing field names. If they're not present in dungeon
-responses at all (e.g. only in a separate loot/claim response), say so and
-report what's actually there instead of inventing a shape.
+Currently the guard tracks spend as a raw before/after energy delta.
+In-run regen partially masks the entry cost; an external top-up (e.g. a
+ROM claim happening mid-session) can mask it entirely. Persistent policy
+spend can drift below what was actually committed, which is a real gap in
+the daily-budget guard, not just a cosmetic accounting issue.
 
-**Dungeon report** (build on `deathRooms.ts` rather than duplicating its
-logic):
-- Outcome per run: death room number (1-16), or `CLEARED` for the
-  (never-yet-seen) case of clearing room 16 / floor 4 room 4, the true
-  final boss.
-- Dendren Root and Hard Cores earned, per run, if extractable per above.
-- Juiced vs. non-juiced, energy spent.
+Track two numbers separately:
+- **Committed spend**: the confirmed `energyCost` the moment `start_run`
+  succeeds — independent of what happens to the account balance after.
+- **Observed delta**: the before/after account reading, kept as a
+  diagnostic for spotting drift (e.g. "committed 20, observed delta 12" is
+  a useful signal that a ROM claim landed mid-run), not as the ledger of
+  record.
 
-**Fishing report** (build on `loadFishingCorpus()` rather than
-duplicating it):
-- Per-cast: caught or not, fish name + quantity if caught.
-- Session/day rollup: catch rate as a %, total fish by name.
+Enforce the daily-budget guard off committed spend. Add a test where an
+external balance change (simulate a ROM claim) happens between a run's
+start and its accounting step, and confirm the guard still records the
+full committed cost rather than the masked delta.
 
-**Output:** JSONL log (e.g. `data/run-reports/dungeon.jsonl`,
-`data/run-reports/fishing.jsonl` — gitignored like other `data/`, these
-are raw per-run records) plus a regenerated markdown summary committed to
-the repo at `handoff/reports/dungeon-runs.md` and
-`handoff/reports/fishing-casts.md`. Regenerate the markdown from the JSONL
-after each live session rather than hand-writing it — same "recap reads
-the real state" discipline as `STATE.md`.
+## 2. Resource-conserving fishing tie-breaks (CODEXIMPROVE #2)
 
-Add regression tests: a dungeon run ending in a known death room produces
-the right JSONL record and markdown line; a `CLEARED` run (fabricate one,
-since it's never happened live) renders correctly instead of crashing on
-an unhandled case; a fishing session with mixed catches/misses computes
-the right catch rate.
+Relevant code: `src/strategy/fishing/cardChoice.ts:124-163, 211-224`,
+`src/sim/fishing/geometry.ts:60-69, 83-84`.
 
-## 2. Act on `nextPosition` when it fires, not just log it
+`bestFocusForCard()` only replaces the current best on strictly greater
+EV, so equal-EV placements resolve by grid enumeration order, not by
+distance from the current focus point — meaning the bot can spend scarce,
+non-regenerating focus for zero immediate benefit. Same issue in
+`chooseCard()` across non-lethal cards: equal-EV choices stay in hand
+order even when one costs less mana or less focus movement.
 
-User directive, confirmed this session: when `nextPosition` is present in
-a fishing response, reposition the focus point to secure the guaranteed
-hit on the predicted cell. This is authorized live behavior now, not a
-"wait and see."
+This is a safe change — it cannot reduce immediate expected value, only
+break ties in favor of conserving a scarce resource. Codex's suggested
+smallest implementation:
 
-**Caveat worth respecting given the numbers:** CODEXIMPROVE #6 measured
-this at 2 non-null sightings out of 169 real turns, and CODEXREVIEW's
-binomial check found that rate statistically compatible with (not
-confirming, not rejecting) the 3% Fintuition base rate. Rare and
-unconfirmed isn't the same as wrong — do the validation-only pass first as
-CODEXIMPROVE recommended: log predicted vs. actual next position for a
-few more live sightings before letting it override the matcher, so if the
-field turns out to mean something other than "the fish's next cell,"
-that's caught before it's steering focus placement. Once a handful of
-sightings confirm predicted == actual, flip it to a live override.
+```ts
+const EPSILON = 1e-12;
 
-Implementation should live where `nextPosition` is currently
-detected/logged as an unknown field (`src/api/fishing.ts`,
-`scripts/liveFishing.ts` per CODEXIMPROVE #6's citations) — add the
-validation-only recording first, wire the override behind a flag or a
-confirmed-count threshold, don't hardcode it live on day one.
+if (Math.abs(candidate.ev - best.ev) <= EPSILON && focusBudget) {
+  const candidateCost = manhattan(focusBudget.current, candidate.focus);
+  const bestCost = manhattan(focusBudget.current, best.focus);
+  if (candidateCost < bestCost) best = candidate;
+}
+```
 
-## 3. Dual Yield — forward detection, not backfill
+Across cards, deterministic lexicographic order: lethal before non-lethal,
+higher EV (or EV/mana under the existing mana-constrained branch), lower
+focus movement cost on a tie, lower mana cost on a further tie, existing
+hand/grid order as the final tie-break.
 
-The user added this skill after the corpus was captured, so there's nothing
-to audit in existing fixtures — don't spend time searching historical data
-for a double-catch that predates the skill. Instead, add a lightweight
-detector for the next time it actually fires live: does a double-catch
-show up as two `loot` calls, one `loot` call with a different
-`cardsToAdd`/reward shape, or something else. Log it explicitly as
-"possible Dual Yield event" with the full raw response rather than letting
-it get silently mishandled or mis-parsed by the existing single-catch
-assumption, same pattern as other unknown-field detectors already in this
-project.
+Add tests proving an equal-EV stationary focus beats a moving focus, and
+an equal-EV cheaper card beats a costlier one. Do not go further than this
+tie-break — Codex explicitly flagged a focus shadow-price or lookahead
+term as a separate, unvalidated experiment; don't fold that in here.
+
+## 3. Documentation sync bundle (CODEXREVIEW #9, #10 + session 30's open question 1)
+
+Three small, independent doc/cleanup fixes — bundle them since none needs
+its own session:
+
+- **CODEXREVIEW #9**: `CLAUDE.md`'s non-negotiable §8 says `pickSafeTier()`
+  and halts when Safe isn't offered; `src/strategy/enemyTier.ts` actually
+  implements the generalized `pickLowestTier()` because Safe is often not
+  on offer, and `liveRun.ts` correctly uses the generalized version. This
+  is real behavior, correctly implemented — the doc is what's stale. Update
+  CLAUDE.md's wording to "always choose the lowest tier actually offered,"
+  referencing `pickLowestTier()` by name, so the repo's own shared memory
+  stops contradicting the code that's actually running.
+- **CODEXREVIEW #10**: `viem` is listed in `package.json` but unused
+  anywhere in `src`, `scripts`, or tests (confirm this is still true before
+  removing — Task 14's juiced `start_run` work is still blocked on a live
+  capture, not on signing code, so it shouldn't have landed yet). Remove it
+  if still unused.
+- **Session 30 open question 1**: fold the reward-field discoveries (Hard
+  Core = item 845, "Dendren Root"/"Dendren Remnant" = item 846, fishing
+  catch source = `data.events[]` `FISH_DIED` not `doc.data.caughtFish`)
+  into `SPEC.md`/`SPEC-fishing.md` directly, resolving the existing
+  `[VERIFY]` tags on these fields rather than leaving the findings only in
+  code comments and DECISIONS.md.
+
+## 4. Wire standalone report regeneration (session 30 open question 4)
+
+Currently `handoff/reports/*.md` only regenerate at
+`scripts/orchestrator.ts`'s end-of-session rollup. Task 6/9's standalone
+`liveRun.ts`/`liveFishing.ts` invocations don't trigger it, so a
+non-orchestrator session leaves the committed reports stale until someone
+remembers to run `dungeonReport.ts`/`fishingReport.ts` by hand. Decision:
+wire regeneration into the end of standalone invocations too (same
+non-fatal-on-failure pattern already used in the orchestrator), rather
+than relying on a stated manual convention — automation is cheap here and
+a stale committed report is worse than a redundant regeneration.
 
 ---
 
 ## Your task
 
-1. §0 first — resolve or honestly report the mystery-writer question
-   before touching fishing data for §1.
-2. §1 (reporting) is the main body of this session.
-3. §2 and §3 are smaller, bounded additions — do them if §0/§1 leave
-   reasonable room, don't rush §1 to fit them in.
-4. Don't start CODEXREVIEW #8, CODEXIMPROVE #1/#2, or #9/#10 this session
-   — still queued, not now.
+1. §1 (energy accounting) first — it's the one safety-adjacent item left
+   in the queue.
+2. §2 (fishing tie-breaks) — self-contained, low risk, ship with tests.
+3. §3 (doc sync bundle) and §4 (report wiring) — quick, do both if time
+   allows; don't let them crowd out §1/§2.
+4. Don't start CODEXIMPROVE #1 (opponent-model persistence) this session —
+   it's the single biggest remaining item (schema versioning, atomic
+   writes, bootstrap from historical fixtures, restart tests) and deserves
+   its own focused session rather than being squeezed in. Queued for
+   session 32.
 5. Recap normally, full suite + tsc against the final commit as usual.
+
+---
+
+## Queued, not this session
+
+- **CODEXIMPROVE #1** (persist/bootstrap dungeon opponent model) — session
+  32, per above.
+- **CODEXIMPROVE #3** (previous-direction contextual fishing fallback) —
+  the strongest empirical fishing predictor Codex found (33.9% vs 16.4%
+  top-1 accuracy), but needs its own cross-validation + simulator ablation
+  pass, not a quick add.
+- **CODEXIMPROVE #4** (charge-reserve tie-breaking for dungeon) and **#5**
+  (boon valuation using real deltas + persisted `playCounts`) — both
+  well-scoped in CODEXIMPROVE, neither urgent.
+- Task 14 (bot-initiated juiced `start_run`) still BLOCKED on a live
+  DevTools capture — needs the user to do a manual juiced run and capture
+  the real request body whenever convenient. Not code work, just flagging
+  it's still sitting there.
