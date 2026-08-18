@@ -1,141 +1,159 @@
-# STATE — session 32 — 2026-08-18 — commit 6fc3b94
+# STATE — session 33 — 2026-08-18 — commit c5a2622
 
 ## Status
-No TASKS.md gate was targeted this session — same as session 31, the brief
-was the CODEXIMPROVE queue: §1 (persist and bootstrap the dungeon opponent
-model, CODEXIMPROVE #1 — queued twice, session 30 and 31, finally built)
-and §2 (test-isolation hygiene: write the isolated-test-path rule into
-CLAUDE.md, then one grep audit pass). Task 10 stays the last GATE PASS
-(session 25, unchanged); this session touched none of that path.
-Overall: both items landed exactly as briefed, live-verified (not just
-unit-tested), 500/500 tests passing (+12 from session 31's 488).
+No TASKS.md gate was targeted this session — same discipline as sessions 31/32.
+The brief was CODEXIMPROVE #3 (previous-direction contextual fishing
+fallback) alone, scoped to stop and report honestly if the real corpus
+didn't reproduce Codex's numbers before wiring anything live.
+Overall: **GATE PASS.** Offline cross-validation reproduced the core
+finding, the simulator ablation confirmed the algorithm exploits real
+structure when present, and the tier is now live in `scripts/liveFishing.ts`.
 
 ## What works
-- **The dungeon opponent model now persists across restarts** (CODEXIMPROVE
-  #1). New `src/orchestrator/opponentModelPersistence.ts` mirrors
-  `guardPersistence.ts`'s already-established patterns rather than
-  reinventing them: `schemaVersion` (zod `z.literal`, rejects on mismatch —
-  nothing to migrate yet at version 1), atomic temp-file+rename save, and
-  `acquireGuardLock` reused directly against the model's own path for a
-  single writer (no second locking mechanism built). `OpponentModel` itself
-  stays pure — only its internal `Counts` type gained an `export` keyword so
-  the persistence layer can type against the exact `toJSON`/`fromJSON`
-  shape; no I/O was added to the strategy module.
-- **Bootstrap from the fixture corpus, idempotent across launches.** Folds
-  every clean (`reasons.length === 0`) historical dungeon exchange into the
-  model, gated by a persisted `bootstrapImportedIds` set keyed on
-  `${run}::${label}` (a label alone isn't unique across runs, DECISIONS
-  2026-08-15) — safe to call on every launch: already-imported exchanges are
-  skipped, newly grown corpus is picked up automatically. Wired into both
-  `scripts/liveRun.ts` and `scripts/orchestrator.ts` (load+bootstrap+lock at
-  startup; save after every real `model.observe()` via a new opt-in
-  `opponentModelPersistence` field on `LiveRunDeps`, `undefined` by default
-  so no existing test touches the real file).
-- **Live-verified, not just unit-tested**: a real `npx tsx scripts/
-  liveRun.ts --dry-run` invocation bootstrapped 64 real clean room-1
-  exchanges (enemy "Enemy Room 63") on its first run, correctly wrote
-  `data/opponent-model.json` (schemaVersion 1, one key
-  `"Enemy Room 63|room1"`, 64 total observations split 23/24/17 across
-  rock/paper/scissor), and a second invocation immediately afterward
-  imported 0 new exchanges — the dedup holds live, not just in the unit
-  tests. No `.lock` file was left behind after either run.
-- **Regression tests cover exactly what CODEXIMPROVE #1 asked for by name**
-  (`tests/orchestrator/opponentModelPersistence.test.ts`, 12 tests): a
-  model's predictions survive a simulated restart (save, "restart" via a
-  fresh `loadOpponentModel`, `predict()` output identical — including
-  `confidence: "high"`, so the comparison isn't vacuously below the
-  30-observation floor); a corrupt file on disk fails closed (throws
-  `OpponentModelPersistenceError`) rather than silently resetting to a
-  blank model — the same fail-OPEN bug class CODEXREVIEW #2 already fixed
-  for guard-budget persistence; a `schemaVersion` mismatch is rejected the
-  same way; atomic-write leaves no temp file; bootstrap against the real
-  corpus imports >0 the first call and exactly 0 the second (both in-memory
-  and across a simulated restart).
-- **CLAUDE.md's working-style section now states the isolated-test-path
-  rule explicitly** (CODEXIMPROVE queue §2), instead of leaving it as
-  unwritten convention. Grep audit for other `LiveFishingDeps`/
-  `LiveRunDeps` test constructions missing an isolated path: **none found
-  beyond the 3 already-fixed session-31 offenders** — every construction in
-  `tests/liveRun.test.ts` and `tests/liveFishing.test.ts` goes through a
-  single `makeDeps()` helper per file that always sets `guardStatePath`, so
-  this is a genuine "last instance" result, not a padded clean one. No test
-  anywhere opts into the new `opponentModelPersistence` dep, so §1 didn't
-  introduce a new pollution risk either.
+- **Hierarchical contextual fallback, shipped** (`src/strategy/fishing/
+  contextualFallback.ts`): tier 1 = current cell + previous movement
+  displacement, gated on `DEFAULT_MIN_INDEPENDENT_CASTS = 3` distinct real
+  casts supporting that exact `${cellKey}|${dx},${dy}` key; tier 2 = the
+  existing cell-only `emptyFallback` (unchanged); tier 3 = uniform
+  (unchanged). Turn number deliberately excluded, per Codex's own ablation.
+- **Offline leave-one-cast-out CV reproduces the core finding**
+  (`scripts/fishingContextualCV.ts`, real `data/fish-patterns.jsonl`, 49
+  clean casts / 165 hops — exactly matches Codex's stated corpus size):
+  cell-only 16.4% top-1 (EXACT match to Codex's 16.4%), cell+previous-
+  direction 37.1% (vs Codex's 33.9% — both ~2.3x cell-only, same
+  conclusion), cell+turn 13.3% vs Codex's 16.4% (both show turn adding
+  nothing), cell+turn+prevdir 19.0% vs Codex's 24.2%. Coverage numbers are
+  close but not identical (65.5% vs Codex's 75.2% on the prevdir row) —
+  reported honestly, not silently rounded to a match. Verdict: reproduces
+  in the same ballpark, methodology trusted.
+- **`minIndependentCasts` chosen empirically, not guessed**: swept {2,3,4}
+  with log loss + Brier (not just top-1) at each. Threshold 2 gives the
+  biggest top-1 lift (24.8% vs 16.4% baseline) but its log loss (6.264)
+  is WORSE than the cell-only baseline's (5.860) — confident-wrong
+  predictions at thin support. Threshold 3: top-1 19.4%, log loss 6.151
+  (smaller regression), Brier 0.927 (slightly BETTER than baseline's
+  0.932). Threshold 4 never fires in this corpus (0% coverage, identical
+  to baseline) — too small a corpus for 4+ independent casts on any one
+  key yet. Shipped with 3.
+- **Simulator ablation confirms the algorithm itself works**
+  (`scripts/fishingContextualAblation.ts`, N=2000 synthetic casts,
+  matcher-blind, training corpus mined from the same synthetic pattern
+  pool the sim draws true movement from): uniform 7.9% → cell-only 33.8%
+  → contextual 72.5%. Framed per CLAUDE.md's sim-authority rule as "does
+  the algorithm exploit genuine structure when present," not a live
+  Dendren catch-rate estimate — the synthetic patterns are far more
+  deterministic than real Dendren is known to be.
+- **Live-wired**: `scripts/liveFishing.ts`'s per-turn fallback now calls
+  `contextualFallback()` instead of `emptyFallback()` directly, passing the
+  existing `transitionLog` unchanged as the cell-only tier and a newly
+  built `contextMap` (from clean, `isCleanCast`-filtered casts) as the
+  context tier. The real corpus already has 10 context keys meeting the
+  live threshold (checked directly, e.g. `"3,2|1,0"` at 4 casts,
+  `"4,2|1,0"` at 4 casts) — the tier is reachable in live play now, not
+  just in theory.
+- **Shared code, not a third implementation**: `groupByCast`/`Cast`/
+  `TransitionRecord`/`isCleanCast` extracted from `scripts/
+  mineFishPatterns.ts` into `src/sim/fishing/transitionCorpus.ts` (byte-
+  for-byte behavior preserved, re-exported so `mineFishPatterns.ts`'s
+  public API and its existing tests are untouched); `previousDisplacement`
+  shared between `castSim.ts` and `liveFishing.ts`; `distributionFromMultiset`
+  extracted in `matcher.ts` and reused by both `emptyFallback` and the new
+  context tier.
+- **Regression tests, all of brief item 7's asks**: synthetic corpus where
+  previous direction genuinely resolves cell-only ambiguity (50/50 →
+  100/0 depending on arrival direction) vs. one where support never clears
+  threshold (context tier provably never fires, byte-for-byte identical
+  output to `emptyFallback` alone); turn-0 hops skip straight to cell-only;
+  live-wiring smoke tests confirm a CODEXREVIEW #5 duplicate-turn conflict
+  is excluded from context support the same way `testPrimitives` already
+  excludes it. `tests/fishing/contextualFallback.test.ts` (13 tests) +
+  2 new tests in `tests/liveFishing.test.ts`.
+- Tests: **510/510 passing** (+10 from session 32's 500). `npx tsc --noEmit`
+  clean, checked against this session's final commit.
 
 ## What's broken
-Nothing newly broken by this session's changes — 500/500 tests pass (up
-from 488/488 at session 31's end), `npx tsc --noEmit` clean, both verified
-against this session's final commit. Unchanged, pre-existing open items:
-- The scheduler still can't learn about energy gained outside its own
-  tracking, and a single SIGINT during an energy-regen sleep still ends the
-  whole session (unchanged since session 25).
-- The real dungeon cap was already 12/12 for today at the start of this
-  session too (server-confirmed carryover from session 31's own dry-run,
-  not bot-caused) — both this session's `--dry-run` smoke tests guard-
-  tripped cleanly on it, 0 energy spent either time.
+Nothing this session's changes broke — full suite green, tsc clean. One
+unrelated live-environment finding surfaced while smoke-testing (see Open
+questions #1 below), not caused by this session's code. Pre-existing, still
+true: the scheduler can't learn about energy gained outside its own
+tracking, and a SIGINT during an energy-regen sleep still ends the whole
+session (unchanged since session 25).
 
 ## Corrections to SPEC.md
-None this session — no live gameplay data was captured (both real API
-calls this session were the same read-only `--dry-run` smoke-test pattern
-session 31 used, purely to verify the new persistence/bootstrap wiring end
-to end). Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/
-pondId=2. Move charges: unchanged, PRESENT.
+None this session. Resolved IDs unchanged: forbiddenWoods=5, dendren
+nodeId="5"/pondId=2. Move charges: unchanged, PRESENT.
 
 ## Dead ends
-None this session.
+- Scoring top-1 accuracy with "first-observed" or "any-tied-cell-counts"
+  tie-breaking on the offline CV script initially produced cell-only=23.0%
+  or 29.1% — nowhere near Codex's 16.4%, and briefly looked like a
+  methodology mismatch worth stopping over. Root cause found by testing a
+  third tie-break (lowest x, then lowest y, among cells tied for max
+  probability): reproduces Codex's 16.4% exactly (27/165). Codex's own
+  evaluation evidently uses a deterministic positional tie-break, not
+  insertion order — `scripts/fishingContextualCV.ts`'s `top1()` now uses
+  this rule for evaluation only (never for the shipped `predict()`-style
+  distribution, which downstream `chooseCard` consumes whole).
 
 ## Metrics
-No live play this session (no dungeon runs started, no fishing casts sent)
-— pure engineering plus two read-only `--dry-run` smoke tests, consistent
-with the brief's scope. Both dry-run invocations correctly guard-tripped
-before sending anything (real dungeon cap 12/12), 0 energy spent, confirmed
-by console output both times.
-- Tests: 500/500 passing (+12 new since session 31's 488, all in the new
-  `opponentModelPersistence.test.ts`).
-- Bootstrap: 64 clean room-1 exchanges imported from the real fixture
-  corpus on first launch; 0 on the immediately-following second launch
-  (idempotent, live-confirmed).
+- Offline CV (leave-one-cast-out, real corpus, 49 clean casts / 165 hops):
+  cell-only 16.4% top-1 / 100.0% coverage; cell+prevdir 37.1% / 65.5%;
+  hierarchical@3 19.4% / 8.5% coverage, log loss 6.151, Brier 0.927 (vs
+  cell-only baseline's log loss 5.860, Brier 0.932).
+- Simulator ablation (N=2000/config, matcher-blind): uniform 7.9%,
+  cell-only 33.8%, contextual 72.5%.
+- Live: one `--dry-run` (clean, no crash, halted before start_run per
+  normal dry-run behavior) and one real `--casts=1` attempt this session —
+  the real attempt's `start_run` was rejected HTTP 400 by the server before
+  any new code ran; guard fail-closed correctly, 0 energy spent (confirmed
+  237→237 in the energy-accounting log). See Open questions #1.
 
 ## Open questions for Claude
-1. Same as session 30/31's open question 2 (unchanged): which CODEXREVIEW/
-   CODEXIMPROVE items are worth queuing next? CODEXIMPROVE #1 is now DONE.
-   Remaining: CODEXIMPROVE #3 (previous-direction contextual fishing
-   fallback, needs its own cross-validation pass), #4/#5 (dungeon
-   charge-reserve tie-breaking, boon valuation), #9/#10 from the older
-   doc-cleanup list (lower priority — #10 was already resolved
-   "not applicable" in session 31).
-2. The bootstrap only ever found clean exchanges at room 1 (enemy "Enemy
-   Room 63") in the real corpus — all 64 imported observations landed in a
-   single `(enemyId, room)` key. This isn't a bug (rooms 2+ mostly carry
-   unmodelled mechanics per the corpus's history, so `reasons.length === 0`
-   correctly excludes most of them), but it means the model's live-usable
-   advantage from bootstrapping is currently concentrated entirely at room
-   1, where the model was already well-observed within a single long
-   session anyway (session 25's 2-hour run alone generated comparable
-   volume). The deeper-room, sparser-evidence case CODEXIMPROVE #1's
-   rationale specifically named ("every restart throws away exactly the
-   evidence that matters most in deeper, sparser rooms") won't visibly pay
-   off until the corpus has more clean exchanges at rooms 2+, which is a
-   capture question, not a code question — worth noting in the next brief
-   rather than assuming the mechanism's value is fully realized yet.
-3. Operator note, not a Claude(chat) planning question: this session's two
-   `--dry-run` smoke tests each created an empty, untracked
-   `fixtures/dungeon-runs/run-2026-08-18-*/` directory (no files inside —
-   dry-run halts before any real capture) — harmless, git doesn't track
-   empty directories, nothing to clean up, just noted for completeness
-   since session 31 flagged a similar (unrelated, more consequential)
-   cleanup mistake and this recap's discipline is to over-report rather
-   than under-report incidental filesystem side effects.
+1. **Live smoke test surfaced an unrelated finding, not a regression**:
+   `start_run` rejected HTTP 400 on this session's one real live attempt.
+   Read-only follow-up found the account carrying `docId 12957129`,
+   `COMPLETE_CID: true`, `SUCCESS_CID: false` (an ESCAPE, not a catch —
+   `fishHp`/`fishMaxHp` both at max) with no `cardsToAdd` and
+   `cardChosenId: -1` (not the previously-documented `null`). Every prior
+   "stuck account" finding (DECISIONS 2026-08-16 session 15, QUESTIONS §10)
+   was CATCH-specific (`loot` resolves a pending card choice). This looks
+   like it could be a different, previously-undocumented mechanic — an
+   escape ALSO leaving the account needing something before a fresh
+   `start_run`, or it could be unrelated stale state from earlier
+   out-of-band play. Logged to QUESTIONS.md §15 rather than guessed at
+   further (no confirmed action shape exists for resolving an escape).
+   Worth a DevTools capture of what the real client does after an escape,
+   if the user hits this in normal play.
+2. Same running question as sessions 30/31/32's open question 2: what's
+   worth queuing next? CODEXIMPROVE #3 is now DONE. Remaining from both
+   Codex docs: #4 (dungeon charge-reserve continuation value), #5 (boon
+   valuation with real confirmed deltas + persisted `playCounts`) — both
+   already scoped in `handoff/next.md`'s "Queued, not this session"
+   section from this session's own brief.
+3. The context tier's live-usable value is still corpus-size-limited: only
+   10 of 69 distinct context keys in the real corpus currently clear the
+   `minIndependentCasts=3` bar. This will grow automatically as
+   `data/fish-patterns.jsonl` accumulates more real casts (no code change
+   needed) — worth re-running `scripts/fishingContextualCV.ts` periodically
+   to see if the threshold itself should move, same as
+   `mineFishPatterns.ts`'s `PROMOTION_THRESHOLD` reasoning.
 
 ## Files changed
 ```
- CLAUDE.md                                    | 14 ++++++++
- scripts/liveRun.ts                           | 40 +++++++++++++++++++++-
- scripts/orchestrator.ts                      | 21 +++++++++--
- src/orchestrator/opponentModelPersistence.ts | (new, 216 lines)
- src/strategy/opponentModel.ts                |  3 +-
- tests/orchestrator/opponentModelPersistence.test.ts | (new, 176 lines)
- 6 files changed, 464 insertions(+), 4 deletions(-)
+ QUESTIONS.md                                  |  47 ++++++
+ handoff/reports/dungeon-runs.md               |   2 +-
+ handoff/reports/fishing-casts.md              |   2 +-
+ scripts/fishingContextualAblation.ts          | (new, 97 lines)
+ scripts/fishingContextualCV.ts                | (new, 251 lines)
+ scripts/liveFishing.ts                        |  51 ++++++-
+ scripts/mineFishPatterns.ts                   |  74 +---------
+ src/sim/fishing/castSim.ts                    |  40 +++++-
+ src/sim/fishing/transitionCorpus.ts           | (new, 119 lines)
+ src/strategy/fishing/contextualFallback.ts    | (new, 184 lines)
+ src/strategy/fishing/matcher.ts               |  42 ++++--
+ tests/fishing/contextualFallback.test.ts      | (new, 147 lines)
+ tests/liveFishing.test.ts                     | 168 ++++++++++++++++++-
+ 13 files changed, 1134 insertions(+), 90 deletions(-)
 ```
 (handoff/next.md, this session's own brief, is excluded — consumed as
 input, not a work product of this session.)
