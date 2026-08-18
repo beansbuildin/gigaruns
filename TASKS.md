@@ -1012,6 +1012,22 @@ alone is sufficient — infrastructure without validation data just produces
 a confident-looking number with the same unearned confidence Task 11
 already found and rejected once.
 
+**First real candidate, sourced not invented — added 2026-08-17, session
+27.** The session-27 brief reports the user's own manual-play heuristic for
+this exact decision: pick the offered card with the most hit/catch spots
+(grid coverage), not raw hit-power/mana. This is a concrete, user-sourced
+alternative to `chooseNewCard`'s current argmax-hit-power/mana placeholder
+— when this task unparks, it should be the FIRST thing tested against the
+deck-aware `simulateCast` infrastructure (session 26), rather than an
+invented hypothetical. Scoped only, not built: a grid-coverage scorer would
+need `zonesToCells(focus, card.hitZones ∪ card.critZones, gridSize)` sized
+against the grid (already available via `geometry.ts`), likely compared per-
+mana the same way the current heuristic is, but this is a sketch, not a
+spec — write the real version against actual deck data once the task
+unparks, not now. Does not change the gate above or either unparking
+condition — the data floor is the same regardless of which candidate scores
+against it.
+
 ---
 
 ### 14 — Bot-initiated juiced `start_run`, with per-mode potion equip ← scoped 2026-08-17, session 23; BLOCKED

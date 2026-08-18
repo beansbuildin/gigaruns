@@ -1,111 +1,142 @@
-# STATE — session 26 — 2026-08-17 — commit 928c870
+# STATE — session 27 — 2026-08-17/18 — commit (pending, see below)
 
 ## Status
-No TASKS.md gate was targeted this session — session 25's brief asked for an
-investigation (fishing's `nextPosition`/`nextMovePath` field) ahead of Task
-13, plus Task 13's own non-gated infrastructure piece. Both done; **Task 10
-stays the last GATE PASS** (session 25, unchanged).
-Investigation outcome: **the field is real but does NOT hold up as the
-"bigger lever than `mineFishPatterns.ts`" session 25 hoped for.** Checked
-against all 30 committed live fishing-cast fixtures (225 turns), zero new
-live casts spent. The field appears on only 8/225 turns across 2/30 casts —
-neither terminal-only (the original catch-resolution guess) nor every-turn
-(the hopeful look-ahead reading). One checkable prediction matched exactly;
-n=1 doesn't establish a mechanic. No candidate trigger field explains the
-2/30 rate. Full derivation: QUESTIONS.md §12, DECISIONS.md 2026-08-17
-(session 26).
-Next per TASKS.md: **Task 13's scoring logic** (deck-composition
-`chooseNewCard` replacement) is the next unblocked task — its
-infrastructure prerequisite (deck-aware `simulateCast`) is now built, but
-the task's own gate still needs more real card-choice data than exists
-today (1 live choice on record) before a sim-vs-live comparison means
-anything; see TASKS.md Task 13 for the full validation-floor reasoning,
-unchanged this session. Task 14 (bot-initiated juiced `start_run`) stays
-BLOCKED on a live DevTools capture. Task 11's dungeon half stays PARKED.
-Overall: this was a narrowing/infrastructure session, not a gate session —
-no regression, no new capability shipped to live play, one real finding
-that closes off a hoped-for shortcut and one small reusable building block
-for whenever Task 13 actually unparks.
+No TASKS.md gate was targeted this session — the session-27 brief asked for
+four investigations (focus-point mechanic, Fintuition/`nextPosition`,
+Task 13 heuristic sourcing, Dual Yield) ahead of any code work. **Task 10
+stays the last GATE PASS** (session 25, unchanged). All four investigations
+are done, fully checked against the fixture corpus and, where useful, a
+live server response — not just re-reading session 26's notes.
+**Two of the brief's own framings did not survive the check**: the
+Fintuition/`nextPosition` "confirmed mechanic" claim is REJECTED (see
+Corrections below — the brief's own arithmetic was wrong, and the one
+candidate trigger field is constant across the entire 225-turn corpus, so
+it can neither confirm nor deny anything). The "is the focus point a
+no-op" concern is answered directly: **no**, it's genuinely working, and
+that's not why catch rate is low — the real explanation is prediction
+quality (matcher starts blind every cast), already understood since
+session 14, just under-emphasized in a later DECISIONS entry that quoted
+the wrong sim baseline.
+No live fishing casts completed this session — see What's broken.
+Next per TASKS.md: unchanged from session 26. Task 13's scoring logic
+still needs a real data floor (now has a real first candidate to test,
+sourced from the user — see Corrections). Task 14 stays BLOCKED. Task 11's
+dungeon half stays PARKED.
 
 ## What works
 - Everything from session 25 (Task 10 orchestrator gate) is unchanged —
-  not re-verified live this session, no reason to expect regression (no
-  code touched that path).
-- `src/sim/fishing/castSim.ts`'s `simulateCast` now accepts an optional
-  `deckIds` (real card ids resolved against `loadDendrenDeck()`'s catalog)
-  instead of always drawing a fresh random sample of the whole catalog —
-  verified by 4 new tests (deterministic-given-fixed-deck, throws on an
-  unknown id, actually changes what's drawable). Nothing calls it with a
-  real deck yet — infrastructure only, `chooseNewCard`'s scoring logic is
-  untouched.
-- `scripts/liveFishing.ts`'s unknown-doc-field detector now fires on EVERY
-  `play_cards` turn, not just the cast's terminal doc — verified by
-  existing `unknownDocKeys` unit tests (function itself unchanged) plus a
-  full-suite pass; no live cast run this session to confirm the widened
-  call site end-to-end (next live fishing session will).
-- Full test suite + typecheck, re-run against the final commit:
-  **408/408, `tsc --noEmit` clean.**
+  not re-verified live this session, no code touched that path.
+- **Focus-point repositioning is CONFIRMED genuinely active in live
+  play**, both in code (`bestFocusForCard` searches every cell
+  `reachableCells()` allows under the live `focusBudget` and argmax raw EV
+  against the predicted distribution — not a stub) and in data (`focusPoint`
+  changes value within-cast in 29/30 committed live-cast fixtures, meter
+  decrementing in lockstep). This was the brief's top-priority question;
+  answer is a clean "yes, working as designed."
+- `mineFishPatterns.ts` (Task 11 infra) still functions correctly against
+  the growing real transition log — re-run this session: 169 transitions /
+  50 real casts (up from 102/30 at session 18), now **2 patterns promoted**
+  (`perimeterWalk(cw)` support=4, `perimeterWalk(ccw)` support=3, both ≥
+  the 3-cast threshold), up from 1 at session 18. `data/minedFishPatterns.json`
+  regenerated with both.
 
 ## What's broken
-- Nothing broken by this session's changes.
-- Unchanged from session 25, not touched this session: the scheduler still
-  cannot learn about energy gained outside its own tracking, and a single
-  SIGINT during an energy-regen sleep still ends the whole session (not
-  just that wait) — `shutdown.ts`'s known gap, still just a documented
-  workaround (full restart), not fixed.
+- **No live fishing casts completed this session.** The local guard budget
+  (`data/guard-budget-fishing.json`) correctly rolled to a fresh 0/20 at
+  UTC midnight, but the REAL server rejected the very first `start_run`
+  attempt (2026-08-18 03:33 UTC) with `"Player has reached max runs for
+  fishing"` — the real daily reset boundary is NOT UTC midnight (or is a
+  rolling window). Fail-closed worked correctly (guard tripped cleanly, 0
+  energy spent, confirmed by the accounting print). Corroborated read-only
+  on the dungeon side too: `GET /game/dungeon/today` still shows 12/12
+  (session 25's exhausted value) at the same 03:33 UTC timestamp,
+  `updatedAt` 21:17 UTC the day before — same mismatch, same direction,
+  both modes. See QUESTIONS.md §13 — needs the user to say what the real
+  boundary actually is.
+- Unchanged from session 25/26, not touched this session: the scheduler
+  still cannot learn about energy gained outside its own tracking, and a
+  single SIGINT during an energy-regen sleep still ends the whole session.
 
 ## Corrections to SPEC.md
-- None this session — `nextPosition`/`nextMovePath` were never documented
-  in SPEC.md or SPEC-fishing.md in the first place, so there was no claim
-  to contradict; the finding lives in QUESTIONS.md/DECISIONS.md until (if
-  ever) it's confirmed enough to promote into the spec proper.
+- None to SPEC.md/SPEC-fishing.md this session (findings live in
+  QUESTIONS.md/DECISIONS.md, same as session 26, until confirmed enough to
+  promote).
+- **Correction to the session-27 BRIEF, not the spec**: its claim that
+  8/225 turns (3.56%) of `nextPosition` sightings "matches" a stated 3%
+  Fintuition proc rate is WRONG on its own terms — 8/225 counts turns
+  where the key merely persists as `null` after one real firing; the real
+  firing count is **2/225 (0.89%)**, which undershoots 3%, not matches it.
+  Separately, `activeFintuitionTurns`/`fintuitionOilBoostPercent` — the
+  only candidate trigger fields this project has — are constant `0`/`null`
+  across ALL 225 turns of the corpus, not just at the 2 sightings, so they
+  cannot discriminate the hypothesis either way. Fintuition-as-cause is
+  **not confirmed**; status is unchanged from session 26 in substance
+  (real, rare, cause unknown), just more precisely quantified. Full
+  derivation: QUESTIONS.md §12, DECISIONS.md 2026-08-17 (session 27).
+- **Correction to a prior DECISIONS.md entry, not SPEC**: the "~70% sim
+  catch-rate baseline" restated in the 2026-08-17 (session 21) entry is the
+  MATCHER-OMNISCIENT ceiling (matcher can always identify the true
+  pattern), not a live-comparable number — this distinction already existed
+  in the 2026-08-15 (session 14) entry but got lost in restatement. The
+  correct live-comparable baseline is the MATCHER-BLIND figure, re-run this
+  session at **6.6%** (500 sim casts, `matcherPool: []`) or **20.8%** with
+  the current 2-pattern mined library seeded. Real observed catch rate
+  across the 30 committed live fixtures is **4/30 (~13.3%)** — consistent
+  with this regime, not anomalously low. See DECISIONS.md 2026-08-17
+  (session 27) for the full writeup.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- None new this session. The investigation's own negative-shaped result
-  (the field is too rare to be a standing per-turn signal) is a finding,
-  not a dead end in the "tried an approach and abandoned it" sense — no
-  code was built and reverted; the widened detector that came out of it is
-  kept and useful regardless of how rare the field turns out to be.
+- Planned a 10-cast live fishing batch to grow Task 13's data floor and
+  pattern-mining support, since fresh local budget appeared available and
+  CLAUDE.md pre-authorizes autonomous fishing play — stopped after the
+  first attempt when the REAL server (not the local guard) rejected it.
+  Not a wasted attempt in the useful sense: it's what surfaced the real
+  daily-reset-boundary mismatch (see What's broken / QUESTIONS.md §13),
+  which is a real finding, but zero new cast data resulted.
 
 ## Metrics
-- No new live dungeon runs or fishing casts this session (0 network calls
-  made — everything came from replaying already-committed fixtures).
-  Real daily caps are whatever they were left at by session 25 (both
-  exhausted at that session's end: 12/12 dungeon, 20/20 fishing).
-- Fixture-corpus audit only: 30 live fishing casts / 225 turns inspected,
-  8 turns with the `nextPosition` key present, 2 with a non-null value, 1
-  checkable prediction (correct).
-- Tests: 408/408 at final commit (+4 from session start's 404: the new
-  `deckIds` describe block). `npx tsc --noEmit` clean throughout.
+- No new live casts completed (1 `start_run` attempted, rejected by the
+  real server before any energy was spent — guard-tracked spend stayed at
+  0/240 for fishing today).
+- Fixture-corpus audit only for the four investigations: 30 committed live
+  casts / 225 turns re-examined field-by-field (not just re-reading past
+  summaries); `mineFishPatterns.ts` re-run against the full 50-cast local
+  transition log (169 transitions, gitignored `data/fish-patterns.jsonl` —
+  ahead of the 30 committed fixture dirs, as expected since that log
+  persists across sessions independent of what gets committed).
+- Real catch rate from the 30 committed fixtures: 4 caught / 30 (~13.3%).
+- Tests: 408/408 unchanged (no code touched this session — investigation
+  and documentation only). `npx tsc --noEmit` clean.
 
 ## Open questions for Claude
-1. Task 13's scoring logic still needs "enough real catches that the '1
-   live choice' validation floor becomes double digits" (its own gate,
-   TASKS.md) before a sim-vs-live comparison would mean anything — the
-   deck-aware `simulateCast` infrastructure built this session removes one
-   of the two prerequisites the session-22 scoping named, but the data
-   floor is unchanged. Is it worth a session spent purely accumulating
-   live fishing casts (no code) to grow that number, or should Task 13
-   keep waiting on volume that accrues naturally from ordinary play?
-2. The widened per-turn unknown-field detector (this session) has never
-   fired live yet — it's only been verified against replayed fixtures. Is
-   there a preference for how the next live fishing session should treat
-   a NEW `nextPosition` sighting: just log it and keep playing normally
-   (current behavior), or pause/flag it more loudly given how rare it is?
-3. Unchanged from session 25: should `shutdown.ts` grow a way to skip the
-   current energy-regen sleep without ending the whole session, or does a
-   full restart (already documented as safe) stay the accepted answer?
+1. QUESTIONS.md §13 (new): what is fishing's real daily-reset boundary,
+   given it's confirmed NOT UTC midnight (still capped 6+ hours past UTC
+   midnight, both fishing and dungeon)? Worth asking the user directly —
+   they may simply know their local timezone's midnight, or another fixed
+   reference. Until answered, a future session should read-check (or just
+   accept the risk of one wasted `start_run` attempt) before assuming a
+   fresh UTC day means fresh live budget.
+2. Task 13 now has a real, user-sourced first candidate (grid-coverage
+   scoring, TASKS.md Task 13's new note) instead of an invented
+   alternative — but the task's OWN data-floor gate (needs double-digit
+   real card choices, currently has 1) is unchanged and this session made
+   zero progress toward it (no live casts completed). Still open: is it
+   worth a session spent purely accumulating live fishing casts once the
+   real reset boundary is known, or keep waiting on volume from ordinary
+   play?
+3. Unchanged from session 25/26: should `shutdown.ts` grow a way to skip
+   the current energy-regen sleep without ending the whole session?
 
 ## Files changed
 ```
-$ git diff --stat 1a50a9f..HEAD
-QUESTIONS.md                  | 119 ++++++++++++++++++++++--------------------
-handoff/DECISIONS.md          |   1 +
-scripts/liveFishing.ts        |  22 +++++---
-src/sim/fishing/castSim.ts    |  29 +++++++++-
-tests/fishing/castSim.test.ts |  40 ++++++++++++++
-5 files changed, 145 insertions(+), 67 deletions(-)
+$ git diff --stat aee2992..HEAD
+QUESTIONS.md          | 93 +++++++++++++++++++++++++++++++++++++++++++++++-
+TASKS.md              | 16 ++++++++
+handoff/DECISIONS.md  |  5 +++
+3 files changed, 113 insertions(+), 1 deletion(-)
 ```
-No new fixture directories — this session made zero live API calls.
+No fixture or code changes — documentation/investigation only. Two empty
+fixture directories created by the failed live-cast attempt (no state
+files, git doesn't track empty dirs) were deleted before commit.

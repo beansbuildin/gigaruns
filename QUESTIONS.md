@@ -605,7 +605,7 @@ playing it down), not something to decide unilaterally. Still no automation
 without explicit go-ahead — this update only changes the SIZE of the
 lever, not the standing instruction to ask before building it.
 
-## 12. Fishing `data.nextPosition`/`data.nextMovePath` — NARROWED [session 26]: real, but RARE (~2/30 casts), not the standing per-turn signal it looked like
+## 12. Fishing `data.nextPosition`/`data.nextMovePath` — NARROWED [session 26]: real, but RARE (~2/30 casts), not the standing per-turn signal it looked like; Fintuition hypothesis CHECKED AND NOT CONFIRMED [session 27]
 
 Three fishing casts during Task 10's real 2-hour orchestrator gate run
 tripped `liveFishing.ts`'s existing unknown-terminal-field detector on a
@@ -669,3 +669,94 @@ or `-terminal-*.json`) instead of requiring a fixture-corpus audit to
 notice. No strategy change made — purely a visibility widening, since the
 underlying data was already captured every turn via `fixtures.write()`
 regardless.
+
+---
+
+**Session 27 update: checked directly against the named candidate
+(Fintuition) — NOT CONFIRMED, and the field this project would need to
+confirm it can't do the job.**
+
+The session-27 brief arrived with new user-supplied context: the account has
+a **Fintuition** skill (level 2, stated 3% per-turn chance to reveal the
+fish's next move) and reasoned that 8/225 turns (3.56%) is "a match, not
+noise" for a 3% proc. Checked directly against the raw fixture JSON before
+accepting this, per CLAUDE.md §9 (a brief's claims about the corpus are
+hypotheses to verify, not facts to implement) — **two problems, both found
+by reading the raw responses, not by re-running session 26's analysis:**
+
+1. **The denominator is wrong.** 8/225 counts turns where the `nextPosition`
+   *key* is present, but the key stays present (as `null`) for the rest of a
+   cast once it has appeared once — session 26's own writeup already says
+   this ("real value once, then `null` for the rest of that cast"), the
+   session-27 brief just didn't carry that distinction through its own
+   percentage. The real count of **firings** (non-null value) is **2**, not
+   8. 2/225 = 0.89%, not 3.56% — well below the stated 3% rate, not a match
+   to it.
+
+2. **The one candidate field this project already has for this — checked
+   and found genuinely uninformative, not merely "0 at both occurrences" as
+   session 26's phrasing implied.** Read `activeFintuitionTurns` off every
+   turn of every fixture (`fixtures/fishing-casts/live/**/state-*.json`,
+   225 turns): its value is **`0` or `null` in literally every single turn
+   of the entire corpus**, including the 2 turns where `nextPosition` fired
+   AND every turn where it didn't. A field that never varies can't confirm
+   or refute anything it's compared against — session 26's "ruled out as
+   the gate" reads as a real test having been run; it wasn't, because there
+   was no variation to test against in the first place. (`fintuitionOilBoostPercent`
+   is similarly constant at `0` throughout — no oil has ever been equipped
+   in this corpus, consistent with DECISIONS.md 2026-08-16 session 15.)
+
+**Consequence:** Fintuition is a real, user-confirmed mechanic that
+*probably* exists server-side, but this project has no field that has ever
+been observed to move when it (hypothetically) fires, and the correct
+observed rate (2/225 real firings, not 8/225) undershoots the stated 3%
+rather than matching it. The brief's "re-opened, confirmed mechanic" framing
+does NOT hold up against the corpus — this stays exactly where session 26
+left it: real, rare (now more precisely ~0.9–1% of turns, not ~3.6%), cause
+unconfirmed. Not implementing any Fintuition-reactive strategy code off this
+— per CLAUDE.md §9, the brief's claim doesn't get implemented as stated,
+and this correction is what goes in the recap instead.
+
+**What would actually settle it**: a live capture where `nextPosition`
+fires and `activeFintuitionTurns` (or literally any other field this
+project reads) is simultaneously non-zero/non-default — that has never
+happened once in 30 casts. Absent that, the honest position is "an unnamed
+mechanism reveals the fish's next move on ~1% of turns, cause unknown" —
+Fintuition is a plausible name for it, not a confirmed one.
+
+---
+
+## 13. Fishing's real daily-cap reset boundary is NOT UTC midnight [session 27]
+
+Session 27 found fresh local guard budget (`data/guard-budget-fishing.json`
+rolled to 0/20 at UTC midnight, confirmed via `--status`) but the REAL
+server rejected the very first `start_run` attempt of the day (03:33 UTC)
+with `"Player has reached max runs for fishing"` — the account's real cast
+allowance had NOT reset yet, hours after the local UTC-date guard already
+considered it a new day. See DECISIONS.md 2026-08-18 (session 27) for the
+full detail; `liveRun.ts`'s dungeon side has an analogous known gap
+(session 23's run-count drift, fixed via `GET /game/dungeon/today`'s real
+counter) but fishing has no equivalent "real remaining casts today" read —
+only the write path (`start_run`) currently reveals the real state, and
+only by rejecting.
+
+**Needs a human**: what IS the real fishing reset boundary — a fixed
+non-UTC timezone (e.g. reset at local midnight somewhere), a rolling 24h
+window from the last cast of the previous day, or something else? Knowing
+this would let a future session avoid burning a wasted `start_run` attempt
+just to discover the cap hasn't lifted yet, the same way the dungeon side
+already can via its `today` endpoint. Not blocking — the current fail-closed
+behavior (guard trips cleanly, 0 energy wasted) is safe either way — but
+worth asking the user or capturing whenever the account happens to be right
+at that boundary.
+
+**Corroborated read-only on the dungeon side the same session**: `GET
+/game/dungeon/today`'s real `dayProgressEntities` counter for Forbidden
+Woods (dungeon 5) still reads **12** (its session-25 exhausted value) at
+03:33 UTC on 2026-08-18, `updatedAt: 2026-08-17T21:17:26.409Z` — six-plus
+hours past UTC midnight and the real cap has not lifted either. Same
+mismatch, same direction, on both game modes — strengthens "not a UTC
+boundary" over "fishing-specific oddity." No write attempted on the dungeon
+side (this was a GET-only check); dungeon's local guard also reads fresh
+0/12 for the new UTC day, so the same live-vs-local mismatch applies there
+too, not just to fishing.
