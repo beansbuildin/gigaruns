@@ -853,3 +853,50 @@ and does NOT affect this session's actual code changes or their test
 coverage — it only affects the live-runtime `data/minedFishPatterns.json`
 that `liveFishing.ts` reads to seed its matcher, so it's worth resolving
 before trusting that file's current promoted-pattern list.
+
+---
+
+## 15. A live `start_run` HTTP 400, and an ESCAPED (not caught) cast leaving `COMPLETE_CID: true` on the account [session 33]
+
+While live-verifying this session's new contextual-fallback wiring
+(CODEXIMPROVE #3), `npx tsx scripts/liveFishing.ts --casts=1` rejected
+`start_run` with HTTP 400 — before any of this session's new code ever ran
+(the request body was the standard, unchanged `start_run` envelope; see
+`logs/fishing-2026-08-18-10-12-52.jsonl`'s `action_failed` entry). Guard
+correctly fail-closed, 0 energy spent, no crash.
+
+Read-only follow-up (`scripts/checkFishingStuck.ts`) found the account
+carrying a completed-but-unresolved doc: `docId 12957129`,
+`COMPLETE_CID: true`, **`SUCCESS_CID: false`** (an ESCAPE, not a catch —
+`fishHp`/`fishMaxHp` both at 17, matching the confirmed catch-meter
+direction: a miss pushes `fishHp` toward `fishMaxHp`, and `FISH_ESCAPED`
+fires there). This is a DIFFERENT shape from every previously-documented
+stuck case: DECISIONS 2026-08-16 (session 15) and QUESTIONS §10 both
+describe the stuck mechanic as CATCH-specific — a real `cardsToAdd` triple
+sits unresolved until `loot` picks one, and `runOneCast`'s existing
+pre-start check (`scripts/liveFishing.ts` around the `existing.gameState &&
+existing.gameState.COMPLETE_CID` branch) was written against that case. This
+doc has no `cardsToAdd` at all (`undefined`) and `cardChosenId: -1` — not
+the previously-documented `null` sentinel, and nothing to `loot` against.
+
+I don't know whether this HTTP 400 and this stuck doc are actually related
+(I have no earlier successful live cast this session to compare against —
+the 12957129 doc could predate this session entirely, left over from
+whenever it was actually played), and I did not attempt to resolve it
+further: sending `loot` here would be guessing at an action shape this
+project has never confirmed for an escape (only for a catch with real
+`cardsToAdd` ids), and CLAUDE.md's stuck protocol is to log and stop, not
+guess. `--dry-run` still works cleanly (it never reaches `start_run`), so
+this doesn't block anything except an actual new live cast today.
+
+**Needs a human**: does an ESCAPED cast ever leave the account similarly
+"stuck" needing something to acknowledge it before a new `start_run` is
+accepted (a genuinely new mechanic if so — worth a DevTools capture of what
+the real client sends after an escape, same as how `reward_one`/`path_two`/
+`loot` were each originally confirmed), or is `docId 12957129` simply stale
+from earlier out-of-band play and the HTTP 400 was something unrelated
+(rate limiting, a stale action token, a transient server error)? Either
+way, this session's actual deliverable (the contextual fallback module,
+tests, offline CV, and simulator ablation) is unaffected — this is purely a
+live-environment finding surfaced while trying to smoke-test the new
+wiring end to end.

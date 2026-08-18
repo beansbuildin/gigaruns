@@ -40,12 +40,29 @@
  * The matcher's candidate pool starts **EMPTY every cast**, deliberately —
  * `src/sim/fishing/patterns.ts`'s library is a synthetic stand-in built for
  * Task 8's gate, explicitly NOT a claim about real Dendren (SPEC.md §5).
- * Every turn therefore runs through `emptyFallback`, seeded from whatever
- * `data/fish-patterns.jsonl` has accumulated so far (empty on this
+ * Every turn therefore runs through the fallback hierarchy, seeded from
+ * whatever `data/fish-patterns.jsonl` has accumulated so far (empty on this
  * project's first-ever live cast) — SPEC.md §5's "the bot gets sharper the
  * longer it runs" starts genuinely from zero here, not from borrowed
  * synthetic structure. Task 11's `mineFishPatterns.ts` is what eventually
  * promotes real recurring cycles out of this log into named candidates.
+ *
+ * **[session 33, CODEXIMPROVE #3] The fallback is now conditioned on the
+ * fish's PREVIOUS movement displacement, not just its current cell.**
+ * `contextualFallback()` tries `${cell}|${prevDx},${prevDy}` first (gated on
+ * `DEFAULT_MIN_INDEPENDENT_CASTS` distinct real casts supporting that exact
+ * key — never just raw transition count, which one short repeating cast
+ * could fake), falls back to the existing cell-only `emptyFallback` when
+ * there's no previous displacement yet (a cast's first hop) or the context
+ * tier lacks support, and from there to uniform as before. Shipped only
+ * after `scripts/fishingContextualCV.ts`'s leave-one-cast-out held-out
+ * evaluation reproduced Codex's core finding on the real corpus (previous
+ * direction roughly doubling top-1 accuracy over cell-only) and `scripts/
+ * fishingContextualAblation.ts`'s simulator ablation confirmed the
+ * hierarchical backoff correctly exploits genuine previous-direction
+ * structure when present — see both scripts' headers for the actual
+ * numbers and the CLAUDE.md §9 caveats on what a simulator result is and
+ * isn't evidence of.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -61,12 +78,18 @@ import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orch
 import { regenerateRunReports } from "./regenerateReports.js";
 import { chooseCard, chooseNewCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
 import {
-  emptyFallback,
   initMatcher,
   observe,
   predictDistribution,
   type MatcherState,
 } from "../src/strategy/fishing/matcher.js";
+import {
+  buildContextualMap,
+  contextualFallback,
+  previousDisplacement,
+  DEFAULT_MIN_INDEPENDENT_CASTS,
+} from "../src/strategy/fishing/contextualFallback.js";
+import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { cellKey, cellsEqual, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
@@ -695,6 +718,19 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   }
   let matcher: MatcherState = initMatcher(matcherCandidates, startCell);
   const transitionLog = loadTransitionLog(transitionsPath);
+  // [session 33, CODEXIMPROVE #3] The context tier reads the SAME log file
+  // but grouped by cast and filtered to `isCleanCast` (CODEXREVIEW #5's
+  // resumed-numbering/gap exclusion, same discipline `mineFishPatterns.ts`
+  // already applies before exact-match testing) — a corrupted cast must not
+  // poison the (cell, previous-displacement) evidence. `transitionLog` above
+  // is passed through UNCHANGED as the tier-2 cell-only fallback, so nothing
+  // about the existing fallback's behavior when the context tier misses is
+  // touched by this addition.
+  const contextCasts = groupByCast(loadTransitionRecords(transitionsPath)).filter(isCleanCast);
+  const contextMap = buildContextualMap(contextCasts);
+  if (contextMap.size > 0) {
+    console.log(`  · contextual fallback: ${contextMap.size} (cell, previous-direction) key(s) from ${contextCasts.length} clean logged cast(s)`);
+  }
 
   // [session 29, CODEXREVIEW #5] Resume-numbering fix: derive the next turn
   // to log from whatever this castId already has on disk, instead of always
@@ -749,7 +785,14 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       ? certainDistribution(pendingPrediction!.cell)
       : matcher.candidates.length > 0
         ? predictDistribution(matcher)
-        : emptyFallback(matcher.history[matcher.history.length - 1]!, transitionLog, gridSize);
+        : contextualFallback(
+            matcher.history[matcher.history.length - 1]!,
+            previousDisplacement(matcher.history),
+            contextMap,
+            transitionLog,
+            gridSize,
+            { minIndependentCasts: DEFAULT_MIN_INDEPENDENT_CASTS },
+          );
 
     const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, focusBudget(doc));
     if (best && shouldRedraw(best, hand.length, mana, REDRAW_THRESHOLD)) {

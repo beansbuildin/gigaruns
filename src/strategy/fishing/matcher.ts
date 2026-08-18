@@ -69,6 +69,33 @@ export function isConverged(state: MatcherState): boolean {
 }
 
 /**
+ * Turns a multiset of observed cells into a `cell -> p` distribution (counts
+ * / total). Shared by `emptyFallback` below and
+ * `src/strategy/fishing/contextualFallback.ts` [session 33, CODEXIMPROVE #3]
+ * — both tiers of the fallback hierarchy build a distribution the same way,
+ * only the multiset they're built from differs.
+ */
+export function distributionFromMultiset(cells: readonly Cell[]): Map<string, { cell: Cell; p: number }> {
+  const out = new Map<string, { cell: Cell; p: number }>();
+  if (cells.length === 0) return out;
+  for (const cell of cells) {
+    const key = cellKey(cell);
+    const existing = out.get(key);
+    out.set(key, { cell, p: (existing?.p ?? 0) + 1 / cells.length });
+  }
+  return out;
+}
+
+/** Uniform distribution over every cell of a `gridSize x gridSize` board. */
+export function uniformDistribution(gridSize: number): Map<string, { cell: Cell; p: number }> {
+  const out = new Map<string, { cell: Cell; p: number }>();
+  const cells: Cell[] = [];
+  for (let x = 1; x <= gridSize; x++) for (let y = 1; y <= gridSize; y++) cells.push({ x, y });
+  for (const cell of cells) out.set(cellKey(cell), { cell, p: 1 / cells.length });
+  return out;
+}
+
+/**
  * `H` hit zero: the library is incomplete for this cast (SPEC.md §5). Fall
  * back to the empirical distribution over every logged transition FROM the
  * given cell, across all casts ever recorded — not just this one. `log`
@@ -82,17 +109,6 @@ export function emptyFallback(
   gridSize: number,
 ): Map<string, { cell: Cell; p: number }> {
   const observed = log.get(cellKey(fromCell));
-  const out = new Map<string, { cell: Cell; p: number }>();
-  if (observed && observed.length > 0) {
-    for (const cell of observed) {
-      const key = cellKey(cell);
-      const existing = out.get(key);
-      out.set(key, { cell, p: (existing?.p ?? 0) + 1 / observed.length });
-    }
-    return out;
-  }
-  const cells: Cell[] = [];
-  for (let x = 1; x <= gridSize; x++) for (let y = 1; y <= gridSize; y++) cells.push({ x, y });
-  for (const cell of cells) out.set(cellKey(cell), { cell, p: 1 / cells.length });
-  return out;
+  if (observed && observed.length > 0) return distributionFromMultiset(observed);
+  return uniformDistribution(gridSize);
 }

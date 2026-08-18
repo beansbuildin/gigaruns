@@ -20,6 +20,12 @@ import {
   predictDistribution,
   type MatcherState,
 } from "../../strategy/fishing/matcher.js";
+import {
+  contextualFallback,
+  previousDisplacement,
+  DEFAULT_MIN_INDEPENDENT_CASTS,
+  type ContextStats,
+} from "../../strategy/fishing/contextualFallback.js";
 import type { Cell } from "./geometry.js";
 import { cellKey, manhattan, reachableCells, zonesToCells } from "./geometry.js";
 import { loadDendrenDeck } from "./deck.js";
@@ -175,6 +181,29 @@ export interface CastOptions {
    * session.
    */
   deckIds?: readonly number[];
+  /**
+   * **[ADDED session 33, CODEXIMPROVE #3]** When the matcher is blind
+   * (`matcherPool: []`, the condition session 14 established as
+   * representative of real live Dendren play — STATE.md session 13: the
+   * matcher has never once identified the real pattern), this sim has
+   * always fallen back to UNIFORM regardless of any real transition data
+   * (`emptyFallback(..., new Map(), gridSize)`, hardcoded) — deliberately,
+   * per session 14's framing that the sim's synthetic ground truth and any
+   * real corpus are different domains that shouldn't be conflated. This
+   * option is opt-in and additive: omitted, behavior is byte-for-byte
+   * unchanged (still hardcoded uniform). Supplying it lets an ablation ask
+   * a narrower, still-honest question — "when the true movement genuinely
+   * has previous-direction structure (drawn from the same candidatePool a
+   * mined empirical map was built from), does the contextual backoff
+   * algorithm correctly exploit it" — which is what `scripts/
+   * fishingContextualAblation.ts` uses this for. This is NOT a live
+   * catch-rate promise about real Dendren; see that script's header.
+   */
+  blindFallback?: {
+    contextMap: ReadonlyMap<string, ContextStats>;
+    cellOnlyMap: ReadonlyMap<string, readonly Cell[]>;
+    minIndependentCasts?: number;
+  };
 }
 
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
@@ -231,7 +260,16 @@ export function simulateCast(opts: CastOptions): CastResult {
     const dist =
       matcher.candidates.length > 0
         ? predictDistribution(matcher)
-        : emptyFallback(matcher.history[matcher.history.length - 1]!, new Map(), gridSize);
+        : opts.blindFallback
+          ? contextualFallback(
+              matcher.history[matcher.history.length - 1]!,
+              previousDisplacement(matcher.history),
+              opts.blindFallback.contextMap,
+              opts.blindFallback.cellOnlyMap,
+              gridSize,
+              { minIndependentCasts: opts.blindFallback.minIndependentCasts ?? DEFAULT_MIN_INDEPENDENT_CASTS },
+            )
+          : emptyFallback(matcher.history[matcher.history.length - 1]!, new Map(), gridSize);
 
     const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp, focusBudget: focus }, rng);
 

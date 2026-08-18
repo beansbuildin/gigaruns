@@ -4,11 +4,11 @@
  * than hand-built fixtures, same discipline as tests/fishing/matcher.test.ts.
  */
 
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   appendNextPositionValidation,
@@ -553,5 +553,167 @@ describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW 
     }
     expect(deps.guards.runCount).toBe(0); // untouched — not a server-cap situation
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPROVE #3)", () => {
+  const TEST_CONFIG: BotConfig = {
+    dungeonId: 5,
+    energyCostPerRun: 20,
+    maxRoom: 16,
+    maxRunsPerDayGame: 12,
+    dailyEnergyBudget: 240,
+    maxRunsPerSession: 12,
+    maxConsecutiveActionFailures: 3,
+    dendren: { nodeId: "5", tierId: 1, energyCostPerCast: 12, maxCastsPerDayGame: 20, dailyEnergyBudget: 240, maxCastsPerSession: 20 },
+  };
+
+  function fakeCard() {
+    return {
+      id: 1,
+      manaCost: 1,
+      hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      critZones: [],
+      hitEffects: [{ type: "FISH_HP", amount: 5 }],
+      missEffects: [{ type: "FISH_HP", amount: -3 }],
+      critEffects: [],
+      earnable: false,
+      rarity: 0,
+      isDayCard: false,
+      foundInPonds: [1],
+    };
+  }
+
+  function fakeDoc(fishPosition: [number, number], completeCid: boolean) {
+    return {
+      docId: "88888888",
+      docType: "FISHING_GAME",
+      data: {
+        deckCardData: [fakeCard()],
+        playerMaxHp: 10,
+        playerHp: 10,
+        fishHp: 10,
+        fishMaxHp: 10,
+        fishPosition,
+        previousFishPosition: [0, 0],
+        gridSize: 4,
+        focusPoint: [0, 0],
+        focusMeter: 3,
+        focusMeterMax: 3,
+        focusMechanicEnabled: true,
+        patternIndex: 0,
+        fullDeck: [1],
+        nextCardIndex: 1,
+        cardInDrawPile: 0,
+        hand: [1],
+        discard: [],
+      },
+      COMPLETE_CID: completeCid,
+      SUCCESS_CID: completeCid ? false : undefined,
+      IS_JUICED_CID: false,
+      MULTIPLIER_CID: 1,
+    };
+  }
+
+  function makeClient(): GigaverseClient {
+    let playCount = 0;
+    return {
+      getFishingState: async () => ({ gameState: null }),
+      getFishingActionToken: () => "",
+      postFishingAction: async (body: { action: string }) => {
+        if (body.action === "start_run") {
+          return { success: true, message: "Game started successfully.", data: { doc: fakeDoc([1, 1], false), events: [] }, actionToken: 1 };
+        }
+        playCount++;
+        if (playCount === 1) {
+          // Turn 0: fish moves (1,1) -> (2,1) — this is the "from" cell turn 1's
+          // context lookup will use, with previous displacement (dx=1,dy=0).
+          return { success: true, message: "Cards played successfully.", data: { doc: fakeDoc([2, 1], false), events: [] }, actionToken: 2 };
+        }
+        // Turn 1: cast ends here regardless of the chosen focus — this test is
+        // about the wiring not crashing and consulting the seeded context data,
+        // not about a specific card-choice outcome.
+        return { success: true, message: "Cards played successfully.", data: { doc: fakeDoc([3, 1], true), events: [] }, actionToken: 3 };
+      },
+    } as unknown as GigaverseClient;
+  }
+
+  /** Three independent clean casts, each arriving at (2,1) via displacement (1,0) then continuing on — exactly `DEFAULT_MIN_INDEPENDENT_CASTS`' worth of support for the context key the fake live cast's turn 1 will query. */
+  function seedContextCorpus(path: string) {
+    mkdirSync(dirname(path), { recursive: true });
+    const lines: string[] = [];
+    for (const castId of ["seed1", "seed2", "seed3"]) {
+      lines.push(JSON.stringify({ ts: "2026-08-18T00:00:00.000Z", castId, turn: 0, from: [1, 1], to: [2, 1], gridSize: 4 }));
+      lines.push(JSON.stringify({ ts: "2026-08-18T00:00:01.000Z", castId, turn: 1, from: [2, 1], to: [3, 1], gridSize: 4 }));
+    }
+    writeFileSync(path, lines.join("\n") + "\n");
+  }
+
+  it("consults pre-existing contextual corpus data without crashing, and logs that it found support", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-contextual-live-test-"));
+    const transitionsPath = join(dir, "fish-patterns.jsonl");
+    seedContextCorpus(transitionsPath);
+
+    const deps: LiveFishingDeps = {
+      client: makeClient(),
+      config: TEST_CONFIG,
+      guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
+      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
+      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
+      address: "0xUSER",
+      dryRun: false,
+      transitionsPath,
+      guardStatePath: join(dir, "guard-budget.json"),
+    };
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const result = await runOneCast(deps);
+      expect(result.outcome).toBe("escaped"); // fakeDoc's SUCCESS_CID is false on the terminal turn
+      const logged = logSpy.mock.calls.map((c) => String(c[0]));
+      expect(logged.some((l) => l.includes("contextual fallback: 1 (cell, previous-direction) key(s) from 3 clean logged cast(s)"))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a seeded cast with a CODEXREVIEW #5 duplicate-turn conflict is excluded from context support, same as mineFishPatterns.ts's testPrimitives", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-contextual-live-test-"));
+    const transitionsPath = join(dir, "fish-patterns.jsonl");
+    seedContextCorpus(transitionsPath);
+    // A 4th cast with a conflicting duplicate at turn 0 — must not count toward support.
+    appendFileSync(
+      transitionsPath,
+      JSON.stringify({ ts: "t", castId: "corrupted", turn: 0, from: [1, 1], to: [2, 1], gridSize: 4 }) +
+        "\n" +
+        JSON.stringify({ ts: "t2", castId: "corrupted", turn: 0, from: [1, 1], to: [9, 9], gridSize: 4 }) +
+        "\n",
+    );
+
+    const deps: LiveFishingDeps = {
+      client: makeClient(),
+      config: TEST_CONFIG,
+      guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
+      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
+      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
+      address: "0xUSER",
+      dryRun: false,
+      transitionsPath,
+      guardStatePath: join(dir, "guard-budget.json"),
+    };
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await runOneCast(deps);
+      const logged = logSpy.mock.calls.map((c) => String(c[0]));
+      // Still exactly 3 clean casts (not 4) and still exactly 1 context key —
+      // the corrupted 4th cast's conflicting turn-0 record is excluded, not
+      // silently folded in as a 4th supporting cast.
+      expect(logged.some((l) => l.includes("contextual fallback: 1 (cell, previous-direction) key(s) from 3 clean logged cast(s)"))).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

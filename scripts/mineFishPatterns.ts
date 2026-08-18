@@ -35,19 +35,17 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { Cell } from "../src/sim/fishing/geometry.js";
 import { cellsEqual } from "../src/sim/fishing/geometry.js";
 import { buildPatternPool, type Pattern } from "../src/sim/fishing/patterns.js";
 import { simulateCasts, matcherFishPolicy } from "../src/sim/fishing/castSim.js";
+import {
+  groupByCast,
+  type Cast,
+  type TransitionRecord,
+} from "../src/sim/fishing/transitionCorpus.js";
 
-export interface TransitionRecord {
-  ts: string;
-  castId: string;
-  turn: number;
-  from: [number, number];
-  to: [number, number];
-  gridSize: number;
-}
+export type { Cast, TransitionRecord };
+export { groupByCast };
 
 const DEFAULT_PATH = join("data", "fish-patterns.jsonl");
 
@@ -63,64 +61,6 @@ export function loadRecords(path: string): TransitionRecord[] {
     }
   }
   return out;
-}
-
-export interface Cast {
-  castId: string;
-  gridSize: number;
-  start: Cell;
-  /** turn -> observed cell AFTER that turn's move, i.e. `to`. */
-  byTurn: Map<number, Cell>;
-  maxTurn: number;
-  /**
-   * [session 29, CODEXREVIEW #5] Turns with two or more logged records that
-   * DISAGREE on the resulting cell — the resumed-cast numbering bug's
-   * fingerprint (a resumed process relabeling its true next turn as the
-   * cast's turn 0 again). Two records at the same turn that happen to agree
-   * are harmless and not counted here.
-   */
-  duplicateTurns: number[];
-  /** True if any turn in `0..maxTurn` has no record at all — a cast like this can never be an exact FULL-trajectory match, only a coincidental partial one. */
-  hasGaps: boolean;
-}
-
-export function groupByCast(records: TransitionRecord[]): Cast[] {
-  const byId = new Map<string, TransitionRecord[]>();
-  for (const r of records) {
-    const arr = byId.get(r.castId) ?? [];
-    arr.push(r);
-    byId.set(r.castId, arr);
-  }
-  const casts: Cast[] = [];
-  for (const [castId, recs] of byId) {
-    recs.sort((a, b) => a.turn - b.turn);
-    const first = recs[0]!;
-    const start: Cell = { x: first.from[0], y: first.from[1] };
-    const byTurn = new Map<number, Cell>();
-    const seenAtTurn = new Map<number, Cell[]>();
-    let maxTurn = -1;
-    for (const r of recs) {
-      const to: Cell = { x: r.to[0], y: r.to[1] };
-      const seen = seenAtTurn.get(r.turn) ?? [];
-      seen.push(to);
-      seenAtTurn.set(r.turn, seen);
-      byTurn.set(r.turn, to); // last write wins for byTurn itself; duplicateTurns below is what actually gates eligibility
-      if (r.turn > maxTurn) maxTurn = r.turn;
-    }
-    const duplicateTurns = [...seenAtTurn.entries()]
-      .filter(([, cells]) => cells.length > 1 && !cells.every((c) => cellsEqual(c, cells[0]!)))
-      .map(([t]) => t)
-      .sort((a, b) => a - b);
-    let hasGaps = false;
-    for (let t = 0; t <= maxTurn; t++) {
-      if (!byTurn.has(t)) {
-        hasGaps = true;
-        break;
-      }
-    }
-    casts.push({ castId, gridSize: first.gridSize, start, byTurn, maxTurn, duplicateTurns, hasGaps });
-  }
-  return casts;
 }
 
 // ── 1. First-move classification — descriptive only, community note's
