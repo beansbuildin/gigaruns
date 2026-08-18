@@ -1,171 +1,141 @@
-# STATE — session 31 — 2026-08-18 — commit 4136064
+# STATE — session 32 — 2026-08-18 — commit 6fc3b94
 
 ## Status
-No TASKS.md gate was targeted this session — the brief was the CODEXREVIEW/
-CODEXIMPROVE queue: §1 (split committed-vs-observed energy accounting,
-CODEXREVIEW #8), §2 (resource-conserving fishing tie-breaks, CODEXIMPROVE
-#2), §3 (doc sync bundle, CODEXREVIEW #9/#10 + session-30 open question 1),
-§4 (wire standalone report regeneration, session-30 open question 4). Task
-10 stays the last GATE PASS (session 25, unchanged); this session touched
-none of that path. CODEXIMPROVE #1 (opponent-model persistence) was
-deliberately NOT started, per the brief — queued for session 32.
-Overall: §1, §2, and §4 landed exactly as briefed. §3 landed with two
-corrections: CODEXREVIEW #10 (remove unused `viem`) was NOT implemented —
-`viem` is actually used live — and one of the two reward-field findings the
-brief asked to fold into SPEC.md (the fishing catch-source claim) turned
-out to be FALSE on direct fixture verification and was corrected rather
-than propagated. No live play this session — pure engineering, all four
-items are instrumentation/refactoring/doc work.
+No TASKS.md gate was targeted this session — same as session 31, the brief
+was the CODEXIMPROVE queue: §1 (persist and bootstrap the dungeon opponent
+model, CODEXIMPROVE #1 — queued twice, session 30 and 31, finally built)
+and §2 (test-isolation hygiene: write the isolated-test-path rule into
+CLAUDE.md, then one grep audit pass). Task 10 stays the last GATE PASS
+(session 25, unchanged); this session touched none of that path.
+Overall: both items landed exactly as briefed, live-verified (not just
+unit-tested), 500/500 tests passing (+12 from session 31's 488).
 
 ## What works
-- **The daily-budget guard now enforces off COMMITTED energy spend, not the
-  observed before/after account delta** (CODEXREVIEW #8).
-  `guards.recordEnergySpent(config.energyCostPerRun)` (dungeon) /
-  `dendren.energyCostPerCast` (fishing) is called the moment `start_run`
-  succeeds, persisted immediately. The before/after read is now a
-  diagnostic only, reconciled by new `src/orchestrator/energyAccounting.ts`
-  (`reconcileEnergyAccounting`/`describeEnergyAccounting`) — never fed back
-  into the guard. Closes the real gap: an external top-up (a ROM claim
-  landing mid-run) could previously mask real spend to a smaller number or
-  zero. Verified by unit test: `guards.spentEnergy` equals the configured
-  cost immediately after a mocked `runOnce`/`runOneCast` success, using a
-  mock client that never implements `getEnergy` at all — proves the commit
-  path has zero dependency on any energy read.
-- **Fixed a real, live bug found while doing the above**: three tests
-  (`tests/sim/fishingCorpus.test.ts`, two in `tests/liveFishing.test.ts`)
-  never set `guardStatePath` on a real, non-dry-run `runOneCast` call, so
-  every run of those tests silently overwrote the real `data/
-  guard-budget.json` — the DUNGEON guard file, not fishing's. Confirmed
-  live by diffing that file before/after running just those tests
-  (`energySpent` 0 → 12). All three now point at their existing temp dir;
-  the real file was restored and a full suite run afterward left it
-  untouched (verified by checksum).
-- **Fishing card/focus tie-breaks now conserve the scarce, non-regenerating
-  focus-movement budget** (CODEXIMPROVE #2), provably EV-neutral (only
-  exact EV ties are affected). `bestFocusForCard` breaks a tie in favor of
-  the placement closer to the current focus; `chooseCard`'s cross-card
-  choice goes through a shared `isPreferred` comparator: lethal before
-  non-lethal, then EV (or EV/mana when mana-constrained), then lower focus
-  movement cost, then lower mana cost, then hand order. Verified by 2 new
-  unit tests + all 15 pre-existing `cardChoice.test.ts` tests unchanged.
-- **CLAUDE.md §8 reworded** to match what `src/strategy/enemyTier.ts`
-  actually implements and `liveRun.ts` actually calls
-  (`pickLowestTier()`), not the stricter `pickSafeTier()` the doc used to
-  name — session 09 already found Safe isn't always offered; the doc was
-  stale, not the code.
-- **Dungeon reward-item crediting folded into SPEC.md as new §3f**,
-  verified against the cited fixtures before writing: both Hard Core (845)
-  and "Dendren Root"/wire "Dendren Remnant" (846) are credited via a
-  top-level `gameItemBalanceChanges` array (not nested under `data`).
-- **Standalone `liveRun.ts`/`liveFishing.ts` invocations now regenerate
-  `handoff/reports/*.md`** at the end of `main()`, same non-fatal behavior
-  as `orchestrator.ts`'s end-of-session rollup, via new shared
-  `scripts/regenerateReports.ts`. Smoke-tested directly: reproduces session
-  30's exact backfill numbers (47 dungeon attempts, 50 fishing casts), and
-  a real `liveFishing.ts --dry-run` invocation reaches the new call and
-  regenerates cleanly end to end (only the "Last generated" timestamp
-  changed in the committed markdown).
+- **The dungeon opponent model now persists across restarts** (CODEXIMPROVE
+  #1). New `src/orchestrator/opponentModelPersistence.ts` mirrors
+  `guardPersistence.ts`'s already-established patterns rather than
+  reinventing them: `schemaVersion` (zod `z.literal`, rejects on mismatch —
+  nothing to migrate yet at version 1), atomic temp-file+rename save, and
+  `acquireGuardLock` reused directly against the model's own path for a
+  single writer (no second locking mechanism built). `OpponentModel` itself
+  stays pure — only its internal `Counts` type gained an `export` keyword so
+  the persistence layer can type against the exact `toJSON`/`fromJSON`
+  shape; no I/O was added to the strategy module.
+- **Bootstrap from the fixture corpus, idempotent across launches.** Folds
+  every clean (`reasons.length === 0`) historical dungeon exchange into the
+  model, gated by a persisted `bootstrapImportedIds` set keyed on
+  `${run}::${label}` (a label alone isn't unique across runs, DECISIONS
+  2026-08-15) — safe to call on every launch: already-imported exchanges are
+  skipped, newly grown corpus is picked up automatically. Wired into both
+  `scripts/liveRun.ts` and `scripts/orchestrator.ts` (load+bootstrap+lock at
+  startup; save after every real `model.observe()` via a new opt-in
+  `opponentModelPersistence` field on `LiveRunDeps`, `undefined` by default
+  so no existing test touches the real file).
+- **Live-verified, not just unit-tested**: a real `npx tsx scripts/
+  liveRun.ts --dry-run` invocation bootstrapped 64 real clean room-1
+  exchanges (enemy "Enemy Room 63") on its first run, correctly wrote
+  `data/opponent-model.json` (schemaVersion 1, one key
+  `"Enemy Room 63|room1"`, 64 total observations split 23/24/17 across
+  rock/paper/scissor), and a second invocation immediately afterward
+  imported 0 new exchanges — the dedup holds live, not just in the unit
+  tests. No `.lock` file was left behind after either run.
+- **Regression tests cover exactly what CODEXIMPROVE #1 asked for by name**
+  (`tests/orchestrator/opponentModelPersistence.test.ts`, 12 tests): a
+  model's predictions survive a simulated restart (save, "restart" via a
+  fresh `loadOpponentModel`, `predict()` output identical — including
+  `confidence: "high"`, so the comparison isn't vacuously below the
+  30-observation floor); a corrupt file on disk fails closed (throws
+  `OpponentModelPersistenceError`) rather than silently resetting to a
+  blank model — the same fail-OPEN bug class CODEXREVIEW #2 already fixed
+  for guard-budget persistence; a `schemaVersion` mismatch is rejected the
+  same way; atomic-write leaves no temp file; bootstrap against the real
+  corpus imports >0 the first call and exactly 0 the second (both in-memory
+  and across a simulated restart).
+- **CLAUDE.md's working-style section now states the isolated-test-path
+  rule explicitly** (CODEXIMPROVE queue §2), instead of leaving it as
+  unwritten convention. Grep audit for other `LiveFishingDeps`/
+  `LiveRunDeps` test constructions missing an isolated path: **none found
+  beyond the 3 already-fixed session-31 offenders** — every construction in
+  `tests/liveRun.test.ts` and `tests/liveFishing.test.ts` goes through a
+  single `makeDeps()` helper per file that always sets `guardStatePath`, so
+  this is a genuine "last instance" result, not a padded clean one. No test
+  anywhere opts into the new `opponentModelPersistence` dep, so §1 didn't
+  introduce a new pollution risk either.
 
 ## What's broken
-Nothing newly broken by this session's changes — 488/488 tests pass (up
-from 479/479 at session 30's end), `npx tsc --noEmit` clean, both verified
+Nothing newly broken by this session's changes — 500/500 tests pass (up
+from 488/488 at session 31's end), `npx tsc --noEmit` clean, both verified
 against this session's final commit. Unchanged, pre-existing open items:
 - The scheduler still can't learn about energy gained outside its own
   tracking, and a single SIGINT during an energy-regen sleep still ends the
   whole session (unchanged since session 25).
+- The real dungeon cap was already 12/12 for today at the start of this
+  session too (server-confirmed carryover from session 31's own dry-run,
+  not bot-caused) — both this session's `--dry-run` smoke tests guard-
+  tripped cleanly on it, 0 energy spent either time.
 
 ## Corrections to SPEC.md
-- New §3f added (dungeon reward-item crediting, confirmed): Hard Core
-  (845) and "Dendren Root"/"Dendren Remnant" (846) both credited via a
-  top-level `gameItemBalanceChanges` array. See DECISIONS 2026-08-18.
-- SPEC-fishing.md was NOT amended — session 30's claim that
-  `doc.data.caughtFish` is "never populated" (which this session's brief
-  asked to fold in as a `[VERIFY]` resolution) was checked directly against
-  the fixtures and found FALSE: `caughtFish` is reliably populated and
-  actually persists across MORE responses than the one-shot `FISH_DIED`
-  event. Root cause: session 30's own verification script read one `.data`
-  level too shallow. Full correction in DECISIONS.md 2026-08-18 (session
-  31); SPEC-fishing.md's existing session-15 documentation was correct all
-  along and needed no fix.
-- Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
-- Move charges: unchanged, PRESENT.
+None this session — no live gameplay data was captured (both real API
+calls this session were the same read-only `--dry-run` smoke-test pattern
+session 31 used, purely to verify the new persistence/bootstrap wiring end
+to end). Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/
+pondId=2. Move charges: unchanged, PRESENT.
 
 ## Dead ends
-None this session. Two brief items were deliberately NOT implemented as
-stated, which is different from a dead end (no code was written and
-discarded — the check happened before any implementation):
-- CODEXREVIEW #10 (remove `viem` from `package.json`) — checked first per
-  CLAUDE.md §9, found `viem` IS used (`scripts/probe.ts`'s `authFromEoa()`,
-  Path B EOA auth, gated behind `AUTH_MODE=eoa`, a real reachable call
-  site even though Path A is the path actually used). Left in place.
-- The fishing half of session-30 open question 1 (fold "catch source is
-  `FISH_DIED` not `caughtFish`" into SPEC-fishing.md) — checked first, the
-  underlying claim was wrong (see Corrections above). Not written into
-  SPEC.md; corrected in DECISIONS.md instead.
+None this session.
 
 ## Metrics
-No live play this session (no dungeon runs, no fishing casts sent) — pure
-engineering, consistent with the brief's scope. One real, read-only network
-call was made (`liveRun.ts --dry-run`, per CLAUDE.md's documented dry-run
-usage) purely to smoke-test the report-regeneration wiring; it found the
-real dungeon cap already at 12/12 for today (server-confirmed, not
-bot-caused) and correctly guard-tripped before sending anything — 0 energy
-spent, confirmed by the before/after print.
-- Tests: 488/488 passing (+9 new since session 30's 479: 7 for §1's
-  committed-spend behavior + reconciliation, 2 for §2's tie-breaks).
+No live play this session (no dungeon runs started, no fishing casts sent)
+— pure engineering plus two read-only `--dry-run` smoke tests, consistent
+with the brief's scope. Both dry-run invocations correctly guard-tripped
+before sending anything (real dungeon cap 12/12), 0 energy spent, confirmed
+by console output both times.
+- Tests: 500/500 passing (+12 new since session 31's 488, all in the new
+  `opponentModelPersistence.test.ts`).
+- Bootstrap: 64 clean room-1 exchanges imported from the real fixture
+  corpus on first launch; 0 on the immediately-following second launch
+  (idempotent, live-confirmed).
 
 ## Open questions for Claude
-1. Same as session 30's open question 2 (unchanged): which CODEXREVIEW/
-   CODEXIMPROVE items are worth queuing after CODEXIMPROVE #1 (session 32,
-   already queued)? Remaining: CODEXIMPROVE #3 (previous-direction
-   contextual fishing fallback, needs its own cross-validation pass),
-   #4/#5 (dungeon charge-reserve tie-breaking, boon valuation), #9/#10 from
-   the doc-cleanup list (docs/dependency cleanup, lower priority — #10
-   itself is now resolved as "not applicable," see Corrections).
-2. This session found and fixed a live bug (tests silently overwriting the
-   real `data/guard-budget.json`) purely because it happened to sit in the
-   exact code path §1 was touching. Worth considering whether a project-
-   wide grep for other `LiveFishingDeps`/`LiveRunDeps` test constructions
-   missing `guardStatePath`/isolated paths is worth a dedicated pass, or
-   whether this was the last instance (this session's search found and
-   fixed all 3 then-known offenders, but wasn't an exhaustive repo-wide
-   audit beyond the files `runOnce`/`runOneCast` tests actually live in).
-3. Should `CLAUDE.md`'s working-style section note the tests-never-touch-
-   real-committed-paths discipline explicitly? It's been the convention all
-   along and was the root cause of two now-fixed pollution bugs across two
-   consecutive sessions (session 30's `9001`/`9002` mystery, this session's
-   `guard-budget.json` leak) — writing it down as an explicit rule (not
-   just a pattern to infer from existing tests) might catch a third
-   instance before it ships rather than after.
-4. Operator note, not a Claude(chat) planning question: this session
-   accidentally deleted all `.jsonl` files in the gitignored `logs/`
-   directory via an overly broad `rm` while cleaning up a smoke-test
-   artifact (`rm -f logs/*.jsonl` matched more than intended). Not
-   recoverable via git (the directory is untracked). The `.json` diagnostic
-   dumps and `.log` files were unaffected, and nothing in `logs/` is a
-   source of truth (fixtures/, DECISIONS.md, and the committed reports are
-   canonical) — practical impact should be low, but flagging it plainly
-   rather than omitting it.
+1. Same as session 30/31's open question 2 (unchanged): which CODEXREVIEW/
+   CODEXIMPROVE items are worth queuing next? CODEXIMPROVE #1 is now DONE.
+   Remaining: CODEXIMPROVE #3 (previous-direction contextual fishing
+   fallback, needs its own cross-validation pass), #4/#5 (dungeon
+   charge-reserve tie-breaking, boon valuation), #9/#10 from the older
+   doc-cleanup list (lower priority — #10 was already resolved
+   "not applicable" in session 31).
+2. The bootstrap only ever found clean exchanges at room 1 (enemy "Enemy
+   Room 63") in the real corpus — all 64 imported observations landed in a
+   single `(enemyId, room)` key. This isn't a bug (rooms 2+ mostly carry
+   unmodelled mechanics per the corpus's history, so `reasons.length === 0`
+   correctly excludes most of them), but it means the model's live-usable
+   advantage from bootstrapping is currently concentrated entirely at room
+   1, where the model was already well-observed within a single long
+   session anyway (session 25's 2-hour run alone generated comparable
+   volume). The deeper-room, sparser-evidence case CODEXIMPROVE #1's
+   rationale specifically named ("every restart throws away exactly the
+   evidence that matters most in deeper, sparser rooms") won't visibly pay
+   off until the corpus has more clean exchanges at rooms 2+, which is a
+   capture question, not a code question — worth noting in the next brief
+   rather than assuming the mechanism's value is fully realized yet.
+3. Operator note, not a Claude(chat) planning question: this session's two
+   `--dry-run` smoke tests each created an empty, untracked
+   `fixtures/dungeon-runs/run-2026-08-18-*/` directory (no files inside —
+   dry-run halts before any real capture) — harmless, git doesn't track
+   empty directories, nothing to clean up, just noted for completeness
+   since session 31 flagged a similar (unrelated, more consequential)
+   cleanup mistake and this recap's discipline is to over-report rather
+   than under-report incidental filesystem side effects.
 
 ## Files changed
 ```
- CLAUDE.md                            |  15 +-
- SPEC.md                              |  22 +++
- handoff/DECISIONS.md                 |   6 +
- handoff/reports/dungeon-runs.md      |   2 +-
- handoff/reports/fishing-casts.md     |   2 +-
- scripts/liveFishing.ts               |  31 +++-
- scripts/liveRun.ts                   |  44 ++++--
- scripts/orchestrator.ts              |  58 ++++----
- scripts/regenerateReports.ts         |  36 +++++
- src/orchestrator/energyAccounting.ts |  53 +++++++
- src/sim/fishingCorpus.ts             |  17 ++-
- src/strategy/fishing/cardChoice.ts   |  62 +++++++-
- tests/fishing/cardChoice.test.ts     |  44 ++++++
- tests/liveFishing.test.ts            |  45 ++++++
- tests/liveRun.test.ts                |  81 ++++++++++
- tests/sim/fishingCorpus.test.ts      |   8 +
- 16 files changed, 526 insertions(+), 206 deletions(-)
+ CLAUDE.md                                    | 14 ++++++++
+ scripts/liveRun.ts                           | 40 +++++++++++++++++++++-
+ scripts/orchestrator.ts                      | 21 +++++++++--
+ src/orchestrator/opponentModelPersistence.ts | (new, 216 lines)
+ src/strategy/opponentModel.ts                |  3 +-
+ tests/orchestrator/opponentModelPersistence.test.ts | (new, 176 lines)
+ 6 files changed, 464 insertions(+), 4 deletions(-)
 ```
-(handoff/next.md, this session's own brief, is excluded from this stat —
-consumed as input, not a work product of this session.)
+(handoff/next.md, this session's own brief, is excluded — consumed as
+input, not a work product of this session.)
