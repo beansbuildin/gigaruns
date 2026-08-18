@@ -605,64 +605,67 @@ playing it down), not something to decide unilaterally. Still no automation
 without explicit go-ahead — this update only changes the SIZE of the
 lever, not the standing instruction to ask before building it.
 
-## 12. Fishing `data.nextPosition`/`data.nextMovePath` — possible live fish-move look-ahead, not yet confirmed [session 25]
+## 12. Fishing `data.nextPosition`/`data.nextMovePath` — NARROWED [session 26]: real, but RARE (~2/30 casts), not the standing per-turn signal it looked like
 
 Three fishing casts during Task 10's real 2-hour orchestrator gate run
 tripped `liveFishing.ts`'s existing unknown-terminal-field detector on a
-cast's final `play_cards` response:
+cast's final `play_cards` response. The detector's own inline comment
+guessed this was "the catch-resolution mechanic" (question 10 above) — on
+inspection that guess was wrong (`nextPosition`/`nextMovePath` sit next to
+`fishPosition`/`previousFishPosition`, nowhere near `cardChosenId`/
+`caughtFish`), and the session-25 recap raised a bigger question: is this a
+live look-ahead of the fish's next move, available every turn?
 
-```
-★★★ UNKNOWN TERMINAL FIELD(S) on this cast's final doc: data.nextPosition, data.nextMovePath
-```
+**Checked against the existing fixture corpus (all 30 committed live casts,
+`fixtures/fishing-casts/live/`, 225 turns total, no new live casts spent),
+per CLAUDE.md §9 and the session-26 brief's own instruction to check
+cheaply before spending anything new:**
 
-Full dumps: `logs/fishing-unknown-terminal-2026-08-17-{20-41-10,20-41-14,
-21-10-29,21-11-47}.json` (gitignored, still on disk locally — not committed,
-per the `logs/` wholesale gitignore).
+1. **Not present on every turn, and not terminal-only either — it's rare.**
+   The key appears on only **8 of 225 turns**, across only **2 of 30
+   casts** (`cast-2026-08-17-20-40-57` and `cast-2026-08-17-21-10-15`). In
+   the first cast it appears from turn 1 onward (real value once, then
+   `null` for the rest of that cast); in the second it appears exactly
+   once, on the terminal turn. Both readings in the original writeup were
+   partial: it is not tied to "terminal doc" (contra the original
+   catch-resolution guess) and it is not "every turn" (contra the hopeful
+   look-ahead framing) — it looks like a **low-frequency, possibly
+   probabilistic proc**, same shape as this project's other percent-chance
+   mechanics (DECISIONS.md 2026-08-16: those need hundreds of observations
+   to read a rate, not dozens).
 
-The detector's own inline comment guesses this is "the catch-resolution
-mechanic" (question 10 above, resolved for the ACTION NAME but never for
-the exact request that fires it). **On inspection, that guess looks
-wrong.** `doc.data`'s key list places `nextPosition`/`nextMovePath` next to
-`fishPosition`/`previousFishPosition`/`lastMovePath` — the fish's own
-grid-position tracking — nowhere near `cardChosenId`/`caughtFish` (the real
-catch-resolution fields captured session 17).
+2. **The one checkable prediction was correct, but n=1.** `cast-
+   2026-08-17-20-40-57` turn 1: `nextPosition: [2,4]`, `nextMovePath:
+   [7,8]`. Turn 2's actual `fishPosition: [2,4]`, `lastMovePath: [7,8]` —
+   an EXACT match on both fields. The second occurrence
+   (`cast-2026-08-17-21-10-15`, `nextPosition: [1,3]`) is on that cast's
+   terminal turn, so there is no following turn in the fixture to check it
+   against. **One confirmed hit is suggestive, not proof** — the same
+   standard this project applies everywhere else (a single observation
+   doesn't establish a rate or a mechanic).
 
-One dump (`...-21-10-29.json`) has concrete values:
+3. **No candidate trigger condition explains the 2/30 rate.**
+   `activeFintuitionTurns`, `activeCritBoostTurns`, `fintuitionOilBoostPercent`,
+   `dualYieldOilBoostPercent`, and `jebaitorTriggered` are all `0`/`false`
+   at both occurrences — ruled out as the gate. The specific card played
+   immediately before the first occurrence (id 10, a crit-only card,
+   `hitZones: []`, `critZones: [5]`) doesn't carry any declared "reveal"
+   effect in `deckCardData`. Whatever gates this is not visible in any
+   field this project currently reads.
 
-```
-fishPosition:         [2, 3]
-previousFishPosition: [3, 3]
-lastMovePath:         [7]
-nextPosition:         [1, 3]
-nextMovePath:         [3]
-gridSize:             4
-```
+**Consequence for the session-25/26 framing**: this is NOT "a bigger lever
+than `mineFishPatterns.ts`" as originally hoped — at an apparent ~7%
+per-cast rate (2/30), it cannot replace the general prediction problem
+`mineFishPatterns.ts` exists to solve; it would at best be an occasional
+bonus signal on the rare turn it fires. Not chased further into strategy
+code this session, per the brief's own instruction not to build a reaction
+mechanism before confirming it holds — it doesn't yet, at only 2 sightings.
 
-`previousFishPosition` → `fishPosition` is the fish's LAST move; by the
-same pattern, `nextPosition`/`nextMovePath` alongside it would naturally be
-its NEXT one — a server-side reveal of where the fish moves next. Another
-dump (`...-20-41-10.json`) has both fields present but `null`, on a cast
-that had already fully "escaped" — consistent with "no next move to
-predict" once the fish is gone, which would strengthen rather than weaken
-this reading.
-
-**Not confirmed.** Only checked two of the four dumps closely. More
-importantly: the detector only fires on a cast's TERMINAL doc (`liveFishing.
-ts`'s `runOneCast`, the `if (newDoc.COMPLETE_CID)` branch) — it has never
-checked a NON-terminal `play_cards` response, so it's unknown whether these
-fields are present on every turn (which is where they'd actually be
-useful, live, mid-cast) or only ever appear once a cast is already over.
-
-**What would settle it**: a capture (live or fixture-replay) that checks
-`unknownDocKeys()` on EVERY `play_cards` response in a cast, not just the
-terminal one, and cross-references `nextPosition` against the FOLLOWING
-turn's real `fishPosition` to confirm the prediction actually holds.
-
-**If confirmed**, this would be a bigger lever for fishing accuracy than
-anything currently scoped in Task 11 (fishing pattern mining) or Task 13
-(deck-composition scoring) — a live look-ahead removes the need for
-`mineFishPatterns.ts`'s after-the-fact statistical inference on whichever
-turns it's present. Per CLAUDE.md §2, this is a field on the already-
-confirmed `/fishing/action` endpoint, not a new endpoint — reading it
-requires no new capture beyond widening where the existing detector
-already looks.
+**What would settle it further**: more real occurrences. `liveFishing.ts`'s
+unknown-field detector is now widened (session 26) from terminal-only to
+EVERY `play_cards` turn, so future live casts will surface every occurrence
+immediately (event `unknown_fields`, `logs/fishing-unknown-midcast-*.json`
+or `-terminal-*.json`) instead of requiring a fixture-corpus audit to
+notice. No strategy change made — purely a visibility widening, since the
+underlying data was already captured every turn via `fixtures.write()`
+regardless.

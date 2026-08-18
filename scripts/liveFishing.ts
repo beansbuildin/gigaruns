@@ -365,9 +365,9 @@ export class RunLog {
  * something that needs a human to notice mid-session, per the session-17
  * brief §4.
  */
-function dumpUnknownTerminal(resp: unknown, keys: string[]): string {
+function dumpUnknownTerminal(resp: unknown, keys: string[], tag: string = "terminal"): string {
   mkdirSync("logs", { recursive: true });
-  const path = join("logs", `fishing-unknown-terminal-${stamp()}.json`);
+  const path = join("logs", `fishing-unknown-${tag}-${stamp()}.json`);
   writeFileSync(path, JSON.stringify({ ts: new Date().toISOString(), unknownKeys: keys, response: resp }, null, 2));
   return path;
 }
@@ -557,13 +557,21 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     fixtures.write(resp);
 
     const newDoc = resp.data.doc;
-    if (newDoc.COMPLETE_CID) {
+    // Session 26: widened from terminal-only (COMPLETE_CID) to EVERY turn —
+    // QUESTIONS.md §12 found nextPosition/nextMovePath firing on a non-
+    // terminal turn in the existing fixture corpus, which the old
+    // terminal-only check could never have surfaced live. Data is already
+    // captured every turn via fixtures.write() above; this only adds an
+    // immediate console/log signal so a rare field doesn't wait for a
+    // fixture-corpus audit to be noticed.
+    {
       const unknown = unknownDocKeys(newDoc as unknown as Record<string, unknown>);
       if (unknown.length > 0) {
-        const path = dumpUnknownTerminal(resp, unknown);
-        log.write({ event: "unknown_terminal_fields", source: "play_cards_terminal", keys: unknown, dump: path });
-        console.log(`  ★★★ UNKNOWN TERMINAL FIELD(S) on this cast's final doc: ${unknown.join(", ")}`);
-        console.log(`  ★★★ full response dumped to ${path} — likely the catch-resolution mechanic (QUESTIONS.md §10), look here first.`);
+        const tag = newDoc.COMPLETE_CID ? "terminal" : "midcast";
+        const path = dumpUnknownTerminal(resp, unknown, tag);
+        log.write({ event: "unknown_fields", source: newDoc.COMPLETE_CID ? "play_cards_terminal" : "play_cards_midcast", turn, keys: unknown, dump: path });
+        console.log(`  ★★★ UNKNOWN ${newDoc.COMPLETE_CID ? "TERMINAL " : ""}FIELD(S) on turn ${turn}'s doc: ${unknown.join(", ")}`);
+        console.log(`  ★★★ full response dumped to ${path}.`);
       }
     }
     const fromCell = matcher.history[matcher.history.length - 1]!;

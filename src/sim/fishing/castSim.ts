@@ -160,6 +160,21 @@ export interface CastOptions {
    * correctly but hasn't converged yet."
    */
   matcherPool?: Pattern[];
+  /**
+   * **[ADDED session 26, Task 13 infrastructure]** A real held deck — card
+   * ids resolved against `loadDendrenDeck()`'s catalog, e.g. straight off a
+   * live `doc.data.fullDeck` read — instead of a fresh random sample of the
+   * WHOLE catalog on every single cast (the prior, and still-default,
+   * behavior: `deck.push(rng.pick(catalog))`, sized to `catalog.length`,
+   * with no concept of "the deck this specific account actually has").
+   * Order matters — `drawHand` draws sequentially off this array, cycling
+   * with `% deck.length`, same as the random-sample path always has.
+   * Infrastructure only: nothing yet calls this with a real deck, and
+   * `chooseNewCard`'s own scoring logic is unchanged — see TASKS.md Task
+   * 13's own scoping note on why the scoring half stays unbuilt this
+   * session.
+   */
+  deckIds?: readonly number[];
 }
 
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
@@ -182,8 +197,18 @@ export function simulateCast(opts: CastOptions): CastResult {
   let fishHp = Math.round(fishMaxHp * (opts.startFishHpRatio ?? 0.65));
 
   const catalog = loadDendrenDeck();
-  const deck: FishingCardLike[] = [];
-  for (let i = 0; i < catalog.length; i++) deck.push(rng.pick(catalog));
+  let deck: FishingCardLike[];
+  if (opts.deckIds) {
+    const byId = new Map(catalog.map((c) => [c.id, c]));
+    deck = opts.deckIds.map((id) => {
+      const c = byId.get(id);
+      if (!c) throw new Error(`deckIds: card id ${id} not found in Dendren catalog — a wire assumption just broke`);
+      return c;
+    });
+  } else {
+    deck = [];
+    for (let i = 0; i < catalog.length; i++) deck.push(rng.pick(catalog));
+  }
 
   let { hand, nextIdx: drawIdx } = drawHand(deck, 0, handSize);
 

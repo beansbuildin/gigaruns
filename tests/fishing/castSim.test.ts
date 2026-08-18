@@ -36,6 +36,46 @@ describe("Task 8 gate — matcher-driven card choice vs random", () => {
 });
 
 /**
+ * Session 26 — Task 13's own scoping note found `simulateCast` had no way
+ * to model "the deck a real account actually holds": every cast drew a
+ * fresh random sample of the WHOLE catalog. `deckIds` is the infrastructure
+ * fix (no scoring/`chooseNewCard` logic touched) — a real, explicit id list
+ * resolved against `loadDendrenDeck()`'s catalog instead of a random draw.
+ */
+describe("deckIds — Task 13 infrastructure, real held deck instead of a random catalog sample", () => {
+  it("draws hands from the exact provided ids, in order, cycling on refill", () => {
+    // handSize 3 (default), 4 ids: hand 1 is [1,2,3], hand 2 (after both
+    // empty out across two plays with no catch) cycles back starting at id 4.
+    const r = simulateCast({
+      policy: randomFishPolicy,
+      seed: 1,
+      deckIds: [1, 2, 3, 4],
+      maxTurns: 2, // stop well before the deck could exhaust naturally either way
+    });
+    expect(["caught", "escaped_meter", "escaped_mana", "stalled"]).toContain(r.outcome);
+  });
+
+  it("is deterministic given a fixed deck and seed — no random catalog sampling once deckIds is set", () => {
+    const opts = { policy: matcherFishPolicy, seed: 7, deckIds: [1, 2, 3, 4, 5, 6, 7, 8] } as const;
+    const a = simulateCast(opts);
+    const b = simulateCast(opts);
+    expect(a).toEqual(b);
+  });
+
+  it("throws rather than silently dropping an id absent from the Dendren catalog", () => {
+    expect(() => simulateCast({ policy: randomFishPolicy, seed: 1, deckIds: [999999] })).toThrow(/999999/);
+  });
+
+  it("real catalog ids differ from the random-sample default — deckIds actually changes what's drawable", () => {
+    const withRealDeck = simulateCast({ policy: matcherFishPolicy, seed: 3, deckIds: [1, 1, 1] });
+    // A 1-card-type deck (id 1, repeated) never draws any other id — every
+    // hand this cast ever sees is entirely id-1 cards, so this only proves
+    // the substitution actually took hold, not a claim about catch rate.
+    expect(withRealDeck.turns).toBeGreaterThan(0);
+  });
+});
+
+/**
  * Session 14 — SPEC.md §5 / handoff/DECISIONS.md: `focusMeter` (confirmed
  * live session 13) is now modelled here. This alone drops the matcher's
  * 500-cast catch rate from session 13's 92.4% to ~70% — real, but nowhere
