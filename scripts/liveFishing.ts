@@ -57,6 +57,7 @@ import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
+import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { chooseCard, chooseNewCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
 import {
   emptyFallback,
@@ -662,6 +663,11 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
     guards.recordActionResult(true);
     guards.recordRunStarted();
+    // [session 31, CODEXREVIEW #8] Committed spend, recorded the moment
+    // start_run succeeds — independent of whatever the account balance does
+    // afterward. This is now the guard's ledger of record; the before/after
+    // read in `main()` is a diagnostic only. See src/orchestrator/energyAccounting.ts.
+    guards.recordEnergySpent(dendren.energyCostPerCast);
     saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
@@ -984,6 +990,10 @@ async function main() {
     const fixtures = new FixtureWriter(me.address, (text) => client.redactSecrets(text));
     lastFixturesDir = fixtures.dir;
     const before = args.dryRun ? null : await currentEnergy(client, me.address);
+    // [session 31, CODEXREVIEW #8] Captured before `runOneCast` so the diff
+    // against `guards.spentEnergy` afterward isolates exactly what THIS
+    // iteration committed (0 on a resume — no new start_run sent).
+    const committedBefore = guards.spentEnergy;
     let castError: unknown = null;
     let result: CastRunResult | null = null;
     try {
@@ -1001,15 +1011,14 @@ async function main() {
       castError = e;
     }
     if (before !== null) {
+      // [session 31, CODEXREVIEW #8] Diagnostic only — the guard was already
+      // enforced off the COMMITTED spend inside `runOneCast`. This
+      // before/after read is reconciled against it, not fed back in.
       const after = await currentEnergy(client, me.address);
-      const delta = Math.max(0, before - after);
-      try {
-        guards.recordEnergySpent(delta);
-      } finally {
-        saveGuardBudget(guards.spentEnergy, guards.runCount, FISHING_GUARD_STATE_PATH);
-      }
-      log.write({ event: "energy_accounting", before, after, delta });
-      console.log(`  ▸ energy: ${before} -> ${after}  (spent ${delta})`);
+      const committedDelta = guards.spentEnergy - committedBefore;
+      const report = reconcileEnergyAccounting(before, after, committedDelta);
+      log.write({ event: "energy_accounting", ...report });
+      console.log(describeEnergyAccounting(report));
     }
     if (castError) throw castError;
     if (result?.outcome === "dry_run") break;

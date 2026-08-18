@@ -175,6 +175,14 @@ describe("loadFishingCorpus — synthetic corpus regression (session 28, CODEXRE
         // it ran, which is exactly what session 29 found and couldn't
         // explain. Must stay isolated to `root`.
         transitionsPath: join(root, "fish-patterns-test.jsonl"),
+        // [session 31, CODEXREVIEW #8] Same leak, different file: without
+        // this, a successful start_run's newly-committed energy spend
+        // (recordEnergySpent, added this session) persists via
+        // saveGuardBudget's DEFAULT_GUARD_STATE_PATH fallback — the
+        // DUNGEON guard file, not fishing's — every time this test runs.
+        // Found by diffing data/guard-budget.json before/after this file's
+        // own test suite.
+        guardStatePath: join(root, "guard-budget-test.json"),
       });
       await vi.runAllTimersAsync();
       await p;

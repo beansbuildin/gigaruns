@@ -679,6 +679,87 @@ describe("runOnce — stage 2 (single POST then halt)", () => {
   });
 });
 
+describe("runOnce — committed energy spend (session 31, CODEXREVIEW #8)", () => {
+  // The old model recorded spend from a before/after account-energy read
+  // taken in `main()`, well after `runOnce` returned — a window in which an
+  // external balance change (a ROM claim landing mid-run, in-run regen) could
+  // mask real spend, sometimes down to zero. This proves the guard now
+  // records the full `config.energyCostPerRun` the moment start_run succeeds,
+  // entirely independent of any energy read — there is no gap left for a
+  // mid-run balance change to hide in.
+  it("records the full configured energyCostPerRun on a genuinely new start_run, before any energy is ever read", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+        if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    // No mock ever answers `GET /offchain/player/energy` in this test —
+    // `runOnce` itself never calls it. If committing still depended on an
+    // energy read, this test would hang or throw on an unhandled URL instead
+    // of resolving cleanly with the committed amount recorded.
+    expect(deps.guards.spentEnergy).toBe(TEST_CONFIG.energyCostPerRun);
+  });
+
+  it("commits nothing on a resume — no new start_run POST means no new committed spend", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } })),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(deps.guards.spentEnergy).toBe(0);
+  });
+});
+
+describe("reconcileEnergyAccounting / describeEnergyAccounting (session 31, CODEXREVIEW #8)", () => {
+  it("reports no drift when the observed delta matches what was committed", async () => {
+    const { reconcileEnergyAccounting } = await import("../src/orchestrator/energyAccounting.js");
+    const report = reconcileEnergyAccounting(100, 80, 20);
+    expect(report).toEqual({ before: 100, after: 80, observedDelta: 20, committedDelta: 20, drifted: false });
+  });
+
+  it("flags drift when an external top-up (e.g. a ROM claim) masks the observed delta, WITHOUT altering the committed figure", async () => {
+    const { reconcileEnergyAccounting } = await import("../src/orchestrator/energyAccounting.js");
+    // A run committed 20 energy at start_run, but a ROM claim landed mid-run
+    // and fully covered the spend — the account reads back unchanged (or
+    // even higher). The guard already enforced the real 20 at commit time;
+    // this must surface the mismatch, not silently accept the masked 0.
+    const report = reconcileEnergyAccounting(100, 100, 20);
+    expect(report.committedDelta).toBe(20);
+    expect(report.observedDelta).toBe(0);
+    expect(report.drifted).toBe(true);
+  });
+
+  it("clamps a negative raw delta (regen outrunning spend) to 0 in the observed figure, same as the old ledger-of-record behavior", async () => {
+    const { reconcileEnergyAccounting } = await import("../src/orchestrator/energyAccounting.js");
+    const report = reconcileEnergyAccounting(50, 55, 0);
+    expect(report.observedDelta).toBe(0);
+    expect(report.drifted).toBe(false);
+  });
+
+  it("describeEnergyAccounting includes a drift warning only when drifted", async () => {
+    const { reconcileEnergyAccounting, describeEnergyAccounting } = await import("../src/orchestrator/energyAccounting.js");
+    const clean = describeEnergyAccounting(reconcileEnergyAccounting(100, 80, 20));
+    expect(clean).not.toContain("drift");
+    const drifted = describeEnergyAccounting(reconcileEnergyAccounting(100, 100, 20));
+    expect(drifted).toContain("drift");
+    expect(drifted).toContain("committed 20");
+    expect(drifted).toContain("observed 0");
+  });
+});
+
 describe("runOnce — dungeon cap reconciliation against GET /game/dungeon/today (session 29, CODEXREVIEW #6)", () => {
   function dungeonTodayBody(runsToday: number) {
     return {

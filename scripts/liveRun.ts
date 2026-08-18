@@ -51,6 +51,7 @@ import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
+import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { toCombatant, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
 import type { BoonOption } from "../src/sim/boons.js";
@@ -674,6 +675,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     }
     guards.recordActionResult(true);
     guards.recordRunStarted();
+    // [session 31, CODEXREVIEW #8] Committed spend, recorded the moment
+    // start_run succeeds — independent of whatever the account balance does
+    // afterward (in-run regen, an external ROM claim). This is now the
+    // guard's ledger of record; the before/after read in `main()` is a
+    // diagnostic only. See src/orchestrator/energyAccounting.ts.
+    guards.recordEnergySpent(config.energyCostPerRun);
     saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath); // [session 09] persist immediately — see guardPersistence.ts
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
@@ -1164,6 +1171,10 @@ async function main() {
   for (let i = 0; i < targetRuns; i++) {
     console.log(`\n▸ run ${i + 1}/${targetRuns}`);
     const before = args.dryRun ? null : await currentEnergy(client, me.address);
+    // [session 31, CODEXREVIEW #8] Captured before `runOnce` so the diff
+    // against `guards.spentEnergy` afterward isolates exactly what THIS
+    // iteration committed (0 on a resume — no new start_run sent).
+    const committedBefore = guards.spentEnergy;
     // [session 09, LIVE] `runOnce` can throw mid-run (a guard trip is exactly
     // what it's FOR — see the no-Safe-tier halt this session). The energy
     // accounting below used to sit after an unguarded `await runOnce(...)`,
@@ -1199,23 +1210,18 @@ async function main() {
       runError = e;
     }
     if (before !== null) {
-      // Regen runs concurrently (SPEC: ~18/hr, more if juiced), so a real
-      // spend can be masked by a few seconds of regen on a short action —
-      // clamp at 0 rather than ever recording a negative spend.
+      // [session 31, CODEXREVIEW #8] Diagnostic only — the guard was already
+      // enforced off the COMMITTED spend inside `runOnce` (recorded and
+      // persisted the moment start_run succeeded, before this line runs).
+      // This before/after read can no longer mask a real spend: it's not
+      // fed back into the guard, only reconciled against what the guard
+      // already recorded, so drift is visible in logs rather than silently
+      // absorbed.
       const after = await currentEnergy(client, me.address);
-      const delta = Math.max(0, before - after);
-      try {
-        guards.recordEnergySpent(delta);
-      } finally {
-        // Persist even if this throws (budget exceeded) — `energySpent` is
-        // already mutated by the time the check runs (guards.ts), and the
-        // energy was genuinely spent in-game either way. Under-persisting a
-        // failed call would let a process restart forget real spend and
-        // re-attempt past the budget.
-        saveGuardBudget(guards.spentEnergy, guards.runCount);
-      }
-      log.write({ event: "energy_accounting", before, after, delta });
-      console.log(`  ▸ energy: ${before} -> ${after}  (spent ${delta})`);
+      const committedDelta = guards.spentEnergy - committedBefore;
+      const report = reconcileEnergyAccounting(before, after, committedDelta);
+      log.write({ event: "energy_accounting", ...report });
+      console.log(describeEnergyAccounting(report));
     }
     if (runError) throw runError;
     if (args.stage2) break;

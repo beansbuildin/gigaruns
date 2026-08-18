@@ -54,7 +54,8 @@ import { GigaverseClient } from "../src/api/client.js";
 import { UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
-import { acquireGuardLock, loadGuardBudget, saveGuardBudget, DEFAULT_GUARD_STATE_PATH } from "../src/orchestrator/guardPersistence.js";
+import { acquireGuardLock, loadGuardBudget, DEFAULT_GUARD_STATE_PATH } from "../src/orchestrator/guardPersistence.js";
+import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { nextAction, type EnergyState, type ModeBudget } from "../src/orchestrator/scheduler.js";
 import { runWithGuaranteedAccounting } from "../src/orchestrator/runWithAccounting.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
@@ -219,6 +220,9 @@ async function main() {
     if (decision.kind === "dungeon") {
       console.log(`\n▸ [${iterations}] dungeon run — real energy ${energy.value}/${energy.max}`);
       const before = energy.value;
+      // [session 31, CODEXREVIEW #8] Isolates what THIS iteration commits —
+      // see src/orchestrator/energyAccounting.ts.
+      const committedBefore = dungeonGuards.spentEnergy;
       const { startConsumables, potionPolicy } = await resolvePotionLoadout(client, config);
       if (potionPolicy) {
         console.log(
@@ -251,14 +255,14 @@ async function main() {
         isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
         onBudgetTrip: (e) => console.log(`  · dungeon budget exhausted for today (${(e as Error).message}) — switching to fishing/sleep for the rest of this session.`),
         account: async () => {
+          // [session 31, CODEXREVIEW #8] Diagnostic only — the guard was
+          // already enforced off the COMMITTED spend inside `runOnce`
+          // (recorded and persisted the moment start_run succeeded). This
+          // before/after read is reconciled against it, not fed back in.
           const after = await currentEnergyFull(client, me.address);
-          const delta = Math.max(0, before - after.value);
-          try {
-            dungeonGuards.recordEnergySpent(delta);
-          } finally {
-            saveGuardBudget(dungeonGuards.spentEnergy, dungeonGuards.runCount, DEFAULT_GUARD_STATE_PATH);
-          }
-          console.log(`  ▸ energy: ${before} -> ${after.value} (spent ${delta})`);
+          const committedDelta = dungeonGuards.spentEnergy - committedBefore;
+          const report = reconcileEnergyAccounting(before, after.value, committedDelta);
+          console.log(describeEnergyAccounting(report));
         },
       });
       continue;
@@ -267,6 +271,9 @@ async function main() {
     if (decision.kind === "fishing") {
       console.log(`\n▸ [${iterations}] fishing cast — real energy ${energy.value}/${energy.max}`);
       const before = energy.value;
+      // [session 31, CODEXREVIEW #8] Isolates what THIS iteration commits —
+      // see src/orchestrator/energyAccounting.ts.
+      const committedBefore = fishingGuards!.spentEnergy;
       // [session 28, CODEXREVIEW #3] Same fix as the dungeon branch above —
       // accounting is guaranteed to run before any anomaly propagates.
       await runWithGuaranteedAccounting({
@@ -286,14 +293,12 @@ async function main() {
         isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
         onBudgetTrip: (e) => console.log(`  · fishing budget exhausted for today (${(e as Error).message}) — switching to dungeon/sleep for the rest of this session.`),
         account: async () => {
+          // [session 31, CODEXREVIEW #8] Diagnostic only — the guard was
+          // already enforced off the COMMITTED spend inside `runOneCast`.
           const after = await currentEnergyFull(client, me.address);
-          const delta = Math.max(0, before - after.value);
-          try {
-            fishingGuards!.recordEnergySpent(delta);
-          } finally {
-            saveGuardBudget(fishingGuards!.spentEnergy, fishingGuards!.runCount, FISHING_GUARD_STATE_PATH);
-          }
-          console.log(`  ▸ energy: ${before} -> ${after.value} (spent ${delta})`);
+          const committedDelta = fishingGuards!.spentEnergy - committedBefore;
+          const report = reconcileEnergyAccounting(before, after.value, committedDelta);
+          console.log(describeEnergyAccounting(report));
         },
       });
       continue;

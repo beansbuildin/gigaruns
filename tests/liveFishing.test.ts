@@ -367,6 +367,16 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
+      // [session 31, CODEXREVIEW #8] Without this, `runOneCast`'s successful
+      // start_run falls back to `DEFAULT_GUARD_STATE_PATH` and writes real
+      // committed spend into `data/guard-budget.json` — the DUNGEON guard
+      // file, not fishing's — every time this test runs. Caught while
+      // wiring committed-spend recording into the start_run success path:
+      // confirmed live by running this test alone and diffing that file
+      // before/after (0 -> 12 energySpent). Same class of bug as the
+      // session-30 `9001`/`9002` fishing-corpus pollution fix — a test
+      // writing to a real, non-isolated path.
+      guardStatePath: join(dir, "guard-budget.json"),
     };
 
     const result = await runOneCast(deps);
@@ -397,10 +407,45 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
+      // [session 31, CODEXREVIEW #8] Without this, `runOneCast`'s successful
+      // start_run falls back to `DEFAULT_GUARD_STATE_PATH` and writes real
+      // committed spend into `data/guard-budget.json` — the DUNGEON guard
+      // file, not fishing's — every time this test runs. Caught while
+      // wiring committed-spend recording into the start_run success path:
+      // confirmed live by running this test alone and diffing that file
+      // before/after (0 -> 12 energySpent). Same class of bug as the
+      // session-30 `9001`/`9002` fishing-corpus pollution fix — a test
+      // writing to a real, non-isolated path.
+      guardStatePath: join(dir, "guard-budget.json"),
     };
     const result = await runOneCast(deps);
     expect(result.outcome).toBe("escaped");
     expect(confirmedHitCount(nextPositionLogPath)).toBeLessThan(10); // NEXT_POSITION_OVERRIDE_THRESHOLD
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("records the full configured energyCostPerCast on a genuinely new start_run, before any energy is ever read (session 31, CODEXREVIEW #8)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-live-test-"));
+    const { client } = makeClient();
+    const guards = new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 });
+    const deps: LiveFishingDeps = {
+      client,
+      config: TEST_CONFIG,
+      guards,
+      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
+      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
+      address: "0xUSER",
+      dryRun: false,
+      transitionsPath: join(dir, "fish-patterns.jsonl"),
+      guardStatePath: join(dir, "guard-budget.json"),
+    };
+
+    // `client` (from `makeClient()`) never implements `getEnergy` — if
+    // committing the spend still depended on reading account energy, this
+    // would throw on a missing method instead of resolving with the
+    // committed amount recorded, same proof shape as the dungeon-side test.
+    await runOneCast(deps);
+    expect(guards.spentEnergy).toBe(TEST_CONFIG.dendren!.energyCostPerCast);
     rmSync(dir, { recursive: true, force: true });
   });
 });
