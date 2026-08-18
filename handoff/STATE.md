@@ -1,120 +1,97 @@
-# STATE — session 40 — 2026-08-18 — commit dff0176
+# STATE — session 41 — 2026-08-18 — commit 02f0373
 
 ## Status
-Task "Structurally prevent test-constructed Deps from omitting an isolated
-I/O path" (session-40 brief §1): **GATE PASS**. No `TASKS.md` gate targeted —
-this is the structural fix session 39's own open question asked for, after
-finding a real mock-fixture leak into `data/nextPositionValidation.jsonl`
-caused by exactly this class of gap. No TASKS.md work was started this
-session, per the brief's explicit instruction.
-Next per TASKS.md: no numbered task is active — Codex backlog is closed
-(session 39), this structural fix is closed (this session). Queued next:
-Task 13's deck-aware `simulateCast` prerequisite (see Open questions), or
-capture-blocked items.
+Task "Close the `RunLog` path-injection gap on both entry points" (session-41
+brief §1): **GATE PASS**. Task "Fix TASKS.md's stale Task 13 section" (brief
+§2): **DONE**. Neither is a numbered TASKS.md task — both are the same
+structural-hygiene class of work as session 40's Deps fix, plus one docs
+correction. No TASKS.md numbered work was started, per the brief's explicit
+scope (§2/§3: no ready code-shaped work exists this session — Task 13 is
+capture-blocked, Task 11 stays parked).
+Next per TASKS.md: still no numbered task ready to start. Task 13's scoring
+logic needs double-digit real card-choice observations (currently one — data,
+not code). Task 11 stays parked, unmet revival conditions. QUESTIONS.md §15
+and Task 14 both need a human DevTools capture.
 
 ## What works
-- `tests/liveFishing.test.ts`: five inline `LiveFishingDeps` object literals
-  and one narrower `makeDeps()` wrapper collapsed into a single
-  `makeLiveFishingDeps()` helper (module scope) — the ONLY place the file
-  constructs `LiveFishingDeps` now, confirmed by grep (zero remaining
-  `LiveFishingDeps = {` literals). Its parameter type requires
-  `Required<Pick<LiveFishingDeps, "transitionsPath" | "guardStatePath" |
-  "nextPositionLogPath" | "logsDir">>` explicitly — confirmed by reading
-  `runOneCast`/`dumpUnknownTerminal` that all four fall back to a real
-  project path when omitted (`DEFAULT_TRANSITIONS_PATH`,
-  `DEFAULT_GUARD_STATE_PATH`, `DEFAULT_NEXT_POSITION_LOG_PATH`, hardcoded
-  `"logs"`). Dropping any of the four at the one call site is now a compile
-  error, not a silent fallback.
-- `tests/liveRun.test.ts`: reconfirmed live (not assumed from the session-32
-  decision log entry) that every `LiveRunDeps` construction already routes
-  through one `makeDeps()` helper — grep found zero inline `LiveRunDeps = {`
-  literals outside it (every other site spreads `...makeDeps(...)`).
-  `makeDeps()`'s return type now intersects `Required<Pick<LiveRunDeps,
-  "guardStatePath">>`, so dropping that line is a compile error. Deliberately
-  did NOT require `opponentModelPersistence`/`playCountsPersistence` the
-  same way: read every call site in `scripts/liveRun.ts` and confirmed both
-  are opt-in no-ops when undefined (`if (deps.opponentModelPersistence &&
-  ...)`), not a fallback to a real path — `guardStatePath` is the only field
-  on this interface with the dangerous-default shape.
-- Tests: **559/559 passing**, unchanged from session 39's baseline — this
-  session is a pure refactor of test construction, no new test cases added
-  or needed (the fix's guarantee is compile-time, not runtime-assertable;
-  see Open questions). `npx tsc --noEmit` clean, `git diff --check` clean,
-  both at this session's final commit.
-- Live-path check (brief §1.5): after the full test run, `data/
-  nextPositionValidation.jsonl` (0 bytes), `data/guard-budget.json`, `data/
-  guard-budget-fishing.json`, and every file under `logs/` all had mtimes
-  strictly older than the test run's start time — confirmed by `stat -f
-  "%Sm"`, not assumed. No real path was touched by this session's test runs.
+- `scripts/liveRun.ts`'s and `scripts/liveFishing.ts`'s `RunLog` classes both
+  now take an optional `dir: string = "logs"` constructor param instead of
+  hardcoding `"logs"` — confirmed by reading both constructors post-edit.
+  Grep-confirmed the only production constructions are the four sites named
+  in the brief (`liveRun.ts:1218`, `liveFishing.ts:1172`,
+  `orchestrator.ts:273` as `DungeonRunLog`, `orchestrator.ts:313` as
+  `FishingRunLog`), all still no-arg — behavior is byte-for-byte unchanged
+  for every real caller.
+- One regression test added per file (`tests/liveRun.test.ts`,
+  `tests/liveFishing.test.ts`, both new `describe("RunLog — constructor path
+  override (session 41)")` blocks): constructs `new RunLog(mkdtempSync(...))`,
+  writes an entry, asserts the file exists under the passed dir (not under
+  `"logs"`) and contains the written entry, cleans up with `rmSync`. Both
+  pass. This gives a future test that legitimately wants a real `RunLog` a
+  working isolated-path example instead of the no-arg constructor that
+  started the bug class three times already (sessions 30, 31, 39).
+- Tests: **561/561 passing** (559 baseline + 2 new). `npx tsc --noEmit`
+  clean, `git diff --check` clean, both at this session's final commit
+  (02f0373).
+- Live-path check (brief §4): `stat -f "%Sm"` on every file under `logs/`
+  and on `data/guard-budget.json`, `data/guard-budget-fishing.json`,
+  `data/nextPositionValidation.jsonl` after the full test run — every mtime
+  strictly predates the test run's start time. No real path was touched by
+  the new tests.
+- `TASKS.md`'s Task 13 "What would unpark it" paragraph corrected: it now
+  states plainly that the deck-aware `simulateCast` prerequisite (condition
+  1) was already built session 26 (`src/sim/fishing/castSim.ts`'s
+  `CastOptions.deckIds`, header comment `[ADDED session 26, Task 13
+  infrastructure]`, confirmed present by reading the file directly), and
+  only condition 2 (double-digit real card-choice observations) remains
+  outstanding. The rest of Task 13's scoping (validation-floor reasoning,
+  grid-coverage candidate sketch) was left untouched, as scoped.
 
 ## What's broken
 Nothing shipped this session broke anything — full suite green, tsc clean,
-at the actual final commit. Unchanged since session 25: scheduler can't
-learn energy gained outside its own tracking; a SIGINT during an
-energy-regen sleep ends the whole session. Unnoted risk found but NOT fixed
-this session (out of scope, see Open questions): `scripts/liveRun.ts`'s
-`RunLog` class writes unconditionally to real `logs/` with no path override
-at all (same shape as the fishing-side `dumpUnknownTerminal` bug session 39
-fixed) — currently harmless only because `tests/liveRun.test.ts` never
-constructs a real `RunLog` (always injects a fake `{write, filePath}` stub),
-confirmed by grep (`new RunLog` appears zero times in the test file).
+`git diff --check` clean, at the actual final commit. Unchanged since session
+25: scheduler can't learn energy gained outside its own tracking; a SIGINT
+during an energy-regen sleep ends the whole session. Unchanged since session
+40: charge-reserve plateau (0.4/0.5/0.6 mutually indistinguishable), not
+urgent.
 
 ## Corrections to SPEC.md
 None this session. Resolved IDs unchanged: forbiddenWoods=5, dendren
 nodeId="5"/pondId=2. Move charges: PRESENT (unchanged).
 
 ## Dead ends
-None — the planned structural fix landed as scoped. Considered and rejected:
-requiring `opponentModelPersistence`/`playCountsPersistence` on `LiveRunDeps`
-the same way as `guardStatePath` — rejected after reading their call sites,
-since unlike `guardStatePath` they're safe-by-omission (no write at all when
-undefined), so requiring them would misrepresent the actual risk rather than
-close a real gap.
+None — both planned fixes landed as scoped, no new scope was invented to
+fill the session (per brief §3, explicitly a legitimate short session).
 
 ## Metrics
-No sim runs, no live dungeon or fishing calls this session — pure test/type
-refactor, per explicit brief scope (§2: "Do not start any TASKS.md work this
-session"). Test-count delta: 559 -> 559 (0 net — refactor only).
+No sim runs, no live dungeon or fishing calls this session — pure code/test/
+docs work. Test-count delta: 559 -> 561 (+2, one regression test per RunLog
+class).
 
 ## Open questions for Claude
-1. **`scripts/liveRun.ts`'s `RunLog` class has no injectable path at all**
-   (unconditional `mkdirSync("logs")` / write into `logs/run-<stamp>.jsonl`
-   in its constructor) — currently not a live bug because
-   `tests/liveRun.test.ts` never constructs a real one, always injecting a
-   fake `log` object into `LiveRunDeps` directly. This is exactly the shape
-   of gap that bit fishing's `dumpUnknownTerminal` in session 39, just not
-   yet triggered on the dungeon side. Worth a small follow-up (give `RunLog`
-   an optional constructor path, defaulted to `"logs"` in `main()`) so the
-   invariant is enforced structurally rather than resting on "no test
-   currently does this" — a future test that legitimately wants to exercise
-   the real `RunLog` (rather than stub it) would silently write to the real
-   project `logs/` with nothing to catch it.
-2. **Be honest about what's provable here (per the brief's own §4):** the
-   guarantee this session shipped is a compile-time one — inspected by
-   reading the two helper signatures, not proven by a runtime test. No test
-   asserts "the helper's parameter type has no optional path fields left";
-   that's a code-review-level claim, stated plainly here rather than implied
-   by a passing suite. The runtime-checkable half (zero inline literals
-   outside the helpers, real paths untouched after a full test run) IS
-   verified above, by grep and by `stat`, not assumed.
-3. **Where the spine goes next** (queued in the session-39 recap, still
-   accurate — TASKS.md read directly, not guessed): Task 13's
-   deck-composition scoring is NOT STARTED, but its own scoping already
-   named a buildable prerequisite — `src/sim/fishing/castSim.ts`'s
-   `simulateCast` draws a fresh random deck sample per simulated cast
-   (`~castSim.ts:186`) instead of drawing from an explicit passed-in deck;
-   making it deck-aware needs no new live capture and is "the one piece of
-   this task that COULD be built today" per Task 13's own notes. The FULL
-   scorer stays gated behind real validation data Task 13 says doesn't exist
-   yet. Task 11 (dungeon utility tuning) stays PARKED, unmet revival
-   conditions. QUESTIONS.md §15 and Task 14 both still need a human DevTools
-   capture, not code.
-4. Also standing: charge-reserve plateau (0.4/0.5/0.6 mutually
-   indistinguishable) — not urgent.
+1. **Session 40's open question (RunLog gap) is now fully closed on both
+   entry points** — dungeon side (found session 40) and fishing side (found
+   this session, same shape, unfixed for the same reason: no test previously
+   constructed a real one). Nothing currently needs a non-default `RunLog`
+   path in production; this was purely closing the gap before a future test
+   or feature reaches for `new RunLog()` directly.
+2. **This was a short session, honestly** (brief §3's own framing) — §1 and
+   §2 both landed with time to spare and there was no other ready TASKS.md
+   work to pick up. Task 13 stays capture-blocked (now correctly described in
+   TASKS.md), Task 11 stays parked, QUESTIONS.md §15 and Task 14 both need a
+   human DevTools capture. If the next session also has nothing ready and
+   no human capture has landed, that's worth saying plainly rather than
+   inventing scope a third time.
+3. Standing from session 40: scheduler energy-tracking gap, SIGINT-during-
+   sleep session-ending behavior, and the charge-reserve plateau — none
+   addressed this session, none urgent.
 
 ## Files changed
 ```
- tests/liveFishing.test.ts | 145 ++++++++++++++++++++++++----------------------
- tests/liveRun.test.ts     |  15 ++++-
- 2 files changed, 90 insertions(+), 70 deletions(-)
+ TASKS.md                   |  25 ++++++++++---
+ scripts/liveFishing.ts     |   4 +-
+ scripts/liveRun.ts         |   4 +-
+ tests/liveFishing.test.ts  |  20 +++++++++-
+ tests/liveRun.test.ts      |  21 ++++++++++-
+ 5 files changed, 60 insertions(+), 14 deletions(-)
 ```
