@@ -1,194 +1,194 @@
-# BRIEF — session 43
+# BRIEF — session 44
 
-Session 42 landed cleanly: Task 14's code (`buildJuicedStartRunEnvelope`,
-`--juiced` CLI flag) shipped and both live juiced runs that session were
-completed — but both were **resumes** of runs the user started manually, so
-Task 14's actual gate (a *bot-initiated* juiced `start_run`) was still open.
-586/586 tests, `tsc` clean, at the final commit.
+Session 43 landed Task 14 (bot-initiated juiced `start_run`, gate MET on
+both runs), the Sword-pin/Heal-overflow loot rule, and six user-sourced
+fishing heuristics (four implemented, two documented as judgment calls).
+629/629 tests, `tsc` clean, at commit `38fd190`.
 
-**Since that commit, the user gave direct instructions that settle several
-open items at once — read this whole section before touching code.**
+**The user's directive for this session, verbatim in spirit: fishing's
+14.0% live catch rate (7/50, `handoff/reports/fishing-casts.md`) is not
+acceptable — hammer out fishing refinements. This session is entirely about
+moving that number, not about new dungeon work.**
+
+Read this whole brief before spending anything — the plan below is built
+directly on SPEC.md §5's own root-cause finding, not a fresh guess.
+
+---
+
+## Why 14% happened — the diagnosis already exists, don't re-derive it
+
+SPEC.md §5 already did this analysis in depth (sessions 13-15) and it holds:
+`focusMeter` accounts for a real but modest chunk of the sim-vs-live gap
+(~21pp), but the **dominant** cause is that the hypothesis-elimination
+matcher has nothing to identify against — with the real Dendren pattern
+library still mostly unmined, the matcher runs effectively **blind**
+(sim: ~7–10% catch rate, statistically consistent with a blind-run live
+result). A **fully known** pattern library gets the sim to ~70%. The 50-cast
+corpus behind today's 14.0% number was played across many sessions where
+the matcher was blind for most of it and only gained its first promoted
+pattern (`perimeterWalk(cw)`) partway through (session 18). **14% sitting
+just above the ~7-10% blind baseline is the expected, unsurprising result of
+where the pattern library actually stood — this is not a hidden bug to find,
+it's a maturity problem to attack directly**, per Task 11's own standing
+note: "no volume of transitions helps until `mineFishPatterns.ts` exists to
+turn them into a real library the matcher can search" — it exists now
+(session 15/18), so volume is finally the live lever again.
+
+**A local snapshot worth confirming, not assuming:** `data/minedFishPatterns.json`
+on disk right now shows `patterns: ["perimeterWalk(cw)", "perimeterWalk(ccw)"]`,
+`castCount: 50` — a **second** pattern beyond the one SPEC.md's prose still
+describes as the only promotion. This may already reflect the full 50-cast
+corpus and just not be written up yet, or it may be stale/local-only. §0
+below is to nail this down for real before anything else, not to trust the
+file at face value.
 
 ---
 
-## 0. FIRST ACTION — bot-initiated juiced Tier-3 `start_run`, now explicitly authorized
+## 0. Re-establish ground truth on the pattern library — five minutes, do this first
 
-The user has explicitly authorized the bot to send a fresh `start_run` itself,
-standing, for exactly this shape: **juiced, 60 energy, 3× Big Heal Juice
-(itemId 131), Tier-3 offering (gold rings, `index: 3`)**. This is new — until
-now every juiced run in the corpus was started manually by the user and
-merely resumed by the bot (STATE.md session 42, open question 1). This
-authorization amends CLAUDE.md's "Ask first" list (which otherwise requires
-explicit sign-off before a juiced/energy-committing start): a bot-initiated
-`start_run` matching this exact shape (juiced=true, index=3, consumables =
-`[131,131,131]`, cost 60 energy / 3 run-units) does **not** need to be asked
-for again — do it directly. Any *different* shape (a different tier, a
-different potion loadout, non-juiced-vs-juiced mismatch) still needs fresh
-authorization; don't generalize this beyond exactly what was authorized.
+1. Re-run `scripts/mineFishPatterns.ts` fresh against the current
+   `data/fish-patterns.jsonl` (should be 169 real transitions / 50 real
+   casts per QUESTIONS.md §14's resolution — confirm this count while
+   you're in there). Report exactly what promotes, at what support, and
+   confirm/refute the `perimeterWalk(ccw)` second promotion.
+2. Confirm `scripts/liveFishing.ts` is actually reading
+   `data/minedFishPatterns.json` to seed the matcher's candidate pool
+   live (DECISIONS 2026-08-17, session 18) — i.e. that today's live casts
+   in §2 below will actually use whatever promoted set §0.1 finds, not a
+   stale in-memory default.
+3. State plainly in STATE.md what the real current promoted-pattern count
+   is and how it compares to SPEC.md's own prose (which still says "1
+   primitive promoted" as of session 21) — update SPEC.md §5 / TASKS.md
+   Task 11 if the second promotion is confirmed real.
 
-Before spending anything:
+## 1. Get an honest sim baseline for TODAY's real matcher state, before spending energy
 
-1. `GET /game/dungeon/today` fresh — confirm the account's real daily run
-   count and energy budget both leave room for this run (STATE.md session 42
-   left the count at "at least 6/12"; a juiced run costs 3 run-units per the
-   session-42 `GuardState` fix, so confirm at least 3 remain). Also check
-   `config/bot.json`'s configured daily budget hasn't already been exhausted
-   — don't just trust the API cap, respect the local config too.
-2. Confirm wallet balance actually holds ≥3 Big Heal Juice (itemId 131) and
-   ≥60 energy before sending anything.
-3. Verify the exact CLI invocation against `scripts/liveRun.ts`'s real
-   `parseArgs` (session 42's flags — `--juiced` plus an index/tier selector)
-   rather than assuming a flag name from this brief; confirm it produces the
-   same envelope shape as session 42's pinned capture: `dungeonId: 5`,
-   `actionToken: ""`, `data.index: 3`, `data.isJuiced: true`,
-   `data.consumables: [131,131,131]`.
-4. Run it live, to completion, applying the reward-pick priorities in §2
-   below throughout.
-5. Capture Task 14's actual gate evidence — this is the whole point of doing
-   a *bot-initiated* run instead of another resume:
-   - Reward shown at the first reward pick — is it ~3x a plain Tier-3 pick
-     (user's own reference point: a 5→15 Dendren Root-equivalent multiplier)?
-   - `GET /game/dungeon/today` read before and after — did `dayProgressEntities`
-     for Dungeon#5 move by exactly 3, not 1?
-   State both numbers plainly in STATE.md and say honestly whether Task 14's
-   gate is actually met now that it's bot-initiated for real — don't round up
-   if either number doesn't match.
+The 6.6%→16.2% (blind vs. one pattern) sim comparison in DECISIONS
+2026-08-17 (session 18) is now stale if §0 found a second promoted pattern.
+Before playing live:
 
-## 1. STOP after run 1 — do not auto-start run 2
+1. Re-run the sim comparison (`scripts/fishFocusMeter.ts` or equivalent)
+   with `matcherPool` seeded from §0's real current `data/minedFishPatterns.json`
+   contents, at the same N the prior comparisons used (500, ideally also
+   3000 for a second seed per the project's own convention). This sets an
+   honest expectation for what today's live batch *should* achieve, so §2's
+   real result can be judged against a real number, not a stale one.
+2. While you're in the sim harness: run a quick ablation of the four
+   implemented session-43 heuristics (center-bias, prune-return-to-previous,
+   edge-predictability, coverage-max) — all-on vs. all-off — against the
+   SAME matcherPool from step 1, N≥2000. This is cheap and fast in sim,
+   where live validation will stay statistically noisy for a long time at
+   the cast volumes this project can afford per day. Report the delta
+   plainly, including if it's a null result — per SPEC-fishing.md §8, none
+   of these four have been corpus-validated yet, and this is the first
+   chance to get ANY signal, even a synthetic one.
+3. State both results in STATE.md before moving to §2, so the live batch's
+   outcome can be compared against a number that was committed to in
+   advance, not adjusted after seeing the result.
 
-The user wants to manually level up the character using the Dendren Root
-earned from run 1 between the two runs. Leveling up is itself an existing
-"Ask first" item in CLAUDE.md (irreversible without Hourglasses) — the bot
-must not do it, and must not treat "go do the next run" as implied.
+## 2. Spend today's fishing budget on a real batch — this is the actual ask
 
-- Once run 1 ends (win, loss, or death), **stop. Do not send a second
-  `start_run`.**
-- Tell the user plainly, at the end of your output: run 1 is complete, here's
-  what happened (reward multiplier, room reached, HP/armor at end, the two
-  gate numbers from §0.5), please level up now using this run's Dendren Root,
-  and give the go-ahead when ready for run 2.
-- If the session can stay open waiting on the user's reply, wait for it
-  in-session rather than ending — this is a real pause point, not a stopping
-  point for `/recap`.
-- If the session must end before the go-ahead arrives (context limits, etc.),
-  recap normally and leave run 2 clearly queued as this session's first
-  action in the next handoff, so it survives a session boundary — the
-  standing authorization from §0 already covers it; the next session does not
-  need to re-ask, only to confirm the user's go-ahead was actually given.
-- When the go-ahead comes, repeat §0 exactly once more (same shape: juiced,
-  60 energy, 3× Big Heal Juice, Tier-3/`index:3`), played to completion the
-  same way.
+`data/guard-budget-fishing.json` shows 0 energy spent today as of this
+brief being written (`config/bot.json`'s dendren budget is 240 energy / 20
+casts/day, tier-1 12-energy casts) — re-check it's still untouched before
+starting, in case the user played manually since. Playing fishing casts
+within the configured daily budget is already blanket-authorized (CLAUDE.md:
+"Playing fishing casts... fine to do autonomously within the configured
+budget") — no special sign-off needed here, unlike the dungeon juiced-start
+case.
 
-## 2. Dungeon reward-pick priority — user directive, update SPEC.md §4c / `src/strategy/loot.ts`
+1. Run the live fishing loop for a full batch — up to the day's real
+   budget/cap, whichever binds first — with the current matcher
+   (§0's real promoted set) and all four session-43 heuristics active (the
+   current default wiring).
+2. Do not stop early because a few casts in a row miss — at ~14-20%
+   baseline expectations, a cold streak of 5-8 misses is ordinary variance,
+   not a signal something's broken. Only stop early on an actual guard trip
+   or unexpected state, per CLAUDE.md §5.
+3. If a catch happens, confirm `loot` resolution still fires cleanly
+   end-to-end (Task 9's session-17 fix) and the account doesn't get stuck —
+   this project's had two different stuck-doc shapes before (QUESTIONS.md
+   §10, §15).
 
-The user's build is Sword-focused and gave two explicit standing preferences
-for the reward-pick (loot/boon) ranking currently documented in SPEC.md §4c:
+## 3. Measure honestly, separately from the all-time number
 
-- **Prioritize `UpgradeRock` (the Sword upgrade boon, session-09 corpus) when
-  it's offered.** §4c's current rule #2 ("upgrade the move you actually play
-  most, read off logged distribution") already tends to point at Sword per
-  TASKS.md's `always-Sword` baseline data — but the user is now stating Sword
-  priority directly as a hard preference, not an inference. Pin it: Sword
-  upgrade wins whenever offered, ahead of the data-driven "most-played move"
-  inference (which becomes the fallback for non-Sword situations, e.g. if a
-  future build changes).
-- **Take the Heal card only when it's not mostly wasted.** Replace the pure
-  continuous-urgency scoring (§4c rule #1, scales by `(1 - hpFraction)`) with
-  an explicit gate layered on top of it: take Heal only if `hpCurrent <
-  hpMax` **and** the wasted overflow is ≤15% of the heal's value. Concretely,
-  with `deficit = hpMax - hpCurrent` and `healAmount` = the offered card's
-  value (16 in the one clean corpus sample, 8→16, hpMax 32 — cap still
-  unverified per §4d's open note):
-  ```
-  wasted = max(0, healAmount - deficit)
-  takeHeal = (hpCurrent < hpMax) && (wasted <= 0.15 * healAmount)
-  ```
-  If Heal fails this gate, fall through to the next-ranked boon (Sword
-  upgrade per above, then max HP/armor, then rarely-played-move ATK, per
-  §4c's existing rules 2-4).
+The all-time 14.0%/50-cast figure blends many sessions of a mostly-blind
+matcher and will keep changing slowly even after today's improvements, since
+it's cumulative. Report **today's own batch** as its own number too:
 
-Do this work as real implementation, not just a note:
+1. Regenerate `handoff/reports/fishing-casts.md` (`scripts/fishingReport.ts`)
+   — this updates the all-time cumulative figure.
+2. Separately, compute and state today's batch's own catch rate in
+   isolation (caught / cast, today's casts only) — this is the real signal
+   for whether §0-§2's changes did anything, since the all-time number will
+   barely move at n≈20 added to n=50 existing.
+3. Re-run `mineFishPatterns.ts` again on the grown transition log — did
+   today's batch produce a third promotable pattern, or move any existing
+   near-miss (`bounce(2,0)`, `bounce(-2,0)`, `twoCellCycle(0,-1)`) closer to
+   its ≥3-match bar? Report the current near-miss table plainly either way.
+4. Specifically audit today's new transitions for a real 1-cell-move-then-
+   reversal case that would counterexample heuristic (d)
+   (`pruneReturnToPrevious`) — STATE.md session 43's own open question #3
+   flagged this as the one heuristic with a real chance of being wrong
+   outright. If you find a counterexample, say so and remove/gate the call
+   rather than explain it away (SPEC-fishing.md §8's own instruction).
+5. State plainly whether today's batch's catch rate landed near §1's sim
+   prediction, above it, or (most likely, at these sample sizes) too noisy
+   to tell — do not claim a definitive win or loss off ~20 casts if the
+   honest read is "consistent with a wide range of true rates." Say what
+   the confidence interval actually allows.
 
-1. Update `src/strategy/loot.ts` with both rules.
-2. Update SPEC.md §4c's ranked list text to match, dated.
-3. Add a dated entry to DECISIONS.md (2026-08-18, user-stated): Sword-upgrade
-   priority + 15%-overflow Heal-take rule, superseding the old pure
-   continuous-urgency Heal scoring as a standalone rule (it's now a
-   necessary-but-not-sufficient condition, gated by the overflow check).
-4. Add tests pinning the overflow-threshold boundary (exactly 15% wasted,
-   just under, just over) — use the real 8→16/hpMax-32 sample where it fits,
-   synthetic values where a boundary case isn't in the corpus, and say which
-   is which.
+## 4. Ask for one live capture — unblocks a real, currently-unused catch lever
 
-## 3. Fishing strategy — user directive, `src/strategy/fishing/` + SPEC-fishing.md
+`oilPolicy.ts`'s `shouldConsiderRelaxingOil` (session 43) is a fully-written
+recommendation function with no live call site, because no oil-use request
+shape has ever been captured (QUESTIONS.md §16). Mid Relaxing Oil is a
+**direct fish-damage** consumable (`FishingDamageFish` +2) — exactly the
+kind of lever that could rescue a close cast (fish at low HP, no sure kill
+in hand) independent of pattern-identification progress. This can't be
+guessed past per CLAUDE.md §2.
 
-**Terminology note, no code change needed:** what the user has been calling
-the "bobber"/"bobble"/"center point" is the `focusPoint` field (SPEC-fishing.md
-§3/§4) — moving it spends from the 3-charge `focusMeter` budget. The internal
-name is already correct; just write "FocusPoint" consistently (not "bobber")
-in any new docs/comments this session touches, so informal terms don't creep
-back in.
-
-**New strategy heuristics from the user — none of this is captured or
-implemented yet, so this is real design + implementation work, not a doc-only
-change:**
-
-a. Bias toward keeping FocusPoint in the central 2×2 square of the grid;
-   avoid sitting on the field's edges without urgent need — from an edge
-   position, the 3-charge Focus budget may not be enough to reach the fish if
-   she jumps to the opposite side of the grid.
-b. It can be correct to deliberately play a losing/non-scoring card, or to
-   redraw the hand, purely to let the fish drift closer to the FocusPoint
-   first — not always taking the best-looking immediate card.
-c. Always hold at least one Mid Focus Oil and one Mid Relaxing Oil in
-   reserve. Oils don't need to be spent every cast, but they're for the close
-   calls — e.g. fish at 2 HP with no sure kill in the next few cards is a
-   legitimate case to spend Mid Relaxing Oil.
-d. A fish that just made a 1-cell move never returns to the cell it just came
-   from on its next move — usable to prune the predicted next-move set.
-e. A fish that just made a 2-cell move is easier to predict when she's on the
-   edge of the field and the player is centered in the middle 2×2.
-f. When choosing the next card, prefer whichever covers the maximum number of
-   cells the fish could plausibly move to next (a coverage-maximizing
-   heuristic over the predicted move set), over just the highest single-cell
-   expected value.
-
-Implementation:
-
-1. Write these up as a new "Strategy heuristics" subsection of
-   SPEC-fishing.md (they aren't documented anywhere yet), dated 2026-08-18,
-   user-stated.
-2. Encode (a), (d), (e), (f) into `src/strategy/fishing/cardChoice.ts` (or a
-   sibling module if that gets unwieldy) as explicit, testable functions —
-   these are concrete enough to implement directly: a centering bias term,
-   a "can't return to previous cell" prune on the predicted move set, and a
-   coverage-maximizing card-selection tiebreak.
-3. (b) and (c) are judgment calls, not pure functions — encode them as
-   documented decision points / config thresholds (e.g. an oil-reserve floor
-   the strategy won't spend below except at a specified low-fish-HP
-   threshold) rather than forcing them into a single scoring formula.
-4. Add tests against synthetic board states for (d)/(e)/(f) since live
-   fixtures may not cover every case yet — say plainly which cases are
-   corpus-backed and which are synthetic, same discipline as §2.
-5. If any of this can't be implemented cleanly without more capture (e.g. the
-   fish's actual move-selection distribution isn't fully characterized), say
-   so and record the gap in TASKS.md/QUESTIONS.md rather than guessing past
-   what's known — same standard as everything else in this repo.
+Ask the user directly, at the top of your session output, to grab one
+DevTools capture of using ANY fishing oil mid-cast during today's live play
+(same method as `reward_one`/`path_two`/`loot` were each originally
+confirmed — Network tab, the real `POST /api/fishing/action` request body,
+redact JWT/wallet before it goes anywhere). If they can do this during
+§2's batch, wire `oilPolicy.ts` into a real call site in
+`scripts/liveFishing.ts` before this session's recap; if not, leave it
+queued in QUESTIONS.md §16 exactly as-is — don't invent the shape.
 
 ---
+
+## Setting honest expectations — state this plainly in STATE.md, don't round up
+
+Even a **fully mined** pattern library only gets the sim to ~70% (not
+100%) — that is the real ceiling this project has ever demonstrated, and
+it assumes perfect identification, which 2 (or however many §0 confirms)
+promoted patterns out of an unknown-size real library does not yet provide.
+The realistic goal for THIS session is "measurably better than blind
+(~7-10%) and better than the stale 14% all-time figure," not "at parity
+with the sim ceiling." If today's batch lands at, say, 20-25%, that is
+real progress worth reporting as such — don't inflate it into "solved," and
+don't discount it as noise if §1's sim ablation predicted a similar-sized
+lift. If it doesn't move at all, say that plainly too and point at whatever
+§0/§3 found as the reason (e.g., today's casts' true patterns simply
+weren't in the promoted set) rather than a vague "more data needed."
 
 ## Your task
 
-1. §0 first — bot-initiated juiced Tier-3 `start_run` (run 1 of 2), played to
-   completion, Task 14 gate evidence captured and stated honestly.
-2. §1 — stop after run 1, hand back to the user for manual level-up, wait for
-   the go-ahead, then repeat §0 exactly once more (run 2 of 2) — same
-   standing authorization, no re-ask needed.
-3. §2 — dungeon loot-pick priority update (Sword-first, 15%-overflow Heal
-   gate): code + SPEC.md + DECISIONS.md + tests.
-4. §3 — fishing strategy heuristics: SPEC-fishing.md write-up, code where the
-   heuristic is concrete enough, tests, and honest gap-flagging where it
-   isn't yet.
-5. Recap normally: full suite + `tsc` + `git diff --check` against the final
-   commit, plus the standing "no real data/log path touched by new tests"
-   discipline. State both runs' outcomes and Task 14's gate numbers plainly.
+1. §0 — confirm the real current promoted-pattern state and that it's
+   actually wired into live play. Five minutes, do it first.
+2. §1 — fresh sim baseline + heuristic ablation for TODAY's real matcher
+   state, committed to in STATE.md before playing live.
+3. §2 — spend today's fishing budget on a real live batch, current best
+   pipeline, don't stop early on ordinary variance.
+4. §3 — measure today's batch's own catch rate separately from the
+   all-time cumulative number, re-mine for new promotions, audit heuristic
+   (d) for a counterexample.
+5. §4 — ask the user for one oil-use DevTools capture during play; wire
+   `oilPolicy.ts` if it lands in time.
+6. Recap normally: full suite + `tsc` + `git diff --check` against the
+   final commit. State every number from §0-§3 plainly, including null or
+   disappointing ones — this session's whole point is an honest read on
+   whether the pattern-mining lever actually moves live catch rate, and
+   that's valuable to know either way.
