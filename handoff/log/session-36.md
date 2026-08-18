@@ -140,3 +140,112 @@ live run number.
 (`CODEXAUDIT`, the untracked audit doc this session worked from, is committed
 alongside these as input/record, not counted as a work product above.
 `handoff/next.md`, this session's own brief, is excluded per convention.)
+
+---
+
+## Verbose detail (session log only — not in STATE.md)
+
+### The audit's own findings, verbatim summary
+
+`CODEXAUDIT` (repo root, committed this session) was a read-only review
+performed against commit `b8ecd83` (matched `origin/main` at review time),
+independently re-verifying 532/532 tests, `tsc --noEmit`, and `git diff
+--check` all passing before making any claims. Its completion audit:
+
+- CODEXREVIEW: items 1, 3-9 implemented. Item 2 only partially complete
+  (atomic writes not flushed to durable storage — no `fsync` anywhere in
+  `guardPersistence.ts`, `opponentModelPersistence.ts`, or
+  `playCountsPersistence.ts`). Item 10 correctly closed as invalid
+  (`viem` genuinely used by `scripts/probe.ts`).
+- CODEXIMPROVE: items 2 and 4 complete. Items 1, 3, 5, 6 have material gaps.
+  Item 5's boon-scoring half complete; orchestrator persistence half not.
+
+High priority (the one fixed this session):
+
+> ### 1. Live opponent observations are imported a second time after restart
+>
+> After a combat action, the response is written into the fixture corpus and
+> immediately learned through `model.observe()`. The model is saved, but its
+> exchange identity is not added to `bootstrapImportedIds`.
+>
+> On the next launch, `bootstrapFromCorpus()` discovers that newly written
+> fixture. Because its ID is absent from `bootstrapImportedIds`, the same
+> enemy move is observed again.
+>
+> Potential impact: every post-feature live observation eventually receives
+> twice its proper weight. Sample and Markov floors can be reached with
+> roughly half the independent evidence. Marginal and transition
+> probabilities become biased toward recent live sessions.
+
+Medium priority (not attempted this session, queued as CODEXAUDIT #2-#5):
+
+- #2 fishing contextual fallback shipped despite worse held-out log loss
+  (cell-only baseline 5.860 vs. context-threshold-3 6.151).
+- #3 play-count persistence not wired into the orchestrator (this session's
+  stretch item fixed this).
+- #4 `nextPosition` activates after ten hits regardless of interleaved
+  misses; loader also skips schema/grid-bounds validation.
+- #5 atomic persistence across all three modules never actually flushes
+  (`fsync`) before rename — this is what finishes CODEXREVIEW #2 for real.
+
+Low priority (queued as CODEXAUDIT #6): opponent-model schema accepts
+negative/fractional counts (`z.number()` unrestricted, should be
+`z.number().int().nonnegative()`).
+
+### Verifying the double-count fix actually catches the bug
+
+Before trusting the new regression test, its bug-catching power was checked
+directly rather than assumed from reading the code:
+
+1. `git stash` to snapshot the session's uncommitted work, confirmed clean
+   working tree.
+2. `git stash pop` to restore it (this was just a checkpoint, not meant to
+   discard anything).
+3. Copied `scripts/liveRun.ts` to a scratch backup.
+4. Edited the live fix in place to reproduce the EXACT pre-fix bug shape:
+   `const exchangeId = null;` / `const alreadyObserved = false;`, always
+   calling `model.observe()` unconditionally and never marking
+   `bootstrapImportedIds`, matching what the code looked like before this
+   session's fix.
+5. Ran `npx vitest run tests/liveRun.test.ts -t "double-count"` against
+   this deliberately-reintroduced bug: **FAILED** as expected —
+   `expected +0 to be 1` on `bootstrapImportedIds.size`, i.e. the ledger
+   never got marked, exactly the mechanism of the real bug.
+6. Restored the real fix from the scratch backup (`cp` back).
+7. Re-ran the full suite: 533/533 passing, confirming the fix (not the
+   test infrastructure) is what makes the difference.
+
+This is the same discipline CLAUDE.md §4 asks for ("no strategy code gets
+tested against the live API until it passes against recorded fixtures") —
+applied here as "no regression test gets trusted until it's confirmed to
+fail against the bug it claims to catch."
+
+### Exact regression-test scenario (why it needed 2 GETs for the active run)
+
+The test's mock `fetch` handler initially returned the active combat run
+only on GET call 1, then "no active run" (`data: {run: null, entity:
+null}`) for every subsequent GET. This made the test's OWN assertions fail
+first — `model.observations(key)` was 0, not from the fix being wrong but
+from the test never reaching the combat POST at all.
+
+Root cause: `runOnce()` calls `client.getDungeonState()` TWICE before any
+combat action can happen — once in a pre-loop "is a run already active"
+check (`scripts/liveRun.ts:659`, `const existing = ...`), and again as the
+main loop's own first state read (`scripts/liveRun.ts:748`, inside
+`for (;;) { state = await client.getDungeonState(); ... }`). The mock
+needed to return the active combat run for BOTH of the first two GET calls,
+not just the first — fixed by changing the dispatch condition from
+`getCount === 1` to `getCount <= 2`. This is now documented inline in the
+test itself so a future reader doesn't rediscover it from scratch.
+
+### FixtureWriter.write() signature change — call-site audit
+
+`write()`'s return type changed from `void` to `string`. Every existing
+call site that ignores the return value continues to compile and behave
+identically (TypeScript permits discarding a non-void return). Confirmed by
+`npx tsc --noEmit` passing clean across the whole repo, not just the two
+call sites this session's diff touches directly
+(`scripts/liveRun.ts:763,883` — the new `beforeTag`/`afterTag` captures) —
+other call sites at lines 616, 737, 947, 988 (start_run response, probe
+response, reward/enemy-path responses) were left as bare `fixtures.write(x)`
+statements, unchanged, and still compile.
