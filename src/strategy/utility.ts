@@ -15,8 +15,28 @@
  *     neutral instead of as a trap.
  */
 
-import { isDead, type BattleState } from "../sim/types.js";
+import { isDead, MOVES, type BattleState, type Combatant } from "../sim/types.js";
 import type { StrategyConfig } from "./config.js";
+
+/**
+ * ATK-weighted charge reserve, normalised to [0,1] by its own max (every
+ * move sitting at `maxCharges`). CODEXIMPROVE #4 stage 3: charges persist
+ * across room transitions the same way HP and armor do (SPEC.md:829), but
+ * unlike them a charge's value depends on WHICH move it sits in, so this
+ * reuses `decide.ts`'s tie-break weighting rather than counting charges
+ * blind. Gated by `cfg.chargeReserveWeight`, default 0 — see config.ts for
+ * why this must clear an ablation bar before shipping non-zero.
+ */
+function chargeReserveFraction(me: Combatant): number {
+  let reserve = 0;
+  let max = 0;
+  for (const m of MOVES) {
+    const ms = me.moves[m];
+    reserve += Math.max(0, ms.charges) * ms.atk;
+    max += ms.maxCharges * ms.atk;
+  }
+  return max === 0 ? 0 : reserve / max;
+}
 
 /**
  * Room-scaled death penalty. Dying in room 4 forfeits three rooms of invested
@@ -65,7 +85,8 @@ export function utility(state: BattleState, cfg: StrategyConfig): number {
     w.hp * (me.hp / me.hpMax) +
     w.armor * (me.armor / me.hpMax) -
     w.foeHp * (foe.hp / foe.hpMax) -
-    w.foeArmor * (foe.armor / foe.hpMax);
+    w.foeArmor * (foe.armor / foe.hpMax) +
+    cfg.chargeReserveWeight * chargeReserveFraction(me);
 
   if (isDead(foe)) return cfg.winValue + base;
   return base;

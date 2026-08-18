@@ -340,6 +340,9 @@ describe("decide — charge-reserve tie-break (CODEXIMPROVE #4 stage 1)", () => 
     weights: { hp: 0, foeHp: 0, armor: 0, foeArmor: 0 },
     winValue: 0,
     deathValue: 0,
+    // Stage 3's continuation term defaults non-zero (session 34) — zeroed
+    // here too so this block still isolates stage 1's tie-break alone.
+    chargeReserveWeight: 0,
   });
 
   it("picks the higher ATK-weighted charge reserve when scores are genuinely tied", () => {
@@ -370,6 +373,35 @@ describe("decide — charge-reserve tie-break (CODEXIMPROVE #4 stage 1)", () => 
     const biased: BattleState = { ...s, me };
     const d = decide(biased, new OpponentModel(), cfg());
     expect(d.move).toBe("paper");
+  });
+});
+
+describe("utility — charge-reserve continuation term (CODEXIMPROVE #4 stage 3)", () => {
+  const depleted = () =>
+    state({
+      moves: {
+        rock: { ...PLAYER.moves.rock, charges: 0 },
+        paper: { ...PLAYER.moves.paper, charges: 0 },
+        scissor: { ...PLAYER.moves.scissor, charges: 0 },
+      },
+    });
+
+  it("ships at 0.4 — the value scripts/chargeReserveAblation.ts's plateau cleared", () => {
+    expect(DEFAULT_CONFIG.chargeReserveWeight).toBe(0.4);
+  });
+
+  it("is a no-op on utility() at weight 0, whatever the charges", () => {
+    const zeroCfg = cfg({ chargeReserveWeight: 0 });
+    expect(utility(depleted(), zeroCfg)).toBe(utility(state({}), zeroCfg));
+  });
+
+  it("rewards a higher ATK-weighted charge reserve once the weight is non-zero", () => {
+    const withCfg = cfg({ chargeReserveWeight: 1 });
+    expect(utility(state({}), withCfg)).toBeGreaterThan(utility(depleted(), withCfg));
+  });
+
+  it("rewards it at the shipped default too", () => {
+    expect(utility(state({}), cfg())).toBeGreaterThan(utility(depleted(), cfg()));
   });
 });
 

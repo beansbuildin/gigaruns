@@ -75,6 +75,24 @@ export interface StrategyConfig {
   ambiguityWhenUnsure: number;
   /** SPEC §4a / DECISIONS 2026-08-15. Threaded, never baked. */
   chargesAreHardLimit: boolean;
+  /**
+   * CODEXIMPROVE #4 stage 3. Weight on the ATK-weighted charge-reserve
+   * fraction `utility()` adds to `base` — carried charges are a resource for
+   * rooms ahead, the same way HP and armor already are.
+   *
+   * [session 34] `scripts/chargeReserveAblation.ts` at N=20000/weight, TWO
+   * seeds (1 and 9001): weights 0.2/0.4/0.8 all separate above the weight-0
+   * control on mean rooms cleared (95% CI), unlike the session-06 HP/armor
+   * weight sweep's documented null result — this axis is real, not re-tried.
+   * A follow-up sweep at N=60000/weight over {0.2..0.8} in steps of 0.1-0.2
+   * found an inverted-U: 0.8 drops back down near 0.3's level in BOTH seeds
+   * (a real peak, not a monotonic artifact of the term dominating utility),
+   * and 0.4/0.5/0.6 are a plateau — statistically indistinguishable from each
+   * other but each separated above 0.2, 0.3 and 0.8. 0.4 is shipped as the
+   * plateau's low-risk edge (smallest weight that reaches the flat top,
+   * least likely to start crowding out the HP/armor terms it's added beside).
+   */
+  chargeReserveWeight: number;
 }
 
 export const DEFAULT_WEIGHTS: Weights = {
@@ -96,6 +114,8 @@ export const DEFAULT_CONFIG: StrategyConfig = {
   ambiguity: 0.15,
   ambiguityWhenUnsure: 0.5,
   chargesAreHardLimit: true,
+  // [session 34] Ablation-cleared, not a guess — see the field's own doc comment.
+  chargeReserveWeight: 0.4,
 };
 
 /**
