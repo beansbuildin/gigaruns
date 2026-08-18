@@ -738,6 +738,28 @@ closed there with `NO_TIER_CAPTURE` — a capture gap, not a claim that the enem
 is unscorable in general. One Safe-tier room-3 capture is the whole remaining
 blocker on this number, not a code or model change.
 
+### 3f. Reward item crediting — **[CONFIRMED 2026-08-18, session 30]**
+
+Both currency and loot items are credited via a top-level `gameItemBalanceChanges`
+array on the response — **not** nested under `data`, and not a separate
+endpoint. `[{id, amount, rarity, gearInstanceId}]`, one entry per item changed
+that response. Two concrete instances, `fixtures/dungeon-runs/
+run-2026-08-15-15-38-09/state-{054,079,110}.json`:
+
+- **Hard Core** (the leaderboard-scored currency, item **845**) is credited on
+  a `"Reward chosen"` response — `state-054`: `[{"id": 845, "amount": 56, ...}]`.
+  Confirms the session-08 `gigusOrbItemId`/`gigusOrbAmount` hypothesis
+  directly.
+- The user's **"Dendren Root"** is wire item **846**, static-item `NAME_CID`
+  **"Dendren Remnant"** (`GET /offchain/static`'s `gameItems[]`, `docId
+  "846"`) — credited on a `"Move Used"` response landing a kill:
+  `state-110`: `[{"id": 846, "amount": 5, ...}]`. The naming mismatch (the
+  user's term vs. the wire `NAME_CID`) is real; it is documented here rather
+  than silently reconciled to one or the other.
+
+`src/sim/dungeonReport.ts` reads this field for its run-visibility report
+(`scripts/dungeonReport.ts`); see its own header comment for the extraction.
+
 ---
 
 ## 4. Dungeon strategy

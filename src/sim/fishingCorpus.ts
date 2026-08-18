@@ -48,12 +48,17 @@ function classifyMessage(message: string | undefined): FishingActionKind {
 }
 
 /**
- * [session 30] The catch payload, read from `data.events[]`'s `FISH_DIED`
- * entry — NOT `doc.data.caughtFish`, which the real corpus never populates
- * (checked against every committed live catch fixture before writing this;
- * SPEC-fishing.md's `caughtFish` field documents the doc-level shape but no
- * capture actually has it set). `FISH_DIED`'s `data.fish` carries the real
- * object: `fixtures/fishing-casts/live/cast-2026-08-16-01-57-02/state-017.json`.
+ * [session 30, CORRECTED session 31] The catch payload, read from
+ * `data.events[]`'s `FISH_DIED` entry: `fixtures/fishing-casts/live/
+ * cast-2026-08-16-01-57-02/state-017.json`. `doc.data.caughtFish` carries the
+ * SAME object (session 15's finding, still accurate) and is a valid source
+ * too — session 30's claim that it's "never populated" was checked directly
+ * against the fixtures this session and found FALSE, corrected in
+ * DECISIONS.md 2026-08-18 (session 31). `FISH_DIED` is used here anyway
+ * because it fires exactly once (the kill turn), while `caughtFish` persists
+ * across every later response in the cast (same shape as `nextPosition`) —
+ * a one-shot event is the simpler signal for grouping-by-response logic like
+ * this loader's, not because the doc field is unreliable.
  */
 export interface CaughtFish {
   gameItemId: number;

@@ -57,7 +57,7 @@ Minimum 1200ms between actions, plus 0–400ms jitter. Exponential backoff on 42
 starting at 5s. The action-token window is ~5s — if you go too fast the server
 rejects the token, and if you go too slow it goes stale. Handle both.
 
-**8. Always pick the lowest enemy tier offered (Safe).**
+**8. Always choose the lowest tier actually offered.**
 `enemyPathOptions[]`'s `lootTable` is identical across all three tiers in every
 sample captured so far (SPEC §3e) — same table, same item, same weight, same
 amount. Higher tiers add `rolledEnemyStats` and `enemyBuff` with **zero loot
@@ -68,10 +68,15 @@ one from a distance.
 This is a hard rule, not a preference scored against alternatives — it is
 exactly the kind of thing that gets "optimised away" later by someone reasoning
 about risk/reward in the abstract (session 06 brief §3). `src/strategy/
-enemyTier.ts`'s `pickSafeTier()` is the one call site that should ever choose a
-tier; it halts (`UnsafeTierError`) rather than proceeding if the chosen tier
-isn't Safe. Route every live tier decision through it — do not re-implement the
-choice inline.
+enemyTier.ts`'s `pickLowestTier()` is the one call site that should ever
+choose a tier — the generalized form of the rule, not the STRICT
+`pickSafeTier()`/`UnsafeTierError` pair also defined there: session 09 found
+live samples where Safe (tier 0) isn't offered at all, and halting on that
+(rather than picking whatever lowest tier IS offered) would strand a run
+mid-combat for no loot benefit, since every offered tier still shares the same
+loot table. `pickLowestTier()` never asserts tier === Safe; it just picks the
+minimum of whatever's on offer. Route every live tier decision through it — do
+not re-implement the choice inline.
 
 **9. A brief's claims about what the corpus contains are hypotheses to verify,
 not facts to implement.**
