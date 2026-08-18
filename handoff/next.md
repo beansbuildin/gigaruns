@@ -1,115 +1,126 @@
-# BRIEF — session 28
+# BRIEF — session 29
 
-The user brought in a second reviewer (Codex) for a read-only pass against
-commit `f04f5ae`, producing two documents: `CODEXREVIEW` (bugs/safety) and
-`CODEXIMPROVE` (performance opportunities). Both are high quality — specific
-line numbers, honest about proven vs. speculative, respectful of this
-project's fail-closed/regression-test discipline. Full documents available
-from the user if needed; this brief carries forward only the parts to act
-on this session.
+Session 28 landed all five Tier 1 safety fixes clean (428/428 tests,
+including flipping the two tests that used to enshrine unsafe behavior).
+Both Codex documents (`CODEXREVIEW`, `CODEXIMPROVE`) are now committed at
+the repo root for direct reference — don't re-derive their findings from
+scratch, cite them.
 
-**First, a correction to carry forward:** Codex's review found session 27's
-own fishing-corpus counting used the wrong unit (fixture directories/response
-docs, not distinct `docId` casts/turns) — see §5 below. This means session
-27's "Fintuition REJECTED" conclusion was itself too strong: real counts are
-2/169 turns (1.18%), and a binomial test against a 3% base rate doesn't
-reject that at n=169 (P≈11.5% under the null). Correct status: **Fintuition
-as the `nextPosition` cause remains unconfirmed, not rejected.** Fix the
-stats first (§5), the conclusion follows from the corrected numbers.
-
-This session is entirely bug fixes in already-shipped code — no new
-capability, no unvalidated performance claims. That's deliberate: these five
-are the safety-critical tier out of 16 total findings across both documents;
-the rest are queued for later sessions per the reasoning below each item.
+This session: two Tier 2 items, promoted ahead of the rest of the queue for
+concrete reasons below. Not a full sweep of everything left — same
+discipline as session 28, small and verified beats comprehensive and rushed.
 
 ---
 
-## 1. Fix JWT redaction — only the first 8 characters are currently stripped
+## 1. Fix resumed-cast transition-numbering corruption (CODEXREVIEW #5)
 
-`FixtureWriter` expects a secret-removal function; callers pass
-`client.maskedJwt().split("...")[0]` — the truncated display prefix, not the
-real token. If any live response ever echoes the bearer token in full, only
-those 8 characters get replaced and most of a real credential could land in
-a committed "redacted" fixture on this public repo. Hasn't fired yet (no
-known response currently echoes the token), but it's cheap to close now and
-expensive to discover after the fact. Add `GigaverseClient.redactSecrets(text)` that removes the FULL token internally without ever
-returning it to callers. Add a regression test using a response containing
-the complete test token, confirm zero characters of it survive redaction.
+**Promoted out of the general queue** because it isn't just a data-quality
+issue — it's actively steering current live play. `scripts/liveFishing.ts`
+always initializes local `turn` to zero on resume, regardless of what's
+already logged for that `castId`; `scripts/mineFishPatterns.ts` stores one
+observation per turn number and silently overwrites duplicates. Concrete
+proof already in the log: cast `12923189` has two distinct turn-0
+transitions ~5 minutes apart — the second (from a resumed process) overwrote
+the first. `perimeterWalk(cw)` and `perimeterWalk(ccw)` are both currently
+promoted (support 4 and 3) and both feed the live matcher's seed pool.
 
-## 2. Guard persistence: fail closed on corruption, make writes atomic
+**Fix:**
 
-Currently: malformed existing JSON silently returns a zero budget (fails
-OPEN, not closed — direct contradiction of CLAUDE.md's core rule), writes
-are a direct overwrite with no atomic rename, and nothing prevents two
-concurrent processes from racing past the configured daily budget. Fix:
-missing file = first init (fine); a file that EXISTS but fails to parse/
-validate throws a `GuardTrip` or dedicated persistence error instead of
-silently zeroing. Save via sibling temp file + atomic rename. Add a lock (or
-equivalent) across the full load→assert→increment→save sequence, not just
-around the write call. Add corruption, interrupted-write, and two-writer
-regression tests. Note: `tests/orchestrator/guardPersistence.test.ts`
-currently enshrines the UNSAFE behavior as expected — that test needs to
-flip, not just gain a new case.
+1. Derive the next turn/sequence number from existing records for the same
+   `castId` on resume, not always zero.
+2. Validate that the last logged `to` position matches the resumed cast's
+   actual current position before appending anything.
+3. In the miner: reject or explicitly segment gapped/duplicate trajectories
+   rather than silently overwriting; never count a partial/gapped cast as
+   an exact full-trajectory match.
+4. **Re-run `mineFishPatterns.ts` against the corrected log and report
+   honestly whether both promotions still hold.** If either was inflated
+   by the duplicate, un-promote it — don't leave a bug-influenced pattern
+   quietly seeding live play just because walking it back is inconvenient.
+5. Add a regression test reproducing the exact `12923189` scenario (two
+   resumed-process turn-0 writes) and confirming the miner no longer
+   double-counts it.
 
-## 3. Orchestrator: guarantee energy accounting on every exit path
+## 2. Reconcile server-side daily caps as real scheduling state (CODEXREVIEW #6)
 
-Both the dungeon and fishing branches rethrow unexpected errors before
-reaching the after-energy read and persistent accounting step. If
-`start_run` already spent energy and something fails afterward, a restart
-forgets that real spend happened — a fail-closed violation by omission.
-`liveRun.ts`/`liveFishing.ts` already have the correct pattern (capture
-error → always account/persist → rethrow original error) — port that
-structure into `orchestrator.ts`'s two branches. Add a test for each mode:
-runner starts successfully, then throws — confirm accounting still runs.
+**QUESTIONS.md §13 is now answered — user-confirmed: both fishing and
+dungeon reset at 11am Pacific (PDT currently), not UTC midnight.** This
+replaces the "fishing has no known boundary, fall back to fail-closed only"
+framing from the original brief — fold the real boundary in for both modes.
 
-## 4. `getDungeonState()`: stop converting every 5xx into "no active run"
+**Dungeon:** before scheduling a new run, check the authoritative
+`GET /game/dungeon/today` count and treat it as ground truth over the local
+guard file — block scheduling if the server count is already exhausted,
+rather than attempting and eating a rejection.
 
-A transient server outage currently reads identically to a genuinely idle
-account. Worse: after a failed action POST, `postWithVerifiedRetry()` sees
-the state-read 5xx as null, concludes the action isn't pending anymore, and
-can report it as applied when it wasn't — risking an abandoned or
-duplicated run. Fix: treat 5xx as `UnexpectedResponseError` by default. If
-the historical "ended run returns 500" behavior needs to keep working,
-retry the read and only return null on the authoritative HTTP-200
-`data.run:null` shape or a narrowly verified idle signature — never on a
-bare server failure. Add a test: failed POST followed by a transient 500 on
-the state read must halt, not report the action as applied.
-`tests/api/client.test.ts:70-77` currently enshrines the blanket behavior —
-same note as §2, flip it rather than just adding around it.
+**Fishing:** no authoritative "today" read endpoint is confirmed, so it
+still can't cross-check live state the way dungeon can — but
+`guardPersistence.ts`'s date-keying can now use the REAL boundary instead
+of UTC midnight for both modes. Change the guard-budget date key from
+"current UTC calendar date" to "most recent 11am Pacific rollover." Use a
+proper timezone-aware calculation (`America/Los_Angeles`, which handles the
+PDT/PST daylight-saving transition automatically) rather than hardcoding a
+UTC offset — a hardcoded offset would silently drift wrong twice a year.
+This directly addresses the root cause behind session 24's local/real
+guard mismatch and session 27's wasted `start_run` attempt, on both modes,
+without needing a fishing-side authoritative endpoint at all.
 
-## 5. Correct the fishing corpus unit error and its downstream conclusions
+A confirmed server-cap rejection should still mark that mode exhausted for
+the rest of the local day after verification, not retried or treated as an
+unrelated anomaly each time — this is now a backstop for whatever the
+corrected date-key logic might still miss, not the only defense.
 
-Direct recount by `docId` (not fixture directories): 30 committed
-directories, **50 distinct casts, 225 response documents, 169 actual
-card-play turns, 7 catches (14%)**. Focus changed within 48/50 casts, not
-29/30. `nextPosition` fired non-null in 2/169 turns (1.18%), not 2/225
-(0.89%). Fix:
-
-1. `FixtureWriter`: construct a new one per cast inside the CLI loop (or
-   rename the current abstraction to session/batch level with per-`docId`
-   subdirectories) — directories currently don't correspond to casts 1:1.
-2. Add one canonical fishing-corpus loader that groups response documents
-   by `docId` and distinguishes `start_run`/`play_cards`/`loot`. All future
-   audits should use this loader, not directory or raw file counts.
-3. Correct the session-26/27 claims in `STATE.md`, `QUESTIONS.md`,
-   `DECISIONS.md` — keep "focus movement is genuinely active" (that
-   conclusion holds), revise Fintuition to "compatible but unconfirmed,"
-   not "rejected."
-4. Add a regression test: one `--casts=2` invocation should produce
-   fixtures that the new loader correctly counts as 2 casts.
+Add regression tests: a guard-budget check made at, say, 10:59am Pacific
+should read yesterday's key; one at 11:01am should read today's — across a
+DST transition boundary if easy to simulate, since that's exactly the case
+a hardcoded offset would get wrong.
 
 ---
 
 ## Your task
 
-1. Implement §1-5 in order, each with its own regression tests, per the
-   project's existing standard (tsc clean, full suite green, before
-   declaring any one done).
-2. Two existing tests currently enshrine unsafe/wrong behavior
-   (`guardPersistence.test.ts`'s corrupt-file case, `client.test.ts`'s
-   blanket-5xx case) — update what they assert, don't just add alongside.
-3. Correct the STATE.md/QUESTIONS.md/DECISIONS.md fishing-corpus numbers
-   and the Fintuition conclusion per §5.3.
-4. Recap normally. Note in the recap which of Tier 2/3 (full lists in
-   `CODEXREVIEW`/`CODEXIMPROVE`, available from the user) seem worth
-   queuing next, but don't start them this session.
+1. Fix the resume-transition-numbering bug (§1), re-run the miner, and
+   report honestly on whether the 2 current promotions survive.
+2. Add dungeon-side cap reconciliation against `GET /game/dungeon/today`
+   (§2); leave fishing's fail-closed behavior as the permanent fallback
+   unless the user has separately answered the reset-boundary question.
+3. Don't start CODEXIMPROVE items or CODEXREVIEW #8 this session — queued
+   next, not now.
+4. Recap normally, full suite + tsc against the final commit as usual.
+
+---
+
+## Queued for session 30 — decided, not yet scoped in detail
+
+Three items, user-confirmed this session, to write up properly once
+session 29 lands:
+
+1. **Run-visibility reporting.** Per-run/per-cast JSONL log plus an
+   auto-generated human-readable markdown summary, committed to the repo
+   (`handoff/reports/dungeon-runs.md`, `handoff/reports/fishing-casts.md`
+   or similar). Dungeon: death room, or CLEARED for the (never-yet-seen)
+   case of reaching room 16/floor 4 room 4, plus Dendren Root and Hard
+   Cores rewards per run — verify both are actually extractable from
+   dungeon fixture data before assuming the field shape, same discipline
+   as everything else in this project. Fishing: catch rate %, fish names +
+   quantities. Build on `deathRooms.ts` and `loadFishingCorpus()` rather
+   than duplicating them. Regenerate after each session's live play.
+2. **Act on `nextPosition` when it fires, not just log it.** User directive:
+   when present, reposition the focus point to secure the guaranteed hit
+   on the predicted cell — this is no longer a "wait and see" question,
+   it's authorized live behavior once implemented. Still worth a brief
+   validation-only pass first (log predicted vs. actual next position
+   before trusting it to override the matcher) given the small sample
+   size so far, but the target behavior is now settled.
+3. **Dual Yield — no backfill needed, add forward detection instead.** The
+   user added this skill after today's testing session, so there's no
+   existing catch data to audit (nothing to find). Add a lightweight
+   detector so the next actual double-catch is recognized and logged
+   correctly (does it need two `loot` calls, one call with a different
+   `cardsToAdd` shape, etc.) rather than silently mishandled the first
+   time it fires — same pattern as the existing unknown-field detectors
+   used elsewhere in this project.
+
+Also naturally-resolved this session, no code follow-up needed: no
+dedicated fishing-volume session — casts continue to accrue from ordinary
+play toward Task 13's data floor.
