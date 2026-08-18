@@ -1,134 +1,111 @@
-# STATE — session 25 — 2026-08-17 — commit 9e32109
+# STATE — session 26 — 2026-08-17 — commit 928c870
 
 ## Status
-Task 10 "Orchestrator, 2-hour live gate": **GATE PASS.** Retried after
-session 24's potions leak was closed; the user ran
-`caffeinate -i npx tsx scripts/orchestrator.ts --hours=2` unattended, in
-their own terminal, and it ran to completion on its own with zero unhandled
-exceptions, zero potions used, both real daily caps hit and recognized
-cleanly, and a rollup printed.
-Next per TASKS.md: Task 13 (`chooseNewCard` deck-composition scoring,
-scoped session 22, NOT STARTED) is the next unblocked task. Task 11's
-dungeon half is PARKED (weight-tuning dead end, session 13). Task 12
-(potion timing) is fully MET. Task 14 (bot-initiated juiced `start_run`)
-stays BLOCKED on a live DevTools capture.
-Overall: Task 10 is DONE — the project finally has a real number for "how
-long to exhaust a day's budget" (~45 minutes) instead of the original
-8-hour guess. A concrete new fishing-mechanic lead (`nextPosition`/
-`nextMovePath`, below) surfaced as a byproduct and is worth a look before
-diving into Task 13.
+No TASKS.md gate was targeted this session — session 25's brief asked for an
+investigation (fishing's `nextPosition`/`nextMovePath` field) ahead of Task
+13, plus Task 13's own non-gated infrastructure piece. Both done; **Task 10
+stays the last GATE PASS** (session 25, unchanged).
+Investigation outcome: **the field is real but does NOT hold up as the
+"bigger lever than `mineFishPatterns.ts`" session 25 hoped for.** Checked
+against all 30 committed live fishing-cast fixtures (225 turns), zero new
+live casts spent. The field appears on only 8/225 turns across 2/30 casts —
+neither terminal-only (the original catch-resolution guess) nor every-turn
+(the hopeful look-ahead reading). One checkable prediction matched exactly;
+n=1 doesn't establish a mechanic. No candidate trigger field explains the
+2/30 rate. Full derivation: QUESTIONS.md §12, DECISIONS.md 2026-08-17
+(session 26).
+Next per TASKS.md: **Task 13's scoring logic** (deck-composition
+`chooseNewCard` replacement) is the next unblocked task — its
+infrastructure prerequisite (deck-aware `simulateCast`) is now built, but
+the task's own gate still needs more real card-choice data than exists
+today (1 live choice on record) before a sim-vs-live comparison means
+anything; see TASKS.md Task 13 for the full validation-floor reasoning,
+unchanged this session. Task 14 (bot-initiated juiced `start_run`) stays
+BLOCKED on a live DevTools capture. Task 11's dungeon half stays PARKED.
+Overall: this was a narrowing/infrastructure session, not a gate session —
+no regression, no new capability shipped to live play, one real finding
+that closes off a hoped-for shortcut and one small reusable building block
+for whenever Task 13 actually unparks.
 
 ## What works
-- **Orchestrator, real 2-hour unattended run, completed** — 12/12 dungeon
-  runs (216/240 energy), 20/20 fishing casts (239/240 energy), clean
-  `"done for today"` idle, full rollup, exit 0. Real wall-clock to exhaust
-  both real daily caps: **~45 minutes** (~27 of which was one
-  energy-regen sleep down to 4/420, ~18 minutes active play across 32
-  actions). Scheduler interleaved both modes by relative daily-budget
-  headroom throughout, confirmed live (not just unit-tested).
-- **Potions leak fix holds** — zero potion log lines anywhere in the run;
-  confirmed at both the config level (`forbiddenWoods.potions` absent) and
-  the code level (`orchestrator.ts`'s `resolvePotionLoadout()` and
-  `liveRun.ts`'s loadout path both fail safe to 0 when the block is
-  absent).
-- Two boons got their first-ever pickup pairs this session:
-  `VulnerableEvade` and `AddLifestealMagic`, both modelled
-  `{kind:"latent"}` (zero delta at pickup, same shape as `AddBurnSword`).
-- Full test suite + typecheck, re-run against the final commit: **404/404,
-  `tsc --noEmit` clean.**
+- Everything from session 25 (Task 10 orchestrator gate) is unchanged —
+  not re-verified live this session, no reason to expect regression (no
+  code touched that path).
+- `src/sim/fishing/castSim.ts`'s `simulateCast` now accepts an optional
+  `deckIds` (real card ids resolved against `loadDendrenDeck()`'s catalog)
+  instead of always drawing a fresh random sample of the whole catalog —
+  verified by 4 new tests (deterministic-given-fixed-deck, throws on an
+  unknown id, actually changes what's drawable). Nothing calls it with a
+  real deck yet — infrastructure only, `chooseNewCard`'s scoring logic is
+  untouched.
+- `scripts/liveFishing.ts`'s unknown-doc-field detector now fires on EVERY
+  `play_cards` turn, not just the cast's terminal doc — verified by
+  existing `unknownDocKeys` unit tests (function itself unchanged) plus a
+  full-suite pass; no live cast run this session to confirm the widened
+  call site end-to-end (next live fishing session will).
+- Full test suite + typecheck, re-run against the final commit:
+  **408/408, `tsc --noEmit` clean.**
 
 ## What's broken
-- Nothing broken in the codebase from this session's own changes.
-- **Known, not fixed**: the scheduler cannot learn about energy gained
-  outside its own tracking (e.g. a manual ROM claim mid-run) — it only
-  re-polls real energy when a sleep completes or the process restarts, and
-  a single SIGINT during a sleep ends the WHOLE session (not just that
-  wait) because `shutdown.ts` sets `requested` on the first press, which
-  the outer loop also checks. Surfaced live this session when the user
-  topped energy up manually mid-sleep and had no way to tell the running
-  process.
-- **New lead, not chased down**: three fishing casts this session hit
-  `liveFishing.ts`'s unknown-terminal-field detector on
-  `data.nextPosition`/`data.nextMovePath`. The code's own inline comment
-  guesses this is "the catch-resolution mechanic" (`QUESTIONS.md §10`) —
-  **that guess looks wrong on inspection of the actual dumps.** These
-  fields sit alongside `fishPosition`/`previousFishPosition` in
-  `doc.data`, not near `cardChosenId`/`caughtFish` (the real
-  catch-resolution fields from session 17). One dump has concrete values —
-  `fishPosition: [2,3]`, `nextPosition: [1,3]`, `nextMovePath: [3]` — which
-  reads far more like a **look-ahead reveal of the fish's next move** than
-  anything catch-related. Only checked on a cast's TERMINAL doc (the
-  detector only fires there), so it's unknown whether this is present on
-  every turn's response and just never surfaced before, or genuinely new.
-  See QUESTIONS.md §12 (new) for the full dumps and reasoning. If this
-  holds up, it could remove the need for `mineFishPatterns.ts`'s
-  after-the-fact pattern mining entirely — worth checking before Task 13.
+- Nothing broken by this session's changes.
+- Unchanged from session 25, not touched this session: the scheduler still
+  cannot learn about energy gained outside its own tracking, and a single
+  SIGINT during an energy-regen sleep still ends the whole session (not
+  just that wait) — `shutdown.ts`'s known gap, still just a documented
+  workaround (full restart), not fixed.
 
 ## Corrections to SPEC.md
-- None this session — no SPEC claim was contradicted by a live response.
-  (The two new boon models and the fishing lead above are additions, not
-  corrections to an existing claim.)
+- None this session — `nextPosition`/`nextMovePath` were never documented
+  in SPEC.md or SPEC-fishing.md in the first place, so there was no claim
+  to contradict; the finding lives in QUESTIONS.md/DECISIONS.md until (if
+  ever) it's confirmed enough to promote into the spec proper.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: unchanged, PRESENT.
 
 ## Dead ends
-- None new this session. (Session 24's two dead ends — launching a
-  multi-hour background process from within Claude Code, and inferring a
-  resumed run's potion-slot usage from state reads — stand unchanged and
-  weren't re-attempted.)
+- None new this session. The investigation's own negative-shaped result
+  (the field is too rare to be a standing per-turn signal) is a finding,
+  not a dead end in the "tried an approach and abandoned it" sense — no
+  code was built and reverted; the widened detector that came out of it is
+  kept and useful regardless of how rare the field turns out to be.
 
 ## Metrics
-- Tests: 404/404 at final commit (+5 from 399 at session start: 2 new
-  clean/latent boon models, corpus-total assertions updated for +30
-  offers). `npx tsc --noEmit` clean throughout.
-- Dungeon: **12/12 real runs used today**, 216/240 energy. 12 real runs
-  played this session (the full daily cap), outcomes not separately
-  tallied (not gated — Task 5/11's room-1 battle win rate is the gated
-  metric, unaffected by this session).
-- Fishing: **20/20 real casts used today**, 239/240 energy. 1 mined
-  pattern (`perimeterWalk(cw)`) seeded the matcher throughout; no catches
-  this session (all casts ended "escaped").
-- Energy: real account energy 139/420 at session end (regen 18/hr). Local
-  `data/guard-budget.json`/`guard-budget-fishing.json` correctly tracked
-  real spend end-to-end this time (216/239) — session 24's local
-  under-recording bug did not recur.
-- ROMs: untouched.
+- No new live dungeon runs or fishing casts this session (0 network calls
+  made — everything came from replaying already-committed fixtures).
+  Real daily caps are whatever they were left at by session 25 (both
+  exhausted at that session's end: 12/12 dungeon, 20/20 fishing).
+- Fixture-corpus audit only: 30 live fishing casts / 225 turns inspected,
+  8 turns with the `nextPosition` key present, 2 with a non-null value, 1
+  checkable prediction (correct).
+- Tests: 408/408 at final commit (+4 from session start's 404: the new
+  `deckIds` describe block). `npx tsc --noEmit` clean throughout.
 
 ## Open questions for Claude
-1. Is `data.nextPosition`/`data.nextMovePath` (see "What's broken" above,
-   full dumps in `QUESTIONS.md §12`) worth a dedicated capture session
-   before Task 13? If it's a genuine live look-ahead of the fish's next
-   move on every turn (not just the terminal one), it would let the live
-   loop react to real information instead of `mineFishPatterns.ts`'s
-   after-the-fact statistical inference — a bigger win for fishing
-   accuracy than anything Task 13 scopes.
-2. Task 13's own brief (session 22) already flagged its validation floor
-   as the harder problem: `castSim`'s fish-pattern model is only weakly
-   checked against reality (matcher-blind 6.6% vs. matcher+mined 16.2% sim
-   catch rate, real rate ~3.3% off a single-digit sample). Does question 1
-   change that calculus, or should Task 13's deck-aware `simulateCast`
-   infrastructure step proceed regardless since it "needs no new live
-   capture" per its own scoping note?
-3. Should `shutdown.ts` grow a way to skip the current energy-regen sleep
-   without ending the whole session (e.g. a distinct signal/flag file), or
-   is a full restart (documented as safe — guard state persists across
-   process invocations) an acceptable answer to "I added energy, stop
-   waiting"?
+1. Task 13's scoring logic still needs "enough real catches that the '1
+   live choice' validation floor becomes double digits" (its own gate,
+   TASKS.md) before a sim-vs-live comparison would mean anything — the
+   deck-aware `simulateCast` infrastructure built this session removes one
+   of the two prerequisites the session-22 scoping named, but the data
+   floor is unchanged. Is it worth a session spent purely accumulating
+   live fishing casts (no code) to grow that number, or should Task 13
+   keep waiting on volume that accrues naturally from ordinary play?
+2. The widened per-turn unknown-field detector (this session) has never
+   fired live yet — it's only been verified against replayed fixtures. Is
+   there a preference for how the next live fishing session should treat
+   a NEW `nextPosition` sighting: just log it and keep playing normally
+   (current behavior), or pause/flag it more loudly given how rare it is?
+3. Unchanged from session 25: should `shutdown.ts` grow a way to skip the
+   current energy-regen sleep without ending the whole session, or does a
+   full restart (already documented as safe) stay the accepted answer?
 
 ## Files changed
 ```
-$ git show --stat HEAD (last commit, non-fixture)
-TASKS.md              |  64 ++++++++++++++++++++
-src/sim/boons.ts       | 163 ++++++++++++++++++++++++++++++++++++++++++++++++++
-tests/boons.test.ts    |  26 ++++++--
-tests/enemies.test.ts  |  10 +++-
-4 files changed, 258 insertions(+), 5 deletions(-)
-
-+ fixtures/dungeon-runs/run-2026-08-17-{20-33-23,20-36-03,20-37-00,20-39-09,
-  21-08-10,21-09-37,21-10-32,21-12-02,21-14-12,21-16-02,21-17-23}/ (11 new
-  run dirs, 11 distinct DUNGEON_ID_CID values — one short of
-  `data/guard-budget.json`'s `runsStarted: 12` for the day; unexplained,
-  not investigated, doesn't affect the gate)
-+ fixtures/fishing-casts/live/cast-2026-08-17-{20-35-46 .. 21-18-46}/ (20
-  new cast dirs, the session's 20 live fishing casts)
+$ git diff --stat 1a50a9f..HEAD
+QUESTIONS.md                  | 119 ++++++++++++++++++++++--------------------
+handoff/DECISIONS.md          |   1 +
+scripts/liveFishing.ts        |  22 +++++---
+src/sim/fishing/castSim.ts    |  29 +++++++++-
+tests/fishing/castSim.test.ts |  40 ++++++++++++++
+5 files changed, 145 insertions(+), 67 deletions(-)
 ```
+No new fixture directories — this session made zero live API calls.
