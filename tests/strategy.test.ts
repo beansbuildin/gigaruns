@@ -331,6 +331,48 @@ describe("decide — contract", () => {
   });
 });
 
+describe("decide — charge-reserve tie-break (CODEXIMPROVE #4 stage 1)", () => {
+  // Every weight and terminal value zeroed: `utility()` returns exactly 0 for
+  // any state, so every leaf of the search tree is 0 and all three moves'
+  // table rows tie on `.score` by construction — the cleanest possible way to
+  // isolate the tie-break from the primary EV comparison it must never touch.
+  const zeroCfg = cfg({
+    weights: { hp: 0, foeHp: 0, armor: 0, foeArmor: 0 },
+    winValue: 0,
+    deathValue: 0,
+  });
+
+  it("picks the higher ATK-weighted charge reserve when scores are genuinely tied", () => {
+    // Spending a charge on the lowest-ATK move (scissor) leaves the most
+    // ATK-weighted reserve behind: rock=20, paper=5, scissor=1, all starting
+    // at 3/3 charges. Playing scissor leaves 3*20 + 3*5 + 2*1 = 77, the
+    // highest of the three candidates (rock: 58, paper: 73).
+    const moves = {
+      rock: { atk: 20, def: 1, charges: 3, maxCharges: 3 },
+      paper: { atk: 5, def: 1, charges: 3, maxCharges: 3 },
+      scissor: { atk: 1, def: 1, charges: 3, maxCharges: 3 },
+    };
+    const s = state({ moves }, 1);
+    const d = decide(s, new OpponentModel(), zeroCfg);
+    expect(d.table.every((r) => r.score === 0)).toBe(true); // confirms this really is a tie, not a coincidence
+    expect(d.move).toBe("scissor");
+  });
+
+  it("never lets charge reserve override a real score difference", () => {
+    // SPEC §4b's own worked case: paper strictly beats rock on EV here (see
+    // "decide — SPEC §4b's worked sanity check" above). Give rock a wildly
+    // inflated charge reserve — if the tie-break fired here it would flip the
+    // choice to rock. ATK is left untouched so the combat outcome, and thus
+    // the real score gap, is unchanged; only the charge COUNT is biased.
+    const s = state({ hp: 7, armor: 0 }, 1, { hp: 4, armor: 0 });
+    const me = cloneCombatant(s.me);
+    me.moves.rock = { ...me.moves.rock, charges: 1000, maxCharges: 1000 };
+    const biased: BattleState = { ...s, me };
+    const d = decide(biased, new OpponentModel(), cfg());
+    expect(d.move).toBe("paper");
+  });
+});
+
 describe("loot ranking — §4c, unvalidated by construction", () => {
   it("categorises the types the corpus has actually offered", () => {
     expect(categorise("Heal")).toBe("heal");

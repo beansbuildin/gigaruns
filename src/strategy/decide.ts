@@ -27,6 +27,8 @@
  */
 
 import {
+  chargesAfterPlay,
+  chargesAfterRest,
   legalMoves,
   netDamageOnTie,
   netDamageOnWin,
@@ -37,6 +39,35 @@ import { isDead, MOVES, type BattleState, type MoveKey, type Outcome } from "../
 import type { StrategyConfig } from "./config.js";
 import type { OpponentModel, Prediction } from "./opponentModel.js";
 import { utility } from "./utility.js";
+
+/** Matches `cardChoice.ts`'s `EV_TIE_EPSILON` — same purpose, same value. */
+const SCORE_TIE_EPSILON = 1e-9;
+
+/**
+ * ATK-weighted charge reserve we'd carry forward if we played `played` now.
+ *
+ * Exact, not an expectation: `applyCharges` in combat.ts decrements the
+ * played move and rests the other two based only on which move WE played,
+ * never on the enemy's reply, so our own post-exchange charges don't depend
+ * on `theirs` at all.
+ *
+ * Weighted by each move's own ATK rather than counted blind — a charge
+ * sitting in a depleted high-ATK move costs more to the rooms ahead than one
+ * in a low-ATK move (CODEXIMPROVE #4 stage 2). ATK is play-share's cheaper
+ * alternative here: `playCounts` (the project's other move-value signal,
+ * `opponentModel.ts`/`loot.ts`) lives in the stateful `strategyPolicy`
+ * adapter, and threading it into `decide()` would break the pure-function
+ * contract DECISIONS 2026-08-16 records for this module.
+ */
+function chargeReserve(state: BattleState, played: MoveKey): number {
+  let reserve = 0;
+  for (const m of MOVES) {
+    const ms = state.me.moves[m];
+    const charges = m === played ? chargesAfterPlay(ms.charges) : chargesAfterRest(ms.charges, ms.maxCharges);
+    reserve += Math.max(0, charges) * ms.atk;
+  }
+  return reserve;
+}
 
 export interface EvCell {
   foeMove: MoveKey;
@@ -174,8 +205,20 @@ export function decide(
     };
   });
 
-  // Ties broken by the order in MOVES, so the choice is reproducible.
-  const best = table.reduce((a, b) => (b.score > a.score ? b : a));
+  // Ties broken first by ATK-weighted charge reserve (CODEXIMPROVE #4 stage
+  // 1: two otherwise-equal decisions should prefer the one that leaves a
+  // better move charged for the room ahead), then by the order in MOVES, so
+  // the choice stays reproducible. `chargeReserve` never fires on a strict
+  // comparison — it only resolves cases already tied within
+  // SCORE_TIE_EPSILON on the primary score, so this can't override a real
+  // decision, only break a real tie.
+  const best = table.reduce((a, b) => {
+    if (b.score > a.score + SCORE_TIE_EPSILON) return b;
+    if (a.score > b.score + SCORE_TIE_EPSILON) return a;
+    const reserveB = chargeReserve(state, b.move);
+    const reserveA = chargeReserve(state, a.move);
+    return reserveB > reserveA + SCORE_TIE_EPSILON ? b : a;
+  });
   return { move: best.move, table, prediction, lambda };
 }
 
