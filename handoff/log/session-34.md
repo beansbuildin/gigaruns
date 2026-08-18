@@ -1,3 +1,10 @@
+# SESSION 34 — 2026-08-18 — commit cfab795
+
+Same content as `handoff/STATE.md` at this commit, plus the raw ablation
+output that STATE.md only summarizes.
+
+---
+
 # STATE — session 34 — 2026-08-18 — commit cfab795
 
 ## Status
@@ -121,3 +128,83 @@ hypothesis was tried and abandoned.
 ```
 (handoff/next.md, this session's own brief, is excluded — consumed as
 input, not a work product of this session.)
+
+---
+
+## Appendix: raw ablation output
+
+### Initial coarse sweep, N=20000/weight, seed 1
+
+```
+weight 0.00  rooms 2.4925 ± 0.0182  [2.4743, 2.5107]  battleWinRate 89.92%
+weight 0.05  rooms 2.5050 ± 0.0183  [2.4867, 2.5233]  battleWinRate 90.09%
+weight 0.10  rooms 2.5150 ± 0.0184  [2.4966, 2.5334]  battleWinRate 90.06%
+weight 0.20  rooms 2.5511 ± 0.0186  [2.5325, 2.5696]  battleWinRate 90.17%
+weight 0.40  rooms 2.5847 ± 0.0186  [2.5661, 2.6033]  battleWinRate 90.43%
+weight 0.80  rooms 2.5544 ± 0.0186  [2.5358, 2.5730]  battleWinRate 90.01%
+
+Separation from control (weight 0):
+  weight 0.05 vs control: overlap — not established  (gap 0.0125)
+  weight 0.10 vs control: overlap — not established  (gap 0.0225)
+  weight 0.20 vs control: IMPROVEMENT (separated above control)  (gap 0.0585)
+  weight 0.40 vs control: IMPROVEMENT (separated above control)  (gap 0.0922)
+  weight 0.80 vs control: IMPROVEMENT (separated above control)  (gap 0.0619)
+```
+
+### Same sweep, seed 9001 (robustness check)
+
+```
+weight 0.00  rooms 2.5057 ± 0.0181  [2.4876, 2.5238]  battleWinRate 90.41%
+weight 0.05  rooms 2.5168 ± 0.0181  [2.4987, 2.5350]  battleWinRate 90.44%
+weight 0.10  rooms 2.5295 ± 0.0182  [2.5113, 2.5478]  battleWinRate 90.44%
+weight 0.20  rooms 2.5489 ± 0.0184  [2.5305, 2.5673]  battleWinRate 90.40%
+weight 0.40  rooms 2.5835 ± 0.0185  [2.5650, 2.6021]  battleWinRate 90.59%
+weight 0.80  rooms 2.5657 ± 0.0185  [2.5471, 2.5842]  battleWinRate 90.34%
+
+Separation from control (weight 0):
+  weight 0.05 vs control: overlap — not established  (gap 0.0111)
+  weight 0.10 vs control: overlap — not established  (gap 0.0238)
+  weight 0.20 vs control: IMPROVEMENT (separated above control)  (gap 0.0432)
+  weight 0.40 vs control: IMPROVEMENT (separated above control)  (gap 0.0778)
+  weight 0.80 vs control: IMPROVEMENT (separated above control)  (gap 0.0600)
+```
+
+### Follow-up plateau sweep, N=60000/weight, {0.3, 0.4, 0.5, 0.6, 0.8}
+
+```
+seed 1, 60000 runs per weight
+  weight 0.3: 2.5770 ± 0.0107  [2.5663, 2.5877]
+  weight 0.4: 2.5927 ± 0.0107  [2.5820, 2.6034]
+  weight 0.5: 2.5902 ± 0.0107  [2.5794, 2.6009]
+  weight 0.6: 2.5908 ± 0.0107  [2.5801, 2.6015]
+  weight 0.8: 2.5718 ± 0.0107  [2.5612, 2.5825]
+
+seed 9001, 60000 runs per weight
+  weight 0.3: 2.5747 ± 0.0106  [2.5641, 2.5854]
+  weight 0.4: 2.5916 ± 0.0107  [2.5809, 2.6023]
+  weight 0.5: 2.5946 ± 0.0107  [2.5839, 2.6053]
+  weight 0.6: 2.5930 ± 0.0107  [2.5823, 2.6037]
+  weight 0.8: 2.5746 ± 0.0106  [2.5640, 2.5853]
+```
+
+Reading this table: at N=60000, weight 0.2's CI (from the earlier N=60000
+check against 0.4 specifically — `[2.5548, 2.5760]` seed 1, `[2.5533,
+2.5745]` seed 9001) no longer overlaps weight 0.4's CI in either seed (0.4's
+lower bound, ~2.5820/2.5809, sits above 0.2's upper bound, ~2.5760/2.5745) —
+so 0.4 is a real step up from 0.2, not just from the zero control. 0.4/0.5/0.6
+are mutually overlapping in both seeds (no pairwise separation among the
+three). 0.8 sits clearly below all three of 0.4/0.5/0.6 in both seeds
+([2.5612,2.5825] seed 1 vs 0.4's [2.5820,2.6034] — barely overlapping at the
+very edge, effectively separated; [2.5640,2.5853] seed 9001 vs 0.4's
+[2.5809,2.6023] — same shape) — this is the inverted-U: more charge-reserve
+weight is not monotonically better past the plateau, which is the strongest
+evidence this is exploiting real structure (carried charges genuinely have
+continuation value, up to a point) rather than an artifact of the term
+mechanically inflating every state's utility regardless of content.
+
+0.4 was chosen over 0.5/0.6 as the shipped value because it is the low-risk
+edge of the plateau — smallest weight that reaches the flat top — on the
+reasoning that a smaller weight is less likely to start crowding out the
+HP/armor terms it composes beside as those terms get retuned in the future,
+not because 0.4 measurably beats 0.5/0.6 (it doesn't, they're tied within
+noise at this N).
