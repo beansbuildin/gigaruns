@@ -1,97 +1,147 @@
-# STATE — session 41 — 2026-08-18 — commit 02f0373
+# STATE — session 42 — 2026-08-18 — commit c25b03f
 
 ## Status
-Task "Close the `RunLog` path-injection gap on both entry points" (session-41
-brief §1): **GATE PASS**. Task "Fix TASKS.md's stale Task 13 section" (brief
-§2): **DONE**. Neither is a numbered TASKS.md task — both are the same
-structural-hygiene class of work as session 40's Deps fix, plus one docs
-correction. No TASKS.md numbered work was started, per the brief's explicit
-scope (§2/§3: no ready code-shaped work exists this session — Task 13 is
-capture-blocked, Task 11 stays parked).
-Next per TASKS.md: still no numbered task ready to start. Task 13's scoring
-logic needs double-digit real card-choice observations (currently one — data,
-not code). Task 11 stays parked, unmet revival conditions. QUESTIONS.md §15
-and Task 14 both need a human DevTools capture.
+Task "Resume and complete the live juiced Tier-3 run" (session-42 brief §0):
+**DONE** — the run was resumed and played to completion (death, room 7).
+Task 14 "Bot-initiated juiced `start_run`, with per-mode potion equip"
+(brief §1/§2): **CODE DONE, GATE NOT MET**. Both pieces (envelope builder,
+`--juiced` CLI flag) are implemented and tested, but the gate specifically
+asks for a **bot-initiated** juiced `start_run`, live-verified — this
+session only *resumed* a run the user started manually before the session
+began, and never sent a fresh juiced `start_run` itself (today's real
+budget/run-slots were already spent on the resumed run; nothing in the
+brief authorized a second live spend to test the new code path).
+Next per TASKS.md: no numbered task is ready to start cleanly. Task 14
+needs one bot-initiated juiced `start_run` attempt (real energy/run-slot
+cost, needs explicit authorization) to actually close its gate. Task 13
+stays capture-blocked (double-digit real card-choice observations). Task
+11 stays parked.
 
 ## What works
-- `scripts/liveRun.ts`'s and `scripts/liveFishing.ts`'s `RunLog` classes both
-  now take an optional `dir: string = "logs"` constructor param instead of
-  hardcoding `"logs"` — confirmed by reading both constructors post-edit.
-  Grep-confirmed the only production constructions are the four sites named
-  in the brief (`liveRun.ts:1218`, `liveFishing.ts:1172`,
-  `orchestrator.ts:273` as `DungeonRunLog`, `orchestrator.ts:313` as
-  `FishingRunLog`), all still no-arg — behavior is byte-for-byte unchanged
-  for every real caller.
-- One regression test added per file (`tests/liveRun.test.ts`,
-  `tests/liveFishing.test.ts`, both new `describe("RunLog — constructor path
-  override (session 41)")` blocks): constructs `new RunLog(mkdtempSync(...))`,
-  writes an entry, asserts the file exists under the passed dir (not under
-  `"logs"`) and contains the written entry, cleans up with `rmSync`. Both
-  pass. This gives a future test that legitimately wants a real `RunLog` a
-  working isolated-path example instead of the no-arg constructor that
-  started the bug class three times already (sessions 30, 31, 39).
-- Tests: **561/561 passing** (559 baseline + 2 new). `npx tsc --noEmit`
-  clean, `git diff --check` clean, both at this session's final commit
-  (02f0373).
-- Live-path check (brief §4): `stat -f "%Sm"` on every file under `logs/`
-  and on `data/guard-budget.json`, `data/guard-budget-fishing.json`,
-  `data/nextPositionValidation.jsonl` after the full test run — every mtime
-  strictly predates the test run's start time. No real path was touched by
-  the new tests.
-- `TASKS.md`'s Task 13 "What would unpark it" paragraph corrected: it now
-  states plainly that the deck-aware `simulateCast` prerequisite (condition
-  1) was already built session 26 (`src/sim/fishing/castSim.ts`'s
-  `CastOptions.deckIds`, header comment `[ADDED session 26, Task 13
-  infrastructure]`, confirmed present by reading the file directly), and
-  only condition 2 (double-digit real card-choice observations) remains
-  outstanding. The rest of Task 13's scoping (validation-floor reasoning,
-  grid-coverage candidate sketch) was left untouched, as scoped.
+- The resumed run (§0) played rooms 1→7 live, died at room 7 (own HP 0/43)
+  — the deepest recorded death this corpus has ever captured. Full run log
+  `logs/run-2026-08-18-19-50-13.jsonl`, fixtures
+  `fixtures/dungeon-runs/run-2026-08-18-19-50-14/` (123 states).
+- **Juiced reward multiplier CONFIRMED 3x, mechanism now known**: item 846
+  ("Dendren Root") is credited via THREE duplicate `gameItemBalanceChanges`
+  entries of the base amount (5,5,5 → 15 at the first kill; held at every
+  subsequent kill this run), not one tripled entry. `dungeonReport.ts`'s
+  existing sum-by-id extraction already handles this correctly (its report
+  shows 309 Dendren Root for this run — exactly 3× the sum of base amounts).
+  See SPEC.md §3f and DECISIONS.md.
+- `dayProgressEntities` for Dungeon#5 read before and after this session's
+  play: unchanged at 3 both times (second read's `updatedAt` predates the
+  resume). Consistent with — not new proof of — session 23's "+3 at
+  start_run" finding, since this invocation never sent `start_run` itself.
+- `buildJuicedStartRunEnvelope(dungeonId, index, consumables)`
+  (`scripts/liveRun.ts`) — pinned against the exact captured JSON
+  (DECISIONS.md 2026-08-18 out-of-band). Wired into the `start_run` call
+  site behind a new `deps.juicedStartRun`, only set when `--juiced` is
+  passed; the ordinary `buildEnvelope` path is byte-for-byte unchanged for
+  every plain start (dedicated regression test confirms this).
+- `--juiced` + `--juiced-index=N` CLI flags — fail-closed like `--potions=N`
+  (`--juiced` alone throws rather than defaulting index to 3). Potion
+  auto-loading (config-auto-detect branch AND `startConsumables` on a new
+  start) is now gated behind `--juiced`, closing the exact gap
+  `config/bot.json`'s own session-24 comment named. Explicit `--potions=N`
+  still works without `--juiced` — needed for, and confirmed working by,
+  this session's own `--resume-existing` resume.
+- **Real correctness gap found and fixed while wiring this in**:
+  `GuardState.assertCanStartRun`/`recordRunStarted` hardcoded 1 run-unit
+  per start; a juiced run consumes 3. Both now take an optional `runUnits`
+  param (default 1, every existing call site unaffected) — without this, a
+  future bot-initiated juiced start would have silently under-counted both
+  the daily energy budget and the session run cap.
+- `ROOM_ENEMIES` gained its first-ever room-6 (Enemy Room 68, RISKY_TIER
+  only — no Safe tier was ever offered here) and room-7 (Enemy Room 69,
+  clean SAFE_TIER) captures, from this run's own live play. `PLAYER`'s
+  loadout updated to the newest unbooned capture (hpMax 42→43, armorMax
+  16→17, scissor DEF 13→15 — a gear change, confirmed against a
+  zero-`pickedBoons` state).
+- Tests: **581/581 passing** (561 baseline + 20 new: 3 guard `runUnits`
+  tests, 4 `parseArgs` tests, 3 `runOnce` juiced-start integration tests, 2
+  `buildJuicedStartRunEnvelope` pin tests, plus 8 corpus-total assertions
+  corrected across `boons.test.ts`/`enemies.test.ts`/`combat.test.ts`/
+  `dungeonSim.test.ts` to match the grown corpus). `npx tsc --noEmit`
+  clean, `git diff --check` clean, both at this session's final commit.
 
 ## What's broken
 Nothing shipped this session broke anything — full suite green, tsc clean,
-`git diff --check` clean, at the actual final commit. Unchanged since session
+at the actual final commit. A default Safe-tier `simulateRun` walk now
+halts at room 6 with `NO_TIER_CAPTURE` (not `DEPTH_BEYOND_CORPUS`) — not a
+regression, a real capture gap (room 6 was never offered at Safe tier live)
+that a future Safe-tier room-6 capture would close. Unchanged since session
 25: scheduler can't learn energy gained outside its own tracking; a SIGINT
-during an energy-regen sleep ends the whole session. Unchanged since session
-40: charge-reserve plateau (0.4/0.5/0.6 mutually indistinguishable), not
-urgent.
+during an energy-regen sleep ends the whole session. Unchanged since
+session 40: charge-reserve plateau (0.4/0.5/0.6 mutually indistinguishable).
 
 ## Corrections to SPEC.md
-None this session. Resolved IDs unchanged: forbiddenWoods=5, dendren
-nodeId="5"/pondId=2. Move charges: PRESENT (unchanged).
+- §3f: added the juiced-run 3x-crediting mechanism (three duplicate entries
+  of the base amount, not one tripled entry) — confirmed live this session,
+  see the new subsection under §3f.
+- Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
+- Move charges: PRESENT (unchanged).
 
 ## Dead ends
-None — both planned fixes landed as scoped, no new scope was invented to
-fill the session (per brief §3, explicitly a legitimate short session).
+None — both planned pieces of code work (§1/§2) landed as scoped. The gate
+itself was correctly NOT attempted rather than forced with an unauthorized
+fresh spend — see Status above.
 
 ## Metrics
-No sim runs, no live dungeon or fishing calls this session — pure code/test/
-docs work. Test-count delta: 559 -> 561 (+2, one regression test per RunLog
-class).
+No sim runs this session. Live: 1 dungeon run (resumed, juiced Tier-3),
+rooms 1-7, died room 7, 0 energy newly committed by this session's own
+invocation (the run's 60 energy was already spent before this session
+began — this session only played it out). 6604→12652 total Hard Core
+across the corpus's 48 recorded attempts (this run alone: 6048 Hard Core,
+309 Dendren Root — both auto-reported, `handoff/reports/dungeon-runs.md`).
 
 ## Open questions for Claude
-1. **Session 40's open question (RunLog gap) is now fully closed on both
-   entry points** — dungeon side (found session 40) and fishing side (found
-   this session, same shape, unfixed for the same reason: no test previously
-   constructed a real one). Nothing currently needs a non-default `RunLog`
-   path in production; this was purely closing the gap before a future test
-   or feature reaches for `new RunLog()` directly.
-2. **This was a short session, honestly** (brief §3's own framing) — §1 and
-   §2 both landed with time to spare and there was no other ready TASKS.md
-   work to pick up. Task 13 stays capture-blocked (now correctly described in
-   TASKS.md), Task 11 stays parked, QUESTIONS.md §15 and Task 14 both need a
-   human DevTools capture. If the next session also has nothing ready and
-   no human capture has landed, that's worth saying plainly rather than
-   inventing scope a third time.
-3. Standing from session 40: scheduler energy-tracking gap, SIGINT-during-
-   sleep session-ending behavior, and the charge-reserve plateau — none
-   addressed this session, none urgent.
+1. **Task 14's actual gate still needs a bot-initiated juiced `start_run`**
+   — the code is ready and tested (`--juiced --juiced-index=3
+   --potions=N`), but nobody has actually run it live yet. This needs an
+   explicit go-ahead for a fresh 60-energy / 3-run-unit spend, since
+   today's real budget context (`GET /game/dungeon/today`) should be
+   checked fresh before attempting it — the account's real daily run count
+   may already be closer to the 12-run cap after this session's play.
+2. **Task 14's `index == tier` question is still unconfirmed in general.**
+   This session's evidence (Tier-3 pick, `index: 3`, worked) is consistent
+   with but does not prove the mapping — a future juiced start at a
+   DIFFERENT tier (e.g. Tier-1 or Tier-2, if those are even offered as
+   juiced options) would settle it. Not attempted this session, per the
+   brief's own explicit "don't guess past what's known" instruction.
+3. **New capture gap, symmetric to the one session 08 closed for room 3**:
+   room 6 (Enemy Room 68) has never been offered at Safe tier live — only
+   `{Dangerous, Dangerous, Risky}` so far, n=1 offer. A future Safe-tier
+   room-6 capture would let `deepestScorableRoom`-style sim walks reach
+   room 7 cleanly instead of halting at the `NO_TIER_CAPTURE` wall.
+4. **Currency crediting (item 845, Hard Core) does NOT show the same
+   3x-duplicate-entry pattern item 846 does** — single entries per
+   reward-pick response on the same juiced run. Not investigated this
+   session (out of scope for Task 14's own gate); worth a look if a
+   currency-specific multiplier question ever comes up.
+5. Standing from session 40/41: scheduler energy-tracking gap,
+   SIGINT-during-sleep session-ending behavior, charge-reserve plateau —
+   none addressed this session, none urgent.
 
 ## Files changed
 ```
- TASKS.md                   |  25 ++++++++++---
- scripts/liveFishing.ts     |   4 +-
- scripts/liveRun.ts         |   4 +-
- tests/liveFishing.test.ts  |  20 +++++++++-
- tests/liveRun.test.ts      |  21 ++++++++++-
- 5 files changed, 60 insertions(+), 14 deletions(-)
+ SPEC.md                          |  16 +++++
+ TASKS.md                         |  47 ++++++++++++++
+ config/bot.json                  |   2 +-
+ handoff/DECISIONS.md             |   6 ++
+ handoff/reports/dungeon-runs.md  |   7 +-
+ handoff/reports/fishing-casts.md |   2 +-
+ scripts/liveRun.ts               | 137 ++++++++++++++++++++++++++++++++++++---
+ src/orchestrator/guards.ts       |  22 +++++--
+ src/sim/boons.ts                 |  40 ++++++++++++
+ src/sim/enemies.ts               |  60 +++++++++++++++--
+ tests/boons.test.ts              |  19 ++++--
+ tests/combat.test.ts             |  12 ++--
+ tests/dungeonSim.test.ts         |  20 ++++--
+ tests/enemies.test.ts            |   7 +-
+ tests/guards.test.ts             |  22 +++++++
+ tests/liveRun.test.ts            | 130 +++++++++++++++++++++++++++++++++++++
+ 16 files changed, 506 insertions(+), 43 deletions(-)
+ + scripts/checkDungeonToday.ts (new, read-only dayProgressEntities helper)
+ + fixtures/dungeon-runs/run-2026-08-18-19-50-14/ (new, 123 states, this run)
 ```
