@@ -9,14 +9,15 @@
  * and nothing else. Do not report a number that depends on it.
  *
  * **On reading boon names.** DECISIONS 2026-08-15 forbids inferring a boon's
- * EFFECT from its name — `UpgradePaper` says what it does, has `selectedVal2: 4`,
- * and stays unmodelled because nobody picked it. That rule is about modelling,
- * and it is not relaxed here: `src/sim/boons.ts` still fails closed and this
- * module cannot change a single state delta. Choosing between three options is a
- * different act from claiming what they do, and a chooser has to use the only
- * information the offer carries. So names are read HERE and only here, the
- * ranking is a preference and never a claim, and everything it picks is still
- * scored fail-closed downstream.
+ * EFFECT from its name — `UpgradePaper` was this rule's original example
+ * (near-certain from its name and `selectedVal2`, unmodelled anyway because
+ * nobody had picked it) until session 43 gave it a real pair. That rule is
+ * about modelling, and it is not relaxed here: `src/sim/boons.ts` still
+ * fails closed and this module cannot change a single state delta. Choosing
+ * between three options is a different act from claiming what they do, and
+ * a chooser has to use the only information the offer carries. So names are
+ * read HERE and only here, the ranking is a preference and never a claim,
+ * and everything it picks is still scored fail-closed downstream.
  *
  * **What is deliberately NOT in the ranking: whether a boon is modelled.**
  * Preferring modelled boons would raise `deepestScorableRoom` and coverage
@@ -34,6 +35,29 @@
  * `AddMaxArmor` — `boons.ts`'s `maxHealth` effect moves current HP WITH the
  * new ceiling, so none of it is ever wasted the way an unfilled armor pool is,
  * and it is scored with the same "usable, not raw" formula `heal` uses below.
+ *
+ * **[session 43] Two standing user directives, hard preferences layered ON
+ * TOP of the ranking above, not scored magnitudes that could lose to a big
+ * enough number elsewhere:**
+ *
+ * 1. The user's build is Sword-focused: `UpgradeRock` wins whenever it's
+ *    offered, ahead of §4c rule 2's data-driven "most-played move" read
+ *    (which stays the fallback for every OTHER move's upgrade — this does
+ *    not touch `UpgradeScissor`/`UpgradePaper` ranking against each other).
+ *    Implemented as a large flat tier bonus (`SWORD_PIN_BONUS`), not a
+ *    bigger multiplier, specifically so it cannot be outscored by a
+ *    large-magnitude `pool`/rolled offer the way a merely-bigger coefficient
+ *    could — CLAUDE.md §8 style: a hard rule, not a preference weighed
+ *    against alternatives.
+ * 2. Heal is no longer taken whenever HP is below max — only when it is not
+ *    MOSTLY WASTED: `hpCurrent < hpMax` AND the overflow (`healAmount` minus
+ *    the actual deficit) is ≤15% of the heal's value. A Heal that fails this
+ *    gate scores 0 and falls through to the next-ranked boon (Sword upgrade,
+ *    then pool, then rare-move ATK) — the old "always worth more than any
+ *    stat upgrade" framing overstated a heal that would waste most of its
+ *    value. Also implemented as a tier separation (`HEAL_TAKEN_BONUS`) for
+ *    the same "hard rule, not a scored preference" reason as the Sword pin —
+ *    a passing Heal must not be outscored by a big pool offer either.
  */
 
 import type { BoonOption } from "../sim/boons.js";
@@ -66,6 +90,24 @@ const POOL_PREFIX = "AddMax";
  */
 const POOL_REFERENCE_DELTA = 4; // AddMaxArmor's selectedVal1, session-11 pair (armorMax 16 → 20)
 const UPGRADE_REFERENCE_DELTA = 4; // UpgradeRock/UpgradeScissor's selectedVal1+val2, session-09 pairs (both +4 DEF)
+
+/**
+ * [session 43] Tier-separation constants for the two hard user directives
+ * (see header). Every other category's score stays in the small range the
+ * existing formulas already produce (roughly 0-200 at realistic offer
+ * magnitudes) — these are deliberately orders of magnitude larger so a big
+ * `pool`/`rolled` offer can never outscore a passing Heal or a Sword
+ * upgrade, which is the whole point of a HARD preference rather than a
+ * scored one. `HEAL_TAKEN_BONUS` > `SWORD_PIN_BONUS` encodes the brief's
+ * own stated fallback order: Heal (when it passes its gate) outranks a
+ * Sword upgrade, which outranks everything else.
+ */
+const HEAL_TAKEN_BONUS = 1_000_000;
+const SWORD_PIN_BONUS = 100_000;
+/** §4c rule #1's new gate: take Heal only if the wasted overflow is small. */
+const HEAL_OVERFLOW_GATE = 0.15;
+/** The move `UpgradeRock` targets — Sword, per src/sim/types.ts's WEAPON map. */
+const SWORD_MOVE: MoveKey = "rock";
 
 /** `UpgradePaper` -> `paper`. Null when the suffix is not a move we know. */
 export function upgradeTarget(type: string): MoveKey | null {
@@ -142,11 +184,10 @@ export function rankBoons(
 
       switch (category) {
         case "heal": {
-          // §4c rank 1, and the strongest claim in the section: this card is the
-          // ONLY way HP is ever restored (no in-combat healing, CONFIRMED
-          // 2026-08-13), so passing one up at low HP is choosing to end the run.
-          // Scaled by how much of the heal is actually usable — at full HP it is
-          // worth nothing, and the cap wastes the excess.
+          // §4c rank 1: this card is the ONLY way HP is ever restored (no
+          // in-combat healing, CONFIRMED 2026-08-13). Scaled by how much of
+          // the heal is actually usable — at full HP it is worth nothing,
+          // and the cap wastes the excess.
           //
           // [session 10] The urgency bonus used to be a step function (+60 below
           // 50% HP, +0 at or above it) — a heal offered at 51% HP scored the same
@@ -155,9 +196,29 @@ export function rankBoons(
           // available several rooms later regardless of which side of 50% it sits
           // on. Made continuous in `(1 - hpFraction)` so the bonus tracks how much
           // HP is actually missing, not which side of one threshold it's on.
-          const usable = Math.min(option.val1, player.hpMax - player.hp);
-          score = usableHealScore(usable, player.hpMax, hpFraction, roomsRemaining);
-          rationale = `heals ${usable} usable of ${option.val1} at HP ${player.hp}/${player.hpMax}`;
+          //
+          // [session 43] User directive: "always worth more than any stat
+          // upgrade" overstated a heal that is mostly wasted. Gated: only
+          // taken if HP is below max AND the wasted overflow (what the heal
+          // would have restored past the actual deficit) is ≤15% of the
+          // heal's own value. A Heal that fails this gate scores 0 — the
+          // formula above still computes `usable`/`wasted` for the
+          // rationale, but the score does not reward it, so ranking falls
+          // through to the next category (Sword upgrade, then pool, etc.).
+          const deficit = player.hpMax - player.hp;
+          const usable = Math.min(option.val1, deficit);
+          const wasted = Math.max(0, option.val1 - deficit);
+          const takeHeal = player.hp < player.hpMax && wasted <= HEAL_OVERFLOW_GATE * option.val1;
+          if (takeHeal) {
+            score = HEAL_TAKEN_BONUS + usableHealScore(usable, player.hpMax, hpFraction, roomsRemaining);
+            rationale = `heals ${usable} usable of ${option.val1} at HP ${player.hp}/${player.hpMax} (wasted ${wasted}, within the 15% overflow gate)`;
+          } else {
+            score = 0;
+            rationale =
+              player.hp >= player.hpMax
+                ? `at full HP ${player.hp}/${player.hpMax} — nothing to heal, falls through`
+                : `wastes ${wasted} of ${option.val1} at HP ${player.hp}/${player.hpMax} — exceeds the 15% overflow gate, falls through to the next-ranked boon`;
+          }
           break;
         }
         case "pool": {
@@ -200,13 +261,21 @@ export function rankBoons(
           // delta against the one confirmed real sample (UpgradeRock/
           // UpgradeScissor, both +4 DEF — see the reference constant above),
           // so a bigger stat upgrade outscores a smaller one of the same move.
+          //
+          // [session 43] User directive: the build is Sword-focused, so
+          // `UpgradeRock` wins whenever offered — a hard pin (`SWORD_PIN_BONUS`,
+          // see header), not a bigger play-share. Every OTHER move's upgrade
+          // still ranks by the data-driven play-share read below, unaffected.
           const target = upgradeTarget(option.type)!;
+          const isSwordUpgrade = target === SWORD_MOVE;
           const share = totalPlays === 0 ? 1 / MOVES.length : (counts[target] ?? 0) / totalPlays;
           const delta = option.val1 + option.val2;
-          score = 40 * share * (delta / UPGRADE_REFERENCE_DELTA) * Math.min(1, roomsRemaining / 4);
-          rationale =
-            `upgrades ${target} by +${option.val1} ATK/+${option.val2} DEF, played ${((share * 100) | 0)}% of ${totalPlays} logged moves` +
-            (totalPlays === 0 ? " (no play log yet — flat prior)" : "");
+          const magnitude = 40 * share * (delta / UPGRADE_REFERENCE_DELTA) * Math.min(1, roomsRemaining / 4);
+          score = isSwordUpgrade ? SWORD_PIN_BONUS + magnitude : magnitude;
+          rationale = isSwordUpgrade
+            ? `Sword upgrade (UpgradeRock), pinned priority per user directive (2026-08-18) — +${option.val1} ATK/+${option.val2} DEF`
+            : `upgrades ${target} by +${option.val1} ATK/+${option.val2} DEF, played ${((share * 100) | 0)}% of ${totalPlays} logged moves` +
+              (totalPlays === 0 ? " (no play log yet — flat prior)" : "");
           break;
         }
         case "rolled": {

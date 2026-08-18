@@ -1237,20 +1237,34 @@ currently unspecified.
 
 After each win you pick one of three boons. Rank by:
 
-1. **Heal**, weighted up continuously as HP fraction falls (not a step at 0.5),
-   while rooms remain. Survival compounds; nothing else matters if the run
-   ends. **[CONFIRMED 2026-08-13]** this card is the *only* way HP is ever
-   restored — there is no in-combat healing — so a heal offered at low HP is
-   worth more than any stat upgrade, and passing one up is effectively
-   choosing to end the run early. **[2026-08-16, session 10]** The original
-   rule was a hard step (full urgency bonus below 50% HP, none at or above)
-   — a heal at 51% scored the same as one at 100%, which undervalues it: HP
-   does not regenerate between rooms (DECISIONS 2026-08-17) or in combat, so
-   banked HP is available several rooms later regardless of which side of one
-   threshold it happened to sit on. `src/strategy/loot.ts` now scales the
-   urgency term by `(1 - hpFraction)` directly.
+1. **Heal, but only when it is not mostly wasted.** **[UPDATED 2026-08-18,
+   session 43, user directive]** Take Heal only if `hpCurrent < hpMax` AND
+   the wasted overflow is ≤15% of the heal's own value:
+   ```
+   deficit = hpMax - hpCurrent
+   wasted = max(0, healAmount - deficit)
+   takeHeal = (hpCurrent < hpMax) && (wasted <= 0.15 * healAmount)
+   ```
+   A Heal that fails this gate scores 0 and falls through to the
+   next-ranked boon (rule 2, then 3, then 4) — the old framing ("worth more
+   than any stat upgrade, passing one up is choosing to end the run early")
+   overstated a heal that would waste most of its value; it stays weighted
+   up continuously as HP fraction falls (not a step at 0.5, session 10)
+   *among heals that clear the gate*. **[CONFIRMED 2026-08-13]** this card
+   is still the *only* way HP is ever restored — there is no in-combat
+   healing — so the gate is about waste, not about whether healing matters.
+   `src/strategy/loot.ts`'s `heal` case implements this; see
+   `HEAL_OVERFLOW_GATE`.
 2. **Upgrade the move you actually play most** (read it off your own logged move
-   distribution, not off a guess about what's theoretically strongest).
+   distribution, not off a guess about what's theoretically strongest) —
+   **EXCEPT `UpgradeRock` (Sword), which wins whenever it's offered.**
+   **[ADDED 2026-08-18, session 43, user directive]** The user's build is
+   Sword-focused; this is a hard pin (`src/strategy/loot.ts`'s
+   `SWORD_PIN_BONUS`), not a bigger score that a large-magnitude pool offer
+   could still outscore. The play-share read above is the fallback for
+   every OTHER move's upgrade (e.g. if a future build changes away from
+   Sword) — `UpgradeScissor` vs `UpgradePaper` still rank by play-share,
+   unaffected.
 3. **Max HP / armor**, weighted up in early rooms where a long run is still ahead.
 4. Raw ATK on a move you rarely play — last.
 

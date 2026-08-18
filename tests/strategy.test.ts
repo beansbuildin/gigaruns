@@ -532,6 +532,106 @@ describe("loot ranking — §4c, unvalidated by construction", () => {
     const a = rankBoons(cloneCombatant(PLAYER), offer, 1).map((r) => r.option.type);
     expect(a).toEqual(["AddLuck", "AddEvasion", "AddBlock"]);
   });
+
+  // [session 43] User directive: the build is Sword-focused — UpgradeRock
+  // wins whenever offered, pinned ahead of the play-share inference AND
+  // ahead of a big-magnitude pool offer that would otherwise outscore it.
+  describe("Sword-upgrade priority — user directive, 2026-08-18", () => {
+    it("picks UpgradeRock even when play data heavily favors a different move", () => {
+      const ranked = rankBoons(
+        cloneCombatant(PLAYER),
+        [
+          { type: "UpgradeScissor", val1: 0, val2: 4 },
+          { type: "UpgradeRock", val1: 0, val2: 4 },
+        ],
+        1,
+        { playCounts: { rock: 1, paper: 1, scissor: 100 } },
+      );
+      // Without the pin, UpgradeScissor's play-share (≈98%) would dwarf
+      // UpgradeRock's (≈1%) under the old formula — confirming the pin
+      // actually overrides the data-driven read, not just agrees with it.
+      expect(ranked[0]!.option.type).toBe("UpgradeRock");
+    });
+
+    it("picks UpgradeRock over a large-magnitude AddMaxArmor offer", () => {
+      const ranked = rankBoons(cloneCombatant(PLAYER), [
+        { type: "AddMaxArmor", val1: 20, val2: 0 },
+        { type: "UpgradeRock", val1: 0, val2: 4 },
+      ], 1);
+      // A magnitude-only fix could not guarantee this — AddMaxArmor(20) is
+      // 5x its own reference sample and would outscore a magnitude-scaled
+      // UpgradeRock. The pin is a hard tier separation, not a bigger number.
+      expect(ranked[0]!.option.type).toBe("UpgradeRock");
+    });
+
+    it("leaves UpgradeScissor vs UpgradePaper ranked by play-share, unaffected by the Sword pin", () => {
+      const ranked = rankBoons(
+        cloneCombatant(PLAYER),
+        [
+          { type: "UpgradePaper", val1: 0, val2: 4 },
+          { type: "UpgradeScissor", val1: 0, val2: 4 },
+        ],
+        1,
+        { playCounts: { rock: 5, paper: 90, scissor: 5 } },
+      );
+      expect(ranked[0]!.option.type).toBe("UpgradePaper");
+    });
+  });
+
+  // [session 43] User directive: take Heal only if it is not mostly wasted —
+  // hpCurrent < hpMax AND wasted overflow ≤15% of the heal's value. Replaces
+  // the old "always worth more than any stat upgrade" framing.
+  describe("Heal overflow gate — user directive, 2026-08-18", () => {
+    it("takes a Heal well within the gate — the real corpus sample (val1 16, hpMax 32, DECISIONS 2026-08-14)", () => {
+      // Real sample: session-04's Heal pair applied 16 HP against hpMax 32.
+      // At hp 15 (the pair's own recorded starting HP), deficit is 17 ≥ 16,
+      // so wasted is 0 — comfortably within the gate. Uses a synthetic
+      // Combatant pinned to the real sample's hpMax rather than PLAYER's
+      // current (drifted) hpMax, so this test stays tied to the actual
+      // corpus value regardless of future gear changes.
+      const player: Combatant = { ...cloneCombatant(PLAYER), hp: 15, hpMax: 32 };
+      const ranked = rankBoons(player, [{ type: "Heal", val1: 16, val2: 0 }], 1);
+      expect(ranked[0]!.score).toBeGreaterThan(0);
+    });
+
+    it("takes a Heal at exactly the 15% overflow boundary — synthetic", () => {
+      // Synthetic: no corpus sample lands exactly on the boundary. healAmount
+      // 100, deficit 85 -> wasted 15, exactly 15% of 100. The gate is
+      // inclusive (`<=`), so this must still be taken.
+      const player: Combatant = { ...cloneCombatant(PLAYER), hp: 115, hpMax: 200 };
+      const ranked = rankBoons(player, [{ type: "Heal", val1: 100, val2: 0 }], 1);
+      expect(ranked[0]!.score).toBeGreaterThan(0);
+    });
+
+    it("takes a Heal just under the 15% overflow boundary — synthetic", () => {
+      const player: Combatant = { ...cloneCombatant(PLAYER), hp: 114.9, hpMax: 200 };
+      const ranked = rankBoons(player, [{ type: "Heal", val1: 100, val2: 0 }], 1);
+      expect(ranked[0]!.score).toBeGreaterThan(0);
+    });
+
+    it("does NOT take a Heal just over the 15% overflow boundary — synthetic, falls through", () => {
+      const player: Combatant = { ...cloneCombatant(PLAYER), hp: 115.1, hpMax: 200 };
+      const ranked = rankBoons(player, [{ type: "Heal", val1: 100, val2: 0 }], 1)[0]!;
+      expect(ranked.score).toBe(0);
+    });
+
+    it("falls through to the next-ranked boon when Heal fails the gate", () => {
+      const player: Combatant = { ...cloneCombatant(PLAYER), hp: 115.1, hpMax: 200 };
+      const ranked = rankBoons(player, [
+        { type: "Heal", val1: 100, val2: 0 },
+        { type: "AddMaxArmor", val1: 2, val2: 0 },
+      ], 1);
+      expect(ranked[0]!.option.type).toBe("AddMaxArmor");
+    });
+
+    it("still takes Heal at full HP's polar opposite — a near-total deficit, val1 unchanged", () => {
+      // Sanity check in the other direction: a Heal that could not possibly
+      // be mostly wasted (deficit far exceeds val1) must still pass.
+      const player: Combatant = { ...cloneCombatant(PLAYER), hp: 1, hpMax: 200 };
+      const ranked = rankBoons(player, [{ type: "Heal", val1: 100, val2: 0 }], 1);
+      expect(ranked[0]!.score).toBeGreaterThan(0);
+    });
+  });
 });
 
 describe("config — depth 2 for sim throughput, depth 3 for live play [session 07]", () => {
