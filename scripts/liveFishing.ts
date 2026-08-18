@@ -492,6 +492,63 @@ function dumpUnknownTerminal(resp: unknown, keys: string[], tag: string = "termi
 }
 
 // ---------------------------------------------------------------------------
+// Dual Yield — forward detection only [session 30, brief §3]. User-reported
+// skill (level 2, ~4% stated chance to catch 2 fish at once), added to the
+// account AFTER the existing corpus was captured — DECISIONS 2026-08-17
+// (session 27) checked every real catch already on record and found none
+// with a second fish (single `caughtFish` object every time, the largest
+// `gameItemBalanceChanges` seen has exactly 2 entries: one fish + one
+// currency credit), consistent with ~4%-per-catch and too few real catches
+// to expect a hit yet — not evidence the skill doesn't work. Nothing to
+// backfill; this detects the next live occurrence instead.
+//
+// Two independent signals, either is enough to flag a possible event — this
+// project doesn't know which shape a real double-catch takes (two separate
+// `loot`-eligible offers, one response with two `FISH_DIED` events, or an
+// `itemId 845` "Hard Core" wire item ("A core of ontological hardware...")
+// shape this project hasn't seen yet), so it watches for anything that
+// looks like MORE than one fish landing in a single response rather than
+// betting on one specific shape:
+//  1. `data.events[]` containing 2+ `FISH_DIED` entries in one response.
+//  2. The top-level `gameItemBalanceChanges` array crediting 2+ DISTINCT
+//     item ids that are NOT the known currency id (845, "Hard Core") — a
+//     normal single catch already credits one fish item + one currency
+//     amount together (DECISIONS 2026-08-17 session 27), so this excludes
+//     that id specifically rather than flagging every ordinary catch.
+// ---------------------------------------------------------------------------
+
+/** Wire item id, `NAME_CID: "Hard Core"` — see `src/sim/dungeonReport.ts`'s `ITEM_HARD_CORE` for the dungeon-side capture; duplicated here rather than imported to keep this fishing script decoupled from the dungeon report module for one constant. */
+const ITEM_HARD_CORE = 845;
+
+export function detectPossibleDualYield(raw: unknown): { reason: string } | null {
+  const body = raw as
+    | { data?: { events?: { type?: string }[] | null }; gameItemBalanceChanges?: { id: number }[] | null }
+    | undefined;
+
+  const fishDiedCount = (body?.data?.events ?? []).filter((e) => e?.type === "FISH_DIED").length;
+  if (fishDiedCount >= 2) return { reason: `${fishDiedCount} FISH_DIED events in one response` };
+
+  const nonCurrencyIds = new Set(
+    (body?.gameItemBalanceChanges ?? []).map((c) => c.id).filter((id) => id !== ITEM_HARD_CORE),
+  );
+  if (nonCurrencyIds.size >= 2) {
+    return { reason: `${nonCurrencyIds.size} distinct non-currency items credited in one response: ${[...nonCurrencyIds].join(", ")}` };
+  }
+
+  return null;
+}
+
+/** Runs `detectPossibleDualYield` against a response and, if it fires, dumps the full raw response and logs loudly — same pattern as the unknown-terminal-field detector. */
+function checkPossibleDualYield(raw: unknown, log: RunLog, turn: number, source: string): void {
+  const hit = detectPossibleDualYield(raw);
+  if (!hit) return;
+  const path = dumpUnknownTerminal(raw, [`possible_dual_yield: ${hit.reason}`], "dual-yield");
+  log.write({ event: "possible_dual_yield_event", source, turn, reason: hit.reason, dump: path });
+  console.log(`  ★★★ POSSIBLE DUAL YIELD EVENT (${source}, turn ${turn}): ${hit.reason}`);
+  console.log(`  ★★★ full response dumped to ${path} — QUESTIONS.md, needs a human look before treating this as confirmed.`);
+}
+
+// ---------------------------------------------------------------------------
 // The live cast loop.
 // ---------------------------------------------------------------------------
 
@@ -735,6 +792,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     guards.recordActionResult(true);
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
+    checkPossibleDualYield(resp, log, turn, "play_cards");
 
     const newDoc = resp.data.doc;
     // Session 26: widened from terminal-only (COMPLETE_CID) to EVERY turn —
@@ -821,6 +879,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         guards.recordActionResult(true);
         log.write({ event: "post_response", resp: lootResp });
         fixtures.write(lootResp);
+        checkPossibleDualYield(lootResp, log, turn, "loot");
         const resolvedDeck = lootResp.data.doc.data.fullDeck.length;
         console.log(`  ✓ loot sent — fullDeck now ${resolvedDeck} card(s), cardChosenId ${lootResp.data.doc.data.cardChosenId ?? "still null?"}`);
       } catch (e) {

@@ -18,6 +18,7 @@ import {
   cardsById,
   certainDistribution,
   confirmedHitCount,
+  detectPossibleDualYield,
   extractNextPosition,
   fishCell,
   lastRecordForCast,
@@ -401,6 +402,40 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
     expect(result.outcome).toBe("escaped");
     expect(confirmedHitCount(nextPositionLogPath)).toBeLessThan(10); // NEXT_POSITION_OVERRIDE_THRESHOLD
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("detectPossibleDualYield — session 30, brief §3, forward detection only", () => {
+  it("does NOT flag an ordinary single catch (one fish + one Hard Core credit)", () => {
+    const raw = {
+      data: { events: [{ type: "FISH_DIED" }] },
+      gameItemBalanceChanges: [{ id: 517 }, { id: 845 }],
+    };
+    expect(detectPossibleDualYield(raw)).toBeNull();
+  });
+
+  it("does NOT flag a plain non-catch response", () => {
+    expect(detectPossibleDualYield({ data: { events: [] }, gameItemBalanceChanges: [] })).toBeNull();
+    expect(detectPossibleDualYield({})).toBeNull();
+  });
+
+  it("flags two FISH_DIED events in one response", () => {
+    const raw = { data: { events: [{ type: "FISH_DIED" }, { type: "FISH_DIED" }] } };
+    const hit = detectPossibleDualYield(raw);
+    expect(hit).not.toBeNull();
+    expect(hit!.reason).toContain("2 FISH_DIED");
+  });
+
+  it("flags two distinct non-currency items credited in one response", () => {
+    const raw = { gameItemBalanceChanges: [{ id: 517 }, { id: 519 }, { id: 845 }] };
+    const hit = detectPossibleDualYield(raw);
+    expect(hit).not.toBeNull();
+    expect(hit!.reason).toContain("2 distinct non-currency items");
+  });
+
+  it("does NOT flag two Hard Core credits in one response (same currency id, not two fish)", () => {
+    const raw = { gameItemBalanceChanges: [{ id: 845 }, { id: 845 }] };
+    expect(detectPossibleDualYield(raw)).toBeNull();
   });
 });
 
