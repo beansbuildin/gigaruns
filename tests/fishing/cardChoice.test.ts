@@ -227,6 +227,50 @@ describe("chooseNewCard — session 17, QUESTIONS.md §10", () => {
   });
 });
 
+describe("resource-conserving tie-breaks — session 31, CODEXIMPROVE #2", () => {
+  it("bestFocusForCard: an equal-EV stationary focus beats a moving focus", () => {
+    // centerOnlyCard only hits its own focus cell (zone 5), so placing focus
+    // AT a cell with probability mass p gives ev = p*10 - 1*4*(1-p) at that
+    // cell and nowhere else — two cells with equal probability mass give
+    // exactly equal EV, a real tie, not a rounding artifact.
+    const d = dist([
+      [{ x: 2, y: 2 }, 0.5],
+      [{ x: 3, y: 3 }, 0.5],
+    ]);
+    const current = { x: 2, y: 2 };
+    // remaining=5 is enough to reach {3,3} (Manhattan distance 2) — the old
+    // behavior would resolve the EV tie by grid enumeration order, which
+    // could land on either cell regardless of movement cost.
+    const best = bestFocusForCard(centerOnlyCard, 0, d, 4, 1, 20, { current, remaining: 5 });
+    expect(best.focus).toEqual(current); // stays put — zero focus-movement cost
+    expect(best.ev).toBeCloseTo(3); // 0.5*10 - 1*4*0.5 = 3, same at either tied cell
+  });
+
+  it("chooseCard: an equal-EV cheaper card beats a costlier one", () => {
+    const cheap: FishingCardLike = {
+      id: 1,
+      manaCost: 1,
+      hitZones: [5],
+      critZones: [],
+      hitEffects: [{ amount: 5 }],
+      missEffects: [{ amount: -3 }],
+      critEffects: [],
+    };
+    const costly: FishingCardLike = { ...cheap, id: 2, manaCost: 3 };
+    // Degenerate distribution (fish certainly at one cell) makes both cards'
+    // best-focus EV identical (5) — same hit/miss effects, same hitZones,
+    // only manaCost differs. fishHp=20 with mana=10 keeps isManaConstrained
+    // false (turnsNeeded 4 * cheapestMana 1 = 4 <= 10), so this exercises the
+    // raw-EV tie-break, not the EV/mana objective (which would already
+    // prefer the cheap card on EV/mana alone and wouldn't prove the
+    // tie-break fires).
+    const d = dist([[{ x: 2, y: 2 }, 1]]);
+    const choice = chooseCard([costly, cheap], /* mana */ 10, d, 4, 1, /* fishHp */ 20);
+    expect(choice?.ev).toBeCloseTo(5);
+    expect(choice?.card.id).toBe(1); // cheap — hand order alone would have picked costly (index 0)
+  });
+});
+
 describe("shouldRedraw", () => {
   // [session 13] Reads `best.ev`, not `.evPerMana` — SPEC.md §5 always said
   // raw EV; the old evPerMana read was a real bug, not a rename (see

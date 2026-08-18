@@ -12,7 +12,18 @@
  */
 
 import type { Cell } from "../../sim/fishing/geometry.js";
-import { allCells, cellKey, reachableCells, zonesToCells } from "../../sim/fishing/geometry.js";
+import { allCells, cellKey, manhattan, reachableCells, zonesToCells } from "../../sim/fishing/geometry.js";
+
+/**
+ * [session 31, CODEXIMPROVE #2] Two EV values within this of each other are
+ * treated as tied for tie-break purposes (focus movement cost, then mana
+ * cost) rather than compared for strict inequality — floating-point EV sums
+ * over a probability distribution can differ by a rounding-noise amount that
+ * isn't a real preference. Never widens which candidate has the higher raw
+ * EV; only decides when two are close enough to fall through to a tie-break
+ * that conserves the scarce, non-regenerating focus-movement budget instead.
+ */
+const EV_TIE_EPSILON = 1e-9;
 
 export interface FishingCardLike {
   id: number;
@@ -154,8 +165,19 @@ export function bestFocusForCard(
       continue;
     }
     if (!candidate.lethal && best.lethal) continue;
-    if (candidate.ev > best.ev) {
+    if (candidate.ev > best.ev + EV_TIE_EPSILON) {
       best = candidate;
+      continue;
+    }
+    // [session 31, CODEXIMPROVE #2] Equal EV (within EV_TIE_EPSILON) used to
+    // resolve by grid enumeration order — meaning the bot could spend
+    // scarce, non-regenerating focus-movement budget (geometry.ts's
+    // reachableCells) for zero immediate benefit. This cannot reduce EV, it
+    // only breaks a real tie in favor of the cheaper placement.
+    if (focusBudget && Math.abs(candidate.ev - best.ev) <= EV_TIE_EPSILON) {
+      const candidateCost = manhattan(focusBudget.current, candidate.focus);
+      const bestCost = manhattan(focusBudget.current, best.focus);
+      if (candidateCost < bestCost) best = candidate;
     }
   }
   if (!best) throw new Error("gridSize must be >= 1");
@@ -199,6 +221,31 @@ function isManaConstrained(hand: readonly FishingCardLike[], mana: number, fishH
  * gated by `isManaConstrained`: once mana genuinely can't cover finishing
  * the fish even under optimistic play, efficiency starts mattering again.
  */
+/**
+ * [session 31, CODEXIMPROVE #2] True when `a` should be preferred over `b`
+ * under the deterministic tie-break order CODEXIMPROVE #2 specifies: higher
+ * EV (or EV/mana, per `useEvPerMana`) first; on an EV tie, lower focus
+ * movement cost from the current focus; on a further tie, lower mana cost;
+ * otherwise keep the existing hand/grid order (i.e. `a` does NOT win a full
+ * tie — `.reduce`'s strict `>` semantics below preserve first-seen order).
+ * Deliberately does not compare `lethal` — callers partition lethal from
+ * non-lethal options before calling this, per SPEC.md §5's "lethal check
+ * first" (session 15).
+ */
+function isPreferred(a: CardFocusChoice, b: CardFocusChoice, focusBudget: FocusBudget | undefined, useEvPerMana: boolean): boolean {
+  const evA = useEvPerMana ? a.evPerMana : a.ev;
+  const evB = useEvPerMana ? b.evPerMana : b.ev;
+  if (evA > evB + EV_TIE_EPSILON) return true;
+  if (evB > evA + EV_TIE_EPSILON) return false;
+  if (focusBudget) {
+    const costA = manhattan(focusBudget.current, a.focus);
+    const costB = manhattan(focusBudget.current, b.focus);
+    if (costA !== costB) return costA < costB;
+  }
+  if (a.card.manaCost !== b.card.manaCost) return a.card.manaCost < b.card.manaCost;
+  return false;
+}
+
 export function chooseCard(
   hand: readonly FishingCardLike[],
   mana: number,
@@ -214,13 +261,16 @@ export function chooseCard(
     .map(([c, i]) => bestFocusForCard(c, i, dist, gridSize, missPenaltyMultiplier, fishHp, focusBudget));
   if (options.length === 0) return null;
 
-  const lethalOption = options.find((o) => o.lethal);
-  if (lethalOption) return lethalOption;
+  const pickBest = (candidates: readonly CardFocusChoice[], useEvPerMana: boolean): CardFocusChoice =>
+    candidates.reduce((best, o) => (isPreferred(o, best, focusBudget, useEvPerMana) ? o : best));
+
+  const lethalOptions = options.filter((o) => o.lethal);
+  if (lethalOptions.length > 0) return pickBest(lethalOptions, false);
 
   if (isManaConstrained(hand, mana, fishHp)) {
-    return options.reduce((best, o) => (o.evPerMana > best.evPerMana ? o : best));
+    return pickBest(options, true);
   }
-  return options.reduce((best, o) => (o.ev > best.ev ? o : best));
+  return pickBest(options, false);
 }
 
 /**
