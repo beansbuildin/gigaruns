@@ -607,6 +607,19 @@ lever, not the standing instruction to ask before building it.
 
 ## 12. Fishing `data.nextPosition`/`data.nextMovePath` — NARROWED [session 26]: real, but RARE (~2/30 casts), not the standing per-turn signal it looked like; Fintuition hypothesis CHECKED AND NOT CONFIRMED [session 27]
 
+**[session 30] Validation-only recording is now LIVE.** Per user directive
+this session (act on `nextPosition` when it fires) paired with the standing
+caveat above (2/169 real firings, statistically compatible with but not
+confirming a 3% rate), `scripts/liveFishing.ts`'s `runOneCast` now logs
+predicted-vs-actual to `data/nextPositionValidation.jsonl` every time a
+prediction from one turn can be checked against the next turn's real
+position — `NextPositionValidation` records, `confirmedHitCount()` reads
+the running total. The live override (force focus toward the predicted
+cell via `certainDistribution`) is wired but gated behind
+`NEXT_POSITION_OVERRIDE_THRESHOLD = 10` confirmed hits, unreachable at
+today's 2-hit total regardless of this session's or the next session's live
+volume. See DECISIONS.md 2026-08-18 (session 30).
+
 Three fishing casts during Task 10's real 2-hour orchestrator gate run
 tripped `liveFishing.ts`'s existing unknown-terminal-field detector on a
 cast's final `play_cards` response. The detector's own inline comment

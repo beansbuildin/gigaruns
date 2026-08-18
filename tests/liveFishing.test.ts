@@ -11,16 +11,22 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  appendNextPositionValidation,
   appendTransition,
   buildFishingEnvelope,
   buildHand,
   cardsById,
+  certainDistribution,
+  confirmedHitCount,
+  extractNextPosition,
   fishCell,
   lastRecordForCast,
+  loadNextPositionValidations,
   loadTransitionLog,
   runOneCast,
   unknownDocKeys,
   type LiveFishingDeps,
+  type NextPositionValidation,
   type TransitionRecord,
 } from "../scripts/liveFishing.js";
 import type { FishingGameDoc } from "../src/api/fishing.js";
@@ -202,6 +208,199 @@ describe("lastRecordForCast — session 29, CODEXREVIEW #5", () => {
     // is what gets appended next.
     const nextTurn = last!.turn + 1;
     expect(nextTurn).toBe(3);
+  });
+});
+
+describe("extractNextPosition — session 30, brief §2", () => {
+  it("reads a valid [x,y] prediction", () => {
+    expect(extractNextPosition({ data: { nextPosition: [2, 4] } })).toEqual({ x: 2, y: 4 });
+  });
+  it("returns null when the key is absent", () => {
+    expect(extractNextPosition({ data: {} })).toBeNull();
+  });
+  it("returns null when the value is null — the common case once the key has appeared once in a cast (QUESTIONS.md §12)", () => {
+    expect(extractNextPosition({ data: { nextPosition: null } })).toBeNull();
+  });
+  it("returns null on a malformed (non-2-number-array) value rather than throwing", () => {
+    expect(extractNextPosition({ data: { nextPosition: [1] } })).toBeNull();
+    expect(extractNextPosition({ data: { nextPosition: "nope" } })).toBeNull();
+    expect(extractNextPosition({})).toBeNull();
+  });
+});
+
+describe("certainDistribution", () => {
+  it("puts all probability mass on the given cell", () => {
+    const dist = certainDistribution({ x: 3, y: 1 });
+    expect(dist.size).toBe(1);
+    expect([...dist.values()]).toEqual([{ cell: { x: 3, y: 1 }, p: 1 }]);
+  });
+});
+
+describe("nextPosition validation log round-trip", () => {
+  it("appends and reloads validations, and confirmedHitCount counts only hits", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-test-"));
+    const path = join(dir, "nextPositionValidation.jsonl");
+    const hit: NextPositionValidation = { ts: "t1", castId: "c1", turn: 1, predicted: [2, 2], actual: [2, 2], hit: true };
+    const miss: NextPositionValidation = { ts: "t2", castId: "c1", turn: 2, predicted: [3, 3], actual: [1, 1], hit: false };
+    appendNextPositionValidation(hit, path);
+    appendNextPositionValidation(miss, path);
+
+    expect(loadNextPositionValidations(path)).toEqual([hit, miss]);
+    expect(confirmedHitCount(path)).toBe(1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns 0/[] for a missing file rather than throwing", () => {
+    expect(loadNextPositionValidations("/nonexistent/path.jsonl")).toEqual([]);
+    expect(confirmedHitCount("/nonexistent/path.jsonl")).toBe(0);
+  });
+});
+
+describe("runOneCast — nextPosition validation-only recording, live wiring (session 30, brief §2)", () => {
+  const TEST_CONFIG: BotConfig = {
+    dungeonId: 5,
+    energyCostPerRun: 20,
+    maxRoom: 16,
+    maxRunsPerDayGame: 12,
+    dailyEnergyBudget: 240,
+    maxRunsPerSession: 12,
+    maxConsecutiveActionFailures: 3,
+    dendren: { nodeId: "5", tierId: 1, energyCostPerCast: 12, maxCastsPerDayGame: 20, dailyEnergyBudget: 240, maxCastsPerSession: 20 },
+  };
+
+  function fakeCard() {
+    return {
+      id: 1,
+      manaCost: 1,
+      hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      critZones: [],
+      hitEffects: [{ type: "FISH_HP", amount: 5 }],
+      missEffects: [{ type: "FISH_HP", amount: -3 }],
+      critEffects: [],
+      earnable: false,
+      rarity: 0,
+      isDayCard: false,
+      foundInPonds: [1],
+    };
+  }
+
+  function fakeDoc(fishPosition: [number, number], completeCid: boolean, extraData: Record<string, unknown> = {}) {
+    return {
+      docId: "99999999",
+      docType: "FISHING_GAME",
+      data: {
+        deckCardData: [fakeCard()],
+        playerMaxHp: 10,
+        playerHp: 10,
+        fishHp: 10,
+        fishMaxHp: 10,
+        fishPosition,
+        previousFishPosition: [0, 0],
+        gridSize: 4,
+        focusPoint: [0, 0],
+        focusMeter: 3,
+        focusMeterMax: 3,
+        focusMechanicEnabled: true,
+        patternIndex: 0,
+        fullDeck: [1],
+        nextCardIndex: 1,
+        cardInDrawPile: 0,
+        hand: [1],
+        discard: [],
+        ...extraData,
+      },
+      COMPLETE_CID: completeCid,
+      SUCCESS_CID: completeCid ? false : undefined,
+      IS_JUICED_CID: false,
+      MULTIPLIER_CID: 1,
+    };
+  }
+
+  function makeClient(): { client: GigaverseClient; calls: string[] } {
+    const calls: string[] = [];
+    const client = {
+      getFishingState: async () => ({ gameState: null }),
+      getFishingActionToken: () => "",
+      postFishingAction: async (body: { action: string }) => {
+        calls.push(body.action);
+        if (body.action === "start_run") {
+          return {
+            success: true,
+            message: "Game started successfully.",
+            data: { doc: fakeDoc([0, 0], false), events: [] },
+            actionToken: 1,
+          };
+        }
+        if (calls.filter((a) => a === "play_cards").length === 1) {
+          // Turn 0's play_cards: lands the fish at [1,1] and reveals a prediction for turn 1.
+          return {
+            success: true,
+            message: "Cards played successfully.",
+            data: { doc: fakeDoc([1, 1], false, { nextPosition: [2, 2] }), events: [] },
+            actionToken: 2,
+          };
+        }
+        // Turn 1's play_cards: actual position matches the turn-0 prediction exactly -> HIT. Cast ends here (escaped).
+        return {
+          success: true,
+          message: "Cards played successfully.",
+          data: { doc: fakeDoc([2, 2], true), events: [] },
+          actionToken: 3,
+        };
+      },
+    } as unknown as GigaverseClient;
+    return { client, calls };
+  }
+
+  it("records a HIT when the predicted nextPosition matches the following turn's actual position", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-live-test-"));
+    const nextPositionLogPath = join(dir, "nextPositionValidation.jsonl");
+    const { client } = makeClient();
+    const deps: LiveFishingDeps = {
+      client,
+      config: TEST_CONFIG,
+      guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
+      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
+      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
+      address: "0xUSER",
+      dryRun: false,
+      transitionsPath: join(dir, "fish-patterns.jsonl"),
+      nextPositionLogPath,
+    };
+
+    const result = await runOneCast(deps);
+    expect(result.outcome).toBe("escaped");
+
+    const validations = loadNextPositionValidations(nextPositionLogPath);
+    expect(validations).toHaveLength(1);
+    expect(validations[0]).toMatchObject({ turn: 1, predicted: [2, 2], actual: [2, 2], hit: true });
+    expect(confirmedHitCount(nextPositionLogPath)).toBe(1);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does NOT override chooseCard's distribution while confirmedHitCount stays below NEXT_POSITION_OVERRIDE_THRESHOLD — one hit is nowhere near it", async () => {
+    // The prior test already proves one real hit gets recorded. This test's
+    // point is narrower: prove that recording alone never flips behavior —
+    // the cast plays out and ends normally (no override-only code path taken),
+    // which is the whole "validation-only pass first" contract from the brief.
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-live-test-"));
+    const nextPositionLogPath = join(dir, "nextPositionValidation.jsonl");
+    const { client } = makeClient();
+    const deps: LiveFishingDeps = {
+      client,
+      config: TEST_CONFIG,
+      guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
+      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
+      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
+      address: "0xUSER",
+      dryRun: false,
+      transitionsPath: join(dir, "fish-patterns.jsonl"),
+      nextPositionLogPath,
+    };
+    const result = await runOneCast(deps);
+    expect(result.outcome).toBe("escaped");
+    expect(confirmedHitCount(nextPositionLogPath)).toBeLessThan(10); // NEXT_POSITION_OVERRIDE_THRESHOLD
+    rmSync(dir, { recursive: true, force: true });
   });
 });
 

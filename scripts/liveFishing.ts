@@ -321,6 +321,81 @@ export function lastRecordForCast(castId: string, path: string = DEFAULT_TRANSIT
 }
 
 // ---------------------------------------------------------------------------
+// `nextPosition` validation — [session 30, brief §2]. QUESTIONS.md §12/
+// DECISIONS.md found `nextPosition`/`nextMovePath` firing on ~1-2% of real
+// turns (2/169 confirmed non-null occurrences at last count), statistically
+// compatible with (not confirming, not rejecting) a 3% Fintuition proc.
+// Rare-and-unconfirmed is not the same as wrong — user directive this
+// session: reposition focus on it when it fires, but do the validation-only
+// pass first (log predicted vs. actual for more sightings) before letting it
+// override the matcher, so a wrong field-meaning guess is caught before it
+// steers focus placement. `NEXT_POSITION_OVERRIDE_THRESHOLD` gates the
+// override; at 2 confirmed hits total in this project's history, live play
+// starts far below it regardless of how many more casts run this session.
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_NEXT_POSITION_LOG_PATH = join("data", "nextPositionValidation.jsonl");
+
+/** A handful of confirming sightings, per the brief's own phrasing — not derived from a formal power calculation (this event is too rare for one yet). Revisit once real data accumulates. */
+export const NEXT_POSITION_OVERRIDE_THRESHOLD = 10;
+
+export interface NextPositionValidation {
+  ts: string;
+  castId: string;
+  /** The turn the prediction was checked against (the turn AFTER the one that revealed it). */
+  turn: number;
+  predicted: [number, number];
+  actual: [number, number];
+  hit: boolean;
+}
+
+/**
+ * Reads `data.nextPosition` off a raw fishing response — not in
+ * `FishingGameDocSchema` (QUESTIONS.md §12: real but rare, cause
+ * unconfirmed), so this reads the untyped wire object directly rather than
+ * widening the schema for a field this project can't yet explain. Returns
+ * `null` for a missing key, a `null` value (the common case once the key has
+ * appeared once in a cast — QUESTIONS.md §12 session 26), or a malformed
+ * (non-2-number-array) value.
+ */
+export function extractNextPosition(doc: unknown): Cell | null {
+  const raw = (doc as { data?: { nextPosition?: unknown } } | undefined)?.data?.nextPosition;
+  if (!Array.isArray(raw) || raw.length !== 2) return null;
+  const [x, y] = raw;
+  if (typeof x !== "number" || typeof y !== "number") return null;
+  return { x, y };
+}
+
+export function appendNextPositionValidation(rec: NextPositionValidation, path: string = DEFAULT_NEXT_POSITION_LOG_PATH): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(rec) + "\n", { flag: "a" });
+}
+
+export function loadNextPositionValidations(path: string = DEFAULT_NEXT_POSITION_LOG_PATH): NextPositionValidation[] {
+  if (!existsSync(path)) return [];
+  const lines = readFileSync(path, "utf8").split("\n").filter((l) => l.trim().length > 0);
+  const out: NextPositionValidation[] = [];
+  for (const line of lines) {
+    try {
+      out.push(JSON.parse(line) as NextPositionValidation);
+    } catch {
+      // one bad line shouldn't lose the whole log — same convention as loadTransitionLog
+    }
+  }
+  return out;
+}
+
+/** Confirmed hits across every validation ever logged — the number `NEXT_POSITION_OVERRIDE_THRESHOLD` gates against. */
+export function confirmedHitCount(path: string = DEFAULT_NEXT_POSITION_LOG_PATH): number {
+  return loadNextPositionValidations(path).filter((v) => v.hit).length;
+}
+
+/** A `Distribution` certain the fish is at `cell` — the override's effect on `chooseCard`, once `confirmedHitCount` clears the threshold. Kept as a pure, directly testable function separate from the live wiring. */
+export function certainDistribution(cell: Cell): Map<string, { cell: Cell; p: number }> {
+  return new Map([[cellKey(cell), { cell, p: 1 }]]);
+}
+
+// ---------------------------------------------------------------------------
 // Fixture writing — same shape as scripts/liveRun.ts's FixtureWriter.
 // ---------------------------------------------------------------------------
 
@@ -430,6 +505,8 @@ export interface LiveFishingDeps {
   dryRun: boolean;
   transitionsPath?: string;
   guardStatePath?: string;
+  /** [session 30] Validation-only recording of predicted vs. actual `nextPosition` — see this file's "nextPosition validation" section. */
+  nextPositionLogPath?: string;
   /**
    * Task 10: graceful SIGINT, same contract as `LiveRunDeps.shutdownSignal`
    * (`scripts/liveRun.ts`) — checked once per turn, after confirming the
@@ -451,6 +528,13 @@ const MAX_TURNS = 60;
 export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> {
   const { client, config, guards, fixtures, log, address, dryRun } = deps;
   const transitionsPath = deps.transitionsPath ?? DEFAULT_TRANSITIONS_PATH;
+  const nextPositionLogPath = deps.nextPositionLogPath ?? DEFAULT_NEXT_POSITION_LOG_PATH;
+  // [session 30] Set when the PRIOR turn's response revealed a non-null
+  // `nextPosition` — validated against the NEXT turn's actual position, then
+  // cleared. Reset per cast (not carried across a resume): attributing a
+  // prediction across a process boundary risks validating against the wrong
+  // turn if the resumed doc's position doesn't line up exactly.
+  let pendingPrediction: { turn: number; cell: Cell } | null = null;
 
   if (!config.dendren) {
     throw new Error(
@@ -588,8 +672,18 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     const hand = buildHand(doc);
     const mana = doc.data.playerHp;
     const fishHp = doc.data.fishHp;
-    const dist =
-      matcher.candidates.length > 0
+    // [session 30] Override, gated behind NEXT_POSITION_OVERRIDE_THRESHOLD
+    // confirmed hits (see this file's "nextPosition validation" section) —
+    // at 2 confirmed hits in this project's entire history, this branch is
+    // not reachable yet regardless of how many casts run this session.
+    const nextPositionOverrideActive =
+      pendingPrediction?.turn === turn && confirmedHitCount(nextPositionLogPath) >= NEXT_POSITION_OVERRIDE_THRESHOLD;
+    if (nextPositionOverrideActive) {
+      console.log(`  · nextPosition override ACTIVE (${confirmedHitCount(nextPositionLogPath)} confirmed hits) — forcing focus toward predicted cell.`);
+    }
+    const dist = nextPositionOverrideActive
+      ? certainDistribution(pendingPrediction!.cell)
+      : matcher.candidates.length > 0
         ? predictDistribution(matcher)
         : emptyFallback(matcher.history[matcher.history.length - 1]!, transitionLog, gridSize);
 
@@ -662,6 +756,28 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
     const fromCell = matcher.history[matcher.history.length - 1]!;
     const toCell = fishCell(newDoc);
+
+    // [session 30] nextPosition validation-only pass — see this file's
+    // "nextPosition validation" section. Checks the PRIOR turn's prediction
+    // (if any) against this turn's real position, then records whatever
+    // THIS turn's response reveals for the next iteration to check.
+    if (pendingPrediction) {
+      const hit = cellsEqual(toCell, pendingPrediction.cell);
+      const validation: NextPositionValidation = {
+        ts: new Date().toISOString(),
+        castId,
+        turn,
+        predicted: [pendingPrediction.cell.x, pendingPrediction.cell.y],
+        actual: [toCell.x, toCell.y],
+        hit,
+      };
+      appendNextPositionValidation(validation, nextPositionLogPath);
+      log.write({ event: "next_position_validation", ...validation });
+      console.log(`  · nextPosition validation: predicted ${JSON.stringify(pendingPrediction.cell)}, actual ${JSON.stringify(toCell)} — ${hit ? "HIT" : "miss"}.`);
+      pendingPrediction = null;
+    }
+    const predictedNext = extractNextPosition(newDoc);
+    if (predictedNext) pendingPrediction = { turn: turn + 1, cell: predictedNext };
 
     const transitionRec: TransitionRecord = {
       ts: new Date().toISOString(),
