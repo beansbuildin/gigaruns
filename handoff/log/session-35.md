@@ -1,3 +1,10 @@
+# SESSION 35 — 2026-08-18 — commit bfd9842
+
+Same content as `handoff/STATE.md` at this commit, plus the raw test/script
+output that STATE.md only summarizes.
+
+---
+
 # STATE — session 35 — 2026-08-18 — commit bfd9842
 
 ## Status
@@ -146,3 +153,64 @@ about what each boon actually does.
 ```
 (handoff/next.md, this session's own brief, is excluded — consumed as
 input, not a work product of this session.)
+
+---
+
+## Raw output — full test suite, final commit
+
+```
+ RUN  v4.1.10 /Users/<USER>/Desktop/IdeaRalph/Giga
+
+
+ Test Files  31 passed (31)
+      Tests  532 passed (532)
+   Start at  04:49:44
+   Duration  997ms (transform 1.47s, setup 0ms, import 3.33s, tests 2.35s, environment 2ms)
+```
+
+`npx tsc --noEmit` — clean, no output.
+
+## Raw output — `scripts/boonRankingCheck.ts 5000` (shipped config, hurt = 30% HP)
+
+```
+══════════════════════════════════════════════════════════════════════════════
+BOON RANKING CHECK — 5000 runs/option, ev-engine policy, controlled comparison (NOT a live claim)
+══════════════════════════════════════════════════════════════════════════════
+
+A. AddMaxArmor — bigger val1 should roll forward better than smaller (pool scaling, requirement 1)
+  rankBoons score:   AddMaxArmor val1=8 = 50.00  vs  AddMaxArmor val1=2 = 12.50  -> ranking prefers "AddMaxArmor val1=8"
+  rollout (mean rooms cleared, continuation from room 3): AddMaxArmor val1=8 = 1.939 ± 0.026  vs  AddMaxArmor val1=2 = 1.765 ± 0.026
+  ranking agrees with rollout direction: YES
+
+B. UpgradeRock — bigger DEF delta should roll forward better than smaller (upgrade scaling, requirement 1)
+  rankBoons score:   UpgradeRock val2=8 = 26.67  vs  UpgradeRock val2=2 = 6.67  -> ranking prefers "UpgradeRock val2=8"
+  rollout (mean rooms cleared, continuation from room 3): UpgradeRock val2=8 = 2.014 ± 0.025  vs  UpgradeRock val2=2 = 1.813 ± 0.026
+  ranking agrees with rollout direction: YES
+
+C. AddMaxHealth vs AddMaxArmor at the SAME val1, on a hurt player (the split, requirement 2)
+  rankBoons score:   AddMaxHealth val1=8 = 60.48  vs  AddMaxArmor val1=8 = 50.00  -> ranking prefers "AddMaxHealth val1=8"
+  rollout (mean rooms cleared, continuation from room 3): AddMaxHealth val1=8 = 1.270 ± 0.026  vs  AddMaxArmor val1=8 = 1.209 ± 0.028
+  ranking agrees with rollout direction: YES
+
+══════════════════════════════════════════════════════════════════════════════
+All controlled comparisons: the ranking's preference matches the rollout's direction.
+══════════════════════════════════════════════════════════════════════════════
+This is a controlled comparison over synthetic continuations, not a live claim, and it does NOT change
+loot.ts's own unvalidated-against-corpus status — deepestScorableRoom has not moved. See loot.ts's header.
+```
+
+## Raw output — same script, `hurt = 50% HP` (design-time check, not shipped)
+
+```
+C. AddMaxHealth vs AddMaxArmor at the SAME val1, on a hurt player (the split, requirement 2)
+  rankBoons score:   AddMaxHealth val1=8 = 49.05  vs  AddMaxArmor val1=8 = 50.00  -> ranking prefers "AddMaxArmor val1=8"
+  rollout (mean rooms cleared, continuation from room 3): AddMaxHealth val1=8 = 1.461 ± 0.027  vs  AddMaxArmor val1=8 = 1.451 ± 0.028
+  ranking agrees with rollout direction: NO
+```
+Both the ranking margin (49.05 vs 50.00) and the rollout margin (well inside
+combined CI, ~0.055) are within noise at 50% HP — this is why the shipped
+case uses 30% HP instead (matching `PROBE_HP_FRACTION`'s existing "already
+going badly" threshold), not to force a particular outcome but because 50%
+genuinely doesn't have one. See STATE.md's "Dead ends" section for why this
+is read as a real strategic tradeoff (armor's per-battle regen vs HP's
+one-time bank) rather than a bug.
