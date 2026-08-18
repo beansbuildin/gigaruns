@@ -65,6 +65,7 @@ import {
   saveOpponentModelAtomically,
   DEFAULT_OPPONENT_MODEL_PATH,
 } from "../src/orchestrator/opponentModelPersistence.js";
+import { DEFAULT_PLAY_COUNTS_PATH } from "../src/orchestrator/playCountsPersistence.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
 import { DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
 import { runOnce, printStatus, MAX_POTIONS_PER_RUN, FixtureWriter as DungeonFixtureWriter, RunLog as DungeonRunLog, type LiveRunDeps } from "./liveRun.js";
@@ -168,6 +169,15 @@ async function main() {
   // [session 32, CODEXIMPROVE #1] Same reused lock, against the opponent-
   // model file's own path — see opponentModelPersistence.ts's header.
   process.once("exit", acquireGuardLock(DEFAULT_OPPONENT_MODEL_PATH));
+  // [session 36, CODEXAUDIT #3] Same reused lock, against the play-counts
+  // file's own path — see playCountsPersistence.ts's header. `liveRun.ts`'s
+  // `main()` already took this lock; the orchestrator (the primary
+  // unattended long-running entry point) never did, so an interrupted-and-
+  // resumed dungeon run forgot every move played before the restart —
+  // CODEXIMPROVE #5's resume requirement, unmet in the entry point that
+  // matters most for it until now.
+  process.once("exit", acquireGuardLock(DEFAULT_PLAY_COUNTS_PATH));
+  const playCountsPersistence = { path: DEFAULT_PLAY_COUNTS_PATH };
 
   const dungeonSeed = loadGuardBudget(DEFAULT_GUARD_STATE_PATH);
   const dungeonGuards = new GuardState(
@@ -267,6 +277,7 @@ async function main() {
             startConsumables,
             potionPolicy,
             opponentModelPersistence,
+            playCountsPersistence,
           } satisfies LiveRunDeps),
         isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
         onBudgetTrip: (e) => console.log(`  · dungeon budget exhausted for today (${(e as Error).message}) — switching to fishing/sleep for the rest of this session.`),

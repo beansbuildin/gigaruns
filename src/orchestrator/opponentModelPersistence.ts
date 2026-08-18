@@ -39,19 +39,35 @@
  * Bootstrap (requirement 5, CODEXIMPROVE #1): `bootstrapFromCorpus` folds
  * clean historical dungeon exchanges from the fixture corpus into the model,
  * gated by `bootstrapImportedIds` — a per-exchange identity
- * (`${run}::${label}`, the same qualification DECISIONS 2026-08-15 already
+ * (`${run}::${label}`, via `exchangeIdentity`/`exchangeLabel` in
+ * `../sim/corpus.js`, the same qualification DECISIONS 2026-08-15 already
  * requires for a corpus exchange label, which is not unique on its own)
  * persisted alongside the model. Calling it again after the corpus has grown
  * (a later session's live play added new fixtures) imports only the NEW
  * exchanges — already-imported ones are skipped by identity, so it is safe
  * (and intended) to call on every launch, not just the first one ever.
+ *
+ * [session 36, CODEXAUDIT #1 fix] `bootstrapImportedIds` is NOT bootstrap-
+ * only despite its name — it is the single unified ledger of every exchange
+ * ever folded into the model, live-observed or corpus-imported. `liveRun.ts`'s
+ * live-observe call site marks an exchange's identity into this SAME set
+ * (and persists it) at the moment it calls `model.observe()`, so a later
+ * restart's `bootstrapFromCorpus()` finds that identity already present in
+ * the set it loaded from disk and skips re-importing it from the fixture the
+ * live session itself just wrote. Before this fix, the live path never wrote
+ * into this set at all, so every live observation was re-imported and
+ * double-counted on the next restart. The field is kept as
+ * `bootstrapImportedIds` rather than renamed (e.g. `observedExchangeIds`) to
+ * avoid a schema-version bump for a cosmetic rename — its semantics were
+ * always "already folded into the model," which live observation is a
+ * second producer of, not a second question.
  */
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
-import { exchanges, loadCorpus, type CorpusRun, type WireSide } from "../sim/corpus.js";
+import { exchangeIdentity, exchanges, loadCorpus, type CorpusRun, type WireSide } from "../sim/corpus.js";
 import { ROOM_ENEMIES } from "../sim/enemies.js";
 import { type MoveKey } from "../sim/types.js";
 import { modelKey, OpponentModel, type Counts } from "../strategy/opponentModel.js";
@@ -82,7 +98,7 @@ export type PersistedOpponentModel = z.infer<typeof PersistedOpponentModelSchema
 
 export interface LoadedOpponentModel {
   model: OpponentModel;
-  /** Exchange identities already folded in by a prior `bootstrapFromCorpus` call — mutated in place by later calls. */
+  /** Exchange identities already folded into the model — by a prior `bootstrapFromCorpus` call OR by live observation (`liveRun.ts`). Mutated in place by both. */
   bootstrapImportedIds: Set<string>;
 }
 
@@ -188,7 +204,7 @@ function collectBootstrapObservations(runs: CorpusRun[]): BootstrapObservation[]
 
     const room = roomOf(foeId);
     if (room >= 0) {
-      out.push({ id: `${x.run}::${x.label}`, key: modelKey(foeId, room), move: x.foeMove, prevMove });
+      out.push({ id: exchangeIdentity(x.run, x.label), key: modelKey(foeId, room), move: x.foeMove, prevMove });
     }
 
     prevMove = x.foeMove;

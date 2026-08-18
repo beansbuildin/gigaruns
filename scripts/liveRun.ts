@@ -43,7 +43,7 @@
  */
 
 import { writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { GigaverseClient } from "../src/api/client.js";
 import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, DungeonState } from "../src/api/schemas.js";
@@ -53,7 +53,7 @@ import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { regenerateRunReports } from "./regenerateReports.js";
-import { toCombatant, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
+import { toCombatant, exchangeIdentity, exchangeLabel, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
 import type { BoonOption } from "../src/sim/boons.js";
 import { decide, formatDecision, type Decision } from "../src/strategy/decide.js";
@@ -315,16 +315,33 @@ export class FixtureWriter {
     mkdirSync(this.raw, { recursive: true });
   }
 
-  write(body: unknown): void {
+  /**
+   * [session 36, CODEXAUDIT #1 fix] Returns the exact file name this write
+   * just used (e.g. `state-023.json`) — the same tail `src/sim/corpus.ts`'s
+   * `CorpusState.label` carries once this fixture is later read back off
+   * disk. Callers that need to name the exchange they just observed (the
+   * live-observe call site below) build it from this return value plus
+   * `runName`, via `exchangeLabel`/`exchangeIdentity` — the SAME derivation
+   * `opponentModelPersistence.ts`'s corpus bootstrap uses, so the two can
+   * never compute a different identity for the same exchange.
+   */
+  write(body: unknown): string {
     const tag = String(this.n).padStart(3, "0");
     const text = JSON.stringify(body, null, 2);
-    writeFileSync(join(this.raw, `state-${tag}.json`), text);
-    writeFileSync(join(this.out, `state-${tag}.json`), redact(text, this.address, this.redactSecrets));
+    const fileName = `state-${tag}.json`;
+    writeFileSync(join(this.raw, fileName), text);
+    writeFileSync(join(this.out, fileName), redact(text, this.address, this.redactSecrets));
     this.n++;
+    return fileName;
   }
 
   get dir(): string {
     return this.out;
+  }
+
+  /** The run-directory name `loadCorpus()` will later read as `CorpusRun.name` — the `run` half of this fixture's exchange identities. */
+  get runName(): string {
+    return basename(this.out);
   }
 }
 
@@ -743,7 +760,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       if (deps.playCountsPersistence && playCountsRunId !== null) deletePlayCounts(deps.playCountsPersistence.path);
       return;
     }
-    fixtures.write(state);
+    // [session 36, CODEXAUDIT #1 fix] Captured so a combat POST later this
+    // SAME iteration can name the exchange it just observed (`beforeTag` is
+    // reassigned fresh every loop iteration, before any combat branch is
+    // reached — a probe/potion detour always `continue`s back here first, so
+    // it is never stale when a combat POST actually uses it).
+    const beforeTag = fixtures.write(state);
 
     const run = state.data.run as unknown as WireRun;
     const roomNum = (state.data.entity as { ROOM_NUM_CID?: number } | undefined)?.ROOM_NUM_CID ?? 0;
@@ -858,21 +880,37 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       }
       guards.recordActionResult(true);
       log.write({ event: "post_response", resp });
-      fixtures.write(resp);
+      const afterTag = fixtures.write(resp);
 
       const afterRun = resp!.data.run as unknown as WireRun | undefined;
       if (afterRun) {
         const foeAfter = afterRun.players[1] as WireSide;
         const foeMove = foeAfter.lastMove;
         if ((MOVES as readonly string[]).includes(foeMove)) {
-          model.observe(modelKey(foeWire.id, roomNum), foeMove as MoveKey, prevFoeMove);
+          // [session 36, CODEXAUDIT #1 fix] Same identity a later restart's
+          // `bootstrapFromCorpus()` will compute for this same fixture pair
+          // (exchangeIdentity/exchangeLabel, shared with
+          // opponentModelPersistence.ts) — marked into the SAME
+          // `bootstrapImportedIds` ledger that gets persisted below, so that
+          // restart finds it already present and skips re-importing it.
+          // Before this fix, the live path never marked this set at all, so
+          // every live observation was silently re-imported (double-counted)
+          // on the next restart's bootstrap pass.
+          const exchangeId = deps.opponentModelPersistence
+            ? exchangeIdentity(fixtures.runName, exchangeLabel(beforeTag, afterTag))
+            : null;
+          const alreadyObserved = exchangeId !== null && deps.opponentModelPersistence!.bootstrapImportedIds.has(exchangeId);
+          if (!alreadyObserved) {
+            model.observe(modelKey(foeWire.id, roomNum), foeMove as MoveKey, prevFoeMove);
+          }
           prevFoeMove = foeMove as MoveKey;
           playCounts[d.move]++;
           // [session 32, CODEXIMPROVE #1] Persist immediately, same
           // discipline as guards.recordEnergySpent -> saveGuardBudget: a
           // crash mid-run loses at most this one observation, never
           // previously-learned evidence.
-          if (deps.opponentModelPersistence) {
+          if (deps.opponentModelPersistence && exchangeId !== null && !alreadyObserved) {
+            deps.opponentModelPersistence.bootstrapImportedIds.add(exchangeId);
             saveOpponentModelAtomically(model, deps.opponentModelPersistence.bootstrapImportedIds, deps.opponentModelPersistence.path);
           }
           // [session 35, CODEXIMPROVE #5] Same "persist immediately" rule,

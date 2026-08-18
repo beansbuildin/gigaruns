@@ -1,0 +1,263 @@
+# CODEX FOLLOW-UP AUDIT
+
+Read-only review performed against commit
+`b8ecd83508c34df6c2a8bac732e78e44bb0fb86f`, which matched `origin/main`
+at review time.
+
+The claim that every action item in `CODEXREVIEW` and `CODEXIMPROVE` is
+complete does not fully hold.
+
+Validation performed:
+
+- 532/532 tests passed across 31 test files.
+- `npx tsc --noEmit` passed.
+- `git diff --check` passed.
+- The worktree was clean before this audit document was added.
+
+## Completion audit
+
+- `CODEXREVIEW`: Items 1 and 3-9 are implemented. Item 2 is only partially
+  complete because atomic writes are not flushed to durable storage. Item 10
+  was correctly closed as an invalid original finding: `viem` is genuinely
+  used by `scripts/probe.ts`.
+- `CODEXIMPROVE`: Items 2 and 4 are complete. Items 1, 3, 5, and 6 have
+  material gaps described below. The boon-scoring half of item 5 is complete;
+  its orchestrator persistence half is not.
+
+## High priority
+
+### 1. Live opponent observations are imported a second time after restart
+
+Relevant code:
+
+- `src/orchestrator/opponentModelPersistence.ts:207-219`
+- `scripts/liveRun.ts:861-877`
+- `scripts/orchestrator.ts:189-195`
+
+After a combat action, the response is written into the fixture corpus and
+immediately learned through `model.observe()`. The model is saved, but its
+exchange identity is not added to `bootstrapImportedIds`.
+
+On the next launch, `bootstrapFromCorpus()` discovers that newly written
+fixture. Because its ID is absent from `bootstrapImportedIds`, the same enemy
+move is observed again.
+
+Potential impact:
+
+- Every post-feature live observation eventually receives twice its proper
+  weight.
+- Sample and Markov floors can be reached with roughly half the independent
+  evidence.
+- Marginal and transition probabilities become biased toward recent live
+  sessions.
+- This violates CODEXIMPROVE #1's requirement that fixture exchanges cannot
+  be double-counted.
+
+Smallest clean fix: replace the bootstrap-only set with a unified ledger of
+all observed exchange IDs. Mark an exchange seen during both live observation
+and corpus import.
+
+```ts
+if (!observedExchangeIds.has(exchangeId)) {
+  model.observe(key, foeMove, previousFoeMove);
+  observedExchangeIds.add(exchangeId);
+  saveOpponentModelAtomically(model, observedExchangeIds, path);
+}
+```
+
+Have `FixtureWriter.write()` return its filename so the live loop can build the
+same `run-directory::before->after` identity used by the corpus loader. Add a
+regression test covering: live observe -> save -> restart -> corpus bootstrap
+-> observation count unchanged.
+
+## Medium priority
+
+### 2. The contextual fishing fallback was shipped despite worse held-out log loss
+
+Relevant code:
+
+- `src/strategy/fishing/contextualFallback.ts:169-183`
+- `scripts/fishingContextualCV.ts:223-247`
+- `scripts/fishingContextualAblation.ts:38-92`
+
+The committed leave-one-cast-out evaluation was rerun:
+
+| Model | Top-1 | Log loss | Brier |
+| --- | ---: | ---: | ---: |
+| Cell-only baseline | 16.4% | 5.860 | 0.932 |
+| Context, threshold 3 | 19.4% | 6.151 | 0.927 |
+
+The implementation hard-switches to a raw empirical distribution after only
+three independent casts. Cells not present in those few samples receive
+exactly zero probability, explaining the worse log loss.
+
+The synthetic catch-rate ablation reports a large improvement, but its
+training trajectories and test fish are generated from the same synthetic
+pattern library. It is not calibrated to real Dendren movement. The session
+log acknowledges this limitation.
+
+Potential impact: `chooseCard()` consumes the complete probability
+distribution, not merely its top prediction. An overconfident sparse
+distribution can aim hitboxes away from plausible cells and reduce real catch
+rate even while top-1 accuracy improves.
+
+Smallest fix: shrink the contextual estimate toward the cell-only distribution
+instead of replacing it abruptly.
+
+```ts
+const n = stats.castIds.size;
+const weight = n / (n + shrinkageK);
+
+return mixDistributions(
+  emptyFallback(fromCell, cellOnlyLog, gridSize),
+  distributionFromMultiset(stats.observations),
+  weight,
+);
+```
+
+Select `shrinkageK` by leave-one-cast-out log loss/Brier and keep the context
+tier disabled unless it beats the baseline without relying solely on the
+synthetic catch simulator.
+
+### 3. Play-count persistence is not wired into the orchestrator
+
+Relevant code:
+
+- `scripts/orchestrator.ts:57-71`
+- `scripts/orchestrator.ts:166-195`
+- `scripts/orchestrator.ts:254-270`
+- `scripts/liveRun.ts:424-433`
+- `scripts/liveRun.ts:1150-1153`
+- `scripts/liveRun.ts:1291`
+
+Standalone `liveRun.ts` acquires the play-count lock and passes
+`playCountsPersistence` into `runOnce()`. The unattended orchestrator does
+neither.
+
+Potential impact: if the orchestrator is interrupted and later resumes its
+active dungeon, boon ranking forgets every move played before restart. This is
+the primary long-running entry point, so CODEXIMPROVE #5's resume requirement
+is not complete.
+
+Smallest fix:
+
+```ts
+process.once("exit", acquireGuardLock(DEFAULT_PLAY_COUNTS_PATH));
+const playCountsPersistence = { path: DEFAULT_PLAY_COUNTS_PATH };
+
+await runOnce({
+  // existing dependencies
+  playCountsPersistence,
+});
+```
+
+Add an orchestrator-level regression test. The existing persistence tests
+exercise the storage module but not this integration path.
+
+### 4. `nextPosition` activates after ten hits regardless of how many misses occurred
+
+Relevant code:
+
+- `scripts/liveFishing.ts:365`
+- `scripts/liveFishing.ts:399-415`
+- `scripts/liveFishing.ts:779-795`
+
+`confirmedHitCount()` counts only successes. Ten hits and ninety misses would
+still activate a one-hot "certain" distribution, even though the field would
+be correct only 10% of the time.
+
+The loader also casts JSON directly without validation, and predicted
+coordinates are not checked against grid bounds.
+
+Potential impact: once enough data accumulates, a weak or malformed signal
+could suddenly override the entire matcher and contextual model, substantially
+lowering catch rate.
+
+Minimum safe gate:
+
+```ts
+const validations = loadNextPositionValidations(path);
+const valid =
+  validations.length >= NEXT_POSITION_OVERRIDE_THRESHOLD &&
+  validations.every((v) => v.hit);
+```
+
+A more flexible version should use a prespecified accuracy threshold with a
+conservative confidence bound. Validate records and grid bounds before
+counting them. The override should preferably remain configuration-disabled
+until its accumulated hit/miss record is reviewed.
+
+### 5. Atomic persistence does not perform the requested flush
+
+Relevant code:
+
+- `src/orchestrator/guardPersistence.ts:162-168`
+- `src/orchestrator/opponentModelPersistence.ts:138-152`
+- `src/orchestrator/playCountsPersistence.ts:128-138`
+
+All three modules call `writeFileSync()` followed by `renameSync()`. This
+prevents readers from seeing partial JSON during an ordinary process failure,
+but it does not guarantee the file contents or rename survive a power loss or
+filesystem crash. `CODEXREVIEW` explicitly requested "write sibling temporary
+file, flush it, then atomically rename it."
+
+Impact is most important for the guard budget: a supposedly committed spend
+record could be lost even though the code reported it saved.
+
+Smallest fix: centralize a shared `atomicWriteJson()` helper that:
+
+1. Opens the temporary file.
+2. Writes and `fsyncSync()`s it.
+3. Closes it.
+4. Renames it.
+5. Flushes the parent directory where supported.
+6. Removes the temporary file on failure.
+
+## Low priority
+
+### 6. Opponent-model validation accepts negative and fractional counts
+
+Relevant code:
+
+- `src/orchestrator/opponentModelPersistence.ts:69-78`
+- `src/strategy/opponentModel.ts:224-227`
+
+The persisted schema uses unrestricted `z.number()` values. Valid JSON
+containing negative or fractional counts passes validation and is trusted by
+`OpponentModel.fromJSON()`.
+
+Negative counts can produce negative probabilities or incorrect sample-floor
+decisions, so the documented fail-closed behavior is incomplete.
+
+Smallest fix:
+
+```ts
+const CountSchema = z.number().int().nonnegative();
+
+const DistributionSchema = z.object({
+  rock: CountSchema,
+  paper: CountSchema,
+  scissor: CountSchema,
+});
+```
+
+Also refine each transition row so its sum cannot exceed the corresponding
+marginal predecessor count.
+
+## Areas that look clean
+
+No additional reliable major issue was found in:
+
+- Canonical fishing-corpus grouping and corrected cast counts.
+- Resumed-cast transition numbering and corrupted-cast exclusion.
+- Dungeon-state 5xx handling.
+- JWT redaction of committed fixtures.
+- Committed energy accounting and server-cap tracking.
+- Fishing focus/mana tie-breaks.
+- Charge-reserve continuation value.
+- The actual-delta boon scoring itself.
+- Run-report generation.
+
+Overall, this is a substantial and well-tested implementation, but the
+opponent-model double count is a real correctness defect, and the fishing
+improvements should not yet be treated as proven performance wins.

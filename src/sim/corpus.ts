@@ -192,6 +192,28 @@ export interface Exchange {
   reasons: Reason[];
 }
 
+/**
+ * `${beforeFile}→${afterFile}` — the label half of an exchange's identity
+ * (file names carry their `.json` suffix, matching `CorpusState.label`'s
+ * tail after the run-directory prefix is stripped).
+ */
+export function exchangeLabel(beforeFile: string, afterFile: string): string {
+  return `${beforeFile}→${afterFile}`;
+}
+
+/**
+ * `${run}::${label}` — the full per-exchange identity, qualified by run
+ * (DECISIONS 2026-08-15: a label alone is not unique across runs). Shared by
+ * corpus bootstrap (`opponentModelPersistence.ts`) and live observation
+ * (`scripts/liveRun.ts`) so the two can never drift into computing this
+ * differently — [session 36] the gap that caused CODEXAUDIT #1's live-observe
+ * double-count: the live side never marked this same identity into the
+ * persisted ledger before restart re-imported it from its own fixture.
+ */
+export function exchangeIdentity(run: string, label: string): string {
+  return `${run}::${label}`;
+}
+
 const isMoveKey = (s: string): s is MoveKey => (MOVES as readonly string[]).includes(s);
 
 /**
@@ -261,7 +283,7 @@ export function exchanges(runs: CorpusRun[]): Exchange[] {
 
       out.push({
         run: name,
-        label: `${before.label.split("/").pop()}→${after.label.split("/").pop()}`,
+        label: exchangeLabel(before.label.split("/").pop()!, after.label.split("/").pop()!),
         before,
         after,
         myMove,

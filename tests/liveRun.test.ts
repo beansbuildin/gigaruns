@@ -8,7 +8,7 @@
  * `tests/api/client.test.ts` — nothing here touches the real network.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -20,6 +20,7 @@ import {
   buildPathSelectionEnvelope,
   classifyPhase,
   findRealRunsToday,
+  FixtureWriter,
   KNOWN_SIDE_KEYS,
   locateLowestTierOption,
   locateRewardOption,
@@ -37,9 +38,10 @@ import { GigaverseClient } from "../src/api/client.js";
 import { UnexpectedResponseError } from "../src/api/errors.js";
 import type { BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
-import { OpponentModel } from "../src/strategy/opponentModel.js";
+import { bootstrapFromCorpus, loadOpponentModel } from "../src/orchestrator/opponentModelPersistence.js";
+import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
-import type { WireBoon, WireRun, WireSide } from "../src/sim/corpus.js";
+import { loadCorpus, type WireBoon, type WireRun, type WireSide } from "../src/sim/corpus.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -1214,5 +1216,125 @@ describe("runOnce — real potion policy (Task 12 Stage B live half)", () => {
     await expect(p).resolves.toBeUndefined();
 
     expect(potionPosts).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [session 36] CODEXAUDIT #1: the live-observe double-count fix.
+// ---------------------------------------------------------------------------
+
+describe("runOnce — opponent-model live-observe double-count fix (session 36, CODEXAUDIT #1)", () => {
+  let fixtureRoot: string;
+  let modelDir: string;
+  let modelPath: string;
+
+  beforeEach(() => {
+    fixtureRoot = mkdtempSync(join(tmpdir(), "gigaruns-liverun-fixtures-test-"));
+    modelDir = mkdtempSync(join(tmpdir(), "gigaruns-liverun-model-test-"));
+    modelPath = join(modelDir, "opponent-model.json");
+  });
+  afterEach(() => {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+    rmSync(modelDir, { recursive: true, force: true });
+  });
+
+  // The exact regression CODEXAUDIT #1 named: a real `runOnce()` combat
+  // exchange, through a REAL `FixtureWriter` (not a mock) so the fixture
+  // this writes to disk is exactly what a restart's `bootstrapFromCorpus`
+  // would later read back via `loadCorpus` — proving the live-observe call
+  // site and the corpus bootstrap path now agree on one identity for the
+  // same exchange, rather than the live side silently never marking it.
+  it("marks a live-observed exchange into the SAME ledger a restart's corpus bootstrap reads, so re-import is a no-op — plus a genuinely new corpus exchange still imports normally", async () => {
+    const foeId = "Enemy Room 63"; // room 1, per src/sim/enemies.ts ROOM_ENEMIES
+    const before = fakeRun({
+      DUNGEON_ID_CID: 7,
+      players: [fakeSide("player", 30, 30), fakeSide(foeId, 30, 30)],
+    });
+    const after = fakeRun({
+      DUNGEON_ID_CID: 7,
+      players: [
+        { ...fakeSide("player", 30, 30), lastMove: "rock" },
+        { ...fakeSide(foeId, 20, 30), lastMove: "rock" }, // HP moved 30->20: a real exchange, not an idle poll
+      ],
+    });
+
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET") {
+          getCount++;
+          // Call 1: runOnce's pre-loop "is a run already active" check.
+          // Call 2: the main loop's own first state read (same active run).
+          // Call 3+: run over — stops the loop.
+          if (getCount <= 2) {
+            return { status: 200, body: { success: true, actionToken: 1, data: { run: before, entity: { ROOM_NUM_CID: 1 } } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        }
+        return { status: 200, body: { success: true, actionToken: 2, data: { run: after } } };
+      }),
+    );
+
+    const fixtures = new FixtureWriter("0xTestAddress", (t) => t, fixtureRoot);
+    const model = new OpponentModel();
+    const bootstrapImportedIds = new Set<string>();
+
+    const deps: LiveRunDeps = {
+      ...makeDeps(false),
+      fixtures,
+      model,
+      opponentModelPersistence: { path: modelPath, bootstrapImportedIds },
+    };
+
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+
+    const key = modelKey(foeId, 1);
+    expect(model.observations(key)).toBe(1); // observed exactly once, live
+    expect(bootstrapImportedIds.size).toBe(1); // and marked into the ledger in the SAME process
+
+    // A genuinely new corpus exchange this process never saw live — dropped
+    // straight onto disk the way an old capture or another session's play
+    // would be, under a DIFFERENT run directory so it can never collide with
+    // the live one's identity.
+    const canaryDir = join(fixtureRoot, "run-canary-manual");
+    mkdirSync(canaryDir, { recursive: true });
+    const canaryBefore = { success: true, actionToken: 1, data: { run: fakeRun({ DUNGEON_ID_CID: 99, players: [fakeSide("player", 30, 30), fakeSide(foeId, 30, 30)] }) } };
+    const canaryAfter = {
+      success: true,
+      actionToken: 2,
+      data: {
+        run: fakeRun({
+          DUNGEON_ID_CID: 99,
+          players: [
+            { ...fakeSide("player", 30, 30), lastMove: "paper" },
+            { ...fakeSide(foeId, 18, 30), lastMove: "scissor" },
+          ],
+        }),
+      },
+    };
+    writeFileSync(join(canaryDir, "state-000.json"), JSON.stringify(canaryBefore));
+    writeFileSync(join(canaryDir, "state-001.json"), JSON.stringify(canaryAfter));
+
+    // Simulated restart: a fresh process loads exactly what the live process
+    // persisted, then re-runs the same startup bootstrap against the SAME
+    // fixture root (now holding both the live-written fixture AND the
+    // canary).
+    const restarted = loadOpponentModel(modelPath);
+    expect(restarted.bootstrapImportedIds.size).toBe(1); // the live exchange survived the round-trip
+
+    const { imported } = bootstrapFromCorpus(restarted.model, restarted.bootstrapImportedIds, loadCorpus(fixtureRoot));
+
+    // Both the canary and the live exchange share the same (enemy, room)
+    // key, so the discriminating number is 2 (1 already-persisted live
+    // observation + 1 newly-imported canary), NOT 3 — the pre-fix bug would
+    // have re-imported the live exchange as a second, indistinguishable
+    // observation of this same key, landing here at 3 instead.
+    expect(imported).toBe(1); // only the genuinely-new canary — the live one is skipped, not re-counted
+    expect(restarted.model.observations(key)).toBe(2); // 1 persisted (live) + 1 newly imported (canary), UNCHANGED from double-counting the live one
+    expect(restarted.bootstrapImportedIds.size).toBe(2); // live exchange + the newly-imported canary
   });
 });
