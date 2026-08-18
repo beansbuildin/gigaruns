@@ -900,3 +900,29 @@ way, this session's actual deliverable (the contextual fallback module,
 tests, offline CV, and simulator ablation) is unaffected — this is purely a
 live-environment finding surfaced while trying to smoke-test the new
 wiring end to end.
+
+2026-08-18 (out-of-band, user DevTools capture, not a numbered session) — A
+second real ESCAPE terminal doc confirms the shape above was not a one-off.
+`POST /api/fishing/action` response for `docId 12972042`: `COMPLETE_CID:
+true`, `SUCCESS_CID: false`, `cardChosenId: -1`, no `cardsToAdd` field
+anywhere in the doc — identical to `docId 12957129`'s shape, n=2 now, not
+n=1. Event sequence: `FISH_MOVED` → `CARD_PLAYED` → `FISH_HP_DIFF` (-5) →
+`FISH_ESCAPED`. `IS_JUICED_CID: true` on this capture (the account-level
+buff per DECISIONS 2026-08-17 session 23/30's naming — noted as present,
+not inferred as causally relevant to the escape's terminal shape; the
+prior capture's `IS_JUICED_CID` value isn't on record to compare against).
+Captured via the browser's Network tab and pasted directly into the chat
+session, NOT through the bot's own `FixtureWriter` — the raw response has
+NOT yet been redacted or filed into `fixtures/fishing-casts/live/` under
+that pipeline's directory/state-file convention, and it carries the
+account's real wallet address in `PLAYER_CID`, so it must not be committed
+verbatim (DECISIONS 2026-08-13/14's redaction rule). The full raw capture
+is available in this chat session's own history for the next live session
+to redact and fold into the real fixture corpus through the normal
+capture path, rather than hand-built here outside that tooling. **Still
+open**: this capture is the escape event itself, not the request that follows it — the
+actual remaining question is what the client sends NEXT (a subsequent
+fishing action/`start_run`) while this shape is on the account: does the
+server need an explicit acknowledgment first, or does a fresh action just
+succeed past it? A capture of that follow-up request, taken while a stuck
+doc like this is still on the account, would close this out.

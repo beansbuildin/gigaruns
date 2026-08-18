@@ -1038,7 +1038,22 @@ against it.
 
 ---
 
-### 14 — Bot-initiated juiced `start_run`, with per-mode potion equip ← scoped 2026-08-17, session 23; BLOCKED
+### 14 — Bot-initiated juiced `start_run`, with per-mode potion equip ← scoped 2026-08-17, session 23; UNBLOCKED 2026-08-18 (out-of-band capture), not yet implemented
+
+**Blocker resolved — captured request shape, see DECISIONS.md 2026-08-18
+(out-of-band, user DevTools capture) for the full entry:**
+`POST /api/game/dungeon/action`, `{"action":"start_run","actionToken":"",
+"dungeonId":5,"data":{"consumables":[131,131,131],"itemId":0,
+"expectedAmount":0,"index":3,"isJuiced":true,"gearInstanceIds":[],
+"devBoons":[]}}`. `isJuiced: true` is the confirmed juiced flag; there is
+still no `tier` field — `index: 3` is the strongest live candidate for how
+Tier-3 selection is actually encoded, NOT yet independently confirmed
+(response body wasn't captured). **The run this request started is still
+live as of this capture** (room 1, full HP/armor) — resuming and
+completing it is the gate's own live-verification data (3x reward at first
+pick, `dayProgressEntities` moving by exactly 3) and must happen before
+"once unblocked" work below is treated as gated-and-closed. See
+`handoff/next.md` for the resume-first instruction.
 
 **Why this exists.** Session 23's incident (DECISIONS.md 2026-08-17): `liveRun.ts`
 silently resumed a run it hadn't started, and separately the local guard-tracked
@@ -1075,16 +1090,42 @@ into `QUESTIONS.md` or hand it directly to a session.
 
 **Once unblocked, two pieces, in order:**
 
-1. Wire the real juiced/tier fields into `buildEnvelope`'s `start_run` call,
-   confirmed against the captured shape, with its own test the same way
-   `reward_one`/`path_two` got theirs.
+1. `scripts/liveRun.ts`'s current `buildEnvelope()` (line ~244) is confirmed,
+   by direct read against this capture, to be the WRONG shape for a juiced
+   `start_run`: it hardcodes `isJuiced: false`, sends only 3 `data` fields
+   (`consumables`/`isJuiced`/`index`), and passes `client.getActionToken()` —
+   a real number — as `actionToken`. The captured juiced request sends
+   `actionToken: ""` (empty string) and the full 7-field `data` shape
+   (`consumables`/`isJuiced`/`index`/`itemId`/`expectedAmount`/
+   `gearInstanceIds`/`devBoons`) — the same 7 fields `buildPathSelectionEnvelope`
+   (line ~271) already sends for reward/path picks — but with the run's REAL
+   `dungeonId` (5), not `buildPathSelectionEnvelope`'s hardcoded `0`. That's a
+   third, hybrid shape matching neither existing builder exactly. Add a new
+   `buildJuicedStartRunEnvelope(dungeonId, index, consumables)` (doc-commented
+   with this capture as its evidence, same convention as
+   `buildPathSelectionEnvelope`'s comment) and branch the `start_run` call site
+   (line 718) to use it only when the caller asked for a juiced start; leave
+   the existing `buildEnvelope` call untouched for ordinary (non-juiced) starts
+   — that shape has produced working runs across 23 sessions and is not the
+   thing to touch. Add a dedicated test pinning the new builder's output
+   against this capture's exact JSON, same convention as `reward_one`/
+   `path_two`'s tests. Open question this task should resolve, not assume:
+   whether the empty-string-actionToken/7-field shape is required specifically
+   *because* the run is juiced, or would also be required for an ordinary
+   start_run (untestable from this capture alone — there is no juiced/non-juiced
+   pair to diff). Treat the captured shape as ground truth for juiced starts
+   only until a reason to believe otherwise turns up.
 2. A `--juiced` (or similar) CLI flag on `liveRun.ts` that, ONLY when starting
    a genuinely new juiced run, loads potions from `config/bot.json`'s
    allowlist into `consumables` — mirroring the existing `--potions=N`
    mechanism but scoped to juiced starts only, per the user's stated
    rationale (3 potions across 1 juiced run instead of 9 across 3 plain runs).
    Plain (non-juiced) runs keep defaulting to an empty sack per the user's
-   own directive — this flag must never load potions into a plain run.
+   own directive — this flag must never load potions into a plain run. Needs
+   its own tier/`index` selector too (fail-closed like `--potions=N` — refuse
+   rather than default-guess which tier); `index: 3` is this capture's value
+   for the tier-3 offering actually chosen, not yet confirmed as "index ==
+   tier" in general (see above).
 
 **Gate:** one bot-initiated juiced Tier-3 `start_run`, live-verified — the
 response (or a follow-up state read) confirms the run is actually juiced
