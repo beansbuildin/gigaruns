@@ -1,4 +1,4 @@
-# STATE — session 42 — 2026-08-18 — commit fdd1e69
+# STATE — session 42 — 2026-08-18 — commit 54042f8
 
 ## Status
 Task "Resume and complete the live juiced Tier-3 run" (session-42 brief §0):
@@ -28,10 +28,11 @@ capture-blocked. Task 11 stays parked.
   known**: item 846 ("Dendren Root") is credited via THREE duplicate
   `gameItemBalanceChanges` entries of the base amount (not one tripled
   entry). Base per-room amounts were byte-for-byte identical across both
-  runs (5,9,14,19,25...) regardless of entry tier — `entryData`'s own
-  `dropMultiplier` (2 for Tier-2, 4 for Tier-3) does NOT visibly affect this
-  specific reward channel. One observation per tier, not a settled finding.
-  See SPEC.md §3f.
+  runs regardless of entry tier — **RESOLVED, user-stated**: `dropMultiplier`
+  and the juiced 3x govern separate reward channels entirely.
+  `dropMultiplier` (§3c, 1/2/4 by entry tier) affects Hard Core (item 845)
+  only; the juiced 3x affects Dendren Root (item 846) only — they were
+  never going to stack on this channel. See SPEC.md §3c/§3f.
 - `dayProgressEntities` for Dungeon#5 moved 3→6 at the SECOND run's
   `start_run` (read before/after) — a third independent confirmation of the
   +3-at-juiced-start mechanism (session 23's original 3→6, plus this
@@ -63,6 +64,11 @@ capture-blocked. Task 11 stays parked.
 - `ROOM_ENEMIES` gained first-ever room-6 (RISKY_TIER only — no Safe offer
   exists yet) and room-7 (clean SAFE_TIER) captures. `ArmorDepletedWeak`
   boon modelled (`{kind:"latent"}`, first pickup pair, run 2 room 2).
+- **PLAYER's mid-session stat shift RESOLVED, user-stated**: the user
+  changed equipped armor between starting the two manual runs (confirmed
+  directly, not inferred) — an ordinary re-spec, not a tier effect.
+  `src/sim/enemies.ts`'s `PLAYER` doc comment and all downstream test
+  comments updated to state this rather than leave it as an open question.
 - Tests: **586/586 passing** (561 baseline + 25 new). `npx tsc --noEmit`
   clean, `git diff --check` clean, both at this session's final commit.
 
@@ -103,25 +109,15 @@ attempts.
    authorization for a fresh 60-energy/3-run-unit spend; check
    `GET /game/dungeon/today` fresh first — the account's real daily run
    count is at least 6/12 after this session's two resumes.
-2. **UNRESOLVED, flagged not guessed**: `PLAYER`'s move stats changed
-   substantially between the session's two manually-started runs (~90 min
-   apart, both zero-picked-boons at capture) — rock (Sword) ATK 16→26/DEF
-   0→9 gained a boost, scissor (Spell) lost its ATK/DEF boost entirely
-   (18/15→12/8). Either an ordinary gear re-spec between the two manual
-   starts, or something tied to entry tier itself (Tier 3 vs Tier 2) —
-   genuinely can't tell from this session's data. Needs the user to confirm
-   whether they changed equipped gear between starting the two runs.
-3. **`entryData`'s `dropMultiplier` (2 vs 4) does not visibly stack with
-   the juiced 3x** on the one reward channel checked (item 846 credits) —
-   base amounts were identical at both entry tiers. One observation per
-   tier; worth checking a THIRD reward channel (e.g. Hard Core/item 845,
-   which showed single non-tripled entries on both runs — also unexplained)
-   if this matters for economic planning.
-4. New capture gap: room 6 (Enemy Room 68) has never been offered at Safe
+2. New capture gap: room 6 (Enemy Room 68) has never been offered at Safe
    tier live — only `{Dangerous, Dangerous, Risky}` so far, n=1 offer.
-5. Standing from session 40/41: scheduler energy-tracking gap,
+3. Standing from session 40/41: scheduler energy-tracking gap,
    SIGINT-during-sleep behavior, charge-reserve plateau — none addressed,
    none urgent.
+
+Both the PLAYER-stat-shift question and the `dropMultiplier`-stacking
+question from earlier in this session were resolved directly by the user
+(see What works above) — not carried forward as open questions.
 
 ## Files changed
 ```

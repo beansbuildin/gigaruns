@@ -271,3 +271,29 @@ Documentation updated for the new finding: `SPEC.md` §3c (the
 (follow-up outcome block), `DECISIONS.md` (5 new entries), this log, and
 `STATE.md` rewritten to cover both runs together rather than leaving the
 first recap stale.
+
+## Both open questions resolved directly by the user, same session
+
+After that recap was pushed, the user answered both open questions
+directly rather than leaving them for a future session:
+
+1. **`dropMultiplier` vs. the juiced 3x**: they govern entirely separate
+   reward channels — `dropMultiplier` (the entry-tier system, §3c) affects
+   Hard Core (item 845) only; the juiced 3x affects Dendren Root (item 846)
+   only. This explains why this session's own two-run comparison saw
+   identical Dendren Root progressions at different tiers — Dendren Root
+   was never going to respond to `dropMultiplier` in the first place.
+2. **The PLAYER stat shift between the two manual runs**: confirmed an
+   ordinary armor re-spec between starting the two runs (the user changed
+   equipped armor and noted they should have flagged it up front). Not
+   tier-linked.
+
+Updated `SPEC.md` §3c/§3f, `TASKS.md` Task 14's follow-up block,
+`src/sim/enemies.ts`'s `PLAYER` doc comment, and the two test comments that
+referenced the now-resolved ambiguity (`tests/combat.test.ts`,
+`tests/enemies.test.ts`) to state both as confirmed facts rather than open
+questions. Appended two new `DECISIONS.md` entries (append-only convention
+— the original unresolved entries stay, the resolutions are new lines, not
+edits). No test assertions changed (comment-only + doc-only diff) —
+`npx vitest run` still 586/586, `tsc --noEmit` clean, `git diff --check`
+clean, re-verified after this round too.
