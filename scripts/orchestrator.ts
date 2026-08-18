@@ -59,7 +59,12 @@ import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orch
 import { nextAction, type EnergyState, type ModeBudget } from "../src/orchestrator/scheduler.js";
 import { runWithGuaranteedAccounting } from "../src/orchestrator/runWithAccounting.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
-import { OpponentModel } from "../src/strategy/opponentModel.js";
+import {
+  loadOpponentModel,
+  bootstrapFromCorpus,
+  saveOpponentModelAtomically,
+  DEFAULT_OPPONENT_MODEL_PATH,
+} from "../src/orchestrator/opponentModelPersistence.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
 import { DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
 import { runOnce, printStatus, MAX_POTIONS_PER_RUN, FixtureWriter as DungeonFixtureWriter, RunLog as DungeonRunLog, type LiveRunDeps } from "./liveRun.js";
@@ -160,6 +165,9 @@ async function main() {
   // silently racing it.
   process.once("exit", acquireGuardLock(DEFAULT_GUARD_STATE_PATH));
   if (config.dendren) process.once("exit", acquireGuardLock(FISHING_GUARD_STATE_PATH));
+  // [session 32, CODEXIMPROVE #1] Same reused lock, against the opponent-
+  // model file's own path — see opponentModelPersistence.ts's header.
+  process.once("exit", acquireGuardLock(DEFAULT_OPPONENT_MODEL_PATH));
 
   const dungeonSeed = loadGuardBudget(DEFAULT_GUARD_STATE_PATH);
   const dungeonGuards = new GuardState(
@@ -176,7 +184,15 @@ async function main() {
     console.log(`  · fishing not configured (config/discovered.json or config/bot.json missing a dendren block) — dungeon-only session.`);
   }
 
-  const model = new OpponentModel();
+  // [session 32, CODEXIMPROVE #1] Persist and bootstrap the opponent model
+  // across restarts — see opponentModelPersistence.ts's header.
+  const { model, bootstrapImportedIds } = loadOpponentModel(DEFAULT_OPPONENT_MODEL_PATH);
+  const { imported } = bootstrapFromCorpus(model, bootstrapImportedIds);
+  if (imported > 0) {
+    console.log(`  · opponent model: bootstrapped ${imported} new exchange(s) from the fixture corpus (${bootstrapImportedIds.size} total imported)`);
+    saveOpponentModelAtomically(model, bootstrapImportedIds, DEFAULT_OPPONENT_MODEL_PATH);
+  }
+  const opponentModelPersistence = { path: DEFAULT_OPPONENT_MODEL_PATH, bootstrapImportedIds };
   const shutdownSignal = createShutdownSignal();
   const uninstall = installProcessSigintHandler(shutdownSignal);
 
@@ -250,6 +266,7 @@ async function main() {
             guardStatePath: DEFAULT_GUARD_STATE_PATH,
             startConsumables,
             potionPolicy,
+            opponentModelPersistence,
           } satisfies LiveRunDeps),
         isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
         onBudgetTrip: (e) => console.log(`  · dungeon budget exhausted for today (${(e as Error).message}) — switching to fishing/sleep for the rest of this session.`),

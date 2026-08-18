@@ -59,6 +59,12 @@ import type { BoonOption } from "../src/sim/boons.js";
 import { decide, formatDecision, type Decision } from "../src/strategy/decide.js";
 import { LIVE_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
 import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
+import {
+  loadOpponentModel,
+  bootstrapFromCorpus,
+  saveOpponentModelAtomically,
+  DEFAULT_OPPONENT_MODEL_PATH,
+} from "../src/orchestrator/opponentModelPersistence.js";
 import { pickLowestTier } from "../src/strategy/enemyTier.js";
 import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
@@ -403,6 +409,16 @@ export interface LiveRunDeps {
    * today's behavior.
    */
   shutdownSignal?: ShutdownSignal;
+  /**
+   * CODEXIMPROVE #1 (session 32): where `saveOpponentModelAtomically`
+   * persists `model` after every observed enemy move, plus the corpus-
+   * bootstrap dedup set to persist alongside it. `undefined` (the default,
+   * every existing test) preserves the previous in-memory-only behavior
+   * exactly — same opt-in shape as `guardStatePath`, and for the same
+   * reason: tests exercising `runOnce` must never write the real
+   * `data/opponent-model.json` (CLAUDE.md working-style, test isolation).
+   */
+  opponentModelPersistence?: { path: string; bootstrapImportedIds: Set<string> };
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -816,6 +832,13 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
           model.observe(modelKey(foeWire.id, roomNum), foeMove as MoveKey, prevFoeMove);
           prevFoeMove = foeMove as MoveKey;
           playCounts[d.move]++;
+          // [session 32, CODEXIMPROVE #1] Persist immediately, same
+          // discipline as guards.recordEnergySpent -> saveGuardBudget: a
+          // crash mid-run loses at most this one observation, never
+          // previously-learned evidence.
+          if (deps.opponentModelPersistence) {
+            saveOpponentModelAtomically(model, deps.opponentModelPersistence.bootstrapImportedIds, deps.opponentModelPersistence.path);
+          }
         }
       }
       continue;
@@ -1078,6 +1101,10 @@ async function main() {
   // guardPersistence.ts's acquireGuardLock doc comment for why a lock
   // scoped to a single transaction wouldn't actually close the race here).
   process.once("exit", acquireGuardLock());
+  // [session 32, CODEXIMPROVE #1] Same one-writer-per-file discipline,
+  // reused rather than reinvented, against the opponent-model file's own
+  // path — see opponentModelPersistence.ts's header.
+  process.once("exit", acquireGuardLock(DEFAULT_OPPONENT_MODEL_PATH));
   // [session 09] Seed from today's already-spent energy/runs so the budget
   // holds across separate process invocations, not just within one — see
   // guardPersistence.ts.
@@ -1093,7 +1120,17 @@ async function main() {
     },
     seed,
   );
-  const model = new OpponentModel();
+  // [session 32, CODEXIMPROVE #1] Persist and bootstrap the opponent model
+  // across restarts — previously a blank model every launch, discarding
+  // exactly the evidence that matters most in deeper, sparser rooms. See
+  // opponentModelPersistence.ts's header.
+  const { model, bootstrapImportedIds } = loadOpponentModel(DEFAULT_OPPONENT_MODEL_PATH);
+  const { imported } = bootstrapFromCorpus(model, bootstrapImportedIds);
+  if (imported > 0) {
+    console.log(`  · opponent model: bootstrapped ${imported} new exchange(s) from the fixture corpus (${bootstrapImportedIds.size} total imported)`);
+    saveOpponentModelAtomically(model, bootstrapImportedIds, DEFAULT_OPPONENT_MODEL_PATH);
+  }
+  const opponentModelPersistence = { path: DEFAULT_OPPONENT_MODEL_PATH, bootstrapImportedIds };
   const log = new RunLog();
 
   const me = await client.getMe();
@@ -1204,6 +1241,7 @@ async function main() {
                 ? Array(potionCount).fill(potionItemId)
                 : undefined,
           potionPolicy: potionPolicyState,
+          opponentModelPersistence,
         },
         { stage2Only: args.stage2, requireResumeConfirmation: i === 0, resumeExisting: args.resumeExisting },
       );

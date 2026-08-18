@@ -105,6 +105,20 @@ treat a third time as expected, not exceptional.
   (`src/strategy/`) free of network calls. Strategy takes a state object and
   returns a decision — pure functions, trivially testable. This separation is
   what makes the sim harness possible, so don't collapse it for convenience.
+- **Tests must never write to a real data path.** Anything under `data/` or
+  `logs/`, or any file a persistence module (`guardPersistence.ts`,
+  `opponentModelPersistence.ts`) or a report script treats as ground truth,
+  must be given an isolated temp path in the test (`mkdtempSync` + an
+  explicit path param) — never the default path a live script would use.
+  This has been the working convention all along but was never written down,
+  and it has already shipped as a real bug twice in a row: session 30's
+  `9001`/`9002` fishing-corpus pollution and session 31's `guard-budget.json`
+  leak (three tests never set `guardStatePath` on a real `runOneCast` call
+  and silently overwrote the actual dungeon spend ledger). Both were found
+  by accident, not by a reviewer checking this rule. A new I/O-owning test
+  construction (`LiveRunDeps`, `LiveFishingDeps`, or anything wired to
+  `opponentModelPersistence.ts`) that omits an isolated path is this same
+  bug a third time.
 
 ## When you get stuck
 

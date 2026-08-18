@@ -72,7 +72,8 @@ const uniformOver = (legal: readonly MoveKey[]): Distribution => {
   return p;
 };
 
-interface Counts {
+/** Exported so a persistence layer (the orchestrator, never this module) can type-check what `toJSON`/`fromJSON` hand across the I/O boundary — this is a type export, not a capability, so it doesn't compromise this module's no-I/O contract. */
+export interface Counts {
   /** Marginal move counts for a key. */
   total: Distribution;
   /** `prev -> next` counts. Stored from the first observation, per SPEC §4a. */
