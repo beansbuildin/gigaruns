@@ -45,6 +45,37 @@ const cast = JSON.parse(readFileSync("fixtures/fishing-casts/cast.json", "utf8")
   response: { data: { doc: FishingGameDoc } };
 }>;
 
+type LiveFishingIsolatedPaths = Required<
+  Pick<LiveFishingDeps, "transitionsPath" | "guardStatePath" | "nextPositionLogPath" | "logsDir">
+>;
+
+/**
+ * The ONLY place `LiveFishingDeps` is constructed anywhere in this file
+ * (session 40) — every isolated I/O path is required here, not optional or
+ * defaulted, so a future field added to the interface fails to typecheck at
+ * this one call site until it's updated, instead of silently falling back
+ * to a real path three sessions later (session 39's
+ * `data/nextPositionValidation.jsonl` contamination). `address`/`dryRun`
+ * carry test defaults since they're not I/O paths and every call site here
+ * used the same values anyway.
+ */
+function makeLiveFishingDeps(
+  overrides: Omit<
+    LiveFishingDeps,
+    "transitionsPath" | "guardStatePath" | "nextPositionLogPath" | "logsDir" | "fixtures" | "log" | "address" | "dryRun"
+  > &
+    LiveFishingIsolatedPaths &
+    Partial<Pick<LiveFishingDeps, "fixtures" | "log" | "address" | "dryRun">>,
+): LiveFishingDeps {
+  return {
+    address: "0xUSER",
+    dryRun: false,
+    fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
+    log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
+    ...overrides,
+  };
+}
+
 describe("cardsById / buildHand", () => {
   it("maps deckCardData by real card id, and resolves hand ids off it", () => {
     const doc0 = cast[0]!.response.data.doc;
@@ -469,28 +500,24 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-live-test-"));
     const nextPositionLogPath = join(dir, "nextPositionValidation.jsonl");
     const { client } = makeClient();
-    const deps: LiveFishingDeps = {
+    // [session 31, CODEXREVIEW #8] `guardStatePath` must be isolated — without
+    // it, `runOneCast`'s successful start_run falls back to
+    // `DEFAULT_GUARD_STATE_PATH` and writes real committed spend into
+    // `data/guard-budget.json` — the DUNGEON guard file, not fishing's —
+    // every time this test runs. Confirmed live by running this test alone
+    // and diffing that file before/after (0 -> 12 energySpent). Same class
+    // of bug as the session-30 `9001`/`9002` fishing-corpus pollution fix —
+    // a test writing to a real, non-isolated path. `makeLiveFishingDeps`
+    // (session 40) now makes every isolated path a required argument here.
+    const deps = makeLiveFishingDeps({
       client,
       config: TEST_CONFIG,
       guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
-      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
-      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
-      address: "0xUSER",
-      dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
       logsDir: join(dir, "logs"),
-      // [session 31, CODEXREVIEW #8] Without this, `runOneCast`'s successful
-      // start_run falls back to `DEFAULT_GUARD_STATE_PATH` and writes real
-      // committed spend into `data/guard-budget.json` — the DUNGEON guard
-      // file, not fishing's — every time this test runs. Caught while
-      // wiring committed-spend recording into the start_run success path:
-      // confirmed live by running this test alone and diffing that file
-      // before/after (0 -> 12 energySpent). Same class of bug as the
-      // session-30 `9001`/`9002` fishing-corpus pollution fix — a test
-      // writing to a real, non-isolated path.
       guardStatePath: join(dir, "guard-budget.json"),
-    };
+    });
 
     const result = await runOneCast(deps);
     expect(result.outcome).toBe("escaped");
@@ -510,28 +537,15 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-live-test-"));
     const nextPositionLogPath = join(dir, "nextPositionValidation.jsonl");
     const { client } = makeClient();
-    const deps: LiveFishingDeps = {
+    const deps = makeLiveFishingDeps({
       client,
       config: TEST_CONFIG,
       guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
-      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
-      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
-      address: "0xUSER",
-      dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
       logsDir: join(dir, "logs"),
-      // [session 31, CODEXREVIEW #8] Without this, `runOneCast`'s successful
-      // start_run falls back to `DEFAULT_GUARD_STATE_PATH` and writes real
-      // committed spend into `data/guard-budget.json` — the DUNGEON guard
-      // file, not fishing's — every time this test runs. Caught while
-      // wiring committed-spend recording into the start_run success path:
-      // confirmed live by running this test alone and diffing that file
-      // before/after (0 -> 12 energySpent). Same class of bug as the
-      // session-30 `9001`/`9002` fishing-corpus pollution fix — a test
-      // writing to a real, non-isolated path.
       guardStatePath: join(dir, "guard-budget.json"),
-    };
+    });
     const result = await runOneCast(deps);
     expect(result.outcome).toBe("escaped");
     expect(nextPositionOverrideStats(nextPositionLogPath).ready).toBe(false);
@@ -542,29 +556,28 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-live-test-"));
     const { client } = makeClient();
     const guards = new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 });
-    const deps: LiveFishingDeps = {
+    // [session 39, CODEXAUDIT #4 follow-on] This test used to omit
+    // `nextPositionLogPath`/`logsDir`, so every run of it appended a real HIT
+    // record (this mock's turn-1 position always matches its own turn-0
+    // prediction) to the REAL `data/nextPositionValidation.jsonl` and dumped a
+    // spurious "unknown midcast field" file into the REAL `logs/` — confirmed
+    // live: the on-disk file had accumulated 35 fake hits (docId "99999999",
+    // matching this exact mock) before this fix, already past
+    // `NEXT_POSITION_OVERRIDE_THRESHOLD`. Same bug class as session 30/31's
+    // fixture/guard-budget pollution, a third occurrence, this time in the
+    // file that literally documents the first two. `makeLiveFishingDeps`
+    // (session 40) now makes this structurally impossible: every isolated
+    // path is a required argument, not an optional field a call site can
+    // silently skip.
+    const deps = makeLiveFishingDeps({
       client,
       config: TEST_CONFIG,
       guards,
-      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
-      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
-      address: "0xUSER",
-      dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       guardStatePath: join(dir, "guard-budget.json"),
-      // [session 39, CODEXAUDIT #4 follow-on] This test omitted
-      // `nextPositionLogPath`/`logsDir`, so every run of it appended a real
-      // HIT record (this mock's turn-1 position always matches its own
-      // turn-0 prediction) to the REAL `data/nextPositionValidation.jsonl`
-      // and dumped a spurious "unknown midcast field" file into the REAL
-      // `logs/` — confirmed live: the on-disk file had accumulated 35 fake
-      // hits (docId "99999999", matching this exact mock) before this fix,
-      // already past `NEXT_POSITION_OVERRIDE_THRESHOLD`. Same bug class as
-      // session 30/31's fixture/guard-budget pollution, a third occurrence,
-      // this time in the file that literally documents the first two.
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       logsDir: join(dir, "logs"),
-    };
+    });
 
     // `client` (from `makeClient()`) never implements `getEnergy` — if
     // committing the spend still depended on reading account energy, this
@@ -632,23 +645,22 @@ describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW 
     } as unknown as GigaverseClient;
   }
 
-  function makeDeps(client: GigaverseClient, guardStatePath: string): LiveFishingDeps {
-    return {
+  function makeDeps(client: GigaverseClient, dir: string): LiveFishingDeps {
+    return makeLiveFishingDeps({
       client,
       config: TEST_CONFIG,
       guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
-      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
-      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
-      address: "0xUSER",
-      dryRun: false,
-      guardStatePath,
-    };
+      transitionsPath: join(dir, "fish-patterns.jsonl"),
+      guardStatePath: join(dir, "guard-budget-fishing.json"),
+      nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      logsDir: join(dir, "logs"),
+    });
   }
 
   it("classifies the real 'reached max runs for fishing' rejection as a budget trip and persists the exhausted mark", async () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-fishing-cap-test-"));
     const guardStatePath = join(dir, "guard-budget-fishing.json");
-    const deps = makeDeps(fakeClient("Player has reached max runs for fishing"), guardStatePath);
+    const deps = makeDeps(fakeClient("Player has reached max runs for fishing"), dir);
 
     try {
       await runOneCast(deps);
@@ -666,8 +678,7 @@ describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW 
 
   it("does NOT reclassify an unrelated start_run rejection as a budget trip", async () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-fishing-cap-test-"));
-    const guardStatePath = join(dir, "guard-budget-fishing.json");
-    const deps = makeDeps(fakeClient("some unrelated server error"), guardStatePath);
+    const deps = makeDeps(fakeClient("some unrelated server error"), dir);
 
     try {
       await runOneCast(deps);
@@ -780,17 +791,15 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
     const transitionsPath = join(dir, "fish-patterns.jsonl");
     seedContextCorpus(transitionsPath);
 
-    const deps: LiveFishingDeps = {
+    const deps = makeLiveFishingDeps({
       client: makeClient(),
       config: TEST_CONFIG,
       guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
-      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
-      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
-      address: "0xUSER",
-      dryRun: false,
       transitionsPath,
       guardStatePath: join(dir, "guard-budget.json"),
-    };
+      nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      logsDir: join(dir, "logs"),
+    });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
@@ -817,17 +826,15 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
         "\n",
     );
 
-    const deps: LiveFishingDeps = {
+    const deps = makeLiveFishingDeps({
       client: makeClient(),
       config: TEST_CONFIG,
       guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
-      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
-      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
-      address: "0xUSER",
-      dryRun: false,
       transitionsPath,
       guardStatePath: join(dir, "guard-budget.json"),
-    };
+      nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      logsDir: join(dir, "logs"),
+    });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {

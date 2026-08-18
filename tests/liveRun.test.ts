@@ -331,7 +331,20 @@ describe("wireBoonToOption", () => {
 // runOnce — integration against a mocked fetch, no real network.
 // ---------------------------------------------------------------------------
 
-function makeDeps(dryRun: boolean): LiveRunDeps {
+// [session 40] The ONLY place `LiveRunDeps` is constructed in this file —
+// the return type intersects `Required<Pick<LiveRunDeps, "guardStatePath">>`
+// so dropping the `guardStatePath` line below is a compile error, not a
+// silent fallback to `DEFAULT_GUARD_STATE_PATH` (`data/guard-budget.json`,
+// `src/orchestrator/guardPersistence.ts`) three sessions from now.
+// `opponentModelPersistence`/`playCountsPersistence` are deliberately NOT
+// required here: unlike `guardStatePath`, `runOnce` only touches either one
+// when it's explicitly set (`if (deps.opponentModelPersistence && ...)`,
+// `if (deps.playCountsPersistence && ...)`, scripts/liveRun.ts) — omitting
+// them is a real no-write no-op, not a fallback to a real path, so a
+// per-test caller opts in with its own isolated path only when it actually
+// wants to exercise persistence (see the `opponentModelPersistence` test
+// below), same as `probeUseItem`/`potionPolicy`/`shutdownSignal`.
+function makeDeps(dryRun: boolean): LiveRunDeps & Required<Pick<LiveRunDeps, "guardStatePath">> {
   return {
     client: new GigaverseClient({ jwt: "test-jwt" }),
     config: TEST_CONFIG,
