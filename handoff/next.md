@@ -1,226 +1,154 @@
-# BRIEF — session 33
+# BRIEF — session 34
 
-Session 32 landed clean: 500/500 tests (+12), `tsc` clean. It closed
-CODEXIMPROVE #1 (dungeon opponent-model persistence + idempotent bootstrap,
-live-verified against the real fixture corpus — 64 room-1 exchanges
-imported once, zero on the second launch) and the test-isolation hygiene
-pass CODEXIMPROVE queue §2 asked for (CLAUDE.md now states the
-isolated-test-path rule explicitly; grep audit found no violations beyond
-the 3 already-fixed session-31 offenders).
-
-This session's brief was prepared by re-reading both source Codex
-documents (`CODEXREVIEW` and `CODEXIMPROVE`) fresh against the actual
-current code and cross-referencing every numbered item against
-`DECISIONS.md`, `STATE.md`, and the live files themselves — not just
-against the running "remaining items" list carried in STATE.md's open
-questions, which undersells how much is actually done. Full status below;
-this replaces the shorthand "#3/#4/#5, #9/#10" note session 32 left,
-which was correct as far as it went but never spelled out that literally
-everything else on both lists already has a matching fix.
+Session 33 landed clean: 510/510 tests (+10), `tsc` clean, GATE PASS. It
+shipped CODEXIMPROVE #3 (hierarchical contextual fishing fallback) exactly
+as scoped: offline leave-one-cast-out CV on the real corpus reproduced
+Codex's core finding first (cell-only 16.4% top-1 — exact match; cell +
+previous direction 37.1% vs. Codex's 33.9%, same ~2.3x conclusion), THEN a
+simulator ablation confirmed the algorithm exploits real structure
+(33.8% → 72.5% on synthetic casts), and only then did it get wired live
+(`scripts/liveFishing.ts` now calls the new `contextualFallback()` instead
+of `emptyFallback()` directly). `minIndependentCasts=3` was chosen by
+sweeping {2,3,4} against log loss/Brier, not guessed. Real corpus already
+has 10 context keys clearing the live threshold today.
 
 ---
 
-## Cross-reference: full CODEXREVIEW / CODEXIMPROVE status
+## Before anything else: real fishing casts are currently blocked, not by this session's code
 
-**CODEXREVIEW — all 10 items resolved.** Verified against the live code,
-not just recalled from memory:
+Session 33's one real `--casts=1` live attempt got `start_run` rejected
+HTTP 400, and read-only follow-up (`scripts/checkFishingStuck.ts`) found
+the account carrying a completed-but-unresolved doc (`docId 12957129`,
+`COMPLETE_CID: true`, `SUCCESS_CID: false` — an ESCAPE, not a catch) with
+no `cardsToAdd` and `cardChosenId: -1`. Every previously-documented stuck
+case (DECISIONS session 15, QUESTIONS §10) was catch-specific; this is a
+new, unconfirmed shape. Full writeup: **QUESTIONS.md §15**.
 
-1. Fishing fixture directories miscounted as casts — DONE session 28
-   (`src/sim/fishingCorpus.ts` canonical `docId`-based loader; DECISIONS
-   2026-08-18 session 28).
-2. Guard/budget persistence fail-open, non-atomic, no single-writer — DONE
-   session 28 (`guardPersistence.ts` atomic temp+rename,
-   `acquireGuardLock()` held for full process lifetime, DECISIONS session
-   28).
-3. Orchestrator skipped energy accounting after unexpected post-spend
-   errors — DONE session 28. Confirmed live in `scripts/orchestrator.ts`
-   right now: both the dungeon and fishing branches route through
-   `runWithGuaranteedAccounting()`, with an inline comment citing
-   CODEXREVIEW #3 by name.
-4. `getDungeonState()` converted every 5xx into "no active run" — DONE
-   session 28. Confirmed live in `src/api/client.ts`: one 5xx retries
-   once, a second consecutive 5xx now throws `UnexpectedResponseError`
-   ("...not an idle account (CODEXREVIEW #4)" — inline comment, same
-   file).
-5. Resumed fishing casts reset transition numbering, could promote false
-   patterns — DONE session 29 (`liveFishing.ts`'s `lastRecordForCast` +
-   resume-position validation; `mineFishPatterns.ts` rejects gapped/
-   duplicate-conflicting trajectories). Verified against the exact bug
-   case named (cast `12923189`), confirmed excluded post-fix.
-6. Server-side daily caps observed but not used as scheduling state —
-   DONE session 29 (`assertDungeonCapNotExhausted` reconciles against
-   `GET /game/dungeon/today` before a new dungeon `start_run`; fishing's
-   real-rejection path reclassified as a budget trip so it can't take the
-   other mode down with it).
-7. JWT redaction only given the token's first 8 characters — DONE.
-   Confirmed live: `GigaverseClient.redactSecrets()` exists on the client
-   itself (`src/api/client.ts:130`) and both live fixture writers in
-   `orchestrator.ts` call it directly, matching the doc's exact suggested
-   fix shape.
-8. Net energy delta undercounted committed spend — DONE session 31
-   (`src/orchestrator/energyAccounting.ts`; guard now enforces off
-   committed spend recorded the moment `start_run` succeeds, before/after
-   read demoted to diagnostic-only).
-9. CLAUDE.md contradicted live tier behavior (`pickSafeTier` vs. the
-   generalized `pickLowestTier`) — DONE, further back than either doc's
-   framing suggested (session 09). Confirmed live: CLAUDE.md §8 already
-   reads "Always choose the lowest tier actually offered" and names
-   `pickLowestTier()`.
-10. `viem` unused — RESOLVED NOT APPLICABLE, session 31. Checked before
-    acting per CLAUDE.md §9: `viem` IS used live, `scripts/probe.ts`'s EOA
-    auth path (`AUTH_MODE=eoa`). Correctly NOT removed.
+This is logged and stopped, correctly — CLAUDE.md's stuck protocol is log
+and stop, not guess at an unconfirmed `loot`-shaped resolution for an
+escape. It does not block `--dry-run` (never reaches `start_run`), it does
+not block any dungeon work, and it does not block the offline CV/ablation
+scripts session 33 built. **Do not attempt a real `--casts=N` fishing
+invocation this session** unless `scripts/checkFishingStuck.ts` shows the
+account is clear again (worth a quick read-only check at the start of the
+session, cheap and non-committing) — if it's still stuck, that's still the
+same open QUESTIONS.md §15 item, not a new bug to chase.
 
-**CODEXIMPROVE — #1, #2, #6 resolved; #3, #4, #5 open.**
-
-1. Persist/bootstrap dungeon opponent model — DONE session 32 (above).
-2. Fishing tie-breaks conserve focus/mana — DONE session 31
-   (`bestFocusForCard`'s Manhattan-distance tie-break, `chooseCard`'s full
-   lexicographic `isPreferred` comparator — lethal, EV, focus cost, mana
-   cost, hand order). Provably EV-neutral, no sim re-validation needed
-   per that session's own reasoning.
-3. **Previous-direction contextual fishing fallback — OPEN. This
-   session's primary work; see §1 below.**
-4. Charge-reserve continuation value for carried dungeon move charges —
-   OPEN, queued.
-5. Boon valuation using real confirmed deltas + persisted per-run
-   `playCounts` — OPEN, queued.
-6. Gate/validate `nextPosition` before a live override — DONE session 30,
-   exactly as scoped ("add a validation-only mode... promote to a live
-   override only after repeated exact agreement, not from two sightings").
-   `liveFishing.ts` logs predicted-vs-actual to
-   `data/nextPositionValidation.jsonl` every checkable turn; the override
-   path is wired but gated behind `NEXT_POSITION_OVERRIDE_THRESHOLD = 10`
-   confirmed hits, unreached at 2 sightings project-wide. Correctly not
-   promoted further — nothing to do here until more live data accumulates
-   on its own; not a code task.
-
-So the actual remaining backlog, full stop, is CODEXIMPROVE #3, #4, #5.
-Per CODEXIMPROVE's own suggested implementation order (§3 before §4/§5),
-and because #3 is the strongest empirical fishing predictor Codex found
-in the corpus, this session scopes #3 alone — same one-item-at-a-time
-discipline session 32 used for #1.
+**Needs a human, not Claude:** a DevTools capture of what the real client
+sends after an escape, same as how `path_two`/`loot` were each originally
+confirmed. Nothing for this session to do about that directly beyond not
+making it worse.
 
 ---
 
-## 1. Condition the fishing fallback on previous movement direction (CODEXIMPROVE #3)
+## 1. Give carried dungeon charges continuation value (CODEXIMPROVE #4)
 
-Relevant code, re-checked against the current tree (line numbers below
-are current, not the doc's original review-commit numbers, which have
-drifted since sessions 29/30/31 touched these same files for CODEXREVIEW
-#5 and the `nextPosition` work):
+Relevant code, re-checked against the current tree (these files are
+untouched since the original Codex review commit — session 33 only
+touched fishing files — so the doc's line numbers below are confirmed
+still accurate):
 
-- `src/strategy/fishing/matcher.ts:79-98` — `emptyFallback()`. Its `log`
-  parameter is `ReadonlyMap<string, readonly Cell[]>` keyed ONLY on
-  `cellKey(fromCell)` — confirmed live, no previous-direction context
-  reaches it today.
-- `scripts/liveFishing.ts:264-292` — `TransitionRecord`/
-  `loadTransitionLog()`. The record already carries `castId`, `turn`,
-  `from`, `to` (and `gridSize`) per entry — the context CODEXIMPROVE #3
-  wants is already captured on disk, just not used when building the
-  empirical map.
-- `scripts/liveFishing.ts:697, 710-725, 752` — where the log is loaded,
-  where resumed-cast numbering is validated (CODEXREVIEW #5's fix,
-  already landed — reuse its cast-grouping discipline rather than
-  duplicating it), and where `emptyFallback()` is actually called each
-  turn.
-- `data/fish-patterns.jsonl` — the real transition corpus. Same file
-  `mineFishPatterns.ts` reads; consider sharing one cast-grouping helper
-  between that script and whatever builds the new contextual map, rather
-  than writing a second grouping implementation.
+- `src/strategy/utility.ts:55-72` — `utility()`. Confirmed live: the
+  terminal/leaf scoring function only ever reads `hp`/`armor` on both
+  sides (`w.hp`, `w.armor`, `w.foeHp`, `w.foeArmor`). No move-charge term
+  exists anywhere in this function today.
+- `src/strategy/decide.ts:78-120` (the recursive `value()` search) and
+  `:130-180` (`decide()`, the top-level table build + argmax). Confirmed
+  live: `value()` bottoms out at `utility(state, cfg)` on `depth <= 0` or
+  a terminal state — charge state is part of `BattleState` throughout the
+  search but never scored at the leaf, only implicitly shaping which
+  moves are legal along the way (via `legalMoves(..., cfg.chargesAreHardLimit)`).
+- `src/sim/combat.ts:39-77, 157-164` — charge accounting on resolve
+  (verify current line numbers on open; this file's mtime also predates
+  session 33, so likely unchanged, but wasn't re-read line-by-line this
+  time).
+- `SPEC.md:829` — names the charges-persist-across-rooms behavior this
+  item is about.
 
-Codex's leave-one-cast-out evaluation (49 clean casts / 165 transitions,
-the corrupted resumed sequence from CODEXREVIEW #5 excluded) found:
+The problem, same as the original review: HP and armor are priced as
+resources carried into future rooms; move charges are not, despite also
+persisting across room transitions and controlling move legality under
+the enabled hard-limit model. Depth-three search accounts for charge
+changes only inside its own horizon — at a win or a depth leaf, two
+otherwise-equal states score identically even when one carries a depleted
+high-value move into the next room. That's misaligned with the actual
+target metric (mean rooms cleared).
 
-| Predictor | Held-out next-cell top-1 accuracy | Feature coverage |
-| --- | ---: | ---: |
-| Current cell only | 16.4% | 100.0% |
-| Current cell + turn number | 16.4% | 82.4% |
-| Current cell + previous movement direction | 33.9% | 75.2% |
-| Current cell + turn + previous direction | 24.2% | 49.1% |
+**Implementation requirements, per CODEXIMPROVE's spec — staged, smallest
+first:**
 
-Previous direction more than doubled top-1 accuracy; turn number added
-nothing and cost coverage. This is a diagnostic, not a proven catch-rate
-gain — card hitboxes consume a full probability distribution, not just
-the top-1 cell, so the eventual gate is a simulator catch-rate ablation,
-not this table by itself.
+1. **Tie-break only, first.** Add a tie-break between otherwise-equal
+   decision scores (`decide()`'s `table.reduce` argmax at
+   `decide.ts:178`, currently "ties broken by the order in MOVES") that
+   prefers the better expected post-exchange charge reserve. This should
+   be provably non-regressive the same way session 31's fishing tie-break
+   was (CODEXIMPROVE #2) — it only resolves cases that were already tied
+   on the primary score, never overrides a strict comparison. Add a test
+   proving exactly that: two moves with equal `score` but different
+   resulting charge reserves, tie-break picks the higher-reserve one;
+   two moves with UNEQUAL `score`, tie-break never fires regardless of
+   charge reserve.
+2. **Weight reserve by move usefulness, not a blind sum.** Don't just sum
+   all remaining charges — a depleted high-ATK move matters more than a
+   depleted low-value one. ATK/DEF or observed play share (this project
+   already tracks move-pick frequency in a few places — check
+   `opponentModel.ts` and the boon/loot code for an existing move-value
+   or play-share signal before inventing a new one) are the doc's own
+   suggested starting weights. Document whatever you land on with the
+   same "why this number" discipline as
+   `NEXT_POSITION_OVERRIDE_THRESHOLD`/`minIndependentCasts=3`.
+3. **Then, separately, ablate a continuation term.** Only after the
+   tie-break lands and is tested: try a small normalized charge-reserve
+   utility term, or a one-room continuation rollout, added to `utility()`
+   itself (not just the tie-break). Ship a non-zero weight ONLY if mean
+   rooms cleared improves by more than the 95% CI on the existing dungeon
+   sim's batch runs (`tests/dungeonSim.test.ts` already has the harness
+   this needs — reuse it, same as the HP/armor weight sweep that already
+   produced a documented null result). Keep zero as the explicit control;
+   report the comparison honestly if it doesn't clear the bar, same as
+   CLAUDE.md §9 has applied to every other unproven claim this project
+   has checked.
+4. Add regression tests for both stages independently — the tie-break's
+   non-regression proof (step 1) should pass and be committed even if
+   step 3's continuation term ultimately doesn't ship.
 
-**Implementation requirements, per CODEXIMPROVE's spec:**
-
-1. Build the contextual empirical map keyed on
-   `${cellKey(from)}|${previousDx},${previousDy}` — group the real corpus
-   by `castId` first (reuse `mineFishPatterns.ts`'s existing
-   `groupByCast`-style logic rather than re-deriving it), sort each
-   cast's transitions by `turn`, and compute each hop's previous
-   displacement from the prior hop in the SAME cast. A cast's first
-   transition (turn 0) has no previous displacement — it can only ever
-   fall back to the cell-only key.
-2. Do NOT include `turn` in this first version — Codex's own ablation
-   found it added nothing to top-1 accuracy and sharply cut coverage
-   (100% → 82.4% → 49.1% as more features stack).
-3. Use a hierarchical distributional backoff, most-specific first:
-   1. current cell + previous displacement, gated on a minimum
-      independent-cast support threshold (pick a small, defensible
-      floor — e.g. require at least 2-3 independent casts contributing
-      to that key, not just 2-3 raw transitions from possibly-related
-      turns in one cast; document whatever threshold you land on and
-      why, same as `NEXT_POSITION_OVERRIDE_THRESHOLD`'s existing
-      documented-reasoning pattern).
-   2. current cell only (today's existing `emptyFallback` behavior,
-      unchanged, as the fallback's fallback).
-   3. uniform over the grid (today's existing last resort, unchanged).
-4. Evaluate with held-out log loss / Brier score in addition to top-1
-   accuracy — top-1 alone doesn't capture whether the fuller distribution
-   is better calibrated, which is what `chooseCard`'s EV computation
-   actually consumes.
-5. Keep CASTS, not individual transitions, as the cross-validation unit
-   (leave-one-cast-out, matching Codex's own methodology) — splitting on
-   transitions would leak information across turns of the same cast.
-6. After the offline held-out evaluation looks good, run a catch-rate
-   ablation through the existing fishing simulator before calling this
-   done — this project's own standing rule (CLAUDE.md, restated in both
-   Codex docs) is not to treat simulator output as live evidence until
-   it's calibrated in the same domain, so frame the simulator result as
-   "does this look like a real improvement in the model that already
-   exists," not as a live catch-rate promise.
-7. Add regression tests: a synthetic multi-cast corpus where previous
-   direction is genuinely predictive vs. one where it isn't (contextual
-   backoff should only fire when it has support); a turn-0 transition
-   correctly skips straight to the cell-only tier; the existing
-   cell-only/uniform fallback tiers stay byte-for-byte unchanged when the
-   new context tier has zero matching support (no regression to
-   CODEXREVIEW #5's already-fixed resumed-cast/duplicate-trajectory
-   handling). Route any test-constructed transitions file through an
-   isolated temp path per CLAUDE.md's now-explicit rule — this is exactly
-   the kind of new fixture-shaped test data the rule was written for.
+This is explicitly a MORE credible new dungeon axis than another HP/armor
+weight sweep (which already produced a reliable null result per the
+"Areas not worth retuning yet" section of the original CODEXIMPROVE doc)
+— it's untried, not re-tried.
 
 ---
 
 ## Your task
 
-1. §1 (CODEXIMPROVE #3, contextual fishing fallback) is the whole scope
-   this session — offline cross-validation first, matching Codex's
-   reported numbers on the real corpus close enough to trust the
-   methodology, THEN the simulator catch-rate ablation, THEN wire it into
-   live `liveFishing.ts` only if both clear.
-2. Don't start CODEXIMPROVE #4 or #5 this session — both still queued,
-   not now, same discipline session 32 used.
-3. If the offline cross-validation on the real corpus does NOT reproduce
-   numbers in the same ballpark as Codex's table (33.9% vs. 16.4%
-   top-1), stop and report that honestly rather than shipping a fallback
-   tier that isn't actually earning its complexity — CLAUDE.md §9 applies
-   to this brief's inherited numbers exactly as it's applied to every
-   other prior claim this project has re-checked.
+1. §1 (CODEXIMPROVE #4, charge-reserve continuation value) is the whole
+   scope this session, staged as written above: tie-break + its
+   regression test first, continuation-term ablation second, ship the
+   ablation only if it clears the bar.
+2. Do the cheap read-only `scripts/checkFishingStuck.ts` check before
+   deciding whether any live fishing smoke test is safe — don't attempt a
+   real fishing cast if it's still stuck, and don't guess at resolving it
+   either way. This session's actual work is dungeon-side and unaffected
+   regardless of the fishing account's state.
+3. Don't start CODEXIMPROVE #5 (boon valuation) this session — still
+   queued, not now, same discipline every prior session in this run has
+   used.
 4. Recap normally, full suite + `tsc` against the final commit as usual.
 
 ---
 
 ## Queued, not this session
 
-- **CODEXIMPROVE #4** (dungeon charge-reserve continuation value) — tie-
-  break carried move charges into leaf/terminal utility scoring first,
-  then ablate a small continuation-value term; well-scoped, not urgent.
 - **CODEXIMPROVE #5** (boon valuation using real confirmed deltas +
-  persisted per-run `playCounts`) — well-scoped, not urgent.
+  persisted per-run `playCounts`) — relevant code per the original doc:
+  `src/strategy/loot.ts:92-174`, `src/sim/boons.ts:296-333`,
+  `scripts/liveRun.ts:586-588, 853-869` (verify current line numbers on
+  open — `liveRun.ts` has been touched by several sessions since the
+  review commit, more likely to have drifted than the charge-reserve
+  files above). Well-scoped, not urgent; do after #4.
+- **QUESTIONS.md §15** (stuck-account-after-escape) — needs a human
+  DevTools capture, not code. Not this session's job beyond the
+  non-committing read-only check above.
 - Task 14 (bot-initiated juiced `start_run`) still BLOCKED on a live
   DevTools capture — still needs a manual juiced run captured whenever
   convenient, not code work.
