@@ -1,146 +1,133 @@
-# STATE — session 42 — 2026-08-18 — commit 54042f8
+# STATE — session 43 — 2026-08-18 — commit 38fd190
 
 ## Status
-Task "Resume and complete the live juiced Tier-3 run" (session-42 brief §0):
-**DONE**. A SECOND live run (Tier-2, silver rings, user-initiated mid-session
-after the recap) was also resumed and completed at the user's direct request
-— also **DONE**. Task 14 "Bot-initiated juiced `start_run`, with per-mode
-potion equip" (brief §1/§2): **CODE DONE, GATE NOT MET** — both pieces
-(envelope builder, `--juiced` CLI flag) are implemented and tested, but the
-gate specifically asks for a **bot-initiated** juiced `start_run`; both live
-runs this session were resumes of runs the user started manually, never a
-fresh juiced `start_run` sent by this process. Task 14's `index == tier`
-open question IS now settled (see below) — a real, unplanned finding from
-the second run.
-Next per TASKS.md: no numbered task is ready to start cleanly. Task 14 needs
-one bot-initiated juiced `start_run` attempt (real energy/run-slot cost,
-needs explicit authorization) to actually close its gate. Task 13 stays
-capture-blocked. Task 11 stays parked.
+Task 14 "Bot-initiated juiced `start_run`, with per-mode potion equip":
+**GATE MET.** Two bot-initiated juiced Tier-3 `start_run` calls were sent by
+this project's own process (not resumes) under the user's standing
+authorization (session-43 brief §0), both closing the gate's two conditions
+exactly (3x reward, `dayProgressEntities` +3) — see Metrics. §2 (dungeon
+loot-pick priority: Sword-upgrade pin + 15%-overflow Heal gate) and §3
+(fishing strategy heuristics) are both **DONE**, code + tests + SPEC/
+DECISIONS updates, all three committed separately.
+Next per TASKS.md: no numbered task is ready to start cleanly. Task 13
+stays capture-blocked (needs more real fishing card choices). Task 11 stays
+parked. The new fishing oil-reserve heuristic (§3c) is blocked on an
+unconfirmed oil-use action shape (QUESTIONS.md §16) — needs a DevTools
+capture, not code.
 
 ## What works
-- Two live juiced runs resumed and played to completion: run 1 (Tier-3, gold
-  rings) died room 7, HP 0/43 — the deepest death this corpus has recorded.
-  Run 2 (Tier-2, silver rings) died room 6, HP 0/38. Logs
-  `logs/run-2026-08-18-{19-50-13,21-15-24}.jsonl`, fixtures
-  `fixtures/dungeon-runs/run-2026-08-18-{19-50-14,21-15-25}/` (123 + 93
-  states).
-- **Juiced reward multiplier CONFIRMED 3x on BOTH runs, mechanism now
-  known**: item 846 ("Dendren Root") is credited via THREE duplicate
-  `gameItemBalanceChanges` entries of the base amount (not one tripled
-  entry). Base per-room amounts were byte-for-byte identical across both
-  runs regardless of entry tier — **RESOLVED, user-stated**: `dropMultiplier`
-  and the juiced 3x govern separate reward channels entirely.
-  `dropMultiplier` (§3c, 1/2/4 by entry tier) affects Hard Core (item 845)
-  only; the juiced 3x affects Dendren Root (item 846) only — they were
-  never going to stack on this channel. See SPEC.md §3c/§3f.
-- `dayProgressEntities` for Dungeon#5 moved 3→6 at the SECOND run's
-  `start_run` (read before/after) — a third independent confirmation of the
-  +3-at-juiced-start mechanism (session 23's original 3→6, plus this
-  session's two reads).
-- **`start_run`'s `data.index` field IS `entryData`'s `tier` — CONFIRMED.**
-  The user provided a second capture (Tier-2 juiced start, `index: 2`),
-  which combined with this session's own Tier-3 capture (`index: 3`) proves
-  `index` selects the entry tier independently of `isJuiced`. Also
-  identified: `entryData`'s two gated tiers are literally the user's
-  "silver rings" (items 134–140, Tier 2) and "gold rings" (items 243–249,
-  Tier 3) — confirmed by name against `GET /offchain/static`'s catalog.
-  This was already in `config/discovered.json`/SPEC.md §3c since session 03
-  but had never been connected to `start_run`'s `index` field before this
-  session. See SPEC.md §3c and TASKS.md Task 14.
-- `buildJuicedStartRunEnvelope(dungeonId, index, consumables)`
-  (`scripts/liveRun.ts`) — pinned against the exact captured JSON. Wired
-  into the `start_run` call site behind `deps.juicedStartRun`, only set
-  when `--juiced` is passed; the ordinary `buildEnvelope` path is
-  byte-for-byte unchanged for every plain start.
-- `--juiced` + `--juiced-index=N` CLI flags — fail-closed like `--potions=N`.
-  Potion auto-loading (config-auto-detect branch AND `startConsumables` on a
-  new start) is now gated behind `--juiced`. Explicit `--potions=N` still
-  works without `--juiced` — needed for, and confirmed working twice by,
-  `--resume-existing`.
-- **Real correctness gap found and fixed**: `GuardState.assertCanStartRun`/
-  `recordRunStarted` hardcoded 1 run-unit per start; a juiced run consumes
-  3. Both now take an optional `runUnits` param (default 1, every existing
-  call site unaffected).
-- `ROOM_ENEMIES` gained first-ever room-6 (RISKY_TIER only — no Safe offer
-  exists yet) and room-7 (clean SAFE_TIER) captures. `ArmorDepletedWeak`
-  boon modelled (`{kind:"latent"}`, first pickup pair, run 2 room 2).
-- **PLAYER's mid-session stat shift RESOLVED, user-stated**: the user
-  changed equipped armor between starting the two manual runs (confirmed
-  directly, not inferred) — an ordinary re-spec, not a tier effect.
-  `src/sim/enemies.ts`'s `PLAYER` doc comment and all downstream test
-  comments updated to state this rather than leave it as an open question.
-- Tests: **586/586 passing** (561 baseline + 25 new). `npx tsc --noEmit`
-  clean, `git diff --check` clean, both at this session's final commit.
+- **Task 14's gate MET, live-verified, not assumed:** run 1 —
+  `dayProgressEntities` for Dungeon#5 moved 6→9 (+3 exactly), first-kill
+  `gameItemBalanceChanges` carried three duplicate `{id:846, amount:5}`
+  entries (15 total, matching the user's 5→15 reference), died room 6, HP
+  0/40. Run 2 (after the user's manual level-up, brief §1) — `dayProgressEntities`
+  moved 9→12 (+3 exactly, exhausting today's 12-run juiced cap), same 3x
+  pattern (5,9,14,19,25 progression, byte-identical to run 1 and to session
+  42's resumed runs), died room 5, HP 0/40. Both numbers matched the gate's
+  terms exactly on both runs — nothing rounded up.
+- `UpgradePaper` gets its first-ever pickup pair (run 2, room 4, ATK-variant
+  roll: `selectedVal1` 8/`selectedVal2` 0 → paper ATK 6→14, DEF unchanged) —
+  modelled `{kind:"moveDelta", move:"paper"}`, `contaminates: []`. All three
+  `Upgrade*` types are now modelled and clean; this retroactively cleans 8
+  already-recorded room-1 `UpgradePaper` offers (same mechanic as
+  `AddMaxArmor`, session 11). See `src/sim/boons.ts`.
+- PLAYER's hpMax moved 38→40 (armorMax/moves unchanged) — the level-up
+  landed before this session's run 1 even started (both runs' own
+  state-000 already read 40), not between the two runs as the brief
+  planned; recorded honestly rather than folded into the assumed
+  narrative. See `src/sim/enemies.ts`'s PLAYER doc.
+- `src/strategy/loot.ts`: `UpgradeRock` (Sword) now wins whenever offered
+  (hard tier-separation bonus, `SWORD_PIN_BONUS`, not a bigger multiplier —
+  cannot be outscored by a big pool offer). Heal is now gated:
+  `hpCurrent < hpMax && wasted <= 0.15 * healAmount`, else scores 0 and
+  falls through. Both are user directives (2026-08-18), SPEC.md §4c updated.
+- `src/strategy/fishing/heuristics.ts` (new): four user-sourced heuristics
+  implemented as tested pure functions — center-bias tie-break
+  (`isCentralSquare`), prune-return-to-previous-cell after a 1-cell move
+  (`pruneReturnToPrevious`), an edge position's narrower candidate-cell
+  count (`candidateCellCount`, geometric claim only), coverage-maximizing
+  card/focus tie-break (`coverageCount`). Wired into `cardChoice.ts`'s
+  `bestFocusForCard`/`chooseCard` (as tie-breaks, never overriding real EV)
+  and `scripts/liveFishing.ts`'s distribution pipeline (prune skipped under
+  the `nextPosition` override). `src/strategy/fishing/oilPolicy.ts` (new):
+  the oil-reserve heuristic as a documented recommendation function, not
+  wired to any live action (see Open questions).
+- Opportunistic finding: "Mid Relaxing Oil" (itemId 937) is a direct
+  fish-damage consumable (`FishingDamageFish` +2), not the calming/mana
+  effect its name suggests — "Mid Mana Oil" (939) is the real restore-mana
+  item. Matches the user's own stated use case for Relaxing Oil exactly.
+  See SPEC-fishing.md §4a addendum.
+- Two new unmodelled boon type sightings: `CritHeal`, `LossLuckUp`.
+- Tests: **629/629 passing** (595 baseline + 34 new). `npx tsc --noEmit`
+  clean, `git diff --check` clean, both re-checked at this session's actual
+  final commit (38fd190), not a mid-session snapshot.
 
 ## What's broken
 Nothing shipped this session broke anything — full suite green, tsc clean,
-at the actual final commit. A default Safe-tier `simulateRun` walk halts at
-room 6 with `NO_TIER_CAPTURE` (not `DEPTH_BEYOND_CORPUS`) — a real capture
-gap (room 6 has never been offered at Safe tier live), not a regression.
-Unchanged since session 25: scheduler can't learn energy gained outside its
-own tracking; a SIGINT during an energy-regen sleep ends the whole session.
-Unchanged since session 40: charge-reserve plateau.
+at the actual final commit. Unchanged standing items: room 6 (Enemy Room
+68) still has never been offered at Safe tier live — reinforced this
+session (n=2 offers now, both non-Safe, run 1's own room-6 entry). Scheduler
+can't learn energy gained outside its own tracking; a SIGINT during an
+energy-regen sleep ends the whole session (unchanged since session 25).
+Charge-reserve plateau (unchanged since session 40).
 
 ## Corrections to SPEC.md
-- §3c: `start_run`'s `data.index` field is now documented as `entryData`'s
-  `tier`, with the silver/gold ring item ids named — previously undocumented
-  connection between two already-known-separately facts.
-- §3f: added the juiced-run 3x-crediting mechanism (three duplicate entries
-  of the base amount) — confirmed live across two runs at two different
-  entry tiers.
+- §4c: Heal is now gated (≤15% overflow) instead of unconditional-below-max;
+  `UpgradeRock` is pinned ahead of the play-share inference. Both dated
+  2026-08-18, user directive.
+- No corrections to confirmed wire shapes this session — Task 14's envelope
+  shape (session 42) held byte-for-byte across both live sends.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: PRESENT (unchanged).
 
 ## Dead ends
-None. Both live runs were completed, not abandoned; both planned Task 14
-code pieces landed as scoped.
+None. Both bot-initiated runs completed (not abandoned, both deaths were
+the expected outcome of a played-to-completion run), all three brief items
+landed as scoped.
 
 ## Metrics
-No sim runs this session. Live: 2 dungeon runs (both resumed, both juiced —
-Tier-3 then Tier-2), rooms 1-7 and 1-6, both died. 0 energy newly committed
-by this session's own invocations (both runs' 60 energy was already spent
-by the user before each resume). Corpus grew to 49 total recorded dungeon
-attempts.
+Live: 2 bot-initiated juiced Tier-3 dungeon runs (Task 14), rooms 1-6 and
+1-5, both died. 120 energy spent (60 each), 6 run-units (3 each) — today's
+real juiced cap for Dungeon#5 (12) now fully exhausted. Corpus grew to 51
+total recorded dungeon attempts (49 + 2). No fishing casts sent this
+session (§3 was code + doc only, no live cast). No sim runs this session.
 
 ## Open questions for Claude
-1. **Task 14's actual gate still needs a bot-initiated juiced `start_run`**
-   — the code is ready and tested (`--juiced --juiced-index=N
-   --potions=N`), but nobody has actually run it live yet. Needs explicit
-   authorization for a fresh 60-energy/3-run-unit spend; check
-   `GET /game/dungeon/today` fresh first — the account's real daily run
-   count is at least 6/12 after this session's two resumes.
-2. New capture gap: room 6 (Enemy Room 68) has never been offered at Safe
-   tier live — only `{Dangerous, Dangerous, Risky}` so far, n=1 offer.
-3. Standing from session 40/41: scheduler energy-tracking gap,
+1. **Fishing oil-use action shape is unconfirmed** (QUESTIONS.md §16) —
+   blocks wiring `oilPolicy.ts`'s recommendation into a real action. Needs
+   a DevTools capture of the real client using any fishing oil mid-cast,
+   same method as `reward_one`/`path_two`/`loot` were each confirmed.
+2. **Room 6 still has no Safe-tier capture** — now n=2 offers, both
+   non-Safe (`{Dangerous, Dangerous, Risky}` pattern repeating). Not
+   blocking anything, just still open.
+3. **None of session 43's four implemented fishing heuristics (a/d/e/f)
+   are corpus-validated** — stated explicitly in SPEC-fishing.md §8, not
+   left implicit. Worth auditing `data/fish-patterns.jsonl` for a real
+   1-cell-move-then-reversal counterexample to heuristic (d) once there's
+   time — that's the one with a real chance of being wrong outright.
+4. Standing from session 40/41: scheduler energy-tracking gap,
    SIGINT-during-sleep behavior, charge-reserve plateau — none addressed,
    none urgent.
 
-Both the PLAYER-stat-shift question and the `dropMultiplier`-stacking
-question from earlier in this session were resolved directly by the user
-(see What works above) — not carried forward as open questions.
-
 ## Files changed
 ```
- SPEC.md                          |  49 ++++++++++++++++++++++
- TASKS.md                         |  77 +++++++++++++++++++++++++++++++++++
- config/bot.json                  |   2 +-
- handoff/DECISIONS.md             |  10 +++++
- handoff/reports/dungeon-runs.md  |  13 +++---
- handoff/reports/fishing-casts.md |   2 +-
- scripts/liveRun.ts               | 137 ++++++++++++++++++++++++++++++++++++---
- src/orchestrator/guards.ts       |  22 +++++--
- src/sim/boons.ts                 |  88 +++++++++++++++++++++++++++++++++++++
- src/sim/enemies.ts               |  93 +++++++++++++++++++++++++++++++++++---
- src/sim/scenarios.ts             |   7 +++-
- tests/boons.test.ts              |  29 +++++++++---
- tests/combat.test.ts             |  25 ++++++----
- tests/dungeonSim.test.ts         |  20 ++++--
- tests/enemies.test.ts            |  14 +++++-
- tests/guards.test.ts             |  22 +++++++
- tests/liveRun.test.ts            | 130 +++++++++++++++++++++++++++++++++++++
- tests/strategy.test.ts           |  10 +++--
- 18 files changed, ~750 insertions(+), ~90 deletions(-)
- + scripts/checkDungeonToday.ts (new, read-only dayProgressEntities helper)
- + fixtures/dungeon-runs/run-2026-08-18-19-50-14/ (new, 123 states, run 1)
- + fixtures/dungeon-runs/run-2026-08-18-21-15-25/ (new, 93 states, run 2)
+ QUESTIONS.md                       |  27 +++++++
+ SPEC-fishing.md                    | 131 ++++++++++++++++++++++++++++++
+ SPEC.md                            |  40 ++++++---
+ TASKS.md                           |  61 ++++++++++++++
+ config/bot.json                    |   2 +-
+ handoff/DECISIONS.md               |   6 ++
+ handoff/reports/*.md               |  14 +--
+ scripts/liveFishing.ts             |  32 +++++---
+ src/sim/boons.ts                   |  82 ++++++++++++++++++-
+ src/sim/enemies.ts                 |  20 ++++-
+ src/strategy/fishing/cardChoice.ts |  64 ++++++++++++---
+ src/strategy/fishing/heuristics.ts | 138 (new)
+ src/strategy/fishing/oilPolicy.ts  |  74 (new)
+ src/strategy/loot.ts               | 109 ++++++++++++++++++++-----
+ tests/*.test.ts                    | ~475 (boons/dungeonSim/enemies/
+                                        strategy/fishing — 34 new tests)
+ 22 non-fixture files changed, 1194 insertions(+), 81 deletions(-)
+ + fixtures/dungeon-runs/run-2026-08-18-{22-00-28,22-07-14}/ (164 files,
+   85 + 79 states, this session's two bot-initiated runs)
 ```
