@@ -69,6 +69,33 @@ describe("GuardState — session run cap", () => {
   });
 });
 
+describe("GuardState — recordServerCapReached (session 29, CODEXREVIEW #6)", () => {
+  it("marks the session cap exhausted, so a subsequent assertCanStartRun trips", () => {
+    const g = new GuardState(BUDGET);
+    expect(g.runCount).toBe(0);
+    g.recordServerCapReached();
+    expect(g.runCount).toBe(BUDGET.maxRunsPerSession);
+    expect(() => g.assertCanStartRun(1)).toThrow(GuardTrip);
+  });
+
+  it("is monotonic — never lowers a count already at or past the cap", () => {
+    const g = new GuardState(BUDGET, { runsStarted: BUDGET.maxRunsPerSession });
+    g.recordServerCapReached();
+    expect(g.runCount).toBe(BUDGET.maxRunsPerSession);
+  });
+
+  it("the resulting trip is classified as a budget trip, not a genuine anomaly", () => {
+    const g = new GuardState(BUDGET);
+    g.recordServerCapReached();
+    try {
+      g.assertCanStartRun(1);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(true);
+    }
+  });
+});
+
 describe("GuardState — consecutive action failures", () => {
   it("resets the counter on a success", () => {
     const g = new GuardState(BUDGET);

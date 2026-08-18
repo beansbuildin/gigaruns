@@ -764,7 +764,7 @@ DECISIONS.md's 2026-08-18 (session 28) entry.
 
 ---
 
-## 13. Fishing's real daily-cap reset boundary is NOT UTC midnight [session 27]
+## 13. Fishing's real daily-cap reset boundary is NOT UTC midnight — RESOLVED 2026-08-18 [session 29]: user-confirmed both dungeon and fishing reset at 11am Pacific (`America/Los_Angeles`, DST-aware). `guardPersistence.ts`'s `todayKey()` now keys on this boundary instead of UTC midnight for both modes. See DECISIONS.md 2026-08-18 (session 29). Original question preserved below for context. [session 27]
 
 Session 27 found fresh local guard budget (`data/guard-budget-fishing.json`
 rolled to 0/20 at UTC midnight, confirmed via `--status`) but the REAL
@@ -798,3 +798,45 @@ boundary" over "fishing-specific oddity." No write attempted on the dungeon
 side (this was a GET-only check); dungeon's local guard also reads fresh
 0/12 for the new UTC day, so the same live-vs-local mismatch applies there
 too, not just to fishing.
+
+---
+
+## 14. `data/fish-patterns.jsonl` gained castId `9001`/`9002` records from an unknown ACTIVE process [session 29]
+
+While fixing the resumed-cast turn-numbering bug (CODEXREVIEW #5) and
+re-running `mineFishPatterns.ts` against the real local
+`data/fish-patterns.jsonl` (gitignored, not part of the committed corpus),
+I found 8 records with castId `"9001"`/`"9002"` — a numeric shape (4 digits)
+that has never appeared anywhere else in this project's fishing corpus (real
+docIds are always 8 digits, e.g. `12923189`). Every one of these records has
+`from:[0,0]` and `to:[0,0]` (zero movement) on a 4×4 grid, alternating
+between the two castIds a few seconds apart.
+
+I treated this as one-off test/debug pollution — removed the original 8
+lines from the local file (documented in this session's STATE.md) and
+re-ran the miner. **Before I finished the rest of this session's work, the
+SAME castIds reappeared with NEW timestamps and incrementing turn numbers
+(0→1→2→3), spaced roughly a minute apart, spanning real wall-clock time
+while this session was running** — meaning something was ACTIVELY writing to
+this file concurrently with this session, not a stale one-time artifact. I
+could not find a matching local process (`ps aux` from this sandbox showed
+nothing), so I don't know what it is.
+
+**I've stopped touching `data/fish-patterns.jsonl` for the rest of this
+session** rather than risk interfering with whatever is writing to it. Two
+possibilities I can't distinguish from here: (a) you were testing
+`liveFishing.ts` (or something adjacent) manually against a sandbox/mock
+node with synthetic ids, in which case this is expected and the
+`9001`/`9002` records should probably be excluded from the miner by
+convention (they don't look like real Dendren gameplay — zero movement every
+turn); or (b) something is writing to this file that neither of us expects.
+
+**Needs a human**: what is currently appending castId `9001`/`9002` to
+`data/fish-patterns.jsonl`? If it's an intentional test harness, worth
+either pointing it at a separate file (so it never touches the real mining
+corpus) or teaching the miner to recognize and skip it explicitly. This
+does NOT affect anything committed to git (`data/` is gitignored end to end)
+and does NOT affect this session's actual code changes or their test
+coverage — it only affects the live-runtime `data/minedFishPatterns.json`
+that `liveFishing.ts` reads to seed its matcher, so it's worth resolving
+before trusting that file's current promoted-pattern list.

@@ -56,6 +56,37 @@ describe("loadGuardBudget", () => {
   });
 });
 
+// [session 29, CODEXREVIEW #6] The guard "day" rolls over at 11am Pacific,
+// not UTC midnight — see todayKey's own doc comment for the two confirmed
+// live mismatches this fixes. These pin the boundary itself, both sides of
+// it, and both sides of a real DST transition (Nov 1 2026: PDT -> PST).
+describe("todayKey — 11am Pacific rollover (session 29, CODEXREVIEW #6)", () => {
+  it("10:59am Pacific still reads as the PRIOR calendar day", () => {
+    // 2026-08-17 10:59am PDT (UTC-7) = 2026-08-17T17:59:00Z
+    expect(todayKey(new Date("2026-08-17T17:59:00Z"))).toBe("2026-08-16");
+  });
+
+  it("11:01am Pacific reads as the current calendar day", () => {
+    // 2026-08-17 11:01am PDT (UTC-7) = 2026-08-17T18:01:00Z
+    expect(todayKey(new Date("2026-08-17T18:01:00Z"))).toBe("2026-08-17");
+  });
+
+  it("exactly 11:00am Pacific already rolls over to the current day", () => {
+    expect(todayKey(new Date("2026-08-17T18:00:00Z"))).toBe("2026-08-17");
+  });
+
+  // DST ends (PDT -> PST) at 2am Pacific on 2026-11-01 — check both sides.
+  it("holds across the DST fall-back transition — PDT side (Oct 31, still UTC-7)", () => {
+    expect(todayKey(new Date("2026-10-31T17:59:00Z"))).toBe("2026-10-30"); // 10:59am PDT
+    expect(todayKey(new Date("2026-10-31T18:01:00Z"))).toBe("2026-10-31"); // 11:01am PDT
+  });
+
+  it("holds across the DST fall-back transition — PST side (Nov 1, now UTC-8)", () => {
+    expect(todayKey(new Date("2026-11-01T18:59:00Z"))).toBe("2026-10-31"); // 10:59am PST
+    expect(todayKey(new Date("2026-11-01T19:01:00Z"))).toBe("2026-11-01"); // 11:01am PST
+  });
+});
+
 describe("saveGuardBudget", () => {
   it("round-trips through loadGuardBudget", () => {
     saveGuardBudget(20, 1, path);

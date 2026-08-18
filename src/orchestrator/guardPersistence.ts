@@ -63,9 +63,52 @@ export type PersistedGuardBudget = z.infer<typeof PersistedGuardBudgetSchema>;
 
 export const DEFAULT_GUARD_STATE_PATH = join("data", "guard-budget.json");
 
-/** UTC calendar date — deterministic and independent of the host's local timezone. */
-export function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+/** Pacific-local calendar date + hour, via Intl (America/Los_Angeles) — DST-aware, no hardcoded offset. */
+function pacificParts(date: Date): { year: number; month: number; day: number; hour: number } {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  let hour = get("hour");
+  if (hour === 24) hour = 0; // hour12:false can render midnight as "24" in some ICU builds
+  return { year: get("year"), month: get("month"), day: get("day"), hour };
+}
+
+/**
+ * [session 29, CODEXREVIEW #6] The guard-budget "day" rolls over at 11am
+ * Pacific (`America/Los_Angeles`), not UTC midnight — user-confirmed real
+ * server-side reset boundary for BOTH dungeon and fishing daily caps
+ * (QUESTIONS.md §13). A UTC-midnight local key produced two confirmed
+ * mismatches where the local guard read "fresh day" while the server hadn't
+ * actually rolled over: session 24's dungeon-run-count drift and session
+ * 27's wasted fishing `start_run` attempt (rejected "Player has reached max
+ * runs for fishing" against a guard that showed 0/20 used).
+ *
+ * Timezone-aware via `Intl`, not a hardcoded UTC offset — Pacific alternates
+ * between UTC-7 (PDT) and UTC-8 (PST) twice a year, and a hardcoded offset
+ * would silently drift wrong across each transition.
+ */
+export function todayKey(now: Date = new Date()): string {
+  const p = pacificParts(now);
+  if (p.hour < 11) {
+    // Before today's 11am Pacific rollover — still counts as "yesterday" in
+    // the guard's calendar. Subtracting a day from an already-Pacific-local
+    // Y/M/D via UTC calendar arithmetic avoids any DST edge case in the
+    // subtraction itself (there's no timezone conversion left to do — we
+    // already have the correct Pacific date).
+    const prior = new Date(Date.UTC(p.year, p.month - 1, p.day - 1));
+    const yyyy = prior.getUTCFullYear();
+    const mm = String(prior.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(prior.getUTCDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
 /**

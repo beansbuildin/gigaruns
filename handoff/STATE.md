@@ -1,148 +1,153 @@
-# STATE — session 28 — 2026-08-18 — commit (pending, see below)
+# STATE — session 29 — 2026-08-18 — commit (pending, see below)
 
 ## Status
-No TASKS.md gate was targeted this session — the session-28 brief was five
-safety-critical bug fixes from a second reviewer's (Codex) read-only pass
-against commit `f04f5ae` (`CODEXREVIEW`/`CODEXIMPROVE`, both now committed
-to the repo root), plus correcting session 27's fishing-corpus stats. **Task
-10 stays the last GATE PASS** (session 25, unchanged); this session touched
-none of that path. All five CODEXREVIEW items (#1 JWT redaction, #2 guard
-persistence, #3 orchestrator accounting, #4 dungeon-state 5xx, #5 fishing
-corpus unit error) are implemented with regression tests, per the brief's
-own instruction not to start Tier 2/3 items this session (see Open
-questions for what's queued next).
-Next per TASKS.md: unchanged from session 27 — Task 13's data floor, Task
-14 BLOCKED, Task 11 dungeon half PARKED. This session did no live play (no
-casts, no runs) — pure bug-fix and documentation-correction session.
+No TASKS.md gate was targeted this session — the session-29 brief was two
+Tier 2 items promoted out of the CODEXREVIEW queue: #5 (resumed fishing
+casts corrupting transition numbering) and #6 (server-side daily caps not
+used as real scheduling state). Task 10 stays the last GATE PASS (session
+25, unchanged); this session touched none of that path. Both brief items are
+implemented with regression tests, per the brief's own instruction not to
+start CODEXIMPROVE items or CODEXREVIEW #8 this session.
 
 ## What works
-- **`GigaverseClient.redactSecrets(text)`** — strips the FULL jwt, never
-  returns it. `FixtureWriter` (both dungeon and fishing) now takes a
-  redaction function instead of the old `maskedJwt().split("...")[0]` (an
-  8-char display prefix, not the real token) — verified by a regression
-  test asserting zero characters of a full synthetic token survive.
-- **Guard persistence fails closed on corruption** — an existing-but-
-  corrupt `data/guard-budget*.json` now throws `GuardPersistenceError`
-  instead of silently returning a zero seed (which used to let a restart
-  spend past the real daily budget). Writes go through a sibling temp file
-  + atomic rename. `acquireGuardLock()` enforces one live writer per
-  guard-state file for the whole process lifetime (reclaims a stale lock
-  from a dead PID automatically) — wired into `liveRun.ts`/`liveFishing.ts`/
-  `orchestrator.ts`'s `main()` via `process.once("exit", ...)`.
-- **Orchestrator accounting now guaranteed on every exit path** — both the
-  dungeon and fishing branches used to `throw` an anomaly BEFORE the
-  after-energy read/`saveGuardBudget` call, so a real spend from `start_run`
-  could go unrecorded if something failed afterward. Extracted the fix into
-  a shared, independently-tested `runWithGuaranteedAccounting()`
-  (`src/orchestrator/runWithAccounting.ts`) used by both branches.
-- **`getDungeonState()` no longer reads a persistent 5xx as idle** — retries
-  once (the existing rate limiter already spaces the two calls), and only
-  a second consecutive 5xx now throws `UnexpectedResponseError` instead of
-  silently returning `null`. Closes the risk where `postWithVerifiedRetry()`
-  could report an action as "applied" after a transient server outage.
-- **`src/sim/fishingCorpus.ts`** (new) — the canonical fishing-corpus
-  loader, groups response documents by `data.doc.docId` instead of trusting
-  fixture-directory boundaries. Reproduces CODEXREVIEW's corrected numbers
-  exactly against the real committed corpus: **50 distinct casts, 225
-  response documents, 169 `play_cards` turns, 7 catches (14%)** — not "30
-  casts / 225 turns" as session 26/27 assumed. `scripts/liveFishing.ts`'s
-  `main()` now constructs a fresh `FixtureWriter` per cast (previously one
-  writer reused across an entire `--casts=N` invocation) so directories and
-  casts stay 1:1 going forward.
+- **Resumed-cast transition numbering (CODEXREVIEW #5) is fixed.**
+  `scripts/liveFishing.ts`'s `runOneCast` now derives the next turn to log
+  from `lastRecordForCast()` (new) instead of always restarting a resumed
+  cast at turn 0, and validates the resumed doc's real position against the
+  log's last entry before trusting it enough to keep appending — a mismatch
+  disables further logging for that cast this run rather than risking a
+  second wrong write. `scripts/mineFishPatterns.ts`'s `groupByCast` now
+  flags turns with conflicting duplicate records and gapped trajectories;
+  `testPrimitives` REJECTS both categories from exact-match testing entirely
+  (reported as `excluded`, with reasons) rather than the old behavior of
+  skipping gaps mid-loop and still calling the result an exact full match.
+- **Both promotions survive, confirmed by direct re-run against the real
+  corpus**: `perimeterWalk(cw)` (support=4) and `perimeterWalk(ccw)`
+  (support=3) are unchanged after cast `12923189` (the exact bug CODEXREVIEW
+  #5 named — two turn-0 records ~5 minutes apart) is correctly excluded as a
+  duplicate. See "Dead ends / surprises" below for a THIRD candidate that
+  the fix also correctly prevented from being falsely promoted.
+- **Dungeon-side server-cap reconciliation (CODEXREVIEW #6) is live.**
+  `scripts/liveRun.ts`'s `runOnce` now calls `assertDungeonCapNotExhausted()`
+  (new) right before any genuinely NEW `start_run` — checks the local guard
+  cheaply first (no network if already tripped locally), then
+  `GET /game/dungeon/today`'s real count. A confirmed server-side exhausted
+  cap throws BEFORE the POST is ever attempted (never "attempt and eat a
+  rejection") and marks the local guard exhausted for the rest of the
+  persisted day via the new `GuardState.recordServerCapReached()`, so a
+  later invocation the same day fails closed locally without a further
+  round-trip. Never runs on a resume (resuming costs no new run slot).
+- **Guard-budget date-keying now rolls over at 11am Pacific, not UTC
+  midnight, for BOTH modes** — `guardPersistence.ts`'s `todayKey()` is
+  DST-aware via `Intl`/`America/Los_Angeles` (no hardcoded UTC offset),
+  per direct user confirmation this session (QUESTIONS.md §13, now
+  resolved) that both dungeon and fishing reset at 11am Pacific. This is the
+  root-cause fix behind session 24's dungeon drift and session 27's wasted
+  fishing `start_run` attempt.
+- **Fishing's confirmed server-cap rejection is now a backstop, not a
+  whole-process killer.** `scripts/liveFishing.ts`'s `start_run` rejection
+  handler detects the real message (`"Player has reached max runs for
+  fishing"`, session 27) and reclassifies it via `recordServerCapReached()`
+  into a budget-type `GuardTrip` (`isBudgetGuardTrip` now recognizes it),
+  persisted immediately — so a real cap hit on one mode no longer risks
+  taking the orchestrator's OTHER mode down with it. Fishing still has no
+  authoritative pre-check endpoint (per the brief, this stays fail-closed
+  on rejection rather than proactive, unlike dungeon).
 
 ## What's broken
-Nothing newly broken by this session's changes — 428/428 tests pass (up
-from 408/408 at session 27 start), `npx tsc --noEmit` clean. Unchanged,
-pre-existing open items:
-- Fishing's real daily-reset boundary is still not known (QUESTIONS.md
-  §13, from session 27) — not investigated this session.
+Nothing newly broken by this session's changes — 454/454 tests pass (up
+from 428/428 at session 28's end, +26), `npx tsc --noEmit` clean, verified
+against this session's final commit. Unchanged, pre-existing open items:
 - The scheduler still can't learn about energy gained outside its own
   tracking, and a single SIGINT during an energy-regen sleep still ends the
   whole session (unchanged since session 25).
+- CODEXREVIEW #8 (split committed-vs-observed energy accounting) and every
+  CODEXIMPROVE item remain queued, not started this session, per the brief.
 
 ## Corrections to SPEC.md
-- None to SPEC.md/SPEC-fishing.md this session.
-- **Correction to session 27's STATE.md/QUESTIONS.md/DECISIONS.md, per
-  Codex review (`CODEXREVIEW` #1):** session 27's fishing-corpus counts used
-  fixture DIRECTORIES and raw response-document FILES as if they were casts
-  and turns. Direct recount by `docId`: **50 distinct casts** (not 30),
-  **225 response documents** (unchanged), **169 actual `play_cards` turns**
-  (not "225 turns"), **7 catches / 14%** (not 4/30 ≈ 13.3%), focus point
-  changed within **48/50 casts** (not 29/30). The `nextPosition`-firing rate
-  is **2/169 = 1.18%**, not 2/225 = 0.89% — and at n=169 a binomial test
-  against the stated 3% Fintuition base rate does NOT reject (P≈11.5%).
-  **Session 27's "Fintuition-as-cause not confirmed" conclusion survives,
-  but session 27's own STATE.md separately called it "REJECTED," which
-  overstates what the corrected numbers support — corrected status is
-  UNCONFIRMED, not rejected**: this project's data cannot yet confirm OR
-  refute the hypothesis, only that it hasn't been confirmed. Full
-  derivation: QUESTIONS.md §12's session-28 addendum, DECISIONS.md
-  2026-08-18 (session 28).
-- Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
-- Move charges: unchanged, PRESENT.
+None to SPEC.md/SPEC-fishing.md this session — both fixes are bot-internal
+bookkeeping (transition logging, guard scheduling), not corrections to a
+modeled game mechanic.
 
-## Dead ends
-None this session — every CODEXREVIEW item attempted landed.
+## Dead ends / surprises
+- **`data/fish-patterns.jsonl` (gitignored local data, not the committed
+  corpus) is under ACTIVE concurrent write from an unidentified process.**
+  While re-running the miner to verify the CODEXREVIEW #5 fix, I found 8
+  records with castId `"9001"`/`"9002"` — a 4-digit shape never seen
+  anywhere else in this project's real corpus (real docIds are always
+  8 digits) — all `from:[0,0]`/`to:[0,0]` (zero movement). I treated this as
+  one-off test pollution and removed it, then re-ran the miner (both
+  promotions confirmed clean). Before this session's other work finished,
+  the SAME castIds reappeared with NEW timestamps and incrementing turn
+  numbers (0→1→2→3) spread across real wall-clock minutes — meaning
+  something was actively writing to this file DURING this session, not a
+  stale artifact I'd already found. I could not identify the source
+  (`ps aux` from this sandbox showed nothing matching) and have NOT touched
+  the file again since. Full writeup and the open question: QUESTIONS.md §14.
+  This does not affect anything committed to git or any of this session's
+  code/tests — it only affects the live-runtime `data/minedFishPatterns.json`
+  a real `liveFishing.ts` invocation would currently seed from, which right
+  now (as of this recap) has a THIRD pattern (`twoCellCycle(0,-1)`)
+  promoted on the strength of those unexplained 9001/9002 casts plus one
+  real one (12945319) — do not trust that third promotion until §14 is
+  resolved; the two `perimeterWalk` promotions do not depend on it.
+- The `9001`/`9002` question is exactly the kind of thing CLAUDE.md §1
+  ("discover, don't assume") wants surfaced rather than silently
+  papered over — flagging it here and in QUESTIONS.md rather than guessing
+  at a heuristic to filter it in the miner.
 
 ## Metrics
-- No live play this session (no dungeon runs, no fishing casts) — pure
-  bug-fix/doc-correction session, consistent with the brief's own scope
-  ("entirely bug fixes in already-shipped code — no new capability").
-- Tests: 428/428 passing (+20 new regression tests: redactSecrets ×2,
-  guardPersistence corruption/atomic-write/lock ×8, runWithAccounting ×6,
-  client.ts 5xx-retry ×2 net, postWithVerifiedRetry persistent-5xx ×1,
-  fishingCorpus ×3). `npx tsc --noEmit` clean, verified against this
-  session's final commit (not a stale in-session check).
-- Real fishing corpus (corrected units, via `loadFishingCorpus()`): 50
-  casts / 225 response docs / 169 play turns / 7 caught (14%) / 43 escaped
-  / 0 incomplete.
+- No live play this session (no dungeon runs, no fishing casts sent by
+  this session's own code) — pure bug-fix session, consistent with the
+  brief's scope.
+- Tests: 454/454 passing (+26 new regression tests: `lastRecordForCast` ×3,
+  `mineFishPatterns` groupByCast/testPrimitives/12923189-scenario ×9,
+  `GuardState.recordServerCapReached` ×3, `todayKey` Pacific-rollover/DST
+  ×5, dungeon-cap-reconciliation ×5, fishing server-cap backstop ×2, minus
+  1 pre-existing stage-2 test count-assertion updated in place). `npx tsc
+  --noEmit` clean, verified against this session's final commit.
+- Real fishing corpus (`data/fish-patterns.jsonl`, corrected): 50 real
+  casts, 169 real turns, `12923189` now correctly excluded from mining as a
+  duplicate rather than silently miscounted — see `data/minedFishPatterns.json`
+  caveat above re: the unresolved `9001`/`9002` question.
 
 ## Open questions for Claude
-1. Which CODEXREVIEW/CODEXIMPROVE Tier 2/3 items are worth queuing next?
-   Both documents are now committed to the repo root (`CODEXREVIEW`,
-   `CODEXIMPROVE`) for direct reference. Candidates not started this
-   session, in rough priority order: (a) CODEXREVIEW #5 — resumed fishing
-   casts reset transition numbering and can promote false patterns (cast
-   `12923189` has two turn-0 transitions ~5 min apart from two process
-   runs — a real, demonstrated bug, arguably should have been Tier 1); (b)
-   CODEXREVIEW #6 — reconcile server-side daily caps as real scheduling
-   state instead of just printing drift; (c) CODEXIMPROVE #1 — persist and
-   bootstrap the dungeon opponent model (`OpponentModel.toJSON()`/
-   `fromJSON()` exist but have no production caller — every live process
-   starts learning from zero); (d) CODEXIMPROVE #2 — resource-conserving
-   fishing tie-breaks (equal-EV choices should prefer the nearer focus
-   cell); (e) CODEXREVIEW #8 — split committed-vs-observed energy
-   accounting (regen/external top-ups can mask real spend). Lower priority:
-   CODEXREVIEW #7 (JWT redaction — DONE this session, listed here only
-   because it's now closed), #9/#10 (docs/dependency cleanup).
-2. Unchanged from session 27: fishing's real daily-reset boundary
-   (QUESTIONS.md §13) is still unknown — worth asking the user directly.
-3. `acquireGuardLock()` is new this session and only smoke-level exercised
-   against a real `liveRun.ts`/`liveFishing.ts`/`orchestrator.ts` process —
-   unit-tested thoroughly but not yet live-verified that two real
-   concurrent invocations actually collide as designed. Worth a deliberate
-   two-terminal live check next time either script runs, not urgent enough
-   to block on.
+1. QUESTIONS.md §14 (new, this session): what's writing castId `9001`/`9002`
+   into `data/fish-patterns.jsonl`? Worth asking the user directly at the
+   top of next session — it's cheap to ask and currently taints one mined
+   pattern's promotion status.
+2. Unchanged from session 28: which CODEXREVIEW/CODEXIMPROVE items are
+   worth queuing next? Remaining after this session: CODEXREVIEW #8 (split
+   committed-vs-observed energy accounting), CODEXIMPROVE #1 (persist/
+   bootstrap the dungeon opponent model), CODEXIMPROVE #2 (resource-
+   conserving fishing tie-breaks), #9/#10 (docs/dependency cleanup, lower
+   priority).
+3. Session 30's three queued items (run-visibility reporting, acting on
+   `nextPosition` when it fires, Dual Yield forward detection) are still
+   queued and unscoped in detail, per session 28's next.md — untouched
+   this session, not superseded by anything found here.
+4. `assertDungeonCapNotExhausted`'s new `GET /game/dungeon/today` call
+   happens on every genuinely-new `start_run` attempt now (not just once
+   per invocation like the existing `main()`-level drift print) — this is
+   an extra GET per dungeon run started, within the existing rate limiter,
+   not yet live-verified beyond unit tests against a mocked client. Worth a
+   deliberate live check next time `liveRun.ts`/`orchestrator.ts` runs for
+   real, not urgent enough to block on.
 
 ## Files changed
 ```
 $ git diff --cached --stat
- CODEXIMPROVE                                  |  296 ++++++++++
- CODEXREVIEW                                   |  261 +++++++++
- QUESTIONS.md                                  |   45 ++
- handoff/DECISIONS.md                          |    2 +
- handoff/STATE.md                              |   36 +-
- scripts/liveFishing.ts                        |   47 +-
- scripts/liveRun.ts                            |   19 +-
- scripts/orchestrator.ts                       |   68 ++-
- src/api/client.ts                             |   57 ++-
- src/orchestrator/guardPersistence.ts          |  113 +++-
- src/orchestrator/runWithAccounting.ts         |   50 ++
- src/sim/fishingCorpus.ts                      |  144 +++++
- tests/api/client.test.ts                      |   66 ++-
- tests/liveRun.test.ts                         |   27 +-
- tests/orchestrator/guardPersistence.test.ts   |   60 ++-
- tests/orchestrator/runWithAccounting.test.ts  |  112 ++++
- tests/sim/fishingCorpus.test.ts               |  188 +++++++
- 17 files changed, 1612 insertions(+), 98 deletions(-)
+ QUESTIONS.md                                |  44 ++++-
+ scripts/liveFishing.ts                      |  78 ++++++++-
+ scripts/liveRun.ts                          |  36 ++++
+ scripts/mineFishPatterns.ts                 |  90 ++++++++--
+ src/orchestrator/guardPersistence.ts        |  49 +++++-
+ src/orchestrator/guards.ts                  |  17 ++
+ tests/guards.test.ts                        |  27 +++
+ tests/liveFishing.test.ts                   | 129 ++++++++++++++
+ tests/liveRun.test.ts                       | 148 +++++++++++++++-
+ tests/mineFishPatterns.test.ts (new)        | 128 ++++++++++++++
+ tests/orchestrator/guardPersistence.test.ts |  31 ++++
+ handoff/STATE.md                            | (this file, not counted below)
+ 11 code/doc files changed, 879 insertions(+), 158 deletions(-)
 ```

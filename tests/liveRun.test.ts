@@ -36,7 +36,7 @@ import {
 import { GigaverseClient } from "../src/api/client.js";
 import { UnexpectedResponseError } from "../src/api/errors.js";
 import type { BotConfig } from "../src/orchestrator/config.js";
-import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
+import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
 import { OpponentModel } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
 import type { WireBoon, WireRun, WireSide } from "../src/sim/corpus.js";
@@ -104,6 +104,15 @@ function mockFetch(handler: (url: string, init?: RequestInit) => { status: numbe
     return { status, text: async () => JSON.stringify(body) } as Response;
   });
 }
+
+/**
+ * [session 29, CODEXREVIEW #6] A valid, empty `GET /game/dungeon/today`
+ * response — `assertDungeonCapNotExhausted` now calls this before every
+ * genuinely NEW `start_run`, so any test handler exercising that path needs
+ * to answer it (a schema-valid body with no day-progress row, i.e.
+ * "genuinely zero runs today so far" — never blocks).
+ */
+const DUNGEON_TODAY_EMPTY = { status: 200, body: { dungeonDataEntities: [], dayProgressEntities: [] } };
 
 let guardStateTestDir: string;
 
@@ -586,6 +595,7 @@ describe("runOnce — stage 2 (single POST then halt)", () => {
       mockFetch((url, init) => {
         const method = init?.method ?? "GET";
         calls.push({ url, method, body: init?.body as string | undefined });
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         // The pre-check GET must see "no active run" or runOnce correctly
         // skips start_run and resumes instead (see the test below) — this
         // test wants the start_run path, so the GET has to come back idle.
@@ -600,7 +610,9 @@ describe("runOnce — stage 2 (single POST then halt)", () => {
     await vi.runAllTimersAsync();
     await p;
 
-    expect(calls).toHaveLength(2); // 1 GET (pre-check) + 1 POST (start_run)
+    // 1 GET (pre-check dungeon/state) + 1 GET (dungeon/today cap check,
+    // session 29 CODEXREVIEW #6) + 1 POST (start_run).
+    expect(calls).toHaveLength(3);
     const post = calls.find((c) => c.method === "POST")!;
     const sentBody = JSON.parse(post.body!);
     expect(sentBody.action).toBe("start_run");
@@ -664,6 +676,117 @@ describe("runOnce — stage 2 (single POST then halt)", () => {
     const assertion = expect(p).rejects.toBeInstanceOf(GuardTrip);
     await vi.runAllTimersAsync();
     await assertion;
+  });
+});
+
+describe("runOnce — dungeon cap reconciliation against GET /game/dungeon/today (session 29, CODEXREVIEW #6)", () => {
+  function dungeonTodayBody(runsToday: number) {
+    return {
+      dungeonDataEntities: [],
+      dayProgressEntities: [{ docId: `DayCount#0xUSER#Dungeon#${TEST_CONFIG.dungeonId}`, UINT256_CID: runsToday }],
+    };
+  }
+
+  it("blocks a genuinely NEW start_run when the SERVER reports the cap already reached — never sends the POST", async () => {
+    const calls: { url: string; method: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        calls.push({ url, method });
+        if (method === "GET" && url.includes("dungeon/today")) {
+          return { status: 200, body: dungeonTodayBody(TEST_CONFIG.maxRunsPerSession) }; // server says: already at cap
+        }
+        return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    // Local guard has plenty of room — only the SERVER says the cap is hit.
+    expect(deps.guards.runCount).toBe(0);
+    const p = runOnce(deps, { stage2Only: true });
+    const assertion = expect(p).rejects.toBeInstanceOf(GuardTrip);
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    expect(calls.some((c) => c.method === "POST")).toBe(false); // no start_run was attempted
+    expect(deps.guards.runCount).toBe(TEST_CONFIG.maxRunsPerSession); // marked exhausted for the rest of the day too
+  });
+
+  it("the server-cap trip is classified as a budget trip, not a genuine anomaly", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) {
+          return { status: 200, body: dungeonTodayBody(TEST_CONFIG.maxRunsPerSession) };
+        }
+        return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    const assertion = p.catch((e) => e); // attach a handler before the timer flush, same discipline as the .rejects tests above
+    await vi.runAllTimersAsync();
+    const e = await assertion;
+    expect(e).toBeInstanceOf(GuardTrip);
+    expect(isBudgetGuardTrip(e as GuardTrip)).toBe(true);
+  });
+
+  it("does NOT block when the server reports runs below the cap", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) {
+          return { status: 200, body: dungeonTodayBody(TEST_CONFIG.maxRunsPerSession - 1) };
+        }
+        if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect(deps.guards.runCount).toBe(1); // one genuine start_run went through
+  });
+
+  it("does NOT block when the server has no day-progress row yet (genuinely zero runs today)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) {
+          return { status: 200, body: { dungeonDataEntities: [], dayProgressEntities: [] } };
+        }
+        if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect(deps.guards.runCount).toBe(1);
+  });
+
+  it("never checked at all when resuming an already-active run — resuming costs no new run slot", async () => {
+    const calls: { url: string; method: string }[] = [];
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        calls.push({ url, method });
+        // If runOnce ever called dungeon/today here, this would 500/validation-fail
+        // since it's the wrong body shape for that path — proving it wasn't hit.
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(), entity: { ROOM_NUM_CID: 2 } } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect(calls.every((c) => !c.url.includes("dungeon/today"))).toBe(true);
   });
 });
 
@@ -735,8 +858,9 @@ describe("runOnce — use_item probe (Task 12 Stage A, session 13)", () => {
 
     vi.stubGlobal(
       "fetch",
-      mockFetch((_url, init) => {
+      mockFetch((url, init) => {
         const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         if (method === "GET") {
           getCount++;
           if (getCount === 1 || runEnded) {
@@ -775,8 +899,9 @@ describe("runOnce — use_item probe (Task 12 Stage A, session 13)", () => {
 
     vi.stubGlobal(
       "fetch",
-      mockFetch((_url, init) => {
+      mockFetch((url, init) => {
         const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         if (method === "GET") {
           getCount++;
           if (getCount === 1 || runEnded) {
@@ -811,8 +936,9 @@ describe("runOnce — use_item probe (Task 12 Stage A, session 13)", () => {
 
     vi.stubGlobal(
       "fetch",
-      mockFetch((_url, init) => {
+      mockFetch((url, init) => {
         const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         if (method === "GET") {
           getCount++;
           if (getCount === 1 || runEnded) {
@@ -850,8 +976,9 @@ describe("runOnce — real potion policy (Task 12 Stage B live half)", () => {
 
     vi.stubGlobal(
       "fetch",
-      mockFetch((_url, init) => {
+      mockFetch((url, init) => {
         const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         if (method === "GET") {
           getCount++;
           if (getCount === 1 || runEnded) {
@@ -899,8 +1026,9 @@ describe("runOnce — real potion policy (Task 12 Stage B live half)", () => {
 
     vi.stubGlobal(
       "fetch",
-      mockFetch((_url, init) => {
+      mockFetch((url, init) => {
         const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         if (method === "GET") {
           getCount++;
           if (getCount === 1 || runEnded) {
@@ -942,8 +1070,9 @@ describe("runOnce — real potion policy (Task 12 Stage B live half)", () => {
 
     vi.stubGlobal(
       "fetch",
-      mockFetch((_url, init) => {
+      mockFetch((url, init) => {
         const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         if (method === "GET") {
           getCount++;
           if (getCount === 1 || runEnded) {
@@ -978,8 +1107,9 @@ describe("runOnce — real potion policy (Task 12 Stage B live half)", () => {
 
     vi.stubGlobal(
       "fetch",
-      mockFetch((_url, init) => {
+      mockFetch((url, init) => {
         const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
         if (method === "GET") {
           getCount++;
           if (getCount === 1 || runEnded) {

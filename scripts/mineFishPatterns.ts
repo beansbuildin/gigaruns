@@ -40,7 +40,7 @@ import { cellsEqual } from "../src/sim/fishing/geometry.js";
 import { buildPatternPool, type Pattern } from "../src/sim/fishing/patterns.js";
 import { simulateCasts, matcherFishPolicy } from "../src/sim/fishing/castSim.js";
 
-interface TransitionRecord {
+export interface TransitionRecord {
   ts: string;
   castId: string;
   turn: number;
@@ -51,7 +51,7 @@ interface TransitionRecord {
 
 const DEFAULT_PATH = join("data", "fish-patterns.jsonl");
 
-function loadRecords(path: string): TransitionRecord[] {
+export function loadRecords(path: string): TransitionRecord[] {
   if (!existsSync(path)) return [];
   const lines = readFileSync(path, "utf8").split("\n").filter((l) => l.trim().length > 0);
   const out: TransitionRecord[] = [];
@@ -65,16 +65,26 @@ function loadRecords(path: string): TransitionRecord[] {
   return out;
 }
 
-interface Cast {
+export interface Cast {
   castId: string;
   gridSize: number;
   start: Cell;
   /** turn -> observed cell AFTER that turn's move, i.e. `to`. */
   byTurn: Map<number, Cell>;
   maxTurn: number;
+  /**
+   * [session 29, CODEXREVIEW #5] Turns with two or more logged records that
+   * DISAGREE on the resulting cell — the resumed-cast numbering bug's
+   * fingerprint (a resumed process relabeling its true next turn as the
+   * cast's turn 0 again). Two records at the same turn that happen to agree
+   * are harmless and not counted here.
+   */
+  duplicateTurns: number[];
+  /** True if any turn in `0..maxTurn` has no record at all — a cast like this can never be an exact FULL-trajectory match, only a coincidental partial one. */
+  hasGaps: boolean;
 }
 
-function groupByCast(records: TransitionRecord[]): Cast[] {
+export function groupByCast(records: TransitionRecord[]): Cast[] {
   const byId = new Map<string, TransitionRecord[]>();
   for (const r of records) {
     const arr = byId.get(r.castId) ?? [];
@@ -87,12 +97,28 @@ function groupByCast(records: TransitionRecord[]): Cast[] {
     const first = recs[0]!;
     const start: Cell = { x: first.from[0], y: first.from[1] };
     const byTurn = new Map<number, Cell>();
+    const seenAtTurn = new Map<number, Cell[]>();
     let maxTurn = -1;
     for (const r of recs) {
-      byTurn.set(r.turn, { x: r.to[0], y: r.to[1] });
+      const to: Cell = { x: r.to[0], y: r.to[1] };
+      const seen = seenAtTurn.get(r.turn) ?? [];
+      seen.push(to);
+      seenAtTurn.set(r.turn, seen);
+      byTurn.set(r.turn, to); // last write wins for byTurn itself; duplicateTurns below is what actually gates eligibility
       if (r.turn > maxTurn) maxTurn = r.turn;
     }
-    casts.push({ castId, gridSize: first.gridSize, start, byTurn, maxTurn });
+    const duplicateTurns = [...seenAtTurn.entries()]
+      .filter(([, cells]) => cells.length > 1 && !cells.every((c) => cellsEqual(c, cells[0]!)))
+      .map(([t]) => t)
+      .sort((a, b) => a - b);
+    let hasGaps = false;
+    for (let t = 0; t <= maxTurn; t++) {
+      if (!byTurn.has(t)) {
+        hasGaps = true;
+        break;
+      }
+    }
+    casts.push({ castId, gridSize: first.gridSize, start, byTurn, maxTurn, duplicateTurns, hasGaps });
   }
   return casts;
 }
@@ -154,23 +180,57 @@ function tallyFirstMoves(casts: Cast[]): Map<MoveClass, number> {
  */
 const PROMOTION_THRESHOLD = 3;
 
-interface PrimitiveSupport {
+export interface PrimitiveSupport {
   pattern: Pattern;
   matchingCasts: string[];
 }
 
-function testPrimitives(casts: Cast[]): PrimitiveSupport[] {
+export interface ExcludedCast {
+  castId: string;
+  reason: string;
+}
+
+export interface PrimitiveTestResult {
+  supports: PrimitiveSupport[];
+  excluded: ExcludedCast[];
+}
+
+/**
+ * [session 29, CODEXREVIEW #5] A cast with duplicate/conflicting turn
+ * numbers or a gap before its own last turn is excluded from exact-match
+ * testing entirely — it is REJECTED, not silently patched around. The old
+ * behavior skipped gaps mid-loop and still called the remaining turns an
+ * "exact full-trajectory match," which is exactly the shape of false
+ * confidence CODEXREVIEW #5 flagged (and duplicate/conflicting turns are the
+ * resumed-cast numbering bug's direct fingerprint — see
+ * `scripts/liveFishing.ts`'s `lastRecordForCast` doc comment).
+ */
+export function testPrimitives(casts: Cast[]): PrimitiveTestResult {
   const pool = buildPatternPool();
   const results: PrimitiveSupport[] = pool.map((pattern) => ({ pattern, matchingCasts: [] }));
+  const excluded: ExcludedCast[] = [];
 
   for (const cast of casts) {
     if (cast.maxTurn < 0) continue;
+    if (cast.duplicateTurns.length > 0) {
+      excluded.push({
+        castId: cast.castId,
+        reason: `duplicate/conflicting record(s) at turn(s) ${cast.duplicateTurns.join(",")} — likely a resumed-process numbering collision (CODEXREVIEW #5)`,
+      });
+      continue;
+    }
+    if (cast.hasGaps) {
+      excluded.push({
+        castId: cast.castId,
+        reason: `gapped trajectory (a turn before maxTurn ${cast.maxTurn} is missing) — cannot be an exact FULL-trajectory match`,
+      });
+      continue;
+    }
     for (const support of results) {
       const trajectory = support.pattern.path(cast.start, cast.gridSize, cast.maxTurn + 2);
       let matches = true;
       for (let t = 0; t <= cast.maxTurn; t++) {
-        const observed = cast.byTurn.get(t);
-        if (!observed) continue; // a gap in the log for this cast — skip, don't fail the whole cast on missing data
+        const observed = cast.byTurn.get(t)!; // no gaps at this point — guaranteed present
         const predicted = trajectory[t + 1];
         if (!predicted || !cellsEqual(predicted, observed)) {
           matches = false;
@@ -180,7 +240,7 @@ function testPrimitives(casts: Cast[]): PrimitiveSupport[] {
       if (matches) support.matchingCasts.push(cast.castId);
     }
   }
-  return results.filter((s) => s.matchingCasts.length > 0);
+  return { supports: results.filter((s) => s.matchingCasts.length > 0), excluded };
 }
 
 // ── main ─────────────────────────────────────────────────────────────────
@@ -205,7 +265,13 @@ function main() {
   }
 
   console.log(`\nPrimitive exact-match test (${buildPatternPool().length} candidates from src/sim/fishing/patterns.ts):`);
-  const supports = testPrimitives(casts);
+  const { supports, excluded } = testPrimitives(casts);
+  if (excluded.length > 0) {
+    console.log(`  ${excluded.length} cast(s) excluded from exact-match testing entirely (CODEXREVIEW #5 — never count a partial/gapped/duplicated cast as an exact match):`);
+    for (const e of excluded) {
+      console.log(`    cast ${e.castId}: ${e.reason}`);
+    }
+  }
   if (supports.length === 0) {
     console.log(`  0 primitives matched any real cast exactly.`);
   } else {

@@ -65,7 +65,7 @@ import {
   predictDistribution,
   type MatcherState,
 } from "../src/strategy/fishing/matcher.js";
-import { cellKey, type Cell } from "../src/sim/fishing/geometry.js";
+import { cellKey, cellsEqual, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
@@ -294,6 +294,32 @@ export function appendTransition(rec: TransitionRecord, path: string = DEFAULT_T
   writeFileSync(path, JSON.stringify(rec) + "\n", { flag: "a" });
 }
 
+/**
+ * [session 29, CODEXREVIEW #5] Finds the highest-turn record already logged
+ * for a specific `castId` — used to resume numbering correctly on a resumed
+ * cast instead of always restarting at turn 0. Concrete proof this was
+ * needed: cast `12923189` in the real `data/fish-patterns.jsonl` has two
+ * distinct turn-0 records ~5 minutes apart — the second is a resumed
+ * process relabeling wherever the fish actually was (turn 3's real position)
+ * as "turn 0" again, which silently overwrote the true turn-0 record in
+ * `mineFishPatterns.ts`'s per-turn `Map`.
+ */
+export function lastRecordForCast(castId: string, path: string = DEFAULT_TRANSITIONS_PATH): TransitionRecord | null {
+  if (!existsSync(path)) return null;
+  const lines = readFileSync(path, "utf8").split("\n").filter((l) => l.trim().length > 0);
+  let last: TransitionRecord | null = null;
+  for (const line of lines) {
+    try {
+      const rec = JSON.parse(line) as TransitionRecord;
+      if (rec.castId !== castId) continue;
+      if (!last || rec.turn > last.turn) last = rec;
+    } catch {
+      // one bad line shouldn't lose the whole log — same convention as loadTransitionLog
+    }
+  }
+  return last;
+}
+
 // ---------------------------------------------------------------------------
 // Fixture writing — same shape as scripts/liveRun.ts's FixtureWriter.
 // ---------------------------------------------------------------------------
@@ -475,8 +501,23 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     } catch (e) {
       if (e instanceof TokenExpiredError) throw e;
       guards.recordActionResult(false);
-      log.write({ event: "action_failed", reason: "start_run rejected", error: (e as Error).message });
-      throw new GuardTrip("fishing start_run rejected", { error: (e as Error).message });
+      const message = (e as Error).message;
+      // [session 29, CODEXREVIEW #6] Fishing has no authoritative "today"
+      // read endpoint to proactively check (unlike dungeon's GET
+      // /game/dungeon/today), so this stays fail-closed on the real
+      // rejection — but a CONFIRMED server-cap rejection (session 27's exact
+      // real message) is now classified as a budget trip and marks the mode
+      // exhausted for the rest of the persisted day, rather than propagating
+      // as a generic anomaly that could take the whole orchestrator down
+      // over one exhausted mode.
+      if (/reached max runs/i.test(message)) {
+        guards.recordServerCapReached();
+        saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
+        log.write({ event: "server_cap_reached", mode: "fishing", message });
+        throw new GuardTrip("session run cap reached", { source: "server start_run rejection", message });
+      }
+      log.write({ event: "action_failed", reason: "start_run rejected", error: message });
+      throw new GuardTrip("fishing start_run rejected", { error: message });
     }
     guards.recordActionResult(true);
     guards.recordRunStarted();
@@ -507,7 +548,34 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   let matcher: MatcherState = initMatcher(matcherCandidates, startCell);
   const transitionLog = loadTransitionLog(transitionsPath);
 
-  let turn = 0;
+  // [session 29, CODEXREVIEW #5] Resume-numbering fix: derive the next turn
+  // to log from whatever this castId already has on disk, instead of always
+  // starting a resumed cast back at turn 0 (see lastRecordForCast's doc
+  // comment for the concrete bug this caused). Before trusting the log
+  // enough to keep appending to it, validate that its last logged position
+  // actually matches where the resumed doc says the fish is right now — a
+  // mismatch means this cast's on-disk history is untrustworthy, and
+  // CLAUDE.md §1 says the live response wins: stop writing to the log for
+  // THIS cast rather than risk compounding a numbering error, while still
+  // playing the cast normally (the in-memory matcher above already anchors
+  // on the live position regardless).
+  const priorForCast = lastRecordForCast(castId, transitionsPath);
+  let turn = priorForCast ? priorForCast.turn + 1 : 0;
+  let trustTransitionLog = true;
+  if (priorForCast) {
+    const loggedPos: Cell = { x: priorForCast.to[0], y: priorForCast.to[1] };
+    if (!cellsEqual(loggedPos, startCell)) {
+      trustTransitionLog = false;
+      log.write({ event: "resume_position_mismatch", castId, loggedPos, resumedPos: startCell, priorTurn: priorForCast.turn });
+      console.log(
+        `  ★★★ resume position mismatch for cast ${castId}: log says ${JSON.stringify(loggedPos)} at turn ${priorForCast.turn}, ` +
+          `server says ${JSON.stringify(startCell)} — not appending further transitions for this cast this run.`,
+      );
+    } else {
+      console.log(`  · resuming cast ${castId} at turn ${turn} (${priorForCast.turn + 1} prior transition(s) already logged)`);
+    }
+  }
+
   while (turn < MAX_TURNS) {
     if (doc.COMPLETE_CID) break;
 
@@ -603,7 +671,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       to: [toCell.x, toCell.y],
       gridSize,
     };
-    appendTransition(transitionRec, transitionsPath);
+    if (trustTransitionLog) appendTransition(transitionRec, transitionsPath);
     const arr = transitionLog.get(cellKey(fromCell)) ?? [];
     arr.push(toCell);
     transitionLog.set(cellKey(fromCell), arr); // later turns in THIS cast benefit too, not just future casts

@@ -16,11 +16,18 @@ import {
   buildHand,
   cardsById,
   fishCell,
+  lastRecordForCast,
   loadTransitionLog,
+  runOneCast,
   unknownDocKeys,
+  type LiveFishingDeps,
   type TransitionRecord,
 } from "../scripts/liveFishing.js";
 import type { FishingGameDoc } from "../src/api/fishing.js";
+import type { GigaverseClient } from "../src/api/client.js";
+import { loadGuardBudget } from "../src/orchestrator/guardPersistence.js";
+import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
+import type { BotConfig } from "../src/orchestrator/config.js";
 
 const cast = JSON.parse(readFileSync("fixtures/fishing-casts/cast.json", "utf8")) as Array<{
   request: unknown;
@@ -144,6 +151,128 @@ describe("data/fish-patterns.jsonl round-trip", () => {
       { x: 1, y: 2 },
       { x: 1, y: 3 },
     ]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("lastRecordForCast — session 29, CODEXREVIEW #5", () => {
+  let dir: string;
+  let path: string;
+
+  it("returns null when nothing is logged yet for this castId (a genuinely fresh cast)", () => {
+    dir = mkdtempSync(join(tmpdir(), "gigaruns-fishpatterns-test-"));
+    path = join(dir, "fish-patterns.jsonl");
+    expect(lastRecordForCast("12923189", path)).toBeNull();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns the highest-turn record for that castId, ignoring other casts", () => {
+    dir = mkdtempSync(join(tmpdir(), "gigaruns-fishpatterns-test-"));
+    path = join(dir, "fish-patterns.jsonl");
+    appendTransition({ ts: "t0", castId: "12923189", turn: 0, from: [2, 4], to: [2, 3], gridSize: 4 }, path);
+    appendTransition({ ts: "t1", castId: "12923189", turn: 1, from: [2, 3], to: [1, 3], gridSize: 4 }, path);
+    appendTransition({ ts: "t2", castId: "12923189", turn: 2, from: [1, 3], to: [1, 4], gridSize: 4 }, path);
+    appendTransition({ ts: "other", castId: "99999999", turn: 9, from: [0, 0], to: [0, 1], gridSize: 4 }, path);
+
+    const last = lastRecordForCast("12923189", path);
+    expect(last).toMatchObject({ turn: 2, from: [1, 3], to: [1, 4] });
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // The exact real-world scenario, reproduced faithfully from the actual
+  // `data/fish-patterns.jsonl` bug: cast 12923189 logs three real turns
+  // (0/1/2), the process ends, and ~5 minutes later a RESUMED process — with
+  // the old `let turn = 0` bug — would relabel the cast's real turn-3 move
+  // (from the fish's actual position, [1,4]) as a second "turn 0". This test
+  // asserts the derivation a resuming caller must use: the correct next turn
+  // is 3 (not 0), and the last logged position ([1,4]) matches where a
+  // correctly-resumed doc would report the fish actually is.
+  it("gives the correct resume point for the exact 12923189 scenario, before the bug's second write lands", () => {
+    dir = mkdtempSync(join(tmpdir(), "gigaruns-fishpatterns-test-"));
+    path = join(dir, "fish-patterns.jsonl");
+    appendTransition({ ts: "2026-08-15T20:32:48.588Z", castId: "12923189", turn: 0, from: [2, 4], to: [2, 3], gridSize: 4 }, path);
+    appendTransition({ ts: "2026-08-15T20:32:50.120Z", castId: "12923189", turn: 1, from: [2, 3], to: [1, 3], gridSize: 4 }, path);
+    appendTransition({ ts: "2026-08-15T20:32:51.528Z", castId: "12923189", turn: 2, from: [1, 3], to: [1, 4], gridSize: 4 }, path);
+
+    const last = lastRecordForCast("12923189", path);
+    expect(last).toMatchObject({ turn: 2, to: [1, 4] });
+    // A correctly-resuming caller derives nextTurn = last.turn + 1 = 3, and
+    // validates the resumed doc's real position ([1,4]) against last.to —
+    // they match, so the log is trustworthy and turn 3 (not a second turn 0)
+    // is what gets appended next.
+    const nextTurn = last!.turn + 1;
+    expect(nextTurn).toBe(3);
+  });
+});
+
+describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW #6)", () => {
+  const TEST_CONFIG: BotConfig = {
+    dungeonId: 5,
+    energyCostPerRun: 20,
+    maxRoom: 16,
+    maxRunsPerDayGame: 12,
+    dailyEnergyBudget: 240,
+    maxRunsPerSession: 12,
+    maxConsecutiveActionFailures: 3,
+    dendren: { nodeId: "5", tierId: 1, energyCostPerCast: 12, maxCastsPerDayGame: 20, dailyEnergyBudget: 240, maxCastsPerSession: 20 },
+  };
+
+  function fakeClient(rejectMessage: string): GigaverseClient {
+    return {
+      getFishingState: async () => ({ gameState: null }),
+      getFishingActionToken: () => "",
+      postFishingAction: async () => {
+        throw new Error(rejectMessage);
+      },
+    } as unknown as GigaverseClient;
+  }
+
+  function makeDeps(client: GigaverseClient, guardStatePath: string): LiveFishingDeps {
+    return {
+      client,
+      config: TEST_CONFIG,
+      guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
+      fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
+      log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
+      address: "0xUSER",
+      dryRun: false,
+      guardStatePath,
+    };
+  }
+
+  it("classifies the real 'reached max runs for fishing' rejection as a budget trip and persists the exhausted mark", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-fishing-cap-test-"));
+    const guardStatePath = join(dir, "guard-budget-fishing.json");
+    const deps = makeDeps(fakeClient("Player has reached max runs for fishing"), guardStatePath);
+
+    try {
+      await runOneCast(deps);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(GuardTrip);
+      expect((e as GuardTrip).reason).toBe("session run cap reached");
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(true);
+    }
+
+    expect(deps.guards.runCount).toBe(20); // marked exhausted for the rest of the persisted day
+    expect(loadGuardBudget(guardStatePath)).toEqual({ energySpent: 0, runsStarted: 20 }); // persisted, visible to a later invocation
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does NOT reclassify an unrelated start_run rejection as a budget trip", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-fishing-cap-test-"));
+    const guardStatePath = join(dir, "guard-budget-fishing.json");
+    const deps = makeDeps(fakeClient("some unrelated server error"), guardStatePath);
+
+    try {
+      await runOneCast(deps);
+      throw new Error("expected a throw");
+    } catch (e) {
+      expect(e).toBeInstanceOf(GuardTrip);
+      expect((e as GuardTrip).reason).toBe("fishing start_run rejected");
+      expect(isBudgetGuardTrip(e as GuardTrip)).toBe(false);
+    }
+    expect(deps.guards.runCount).toBe(0); // untouched — not a server-cap situation
     rmSync(dir, { recursive: true, force: true });
   });
 });

@@ -655,12 +655,14 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     }
   } else if (dryRun) {
     guards.assertCanStartRun(config.energyCostPerRun); // simulate the real gate — dry-run's whole purpose
+    await assertDungeonCapNotExhausted(client, config, guards, log, guardStatePath);
     log.write({ event: "dry_run_start_run_intended", dungeonId: config.dungeonId });
     console.log(`  [dry-run] would POST start_run (dungeonId ${config.dungeonId})`);
     console.log(`  · no active run — nothing further to decide against, stopping.`);
     return;
   } else {
     guards.assertCanStartRun(config.energyCostPerRun);
+    await assertDungeonCapNotExhausted(client, config, guards, log, guardStatePath);
     const body = buildEnvelope("start_run", config.dungeonId, client.getActionToken(), 0, deps.startConsumables);
     log.write({ event: "post", body });
     let resp;
@@ -1015,6 +1017,40 @@ const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
 export function findRealRunsToday(today: { dayProgressEntities?: { docId: string; UINT256_CID: number }[] }, dungeonId: number): number | null {
   const row = today.dayProgressEntities?.find((e) => e.docId.endsWith(`#Dungeon#${dungeonId}`));
   return row ? row.UINT256_CID : null;
+}
+
+/**
+ * [session 29, CODEXREVIEW #6] Checked right before a genuinely NEW
+ * start_run — never on a resume, which costs no new run slot and must never
+ * be blocked here — so an already-exhausted real server cap is caught
+ * before attempting and eating a rejection, rather than after. The
+ * authoritative server count wins over local guard tracking (CLAUDE.md §1).
+ * `null` (no day-progress row yet for this dungeon) is a legitimate
+ * "genuinely zero runs today" reading and does not block. On a confirmed
+ * exhausted cap, marks the local guard exhausted for the rest of the
+ * persisted day too (`GuardState.recordServerCapReached`) so a LATER
+ * invocation this same day fails closed locally without a further network
+ * round-trip.
+ */
+async function assertDungeonCapNotExhausted(
+  client: GigaverseClient,
+  config: BotConfig,
+  guards: GuardState,
+  log: RunLog,
+  guardStatePath?: string,
+): Promise<void> {
+  const today = await client.getDungeonToday();
+  const realRunsToday = findRealRunsToday(today, config.dungeonId);
+  if (realRunsToday !== null && realRunsToday >= config.maxRunsPerSession) {
+    guards.recordServerCapReached();
+    saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath);
+    log.write({ event: "server_cap_reached", mode: "dungeon", realRunsToday, cap: config.maxRunsPerSession });
+    throw new GuardTrip("session run cap reached", {
+      source: "server GET /game/dungeon/today",
+      realRunsToday,
+      cap: config.maxRunsPerSession,
+    });
+  }
 }
 
 async function main() {

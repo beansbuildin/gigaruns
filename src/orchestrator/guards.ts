@@ -93,6 +93,23 @@ export class GuardState {
   }
 
   /**
+   * [session 29, CODEXREVIEW #6] Call when the SERVER (not local tracking)
+   * has confirmed this mode's daily cap is exhausted — a start_run/cast
+   * rejection whose message names the real cap (e.g. fishing's "Player has
+   * reached max runs for fishing", session 27). Marks this mode exhausted
+   * for the rest of the persisted day by setting the tracked run count to
+   * the configured cap, so a LATER invocation on the same persisted day
+   * (once this is saved via `saveGuardBudget`) fails closed locally instead
+   * of attempting and eating a second real rejection. This is a backstop
+   * for whatever the 11am-Pacific date key (`guardPersistence.ts`) still
+   * misses — the primary defense — not a replacement for it. Monotonic: never
+   * lowers a count that's already at or past the cap.
+   */
+  recordServerCapReached(): void {
+    this.runsStarted = Math.max(this.runsStarted, this.budget.maxRunsPerSession);
+  }
+
+  /**
    * Call after a run ends with the OBSERVED energy delta (live energy
    * before minus after), never an assumed constant — CLAUDE.md §1,
    * "discover, don't assume."
