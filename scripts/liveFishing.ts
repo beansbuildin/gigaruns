@@ -56,7 +56,7 @@ import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js
 import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from "../src/api/fishing.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
-import { loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
+import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { chooseCard, chooseNewCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
 import {
   emptyFallback,
@@ -298,12 +298,17 @@ export function appendTransition(rec: TransitionRecord, path: string = DEFAULT_T
 // Fixture writing — same shape as scripts/liveRun.ts's FixtureWriter.
 // ---------------------------------------------------------------------------
 
-function redact(raw: string, address: string, jwt: string): string {
+/**
+ * [session 28, CODEXREVIEW #7] `redactSecrets` removes the FULL jwt — see
+ * `GigaverseClient.redactSecrets`'s doc comment. Callers pass that method
+ * bound to a real client; nothing here ever sees or stores the raw token.
+ */
+function redact(raw: string, address: string, redactSecrets: (text: string) => string): string {
   let s = raw;
   for (const form of [address, address.toLowerCase(), address.toUpperCase()]) {
     if (form) s = s.split(form).join("0xUSER");
   }
-  if (jwt) s = s.split(jwt).join("<JWT>");
+  s = redactSecrets(s);
   return s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
 }
 
@@ -311,6 +316,18 @@ function stamp(): string {
   return new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
 }
 
+/**
+ * [session 28, CODEXREVIEW #1] One directory is one CAST — a fresh
+ * `FixtureWriter` must be constructed per cast (see `main()`'s loop below).
+ * Session 26/27's own corpus counts used directories as if they were casts,
+ * which broke the moment a single invocation's writer got reused across
+ * casts, or a resumed process wrote a second `docId` into the same
+ * directory a prior process had started. `src/sim/fishingCorpus.ts`'s
+ * `loadFishingCorpus()` groups by the real identity (`data.doc.docId`)
+ * instead of trusting directory boundaries, but a fresh writer per cast
+ * keeps the two back in 1:1 correspondence for anyone reading the
+ * filesystem directly.
+ */
 export class FixtureWriter {
   private n = 0;
   private readonly out: string;
@@ -318,9 +335,10 @@ export class FixtureWriter {
 
   constructor(
     private readonly address: string,
-    private readonly jwt: string,
+    private readonly redactSecrets: (text: string) => string,
+    root: string = join("fixtures", "fishing-casts", "live"),
   ) {
-    this.out = join("fixtures", "fishing-casts", "live", `cast-${stamp()}`);
+    this.out = join(root, `cast-${stamp()}`);
     this.raw = join(this.out, "raw");
     mkdirSync(this.raw, { recursive: true });
   }
@@ -329,7 +347,7 @@ export class FixtureWriter {
     const tag = String(this.n).padStart(3, "0");
     const text = JSON.stringify(body, null, 2);
     writeFileSync(join(this.raw, `state-${tag}.json`), text);
-    writeFileSync(join(this.out, `state-${tag}.json`), redact(text, this.address, this.jwt));
+    writeFileSync(join(this.out, `state-${tag}.json`), redact(text, this.address, this.redactSecrets));
     this.n++;
   }
 
@@ -692,6 +710,10 @@ async function main() {
   }
   const client = new GigaverseClient();
 
+  // [session 28, CODEXREVIEW #2] Same discipline as liveRun.ts — one live
+  // writer per guard-state file for the whole process lifetime.
+  process.once("exit", acquireGuardLock(FISHING_GUARD_STATE_PATH));
+
   const seed = loadGuardBudget(FISHING_GUARD_STATE_PATH);
   if (seed.energySpent > 0 || seed.runsStarted > 0) {
     console.log(`  · resuming today's fishing budget: ${seed.energySpent} energy / ${seed.runsStarted} casts already spent`);
@@ -707,12 +729,17 @@ async function main() {
   const log = new RunLog();
 
   const me = await client.getMe();
-  const fixtures = new FixtureWriter(me.address, client.maskedJwt().split("...")[0]!);
   console.log(`  account <USER>`);
 
   const targetCasts = args.dryRun ? 1 : args.casts;
+  let lastFixturesDir = "";
   for (let i = 0; i < targetCasts; i++) {
     console.log(`\n▸ cast ${i + 1}/${targetCasts}`);
+    // [session 28, CODEXREVIEW #1] Fresh per cast, not once per invocation —
+    // one directory must correspond to exactly one docId. See FixtureWriter's
+    // own doc comment.
+    const fixtures = new FixtureWriter(me.address, (text) => client.redactSecrets(text));
+    lastFixturesDir = fixtures.dir;
     const before = args.dryRun ? null : await currentEnergy(client, me.address);
     let castError: unknown = null;
     let result: CastRunResult | null = null;
@@ -747,7 +774,7 @@ async function main() {
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, casts ${guards.runCount}`);
   console.log(`▸ log: ${log.filePath}`);
-  console.log(`▸ fixtures: ${fixtures.dir}`);
+  console.log(`▸ fixtures: fixtures/fishing-casts/live/ (${targetCasts} cast dir(s), last: ${lastFixturesDir})`);
   console.log(`▸ transitions: ${DEFAULT_TRANSITIONS_PATH}\n`);
 }
 

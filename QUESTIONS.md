@@ -726,6 +726,44 @@ Fintuition is a plausible name for it, not a confirmed one.
 
 ---
 
+**Session 28 correction (Codex review, `CODEXREVIEW` #1): session 27's own
+count above used the wrong unit, and its conclusion was too strong as a
+result. "Rejected" downgrades to "unconfirmed."**
+
+Session 27 counted "2/225 real firings" using 225 as the denominator — but
+225 is the total number of fishing RESPONSE DOCUMENTS in the corpus
+(`start_run` + `play_cards` + `loot`, across 50 distinct casts, not 30
+fixture directories), not the number of turns where `nextPosition` could
+have fired. The right denominator is **169** — the actual `play_cards`
+(card-play) turn count, direct-recounted by `docId` via the new
+`src/sim/fishingCorpus.ts` loader (`npx tsx -e` against `loadFishingCorpus()`
+reproduces this exactly). The corrected rate is **2/169 = 1.18%**, not
+2/225 = 0.89% — still below the stated 3% Fintuition rate, but the
+denominator error also means the earlier "well below... not a match" framing
+needs its own statistical check, not just a smaller-looking fraction:
+
+**A binomial test against a 3% null does NOT reject at n=169.** Observing 2
+or fewer events in 169 independent trials at true rate p=0.03 has probability
+P(X≤2) ≈ 11.5% under that null — not small enough to rule out 3% as the real
+rate at any conventional significance threshold. 0.89% (the old, wrong
+denominator) LOOKED more clearly incompatible with 3% than 1.18% (the
+correct one) does; fixing the arithmetic error moves the evidence, if
+anything, slightly TOWARD "compatible with Fintuition," not away from it.
+
+**Corrected status: Fintuition as the cause of `nextPosition` firing is
+UNCONFIRMED, not rejected.** The two problems session 27 found are both
+still real and still block confirmation either way — `activeFintuitionTurns`/
+`fintuitionOilBoostPercent` are constant `0`/`null` across the entire corpus
+and carry zero discriminating information regardless of which denominator is
+used, so this project genuinely cannot confirm OR refute the hypothesis from
+data it has today. What changed is only the confidence of the negative
+claim: "the numbers argue against Fintuition" (session 27's implicit framing)
+is not supported; "the numbers can't yet tell either way" is the accurate
+one. STATE.md/DECISIONS.md corrected accordingly this session — see
+DECISIONS.md's 2026-08-18 (session 28) entry.
+
+---
+
 ## 13. Fishing's real daily-cap reset boundary is NOT UTC midnight [session 27]
 
 Session 27 found fresh local guard budget (`data/guard-budget-fishing.json`

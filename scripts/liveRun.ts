@@ -50,7 +50,7 @@ import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, Dungeo
 import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
-import { loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
+import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { toCombatant, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
 import type { BoonOption } from "../src/sim/boons.js";
@@ -273,12 +273,17 @@ export function buildPathSelectionEnvelope(action: DungeonAction, index: number)
 // gate (every state here is one WE caused, not a 2.5s poll).
 // ---------------------------------------------------------------------------
 
-function redact(raw: string, address: string, jwt: string): string {
+/**
+ * [session 28, CODEXREVIEW #7] `redactSecrets` removes the FULL jwt — see
+ * `GigaverseClient.redactSecrets`'s doc comment. Callers pass that method
+ * bound to a real client; nothing here ever sees or stores the raw token.
+ */
+function redact(raw: string, address: string, redactSecrets: (text: string) => string): string {
   let s = raw;
   for (const form of [address, address.toLowerCase(), address.toUpperCase()]) {
     if (form) s = s.split(form).join("0xUSER");
   }
-  if (jwt) s = s.split(jwt).join("<JWT>");
+  s = redactSecrets(s);
   return s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
 }
 
@@ -293,9 +298,10 @@ export class FixtureWriter {
 
   constructor(
     private readonly address: string,
-    private readonly jwt: string,
+    private readonly redactSecrets: (text: string) => string,
+    root: string = join("fixtures", "dungeon-runs"),
   ) {
-    this.out = join("fixtures", "dungeon-runs", `run-${stamp()}`);
+    this.out = join(root, `run-${stamp()}`);
     this.raw = join(this.out, "raw");
     mkdirSync(this.raw, { recursive: true });
   }
@@ -304,7 +310,7 @@ export class FixtureWriter {
     const tag = String(this.n).padStart(3, "0");
     const text = JSON.stringify(body, null, 2);
     writeFileSync(join(this.raw, `state-${tag}.json`), text);
-    writeFileSync(join(this.out, `state-${tag}.json`), redact(text, this.address, this.jwt));
+    writeFileSync(join(this.out, `state-${tag}.json`), redact(text, this.address, this.redactSecrets));
     this.n++;
   }
 
@@ -1023,6 +1029,11 @@ async function main() {
 
   const config = loadBotConfig();
   const client = new GigaverseClient();
+  // [session 28, CODEXREVIEW #2] One live writer per guard-state file for
+  // the whole process lifetime — held until the process exits (see
+  // guardPersistence.ts's acquireGuardLock doc comment for why a lock
+  // scoped to a single transaction wouldn't actually close the race here).
+  process.once("exit", acquireGuardLock());
   // [session 09] Seed from today's already-spent energy/runs so the budget
   // holds across separate process invocations, not just within one — see
   // guardPersistence.ts.
@@ -1043,7 +1054,7 @@ async function main() {
 
   const me = await client.getMe();
   const account = await client.getAccount(me.address);
-  const fixtures = new FixtureWriter(me.address, client.maskedJwt().split("...")[0]!);
+  const fixtures = new FixtureWriter(me.address, (text) => client.redactSecrets(text));
   console.log(`  account <USER> noobId ${account.noob?.docId ? "<NOOB>" : "(none)"}`);
 
   // [session 23] The local guard file only sees runs THIS bot started — a

@@ -67,13 +67,62 @@ describe("GigaverseClient", () => {
     await assertion;
   });
 
-  it("treats a 5xx on /game/dungeon/state as 'no active run', not a throw", async () => {
+  // [session 28, CODEXREVIEW #4] REVERSED: a blanket "any 5xx means no
+  // active run" conflated a transient server outage with a genuinely idle
+  // account, and after a failed action POST could make
+  // `postWithVerifiedRetry()` report an action as applied when it never
+  // was. A 5xx now retries once and only reads as idle if the retry clears
+  // to the authoritative shape; a PERSISTENT 5xx now throws.
+  it("retries once on a 5xx, then throws UnexpectedResponseError if it persists — a transient outage must not read as idle", async () => {
     vi.stubGlobal("fetch", mockFetch(() => ({ status: 500, body: "<html>error</html>" })));
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const p = client.getDungeonState();
+    const assertion = expect(p).rejects.toBeInstanceOf(UnexpectedResponseError);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+
+  it("resolves null when a first 5xx clears on retry to the HTTP-200 idle shape — the historical 'run just ended' pattern", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => {
+        calls++;
+        if (calls === 1) return { status: 500, body: "<html>error</html>" };
+        return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+      }),
+    );
     const client = new GigaverseClient({ jwt: "test-jwt" });
     const p = client.getDungeonState();
     const assertion = expect(p).resolves.toBeNull();
     await vi.runAllTimersAsync();
     await assertion;
+    expect(calls).toBe(2);
+  });
+
+  it("resolves the real run when a first 5xx clears on retry to a genuine run state", async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => {
+        calls++;
+        if (calls === 1) return { status: 500, body: "<html>error</html>" };
+        return {
+          status: 200,
+          body: {
+            success: true,
+            actionToken: 0,
+            data: { run: { DUNGEON_ID_CID: 1, players: [], lootPhase: false, pathPhase: false, rewardPathPhase: false, enemyPathPhase: false } },
+          },
+        };
+      }),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const p = client.getDungeonState();
+    const assertion = expect(p).resolves.not.toBeNull();
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(calls).toBe(2);
   });
 
   it("also treats HTTP 200 with data.run:null as 'no active run' — the idle-account shape found live in session 08", async () => {
@@ -209,6 +258,31 @@ describe("GigaverseClient", () => {
     const client = new GigaverseClient({ jwt });
     expect(client.maskedJwt()).not.toContain(jwt);
     expect(client.maskedJwt().length).toBeLessThan(50);
+  });
+
+  describe("redactSecrets", () => {
+    // [session 28, CODEXREVIEW #7] Every prior fixture-writing caller passed
+    // maskedJwt().split("...")[0] — the truncated 8-char DISPLAY prefix, not
+    // the real token — to a redaction function. If a response ever echoed
+    // the full token, only 8 characters got replaced. This confirms the real
+    // fix: zero characters of a complete token survive redaction.
+    it("removes every character of the full token from text that echoes it", () => {
+      const jwt = "eyJhbGciOiJIUzI1NiJ9." + "x".repeat(300) + ".signature-part";
+      const client = new GigaverseClient({ jwt });
+      const echoed = `{"message":"you sent Bearer ${jwt} in your request"}`;
+      const redacted = client.redactSecrets(echoed);
+      expect(redacted).not.toContain(jwt);
+      expect(redacted).toContain("<JWT>");
+      // Even a long substring of the token must not survive — a partial
+      // redaction (e.g. only the display prefix) would still leave this.
+      expect(redacted).not.toContain(jwt.slice(0, 8));
+      expect(redacted).not.toContain(jwt.slice(-8));
+    });
+
+    it("is a no-op on text that never contained the token", () => {
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      expect(client.redactSecrets("nothing secret here")).toBe("nothing secret here");
+    });
   });
 
   describe("postDungeonAction", () => {

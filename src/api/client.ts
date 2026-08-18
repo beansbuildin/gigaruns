@@ -117,6 +117,20 @@ export class GigaverseClient {
     return mask(this.jwt);
   }
 
+  /**
+   * [session 28, CODEXREVIEW #7] The only way to redact a real bearer token
+   * out of text that might echo it — every prior caller passed
+   * `maskedJwt().split("...")[0]`, the truncated DISPLAY prefix (8 chars),
+   * not the real token. If a live response ever echoed the full JWT, only
+   * those 8 characters were ever replaced and most of a real credential
+   * could land in a committed "redacted" fixture on this public repo
+   * (DECISIONS 2026-08-12: repo is public). This keeps the real token
+   * private to the instance — it is used internally and never returned.
+   */
+  redactSecrets(text: string): string {
+    return this.jwt ? text.split(this.jwt).join("<JWT>") : text;
+  }
+
   getActionToken(): number {
     return this.actionToken;
   }
@@ -274,10 +288,17 @@ export class GigaverseClient {
    * doesn't advance or echo the action-token sequence. Do not restore this
    * line without new live evidence it's safe.
    */
-  async getDungeonState(): Promise<DungeonState | null> {
+  /**
+   * One read attempt. Returns `{ kind: "5xx" }` rather than throwing on a
+   * server failure — the caller (`getDungeonState` below) decides whether to
+   * retry. Every other outcome (auth failure, a non-5xx non-2xx, an
+   * unparseable body, a body that fails the schema) still throws directly —
+   * only "the server itself failed" is deferred to the retry policy.
+   */
+  private async getDungeonStateOnce(): Promise<{ kind: "5xx" } | { kind: "state"; value: DungeonState | null }> {
     const { status, text } = await this.raw("/game/dungeon/state", { method: "GET" });
     if (status === 401 || status === 403) throw new TokenExpiredError(status, text);
-    if (status >= 500) return null;
+    if (status >= 500) return { kind: "5xx" };
     if (status < 200 || status >= 300) throw new UnexpectedResponseError(status, "/game/dungeon/state", text);
 
     let json: unknown;
@@ -294,9 +315,40 @@ export class GigaverseClient {
         `zod validation failed: ${parsed.error.message}\n\nbody: ${text.slice(0, 2000)}`,
       );
     }
-    if (parsed.data.data.run === null) return null;
+    if (parsed.data.data.run === null) return { kind: "state", value: null };
     // Narrowed above: `run` is non-null here, matching DungeonState's stricter shape.
-    return parsed.data as DungeonState;
+    return { kind: "state", value: parsed.data as DungeonState };
+  }
+
+  /**
+   * [session 28, CODEXREVIEW #4] A blanket "any 5xx means no active run"
+   * used to live here directly. That conflated two genuinely different
+   * things: the historical "a run that just ended returns an HTML 500"
+   * shape (session 08), and a transient server outage — which reads
+   * IDENTICALLY under the old rule. Worse, after a failed action POST,
+   * `postWithVerifiedRetry()` (scripts/liveRun.ts) treats a null read here
+   * as "the action is no longer pending" and can report it as applied when
+   * it never did — risking an abandoned or duplicated run on nothing more
+   * than a transient blip.
+   *
+   * Now: one 5xx retries once (the rate limiter already spaces the two
+   * calls by the usual 1200ms+jitter gap — no extra delay needed). If the
+   * retry clears to the authoritative HTTP-200 idle shape (`data.run:null`)
+   * or a real run, that's returned as before. If the SECOND attempt is also
+   * a 5xx, this now throws `UnexpectedResponseError` instead of silently
+   * reading as idle — a persistent server failure is a genuine anomaly
+   * (CLAUDE.md §5), not evidence the account has no active run.
+   */
+  async getDungeonState(): Promise<DungeonState | null> {
+    const first = await this.getDungeonStateOnce();
+    if (first.kind === "state") return first.value;
+    const second = await this.getDungeonStateOnce();
+    if (second.kind === "state") return second.value;
+    throw new UnexpectedResponseError(
+      500,
+      "/game/dungeon/state",
+      "repeated 5xx on /game/dungeon/state — treating as a genuine server failure, not an idle account (CODEXREVIEW #4)",
+    );
   }
 
   async getItemsBalances(): Promise<ItemsBalances> {

@@ -54,8 +54,9 @@ import { GigaverseClient } from "../src/api/client.js";
 import { UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
-import { loadGuardBudget, saveGuardBudget, DEFAULT_GUARD_STATE_PATH } from "../src/orchestrator/guardPersistence.js";
+import { acquireGuardLock, loadGuardBudget, saveGuardBudget, DEFAULT_GUARD_STATE_PATH } from "../src/orchestrator/guardPersistence.js";
 import { nextAction, type EnergyState, type ModeBudget } from "../src/orchestrator/scheduler.js";
+import { runWithGuaranteedAccounting } from "../src/orchestrator/runWithAccounting.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
 import { OpponentModel } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
@@ -150,6 +151,14 @@ async function main() {
   const me = await client.getMe();
   console.log(`  account <USER>`);
 
+  // [session 28, CODEXREVIEW #2] One live writer per guard-state file, held
+  // for the whole process — the orchestrator manages BOTH files, so it takes
+  // both locks. A `liveRun.ts`/`liveFishing.ts` invocation started against
+  // the same account while this is running will refuse to start rather than
+  // silently racing it.
+  process.once("exit", acquireGuardLock(DEFAULT_GUARD_STATE_PATH));
+  if (config.dendren) process.once("exit", acquireGuardLock(FISHING_GUARD_STATE_PATH));
+
   const dungeonSeed = loadGuardBudget(DEFAULT_GUARD_STATE_PATH);
   const dungeonGuards = new GuardState(
     { dailyEnergyBudget: config.dailyEnergyBudget, maxRunsPerSession: config.maxRunsPerSession, maxConsecutiveActionFailures: config.maxConsecutiveActionFailures },
@@ -214,69 +223,77 @@ async function main() {
           `  · potions: loading ${startConsumables!.length}x itemId ${potionPolicy.itemId}, used at own HP ≤${Math.round(potionPolicy.threshold * 100)}%.`,
         );
       }
-      try {
-        await runOnce({
-          client,
-          config,
-          guards: dungeonGuards,
-          model,
-          strategyConfig: LIVE_CONFIG,
-          fixtures: new DungeonFixtureWriter(me.address, client.maskedJwt().split("...")[0]!),
-          log: new DungeonRunLog(),
-          dryRun: false,
-          shutdownSignal,
-          guardStatePath: DEFAULT_GUARD_STATE_PATH,
-          startConsumables,
-          potionPolicy,
-        } satisfies LiveRunDeps);
-      } catch (e) {
-        if (e instanceof GuardTrip && isBudgetGuardTrip(e)) {
-          console.log(`  · dungeon budget exhausted for today (${e.message}) — switching to fishing/sleep for the rest of this session.`);
-        } else {
-          throw e; // anomaly — CLAUDE.md §5, propagate and halt.
-        }
-      }
-      const after = await currentEnergyFull(client, me.address);
-      const delta = Math.max(0, before - after.value);
-      try {
-        dungeonGuards.recordEnergySpent(delta);
-      } finally {
-        saveGuardBudget(dungeonGuards.spentEnergy, dungeonGuards.runCount, DEFAULT_GUARD_STATE_PATH);
-      }
-      console.log(`  ▸ energy: ${before} -> ${after.value} (spent ${delta})`);
+      // [session 28, CODEXREVIEW #3] This used to `throw e` for any
+      // non-budget error BEFORE the after-energy read/accounting below ever
+      // ran — so if `start_run` had already spent real energy and something
+      // failed afterward (an unexpected state, a schema mismatch, a genuine
+      // anomaly), the restart forgot that real spend ever happened.
+      // `runWithGuaranteedAccounting` enforces: accounting ALWAYS runs,
+      // whatever happened, and a genuine anomaly still propagates AFTER it.
+      await runWithGuaranteedAccounting({
+        action: () =>
+          runOnce({
+            client,
+            config,
+            guards: dungeonGuards,
+            model,
+            strategyConfig: LIVE_CONFIG,
+            fixtures: new DungeonFixtureWriter(me.address, (text) => client.redactSecrets(text)),
+            log: new DungeonRunLog(),
+            dryRun: false,
+            shutdownSignal,
+            guardStatePath: DEFAULT_GUARD_STATE_PATH,
+            startConsumables,
+            potionPolicy,
+          } satisfies LiveRunDeps),
+        isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
+        onBudgetTrip: (e) => console.log(`  · dungeon budget exhausted for today (${(e as Error).message}) — switching to fishing/sleep for the rest of this session.`),
+        account: async () => {
+          const after = await currentEnergyFull(client, me.address);
+          const delta = Math.max(0, before - after.value);
+          try {
+            dungeonGuards.recordEnergySpent(delta);
+          } finally {
+            saveGuardBudget(dungeonGuards.spentEnergy, dungeonGuards.runCount, DEFAULT_GUARD_STATE_PATH);
+          }
+          console.log(`  ▸ energy: ${before} -> ${after.value} (spent ${delta})`);
+        },
+      });
       continue;
     }
 
     if (decision.kind === "fishing") {
       console.log(`\n▸ [${iterations}] fishing cast — real energy ${energy.value}/${energy.max}`);
       const before = energy.value;
-      try {
-        await runOneCast({
-          client,
-          config,
-          guards: fishingGuards!,
-          fixtures: new FishingFixtureWriter(me.address, client.maskedJwt().split("...")[0]!),
-          log: new FishingRunLog(),
-          address: me.address,
-          dryRun: false,
-          shutdownSignal,
-          guardStatePath: FISHING_GUARD_STATE_PATH,
-        } satisfies LiveFishingDeps);
-      } catch (e) {
-        if (e instanceof GuardTrip && isBudgetGuardTrip(e)) {
-          console.log(`  · fishing budget exhausted for today (${e.message}) — switching to dungeon/sleep for the rest of this session.`);
-        } else {
-          throw e; // anomaly — propagate and halt.
-        }
-      }
-      const after = await currentEnergyFull(client, me.address);
-      const delta = Math.max(0, before - after.value);
-      try {
-        fishingGuards!.recordEnergySpent(delta);
-      } finally {
-        saveGuardBudget(fishingGuards!.spentEnergy, fishingGuards!.runCount, FISHING_GUARD_STATE_PATH);
-      }
-      console.log(`  ▸ energy: ${before} -> ${after.value} (spent ${delta})`);
+      // [session 28, CODEXREVIEW #3] Same fix as the dungeon branch above —
+      // accounting is guaranteed to run before any anomaly propagates.
+      await runWithGuaranteedAccounting({
+        action: async () => {
+          await runOneCast({
+            client,
+            config,
+            guards: fishingGuards!,
+            fixtures: new FishingFixtureWriter(me.address, (text) => client.redactSecrets(text)),
+            log: new FishingRunLog(),
+            address: me.address,
+            dryRun: false,
+            shutdownSignal,
+            guardStatePath: FISHING_GUARD_STATE_PATH,
+          } satisfies LiveFishingDeps);
+        },
+        isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
+        onBudgetTrip: (e) => console.log(`  · fishing budget exhausted for today (${(e as Error).message}) — switching to dungeon/sleep for the rest of this session.`),
+        account: async () => {
+          const after = await currentEnergyFull(client, me.address);
+          const delta = Math.max(0, before - after.value);
+          try {
+            fishingGuards!.recordEnergySpent(delta);
+          } finally {
+            saveGuardBudget(fishingGuards!.spentEnergy, fishingGuards!.runCount, FISHING_GUARD_STATE_PATH);
+          }
+          console.log(`  ▸ energy: ${before} -> ${after.value} (spent ${delta})`);
+        },
+      });
       continue;
     }
   }

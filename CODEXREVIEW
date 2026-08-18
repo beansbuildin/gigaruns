@@ -1,0 +1,260 @@
+# CODEX REVIEW — commit f04f5ae16adfc77c14959200fbc13d1bce30a57b
+
+Read-only review performed 2026-08-17/18 against the linked commit and the
+broader runtime. This file is an implementation handoff for Claude.
+
+## Scope and verification
+
+- Reviewed the session-27 documentation diff plus the API client, live dungeon
+  and fishing runners, orchestrator, guard persistence, fishing corpus/miner,
+  strategy/simulation code, and relevant tests.
+- `npx tsc --noEmit --incremental false`: clean.
+- `npx vitest run --cache=false`: 408/408 passed.
+- The worktree was unchanged at the end of the review.
+- Findings below are ordered by priority. Preserve the fail-closed operating
+  contract and add regression tests for every behavioral change.
+
+## High priority
+
+### 1. Fishing fixture directories are not casts; session-27 statistics use the wrong units
+
+Relevant code and documentation:
+
+- `scripts/liveFishing.ts:314-333` — `FixtureWriter` creates one `cast-*`
+  directory and appends every response it receives.
+- `scripts/liveFishing.ts:709-729` — one writer is constructed outside the
+  `--casts=N` loop and reused for every cast in the invocation.
+- `handoff/STATE.md:29-38`, `64-85`, `99-109` — directories and response
+  documents are treated as casts and turns.
+- `QUESTIONS.md:619-625`, `675-725` and `handoff/DECISIONS.md:170-175` repeat
+  the same unit error.
+
+Direct recount by fishing `docId` found:
+
+- 30 nonempty committed fixture directories.
+- 50 distinct casts.
+- 225 response documents.
+- 169 actual card-play turns.
+- 7 caught casts: 7/50 = 14%.
+- Focus changed within 48/50 casts, not 29/30.
+- `nextPosition` fired non-null twice in 169 play turns: 2/169 = 1.18%, not
+  2/225 = 0.89%.
+
+The focus-point conclusion remains correct, but the session-27 corpus counts,
+catch count, rates, and confidence statements are not. Under a simple binomial
+3% model, observing two or fewer events in 169 turns has probability about
+11.5%; that does not reject the Fintuition hypothesis. "Cause unconfirmed" is
+supported. "Rejected" or statistically incompatible is not.
+
+Smallest implementation:
+
+1. Construct a new `FixtureWriter` for every cast inside the CLI loop, or rename
+   the existing directory abstraction to a session/batch and create per-`docId`
+   subdirectories.
+2. Add one canonical fishing-corpus loader that groups historical response
+   documents by `docId` and distinguishes `start_run`, `play_cards`, and `loot`
+   responses. All future audits should use this loader rather than directory
+   count or raw file count.
+3. Recalculate and correct session-26/session-27 claims in `STATE.md`,
+   `QUESTIONS.md`, and `DECISIONS.md`. Keep the valid conclusion that focus
+   movement is active; revise Fintuition to compatible-but-unconfirmed.
+4. Add a regression test with two casts written by one `--casts=2` invocation.
+
+### 2. Budget persistence fails open and is not atomic or concurrency-safe
+
+Relevant code:
+
+- `src/orchestrator/guardPersistence.ts:43-58` — malformed existing JSON
+  silently returns a zero budget.
+- `src/orchestrator/guardPersistence.ts:62-71` — direct overwrite, no atomic
+  rename or lock.
+- `tests/orchestrator/guardPersistence.test.ts:28-36` deliberately enshrines
+  the unsafe corrupt-file behavior.
+
+A crash during a write, truncated file, manual corruption, or two live
+processes can reset or lose recorded spend. Two processes can also both load
+the same seed, pass their guards, start actions, and overwrite each other's
+updates. This can exceed the configured daily budget and contradicts the
+project's fail-closed rule.
+
+Smallest implementation:
+
+1. Treat a genuinely missing state file as first initialization, but throw a
+   `GuardTrip` or dedicated persistence error when an existing file cannot be
+   parsed or validated.
+2. Save through a sibling temporary file, flush it, then atomically rename it.
+3. Enforce one live process per account/mode, or hold a file lock across the
+   complete load -> assert -> increment -> save transaction. A lock only around
+   `writeFileSync` is insufficient.
+4. Add corruption, interrupted-write, and two-writer regression tests.
+
+### 3. The orchestrator skips energy accounting after unexpected post-spend errors
+
+Relevant code:
+
+- `scripts/orchestrator.ts:217-246` — dungeon branch.
+- `scripts/orchestrator.ts:250-279` — fishing branch.
+- Correct standalone pattern already exists at `scripts/liveRun.ts:1120-1173`
+  and `scripts/liveFishing.ts:713-744`.
+
+An unexpected error is rethrown before the after-energy read and persistent
+accounting. If `start_run` already spent energy and a later state/schema/guard
+failure occurs, a restart forgets the real spend.
+
+Use the existing standalone structure: capture the error, always read/account/
+persist in a finally-equivalent path, then rethrow the original error. Add tests
+for a runner that successfully starts and then throws, for both modes.
+
+### 4. `getDungeonState()` converts every 5xx into "no active run"
+
+Relevant code:
+
+- `src/api/client.ts:253-300`, especially line 280.
+- `scripts/liveRun.ts:436-476` — verified retry logic relies on the state read.
+- `tests/api/client.test.ts:70-77` enshrines the blanket behavior.
+
+A transient outage is indistinguishable from an idle account. Worse, after a
+failed action POST, `postWithVerifiedRetry()` sees the state-read 5xx as null,
+concludes the action is no longer pending, and can report it as applied. The
+active run may then be abandoned or followed by an invalid new start attempt.
+
+Smallest implementation:
+
+1. Treat 5xx as `UnexpectedResponseError` by default.
+2. If the historical ended-run 500 behavior must remain supported, retry the
+   read and return null only after the authoritative HTTP-200 `data.run:null`
+   response or a narrowly verified idle response signature. Do not treat all
+   server failures as idle.
+3. Add a test where a failed POST is followed by a transient state 500 and
+   confirm it halts rather than claiming the action applied.
+
+## Medium priority
+
+### 5. Resuming a fishing cast resets transition numbering and can promote false patterns
+
+Relevant code:
+
+- `scripts/liveFishing.ts:437-440` resumes an existing `docId`.
+- `scripts/liveFishing.ts:481-493` always initializes local `turn` to zero.
+- `scripts/liveFishing.ts:577-595` appends the reset turn number.
+- `scripts/mineFishPatterns.ts:77-97` stores one value per turn and silently
+  overwrites duplicates.
+- `scripts/mineFishPatterns.ts:166-180` skips missing turns while still calling
+  the remaining observations an exact full-trajectory match.
+
+The current log already proves this can happen: cast `12923189` has two
+different turn-0 transitions approximately five minutes apart. The second came
+from a resumed process and overwrites the first in the miner's `Map`. Pattern
+support can therefore be false and may seed bad live predictions.
+
+Fix by deriving the next sequence number from existing records for the same
+`castId`, validating that the last logged `to` matches the resumed current
+position, and rejecting or explicitly segmenting duplicate/gapped trajectories
+in the miner. Never count a partial/gapped cast as an exact full match.
+
+### 6. Server-side daily caps are observed but not used as scheduling state
+
+Relevant code:
+
+- `src/orchestrator/guardPersistence.ts:37-40` uses UTC date rollover.
+- `scripts/liveRun.ts:1049-1061` fetches the authoritative dungeon count but
+  only prints drift.
+- `scripts/orchestrator.ts:188-205` schedules only from local guard state.
+- `handoff/STATE.md:43-58` confirms the real server remained capped after the
+  local UTC guard reset.
+
+This creates predictable rejected writes and may terminate the entire
+orchestrator even when the other mode remains available.
+
+For dungeon, reconcile the local action count with `GET /game/dungeon/today`
+before scheduling and block when the server count is exhausted. For fishing,
+use an authoritative read endpoint if one is captured; otherwise retain
+fail-closed behavior and calibrate a conservative reset boundary. A confirmed
+server cap rejection should mark that mode exhausted after state verification,
+not be retried or treated as an unrelated anomaly.
+
+### 7. JWT redaction is passed only the token's first eight characters
+
+Relevant code:
+
+- `scripts/liveFishing.ts:301-307`, caller at `709-710`.
+- `scripts/liveRun.ts:276-307`, caller at `1044-1047`.
+- `scripts/orchestrator.ts:224-225`, `258-259`.
+
+`FixtureWriter` expects the secret to remove, but callers pass
+`client.maskedJwt().split("...")[0]`. If a response ever echoes the bearer
+token, only its prefix is replaced and most of the credential can enter a
+committed "redacted" fixture.
+
+Keep the token private and expose something like
+`GigaverseClient.redactSecrets(text): string`. The client can remove the full
+token internally without returning it to callers. Add a regression test using
+a response containing the complete test token.
+
+### 8. Net before/after energy delta undercounts committed spend
+
+Relevant code:
+
+- `scripts/liveRun.ts:1154-1168`.
+- `scripts/liveFishing.ts:733-740`.
+- `scripts/orchestrator.ts:239-245`, `272-278`.
+
+Regen during the run masks part of the entry cost; an external top-up can mask
+all of it. Persistent policy spend therefore drifts below actual committed
+energy.
+
+Track two quantities separately:
+
+- Conservative committed spend: the confirmed start cost once `start_run`
+  succeeds.
+- Observed account delta: useful reconciliation/diagnostic data.
+
+Enforce the policy guard using committed spend, or another explicitly
+conservative value. Do not rely on a potentially replenished account balance
+as the only spend ledger.
+
+## Low priority
+
+### 9. The primary repository instruction contradicts live tier behavior
+
+- `CLAUDE.md:60-74` requires `pickSafeTier()` and halting when Safe is absent.
+- `src/strategy/enemyTier.ts:14-30`, `80-90` deliberately generalizes the rule
+  to `pickLowestTier()` because Safe is often not offered.
+- `scripts/liveRun.ts:808-826` uses the generalized behavior.
+
+Since the repo is the agents' shared memory, this contradiction invites a
+future incorrect "fix." Update the non-negotiable to say "always choose the
+lowest tier actually offered" and reference `pickLowestTier()`.
+
+### 10. `viem` is currently unused
+
+- `package.json:14-17` lists `viem`, but there are no imports in `src`,
+  `scripts`, or tests.
+
+Remove it until EOA signing work begins, unless it is intentionally retained
+for an imminent task. This reduces install size, audit noise, and supply-chain
+surface.
+
+## Modules that looked clean
+
+No reliable major issue was found in the combat resolution/replay pipeline,
+the pure scheduler decision function, fishing focus geometry and EV
+calculation, the general Zod validation approach, or the strategy/API
+separation. Do not manufacture changes in these areas merely to make the
+review appear broader.
+
+## Suggested implementation order
+
+1. Fix the fishing corpus boundary and add the canonical loader, then correct
+   session-26/session-27 statistics and conclusions.
+2. Make guard persistence fail closed, atomic, and single-writer.
+3. Guarantee orchestrator accounting on every exit path.
+4. Stop swallowing dungeon-state 5xx responses.
+5. Repair resumed-cast transition sequencing and re-run the miner before
+   trusting the two promoted patterns.
+6. Reconcile server caps, harden redaction, and split committed-vs-observed
+   energy accounting.
+7. Resolve documentation/dependency cleanup.
+
+After implementation, run the full typecheck and test suite against the final
+commit and include new regression-test counts in the recap.

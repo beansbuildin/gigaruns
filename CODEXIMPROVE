@@ -1,0 +1,295 @@
+# CODEX PERFORMANCE IMPROVEMENT REVIEW
+
+Read-only strategy review performed against commit
+`f04f5ae16adfc77c14959200fbc13d1bce30a57b`. This document is an
+implementation handoff for Claude. It covers performance opportunities not
+already listed in `CODEXREVIEW`, where performance means deeper dungeon
+progress and a higher fishing catch rate.
+
+## Scope and evidence
+
+- Existing safety, accounting, fixture-boundary, and cleanup findings remain in
+  `CODEXREVIEW` and are intentionally not repeated here.
+- Fishing corpus measurements use distinct `docId` values rather than fixture
+  directory counts: 50 casts, 169 recorded transitions, and 7 catches.
+- The contextual transition comparison used leave-one-cast-out evaluation over
+  49 clean casts / 165 transitions. The corrupted resumed sequence identified
+  in `CODEXREVIEW` was excluded.
+- Statistical associations below are not presented as causal catch-rate gains.
+  Strategy changes should be validated offline before live deployment.
+- Preserve the repository's fail-closed behavior and add regression tests for
+  every behavioral change.
+
+## High priority
+
+### 1. Persist and bootstrap the dungeon opponent model
+
+Relevant code:
+
+- `src/strategy/opponentModel.ts:1-7, 34, 218-227`
+- `scripts/liveRun.ts:795-803, 1041`
+- `scripts/orchestrator.ts:168`
+
+`OpponentModel` already exposes `toJSON()` and `fromJSON()` specifically so an
+I/O-owning caller can persist it, and the specification names
+`data/opponent-model.json`. Neither live entry point does so: each constructs a
+blank model. The persistence methods have no production caller and the file
+does not exist.
+
+Because predictions remain uniform until 30 observations for an
+`(enemyId, room)` key, process restarts repeatedly discard the evidence needed
+to produce a useful read. This is especially harmful in deeper rooms, where
+observations are already scarce. A long-running orchestrator can learn within
+one process, but standalone sessions and future days start from zero again.
+
+Smallest clean implementation:
+
+```ts
+const model = loadOpponentModel("data/opponent-model.json");
+
+// After each confirmed enemy exchange:
+model.observe(modelKey(enemyId, room), foeMove, previousFoeMove);
+saveOpponentModelAtomically("data/opponent-model.json", model.toJSON());
+```
+
+Implementation requirements:
+
+1. Let the orchestrator/live runner own the I/O; keep `OpponentModel` pure.
+2. Validate and version the serialized schema.
+3. Save with a sibling temporary file plus atomic rename.
+4. Prevent concurrent writers, consistent with the persistence work requested
+   in `CODEXREVIEW`.
+5. Bootstrap once from clean historical dungeon exchanges, recording an import
+   version or exchange identity so fixtures cannot be double-counted on every
+   launch.
+6. Add restart and corrupt-model regression tests.
+
+This is the strongest currently-supported dungeon improvement: the decision
+engine already knows how to exploit a learned distribution, but live startup
+throws that information away.
+
+### 2. Make fishing tie-breaks conserve focus and mana
+
+Relevant code:
+
+- `src/strategy/fishing/cardChoice.ts:124-163, 211-224`
+- `src/sim/fishing/geometry.ts:60-69, 83-84`
+
+`bestFocusForCard()` replaces the current best only when candidate EV is
+strictly greater. Equal-EV placements therefore resolve by `allCells()` grid
+enumeration order, not by distance from the current focus. The selected cell
+can consume scarce focus even when the current or a nearer focus has exactly
+the same immediate EV.
+
+`chooseCard()` has the same issue across non-lethal cards: equal-EV choices
+remain in hand order even when one costs less mana or less focus movement.
+Focus is a confirmed three-point, non-regenerating per-cast budget, so spending
+it for zero immediate benefit can only reduce future options.
+
+The corrected 50-cast corpus adds a useful diagnostic, though not a causal
+proof:
+
+- 34/43 escaped casts ended with zero focus.
+- 3/7 caught casts ended with zero focus.
+- Catches tend to end sooner, so this association must not be reported as an
+  estimated treatment effect.
+
+Smallest safe implementation: retain the existing objective, but make ties
+resource-aware.
+
+```ts
+const EPSILON = 1e-12;
+
+if (Math.abs(candidate.ev - best.ev) <= EPSILON && focusBudget) {
+  const candidateCost = manhattan(focusBudget.current, candidate.focus);
+  const bestCost = manhattan(focusBudget.current, best.focus);
+  if (candidateCost < bestCost) best = candidate;
+}
+```
+
+Across cards, use a deterministic lexicographic order:
+
+1. Lethal before non-lethal.
+2. Higher EV, or EV/mana when the existing mana-constrained branch applies.
+3. Lower focus movement cost when the primary value ties.
+4. Lower mana cost when both previous values tie.
+5. Existing hand/grid order as the final deterministic tie-break.
+
+This change cannot reduce immediate expected value. Add tests proving that an
+equal-EV stationary focus beats a moving focus and an equal-EV cheaper card
+beats a more expensive card.
+
+After landing the safe tie-break, separately test a focus shadow price such as
+`EV - lambda * movementCost` or a two-turn focus-budget lookahead. Do not ship a
+non-zero penalty until the simulator shows a catch-rate improvement and the
+result is checked against live movement statistics.
+
+## Medium priority
+
+### 3. Condition the fishing fallback on previous movement direction
+
+Relevant code:
+
+- `src/strategy/fishing/matcher.ts:71-97`
+- `scripts/liveFishing.ts:481-508, 577-593`
+- `data/fish-patterns.jsonl`
+
+When the exact-pattern candidate set empties, `emptyFallback()` pools every
+historical transition from the current cell. It discards cast sequence and
+previous movement even though the transition log contains `castId`, `turn`,
+`from`, and `to` and therefore already has that context.
+
+A leave-one-cast-out comparison over 49 clean casts / 165 transitions found:
+
+| Predictor | Held-out next-cell top-1 accuracy | Feature coverage |
+| --- | ---: | ---: |
+| Current cell only | 16.4% | 100.0% |
+| Current cell + turn number | 16.4% | 82.4% |
+| Current cell + previous movement direction | 33.9% | 75.2% |
+| Current cell + turn + previous direction | 24.2% | 49.1% |
+
+Previous direction more than doubled top-1 accuracy. This does not imply a
+twofold catch-rate improvement: card hitboxes consume a full probability
+distribution, and top-1 accuracy is only a diagnostic. It is nevertheless the
+strongest empirical fishing predictor visible in the available data.
+
+Smallest implementation:
+
+```ts
+const contextualKey = `${cellKey(from)}|${previousDx},${previousDy}`;
+```
+
+Use a hierarchical distributional backoff:
+
+1. Current cell plus previous displacement, when the group has a minimum
+   independent-cast support.
+2. Current cell only.
+3. Uniform over the grid.
+
+Do not include `turn` in the first version; it did not improve held-out top-1
+accuracy and sharply reduced coverage. Evaluate held-out log loss/Brier score
+as well as top-1 accuracy, then run a catch-rate ablation through the fishing
+simulator. Keep casts—not transitions—as the cross-validation unit.
+
+### 4. Give carried dungeon charges continuation value
+
+Relevant code:
+
+- `src/strategy/utility.ts:55-71`
+- `src/strategy/decide.ts:78-119, 146-179`
+- `src/sim/combat.ts:39-77, 157-164`
+- `SPEC.md:829`
+
+HP and armor are priced as resources carried into future rooms, but move
+charges are absent from leaf and terminal-win utility. Charges also persist
+across room transitions and, under the currently enabled hard-limit model,
+control whether a move is legal.
+
+Depth-three live search accounts for charge changes only inside its horizon.
+When it reaches a win or a depth leaf, two otherwise equal states score the
+same even if one carries a depleted high-value move into the next room. That
+objective is misaligned with mean rooms cleared.
+
+Smallest low-risk implementation:
+
+1. First add a tie-break between otherwise equal decision scores that prefers
+   the better expected post-exchange charge reserve.
+2. Weight reserve by move usefulness rather than blindly summing all charges;
+   ATK/DEF or observed play share are defensible starting weights.
+3. Then ablate a small normalized charge-reserve term or a one-room
+   continuation rollout.
+4. Ship a non-zero utility weight only if mean rooms cleared improves by more
+   than the 95% confidence interval. Retain zero as the control.
+
+This is a more credible new dungeon axis than repeating the HP/armor weight
+sweep, which already produced a reliable null result.
+
+### 5. Rank confirmed boons by their actual deltas, and preserve play counts
+
+Relevant code:
+
+- `src/strategy/loot.ts:92-174`
+- `src/sim/boons.ts:296-333`
+- `scripts/liveRun.ts:586-588, 853-869`
+
+The current boon heuristic ignores information already confirmed in the
+corpus:
+
+- Every max-pool boon receives the same score, regardless of `val1`.
+- `AddMaxHealth` and `AddMaxArmor` share one category even though max health
+  increases current HP and its ceiling, while max armor increases only its
+  ceiling.
+- Upgrade scoring ignores both `val1` and `val2`, so an ATK upgrade and a DEF
+  upgrade for the same move receive the same score.
+- `playCounts` starts at zero on every `runOnce()` invocation. Resuming an
+  active dungeon therefore forgets the move distribution from earlier in the
+  same run, despite using that distribution to rank upgrades.
+
+Smallest implementation:
+
+1. Scale pool and move-upgrade values by their actual confirmed deltas.
+2. Credit the immediate HP granted by `AddMaxHealth`; do not credit
+   `AddMaxArmor` with armor it does not fill.
+3. Persist or reconstruct per-run `playCounts`, keyed by dungeon run ID, and
+   delete them when the run ends.
+4. For clean, modelled boons, clone the player, call `applyBoon()`, and compare
+   a short next-room rollout or continuation value.
+5. Keep the existing conservative fallback for latent/unmodelled boons. Do not
+   infer mechanics from their names merely to improve simulation coverage.
+
+The boon corpus is still sparse, so report this as a targeted policy
+improvement rather than a proven rooms-cleared gain.
+
+## Low priority / experimental
+
+### 6. Gate and test direct use of a non-null `nextPosition`
+
+Relevant code:
+
+- `src/api/fishing.ts:58-87`
+- `scripts/liveFishing.ts:117-157, 505-510, 559-575`
+
+`nextPosition` passes through the schema and is detected/logged as an unknown
+field, but it never reaches card/focus selection. If another capture confirms
+that a non-null value predicts the upcoming fish cell, the decision engine can
+use a one-hot distribution for that turn.
+
+Do not enable this unconditionally yet. It fired only twice in 169 actual card
+plays, its cause remains unknown, and there is only one useful following-turn
+validation. Add a validation-only mode that records predicted versus actual
+next position. Promote it to a live override only after repeated exact
+agreement. Even if confirmed, its rarity means the absolute catch-rate upside
+will probably be modest.
+
+## Areas not worth retuning yet
+
+- **Dungeon search depth:** live depth three is already supported by the
+  existing ablation; depth four was not statistically better.
+- **HP/armor utility weights:** the prior 20,000-run sweep, including large
+  weight multipliers, did not materially change room-one win rate or mean rooms
+  cleared.
+- **Fishing `patternIndex`:** it is constant in the committed fixtures and
+  currently provides no predictive split.
+- **Mana-constrained detection:** a coherent per-card lower-bound calculation
+  disagreed with the existing heuristic on 0/170 recorded playable states. It
+  has a theoretical weakness but no demonstrated effect in the available
+  corpus, so it should not displace the findings above.
+- **Redraw behavior:** the live action is still unconfirmed. Do not invent or
+  brute-force an action shape for a speculative optimization.
+
+## Suggested implementation order
+
+1. Add resource-conserving fishing tie-breaks and regression tests.
+2. Implement versioned, atomic opponent-model persistence and one-time corpus
+   bootstrap.
+3. Add previous-direction contextual fishing fallback with cast-level
+   cross-validation and a simulator ablation.
+4. Add charge-reserve tie-breaking, then test a continuation-value term.
+5. Correct known boon valuation and persist per-run play counts.
+6. Continue validating `nextPosition`; do not enable it from the current two
+   sightings.
+
+For every performance change, report the current policy as a control and keep
+the change only when it improves the target metric: mean rooms cleared for the
+dungeon or catch rate for fishing. Do not use simulator output as live evidence
+until that simulator is calibrated in the same domain.

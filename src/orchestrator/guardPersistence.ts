@@ -18,11 +18,40 @@
  * short-lived process invocations across a day), functionally a per-day cap
  * too; this file carries `runsStarted` forward on the same date key so that
  * holds in practice, not just in name.
+ *
+ * [session 28, CODEXREVIEW #2] Three fixes, all in the direction of
+ * CLAUDE.md §5 (fail CLOSED on unexpected state):
+ *  1. `loadGuardBudget` used to swallow a genuinely CORRUPT existing file
+ *     (bad JSON, wrong shape) the same way it treats "nothing on disk yet" —
+ *     silently returning a zero budget. That's failing OPEN: a corrupted
+ *     record of real spend gets forgotten and the day's budget effectively
+ *     resets, letting a restart spend past the real daily cap. A missing
+ *     file is still a legitimate zero seed (first run of the day); a file
+ *     that EXISTS but won't parse/validate now throws `GuardPersistenceError`
+ *     instead.
+ *  2. `saveGuardBudget` used to `writeFileSync` the real path directly — a
+ *     crash mid-write (or two writers racing) could leave a truncated or
+ *     interleaved file. Now writes a sibling temp file and renames it into
+ *     place, which is atomic on the same filesystem: the real path always
+ *     either holds the old complete state or the new complete state, never a
+ *     partial one.
+ *  3. Nothing prevented two live processes from both loading the same seed,
+ *     both passing their guards, and overwriting each other's update —
+ *     silently exceeding the configured daily budget. `acquireGuardLock`
+ *     below enforces one live writer per guard-state file for the life of
+ *     the process, not just around one write.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
+
+export class GuardPersistenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "GuardPersistenceError";
+  }
+}
 
 const PersistedGuardBudgetSchema = z.object({
   date: z.string(),
@@ -41,21 +70,41 @@ export function todayKey(): string {
 
 /**
  * Loads today's already-spent energy/runs, or `{0, 0}` if nothing is on disk
- * yet, the file is corrupt, or the persisted date is a prior day (a fresh
- * budget starts each day, same as `config/bot.json`'s `dailyEnergyBudget`
- * intends). Never throws — a missing or corrupt guard-state file should fail
- * open to a zero seed, not block startup; the actual budget enforcement
- * still happens in `GuardState` itself once seeded.
+ * yet (first run of the day — a legitimate zero seed) or the persisted date
+ * is a prior day (a fresh budget starts each day, same as
+ * `config/bot.json`'s `dailyEnergyBudget` intends). A file that EXISTS but
+ * fails to parse as JSON or doesn't match the expected shape throws
+ * `GuardPersistenceError` instead of silently returning a zero seed — see
+ * this file's header comment, fix 1.
  */
 export function loadGuardBudget(path: string = DEFAULT_GUARD_STATE_PATH): { energySpent: number; runsStarted: number } {
   if (!existsSync(path)) return { energySpent: 0, runsStarted: 0 };
-  let parsed: PersistedGuardBudget;
+
+  let raw: string;
   try {
-    parsed = PersistedGuardBudgetSchema.parse(JSON.parse(readFileSync(path, "utf8")));
-  } catch {
-    return { energySpent: 0, runsStarted: 0 };
+    raw = readFileSync(path, "utf8");
+  } catch (e) {
+    throw new GuardPersistenceError(`guard state file ${path} exists but could not be read: ${(e as Error).message}`);
   }
-  if (parsed.date !== todayKey()) return { energySpent: 0, runsStarted: 0 };
+
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (e) {
+    throw new GuardPersistenceError(
+      `guard state file ${path} exists but is not valid JSON — refusing to silently treat this as a zero budget (CLAUDE.md §5, fail closed). ${(e as Error).message}`,
+    );
+  }
+
+  const result = PersistedGuardBudgetSchema.safeParse(json);
+  if (!result.success) {
+    throw new GuardPersistenceError(
+      `guard state file ${path} exists but doesn't match the expected shape — refusing to silently zero the budget. ${result.error.message}`,
+    );
+  }
+
+  const parsed = result.data;
+  if (parsed.date !== todayKey()) return { energySpent: 0, runsStarted: 0 }; // a stale PRIOR day is a fresh budget, not corruption
   return { energySpent: parsed.energySpent, runsStarted: parsed.runsStarted };
 }
 
@@ -63,10 +112,89 @@ export function loadGuardBudget(path: string = DEFAULT_GUARD_STATE_PATH): { ener
  * Overwrites today's persisted spend. Call after every `GuardState` mutation
  * that changes `spentEnergy`/`runCount` (`recordEnergySpent`,
  * `recordRunStarted`) so a crash mid-run loses at most the in-flight action,
- * never previously-completed accounting.
+ * never previously-completed accounting. Writes through a sibling temp file
+ * and renames it into place (atomic on the same filesystem) — see this
+ * file's header comment, fix 2.
  */
 export function saveGuardBudget(energySpent: number, runsStarted: number, path: string = DEFAULT_GUARD_STATE_PATH): void {
   mkdirSync(dirname(path), { recursive: true });
   const body: PersistedGuardBudget = { date: todayKey(), energySpent, runsStarted };
-  writeFileSync(path, JSON.stringify(body, null, 2));
+  const tmp = `${path}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  writeFileSync(tmp, JSON.stringify(body, null, 2));
+  renameSync(tmp, path);
+}
+
+// ---------------------------------------------------------------------------
+// One live writer per guard-state file — see this file's header, fix 3.
+// ---------------------------------------------------------------------------
+
+function lockPath(path: string): string {
+  return `${path}.lock`;
+}
+
+function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Acquires an exclusive, whole-process-lifetime lock on `path`'s guard
+ * state. Chosen over a lock scoped to a single load->assert->increment->save
+ * call (CODEXREVIEW #2's other option) because those four steps are not
+ * contiguous in this codebase — `assertCanStartRun` happens in memory,
+ * `recordRunStarted`/`recordEnergySpent` + `saveGuardBudget` happen later,
+ * sometimes after a whole dungeon run's worth of network calls — so a lock
+ * that isn't held continuously across that gap wouldn't actually close the
+ * race between two processes. Holding it for the whole process instead
+ * means only one `liveRun.ts`/`liveFishing.ts`/`orchestrator.ts` invocation
+ * can be writing a given guard file at a time, full stop.
+ *
+ * A lockfile left behind by a crashed process is not trusted forever: if the
+ * PID it names is no longer running, the lock is stale and gets reclaimed
+ * automatically rather than requiring a human to delete it by hand. Returns
+ * a release function; call it once, on the way out (success or failure).
+ */
+export function acquireGuardLock(path: string = DEFAULT_GUARD_STATE_PATH): () => void {
+  const lp = lockPath(path);
+  mkdirSync(dirname(path), { recursive: true });
+  for (;;) {
+    try {
+      writeFileSync(lp, String(process.pid), { flag: "wx" }); // exclusive create — fails if the file already exists
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        try {
+          rmSync(lp);
+        } catch {
+          // already gone — nothing to clean up
+        }
+      };
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      let heldPid = NaN;
+      try {
+        heldPid = Number(readFileSync(lp, "utf8").trim());
+      } catch {
+        continue; // the lock vanished between our failed create and this read — retry
+      }
+      if (!isProcessAlive(heldPid)) {
+        try {
+          rmSync(lp);
+        } catch {
+          // someone else already reclaimed it — retry
+        }
+        continue;
+      }
+      throw new GuardPersistenceError(
+        `guard lock ${lp} is held by live process ${heldPid} — refusing to start a second concurrent writer against ${path}. ` +
+          `If that process is actually gone (e.g. the machine restarted without a clean exit), delete ${lp} by hand.`,
+      );
+    }
+  }
 }

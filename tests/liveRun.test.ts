@@ -34,6 +34,7 @@ import {
   type LiveRunDeps,
 } from "../scripts/liveRun.js";
 import { GigaverseClient } from "../src/api/client.js";
+import { UnexpectedResponseError } from "../src/api/errors.js";
 import type { BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { OpponentModel } from "../src/strategy/opponentModel.js";
@@ -529,6 +530,32 @@ describe("postWithVerifiedRetry", () => {
     const resp = await p;
     expect(resp).not.toBeNull();
     expect(postCalls).toBe(2);
+  });
+
+  // [session 28, CODEXREVIEW #4] Before the client's own 5xx-retry fix, a
+  // failed POST followed by a transient state-read 500 read as "no active
+  // run", and postWithVerifiedRetry treated that as "the action is no
+  // longer pending" — silently reporting it as applied when it never was.
+  // Now a PERSISTENT 5xx on the re-check throws instead, and that throw
+  // must propagate out of postWithVerifiedRetry rather than being
+  // swallowed into a null "applied despite the error" result.
+  it("halts (does not report 'applied') when the POST fails and the state re-check 5xxs persistently", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "POST") return { status: 500, body: { success: false, message: "server error" } };
+        // Every re-check GET also 5xxs — a genuine outage, not idle.
+        return { status: 500, body: "<html>error</html>" };
+      }),
+    );
+    const client = new GigaverseClient({ jwt: "test-jwt" });
+    const guards = new GuardState(TEST_CONFIG);
+    const log = makeLog();
+    const p = postWithVerifiedRetry(client, guards, log, initialRun, locate, buildBody, stillInRewardPhase, "reward selection rejected");
+    const assertion = expect(p).rejects.toBeInstanceOf(UnexpectedResponseError);
+    await vi.runAllTimersAsync();
+    await assertion;
   });
 
   it("trips the guard after maxConsecutiveActionFailures if the action never lands", async () => {
