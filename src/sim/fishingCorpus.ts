@@ -47,11 +47,27 @@ function classifyMessage(message: string | undefined): FishingActionKind {
   }
 }
 
+/**
+ * [session 30] The catch payload, read from `data.events[]`'s `FISH_DIED`
+ * entry — NOT `doc.data.caughtFish`, which the real corpus never populates
+ * (checked against every committed live catch fixture before writing this;
+ * SPEC-fishing.md's `caughtFish` field documents the doc-level shape but no
+ * capture actually has it set). `FISH_DIED`'s `data.fish` carries the real
+ * object: `fixtures/fishing-casts/live/cast-2026-08-16-01-57-02/state-017.json`.
+ */
+export interface CaughtFish {
+  gameItemId: number;
+  name: string;
+  rarity: number;
+}
+
 export interface FishingCorpusResponse {
   file: string;
   kind: FishingActionKind;
   completeCid: boolean;
   successCid: boolean | null;
+  /** `null` unless this response's `data.events[]` contains a `FISH_DIED` entry. */
+  caughtFish: CaughtFish | null;
 }
 
 export interface FishingCast {
@@ -108,10 +124,18 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
     }
     const body = parsed as {
       message?: string;
-      data?: { doc?: { docId?: string; COMPLETE_CID?: boolean; SUCCESS_CID?: boolean | null } };
+      data?: {
+        doc?: { docId?: string; COMPLETE_CID?: boolean; SUCCESS_CID?: boolean | null };
+        events?: { type?: string; data?: { fish?: CaughtFish } }[];
+      };
     };
     const docId = body.data?.doc?.docId;
     if (typeof docId !== "string") continue; // not a fishing action response (e.g. a probe dump) — skip
+
+    const fishDied = body.data?.events?.find((e) => e.type === "FISH_DIED");
+    const caughtFish: CaughtFish | null = fishDied?.data?.fish
+      ? { gameItemId: fishDied.data.fish.gameItemId, name: fishDied.data.fish.name, rarity: fishDied.data.fish.rarity }
+      : null;
 
     const cast = byDoc.get(docId) ?? { docId, responses: [] };
     cast.responses.push({
@@ -119,6 +143,7 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
       kind: classifyMessage(body.message),
       completeCid: body.data!.doc!.COMPLETE_CID === true,
       successCid: body.data!.doc!.SUCCESS_CID ?? null,
+      caughtFish,
     });
     byDoc.set(docId, cast);
   }

@@ -1,0 +1,68 @@
+# Dungeon runs
+
+Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-08-18T06:49:15.427Z.
+
+**"Dendren Root"** (the user's term) is wire item 846, `NAME_CID: "Dendren Remnant"` — see this file's header comment in `src/sim/dungeonReport.ts` for the capture that confirmed it.
+
+47 recorded attempts — 38 deaths, 0 cleared, 9 incomplete/stopped. 2 juiced.
+Total Hard Core earned: 6604. Total Dendren Root earned: 803. Total energy spent: 1020.
+
+## Death-room histogram
+
+- room 1: █ 1
+- room 2: █████████ 9
+- room 3: ████████████ 12
+- room 4: ████████████ 12
+- room 5: ████ 4
+
+## Per-run detail
+
+| cid | outcome | juiced | Hard Core | Dendren Root | energy | dirs |
+|---|---|---|---|---|---|---|
+| 24754733 | incomplete (last room 1) | no | 0 | 0 | 20 | session-02 |
+| 24759270 | incomplete (last room 1) | no | 0 | 0 | 20 | run-2026-08-13-23-21-36 |
+| 24759431 | incomplete (last room 2) | no | 0 | 0 | 20 | run-2026-08-13-23-29-39 |
+| 24760921 | incomplete (last room 1) | no | 0 | 0 | 20 | run-2026-08-14-01-00-08 |
+| 24760962 | incomplete (last room 1) | no | 0 | 0 | 20 | run-2026-08-14-01-00-08 |
+| 24760978 | incomplete (last room 4) | no | 0 | 0 | 20 | run-2026-08-14-01-00-08 |
+| 24764103 | incomplete (last room 2) | no | 0 | 0 | 20 | run-2026-08-14-03-26-57 |
+| 24764178 | incomplete (last room 2) | no | 0 | 0 | 20 | run-2026-08-14-03-26-57 |
+| 24764430 | incomplete (last room 2) | no | 0 | 0 | 20 | run-2026-08-14-03-26-57 |
+| 24781644 | death @ room 4 | no | 84 | 28 | 20 | run-2026-08-14-19-42-42, run-2026-08-14-19-53-10, run-2026-08-14-20-05-00, run-2026-08-14-21-17-08, run-2026-08-14-21-30-55, run-2026-08-14-22-02-31, run-2026-08-14-22-13-30 |
+| 24788679 | death @ room 3 | no | 120 | 14 | 20 | run-2026-08-15-01-16-03, run-2026-08-15-01-23-16, run-2026-08-15-01-42-28, run-2026-08-15-01-42-35 |
+| 24789323 | death @ room 4 | no | 208 | 28 | 20 | run-2026-08-15-01-53-36 |
+| 24789353 | death @ room 2 | no | 48 | 5 | 20 | run-2026-08-15-01-53-36 |
+| 24789397 | death @ room 2 | no | 92 | 5 | 20 | run-2026-08-15-01-58-13 |
+| 24789416 | death @ room 3 | no | 136 | 14 | 20 | run-2026-08-15-01-58-13, run-2026-08-15-02-03-04, run-2026-08-15-02-03-23 |
+| 24804259 | death @ room 4 | no | 196 | 28 | 20 | run-2026-08-15-15-38-09 |
+| 24804289 | death @ room 3 | no | 148 | 14 | 20 | run-2026-08-15-15-38-09 |
+| 24804300 | death @ room 2 | no | 52 | 5 | 20 | run-2026-08-15-15-38-09 |
+| 24806317 | death @ room 3 | no | 148 | 14 | 20 | run-2026-08-15-18-10-21 |
+| 24806357 | death @ room 4 | no | 212 | 28 | 20 | run-2026-08-15-18-10-21 |
+| 24811259 | death @ room 4 | no | 224 | 28 | 20 | run-2026-08-15-20-44-28, run-2026-08-15-22-50-29, run-2026-08-15-22-50-38 |
+| 24813356 | death @ room 2 | no | 56 | 5 | 20 | run-2026-08-15-23-02-36 |
+| 24831430 | death @ room 4 | no | 228 | 28 | 20 | run-2026-08-16-15-27-54, run-2026-08-16-15-29-09, run-2026-08-16-15-30-03 |
+| 24831566 | death @ room 3 | no | 124 | 14 | 20 | run-2026-08-16-15-38-58 |
+| 24833553 | death @ room 4 | yes | 660 | 84 | 60 | run-2026-08-16-17-55-21, run-2026-08-16-17-55-45 |
+| 24843066 | death @ room 3 | no | 124 | 14 | 20 | run-2026-08-17-01-23-21, run-2026-08-17-04-35-04, run-2026-08-17-04-35-58 |
+| 24846380 | death @ room 5 | no | 284 | 47 | 20 | run-2026-08-17-04-45-33 |
+| 24846420 | death @ room 3 | no | 124 | 14 | 20 | run-2026-08-17-04-47-48 |
+| 24860624 | death @ room 2 | yes | 336 | 15 | 60 | run-2026-08-17-17-03-45 |
+| 24860653 | death @ room 4 | no | 212 | 28 | 20 | run-2026-08-17-17-03-45 |
+| 24860678 | death @ room 3 | no | 172 | 14 | 20 | run-2026-08-17-17-03-45 |
+| 24860694 | death @ room 3 | no | 144 | 14 | 20 | run-2026-08-17-17-03-45 |
+| 24860715 | death @ room 4 | no | 180 | 28 | 20 | run-2026-08-17-17-03-45 |
+| 24860742 | death @ room 2 | no | 96 | 5 | 20 | run-2026-08-17-17-03-45, run-2026-08-17-17-12-13, run-2026-08-17-17-30-00 |
+| 24861278 | death @ room 2 | no | 68 | 5 | 20 | run-2026-08-17-17-44-38 |
+| 24862876 | death @ room 5 | no | 308 | 47 | 20 | run-2026-08-17-18-54-04, run-2026-08-17-19-01-21, run-2026-08-17-19-03-45, run-2026-08-17-19-11-47, run-2026-08-17-19-11-57, run-2026-08-17-19-15-25, run-2026-08-17-19-15-53 |
+| 24866723 | death @ room 5 | no | 260 | 47 | 20 | run-2026-08-17-20-33-23 |
+| 24866769 | death @ room 1 | no | 0 | 0 | 20 | run-2026-08-17-20-36-03 |
+| 24866779 | death @ room 5 | no | 272 | 47 | 20 | run-2026-08-17-20-37-00 |
+| 24866810 | death @ room 4 | no | 240 | 28 | 20 | run-2026-08-17-20-39-09 |
+| 24867259 | death @ room 3 | no | 164 | 14 | 20 | run-2026-08-17-21-08-10 |
+| 24867280 | death @ room 2 | no | 60 | 5 | 20 | run-2026-08-17-21-09-37 |
+| 24867288 | death @ room 3 | no | 108 | 14 | 20 | run-2026-08-17-21-10-32 |
+| 24867308 | death @ room 4 | no | 228 | 28 | 20 | run-2026-08-17-21-12-02 |
+| 24867342 | death @ room 4 | no | 248 | 28 | 20 | run-2026-08-17-21-14-12 |
+| 24867371 | death @ room 3 | no | 156 | 14 | 20 | run-2026-08-17-21-16-02 |
+| 24867389 | death @ room 2 | no | 84 | 5 | 20 | run-2026-08-17-21-17-23 |

@@ -63,6 +63,8 @@ import { LIVE_CONFIG } from "../src/strategy/config.js";
 import { DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
 import { runOnce, printStatus, MAX_POTIONS_PER_RUN, FixtureWriter as DungeonFixtureWriter, RunLog as DungeonRunLog, type LiveRunDeps } from "./liveRun.js";
 import { runOneCast, FixtureWriter as FishingFixtureWriter, RunLog as FishingRunLog, FISHING_GUARD_STATE_PATH, type LiveFishingDeps } from "./liveFishing.js";
+import { buildRecords as buildDungeonRecords, writeReports as writeDungeonReports } from "./dungeonReport.js";
+import { buildRecords as buildFishingRecords, writeReports as writeFishingReports } from "./fishingReport.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Cap on any one sleep chunk — keeps SIGINT response prompt during a long regen wait rather than blocking in one giant setTimeout. */
@@ -306,6 +308,21 @@ async function main() {
   printStatus(config);
   const finalEnergy = await currentEnergyFull(client, me.address);
   console.log(`  real account energy: ${finalEnergy.value}/${finalEnergy.max} (regen ${finalEnergy.regenPerHour}/hr)\n`);
+
+  // [session 30] Run-visibility reporting — regenerate both committed
+  // markdown reports from the full fixture corpus at the end of every
+  // session (same "recap reads the real state" discipline as STATE.md).
+  // Non-fatal: a report-generation failure shouldn't turn a clean session
+  // into a non-zero exit.
+  try {
+    const dungeonRecords = buildDungeonRecords(config.energyCostPerRun);
+    writeDungeonReports(dungeonRecords);
+    const fishingRecords = buildFishingRecords();
+    writeFishingReports(fishingRecords);
+    console.log(`  ▸ run reports regenerated: ${dungeonRecords.length} dungeon attempts, ${fishingRecords.length} fishing casts.\n`);
+  } catch (e) {
+    console.log(`  ✗ run-report regeneration failed (non-fatal): ${e instanceof Error ? e.message : e}\n`);
+  }
 }
 
 const isMain = process.argv[1] && process.argv[1].endsWith("orchestrator.ts");

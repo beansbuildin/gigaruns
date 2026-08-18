@@ -71,10 +71,54 @@ export interface WireRun {
   lootPhase?: boolean;
 }
 
+/**
+ * The `data.entity` object present on dungeon POST responses — separate from
+ * `data.run` (combat state). [session 30] Sourced fields for run-visibility
+ * reporting: `IS_JUICED_CID` (per-run juiced flag), `ROOM_NUM_CID` (current
+ * room), `COMPLETE_CID` (whether the CURRENT room's fight is complete — not
+ * observed to mean "whole dungeon cleared" since a floor-4-room-4 clear has
+ * never happened live; see `dungeonReport.ts` for how this is used).
+ */
+export interface WireEntity {
+  /**
+   * [session 30] NOT the per-run "Juiced mode" flag — checked against the
+   * full corpus and found `true` on all 47 attempts, including pre-session-
+   * 08 captures that predate the Juiced RUN MODE's very existence. This is
+   * the ACCOUNT-level purchased buff (DECISIONS 2026-08-17, session 23:
+   * `isPlayerJuiced`, "more energy, more ROM output, 4x Hard Cores... nothing
+   * to do with a specific run"), just mirrored onto the entity object. Kept
+   * here, typed but unused by the report, so a future reader doesn't
+   * rediscover the same trap. Use `WANTS_JUICED_MODE_CID` for the per-run flag.
+   */
+  IS_JUICED_CID?: boolean;
+  /** [session 30] The per-run "Juiced mode" selection (3x energy/reward) — confirmed stable within an attempt (all 47 corpus attempts, no mixed values) and varying across attempts (45 false / 2 true), unlike `IS_JUICED_CID`. */
+  WANTS_JUICED_MODE_CID?: boolean;
+  ROOM_NUM_CID?: number;
+  COMPLETE_CID?: boolean;
+}
+
+/**
+ * One `{id, amount}` entry from a response's top-level `gameItemBalanceChanges`
+ * — sibling to `data`, not inside it. [session 30] Confirmed live sources:
+ * item 845 ("Hard Core") credited on `message: "Reward chosen"`; item 846
+ * ("Dendren Remnant" — the wire NAME_CID; the user calls this "Dendren Root"
+ * in conversation, a naming mismatch worth carrying forward, not resolving by
+ * guessing) credited on a `"Move Used"` response that lands a kill. See
+ * `fixtures/dungeon-runs/run-2026-08-15-15-38-09/state-{054,079,110}.json`.
+ */
+export interface WireItemBalanceChange {
+  id: number;
+  amount: number;
+}
+
 export interface CorpusState {
   /** e.g. `run-2026-08-14-01-00-08/state-023.json` */
   label: string;
   run: WireRun;
+  /** [session 30] `null` when this response carried no `data.entity` (e.g. a plain `/game/dungeon/state` GET). */
+  entity: WireEntity | null;
+  /** [session 30] `[]` when this response carried no top-level `gameItemBalanceChanges`. */
+  gameItemBalanceChanges: WireItemBalanceChange[];
 }
 
 export interface CorpusRun {
@@ -90,12 +134,18 @@ function stateFiles(dir: string): string[] {
 
 function readState(dir: string, file: string, name: string): CorpusState | null {
   const parsed = JSON.parse(readFileSync(join(dir, file), "utf8")) as {
-    data?: { run?: WireRun | null } | null;
+    data?: { run?: WireRun | null; entity?: WireEntity | null } | null;
+    gameItemBalanceChanges?: WireItemBalanceChange[] | null;
   };
   const run = parsed.data?.run;
   // `/game/dungeon/state` returns a body with no `run` once a run has ended.
   if (!run?.players || run.players.length < 2) return null;
-  return { label: `${name}/${file}`, run };
+  return {
+    label: `${name}/${file}`,
+    run,
+    entity: parsed.data?.entity ?? null,
+    gameItemBalanceChanges: parsed.gameItemBalanceChanges ?? [],
+  };
 }
 
 /**
