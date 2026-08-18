@@ -159,3 +159,115 @@ after a full suite run; all four predate the run.
 - The QUESTIONS.md §15 fishing-escape-capture stretch item — genuinely no
   time left after §0-§2's own scope, correctly deprioritized per the
   brief's own explicit ordering.
+
+## Follow-up, same session — the user settled Task 14's `index == tier` question
+
+After the recap above was committed and pushed, the user asked directly:
+they'd noticed the captured juiced `start_run` used `index: 3` for a
+Tier-3 ("gold rings") pick, and speculated `index` directly encodes the
+entry tier (1/2/3), matching `config/discovered.json`'s pre-existing
+`entryData` table — three item-gated entry tiers (1 free, 2 costs 7 items,
+3 costs 7 different items, `dropMultiplier` 1/2/4) already documented in
+SPEC.md §3c since session 03, but never connected to `start_run`'s `index`
+field in any prior session's writeup.
+
+Checked the item ids named in `entryData` (134–140 for tier 2, 243–249 for
+tier 3) against `GET /offchain/static`'s `gameItems[]` catalog: they are
+literally "Chobo Silver Ring," "Crusader Silver Ring," etc. (tier 2) and
+"Golden Archon Ring," "Golden Athena Ring," etc. (tier 3) — the user's own
+"silver rings"/"gold rings" terminology, confirmed against the real wire
+item names. This reframed the open question entirely: `index` was never a
+juiced-specific unknown, it's the pre-existing entry-tier selector.
+
+The user then provided a second real capture, confirming this directly: a
+Tier-2 (silver rings) juiced start sent `index: 2`. Two juiced starts at
+two different tiers (`index: 3` and `index: 2`) settles the mapping — no
+guessing required.
+
+**Then asked to take over that second live run**, waiting at floor 1 room 1.
+Same procedure as §0:
+
+1. Read `dayProgressEntities` baseline: 3 (unchanged from §0's own final
+   read — nothing else had touched Dungeon#5 in between).
+2. Temporarily re-added `config/bot.json`'s `potions` block (itemId 131,
+   maxPerRun 3) — same pattern as §0 and session 23, needed for the
+   mid-combat `use_item` threshold logic on a resume.
+3. `npx tsx scripts/liveRun.ts --resume-existing --potions=3
+   --potions-used=0` — played rooms 1→6, fired `use_item` three times
+   (all HTTP 200), died at room 6 (own HP 0/38).
+4. Removed the temporary `potions` block again.
+5. Re-read `dayProgressEntities`: 6 — moved exactly 3→6 at this run's own
+   `start_run` (which happened before this session, but the delta from
+   THIS session's own two reads — 3 before either run, 6 after both —
+   is a third independent confirmation of the +3-at-juiced-start
+   mechanism, on top of session 23's original finding).
+
+**Reward-multiplier check on this second run**: identical 3x-duplicate-
+entry pattern on item 846 (SPEC.md §3f) as the first run. Notably, the
+base per-room amounts (5, 9, 14, 19, 25...) were byte-for-byte IDENTICAL
+to the first (Tier-3) run's own progression, despite `entryData`'s
+`dropMultiplier` being 2 for this tier vs 4 for Tier-3 — suggesting the
+tier's own multiplier does not additionally stack with the juiced 3x on
+this specific reward channel. One observation per tier; not chased further
+this session (out of scope, flagged in STATE.md instead).
+
+**A genuinely unexpected finding, NOT resolved**: this second run's own
+opening state (zero picked boons, so not an in-combat effect) showed
+`PLAYER`'s rock (Sword) move substantially stronger than the FIRST run's
+capture 90 minutes earlier — ATK 16→26, DEF 0→9 — while scissor (Spell)
+lost the gear boost the first capture showed (18/15 → back to base 12/8).
+Both are real wire captures, not modelling errors. Two candidate
+explanations, genuinely indistinguishable from this session's own data: an
+ordinary gear re-spec between the two manual starts (same shape as every
+prior cross-SESSION gear change this project has recorded, just compressed
+to within one session), or something tied to the entry tier itself (Tier 3
+vs Tier 2). Wrote the raw fact into `PLAYER`'s doc comment without
+asserting either explanation, and flagged it as an open question for the
+user directly rather than guessing.
+
+## Corpus-total assertion drift, round 2
+
+This second run's 93 new fixture states tripped 7 more stale assertions
+(same expected-and-handled pattern as round 1):
+
+1. `OBSERVED_OFFERS` — 5 new room-1..5 offer entries from this run's own
+   reward picks, plus a first-ever pickup pair for `ArmorDepletedWeak`
+   (picked at room 2) — modelled `{kind:"latent"}`, zero pickup delta,
+   same shape as five prior latent boons (AddBurnSword, CorrosiveShield,
+   CorrosiveMagic, VulnerableEvade, AddLifestealMagic).
+2. `UNMODELLED_TYPES` — `ArmorDepletedWeak` moved OUT (now modelled),
+   `BurningBlock` moved IN (new first sighting, offered room 2, not
+   picked).
+3. Room-1 clean-options count (123 → 126 → 129 across both runs) — the
+   new offers contained no newly-clean types either time.
+4. `PLAYER` loadout update (above) cascaded into THREE more tests:
+   `combat.test.ts`'s regen demonstration (scissor DEF reverted to base 8,
+   armor-cap margin recalculated), `scenarios.test.ts`'s
+   `mutual-one-hit-from-death` scenario (player's now-much-stronger rock
+   DEF meant the old fixed HP/armor no longer produced a genuine mutual
+   kill — lowered scenario HP from 5 to 3, verified the new death boundary
+   directly against `resolveExchange` rather than guessing), and
+   `strategy.test.ts`'s "avoids the lethal move" test (rock's much higher
+   EV from the stat buff meant its non-lethal branches now outscored the
+   safe alternative outright at the old HP=8 test point; found HP=5 via a
+   small diagnostic script that prints `decide()`'s full score table across
+   a range of HP values, confirmed it's both still lethal on the losing
+   branch AND still narrowly outscored by the safe move).
+5. Distinct starting-loadout count — one new combo, `38/17`.
+
+All fixes read the actual fixture data or ran the actual decision engine
+before writing new expected values — none guessed.
+
+## Final verification (after round 2)
+
+`npx vitest run`: **586/586 passing** (581 + 5 net new: `ArmorDepletedWeak`
+model test, minus none removed — the corpus-total assertions were corrected
+in place, not added as new tests, so the net delta here is smaller than
+round 1's). `npx tsc --noEmit`: clean. `git diff --check`: clean. All
+three re-run against the actual final commit.
+
+Documentation updated for the new finding: `SPEC.md` §3c (the
+`index`==`entryData.tier` connection, ring item ids), `TASKS.md` Task 14
+(follow-up outcome block), `DECISIONS.md` (5 new entries), this log, and
+`STATE.md` rewritten to cover both runs together rather than leaving the
+first recap stale.
