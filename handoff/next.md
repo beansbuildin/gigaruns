@@ -1,79 +1,81 @@
-# BRIEF — session 25
+# BRIEF — session 26
 
-Session 24 revised Task 10's gate from 8h to 2h with reasoning (per-day
-counts bind before energy does — still correct, unchanged), but the live
-attempt itself surfaced a real incident: a stale `config/bot.json` value
-left over from session 23's never-run juiced batch let a plain orchestrator
-run auto-load 3 Big Heal Juice, violating the user's standing rule that
-non-juiced runs never use potions. The leak is closed structurally — the
-`forbiddenWoods.potions` block was removed entirely, not just reset to a
-safer number, so there's no config drift possible until Task 14 lands
-proper juiced-vs-plain gating. Confirmed by direct read this session: block
-absent, 0 potions load on any run this bot starts, full stop.
+**Task 10 is DONE.** Session 25's 2-hour orchestrator retry passed clean:
+zero exceptions, zero potion leaks, both real daily caps hit and recognized,
+full rollup, exit 0. Real number for "how long to exhaust a day's budget":
+~45 minutes. This closes the project's last standing infrastructure gate —
+both loops now genuinely run unattended.
 
-Also confirmed hard this session: Claude Code cannot launch or leave a
-multi-hour background process running under any method tried — this is a
-harness-level constraint, settled, not worth re-attempting. The user runs
-`orchestrator.ts` themselves, in their own terminal, every time.
+Priority for this session is a real fishing-mechanics lead that surfaced as
+a byproduct, ahead of Task 13.
 
 ---
 
-## 1. Retry Task 10's 2-hour gate — nothing else needs to change first
+## 1. Investigate `nextPosition`/`nextMovePath` before anything else
 
-The potions leak is closed. Real dungeon budget today: 1/12 used (the
-incident run). The `ResumeConfirmationRequired` gate fired correctly
-against real server state for the first time this past session (refused to
-touch a stray active run without explicit confirmation) — that mechanism is
-now live-validated, not just unit-tested.
+Three casts last session hit `liveFishing.ts`'s unknown-terminal-field
+detector on `data.nextPosition`/`data.nextMovePath`, sitting in `doc.data`
+alongside `fishPosition`/`previousFishPosition` — NOT near
+`cardChosenId`/`caughtFish` (the actual catch-resolution fields, session
+17). The existing inline code comment guesses this is catch-resolution
+related; that guess doesn't hold up against where these fields actually
+sit. One real dump: `fishPosition: [2,3]`, `nextPosition: [1,3]`,
+`nextMovePath: [3]` — reads as a genuine look-ahead of the fish's next
+move, not anything catch-related. Full dumps in `QUESTIONS.md §12`.
 
-**Answering session 24's own open question #1** (retry now with potions
-off, or prioritize Task 14 first?): retry now. The immediate risk class is
-already closed structurally (no potions block = no potions, regardless of
-Task 14's status). Task 14 still matters for the deferred juiced-run
-session, but nothing about today's retry depends on it.
+**What to check, cheaply, before doing anything else:**
 
-User runs, in their own terminal:
+1. Does this field appear on EVERY turn's response, or only the terminal
+   doc? The detector that caught it only fires on terminal docs — it's
+   unknown whether this has been present all along and just never
+   surfaced, or is genuinely new/conditional.
+2. If it's per-turn: does `nextPosition` reliably predict the fish's actual
+   position on the following turn, across several real casts? This is
+   checkable against existing fixture data before spending any new casts.
+3. If confirmed as a real look-ahead: this would let the live loop react to
+   ground truth instead of `mineFishPatterns.ts`'s statistical inference
+   (matcher-blind 6.6% vs. matcher+mined 16.2% sim, but real catch rate is
+   only ~3.3% off a thin sample — the inference approach's ceiling looks
+   low). Don't build anything yet — confirm it holds across multiple real
+   casts first, per CLAUDE.md §9 (a promising field name is a hypothesis,
+   not a fact, until checked against the corpus).
 
-```
-caffeinate -i npx tsx scripts/orchestrator.ts --hours=2
-```
+**If it checks out**, this becomes the actual next fishing task — bigger
+than Task 13, and probably worth a new TASKS.md entry of its own rather
+than folding into Task 8's already-met gate (same convention as every prior
+task addition in this project).
 
-Same ceiling-not-target framing as before: if real per-day caps get
-exhausted faster than 2 hours, clean idle-and-stop is the correct outcome,
-not something to pad out.
+## 2. Task 13 — infrastructure piece only, in parallel
 
-## 2. One loose end worth a look, not a blocker: local guard-budget UTC drift
+The deck-representation infrastructure Task 13 scoped (session 22) doesn't
+need new live capture and can proceed regardless of what §1 finds. The
+actual scoring/comparison logic should wait — if §1 confirms a real
+look-ahead signal, "what should `chooseNewCard` optimize for" may look
+different than the argmax-hit-power/mana placeholder it's replacing.
 
-Session 24 found the game's real daily reset doesn't align with the local
-guard files' UTC-date key — corrected by hand once this session (reset to
-0/0 dungeon; fishing side inferred, not independently confirmed against a
-real endpoint the way dungeon's `GET /game/dungeon/today` allows). If this
-recurs, it's a manual-correction annoyance, not a safety issue — energy and
-run counts still fail closed against the REAL server state regardless of
-what the local file says. Worth `guardPersistence.ts` growing a live
-cross-check eventually (session 24's own open question #3), but not urgent
-enough to block today's retry on.
+## 3. Low-priority notes, don't chase this session
 
-## 3. Local energy-tracking gap, same non-urgency
-
-Session 24 also found local guard files under-recorded real energy spend
-this session (small deltas getting clamped to 0). Real energy is fine
-(~157/420, confirmed live). Same as above — cosmetic/bookkeeping, not a
-resource-loss issue, self-corrects at next date rollover. Don't spend this
-session's time chasing it unless it starts actually causing wrong
-decisions, not just wrong displayed numbers.
+- `shutdown.ts`: a single SIGINT during an energy-regen sleep ends the
+  whole session, not just that wait — surfaced when the user manually
+  topped up energy mid-sleep with no way to signal the running process. A
+  full restart is already documented as safe (guard state persists across
+  invocations) and is an acceptable answer for now. Not worth building a
+  separate skip-signal mechanism unless this becomes a recurring
+  annoyance in practice.
+- 11 vs. 12 run-dir count mismatch from session 25 — unexplained, doesn't
+  affect the gate, not investigated. Leave it; revisit only if it recurs
+  or something else depends on the exact count.
 
 ---
 
 ## Your task
 
-1. Confirm `config/bot.json` still has no `forbiddenWoods.potions` block
-   before the retry starts (sanity check, shouldn't have changed).
-2. User runs the 2-hour orchestrator retry in their own terminal.
-3. After it completes or is stopped: report real wall-clock time to exhaust
-   daily caps (if reached), zero-exception confirmation, idle behavior,
-   daily rollup contents — same as the original ask.
-4. Note but don't fix this session: local guard-budget UTC drift and
-   energy-tracking gap (§2/§3) — both cosmetic, both self-correcting.
-5. Juiced runs and Task 14's DevTools capture remain queued for a separate
-   session, unchanged.
+1. Check whether `nextPosition`/`nextMovePath` appears on every fishing
+   turn or only terminal docs, using existing fixture data first.
+2. If per-turn: validate it against real fish positions across available
+   casts before proposing any code changes.
+3. Report findings plainly, including if it doesn't hold up — that's a
+   legitimate, useful outcome, not a failure to find something.
+4. Task 13's deck-representation infrastructure (not the scoring logic) can
+   proceed in parallel regardless of §1's outcome.
+5. Leave §3's items alone this session.
