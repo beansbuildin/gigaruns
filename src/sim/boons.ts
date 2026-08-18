@@ -4,10 +4,14 @@
  * Task 4.5. The rule from the session-05 brief §3, held to strictly:
  *
  *   A boon is modelled ONLY if the corpus contains a state pair bracketing its
- *   pickup. Nothing is inferred from the option text. `UpgradePaper` almost
- *   certainly adds 4 to Shield — its name says so and its `selectedVal2` is 4 —
- *   and it is NOT modelled here, because nobody ever picked it and no recorded
- *   state shows what moved.
+ *   pickup. Nothing is inferred from the option text.
+ *
+ * `UpgradePaper` was this rule's original illustrative example — its name
+ * and `selectedVal2` field made its effect an obvious guess, and it stayed
+ * unmodelled anyway because nobody had picked it. [session 43, LIVE] That
+ * guess turned out to be wrong in the specific detail (it drew the ATK-variant
+ * roll, not the DEF one the guess assumed) — the rule earned its keep, not
+ * just held as a formality. See `UpgradePaper` below for the real pair.
  *
  * A boon pickup is the pair (`rewardPathPhase` state → `enemyPathPhase` state).
  * All four in the corpus add exactly one entry to `pickedBoons`, so each pair
@@ -244,6 +248,23 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     contaminates: ["STATUS_EFFECT"],
     evidence: "run-2026-08-18-21-15-25 state-026→state-027",
     observed: "selectedVal1 2 → no change to any player field",
+  },
+  UpgradePaper: {
+    // [session 43, LIVE] First pair — bot-initiated juiced Tier-3 run 2
+    // (session-43 brief §0/§1), room-4 reward, the bot's own loot ranking
+    // picked it. This module's own header comment (session 05) used
+    // `UpgradePaper` as the canonical example of a boon withheld despite a
+    // near-certain guess from its name/`selectedVal2`; that guess is now
+    // moot — this pair settles it directly rather than confirming the guess.
+    // selectedVal1 8 / selectedVal2 0: paper.currentATK 6 → 14 (+8),
+    // currentDEF unchanged at 12 — the ATK-variant roll, same generic
+    // `atk += val1; def += val2` reading UpgradeRock/UpgradeScissor already
+    // established (both of which happened to draw the DEF-variant roll
+    // first). All three `Upgrade*` types are now modelled.
+    effect: { kind: "moveDelta", move: "paper" },
+    contaminates: [],
+    evidence: "run-2026-08-18-22-07-14 state-061→state-062",
+    observed: "selectedVal1 8 / selectedVal2 0 → paper.currentATK 6 → 14, currentDEF unchanged (12)",
   },
 };
 
@@ -1072,6 +1093,59 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 5,
     source: "run-2026-08-18-21-15-25/state-083",
     options: [opt("TieVulnerable", 1), opt("AddLuck", 1), opt("AddVulnerableShield", 2)],
+  },
+  // [session 43] Run 1 of the brief's two authorized bot-initiated juiced
+  // Tier-3 start_run calls (TASKS.md Task 14's actual gate — the first
+  // JUICED start this project's own process ever sent, not a resume) — five
+  // new room-1..5 offers, in order. Died room 6.
+  {
+    room: 1,
+    source: "run-2026-08-18-22-00-28/state-004",
+    options: [opt("Heal", 50), opt("AddLifestealSword", 2), opt("AddTenacity", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-18-22-00-28/state-020",
+    options: [opt("UpgradeScissor", 8), opt("AddMaxArmor", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-18-22-00-28/state-030",
+    options: [opt("AddBlock", 2), opt("AddIntuition", 1), opt("AddTenacity", 7)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-18-22-00-28/state-046",
+    options: [opt("AddTenacity", 2), opt("AddLuck", 1), opt("AddEvasion", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-18-22-00-28/state-056",
+    options: [opt("AddIntuition", 1), opt("WeakeningCrit", 1), opt("UpgradePaper", 0, 8)],
+  },
+  // [session 43] Run 2 of 2, sent after the user's own manual level-up
+  // between the two runs (brief §1) — four new room-1..4 offers, in order.
+  // Died room 5. First-ever pickup pair for `UpgradePaper` (picked at room
+  // 4, the ATK-variant roll) — see BOON_MODELS.
+  {
+    room: 1,
+    source: "run-2026-08-18-22-07-14/state-004",
+    options: [opt("AddLuck", 1), opt("AddIntuition", 1), opt("AddMaxArmor", 8)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-18-22-07-14/state-016",
+    options: [opt("CritHeal", 6), opt("AddLuck", 5), opt("AddIntuition", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-18-22-07-14/state-040",
+    options: [opt("AddBlock", 2), opt("LossLuckUp", 5), opt("AddTenacity", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-18-22-07-14/state-060",
+    options: [opt("UpgradePaper", 8), opt("AddBlock", 2), opt("AddBlock", 7)],
   },
 ];
 

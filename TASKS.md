@@ -1209,6 +1209,34 @@ scissor's own gear boost from the first capture was gone (back to base
 12/8) — confirmed an ordinary armor re-spec between the two manual starts,
 not anything tier-linked. See `src/sim/enemies.ts`'s `PLAYER` doc comment.
 
+**Outcome [2026-08-18, session 43]: GATE MET.** The user gave standing
+authorization (session-43 brief §0) for a bot-initiated juiced Tier-3
+`start_run` matching the exact captured shape (`isJuiced:true, index:3,
+consumables:[131,131,131]`), amending CLAUDE.md's "Ask first" list for
+exactly that shape. Two such runs were sent, this project's own process
+constructing and POSTing `start_run` itself for the first time (not a
+resume of a manually-started run):
+
+- **Run 1**: `dayProgressEntities` for Dungeon#5 moved 6→9 (exactly +3).
+  First kill's `gameItemBalanceChanges` carried three duplicate `{id:846
+  (Dendren Root), amount:5}` entries = 15 total, matching the user's own
+  5→15 reference point. Died room 6, HP 0/40.
+- **Run 2** (after the user's manual level-up, per brief §1):
+  `dayProgressEntities` moved 9→12 (exactly +3, exhausting the daily juiced
+  cap). Same 3x-duplicate pattern (5,9,14,19,25 progression, byte-for-byte
+  identical to run 1 and to session 42's two resumed runs). Died room 5, HP
+  0/40.
+
+Both numbers matched the gate's terms exactly on both runs — no rounding
+up needed either time. `dayProgressEntities` for Dungeon#5 is now 12/12 for
+today; no further juiced starts are possible until the daily reset.
+
+Opportunistic capture from run 2: `UpgradePaper`'s first-ever pickup pair
+(room 4, `moveDelta`, ATK-variant roll — see `src/sim/boons.ts` and
+DECISIONS.md), and a real PLAYER stat update (hpMax 38→40, the user's own
+level-up, though it turns out to have landed before run 1 rather than
+between the two runs as planned — see `src/sim/enemies.ts`'s PLAYER doc).
+
 ---
 
 ## Later, if the user wants it

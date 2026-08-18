@@ -123,17 +123,29 @@ export const DANGEROUS_TIER = 2;
  * user-stated: an ordinary armor re-spec between the two manual starts, NOT
  * anything tied to the entry tier — same non-monotonic gear-respec pattern
  * as sessions 15/23, just compressed to within one session.
+ *
+ * [session 43] Updated to the newest unbooned capture (the second
+ * bot-initiated juiced Tier-3 run's own state-000, TASKS.md Task 14 §0/§1):
+ * hpMax 38 → 40 (+2), armorMax and every move's ATK/DEF unchanged from
+ * session 42's second update. Session-43 brief §1's plan was a level-up
+ * BETWEEN run 1 and run 2, using run 1's own Dendren Root — but run 1's own
+ * state-000 (run-2026-08-18-22-00-28) already reads hpMax 40, the SAME as
+ * run 2's, meaning the level-up had already landed before this session's
+ * run 1 even started (most plausibly using Dendren Root left over from
+ * session 42's two runs), not between this session's two runs as the brief
+ * anticipated. Recorded as observed fact, not silently folded into the
+ * brief's assumed narrative — see the session-43 recap.
  */
 export const PLAYER: Combatant = {
   id: "player",
-  hp: 38,
-  hpMax: 38,
+  hp: 40,
+  hpMax: 40,
   armor: 17,
   armorMax: 17,
   moves: {
-    rock: mv(26, 9), // Sword — NEW gear boost, session 42 second update (was 16/0)
+    rock: mv(26, 9), // Sword — unchanged since session 42 second update
     paper: mv(6, 12), // Shield
-    scissor: mv(12, 8), // Spell — boost gone, session 42 second update (was 18/15)
+    scissor: mv(12, 8), // Spell — unchanged since session 42 second update
   },
   // The player starts every run with all rolled stats at zero; the only way
   // they become non-zero is a boon (src/sim/boons.ts).

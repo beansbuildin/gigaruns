@@ -141,14 +141,16 @@ describe("recorded offers match the fixtures", () => {
 
 describe("fail-closed on unmodelled types", () => {
   it("leaves the player untouched and flags BOON_UNMODELLED", () => {
+    // [session 43] UpgradePaper used to be this test's example — it got its
+    // own live pickup pair this session (see BOON_MODELS) and is no longer
+    // unmodelled, so the example moved to TieDamageReduction, still genuinely
+    // unmodelled (UNMODELLED_TYPES below).
     const before = toCombatant(pickups[0]!.before.run.players[0]!);
-    const r = applyBoon(before, { type: "UpgradePaper", val1: 0, val2: 4 });
+    const r = applyBoon(before, { type: "TieDamageReduction", val1: 1, val2: 0 });
 
     expect(r.model).toBeNull();
     expect(r.reasons).toEqual(["BOON_UNMODELLED"]);
-    // UpgradePaper almost certainly adds 4 to Shield. We do not act on that.
-    expect(r.player.moves.paper.def).toBe(before.moves.paper.def);
-    expect(r.player.moves.paper.atk).toBe(before.moves.paper.atk);
+    expect(r.player).toEqual(before);
   });
 
   it("names the types the corpus offered but never showed the effect of", () => {
@@ -166,9 +168,13 @@ describe("fail-closed on unmodelled types", () => {
       // ArmorDepletedWeak moved OUT — session 42's second manually-started
       // juiced run (Tier-2, silver rings) gave it its first live pickup
       // pair (latent, same shape), now modelled.
+      // UpgradePaper moved OUT — session 43's second bot-initiated juiced
+      // Tier-3 run gave it its first live pickup pair (moveDelta, the
+      // ATK-variant roll), now modelled.
       "AddBurnMagic", // session 12: first sighting, live room-1 offer, not picked
       "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked
       "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
+      "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked
       "AddVulnerableMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddVulnerableShield", // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
       "AddVulnerableSword", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
@@ -180,14 +186,15 @@ describe("fail-closed on unmodelled types", () => {
       "BurningEvade", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
       "CorrosiveSword", // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
+      "CritHeal", // session 43: first sighting, live room-2 offer (bot-initiated juiced run 2), not picked
       "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
       "LossBlockUp", // session 20: first sighting, live room-2 offer, not picked
+      "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
       "Regen",
       "SecondWind", // session 16: first sighting, live room-3 offer, not picked
       "TieDamageReduction",
       "TieVulnerable", // session 12: first sighting, live room-3 offer, not picked
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
-      "UpgradePaper",
       "VulnerableBlock", // live [2026-08-16/17]: first sighting, the takeover run's room-1 offer, not picked
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
@@ -269,8 +276,19 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 42, same session] +1 more room-1 offer (3 options:
     // IntuitionArmor/AddIntuition/TieWeak — the second manually-started
     // juiced run's, Tier-2). None of the three is in the clean set either.
+    // [session 43] Modelling UpgradePaper (a live pair from this session's
+    // second bot-initiated juiced run, offered at room 4, not room 1) makes
+    // EIGHT already-recorded-but-unpicked room-1 UpgradePaper offers clean
+    // retroactively — same "modelling a type retroactively cleans past
+    // offers" mechanic session 11 first documented for AddMaxArmor. +2 new
+    // room-1 offers ALSO landed this session (one from each of the two
+    // bot-initiated juiced runs), +6 options, 129 -> 135 — neither new
+    // room-1 offer contains a newly-clean type itself (Heal/AddLifestealSword/
+    // AddTenacity and AddLuck/AddIntuition/AddMaxArmor — all already-known
+    // clean-or-not types), so the retroactive UpgradePaper effect above is
+    // the only thing moving the clean set.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(129);
+    expect(roomOne.length).toBe(135);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -281,8 +299,18 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     expect(clean.sort()).toEqual([
       "AddMaxArmor",
       "AddMaxArmor",
+      "AddMaxArmor",
       "Heal",
       "Heal",
+      "Heal",
+      "UpgradePaper",
+      "UpgradePaper",
+      "UpgradePaper",
+      "UpgradePaper",
+      "UpgradePaper",
+      "UpgradePaper",
+      "UpgradePaper",
+      "UpgradePaper",
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
@@ -299,15 +327,18 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     ]);
   });
 
-  it("Heal, UpgradeScissor, UpgradeRock, AddMaxArmor and AddMaxHealth are the only clean boons in the corpus", () => {
+  it("Heal, UpgradeScissor, UpgradeRock, AddMaxArmor, AddMaxHealth and UpgradePaper are the only clean boons in the corpus", () => {
     // [session 11] AddMaxArmor joined this session — captured at room 2, not
     // room 1, so it doesn't move the room-1-scoped test above.
     // [session 23] AddMaxHealth joined — captured at room 3, so it doesn't
     // move the room-1-scoped test above either.
+    // [session 43] UpgradePaper joined — captured at room 4, so it doesn't
+    // move the room-1-scoped test above directly, but DOES retroactively
+    // clean eight already-recorded room-1 UpgradePaper offers (see above).
     const clean = Object.entries(BOON_MODELS)
       .filter(([, m]) => m.contaminates.length === 0)
       .map(([t]) => t);
-    expect(clean).toEqual(["Heal", "UpgradeScissor", "UpgradeRock", "AddMaxArmor", "AddMaxHealth"]);
+    expect(clean).toEqual(["Heal", "UpgradeScissor", "UpgradeRock", "AddMaxArmor", "AddMaxHealth", "UpgradePaper"]);
 
     const healRooms = OBSERVED_OFFERS.filter((o) =>
       o.options.some((x) => x.type === "Heal"),
@@ -318,6 +349,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // Heal's first sighting past room 2.
     // [session 42] +1 room-3 Heal offer, val1 50 — the largest Heal value in
     // the corpus to date (the resumed juiced Tier-3 run's third reward pick).
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3]);
+    // [session 43] +1 room-1 Heal offer, val1 50 — the first bot-initiated
+    // juiced run's own first reward offer (Heal/AddLifestealSword/
+    // AddTenacity, AddTenacity picked — see OBSERVED_OFFERS). Appended at
+    // the array's end (insertion order, not sorted), so the new "1" lands
+    // last, not with the other two room-1 sightings.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1]);
   });
 });

@@ -34,7 +34,11 @@ describe("determinism", () => {
 });
 
 /** Boon types with `contaminates: []` in BOON_MODELS — Heal, UpgradeRock, UpgradeScissor (session 09), AddMaxArmor (session 11). */
-const CLEAN_BOON_TYPES = new Set(["Heal", "UpgradeRock", "UpgradeScissor", "AddMaxArmor"]);
+// [session 43] UpgradePaper joined — its own first pair came from a room-4
+// pickup (this session's second bot-initiated juiced Tier-3 run), but the
+// corpus already had eight unpicked room-1 UpgradePaper offers, now
+// retroactively clean too (same mechanic as AddMaxArmor, session 11).
+const CLEAN_BOON_TYPES = new Set(["Heal", "UpgradeRock", "UpgradeScissor", "AddMaxArmor", "UpgradePaper"]);
 
 describe("fail-closed accounting", () => {
   // [session 09, LIVE] Both tests below used to assert a blanket "any battle/

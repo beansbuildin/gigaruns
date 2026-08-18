@@ -500,9 +500,15 @@ describe("loot ranking — §4c, unvalidated by construction", () => {
   // val1, same nominal "pool" category, genuinely different value delivered —
   // the score must not treat them the same.
   it("scores AddMaxHealth differently than AddMaxArmor at the same val1", () => {
+    // [session 43] val1 6, not 8 — at PLAYER's post-level-up hpMax (40,
+    // enemies.ts's PLAYER doc), val1 8 at hp 20 is a genuine numeric
+    // coincidence where the two DIFFERENT formulas (armor's `25*(val1/4)*
+    // roomsFactor` vs health's `100*(val1/hpMax)+60*(1-hpFraction)`) land on
+    // the exact same value (50) — not the formulas becoming the same
+    // formula. val1 6 keeps the two clearly apart at this loadout.
     const hurt = { ...cloneCombatant(PLAYER), hp: 20 };
-    const armor = rankBoons(hurt, [{ type: "AddMaxArmor", val1: 8, val2: 0 }], 1)[0]!;
-    const health = rankBoons(hurt, [{ type: "AddMaxHealth", val1: 8, val2: 0 }], 1)[0]!;
+    const armor = rankBoons(hurt, [{ type: "AddMaxArmor", val1: 6, val2: 0 }], 1)[0]!;
+    const health = rankBoons(hurt, [{ type: "AddMaxHealth", val1: 6, val2: 0 }], 1)[0]!;
     expect(health.category).toBe("pool");
     expect(armor.category).toBe("pool");
     expect(health.score).not.toBe(armor.score);
