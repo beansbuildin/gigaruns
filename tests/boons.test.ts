@@ -124,12 +124,18 @@ describe("recorded offers match the fixtures", () => {
     expect(fromTable).toEqual(fromCorpus);
   });
 
-  it("has no offer past room 4 — the deepest run cleared room 4 and reached room 5", () => {
+  it("has no offer past room 6 — the deepest run cleared room 6 and reached room 7", () => {
     // [session 20, LIVE] Was `toBe(3)` through session 19 — the potion-
     // orchestrator-wiring smoke test cleared room 4 for the first time,
     // producing this corpus's first room-4 offer (see ROOM_ENEMIES' new
     // room-5 entry, src/sim/enemies.ts).
-    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(4);
+    // [session 42] The resumed juiced Tier-3 run (TASKS.md Task 14 §0)
+    // cleared rooms 5 and 6 (first-ever offers at both depths) and died at
+    // room 7 — the deepest recorded death yet. `ROOM_ENEMIES` now has
+    // room-6/7 entries (this session added both, from the same run's real
+    // captured battles), so the room-6 offer is no longer excluded by
+    // `boonPickups`'s `room <= 0` guard the way it briefly was mid-session.
+    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(6);
   });
 });
 
@@ -254,8 +260,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // rolled stat, a newly-modelled-but-latent type (VulnerableEvade), or
     // still unmodelled (six of them first sightings this session — see
     // UNMODELLED_TYPES above); none of those are newly clean.
+    // [session 42] +1 more room-1 offer (3 options: AddLuck/AddBlock/AddLuck
+    // — the resumed juiced Tier-3 run's own first reward pick). Neither type
+    // is in the clean set, so the clean array is unchanged.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(123);
+    expect(roomOne.length).toBe(126);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -301,6 +310,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // test, Run A) — a second independent room-2 sighting, not new depth.
     // [session 25] +2 room-3 Heal offers (Task 10's real 2-hour gate run) —
     // Heal's first sighting past room 2.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3]);
+    // [session 42] +1 room-3 Heal offer, val1 50 — the largest Heal value in
+    // the corpus to date (the resumed juiced Tier-3 run's third reward pick).
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3]);
   });
 });

@@ -1133,6 +1133,53 @@ response (or a follow-up state read) confirms the run is actually juiced
 5→15 Dendren Root example or equivalent), and the account's real
 `dayProgressEntities` counter for Dungeon#5 moves by exactly 3, not 1.
 
+**Outcome [2026-08-18, session 42]: CODE DONE, GATE NOT MET — the resumed run
+(§0) was user-initiated, not bot-initiated; the gate specifically asks for a
+bot-initiated juiced `start_run`, which was not attempted this session
+(today's real dungeon budget/run-slots were already committed to the resumed
+run; a fresh juiced start would spend another 60 energy / 3 run-units the
+brief did not authorize).**
+
+Both pieces landed:
+
+1. `buildJuicedStartRunEnvelope(dungeonId, index, consumables)`
+   (`scripts/liveRun.ts`) — pinned against the exact captured JSON in a
+   dedicated test. Wired into the `start_run` call site via a new
+   `deps.juicedStartRun` (only set when the CLI's `--juiced` flag is passed);
+   the ordinary `buildEnvelope` path is untouched byte-for-byte for every
+   plain start.
+2. `--juiced` + `--juiced-index=N` CLI flags, fail-closed exactly like
+   `--potions=N` (`--juiced` alone throws rather than defaulting `index` to
+   3). Potion auto-loading is now ALSO gated behind `--juiced` — both the
+   config-auto-detect branch and the `startConsumables` sent on a genuinely
+   new `start_run` — closing the exact gap session 24's incident named
+   ("apply ONLY to genuinely-new juiced start_run calls, never plain ones").
+   An explicit `--potions=N` still works without `--juiced` (needed for
+   `--resume-existing`, exactly what §0 used this session), but no longer
+   auto-loads into a plain NEW start.
+
+A real correctness gap was found and fixed while wiring this in, not asked
+for by the brief but necessary for the gate to mean anything once attempted:
+`GuardState.assertCanStartRun`/`recordRunStarted` hardcoded 1 run-unit per
+start — a juiced start_run consumes 3 (SPEC.md's Juiced run-mode section).
+Both now take an optional `runUnits` param (default 1, every existing
+call site unaffected); `liveRun.ts`'s new-start branch passes 3× energy and
+3 run-units when `deps.juicedStartRun` is set. Without this fix, a future
+bot-initiated juiced start would have silently under-counted both the daily
+energy budget and the session run cap.
+
+**§0's resume DID produce real evidence for this gate's two conditions, even
+though it wasn't a bot-initiated start** — see STATE.md for the numbers
+(3x reward confirmed via triplicated `gameItemBalanceChanges` entries;
+`dayProgressEntities` unchanged during this session, consistent with — not
+new proof of — the already-established "+3 at start" finding). The gate
+itself still requires the bot to send the juiced `start_run` POST itself;
+that has not happened yet.
+
+12/12 new tests pass (3 `guards.test.ts`, 4 `parseArgs` tests, 3 `runOnce`
+integration tests, 2 `buildJuicedStartRunEnvelope` unit tests) — see
+DECISIONS.md and handoff/log/session-42.md for the full verification.
+
 ---
 
 ## Later, if the user wants it

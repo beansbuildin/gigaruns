@@ -277,6 +277,41 @@ export function buildPathSelectionEnvelope(action: DungeonAction, index: number)
   };
 }
 
+/**
+ * [session 42, Task 14] A juiced `start_run` uses a THIRD envelope shape,
+ * matching neither `buildEnvelope` nor `buildPathSelectionEnvelope` exactly —
+ * confirmed via a live DevTools capture of the real request the browser sent
+ * when the user manually started a Tier-3 juiced Forbidden Woods run
+ * (DECISIONS.md 2026-08-18, out-of-band):
+ *
+ * ```json
+ * {"action":"start_run","actionToken":"","dungeonId":5,
+ *  "data":{"consumables":[131,131,131],"itemId":0,"expectedAmount":0,
+ *          "index":3,"isJuiced":true,"gearInstanceIds":[],"devBoons":[]}}
+ * ```
+ *
+ * Like `buildPathSelectionEnvelope`, `actionToken` is an empty string and
+ * `data` carries the full 7-field shape. Unlike it, `dungeonId` is the run's
+ * REAL dungeon id, not hardcoded `0` — this capture is the first evidence
+ * that `buildPathSelectionEnvelope`'s own header comment ("combat/start_run
+ * always use the numeric-actionToken/3-field shape") does not hold for a
+ * juiced start.
+ *
+ * Left open, on purpose (this capture alone can't distinguish the two): is
+ * the empty-string-actionToken/7-field shape required *because* the run is
+ * juiced, or would it also be required for an ordinary `start_run`? Treat
+ * this shape as ground truth for juiced starts only until a reason to
+ * believe otherwise turns up.
+ */
+export function buildJuicedStartRunEnvelope(dungeonId: number, index: number, consumables: number[] = []): DungeonActionRequest {
+  return {
+    action: "start_run",
+    dungeonId,
+    actionToken: "",
+    data: { consumables, isJuiced: true, index, itemId: 0, expectedAmount: 0, gearInstanceIds: [], devBoons: [] },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Fixture writing — same shape as scripts/watch.ts, minus the poll-noise hash
 // gate (every state here is one WE caused, not a 2.5s poll).
@@ -407,6 +442,17 @@ export interface LiveRunDeps {
    */
   startConsumables?: number[];
   /**
+   * [session 42, Task 14] When set, a genuinely new `start_run` uses
+   * `buildJuicedStartRunEnvelope` (real `dungeonId`, empty-string
+   * `actionToken`, 7-field `data`, `isJuiced: true`) instead of the ordinary
+   * `buildEnvelope` — see that function's doc comment for the captured
+   * evidence. `index` is the wire field the capture calls `index`; `main()`
+   * refuses to default it (CLAUDE.md §2 — no guessing at an unconfirmed
+   * tier/index mapping). `undefined` (the default) preserves the existing
+   * `buildEnvelope` path exactly, unchanged for every ordinary run.
+   */
+  juicedStartRun?: { index: number };
+  /**
    * Task 12 Stage B live half: fires a REAL `use_item` (not the itemId-0
    * probe above) once own HP fraction crosses `threshold`, per
    * `src/strategy/potions.ts`'s `shouldUsePotion` — the same rule
@@ -532,6 +578,17 @@ export async function postWithVerifiedRetry(
 
 /** Below this own-HP fraction counts as "already going badly" for the use_item probe (session-13 brief §2). */
 const PROBE_HP_FRACTION = 0.34;
+
+/**
+ * [session 42, Task 14] A Juiced Forbidden Woods run costs 3x the energy and
+ * consumes 3x the daily run-count units of an ordinary run — SPEC.md's
+ * Juiced run-mode section, user-confirmed (2026-08-17, session 23) against
+ * the real `dayProgressEntities` counter moving 3→6 after one juiced start.
+ * Not sourced from `config/discovered.json` — no `juicedEnergyCost` field
+ * exists there; `juicedMultiplier: 1` in that file does NOT represent this
+ * and must not be read as either multiplier (SPEC.md's own correction).
+ */
+const JUICED_COST_MULTIPLIER = 3;
 
 /**
  * Task 12 Stage A confirmation probe (session-13 brief §2). Sends exactly
@@ -706,16 +763,22 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       return;
     }
   } else if (dryRun) {
-    guards.assertCanStartRun(config.energyCostPerRun); // simulate the real gate — dry-run's whole purpose
+    const estimatedCost = deps.juicedStartRun ? config.energyCostPerRun * JUICED_COST_MULTIPLIER : config.energyCostPerRun;
+    const runUnits = deps.juicedStartRun ? JUICED_COST_MULTIPLIER : 1;
+    guards.assertCanStartRun(estimatedCost, runUnits); // simulate the real gate — dry-run's whole purpose
     await assertDungeonCapNotExhausted(client, config, guards, log, guardStatePath);
-    log.write({ event: "dry_run_start_run_intended", dungeonId: config.dungeonId });
-    console.log(`  [dry-run] would POST start_run (dungeonId ${config.dungeonId})`);
+    log.write({ event: "dry_run_start_run_intended", dungeonId: config.dungeonId, juiced: Boolean(deps.juicedStartRun) });
+    console.log(`  [dry-run] would POST start_run (dungeonId ${config.dungeonId}${deps.juicedStartRun ? ", juiced" : ""})`);
     console.log(`  · no active run — nothing further to decide against, stopping.`);
     return;
   } else {
-    guards.assertCanStartRun(config.energyCostPerRun);
+    const estimatedCost = deps.juicedStartRun ? config.energyCostPerRun * JUICED_COST_MULTIPLIER : config.energyCostPerRun;
+    const runUnits = deps.juicedStartRun ? JUICED_COST_MULTIPLIER : 1;
+    guards.assertCanStartRun(estimatedCost, runUnits);
     await assertDungeonCapNotExhausted(client, config, guards, log, guardStatePath);
-    const body = buildEnvelope("start_run", config.dungeonId, client.getActionToken(), 0, deps.startConsumables);
+    const body = deps.juicedStartRun
+      ? buildJuicedStartRunEnvelope(config.dungeonId, deps.juicedStartRun.index, deps.startConsumables ?? [])
+      : buildEnvelope("start_run", config.dungeonId, client.getActionToken(), 0, deps.startConsumables);
     log.write({ event: "post", body });
     let resp;
     try {
@@ -725,13 +788,16 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       fail(guards, log, "start_run rejected", { error: (e as Error).message });
     }
     guards.recordActionResult(true);
-    guards.recordRunStarted();
+    guards.recordRunStarted(runUnits);
     // [session 31, CODEXREVIEW #8] Committed spend, recorded the moment
     // start_run succeeds — independent of whatever the account balance does
     // afterward (in-run regen, an external ROM claim). This is now the
     // guard's ledger of record; the before/after read in `main()` is a
-    // diagnostic only. See src/orchestrator/energyAccounting.ts.
-    guards.recordEnergySpent(config.energyCostPerRun);
+    // diagnostic only. See src/orchestrator/energyAccounting.ts. `estimatedCost`
+    // here is the same juiced-aware figure used for the pre-spend gate above
+    // — the live before/after energy read in `main()` remains the diagnostic
+    // ground truth per CLAUDE.md §1, this is only the guard's own ledger.
+    guards.recordEnergySpent(estimatedCost);
     saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath); // [session 09] persist immediately — see guardPersistence.ts
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
@@ -1023,7 +1089,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
 // CLI entry point.
 // ---------------------------------------------------------------------------
 
-function parseArgs(argv: string[]) {
+export function parseArgs(argv: string[]) {
   const dryRun = argv.includes("--dry-run");
   const stage2 = argv.includes("--stage2");
   const status = argv.includes("--status");
@@ -1059,6 +1125,23 @@ function parseArgs(argv: string[]) {
   // itself start this invocation — see the runOnce comment at the "existing"
   // branch for why. Absence is fail-closed (refuse), not fail-open.
   const resumeExisting = argv.includes("--resume-existing");
+  // [session 42, Task 14] `--juiced` only takes effect on a genuinely new
+  // start_run (never a resume — a resumed run's juiced status was already
+  // decided by whoever originally started it, see runOnce's "existing"
+  // branch). `--juiced-index=N` is required alongside it and NOT defaulted
+  // to the one confirmed live value (3) — TASKS.md Task 14 states plainly
+  // that "index == tier" is not yet confirmed in general, so guessing it
+  // here would be exactly the class of mistake CLAUDE.md §2 forbids.
+  const juiced = argv.includes("--juiced");
+  const juicedIndexArg = argv.find((a) => a.startsWith("--juiced-index="));
+  const juicedIndex = juicedIndexArg ? Number(juicedIndexArg.split("=")[1]) : undefined;
+  if (juiced && juicedIndex === undefined) {
+    throw new Error(
+      `--juiced was passed but --juiced-index=N was not — the loop refuses to guess which tier/offering index to ` +
+        `send. The one confirmed live value is index 3 (a Tier-3 pick, DECISIONS.md 2026-08-18) but "index == tier" ` +
+        `in general is NOT yet confirmed (TASKS.md Task 14) — pass the index explicitly.`,
+    );
+  }
   return {
     dryRun,
     stage2,
@@ -1070,6 +1153,8 @@ function parseArgs(argv: string[]) {
     potionThreshold,
     potionsUsed,
     resumeExisting,
+    juiced,
+    juicedIndex,
   };
 }
 
@@ -1243,6 +1328,9 @@ async function main() {
   if (args.probeConsumablesItemId !== undefined) {
     console.log(`  · --probe-consumables=${args.probeConsumablesItemId}: next genuinely new start_run will send consumables: [${args.probeConsumablesItemId}].`);
   }
+  if (args.juiced) {
+    console.log(`  · --juiced: next genuinely new start_run will send isJuiced:true, index ${args.juicedIndex}.`);
+  }
   // Session 17: potions default ON, but ONLY within an explicit user-set
   // allowlist (config.potions, config/bot.json's forbiddenWoods.potions) —
   // NOT by auto-detecting whatever heal item happens to sit in inventory.
@@ -1254,6 +1342,17 @@ async function main() {
   // still a manual override (a human typing the flag IS the intent) but
   // stays pinned to the config-allowed item; it cannot smuggle in a
   // different item id.
+  //
+  // [session 42, Task 14] The AUTO-detect-from-config branch below is now
+  // gated behind `args.juiced` — session 24's incident (DECISIONS.md
+  // 2026-08-17) was exactly this branch applying unconditionally to a plain
+  // run because there was no juiced-vs-plain distinction in code yet. The
+  // user's directive from that incident is unconditional: "non-juiced runs
+  // must NEVER use potions." An explicit `--potions=N` still works (it's
+  // also what a `--resume-existing` of an already-juiced run needs — that
+  // run's potions were committed by whoever started it, not by this gate),
+  // but the automatic default-to-configured-allowlist behavior no longer
+  // fires for a plain new start_run.
   let potionItemId = config.potions?.allowedItemId;
   let potionCount = args.potionCount;
   if (potionCount === undefined) {
@@ -1261,6 +1360,14 @@ async function main() {
       potionCount = 0;
       console.log(
         `  · potions: NOT configured (config/bot.json's forbiddenWoods.potions is absent) -> loading 0. This is the safe default, not a bug.`,
+      );
+    } else if (!args.juiced) {
+      potionCount = 0;
+      console.log(
+        `  · potions: config/bot.json has forbiddenWoods.potions configured, but --juiced was not passed -> loading 0. ` +
+          `[Task 14] Potions auto-load only for a genuinely new JUICED start_run now (session 24 directive: "non-juiced ` +
+          `runs must NEVER use potions"). Pass --potions=N explicitly to override (e.g. resuming an already-juiced run), ` +
+          `or pass --juiced to start a new one.`,
       );
     } else {
       const balances = await client.getItemsBalances();
@@ -1318,12 +1425,22 @@ async function main() {
           log,
           dryRun: args.dryRun,
           probeUseItem: probeUseItemState,
+          // [session 42, Task 14] `args.juiced &&` is the structural
+          // enforcement point for "never load potions into a plain run" —
+          // regardless of how `potionCount`/`potionItemId` got set (explicit
+          // `--potions=N` or, once `--juiced` gates it above, config
+          // auto-detect), a genuinely new start_run only carries them into
+          // `data.consumables` when this invocation is actually starting a
+          // juiced run. A `--resume-existing` invocation never reaches this
+          // branch at all (see runOnce's "existing" branch), so resuming an
+          // already-juiced run's own committed potions is unaffected.
           startConsumables:
             args.probeConsumablesItemId !== undefined
               ? [args.probeConsumablesItemId]
-              : potionCount > 0 && potionItemId
+              : args.juiced && potionCount > 0 && potionItemId
                 ? Array(potionCount).fill(potionItemId)
                 : undefined,
+          juicedStartRun: args.juiced ? { index: args.juicedIndex! } : undefined,
           potionPolicy: potionPolicyState,
           opponentModelPersistence,
           playCountsPersistence,

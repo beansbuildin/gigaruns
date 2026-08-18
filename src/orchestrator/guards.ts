@@ -70,11 +70,19 @@ export class GuardState {
     return this.runsStarted;
   }
 
-  /** Call before sending the action that starts a new dungeon run. */
-  assertCanStartRun(estimatedEnergyCost: number): void {
-    if (this.runsStarted + 1 > this.budget.maxRunsPerSession) {
+  /**
+   * Call before sending the action that starts a new dungeon run.
+   * `runUnits` defaults to 1 (an ordinary run) — [session 42, Task 14] a
+   * juiced Forbidden Woods run consumes 3 of the 12 daily run-count units,
+   * not 1 (SPEC.md's Juiced run-mode section, user-confirmed against the
+   * real `dayProgressEntities` counter moving 3→6 after one juiced start).
+   * Passing 3 here is what makes the run-count half of that cost real to
+   * this guard instead of silently under-counted.
+   */
+  assertCanStartRun(estimatedEnergyCost: number, runUnits = 1): void {
+    if (this.runsStarted + runUnits > this.budget.maxRunsPerSession) {
       throw new GuardTrip("session run cap reached", {
-        attemptedRun: this.runsStarted + 1,
+        attemptedRun: this.runsStarted + runUnits,
         cap: this.budget.maxRunsPerSession,
       });
     }
@@ -87,9 +95,9 @@ export class GuardState {
     }
   }
 
-  /** Call once, when the run-starting action is actually sent. */
-  recordRunStarted(): void {
-    this.runsStarted++;
+  /** Call once, when the run-starting action is actually sent. `runUnits` — see `assertCanStartRun`'s doc comment. */
+  recordRunStarted(runUnits = 1): void {
+    this.runsStarted += runUnits;
   }
 
   /**

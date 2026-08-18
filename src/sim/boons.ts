@@ -985,6 +985,46 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-17-21-17-23/state-013",
     options: [opt("AddIntuition", 1), opt("SecondWind", 5), opt("UpgradePaper", 0, 4)],
   },
+  // [session 42] The user's resumed juiced Tier-3 run (TASKS.md Task 14 §0)
+  // reached room 7 before dying — this run's own five new room-1..5 offers,
+  // in order.
+  {
+    room: 1,
+    source: "run-2026-08-18-19-50-14/state-019",
+    options: [opt("AddLuck", 1), opt("AddBlock", 2), opt("AddLuck", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-18-19-50-14/state-035",
+    options: [opt("AddBlock", 2), opt("AddEvasion", 1), opt("AddMaxArmor", 8)],
+  },
+  {
+    // Largest `Heal` val1 seen in the corpus to date (50, vs. the next
+    // highest 16) — offered, not modelled differently; `BOON_MODELS["Heal"]`
+    // already reads `selectedVal1` directly rather than a hardcoded amount.
+    room: 3,
+    source: "run-2026-08-18-19-50-14/state-055",
+    options: [opt("Heal", 50), opt("TieWeak", 1), opt("UpgradePaper", 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-18-19-50-14/state-069",
+    options: [opt("AddBurnSword", 3), opt("AddEvasion", 1), opt("AddTenacity", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-18-19-50-14/state-085",
+    options: [opt("BurningEvade", 8), opt("AddIntuition", 1), opt("AddBurnSword", 3)],
+  },
+  {
+    // First-ever room-6 offer — unblocked by this session's new
+    // `ROOM_ENEMIES` room-6 entry (`roomOf("Enemy Room 68")` was previously
+    // -1, so `boonPickups` silently excluded this pickup; see
+    // src/sim/enemies.ts).
+    room: 6,
+    source: "run-2026-08-18-19-50-14/state-109",
+    options: [opt("AddVulnerableMagic", 2), opt("UpgradeScissor", 4), opt("AddLuck", 1)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

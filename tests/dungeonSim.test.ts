@@ -118,14 +118,21 @@ describe("fail-closed accounting", () => {
     expect(seenCleanPick, "no clean type was ever picked at room 1 across 200 seeds").toBeGreaterThan(0);
   });
 
-  it("[session 08, LIVE] a Safe-tier walk now clears rooms 1-4 and only halts at room 5 (DEPTH_BEYOND_CORPUS)", () => {
+  it("[session 42] a Safe-tier walk clears rooms 1-5 and halts at room 6 (NO_TIER_CAPTURE, not DEPTH_BEYOND_CORPUS)", () => {
     // always-Sword against always-Shield loses every exchange, so force the
     // clears with a policy that beats the opponent outright every time.
     // Room 3 (enemy 65) HAD never been captured at Safe tier through session
     // 07 — session 08 closed that gap live (the bot's own play, not a
-    // supervised human capture). Every room 1-4 now has a Safe-tier capture,
-    // so a default Safe-tier walk has no NO_TIER_CAPTURE wall left to hit at
-    // all; the only remaining wall is genuinely unexplored depth.
+    // supervised human capture). Rooms 1-5 now each have a Safe-tier capture.
+    // [session 42] Room 6 (Enemy Room 68) is a NEW capture this session, but
+    // it was NOT offered at Safe tier live (`enemyPathOptions[]` offered
+    // {Dangerous, Dangerous, Risky}, no tier 0 at all — see enemies.ts's
+    // room-6 entry) — so `MAX_OBSERVED_ROOM` grew to 7 (room 6 and 7 both
+    // now captured) while the default Safe-tier walk's own wall moved from
+    // "genuinely unexplored depth" back to "known room, wrong tier" at room
+    // 6 specifically. This is the SAME NO_TIER_CAPTURE wall shape session
+    // 08 closed for room 3, reappearing one room deeper — not a regression,
+    // a real capture gap this run didn't happen to fill.
     const r = simulateRun({
       policy: fixedPolicy("paper"),
       opponent: fixedPolicy("rock"), // Shield beats Sword, every exchange
@@ -133,9 +140,10 @@ describe("fail-closed accounting", () => {
       seed: 1,
       maxRooms: MAX_OBSERVED_ROOM + 3,
     });
-    expect(r.reasons).toContain("DEPTH_BEYOND_CORPUS");
+    expect(r.reasons).toContain("NO_TIER_CAPTURE");
+    expect(r.reasons).not.toContain("DEPTH_BEYOND_CORPUS");
     expect(r.outcome).toBe("halted");
-    expect(r.roomsCleared).toBe(MAX_OBSERVED_ROOM);
+    expect(r.roomsCleared).toBe(5);
   });
 
   it("marks a run that starts past the corpus DEPTH_BEYOND_CORPUS rather than extrapolating", () => {

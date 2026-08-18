@@ -69,6 +69,28 @@ describe("GuardState — session run cap", () => {
   });
 });
 
+describe("GuardState — runUnits (session 42, Task 14 — a juiced run consumes 3 units, not 1)", () => {
+  it("recordRunStarted(3) advances runCount by 3 in one call, not 1", () => {
+    const g = new GuardState(BUDGET);
+    g.assertCanStartRun(60, 3);
+    g.recordRunStarted(3);
+    expect(g.runCount).toBe(3);
+  });
+
+  it("assertCanStartRun(cost, 3) trips when 3 units would exceed the cap even though 1 unit wouldn't", () => {
+    const g = new GuardState(BUDGET, { runsStarted: 1 });
+    expect(() => g.assertCanStartRun(20, 1)).not.toThrow();
+    expect(() => g.assertCanStartRun(60, 3)).toThrow(GuardTrip);
+  });
+
+  it("omitting runUnits still defaults to 1 — existing plain-run call sites are unaffected", () => {
+    const g = new GuardState(BUDGET);
+    g.assertCanStartRun(20);
+    g.recordRunStarted();
+    expect(g.runCount).toBe(1);
+  });
+});
+
 describe("GuardState — recordServerCapReached (session 29, CODEXREVIEW #6)", () => {
   it("marks the session cap exhausted, so a subsequent assertCanStartRun trips", () => {
     const g = new GuardState(BUDGET);

@@ -81,16 +81,18 @@ describe("resolveExchange", () => {
     // [session 09] PLAYER.moves.scissor.def was 12 (up from 8 through session
     // 08 — +4 Spell DEF gear). [session 11] Reverted to 8 — a gear re-spec
     // away from Spell. [session 23] Re-spec'd back to Spell-favoring, DEF 13
-    // (see enemies.ts's PLAYER doc); starting armor kept low enough to stay
-    // clear of the armorMax 16 cap so this demonstrates plain regen, not the
-    // cap.
+    // (see enemies.ts's PLAYER doc). [session 42] DEF 13 → 15 (another gear
+    // change); starting armor set to 0 (was 2) to stay clear of the new
+    // armorMax 17 cap — at armor 2 the regen would land EXACTLY at the cap
+    // (2+15=17=armorMax), which would no longer clearly demonstrate plain
+    // regen rather than cap-clamping.
     const state: BattleState = {
-      me: { ...me(), armor: 2 },
+      me: { ...me(), armor: 0 },
       foe: { ...e63(), charges: 3 } as Combatant,
       room: 1,
     };
     const { state: next } = resolveExchange(state, "scissor", "paper"); // Spell beats Shield
-    expect(next.me.armor).toBe(15); // 2 + 13, well under the cap of 16
+    expect(next.me.armor).toBe(15); // 0 + 15, well under the cap of 17
   });
 
   it("wastes armor regenerated above the cap", () => {

@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildBattleState,
   buildEnvelope,
+  buildJuicedStartRunEnvelope,
   buildPathSelectionEnvelope,
   classifyPhase,
   findRealRunsToday,
@@ -25,6 +26,7 @@ import {
   locateLowestTierOption,
   locateRewardOption,
   moveToAction,
+  parseArgs,
   postWithVerifiedRetry,
   ResumeConfirmationRequired,
   RunLog,
@@ -218,6 +220,29 @@ describe("buildPathSelectionEnvelope", () => {
       actionToken: "",
       data: { consumables: [], isJuiced: false, index: 0, itemId: 0, expectedAmount: 0, gearInstanceIds: [], devBoons: [] },
     });
+  });
+});
+
+describe("buildJuicedStartRunEnvelope", () => {
+  it("matches the real juiced start_run envelope captured live — session 42, Task 14 (DECISIONS.md 2026-08-18, out-of-band)", () => {
+    expect(buildJuicedStartRunEnvelope(5, 3, [131, 131, 131])).toEqual({
+      action: "start_run",
+      dungeonId: 5,
+      actionToken: "",
+      data: {
+        consumables: [131, 131, 131],
+        isJuiced: true,
+        index: 3,
+        itemId: 0,
+        expectedAmount: 0,
+        gearInstanceIds: [],
+        devBoons: [],
+      },
+    });
+  });
+
+  it("defaults consumables to an empty array when none are passed", () => {
+    expect(buildJuicedStartRunEnvelope(5, 3).data.consumables).toEqual([]);
   });
 });
 
@@ -736,6 +761,87 @@ describe("runOnce — committed energy spend (session 31, CODEXREVIEW #8)", () =
     await p;
 
     expect(deps.guards.spentEnergy).toBe(0);
+  });
+});
+
+describe("runOnce — juiced start_run (session 42, Task 14)", () => {
+  it("sends the buildJuicedStartRunEnvelope shape, not the ordinary buildEnvelope shape, when deps.juicedStartRun is set", async () => {
+    let postedBody: unknown = null;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+        if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        postedBody = JSON.parse(init!.body as string);
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = { ...makeDeps(false), juicedStartRun: { index: 3 }, startConsumables: [131, 131, 131] };
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(postedBody).toEqual({
+      action: "start_run",
+      dungeonId: TEST_CONFIG.dungeonId,
+      actionToken: "",
+      data: {
+        consumables: [131, 131, 131],
+        isJuiced: true,
+        index: 3,
+        itemId: 0,
+        expectedAmount: 0,
+        gearInstanceIds: [],
+        devBoons: [],
+      },
+    });
+  });
+
+  it("commits 3x the configured energyCostPerRun and 3 run units — a juiced run's real cost, not an ordinary run's", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+        if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = { ...makeDeps(false), juicedStartRun: { index: 3 } };
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(deps.guards.spentEnergy).toBe(TEST_CONFIG.energyCostPerRun * 3);
+    expect(deps.guards.runCount).toBe(3);
+  });
+
+  it("a plain (non-juiced) start_run is byte-for-byte unchanged — no juicedStartRun dep means the ordinary buildEnvelope path", async () => {
+    let postedBody: unknown = null;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+        if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        postedBody = JSON.parse(init!.body as string);
+        return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+      }),
+    );
+    const deps = makeDeps(false);
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(postedBody).toEqual({
+      action: "start_run",
+      dungeonId: TEST_CONFIG.dungeonId,
+      actionToken: 0,
+      data: { consumables: [], isJuiced: false, index: 0 },
+    });
+    expect(deps.guards.spentEnergy).toBe(TEST_CONFIG.energyCostPerRun);
+    expect(deps.guards.runCount).toBe(1);
   });
 });
 
@@ -1368,5 +1474,29 @@ describe("RunLog — constructor path override (session 41)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("parseArgs — --juiced / --juiced-index (session 42, Task 14)", () => {
+  it("defaults juiced to false and juicedIndex to undefined when neither flag is passed", () => {
+    const args = parseArgs([]);
+    expect(args.juiced).toBe(false);
+    expect(args.juicedIndex).toBeUndefined();
+  });
+
+  it("parses --juiced with --juiced-index=N", () => {
+    const args = parseArgs(["--juiced", "--juiced-index=3"]);
+    expect(args.juiced).toBe(true);
+    expect(args.juicedIndex).toBe(3);
+  });
+
+  it("refuses to guess the index — throws rather than defaulting when --juiced is passed without --juiced-index", () => {
+    expect(() => parseArgs(["--juiced"])).toThrow(/juiced-index/);
+  });
+
+  it("--juiced-index alone (without --juiced) is parsed but inert — juiced stays false", () => {
+    const args = parseArgs(["--juiced-index=3"]);
+    expect(args.juiced).toBe(false);
+    expect(args.juicedIndex).toBe(3);
   });
 });

@@ -135,8 +135,13 @@ describe("player loadout matches the fixtures", () => {
     // a +2 AddMaxArmor offer); 42/26 is +10 armorMax (one run's room-3 offer
     // was AddMaxArmor val1 10, a bigger roll than any prior sighting).
     // Neither is a new starting loadout.
+    // [session 42] Two new combos, from the resumed juiced Tier-3 run
+    // (TASKS.md Task 14 §0): 43/17 is the new starting loadout (hpMax
+    // 42→43, armorMax 16→17 — see src/sim/enemies.ts's PLAYER doc); 43/25 is
+    // 43/17 mid-run AFTER an AddMaxArmor(8) pickup at room 2 (armorMax +8),
+    // not a second new starting loadout — same shape as 34/20 above.
     expect([...seen].sort()).toEqual([
-      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "42/16", "42/18", "42/26", "50/16",
+      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16",
     ]);
   });
 });

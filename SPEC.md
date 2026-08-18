@@ -760,6 +760,22 @@ run-2026-08-15-15-38-09/state-{054,079,110}.json`:
 `src/sim/dungeonReport.ts` reads this field for its run-visibility report
 (`scripts/dungeonReport.ts`); see its own header comment for the extraction.
 
+**[CONFIRMED 2026-08-18, session 42, LIVE — juiced runs specifically] The 3x
+juiced reward multiplier is implemented as THREE DUPLICATE credit entries of
+the BASE amount, not one entry with a tripled amount.** On a juiced run's
+kill-crediting response, `gameItemBalanceChanges` carried
+`[{id:846,amount:5,...},{id:846,amount:5,...},{id:846,amount:5,...}]` — base
+amount 5 (matching the user's own "5 Dendren Root" reference point,
+DECISIONS 2026-08-17 session 23), credited three separate times rather than
+one `amount: 15` entry. Held at every kill in the same run (9→27, 14→42,
+19→57, 25→75, 31→93 — always three identical entries summing to 3x base).
+Currency credits (item 845, Hard Core) on that same run's reward-pick
+responses were single (non-tripled) entries — not yet explained, and out of
+scope for this finding. A caller that reads `gameItemBalanceChanges` and sums
+by item id (as `dungeonReport.ts` does) gets the correct 3x total either way;
+a caller that reads only the first matching entry would silently undercount
+a juiced run by 2/3.
+
 ---
 
 ## 4. Dungeon strategy

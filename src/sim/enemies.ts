@@ -107,17 +107,23 @@ export const DANGEROUS_TIER = 2;
  * `paper` (Shield) and `armorMax` unchanged. Same non-monotonic gear-respec
  * pattern as session 15 — re-measure any cross-session comparison rather
  * than quoting an older number.
+ *
+ * [session 42] Updated to the newest unbooned capture (the resumed juiced
+ * Tier-3 run's own state-000, `pickedBoons: []`, TASKS.md Task 14 §0):
+ * hpMax 42 → 43 (+1), armorMax 16 → 17 (+1), scissor (Spell) DEF 13 → 15
+ * (+2, ATK unchanged at 18) — a gear change between sessions, not a regen/
+ * boon effect (this state has zero picked boons). `rock`/`paper` unchanged.
  */
 export const PLAYER: Combatant = {
   id: "player",
-  hp: 42,
-  hpMax: 42,
-  armor: 16,
-  armorMax: 16,
+  hp: 43,
+  hpMax: 43,
+  armor: 17,
+  armorMax: 17,
   moves: {
     rock: mv(16, 0), // Sword — no gear boost currently equipped, session 23
     paper: mv(6, 12), // Shield
-    scissor: mv(18, 13), // Spell — +6 ATK / +5 DEF gear, session 23
+    scissor: mv(18, 15), // Spell — +6 ATK / +7 DEF gear, session 42 (DEF +2 over session 23)
   },
   // The player starts every run with all rolled stats at zero; the only way
   // they become non-zero is a boon (src/sim/boons.ts).
@@ -296,6 +302,50 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       armor: 18,
       armorMax: 18,
       moves: { rock: mv(15, 8), paper: mv(12, 6), scissor: mv(18, 4) },
+      rolled: rolled(),
+    },
+  },
+  {
+    room: 6,
+    tier: RISKY_TIER,
+    // [session 42, LIVE] First-ever room-6 capture — the resumed juiced
+    // Tier-3 run (TASKS.md Task 14 §0) cleared rooms 1-5 and reached room 6.
+    // `enemyPathOptions[]` offered NO Safe (tier 0) option at all here
+    // (`{2, 2, 1}` — Dangerous, Dangerous, Risky), same "not guaranteed"
+    // behavior DECISIONS 2026-08-15 (session 09) already documented —
+    // `pickLowestTierOption` correctly took the lowest offered, tier 1
+    // ("withering": "Applies 1 Weak on Magic wins"). rolledEnemyStats
+    // evasion2/block3/lck2/tenacity1, confirmed against the actual captured
+    // battle state (fixtures/dungeon-runs/run-2026-08-18-19-50-14/
+    // state-089.json), not just the pre-pick offer. Diagnostic only — no
+    // Safe-tier capture of this enemy exists yet.
+    unmodelled: ["ROLLED_STATS", "ENEMY_BUFF"],
+    enemy: {
+      id: "Enemy Room 68",
+      hp: 48,
+      hpMax: 48,
+      armor: 20,
+      armorMax: 20,
+      moves: { rock: mv(18, 6), paper: mv(14, 8), scissor: mv(12, 6) },
+      rolled: rolled({ evasion: 2, block: 3, lck: 2, tenacity: 1 }),
+    },
+  },
+  {
+    room: 7,
+    tier: SAFE_TIER,
+    // [session 42, LIVE] First-ever room-7 capture, same run as room 6 above
+    // — this is the deepest room this corpus has ever reached (the run died
+    // here, room-7 HP 0/43, per STATE.md). `enemyPathOptions[0]` (Safe, taken
+    // per CLAUDE.md §8): rolledEnemyStats all zero, enemyBuff null, confirmed
+    // against the actual battle state (state-113.json). Clean.
+    unmodelled: [],
+    enemy: {
+      id: "Enemy Room 69",
+      hp: 50,
+      hpMax: 50,
+      armor: 22,
+      armorMax: 22,
+      moves: { rock: mv(20, 5), paper: mv(16, 10), scissor: mv(14, 7) },
       rolled: rolled(),
     },
   },
