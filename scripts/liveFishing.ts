@@ -626,9 +626,9 @@ export class FixtureWriter {
 
 export class RunLog {
   private readonly path: string;
-  constructor() {
-    mkdirSync("logs", { recursive: true });
-    this.path = join("logs", `fishing-${stamp()}.jsonl`);
+  constructor(dir: string = "logs") {
+    mkdirSync(dir, { recursive: true });
+    this.path = join(dir, `fishing-${stamp()}.jsonl`);
   }
   write(entry: Record<string, unknown>): void {
     writeFileSync(this.path, JSON.stringify({ ts: new Date().toISOString(), ...entry }) + "\n", { flag: "a" });

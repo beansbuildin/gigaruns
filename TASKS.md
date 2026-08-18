@@ -1004,13 +1004,21 @@ CLAUDE.md §6):**
 > the sim's ranking against, and whether the sim and live agree on the
 > handful that do.
 
-**What would unpark it:** (1) the deck-aware `simulateCast` prerequisite
-built (cheap, no new capture needed — see above), AND (2) enough real
-catches that the "1 live choice" validation floor becomes double digits,
-so a sim-vs-live comparison has more than one point to check. Neither
-alone is sufficient — infrastructure without validation data just produces
-a confident-looking number with the same unearned confidence Task 11
-already found and rejected once.
+**What would unpark it — corrected 2026-08-18, session 41: condition (1) is
+DONE, not pending.** This paragraph originally listed the deck-aware
+`simulateCast` prerequisite as still needing to be built; it already was,
+session 26 — `src/sim/fishing/castSim.ts`'s `CastOptions.deckIds` (line
+~183, header comment `[ADDED session 26, Task 13 infrastructure]`) draws
+hands from an explicit passed-in deck when supplied, exactly the
+capability this paragraph asked for. The session-27 addendum below already
+treated this as existing infrastructure; this paragraph had not been
+updated to match and the two contradicted each other. The only remaining
+condition is (2): enough real catches that the "1 live choice" validation
+floor becomes double digits, so a sim-vs-live comparison has more than one
+point to check. Infrastructure without validation data would still just
+produce a confident-looking number with the same unearned confidence Task
+11 already found and rejected once — this task stays parked on data, not
+code.
 
 **First real candidate, sourced not invented — added 2026-08-17, session
 27.** The session-27 brief reports the user's own manual-play heuristic for

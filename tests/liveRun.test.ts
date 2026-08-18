@@ -8,7 +8,7 @@
  * `tests/api/client.test.ts` — nothing here touches the real network.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -27,6 +27,7 @@ import {
   moveToAction,
   postWithVerifiedRetry,
   ResumeConfirmationRequired,
+  RunLog,
   runOnce,
   selectEnemyPathByIndex,
   selectRewardByIndex,
@@ -1349,5 +1350,23 @@ describe("runOnce — opponent-model live-observe double-count fix (session 36, 
     expect(imported).toBe(1); // only the genuinely-new canary — the live one is skipped, not re-counted
     expect(restarted.model.observations(key)).toBe(2); // 1 persisted (live) + 1 newly imported (canary), UNCHANGED from double-counting the live one
     expect(restarted.bootstrapImportedIds.size).toBe(2); // live exchange + the newly-imported canary
+  });
+});
+
+describe("RunLog — constructor path override (session 41)", () => {
+  it("writes into a passed directory, not the real \"logs\"", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-runlog-test-"));
+    try {
+      const log = new RunLog(dir);
+      log.write({ kind: "test-entry" });
+
+      expect(existsSync(log.filePath)).toBe(true);
+      expect(log.filePath.startsWith(dir)).toBe(true);
+      expect(log.filePath.startsWith("logs")).toBe(false);
+      const contents = readFileSync(log.filePath, "utf8");
+      expect(contents).toContain("test-entry");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

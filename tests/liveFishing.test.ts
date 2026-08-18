@@ -27,6 +27,7 @@ import {
   NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS,
   NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND,
   nextPositionOverrideStats,
+  RunLog,
   runOneCast,
   unknownDocKeys,
   wilsonLowerBound,
@@ -846,6 +847,24 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
       expect(logged.some((l) => l.includes("contextual fallback: 1 (cell, previous-direction) key(s) from 3 clean logged cast(s)"))).toBe(true);
     } finally {
       logSpy.mockRestore();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("RunLog — constructor path override (session 41)", () => {
+  it("writes into a passed directory, not the real \"logs\"", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-runlog-fishing-test-"));
+    try {
+      const log = new RunLog(dir);
+      log.write({ kind: "test-entry" });
+
+      expect(existsSync(log.filePath)).toBe(true);
+      expect(log.filePath.startsWith(dir)).toBe(true);
+      expect(log.filePath.startsWith("logs")).toBe(false);
+      const contents = readFileSync(log.filePath, "utf8");
+      expect(contents).toContain("test-entry");
+    } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
