@@ -64,6 +64,57 @@ describe("loadOpponentModel", () => {
     );
     expect(() => loadOpponentModel(path)).toThrow(OpponentModelPersistenceError);
   });
+
+  // [session 37, CODEXAUDIT #6] A real observation count can never be
+  // negative or fractional — `observe()` only ever increments by 1. A
+  // persisted file carrying either is corruption, not an unusual-but-valid
+  // count, and must fail closed the same way a bad schemaVersion does.
+  const zeroKey = { total: { rock: 0, paper: 0, scissor: 0 }, transitions: { rock: { rock: 0, paper: 0, scissor: 0 }, paper: { rock: 0, paper: 0, scissor: 0 }, scissor: { rock: 0, paper: 0, scissor: 0 } } };
+
+  it("throws OpponentModelPersistenceError on a negative count", () => {
+    const keys = { "enemy1|room1": { ...zeroKey, total: { rock: -1, paper: 0, scissor: 0 } } };
+    writeFileSync(path, JSON.stringify({ schemaVersion: OPPONENT_MODEL_SCHEMA_VERSION, keys, bootstrapImportedIds: [] }));
+    expect(() => loadOpponentModel(path)).toThrow(OpponentModelPersistenceError);
+  });
+
+  it("throws OpponentModelPersistenceError on a fractional count", () => {
+    const keys = { "enemy1|room1": { ...zeroKey, total: { rock: 1.5, paper: 0, scissor: 0 } } };
+    writeFileSync(path, JSON.stringify({ schemaVersion: OPPONENT_MODEL_SCHEMA_VERSION, keys, bootstrapImportedIds: [] }));
+    expect(() => loadOpponentModel(path)).toThrow(OpponentModelPersistenceError);
+  });
+
+  // A transition FROM move X can only be recorded on a turn where X was
+  // ALSO the move played, so a row's sum can never exceed X's own marginal
+  // count — structurally impossible under `observe()`'s own accounting.
+  it("throws OpponentModelPersistenceError when a transition row's sum exceeds its marginal predecessor count", () => {
+    const keys = {
+      "enemy1|room1": {
+        total: { rock: 1, paper: 0, scissor: 0 }, // "rock" was only ever played once...
+        transitions: {
+          rock: { rock: 0, paper: 5, scissor: 0 }, // ...but 5 transitions are claimed FROM it
+          paper: { rock: 0, paper: 0, scissor: 0 },
+          scissor: { rock: 0, paper: 0, scissor: 0 },
+        },
+      },
+    };
+    writeFileSync(path, JSON.stringify({ schemaVersion: OPPONENT_MODEL_SCHEMA_VERSION, keys, bootstrapImportedIds: [] }));
+    expect(() => loadOpponentModel(path)).toThrow(OpponentModelPersistenceError);
+  });
+
+  it("accepts a transition row whose sum is exactly equal to its marginal predecessor count (boundary, not corruption)", () => {
+    const keys = {
+      "enemy1|room1": {
+        total: { rock: 5, paper: 0, scissor: 0 },
+        transitions: {
+          rock: { rock: 0, paper: 5, scissor: 0 }, // every rock play transitioned onward — legitimate if none was the battle's last move
+          paper: { rock: 0, paper: 0, scissor: 0 },
+          scissor: { rock: 0, paper: 0, scissor: 0 },
+        },
+      },
+    };
+    writeFileSync(path, JSON.stringify({ schemaVersion: OPPONENT_MODEL_SCHEMA_VERSION, keys, bootstrapImportedIds: [] }));
+    expect(() => loadOpponentModel(path)).not.toThrow();
+  });
 });
 
 describe("saveOpponentModelAtomically", () => {

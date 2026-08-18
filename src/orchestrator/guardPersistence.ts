@@ -42,9 +42,11 @@
  *     the process, not just around one write.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
+
+import { atomicWriteJson } from "./atomicWrite.js";
 
 export class GuardPersistenceError extends Error {
   constructor(message: string) {
@@ -155,16 +157,13 @@ export function loadGuardBudget(path: string = DEFAULT_GUARD_STATE_PATH): { ener
  * Overwrites today's persisted spend. Call after every `GuardState` mutation
  * that changes `spentEnergy`/`runCount` (`recordEnergySpent`,
  * `recordRunStarted`) so a crash mid-run loses at most the in-flight action,
- * never previously-completed accounting. Writes through a sibling temp file
- * and renames it into place (atomic on the same filesystem) — see this
- * file's header comment, fix 2.
+ * never previously-completed accounting. Writes through `atomicWrite.ts`'s
+ * shared `atomicWriteJson` — sibling temp file, fsynced, renamed into place
+ * — see this file's header comment, fix 2, and CODEXAUDIT #5 (session 37).
  */
 export function saveGuardBudget(energySpent: number, runsStarted: number, path: string = DEFAULT_GUARD_STATE_PATH): void {
-  mkdirSync(dirname(path), { recursive: true });
   const body: PersistedGuardBudget = { date: todayKey(), energySpent, runsStarted };
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  writeFileSync(tmp, JSON.stringify(body, null, 2));
-  renameSync(tmp, path);
+  atomicWriteJson(path, body);
 }
 
 // ---------------------------------------------------------------------------

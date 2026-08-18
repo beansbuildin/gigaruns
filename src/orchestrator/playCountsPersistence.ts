@@ -44,10 +44,11 @@
  * `opponentModelPersistence.ts` already followed.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 
+import { atomicWriteJson } from "./atomicWrite.js";
 import type { MoveKey } from "../sim/types.js";
 
 export class PlayCountsPersistenceError extends Error {
@@ -120,21 +121,18 @@ export function loadPlayCounts(runId: number, path: string = DEFAULT_PLAY_COUNTS
  * same "persist immediately" discipline as `guardPersistence.ts`'s
  * `saveGuardBudget` and `opponentModelPersistence.ts`'s
  * `saveOpponentModelAtomically`, so a crash mid-run loses at most the
- * in-flight play, never previously-logged ones. Writes through a sibling
- * temp file and renames it into place (atomic on the same filesystem) — same
- * pattern as the other two persistence modules, reused rather than
- * reinvented.
+ * in-flight play, never previously-logged ones. Writes through
+ * `atomicWrite.ts`'s shared `atomicWriteJson` — sibling temp file, fsynced,
+ * renamed into place — same pattern as the other two persistence modules,
+ * reused rather than reinvented (CODEXAUDIT #5, session 37).
  */
 export function savePlayCounts(runId: number, counts: Record<MoveKey, number>, path: string = DEFAULT_PLAY_COUNTS_PATH): void {
-  mkdirSync(dirname(path), { recursive: true });
   const body: PersistedPlayCounts = {
     schemaVersion: PLAY_COUNTS_SCHEMA_VERSION,
     runId,
     counts: { rock: counts.rock, paper: counts.paper, scissor: counts.scissor },
   };
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  writeFileSync(tmp, JSON.stringify(body, null, 2));
-  renameSync(tmp, path);
+  atomicWriteJson(path, body);
 }
 
 /**

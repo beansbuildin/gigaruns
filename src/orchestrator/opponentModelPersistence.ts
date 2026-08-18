@@ -63,13 +63,14 @@
  * second producer of, not a second question.
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
 
+import { atomicWriteJson } from "./atomicWrite.js";
 import { exchangeIdentity, exchanges, loadCorpus, type CorpusRun, type WireSide } from "../sim/corpus.js";
 import { ROOM_ENEMIES } from "../sim/enemies.js";
-import { type MoveKey } from "../sim/types.js";
+import { MOVES, type MoveKey } from "../sim/types.js";
 import { modelKey, OpponentModel, type Counts } from "../strategy/opponentModel.js";
 
 export class OpponentModelPersistenceError extends Error {
@@ -82,11 +83,29 @@ export class OpponentModelPersistenceError extends Error {
 export const OPPONENT_MODEL_SCHEMA_VERSION = 1;
 export const DEFAULT_OPPONENT_MODEL_PATH = join("data", "opponent-model.json");
 
-const DistributionSchema = z.object({ rock: z.number(), paper: z.number(), scissor: z.number() });
-const CountsSchema = z.object({
-  total: DistributionSchema,
-  transitions: z.object({ rock: DistributionSchema, paper: DistributionSchema, scissor: DistributionSchema }),
-});
+// [session 37, CODEXAUDIT #6] Counts are non-negative integers — a real
+// observation count can never be negative or fractional, so a persisted file
+// carrying either is corruption, not data, and must fail closed rather than
+// load as if it were legitimate (CLAUDE.md §5).
+const NonNegIntSchema = z.number().int().nonnegative();
+const DistributionSchema = z.object({ rock: NonNegIntSchema, paper: NonNegIntSchema, scissor: NonNegIntSchema });
+const distributionSum = (d: z.infer<typeof DistributionSchema>): number => MOVES.reduce((a, m) => a + d[m], 0);
+
+const CountsSchema = z
+  .object({
+    total: DistributionSchema,
+    transitions: z.object({ rock: DistributionSchema, paper: DistributionSchema, scissor: DistributionSchema }),
+  })
+  // A transition FROM move X can only be recorded (`observe()`'s
+  // `c.transitions[prev][move]++`) on a turn where X was ALSO the move
+  // played (`c.total[move]++` for X, on the prior turn) — so the row's total
+  // can never exceed X's own marginal count. A persisted file violating this
+  // isn't a legitimate-but-unlikely count, it's structurally impossible
+  // under `observe()`'s own accounting and must fail closed the same way a
+  // negative count would.
+  .refine((c) => MOVES.every((m) => distributionSum(c.transitions[m]) <= c.total[m]), {
+    message: "a transition row's sum must not exceed its marginal predecessor count",
+  });
 
 const PersistedOpponentModelSchema = z.object({
   schemaVersion: z.literal(OPPONENT_MODEL_SCHEMA_VERSION),
@@ -147,24 +166,22 @@ export function loadOpponentModel(path: string = DEFAULT_OPPONENT_MODEL_PATH): L
  * real game — CLAUDE.md's working-style precedent (`guardPersistence.ts`'s
  * `saveGuardBudget`, called after every guard mutation) is "persist
  * immediately," not "persist at exit," so a crash mid-run loses at most the
- * in-flight observation. Writes through a sibling temp file and renames it
- * into place (atomic on the same filesystem) — same pattern as
- * `guardPersistence.ts`'s `saveGuardBudget`, reused rather than reinvented.
+ * in-flight observation. Writes through `atomicWrite.ts`'s shared
+ * `atomicWriteJson` — sibling temp file, fsynced, renamed into place — same
+ * pattern `guardPersistence.ts`'s `saveGuardBudget` uses, reused rather than
+ * reinvented (CODEXAUDIT #5, session 37).
  */
 export function saveOpponentModelAtomically(
   model: OpponentModel,
   bootstrapImportedIds: Set<string>,
   path: string = DEFAULT_OPPONENT_MODEL_PATH,
 ): void {
-  mkdirSync(dirname(path), { recursive: true });
   const body: PersistedOpponentModel = {
     schemaVersion: OPPONENT_MODEL_SCHEMA_VERSION,
     keys: model.toJSON(),
     bootstrapImportedIds: [...bootstrapImportedIds].sort(),
   };
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  writeFileSync(tmp, JSON.stringify(body, null, 2));
-  renameSync(tmp, path);
+  atomicWriteJson(path, body);
 }
 
 interface BootstrapObservation {

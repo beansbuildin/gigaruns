@@ -1,126 +1,123 @@
-# STATE — session 36 — 2026-08-18 — commit 34dfbc7
+# STATE — session 37 — 2026-08-18 — commit b46631b (pre-session HEAD)
 
 ## Status
-Task "CODEXAUDIT #1: opponent-model live-observe double-count fix": **GATE
-PASS** (self-assessed against the brief's own bar — required scope fixed in
-both real entry points, named regression test added and confirmed to fail
-against the pre-fix code, full suite + tsc clean at the final commit).
-Stretch item (CODEXAUDIT #3, `playCountsPersistence` wired into
-`scripts/orchestrator.ts`) also done. No `TASKS.md` gate targeted, same as
-sessions 31-35.
-This session's real headline: **session 35's "both Codex docs fully closed"
-claim did NOT hold** — an independent audit (`CODEXAUDIT`, untracked file at
-repo root) found real gaps, three of which are confirmed and detailed in
-DECISIONS.md. Next: the Codex-derived backlog is genuinely smaller now but
-NOT empty — three items queued below, none attempted this session per the
-brief's explicit scope.
+Task "CODEXAUDIT #5: centralize durable atomic writes with a real fsync"
+(finishes CODEXREVIEW #2, open since session 28): **GATE PASS**, the
+session's whole required scope. Stretch item CODEXAUDIT #6 (opponent-model
+schema tightening — non-negative-int counts, transition-row-vs-marginal
+constraint) also done. No `TASKS.md` gate targeted, same as sessions 31-36 —
+this is Codex-backlog cleanup, not a numbered project task.
+Not attempted, per explicit brief scope: CODEXAUDIT #2 (fishing calibration)
+and CODEXAUDIT #4 (`nextPosition` gate) — both queued, neither started.
 
 ## What works
-- **The opponent-model live-observe double-count bug is fixed in both real
-  entry points** (`scripts/liveRun.ts` and `scripts/orchestrator.ts` — the
-  latter calls the SAME shared `runOnce()`, so one fix covers both). Root
-  cause: the live-observe call site called `model.observe()` and saved the
-  model on every combat exchange, but never marked that exchange's identity
-  into `bootstrapImportedIds` — so a restart's `bootstrapFromCorpus()` found
-  the fixture the live session had just written, saw its id absent from the
-  persisted ledger, and re-imported (double-counted) it. Fixed by giving the
-  live call site the SAME identity derivation `bootstrapFromCorpus()` already
-  used, via two new shared helpers in `src/sim/corpus.ts` (the sole
-  wire-shape-owning module): `exchangeLabel(beforeFile, afterFile)` and
-  `exchangeIdentity(run, label)`. `FixtureWriter.write()` now RETURNS the
-  file name it just wrote (was `void`) and gained a `runName` getter, so the
-  live call site can build `${runName}::${beforeTag}→${afterTag}` from its
-  own two most recent writes (GET-state "before", POST-response "after" —
-  always consecutive within one loop iteration; a probe/potion detour always
-  `continue`s back to a fresh GET before either tag is used, so it's never
-  stale). Verified: a NEW `runOnce()`-level regression test in
-  `tests/liveRun.test.ts` — real `FixtureWriter` against a temp dir, real
-  `loadOpponentModel`/`bootstrapFromCorpus`/`loadCorpus` (no mocks for any of
-  these) — drives one live combat exchange, confirms it's marked into the
-  ledger, simulates a restart's bootstrap pass against the SAME fixture root,
-  confirms the observation count is UNCHANGED (not doubled), and confirms a
-  genuinely new canary corpus exchange in a separate run directory still
-  imports normally. This test was manually confirmed to FAIL against the
-  pre-fix code (temporarily reverted the fix, re-ran, saw the expected
-  failure, restored the fix) before being trusted as a real regression guard.
-- **`scripts/orchestrator.ts` now wires `playCountsPersistence`** into its
-  `runOnce()` call, mirroring `liveRun.ts`'s `main()` exactly (same
-  `DEFAULT_PLAY_COUNTS_PATH`, same `acquireGuardLock` pattern) — closes
-  CODEXIMPROVE #5's actual remaining gap (session 35 shipped this only for
-  `liveRun.ts`, and overclaimed it as closing the whole item). No dedicated
-  orchestrator-level test exists for this — `orchestrator.ts`'s `main()`
-  isn't structured for unit testing (its own header already documents this:
-  scheduler/shutdown are unit-tested, `main()` is smoke-tested via
-  `--dry-run`/`--hours=`) — flagged honestly rather than claimed as covered.
-  The wiring itself routes through the same already-tested `runOnce()` and
-  the same `playCountsPersistence` shape `liveRun.ts` already exercises.
-- Tests: **533/533 passing** (+1 from session 35's 532: the new
-  double-count regression test). `npx tsc --noEmit` clean, `git diff --check`
-  clean, both checked at this session's final commit.
-- `handoff/DECISIONS.md` carries a full correction entry for session 35's
-  overclaim — see "Corrections" below, this is the load-bearing record.
+- **CODEXREVIEW #2 is now genuinely finished, not just partially** — the
+  temp-file+rename half shipped session 28; the flush half never did, across
+  any of the three persistence modules that copied the pattern since. New
+  `src/orchestrator/atomicWrite.ts` exports one shared `atomicWriteJson(path,
+  body)`: builds the same `${path}.tmp-${pid}-${Date.now()}-${rand}` name
+  every module already used, opens it with `openSync`/`writeSync` (not
+  `writeFileSync`, which never hands back a file descriptor to fsync),
+  `fsyncSync`s that descriptor, `closeSync`s it, `renameSync`s it into place,
+  then best-effort `fsyncSync`s the parent directory (own try/catch —
+  directory-fsync isn't supported everywhere, and a platform that can't do
+  it shouldn't fail the whole write). Any failure before the rename
+  completes cleans up the temp file before rethrowing.
+  `guardPersistence.ts`'s `saveGuardBudget`, `opponentModelPersistence.ts`'s
+  `saveOpponentModelAtomically`, and `playCountsPersistence.ts`'s
+  `savePlayCounts` all now call this one helper — mechanical extraction
+  only, no module-specific body-construction logic (`schemaVersion`, the
+  `bootstrapImportedIds` sort, etc.) touched. Grep-confirmed: the
+  `.tmp-${pid}` write pattern now exists in exactly one place in
+  `src/`/`scripts/` — `atomicWrite.ts` itself.
+- **What's actually proven vs. what's trusted, stated plainly, per the
+  brief's explicit instruction not to overclaim durability**: a unit test
+  cannot prove a write survives a real power loss — that stays a
+  filesystem/OS-level guarantee this project is trusting, not something it
+  can independently verify. What the new 8-test
+  `tests/orchestrator/atomicWrite.test.ts` DOES prove: `fsyncSync` is
+  actually invoked during a real save (spy-confirmed — the concrete gap
+  CODEXREVIEW #2 named, since the old code never even had a file descriptor
+  to fsync); a failed rename or a failed fsync both clean up the temp file
+  and rethrow, no orphaned `.tmp-*`; a failed *directory* fsync does NOT take
+  down an otherwise-good write; and all pre-existing round-trip/
+  corruption/atomic-write tests in the three original modules' test files
+  pass completely unchanged after the refactor (no behavioral regression).
+  Note on test mechanics: `vi.spyOn` cannot target Node's built-in ESM
+  module exports directly ("module namespace is not configurable") — used
+  `vi.mock("node:fs", { spy: true })` instead (auto-spies every export,
+  calls through to the real implementation by default).
+- **Opponent-model persistence schema tightened (CODEXAUDIT #6, stretch)**:
+  per-move counts are now `z.number().int().nonnegative()` (was bare
+  `z.number()`), and `CountsSchema` gained a `.refine()` rejecting any key
+  where a transition row's sum exceeds its marginal predecessor count — a
+  transition FROM move X can only be recorded on a turn where X was ALSO the
+  move actually played, so a row exceeding X's own marginal count is
+  structurally impossible under `OpponentModel.observe()`'s own accounting,
+  not an unusual-but-valid read. Both fail closed with
+  `OpponentModelPersistenceError`. 4 new tests (negative count, fractional
+  count, a violating row, and the exact-equality boundary case confirmed to
+  NOT throw).
+- Tests: **545/545 passing** (533 baseline + 8 new `atomicWrite.test.ts` + 4
+  new schema tests in `opponentModelPersistence.test.ts`). `npx tsc --noEmit`
+  clean, `git diff --check` clean, both checked at this session's final
+  commit. No real `data/*.json` path touched by any test — isolated
+  `mkdtempSync` + explicit path param throughout, same convention as every
+  prior persistence test file.
+- Full detail (the exact refine logic, the vi.mock rationale, the file-by-
+  file diff) is in `handoff/DECISIONS.md`'s two 2026-08-18 (session 37)
+  entries — read those before writing the next brief, not this summary.
 
 ## What's broken
 Nothing this session's changes broke — full suite green, tsc clean, diff
-clean, at the actual final commit. Three real gaps from the audit remain
-OPEN and unattempted this session, by explicit brief scope (see "Open
-questions" below) — not broken by this session, just not yet fixed:
-CODEXREVIEW #2's fsync gap, CODEXIMPROVE #3's fishing calibration
-regression, CODEXIMPROVE #6's `nextPosition` gate weakness. Other
-pre-existing items, unchanged since session 25: the scheduler can't learn
-about energy gained outside its own tracking, and a SIGINT during an
-energy-regen sleep still ends the whole session. QUESTIONS.md §15 (stuck
-fishing account) NOT re-checked this session — no live calls made at all,
-pure code/test work per the brief's explicit scope.
+clean, at the actual final commit. Two real gaps from the independent audit
+remain OPEN and unattempted this session, by explicit brief scope:
+CODEXAUDIT #2 (fishing contextual fallback's log-loss regression) and
+CODEXAUDIT #4 (`nextPosition` override gate counts raw hits, not
+hits-out-of-attempts). Other pre-existing items, unchanged since session 25:
+the scheduler can't learn about energy gained outside its own tracking, and
+a SIGINT during an energy-regen sleep still ends the whole session.
+QUESTIONS.md §15 (stuck fishing account) NOT re-checked this session — no
+live calls made at all, pure code/test work per the brief's explicit scope,
+same as sessions 35-36.
 
 ## Corrections to SPEC.md
-None to SPEC.md this session. But a real correction to a PRIOR SESSION's own
-claim, recorded in DECISIONS.md rather than SPEC.md (this was a status claim
-about Codex-backlog completeness, not a wire-shape fact SPEC.md tracks):
-session 35's STATE.md said "both Codex docs' standing backlog is now fully
-closed." An independent audit found this false in three confirmed places —
-CODEXREVIEW #2 (fsync), CODEXIMPROVE #1 (the double-count bug this session
-fixed), CODEXIMPROVE #3 (fishing calibration), CODEXIMPROVE #5 (orchestrator
-half, also fixed this session), CODEXIMPROVE #6 (nextPosition gate). Full
-detail in DECISIONS.md's 2026-08-18 (session 36) correction entry — read
-that entry, not this summary, before writing the next brief.
-Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2. Move
-charges: unchanged, PRESENT.
+None. Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
+Move charges: unchanged, PRESENT.
 
 ## Dead ends
-None — the fix landed on its first design (reuse the existing
-`bootstrapImportedIds` set as a unified ledger rather than inventing a
-parallel structure, per the audit's own suggested shape). One deliberate
-scope decision, not a dead end: `bootstrapImportedIds` was NOT renamed to
-something like `observedExchangeIds` despite now covering both live and
-corpus paths — a rename would need a schema-version bump for a purely
-cosmetic change, since the field is persisted to disk. Documented in the
-module's header comment instead.
+None. One deliberate design choice worth recording: the new
+`atomicWriteJson` helper lives in its own module
+(`src/orchestrator/atomicWrite.ts`) rather than being bolted onto
+`guardPersistence.ts` with the other two importing cross-module — avoids a
+circular-import risk between the three persistence modules and matches the
+brief's own stated preference. Verified with a grep-based test
+(`does not throw if the best-effort directory fsync fails`) that uses
+`vi.importActual` for selective real-passthrough rather than mocking the
+entire `node:fs` module wholesale for that one test — kept the blast radius
+of that specific mock as small as the test needed, not module-wide.
 
 ## Metrics
 No sim runs, no live dungeon or fishing calls this session — brief scoped to
-pure code/test work only, explicitly, same as session 35. The only
-"metric" this session produced is test-count delta (532 -> 533) and the
-manual before/after regression-test confirmation described above (test
-fails against reverted pre-fix code, passes against the fix) — not a sim or
-live run number.
+pure code/test work only, explicitly, same as sessions 35-36. Test-count
+delta: 533 -> 545 (+12: 8 atomicWrite + 4 schema-tightening).
 
 ## Open questions for Claude
-1. Three real gaps from the independent audit are STILL open, none attempted
-   this session by explicit brief scope: **CODEXAUDIT #2** (fishing
-   contextual fallback's log-loss regression — shrink toward cell-only
-   instead of hard-switching, `src/strategy/fishing/contextualFallback.ts`);
-   **CODEXAUDIT #4** (`nextPosition` override gate counts raw hits, not
-   hits-out-of-attempts, `scripts/liveFishing.ts`); **CODEXAUDIT #5**
-   (centralize a durable `atomicWriteJson()` with real `fsync` across all
-   three persistence modules — this is what actually finishes CODEXREVIEW #2,
-   which has been sitting "partial" since session 28). **CODEXAUDIT #6**
-   (opponent-model schema too permissive — negative/fractional counts) is
-   low priority, queued last. Recommend picking ONE of these as next
-   session's spine rather than spreading thin — CODEXAUDIT #5 (fsync) is
-   arguably highest-leverage since it's the one CODEXREVIEW item that's been
-   open longest and touches all three persistence modules at once.
-2. Standing since sessions 30-35: QUESTIONS.md §15 (stuck fishing account
+1. Two real gaps from the independent audit are STILL open, neither
+   attempted this session by explicit brief scope: **CODEXAUDIT #2**
+   (fishing contextual fallback's log-loss regression — shrink toward
+   cell-only instead of hard-switching at `minIndependentCasts`,
+   `src/strategy/fishing/contextualFallback.ts`); **CODEXAUDIT #4**
+   (`nextPosition` override gate counts raw hits, not hits-out-of-attempts,
+   needs a real accuracy/confidence-bound gate plus schema and grid-bounds
+   validation on the loader, `scripts/liveFishing.ts`). Both are real,
+   neither as mechanical or as broadly-leveraged as this session's scope —
+   recommend picking one as next session's spine. Session 36's own
+   recommendation logic (pick the oldest, most-leveraged item first) no
+   longer applies cleanly since both remaining items are roughly comparable
+   in age and neither touches multiple modules at once the way #5 did — a
+   genuinely open choice for the next brief, not a forced one.
+2. Standing since sessions 30-36: QUESTIONS.md §15 (stuck fishing account
    after an escape) still needs a human DevTools capture. Not blocking any
    dungeon work.
 3. Also standing: Task 14 (bot-initiated juiced `start_run`) blocked on a
@@ -129,14 +126,13 @@ live run number.
 
 ## Files changed
 ```
- handoff/DECISIONS.md                         |   3 +
- scripts/liveRun.ts                           |  56 ++++++++++--
- scripts/orchestrator.ts                      |  11 +++
- src/orchestrator/opponentModelPersistence.ts |  24 ++++-
- src/sim/corpus.ts                            |  24 ++++-
- tests/liveRun.test.ts                        | 128 ++++++++++++++++++++++++++-
- 6 files changed, 229 insertions(+), 17 deletions(-)
+ handoff/DECISIONS.md                              |   4 +
+ src/orchestrator/atomicWrite.ts                   |  69 ++++++ (new)
+ src/orchestrator/guardPersistence.ts               |  15 +-
+ src/orchestrator/opponentModelPersistence.ts       |  47 ++--
+ src/orchestrator/playCountsPersistence.ts          |  18 +-
+ tests/orchestrator/atomicWrite.test.ts             | 118 ++++++++ (new)
+ tests/orchestrator/opponentModelPersistence.test.ts|  51 ++++
+ 7 files changed
 ```
-(`CODEXAUDIT`, the untracked audit doc this session worked from, is committed
-alongside these as input/record, not counted as a work product above.
-`handoff/next.md`, this session's own brief, is excluded per convention.)
+(`handoff/next.md`, this session's own brief, is excluded per convention.)
