@@ -169,6 +169,12 @@ describe("loadFishingCorpus — synthetic corpus regression (session 28, CODEXRE
         log,
         address: "0xUSER",
         dryRun: false,
+        // [session 30, QUESTIONS.md §14] Without this, runOneCast defaults
+        // transitionsPath to the REAL data/fish-patterns.jsonl — this test's
+        // synthetic docIds 9001/9002 leaked into the real corpus every time
+        // it ran, which is exactly what session 29 found and couldn't
+        // explain. Must stay isolated to `root`.
+        transitionsPath: join(root, "fish-patterns-test.jsonl"),
       });
       await vi.runAllTimersAsync();
       await p;

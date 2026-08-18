@@ -801,7 +801,7 @@ too, not just to fishing.
 
 ---
 
-## 14. `data/fish-patterns.jsonl` gained castId `9001`/`9002` records from an unknown ACTIVE process [session 29]
+## 14. `data/fish-patterns.jsonl` gained castId `9001`/`9002` records from an unknown ACTIVE process — RESOLVED 2026-08-18 [session 30]: not a live process at all. `tests/sim/fishingCorpus.test.ts` (added session 28, CODEXREVIEW #1/#5) calls the real `runOneCast` with `dryRun: false` and synthetic docIds `"9001"`/`"9002"`, but never passed `transitionsPath` — it defaulted to the real `data/fish-patterns.jsonl` (`scripts/liveFishing.ts:453`). Every test run appended a real, zero-movement transition record for whichever turn `lastRecordForCast()` derived next off the file's own growing history — explaining both the reappearance with new timestamps (repeated test runs during the session) and the incrementing turns (session 29's own CODEXREVIEW #5 fix made `runOneCast` resume from the file's last logged turn for that castId). Fixed by passing an isolated `transitionsPath` (temp dir) in the test. Verified: file checksum unchanged after re-running the test. The 14 accumulated pollution records were removed from the real file (169 real transitions / 50 real casts remain, matching session 29's clean count). Re-ran `mineFishPatterns.ts`: `twoCellCycle(0,-1)` stays at support=1, unchanged — the pollution's zero-movement records never matched any primitive, so no mined pattern was ever actually affected by it, but the corpus is clean now and the leak is closed going forward. Original report preserved below for context. [session 29]
 
 While fixing the resumed-cast turn-numbering bug (CODEXREVIEW #5) and
 re-running `mineFishPatterns.ts` against the real local
