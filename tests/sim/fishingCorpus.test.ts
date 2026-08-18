@@ -183,6 +183,14 @@ describe("loadFishingCorpus — synthetic corpus regression (session 28, CODEXRE
         // Found by diffing data/guard-budget.json before/after this file's
         // own test suite.
         guardStatePath: join(root, "guard-budget-test.json"),
+        // [session 39] Same isolation convention as transitionsPath/
+        // guardStatePath above — this fakeDoc carries no `nextPosition`
+        // field today so neither path is actually exercised, but every
+        // I/O-owning runOneCast construction isolates ALL of its optional
+        // paths on principle (CLAUDE.md working-style), not just the ones
+        // proven to fire by the current fixture.
+        nextPositionLogPath: join(root, "next-position-test.jsonl"),
+        logsDir: join(root, "logs"),
       });
       await vi.runAllTimersAsync();
       await p;

@@ -24,8 +24,12 @@ import {
   lastRecordForCast,
   loadNextPositionValidations,
   loadTransitionLog,
+  NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS,
+  NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND,
+  nextPositionOverrideStats,
   runOneCast,
   unknownDocKeys,
+  wilsonLowerBound,
   type LiveFishingDeps,
   type NextPositionValidation,
   type TransitionRecord,
@@ -227,6 +231,15 @@ describe("extractNextPosition — session 30, brief §2", () => {
     expect(extractNextPosition({ data: { nextPosition: "nope" } })).toBeNull();
     expect(extractNextPosition({})).toBeNull();
   });
+  it("[session 39, CODEXAUDIT #4] returns null for a coordinate outside [1, gridSize] when gridSize is present", () => {
+    expect(extractNextPosition({ data: { nextPosition: [5, 2], gridSize: 4 } })).toBeNull();
+    expect(extractNextPosition({ data: { nextPosition: [0, 2], gridSize: 4 } })).toBeNull();
+    expect(extractNextPosition({ data: { nextPosition: [4, 4], gridSize: 4 } })).toEqual({ x: 4, y: 4 });
+  });
+  it("[session 39, CODEXAUDIT #4] skips the bounds check when gridSize is absent or non-numeric, rather than rejecting an otherwise-valid prediction", () => {
+    expect(extractNextPosition({ data: { nextPosition: [99, 99] } })).toEqual({ x: 99, y: 99 });
+    expect(extractNextPosition({ data: { nextPosition: [99, 99], gridSize: "4" } })).toEqual({ x: 99, y: 99 });
+  });
 });
 
 describe("certainDistribution", () => {
@@ -241,8 +254,8 @@ describe("nextPosition validation log round-trip", () => {
   it("appends and reloads validations, and confirmedHitCount counts only hits", () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-test-"));
     const path = join(dir, "nextPositionValidation.jsonl");
-    const hit: NextPositionValidation = { ts: "t1", castId: "c1", turn: 1, predicted: [2, 2], actual: [2, 2], hit: true };
-    const miss: NextPositionValidation = { ts: "t2", castId: "c1", turn: 2, predicted: [3, 3], actual: [1, 1], hit: false };
+    const hit: NextPositionValidation = { ts: "t1", castId: "c1", turn: 1, predicted: [2, 2], actual: [2, 2], hit: true, gridSize: 4 };
+    const miss: NextPositionValidation = { ts: "t2", castId: "c1", turn: 2, predicted: [3, 3], actual: [1, 1], hit: false, gridSize: 4 };
     appendNextPositionValidation(hit, path);
     appendNextPositionValidation(miss, path);
 
@@ -254,6 +267,105 @@ describe("nextPosition validation log round-trip", () => {
   it("returns 0/[] for a missing file rather than throwing", () => {
     expect(loadNextPositionValidations("/nonexistent/path.jsonl")).toEqual([]);
     expect(confirmedHitCount("/nonexistent/path.jsonl")).toBe(0);
+  });
+
+  it("[session 39, CODEXAUDIT #4] skips a well-formed-JSON-but-schema-invalid line instead of trusting it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-test-"));
+    const path = join(dir, "nextPositionValidation.jsonl");
+    const good: NextPositionValidation = { ts: "t1", castId: "c1", turn: 0, predicted: [1, 1], actual: [1, 1], hit: true, gridSize: 4 };
+    const lines = [
+      JSON.stringify(good),
+      JSON.stringify({ ts: "t2", castId: "c1", turn: 1, predicted: [1, 1], actual: [1, 1], hit: "yes", gridSize: 4 }), // hit as a string
+      JSON.stringify({ ts: "t3", castId: "c1", turn: 1, predicted: [1, 1], actual: [1, 1], hit: true }), // missing gridSize
+      JSON.stringify({ ts: "t4", castId: "c1", turn: 1, predicted: [5, 1], actual: [1, 1], hit: true, gridSize: 4 }), // predicted x=5 outside [1,4]
+      JSON.stringify({ ts: "t5", castId: "c1", turn: -1, predicted: [1, 1], actual: [1, 1], hit: true, gridSize: 4 }), // negative turn
+      "not even json",
+    ];
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, lines.join("\n") + "\n");
+
+    expect(loadNextPositionValidations(path)).toEqual([good]);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("wilsonLowerBound — session 39, CODEXAUDIT #4", () => {
+  it("returns 0 for n=0 (no evidence, no confidence)", () => {
+    expect(wilsonLowerBound(0, 0)).toBe(0);
+  });
+  it("stays well below 1 even at a perfect small-n rate, unlike a degenerate Wald interval", () => {
+    const lb = wilsonLowerBound(10, 10);
+    expect(lb).toBeGreaterThan(0.6);
+    expect(lb).toBeLessThan(0.9);
+  });
+  it("a single miss lowers but does not zero out the bound", () => {
+    const allHits = wilsonLowerBound(10, 10);
+    const oneMiss = wilsonLowerBound(9, 10);
+    expect(oneMiss).toBeGreaterThan(0);
+    expect(oneMiss).toBeLessThan(allHits);
+  });
+});
+
+describe("nextPositionOverrideStats — session 39, CODEXAUDIT #4 (the actual bug fix)", () => {
+  function seed(path: string, records: Array<{ hit: boolean }>): void {
+    for (let i = 0; i < records.length; i++) {
+      appendNextPositionValidation(
+        { ts: `t${i}`, castId: "c1", turn: i, predicted: [1, 1], actual: records[i]!.hit ? [1, 1] : [2, 2], hit: records[i]!.hit, gridSize: 4 },
+        path,
+      );
+    }
+  }
+
+  it("does NOT clear the gate on ten hits buried in ninety interleaved misses — the audit's exact adversarial case", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
+    const path = join(dir, "nextPositionValidation.jsonl");
+    const records = Array.from({ length: 100 }, (_, i) => ({ hit: i % 10 === 0 })); // exactly 10 hits, 90 misses, interleaved
+    seed(path, records);
+
+    const stats = nextPositionOverrideStats(path);
+    expect(stats.attempts).toBe(100);
+    expect(stats.hits).toBe(10);
+    expect(stats.ready).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("does NOT clear the gate below NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS even at a 100% hit rate", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
+    const path = join(dir, "nextPositionValidation.jsonl");
+    seed(path, Array.from({ length: NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS - 1 }, () => ({ hit: true })));
+
+    expect(nextPositionOverrideStats(path).ready).toBe(false);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("clears the gate at the minimum attempt count with a genuinely high (not just all-time-ever) hit rate", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
+    const path = join(dir, "nextPositionValidation.jsonl");
+    seed(path, Array.from({ length: NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS }, () => ({ hit: true })));
+
+    const stats = nextPositionOverrideStats(path);
+    expect(stats.attempts).toBe(NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS);
+    expect(stats.lowerBound).toBeGreaterThanOrEqual(NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND);
+    expect(stats.ready).toBe(true);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("a single early miss lowers the bound but does not permanently disable the gate — enough later hits still clear it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
+    const path = join(dir, "nextPositionValidation.jsonl");
+    // One miss, then enough hits that the Wilson lower bound still clears 0.5.
+    seed(path, [{ hit: false }, ...Array.from({ length: 19 }, () => ({ hit: true }))]);
+
+    const stats = nextPositionOverrideStats(path);
+    expect(stats.hits).toBe(19);
+    expect(stats.attempts).toBe(20);
+    expect(stats.ready).toBe(true); // proves "every hit, ever, forever" is NOT what shipped
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("returns not-ready with lowerBound 0 for a missing file", () => {
+    const stats = nextPositionOverrideStats("/nonexistent/path.jsonl");
+    expect(stats).toEqual({ attempts: 0, hits: 0, lowerBound: 0, ready: false });
   });
 });
 
@@ -367,6 +479,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
+      logsDir: join(dir, "logs"),
       // [session 31, CODEXREVIEW #8] Without this, `runOneCast`'s successful
       // start_run falls back to `DEFAULT_GUARD_STATE_PATH` and writes real
       // committed spend into `data/guard-budget.json` — the DUNGEON guard
@@ -384,12 +497,12 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
 
     const validations = loadNextPositionValidations(nextPositionLogPath);
     expect(validations).toHaveLength(1);
-    expect(validations[0]).toMatchObject({ turn: 1, predicted: [2, 2], actual: [2, 2], hit: true });
+    expect(validations[0]).toMatchObject({ turn: 1, predicted: [2, 2], actual: [2, 2], hit: true, gridSize: 4 });
     expect(confirmedHitCount(nextPositionLogPath)).toBe(1);
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("does NOT override chooseCard's distribution while confirmedHitCount stays below NEXT_POSITION_OVERRIDE_THRESHOLD — one hit is nowhere near it", async () => {
+  it("does NOT override chooseCard's distribution while the gate stays unmet — one hit is nowhere near NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS", async () => {
     // The prior test already proves one real hit gets recorded. This test's
     // point is narrower: prove that recording alone never flips behavior —
     // the cast plays out and ends normally (no override-only code path taken),
@@ -407,6 +520,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
+      logsDir: join(dir, "logs"),
       // [session 31, CODEXREVIEW #8] Without this, `runOneCast`'s successful
       // start_run falls back to `DEFAULT_GUARD_STATE_PATH` and writes real
       // committed spend into `data/guard-budget.json` — the DUNGEON guard
@@ -420,7 +534,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
     };
     const result = await runOneCast(deps);
     expect(result.outcome).toBe("escaped");
-    expect(confirmedHitCount(nextPositionLogPath)).toBeLessThan(10); // NEXT_POSITION_OVERRIDE_THRESHOLD
+    expect(nextPositionOverrideStats(nextPositionLogPath).ready).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -438,6 +552,18 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       dryRun: false,
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       guardStatePath: join(dir, "guard-budget.json"),
+      // [session 39, CODEXAUDIT #4 follow-on] This test omitted
+      // `nextPositionLogPath`/`logsDir`, so every run of it appended a real
+      // HIT record (this mock's turn-1 position always matches its own
+      // turn-0 prediction) to the REAL `data/nextPositionValidation.jsonl`
+      // and dumped a spurious "unknown midcast field" file into the REAL
+      // `logs/` — confirmed live: the on-disk file had accumulated 35 fake
+      // hits (docId "99999999", matching this exact mock) before this fix,
+      // already past `NEXT_POSITION_OVERRIDE_THRESHOLD`. Same bug class as
+      // session 30/31's fixture/guard-budget pollution, a third occurrence,
+      // this time in the file that literally documents the first two.
+      nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      logsDir: join(dir, "logs"),
     };
 
     // `client` (from `makeClient()`) never implements `getEnergy` — if

@@ -78,6 +78,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { z } from "zod";
 
 import { GigaverseClient } from "../src/api/client.js";
 import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
@@ -101,7 +102,7 @@ import {
   DEFAULT_SHRINKAGE_K,
 } from "../src/strategy/fishing/contextualFallback.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
-import { cellKey, cellsEqual, type Cell } from "../src/sim/fishing/geometry.js";
+import { cellKey, cellsEqual, inGrid, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
@@ -365,15 +366,51 @@ export function lastRecordForCast(castId: string, path: string = DEFAULT_TRANSIT
 // session: reposition focus on it when it fires, but do the validation-only
 // pass first (log predicted vs. actual for more sightings) before letting it
 // override the matcher, so a wrong field-meaning guess is caught before it
-// steers focus placement. `NEXT_POSITION_OVERRIDE_THRESHOLD` gates the
-// override; at 2 confirmed hits total in this project's history, live play
-// starts far below it regardless of how many more casts run this session.
+// steers focus placement.
+//
+// [session 39, CODEXAUDIT #4] The original gate (`NEXT_POSITION_OVERRIDE_THRESHOLD`,
+// a raw all-time hit COUNT with zero record validation) had two real bugs:
+// it never looked at ATTEMPTS, so ten hits buried in ninety interleaved
+// misses satisfied it exactly as well as ten hits with zero misses, and
+// `loadNextPositionValidations` trusted a bare `JSON.parse(line) as
+// NextPositionValidation` type assertion — a well-formed-but-wrong record
+// (a string `hit`, an out-of-grid coordinate) parsed clean and counted.
+// Neither bug had fired live (this override has never armed for real; see
+// this file's git history / handoff/STATE.md for the corpus-pollution
+// incident that DID make it look armed, which was test data, not gameplay),
+// but a threshold this permissive would silently arm the day the corpus
+// grew enough to clear it by accident.
+//
+// Replaced with a Wilson-score lower-bound gate on hits/ATTEMPTS, per the
+// audit's own suggested improvement over its minimum-safe "every hit ever"
+// snippet: "every hit, ever, forever" means one early miss — which this
+// rare, noisy signal WILL eventually produce — permanently disables the
+// override for the rest of the project's history, even after years of
+// subsequent perfect hits. A Wilson bound (unlike the normal-approximation
+// CI `src/sim/dungeonSim.ts`'s `roomStats` already uses for room win rates)
+// stays well-behaved at small n and at p near 0/1 — exactly this gate's
+// shape, since the evidence is a handful of rare-field sightings by design
+// (CLAUDE.md §7's rate limits alone bound how fast this log can grow). Same
+// "don't trust a raw rate without accounting for sample size" instinct this
+// project already applies elsewhere (boon-ranking CI gating, the
+// charge-reserve ablation's 95% CI bar).
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_NEXT_POSITION_LOG_PATH = join("data", "nextPositionValidation.jsonl");
 
-/** A handful of confirming sightings, per the brief's own phrasing — not derived from a formal power calculation (this event is too rare for one yet). Revisit once real data accumulates. */
-export const NEXT_POSITION_OVERRIDE_THRESHOLD = 10;
+/** Minimum TOTAL attempts (hits + misses) before the gate will even look at the rate — same numeral as the old (broken) hit-only threshold, now applied to the denominator the audit says it should have been applied to all along. */
+export const NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS = 10;
+
+/**
+ * The 95%-confidence Wilson lower bound on hit rate must clear this before
+ * the override arms. 0.5 is chosen as a round, legible bar deliberately far
+ * above chance at any real grid size this project has seen (a 4x4 grid's
+ * blind-guess rate is 1/16 ≈ 6.25%) rather than derived from a formal power
+ * calculation — same "a handful, not a power calculation" honesty the
+ * retired threshold's own comment had, carried forward rather than dressed
+ * up as more rigorous than it is.
+ */
+export const NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND = 0.5;
 
 export interface NextPositionValidation {
   ts: string;
@@ -383,7 +420,33 @@ export interface NextPositionValidation {
   predicted: [number, number];
   actual: [number, number];
   hit: boolean;
+  /**
+   * The grid this prediction/actual pair was checked against — recorded per
+   * record (not assumed global) because `gridSize` is read live off each
+   * doc (`src/api/fishing.ts`), same "don't assume a fixed value where the
+   * wire carries a real one" discipline `TransitionRecord` already applies.
+   */
+  gridSize: number;
 }
+
+function inBoundsTuple([x, y]: [number, number], gridSize: number): boolean {
+  return inGrid({ x, y }, gridSize);
+}
+
+/** Schema for one persisted validation record. A record failing this — wrong type, non-integer turn, or a predicted/actual coordinate outside `[1, gridSize]` — is corruption or a stale wire-shape guess, not data, and is skipped by the loader rather than trusted (CODEXAUDIT #4). */
+const NextPositionValidationSchema = z
+  .object({
+    ts: z.string(),
+    castId: z.string(),
+    turn: z.number().int().nonnegative(),
+    predicted: z.tuple([z.number(), z.number()]),
+    actual: z.tuple([z.number(), z.number()]),
+    hit: z.boolean(),
+    gridSize: z.number().int().positive(),
+  })
+  .refine((v) => inBoundsTuple(v.predicted, v.gridSize) && inBoundsTuple(v.actual, v.gridSize), {
+    message: "predicted/actual must be within [1, gridSize]",
+  });
 
 /**
  * Reads `data.nextPosition` off a raw fishing response — not in
@@ -391,14 +454,21 @@ export interface NextPositionValidation {
  * unconfirmed), so this reads the untyped wire object directly rather than
  * widening the schema for a field this project can't yet explain. Returns
  * `null` for a missing key, a `null` value (the common case once the key has
- * appeared once in a cast — QUESTIONS.md §12 session 26), or a malformed
- * (non-2-number-array) value.
+ * appeared once in a cast — QUESTIONS.md §12 session 26), a malformed
+ * (non-2-number-array) value, or [session 39, CODEXAUDIT #4] a coordinate
+ * outside `[1, doc.data.gridSize]` when that field is itself present and
+ * numeric — defense in depth so an out-of-range sighting never reaches the
+ * validation log in the first place, rather than relying solely on the
+ * loader's schema check to catch it after the fact.
  */
 export function extractNextPosition(doc: unknown): Cell | null {
-  const raw = (doc as { data?: { nextPosition?: unknown } } | undefined)?.data?.nextPosition;
+  const d = doc as { data?: { nextPosition?: unknown; gridSize?: unknown } } | undefined;
+  const raw = d?.data?.nextPosition;
   if (!Array.isArray(raw) || raw.length !== 2) return null;
   const [x, y] = raw;
   if (typeof x !== "number" || typeof y !== "number") return null;
+  const gridSize = d?.data?.gridSize;
+  if (typeof gridSize === "number" && !inGrid({ x, y }, gridSize)) return null;
   return { x, y };
 }
 
@@ -407,26 +477,87 @@ export function appendNextPositionValidation(rec: NextPositionValidation, path: 
   writeFileSync(path, JSON.stringify(rec) + "\n", { flag: "a" });
 }
 
+/**
+ * [session 39, CODEXAUDIT #4] Each line is now schema-validated, not merely
+ * JSON-parsed — a line that parses as JSON but fails `NextPositionValidationSchema`
+ * (wrong field type, out-of-grid coordinate) is skipped exactly like a
+ * literally-malformed line, same "one bad line shouldn't lose the whole
+ * log" convention `loadTransitionLog` already established. This does NOT
+ * throw on a bad record (unlike `opponentModelPersistence.ts`'s fail-closed
+ * whole-file schema check) — that module protects a single cumulative
+ * counts object where one corrupt read poisons everything downstream; this
+ * is an append-only line log where a bad line is naturally isolated to
+ * itself.
+ */
 export function loadNextPositionValidations(path: string = DEFAULT_NEXT_POSITION_LOG_PATH): NextPositionValidation[] {
   if (!existsSync(path)) return [];
   const lines = readFileSync(path, "utf8").split("\n").filter((l) => l.trim().length > 0);
   const out: NextPositionValidation[] = [];
   for (const line of lines) {
+    let json: unknown;
     try {
-      out.push(JSON.parse(line) as NextPositionValidation);
+      json = JSON.parse(line);
     } catch {
-      // one bad line shouldn't lose the whole log — same convention as loadTransitionLog
+      continue; // one bad line shouldn't lose the whole log — same convention as loadTransitionLog
     }
+    const result = NextPositionValidationSchema.safeParse(json);
+    if (!result.success) continue; // well-formed JSON, wrong shape — corruption, not data; don't trust it
+    out.push(result.data);
   }
   return out;
 }
 
-/** Confirmed hits across every validation ever logged — the number `NEXT_POSITION_OVERRIDE_THRESHOLD` gates against. */
+/** Raw hit count across every validation ever logged — a diagnostic for the console line, NOT the gate signal (that bug is exactly what CODEXAUDIT #4 fixed). See `nextPositionOverrideStats` for the actual gate. */
 export function confirmedHitCount(path: string = DEFAULT_NEXT_POSITION_LOG_PATH): number {
   return loadNextPositionValidations(path).filter((v) => v.hit).length;
 }
 
-/** A `Distribution` certain the fish is at `cell` — the override's effect on `chooseCard`, once `confirmedHitCount` clears the threshold. Kept as a pure, directly testable function separate from the live wiring. */
+/**
+ * Wilson score lower bound for a binomial proportion at 95% confidence
+ * (z = 1.96) — well-behaved at small n and at p near 0 or 1, unlike a
+ * normal-approximation interval (which degenerates to zero width at p=1).
+ * `n = 0` returns 0 (no evidence, no confidence), matching this file's
+ * existing "empty history / missing file" conventions elsewhere.
+ */
+export function wilsonLowerBound(hits: number, n: number, z = 1.96): number {
+  if (n === 0) return 0;
+  const p = hits / n;
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = p + z2 / (2 * n);
+  const margin = z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n));
+  return (center - margin) / denom;
+}
+
+export interface NextPositionOverrideStats {
+  attempts: number;
+  hits: number;
+  /** Wilson lower bound on hit rate at 95% confidence; 0 when `attempts` is 0. */
+  lowerBound: number;
+  /** Whether the override should arm: enough attempts AND the lower bound clears the bar. */
+  ready: boolean;
+}
+
+/**
+ * [session 39, CODEXAUDIT #4] The real gate, replacing the old raw-hit-count
+ * threshold. Requires BOTH a minimum sample size (total attempts, not just
+ * hits — the audit's core finding: ten hits and ninety interleaved misses
+ * must NOT satisfy this) and a 95%-confidence lower bound on the hit rate
+ * clearing `NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND`. A single early miss
+ * lowers the bound but does not zero it out — see this function's doc-comment
+ * header above for the "permanently disables the override" failure mode
+ * this is built to avoid.
+ */
+export function nextPositionOverrideStats(path: string = DEFAULT_NEXT_POSITION_LOG_PATH): NextPositionOverrideStats {
+  const validations = loadNextPositionValidations(path);
+  const attempts = validations.length;
+  const hits = validations.filter((v) => v.hit).length;
+  const lowerBound = wilsonLowerBound(hits, attempts);
+  const ready = attempts >= NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS && lowerBound >= NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND;
+  return { attempts, hits, lowerBound, ready };
+}
+
+/** A `Distribution` certain the fish is at `cell` — the override's effect on `chooseCard`, once `nextPositionOverrideStats` reports `ready`. Kept as a pure, directly testable function separate from the live wiring. */
 export function certainDistribution(cell: Cell): Map<string, { cell: Cell; p: number }> {
   return new Map([[cellKey(cell), { cell, p: 1 }]]);
 }
@@ -520,9 +651,9 @@ export class RunLog {
  * something that needs a human to notice mid-session, per the session-17
  * brief §4.
  */
-function dumpUnknownTerminal(resp: unknown, keys: string[], tag: string = "terminal"): string {
-  mkdirSync("logs", { recursive: true });
-  const path = join("logs", `fishing-unknown-${tag}-${stamp()}.json`);
+function dumpUnknownTerminal(resp: unknown, keys: string[], tag: string = "terminal", dir: string = "logs"): string {
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, `fishing-unknown-${tag}-${stamp()}.json`);
   writeFileSync(path, JSON.stringify({ ts: new Date().toISOString(), unknownKeys: keys, response: resp }, null, 2));
   return path;
 }
@@ -575,10 +706,10 @@ export function detectPossibleDualYield(raw: unknown): { reason: string } | null
 }
 
 /** Runs `detectPossibleDualYield` against a response and, if it fires, dumps the full raw response and logs loudly — same pattern as the unknown-terminal-field detector. */
-function checkPossibleDualYield(raw: unknown, log: RunLog, turn: number, source: string): void {
+function checkPossibleDualYield(raw: unknown, log: RunLog, turn: number, source: string, logsDir: string): void {
   const hit = detectPossibleDualYield(raw);
   if (!hit) return;
-  const path = dumpUnknownTerminal(raw, [`possible_dual_yield: ${hit.reason}`], "dual-yield");
+  const path = dumpUnknownTerminal(raw, [`possible_dual_yield: ${hit.reason}`], "dual-yield", logsDir);
   log.write({ event: "possible_dual_yield_event", source, turn, reason: hit.reason, dump: path });
   console.log(`  ★★★ POSSIBLE DUAL YIELD EVENT (${source}, turn ${turn}): ${hit.reason}`);
   console.log(`  ★★★ full response dumped to ${path} — QUESTIONS.md, needs a human look before treating this as confirmed.`);
@@ -600,6 +731,8 @@ export interface LiveFishingDeps {
   guardStatePath?: string;
   /** [session 30] Validation-only recording of predicted vs. actual `nextPosition` — see this file's "nextPosition validation" section. */
   nextPositionLogPath?: string;
+  /** Directory `dumpUnknownTerminal`/`checkPossibleDualYield` write surprise-field dumps into. Defaults to the real `logs/` — tests must override this, same as every other I/O path here (CLAUDE.md working-style, "tests must never write to a real data path"). */
+  logsDir?: string;
   /**
    * Task 10: graceful SIGINT, same contract as `LiveRunDeps.shutdownSignal`
    * (`scripts/liveRun.ts`) — checked once per turn, after confirming the
@@ -622,6 +755,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const { client, config, guards, fixtures, log, address, dryRun } = deps;
   const transitionsPath = deps.transitionsPath ?? DEFAULT_TRANSITIONS_PATH;
   const nextPositionLogPath = deps.nextPositionLogPath ?? DEFAULT_NEXT_POSITION_LOG_PATH;
+  const logsDir = deps.logsDir ?? "logs";
   // [session 30] Set when the PRIOR turn's response revealed a non-null
   // `nextPosition` — validated against the NEXT turn's actual position, then
   // cleared. Reset per cast (not carried across a resume): attributing a
@@ -648,7 +782,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // discoverable via a separate `checkFishingStuck.ts` run.
     const unknown = unknownDocKeys(existing.gameState as unknown as Record<string, unknown>);
     if (unknown.length > 0) {
-      const path = dumpUnknownTerminal(existing, unknown);
+      const path = dumpUnknownTerminal(existing, unknown, "terminal", logsDir);
       log.write({ event: "unknown_terminal_fields", source: "pre_start_state_check", keys: unknown, dump: path });
       console.log(`  ★★★ UNKNOWN FIELD(S) on the existing completed-but-unresolved doc: ${unknown.join(", ")}`);
       console.log(`  ★★★ full response dumped to ${path} — the account is likely stuck (QUESTIONS.md §10); start_run below will probably reject.`);
@@ -711,7 +845,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     if (doc.COMPLETE_CID) {
       const unknown = unknownDocKeys(doc as unknown as Record<string, unknown>);
       if (unknown.length > 0) {
-        const path = dumpUnknownTerminal(resp, unknown);
+        const path = dumpUnknownTerminal(resp, unknown, "terminal", logsDir);
         log.write({ event: "unknown_terminal_fields", keys: unknown, dump: path });
         console.log(`  ★★★ UNKNOWN TERMINAL FIELD(S) on start_run's returned doc: ${unknown.join(", ")}`);
         console.log(`  ★★★ full response dumped to ${path} — this is the account-stuck mechanic (QUESTIONS.md §10), look here first.`);
@@ -783,14 +917,18 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     const hand = buildHand(doc);
     const mana = doc.data.playerHp;
     const fishHp = doc.data.fishHp;
-    // [session 30] Override, gated behind NEXT_POSITION_OVERRIDE_THRESHOLD
-    // confirmed hits (see this file's "nextPosition validation" section) —
-    // at 2 confirmed hits in this project's entire history, this branch is
-    // not reachable yet regardless of how many casts run this session.
-    const nextPositionOverrideActive =
-      pendingPrediction?.turn === turn && confirmedHitCount(nextPositionLogPath) >= NEXT_POSITION_OVERRIDE_THRESHOLD;
+    // [session 30, gate rebuilt session 39 CODEXAUDIT #4] Override gated
+    // behind a Wilson-score confidence bound on hits/attempts, not a raw hit
+    // count (see this file's "nextPosition validation" section) — this
+    // override has never armed live yet regardless of how many casts run
+    // this session.
+    const overrideStats = nextPositionOverrideStats(nextPositionLogPath);
+    const nextPositionOverrideActive = pendingPrediction?.turn === turn && overrideStats.ready;
     if (nextPositionOverrideActive) {
-      console.log(`  · nextPosition override ACTIVE (${confirmedHitCount(nextPositionLogPath)} confirmed hits) — forcing focus toward predicted cell.`);
+      console.log(
+        `  · nextPosition override ACTIVE (${overrideStats.hits}/${overrideStats.attempts} hits, ` +
+          `Wilson lower bound ${(overrideStats.lowerBound * 100).toFixed(1)}%) — forcing focus toward predicted cell.`,
+      );
     }
     const dist = nextPositionOverrideActive
       ? certainDistribution(pendingPrediction!.cell)
@@ -853,7 +991,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     guards.recordActionResult(true);
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
-    checkPossibleDualYield(resp, log, turn, "play_cards");
+    checkPossibleDualYield(resp, log, turn, "play_cards", logsDir);
 
     const newDoc = resp.data.doc;
     // Session 26: widened from terminal-only (COMPLETE_CID) to EVERY turn —
@@ -867,7 +1005,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       const unknown = unknownDocKeys(newDoc as unknown as Record<string, unknown>);
       if (unknown.length > 0) {
         const tag = newDoc.COMPLETE_CID ? "terminal" : "midcast";
-        const path = dumpUnknownTerminal(resp, unknown, tag);
+        const path = dumpUnknownTerminal(resp, unknown, tag, logsDir);
         log.write({ event: "unknown_fields", source: newDoc.COMPLETE_CID ? "play_cards_terminal" : "play_cards_midcast", turn, keys: unknown, dump: path });
         console.log(`  ★★★ UNKNOWN ${newDoc.COMPLETE_CID ? "TERMINAL " : ""}FIELD(S) on turn ${turn}'s doc: ${unknown.join(", ")}`);
         console.log(`  ★★★ full response dumped to ${path}.`);
@@ -889,6 +1027,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         predicted: [pendingPrediction.cell.x, pendingPrediction.cell.y],
         actual: [toCell.x, toCell.y],
         hit,
+        gridSize,
       };
       appendNextPositionValidation(validation, nextPositionLogPath);
       log.write({ event: "next_position_validation", ...validation });
@@ -940,7 +1079,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         guards.recordActionResult(true);
         log.write({ event: "post_response", resp: lootResp });
         fixtures.write(lootResp);
-        checkPossibleDualYield(lootResp, log, turn, "loot");
+        checkPossibleDualYield(lootResp, log, turn, "loot", logsDir);
         const resolvedDeck = lootResp.data.doc.data.fullDeck.length;
         console.log(`  ✓ loot sent — fullDeck now ${resolvedDeck} card(s), cardChosenId ${lootResp.data.doc.data.cardChosenId ?? "still null?"}`);
       } catch (e) {
