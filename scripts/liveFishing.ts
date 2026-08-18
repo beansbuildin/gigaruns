@@ -58,6 +58,7 @@ import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
+import { regenerateRunReports } from "./regenerateReports.js";
 import { chooseCard, chooseNewCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
 import {
   emptyFallback,
@@ -1028,6 +1029,11 @@ async function main() {
   console.log(`▸ log: ${log.filePath}`);
   console.log(`▸ fixtures: fixtures/fishing-casts/live/ (${targetCasts} cast dir(s), last: ${lastFixturesDir})`);
   console.log(`▸ transitions: ${DEFAULT_TRANSITIONS_PATH}\n`);
+
+  // [session 31] Standalone invocations (Task 9) now regenerate the
+  // committed run-visibility reports too, same as orchestrator.ts's
+  // end-of-session rollup — see regenerateReports.ts.
+  regenerateRunReports(config);
 }
 
 const isMain = process.argv[1] && process.argv[1].endsWith("liveFishing.ts");

@@ -52,6 +52,7 @@ import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
+import { regenerateRunReports } from "./regenerateReports.js";
 import { toCombatant, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
 import type { BoonOption } from "../src/sim/boons.js";
@@ -1230,6 +1231,11 @@ async function main() {
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, runs ${guards.runCount}`);
   console.log(`▸ log: ${log.filePath}`);
   console.log(`▸ fixtures: ${fixtures.dir}\n`);
+
+  // [session 31] Standalone invocations (Task 6) now regenerate the
+  // committed run-visibility reports too, same as orchestrator.ts's
+  // end-of-session rollup — see regenerateReports.ts.
+  regenerateRunReports(config);
 }
 
 const isMain = process.argv[1] && process.argv[1].endsWith("liveRun.ts");
