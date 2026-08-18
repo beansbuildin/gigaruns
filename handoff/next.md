@@ -1,179 +1,214 @@
-# BRIEF — session 35
+# BRIEF — session 36
 
-Session 34 landed clean: 516/516 tests (+6), `tsc` clean, GATE PASS. It
-shipped CODEXIMPROVE #4 in the two stages the brief asked for: a
-provably non-regressive charge-reserve tie-break in `decide()` first
-(exact, not an expectation — charges depend only on our own move, not the
-enemy's reply), then a `chargeReserveWeight` continuation term in
-`utility()`, ablated (not guessed) at N=20000-60000/weight across two
-seeds, shipped at `0.4` — the low-risk edge of a real, reproduced
-plateau (0.4/0.5/0.6 mutually indistinguishable, all separated above the
-zero control and above 0.2/0.8). `LIVE_CONFIG` inherits it automatically.
-Fishing account is still stuck exactly where session 33 left it
-(`docId 12957129`, checked read-only, unchanged) — still QUESTIONS.md §15,
-still needs a human DevTools capture, still not blocking dungeon work.
+Session 35 self-assessed a GATE PASS and claimed both Codex docs' entire
+backlog was closed. An independent follow-up audit (`CODEXAUDIT`, run
+against the actual `origin/main` commit `b8ecd83`, 532/532 tests / `tsc` /
+`git diff --check` all independently re-verified passing) found that claim
+does **not** fully hold. This session starts by correcting the record, then
+fixes the one item the audit rates a genuine correctness defect.
 
 ---
 
-## This is the last open item on both Codex docs
+## The claim didn't fully hold — cross-referenced against the live code
 
-CODEXIMPROVE #4 landing means the full cross-referenced backlog from both
-`CODEXREVIEW` (10/10 resolved) and `CODEXIMPROVE` (#1, #2, #3, #4, #6
-resolved) is down to exactly one remaining item: **#5, boon valuation**.
-After this session, if it lands, there is no more standing Codex backlog
-— worth being extra careful about not shipping something half-right just
-to close it out. If anything in §1 below turns out to need more than one
-session, say so and leave it queued rather than forcing a GATE PASS this
-document doesn't actually support.
+I re-checked the audit's two most consequential findings directly against
+the current tree before trusting them (same discipline this project has
+always applied to Codex's own claims):
+
+- **CODEXIMPROVE #1 (opponent-model persistence) has a real regression,
+  confirmed live.** `scripts/liveRun.ts:832` calls `model.observe()` on
+  every live exchange and immediately saves via
+  `saveOpponentModelAtomically()` at `:839-841` — but nothing adds that
+  exchange's identity to `deps.opponentModelPersistence.bootstrapImportedIds`
+  before or after the save. `src/orchestrator/opponentModelPersistence.ts`'s
+  `bootstrapFromCorpus()` (`:207-220`) gates purely on membership in that
+  same set. So: play live, observe an exchange, save — then restart, and
+  `bootstrapFromCorpus()` finds the fixture `fixtures.write()` already
+  wrote for that same exchange, sees its ID absent from
+  `bootstrapImportedIds` (nothing ever added it), and imports it again.
+  Every live observation this feature was built to persist gets double
+  counted on the very next restart. This is real, not a false positive.
+- **CODEXIMPROVE #5's orchestrator half is genuinely missing.**
+  `playCountsPersistence` is wired into `scripts/liveRun.ts`'s `runOnce()`
+  exactly as session 35's STATE.md described — but session 35's own status
+  line ("this closes CODEXIMPROVE's entire backlog") overstated it:
+  `scripts/orchestrator.ts`, the primary unattended long-running entry
+  point, never acquires the play-counts lock or passes
+  `playCountsPersistence` into its own `runOnce()` call. An orchestrator
+  session interrupted mid-run and resumed forgets every move played before
+  the restart — exactly the resume gap CODEXIMPROVE #5 was written to
+  close, still open in the entry point that matters most for it.
+
+Full picture, cross-referencing the audit against both original Codex docs:
+
+**CODEXREVIEW**: 1, 3-9 hold. **2 is only partial** — atomic temp-file+
+rename is in place (confirmed: `guardPersistence.ts:166-167`,
+`writeFileSync`+`renameSync`, no `fsync` anywhere in the file), but
+CODEXREVIEW #2 explicitly asked for "write sibling temporary file, **flush
+it**, then atomically rename it" — the flush step was never added, so a
+power loss or filesystem crash (not just a process crash) can still lose a
+supposedly-committed guard-budget write. 10 remains correctly resolved
+not-applicable.
+
+**CODEXIMPROVE**: 2 and 4 hold. **1 has the live-observe double-count bug
+above.** **3 (contextual fishing fallback)** shipped with a real, previously
+un-flagged calibration cost: leave-one-cast-out log loss got WORSE at the
+shipped threshold (6.151 vs. the cell-only baseline's 5.860), because the
+tier hard-switches to a raw empirical distribution after only 3 casts,
+assigning exactly zero probability to any cell not in that thin sample —
+`chooseCard()` consumes the whole distribution, not just top-1, so this can
+aim focus away from plausible cells even while the top-1 metric looks
+better. **5's boon-scoring half is solid; its orchestrator persistence half
+is not**, per above. **6 (`nextPosition` override gate)** counts only hits
+(`confirmedHitCount()`), not hits-out-of-attempts — ten hits and ninety
+misses would still satisfy the threshold and flip on a one-hot override
+that's actually right 10% of the time; the loader also skips schema/
+grid-bounds validation.
 
 ---
 
-## 1. Rank confirmed boons by their actual deltas, and preserve play counts (CODEXIMPROVE #5)
+## 1. Fix opponent-model live-observe double-counting (CODEXAUDIT #1, HIGH)
 
-Relevant code, re-checked against the current tree:
+This is the session's primary and only required scope — a real correctness
+defect actively biasing the model this project's decision engine already
+trusts, not a documentation gap.
 
-- `src/strategy/loot.ts:92-175` — `rankBoons()`. Confirmed live, all four
-  of the original findings still hold exactly as Codex described:
-  - `"pool"` case (`:129-141`): `score = 25 * Math.min(1, roomsRemaining / 8)`
-    — every max-pool boon gets the identical score regardless of
-    `option.val1`.
-  - `categorise()` (`:54-62`): `AddMaxHealth` and `AddMaxArmor` both match
-    `POOL_PREFIX = "AddMax"` and fall into the same `"pool"` category,
-    despite a real mechanical difference this project already confirmed
-    and documented — see below.
-  - `"upgrade"` case (`:143-153`): `score = 40 * share * Math.min(1, roomsRemaining / 4)`
-    — reads `playCounts` share correctly, but never reads `option.val1`/
-    `val2`, so an ATK upgrade and a DEF upgrade of the same move score
-    identically.
-  - **Important standing caveat, unchanged, do not quietly drop it**:
-    `loot.ts`'s own header says this module is "UNVALIDATED, and it
-    cannot be validated yet" — no scored corpus run has ever reached a
-    second boon decision (`deepestScorableRoom` gates this), so there is
-    no real outcome to fit the ranking to. Whatever this session ships,
-    that disclaimer stays honest and in place unless the corpus itself
-    changes — don't remove or soften it just because the heuristic got
-    better-informed.
-- `src/sim/boons.ts` — the mechanical deltas ARE already correctly
-  modelled and confirmed, this session's fix does not need to re-derive
-  them: `AddMaxArmor` (`:159-172`, `effect: { kind: "maxArmor" }`) grows
-  `armorMax` only, current `armor` does NOT auto-fill (`14/16 → 14/20`,
-  live-confirmed session 11). `AddMaxHealth` (`:200-209`,
-  `effect: { kind: "maxHealth" }`) grows `hpMax` AND moves current `hp`
-  with the new ceiling — "a genuine mechanical difference, not an
-  inconsistency to paper over" (existing comment). `applyBoon()` (search
-  for the `maxHealth`/`maxArmor` cases in this file — the exact function
-  boundaries have shifted from the doc's original `:296-333` citation
-  since this file has grown with new live captures across many sessions;
-  find it fresh rather than trusting that line range) already applies
-  both correctly. This session's job is to make `loot.ts` USE this
-  existing, correct information — not to fix `boons.ts` itself.
-- `scripts/liveRun.ts:612` — `const playCounts: Record<MoveKey, number> = { rock: 0, paper: 0, scissor: 0 };`,
-  local to `runOnce()`, confirmed still zeroed on every invocation with
-  no persistence. Incremented at `:834`, passed to `rankBoons` via
-  `opts.playCounts` at `:903`. Resuming an active run therefore forgets
-  the move distribution logged earlier in the SAME run, despite that
-  distribution being exactly what the `"upgrade"` case's `share` is
-  supposed to rank against.
+Relevant code, confirmed against the current tree:
 
-**Implementation requirements, per CODEXIMPROVE's spec:**
+- `src/orchestrator/opponentModelPersistence.ts:207-220` —
+  `bootstrapFromCorpus()`, gated purely on `bootstrapImportedIds`.
+- `scripts/liveRun.ts:832, 839-841` — the live-observe-and-save call site;
+  confirmed it never touches `bootstrapImportedIds`.
+- `scripts/liveRun.ts:1106-1133` — the startup path that loads the model,
+  loads/creates `bootstrapImportedIds`, and runs the initial bootstrap; the
+  live-observe fix needs to write into the SAME set this path persists,
+  not a second one.
+- `scripts/orchestrator.ts:189-195` — the equivalent startup wiring on the
+  orchestrator side; verify current line numbers on open (this file has
+  been touched by several sessions since the audit's review commit).
+- `scripts/liveRun.ts:302-317` — `FixtureWriter`, whose `write()` currently
+  returns `void`. The identity needed (`${run}::${label}`) can't be built
+  by the live-observe call site today because nothing tells it what
+  filename/label the fixture it just wrote actually got.
 
-1. Scale the `"pool"` and `"upgrade"` scores by their actual confirmed
-   deltas (`option.val1`/`val2`) instead of a flat category constant.
-   Keep the existing `roomsRemaining` weighting structure — this is about
-   making the MAGNITUDE responsive to the real offer, not replacing the
-   shape of the heuristic wholesale.
-2. Split `AddMaxHealth` out from `AddMaxArmor`'s scoring, using the same
-   distinction `boons.ts`'s `effect.kind` already encodes: credit
-   `AddMaxHealth` for the immediate usable HP it grants (same "usable,
-   not raw" framing the existing `"heal"` case already uses at
-   `:124-126` — reuse that pattern rather than inventing a second one),
-   and do NOT credit `AddMaxArmor` with armor it doesn't fill. This can
-   stay inside `categorise()`/`rankBoons()`'s existing category
-   structure (e.g. a `type === "AddMaxHealth"` special case ahead of the
-   generic `"pool"` fallthrough) rather than requiring a new
-   `BoonCategory` value, if that's the smaller diff — your call, but
-   don't lose the `"pool"` bucket's existing behavior for every OTHER
-   `AddMax*` type this project hasn't seen yet.
-3. Persist or reconstruct per-run `playCounts`, keyed by the dungeon run
-   ID (check what real run identifier `liveRun.ts` already reads off the
-   dungeon state doc — there should be one, since resume logic elsewhere
-   in this file already has to recognize "this is the same run" for
-   other purposes; use that, don't invent a second identity scheme).
-   Follow the established persistence pattern this project has now built
-   three times (`guardPersistence.ts`, `opponentModelPersistence.ts`,
-   and now this): schema-versioned, atomic temp-file + rename, reuse
-   `acquireGuardLock()` rather than a fourth locking mechanism. Delete
-   the persisted counts when the run ends (win, death, or flee) — this is
-   per-run state, not a running total across runs, and the doc is
-   explicit about deleting it, not just letting it go stale.
-4. For CLEAN, modelled boons only (i.e. `effect.kind !== "latent"` and
-   not an unmodelled/unknown type): clone the player, call `applyBoon()`,
-   and compare a short next-room rollout or continuation value — this is
-   the one piece of this item that CAN get a sim-based signal despite the
-   live corpus never reaching a second boon decision, the same way
-   session 33's fishing ablation and session 34's charge-reserve ablation
-   both used synthetic/simulated data rather than waiting on live
-   corpus depth. Frame any such ablation the same way those two did:
-   "does the new ranking logic prefer the objectively better option in a
-   controlled comparison," not a live claim, and keep it as a genuinely
-   separate, clearly-labeled check from the corpus-validation status
-   above — one does not fix the other.
-5. Keep the existing conservative fallback (today's flat-score heuristic)
-   for latent/unmodelled boons, unchanged. Do not infer mechanics from a
-   boon's name to improve apparent sim coverage — same standing rule this
-   project has enforced since DECISIONS 2026-08-15, restated in both
-   Codex docs.
+**Implementation, per the audit's suggested fix:**
 
-Report this the way the doc itself frames it: "a targeted policy
-improvement," not a proven rooms-cleared gain — the boon corpus is still
-sparse and `deepestScorableRoom` hasn't moved. That's an honest scope,
-not a weaker one.
+1. Replace the bootstrap-only `bootstrapImportedIds` set with a single
+   unified ledger of every observed exchange ID — live-observed AND
+   corpus-imported both mark the same set, so either path seeing an ID
+   already present is a no-op. Don't build a second, parallel tracking
+   structure; there is exactly one question ("has this exchange already
+   been folded into the model") and it should have one answer.
+2. Give `FixtureWriter.write()` a way to report what it just wrote —
+   returning the run/label identity (or enough to construct it the same
+   way `collectBootstrapObservations`/`exchanges()` in `src/sim/corpus.ts`
+   already does for corpus replay) so the live call site can compute the
+   exact same `${run}::${label}` key bootstrap uses. Reuse that existing
+   derivation rather than inventing a second identity scheme that could
+   drift out of sync with it.
+3. At the live-observe call site (`liveRun.ts:832-841`): compute the
+   exchange's identity, check it against the unified ledger before calling
+   `model.observe()`, add it to the ledger, and save — mirroring the
+   pattern the audit's snippet shows. Order matters: mark-then-save (or an
+   equivalent atomic-enough sequencing) so a crash between observe and mark
+   can't reopen the same gap from the other direction.
+4. Add the regression test the audit names explicitly: live observe → save
+   → simulated restart → corpus bootstrap of that same now-on-disk fixture
+   → observation count for that `(enemyId, room)` key is UNCHANGED, not
+   doubled. Also add the inverse sanity check: a genuinely new corpus
+   exchange (never seen live this process) still imports normally.
+5. Do this for BOTH real entry points, `liveRun.ts` and `orchestrator.ts` —
+   this is exactly the class of gap that let CODEXIMPROVE #5's
+   orchestrator half go unwired last session while `liveRun.ts`'s half
+   looked complete. Before calling this done, grep both files for every
+   call site that constructs or threads `bootstrapImportedIds`/the new
+   unified ledger, not just the one this session happens to be looking at.
+
+---
+
+## Required this session regardless of scope: correct the record
+
+Add a `DECISIONS.md` entry, same format and honesty standard as every
+prior self-correction in this project's history (e.g. session 31's viem
+correction, session 28's fishing-corpus-unit correction): session 35's
+STATE.md claim that "both Codex docs' standing backlog is now fully
+closed" is corrected by an independent audit — CODEXREVIEW #2 is partial
+(no durable flush), and CODEXIMPROVE #1, #3, #5 (orchestrator half), and #6
+each have a material gap, detailed above. Don't hand-edit session 35's own
+STATE.md; let this session's STATE.md carry the correction forward, per
+this project's existing convention.
+
+Also worth naming plainly, once, as a process note rather than blame: the
+last several sessions' GATE PASS self-assessments checked the code paths
+each session's own brief and tests happened to exercise, not every real
+entry point a fix was supposed to cover. That's how #5's orchestrator half
+and #1's live-observe path both went unchecked while their sibling paths
+looked done. Going forward, before this project declares a Codex item
+fully resolved, grep every entry point that's supposed to use the changed
+code — not just the one path the session's own smoke test touched.
 
 ---
 
 ## Your task
 
-1. §1 (CODEXIMPROVE #5) is the whole scope this session, staged as
-   written above: read real deltas into the pool/upgrade scores first,
-   then the `AddMaxHealth`/`AddMaxArmor` split, then `playCounts`
-   persistence, then (if time allows within this session) the
-   clean-boon rollout comparison as a separately-labeled sim check. If
-   the rollout-comparison piece doesn't fit this session, ship steps 1-3
-   with tests and leave step 4 explicitly queued rather than rushing it —
-   this is the last standing Codex item, not a reason to cut a corner to
-   close it.
-2. Do not touch or soften `loot.ts`'s existing "UNVALIDATED, cannot be
-   validated yet" header disclaimer unless the real corpus itself now has
-   a scored second-boon decision (it doesn't, as of session 34).
-3. Add regression tests for every scoring change — same standard as every
-   prior Codex item in this run: a same-category boon with a bigger
-   `val1` should score higher than a smaller one; `AddMaxHealth` should
-   score differently than an `AddMaxArmor` offer with the same `val1`;
-   `playCounts` persistence should survive a simulated resume and reset
-   between two different run IDs.
-4. Recap normally, full suite + `tsc` against the final commit as usual.
-   If this closes out both Codex docs' entire backlog, say so plainly in
-   the STATE.md status line — that's a real milestone for this project,
-   not just another session.
+1. §1 (CODEXAUDIT #1, opponent-model double-count) is the required scope —
+   fix it in BOTH `liveRun.ts` and `orchestrator.ts`, with the regression
+   test named above.
+2. Write the `DECISIONS.md` correction entry described above — this is not
+   optional busywork, it's this project's own standing discipline for a
+   corrected prior claim.
+3. If time remains after §1 is fully tested: CODEXAUDIT #3 (wire
+   `playCountsPersistence` into `scripts/orchestrator.ts`, closing
+   CODEXIMPROVE #5's actual remaining gap) is small and self-contained —
+   take it as a stretch item, same spirit as session 35's own optional
+   step 4, but don't let it crowd out §1's regression coverage or the
+   correction entry.
+4. Do NOT attempt CODEXAUDIT #2 (fishing shrinkage), #4 (`nextPosition`
+   gate fix), #5 (durable fsync across all three persistence modules), or
+   #6 (schema tightening) this session — all queued below, all real, none
+   as urgent as an active double-counting bug in live-trusted data.
+5. Recap honestly. If §1's fix doesn't fully close the gap in one session,
+   say so and leave the rest queued — this project already has one
+   overclaimed GATE PASS to correct; don't produce a second one in the act
+   of fixing the first.
 
 ---
 
 ## Queued, not this session
 
+- **CODEXAUDIT #2** (fishing contextual fallback's log-loss regression) —
+  shrink the contextual estimate toward the cell-only distribution
+  (mixture weighted by support, e.g. `n / (n + shrinkageK)`) instead of
+  hard-switching to a raw empirical distribution at `minIndependentCasts`.
+  Select `shrinkageK` by held-out log loss/Brier, same discipline session
+  33 already used once. Relevant code: `src/strategy/fishing/
+  contextualFallback.ts:169-183`, `scripts/fishingContextualCV.ts:223-247`,
+  `scripts/fishingContextualAblation.ts:38-92` (verify line numbers on
+  open).
+- **CODEXAUDIT #4** (`nextPosition` override gate) — `confirmedHitCount()`
+  needs to require every recent validation to be a hit within the window
+  (or a real accuracy threshold with a confidence bound), not just ten
+  cumulative hits regardless of interleaved misses; also add schema and
+  grid-bounds validation to the loader. Relevant code:
+  `scripts/liveFishing.ts:365, 399-415, 779-795` (verify line numbers on
+  open — this file has shifted since session 33/34's fishing work).
+- **CODEXAUDIT #5** (durable atomic writes) — centralize a shared
+  `atomicWriteJson()` helper (write temp, `fsyncSync`, close, rename,
+  flush parent dir where supported, clean up temp on failure) and have
+  `guardPersistence.ts`, `opponentModelPersistence.ts`, and
+  `playCountsPersistence.ts` all route through it instead of each calling
+  `writeFileSync`+`renameSync` directly. This completes CODEXREVIEW #2 for
+  real.
+- **CODEXAUDIT #6** (opponent-model schema too permissive) — tighten
+  `CountSchema` to `z.number().int().nonnegative()` and validate that a
+  transition row's sum can't exceed its marginal predecessor count. Low
+  priority, cheap, do after the above.
 - **QUESTIONS.md §15** (stuck fishing account after an escape) — still
-  needs a human DevTools capture, not code. Worth a cheap read-only
-  `scripts/checkFishingStuck.ts` check at the start of the session before
-  ruling out any live fishing smoke test, same as session 34's instinct,
-  but this session's actual work (boon valuation) is dungeon-side and
-  unaffected either way.
-- Task 14 (bot-initiated juiced `start_run`) still BLOCKED on a live
-  DevTools capture — still needs a manual juiced run captured whenever
-  convenient, not code work.
+  needs a human DevTools capture, not code.
+- Task 14 (bot-initiated juiced `start_run`) — still BLOCKED on a live
+  DevTools capture, not code work.
 - The scheduler still can't learn about energy gained outside its own
   tracking, and a single SIGINT during an energy-regen sleep still ends
-  the whole session (unchanged since session 25, not re-queued as an
-  action item, just still true).
+  the whole session (unchanged since session 25).
 - The charge-reserve plateau (0.4/0.5/0.6, mutually indistinguishable at
-  the N this project has run) was not narrowed further — not urgent, only
-  worth revisiting if a much larger ablation N or a sharper metric is
-  ever worth the compute.
+  the N run so far) — not urgent.
