@@ -119,15 +119,10 @@ export const DANGEROUS_TIER = 2;
  * juiced run (Tier-2, silver rings) captured minutes later shows hpMax
  * 43 → 38, armorMax unchanged at 17, rock (Sword) ATK 16 → 26 / DEF 0 → 9
  * (a NEW gear boost), scissor (Spell) ATK/DEF 18/15 → 12/8 (the boost from
- * the FIRST update is GONE — back to its unboosted base). Zero picked
- * boons on this state too, so this is not an in-combat/boon effect either.
- * Genuinely unresolved which explanation is right: an ordinary gear
- * re-spec between the two manual starts (matching the established
- * cross-session pattern, just at an unusually short timescale — nothing
- * in the wire data distinguishes "between sessions" from "between two
- * manual starts 90 minutes apart"), OR something tied to the entry TIER
- * itself (Tier 2 vs Tier 3) rather than gear. Recorded as observed, not
- * asserted — flagged for the next session rather than guessed at here.
+ * the FIRST update is GONE — back to its unboosted base). CONFIRMED
+ * user-stated: an ordinary armor re-spec between the two manual starts, NOT
+ * anything tied to the entry tier — same non-monotonic gear-respec pattern
+ * as sessions 15/23, just compressed to within one session.
  */
 export const PLAYER: Combatant = {
   id: "player",

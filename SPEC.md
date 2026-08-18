@@ -514,12 +514,12 @@ rings) juiced start sent `index: 3`; a Tier-2 (silver rings) juiced start
 sent `index: 2`. Both are juiced (`isJuiced: true`, 3x energy/reward) at
 DIFFERENT entry tiers, proving `index` selects the entry tier independently
 of juiced status — TASKS.md Task 14's original "index == tier, not yet
-confirmed" question is settled. Whether `entryData`'s own `dropMultiplier`
-(2 vs 4) additionally stacks with the juiced 3x is NOT yet confirmed — the
-one reward channel checked so far (item 846 credits, §3f) showed identical
-base amounts across both tiers, suggesting `dropMultiplier` does not visibly
-affect that specific channel, but this is one observation, not a settled
-finding.
+confirmed" question is settled.
+
+**[CONFIRMED 2026-08-18, session 42, user-stated] `dropMultiplier` and the
+juiced 3x do NOT stack on the same item — they govern separate reward
+channels.** `dropMultiplier` (this tier system) affects Hard Core (item
+845) only; the juiced 3x affects Dendren Root (item 846) only. See §3f.
 
 **"Juice"/"juiced" is three unrelated game concepts sharing one word —
 user-clarified [2026-08-17, session 23], after this ambiguity caused a real
@@ -789,11 +789,21 @@ DECISIONS 2026-08-17 session 23), credited three separate times rather than
 one `amount: 15` entry. Held at every kill in the same run (9→27, 14→42,
 19→57, 25→75, 31→93 — always three identical entries summing to 3x base).
 Currency credits (item 845, Hard Core) on that same run's reward-pick
-responses were single (non-tripled) entries — not yet explained, and out of
-scope for this finding. A caller that reads `gameItemBalanceChanges` and sums
-by item id (as `dungeonReport.ts` does) gets the correct 3x total either way;
-a caller that reads only the first matching entry would silently undercount
-a juiced run by 2/3.
+responses were single (non-tripled) entries. A caller that reads
+`gameItemBalanceChanges` and sums by item id (as `dungeonReport.ts` does)
+gets the correct 3x total either way; a caller that reads only the first
+matching entry would silently undercount a juiced run by 2/3.
+
+**[CONFIRMED 2026-08-18, session 42, user-stated] The two multipliers govern
+DIFFERENT reward channels — they do not stack on the same item.** `isJuiced`
+(the 3x, implemented above as triplicated entries) affects Dendren Root
+(item 846) only. `entryData`'s per-tier `dropMultiplier` (§3c — 1/2/4 for
+Tier 1/2/3, gated on rings) affects Hard Core (item 845) only. This resolves
+the apparent puzzle in this session's own two-run comparison (Tier-2 vs
+Tier-3 juiced runs showing IDENTICAL base Dendren Root progressions despite
+different `dropMultiplier`s) — the two runs' Hard Core amounts differ
+because of `dropMultiplier`, not despite it; Dendren Root doesn't respond to
+`dropMultiplier` at all, only to `isJuiced`.
 
 ---
 

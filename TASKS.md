@@ -1196,19 +1196,18 @@ moved exactly 3→6 at this second juiced `start_run` (read before and after,
 matching session 23's original finding and this session's own first
 resume). The item-crediting 3x-duplicate pattern (SPEC.md §3f) held
 identically regardless of entry tier (2 vs 3) — base per-room amounts were
-byte-for-byte the same progression (5,9,14,19,25) in both runs, so
-`entryData`'s own `dropMultiplier` (2 vs 4) is NOT visibly stacking with
-the juiced 3x on this specific reward channel — open question, not
-resolved this session (see STATE.md).
+byte-for-byte the same progression (5,9,14,19,25) in both runs. **RESOLVED,
+user-stated**: `dropMultiplier` and the juiced 3x govern separate reward
+channels entirely — `dropMultiplier` affects Hard Core (item 845) only,
+the juiced 3x affects Dendren Root (item 846) only, so they were never
+going to stack visibly on this channel. See SPEC.md §3c/§3f.
 
-**Genuinely unresolved, flagged rather than guessed at**: this second run's
-own opening state (zero picked boons) showed PLAYER's rock (Sword) move
-substantially stronger than the first run's capture 90 minutes earlier
-(ATK 16→26, DEF 0→9) while scissor's own gear boost from the first capture
-was gone (back to base 12/8) — either an ordinary gear re-spec between the
-two manual starts, or something tied to entry tier itself. Not
-distinguishable from this session's data alone; see `src/sim/enemies.ts`'s
-`PLAYER` doc comment.
+**RESOLVED, user-stated**: this second run's own opening state (zero
+picked boons) showed PLAYER's rock (Sword) move substantially stronger
+than the first run's capture 90 minutes earlier (ATK 16→26, DEF 0→9) while
+scissor's own gear boost from the first capture was gone (back to base
+12/8) — confirmed an ordinary armor re-spec between the two manual starts,
+not anything tier-linked. See `src/sim/enemies.ts`'s `PLAYER` doc comment.
 
 ---
 

@@ -83,9 +83,9 @@ describe("resolveExchange", () => {
     // away from Spell. [session 23] Re-spec'd back to Spell-favoring, DEF 13
     // (see enemies.ts's PLAYER doc). [session 42, first update] DEF 13 → 15.
     // [session 42, second update, same session] Back to 8 — the Spell gear
-    // boost is gone again (a second manually-started run's own capture; see
-    // enemies.ts's PLAYER doc for the open question about why). Starting
-    // armor kept at 0 so the demonstration stays clean regardless of which
+    // boost is gone again (user-confirmed armor re-spec between two manual
+    // runs this session; see enemies.ts's PLAYER doc). Starting armor kept
+    // at 0 so the demonstration stays clean regardless of which
     // DEF value is current.
     const state: BattleState = {
       me: { ...me(), armor: 0 },

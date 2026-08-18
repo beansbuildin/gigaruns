@@ -143,8 +143,8 @@ describe("player loadout matches the fixtures", () => {
     // [session 42, same session] One more new combo, from the user's SECOND
     // manually-started juiced run (Tier-2, silver rings): 38/17 is a THIRD
     // starting loadout captured this session — hpMax dropped 43→38, armorMax
-    // stayed at 17. See enemies.ts's PLAYER doc for the open question about
-    // why (gear re-spec between manual starts vs. something tier-specific).
+    // stayed at 17. User-confirmed armor re-spec between the two manual
+    // starts, not a tier effect — see enemies.ts's PLAYER doc.
     expect([...seen].sort()).toEqual([
       "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16",
     ]);
