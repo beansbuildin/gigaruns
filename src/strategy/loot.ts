@@ -22,6 +22,18 @@
  * Preferring modelled boons would raise `deepestScorableRoom` and coverage
  * without the bot playing any better — it would be tuning the metric instead of
  * the game, and the metric is our only honest read on the blind spot.
+ *
+ * **[session 35, CODEXIMPROVE #5]** The `pool` and `upgrade` scores used to be
+ * flat category constants, blind to `option.val1`/`val2` — a +2 max-armor
+ * offer and a +8 one scored identically, and an ATK upgrade and a DEF upgrade
+ * of the same move did too. Both now scale by the real confirmed delta,
+ * normalised against the ONE clean corpus sample of that boon shape
+ * (`src/sim/boons.ts`'s evidence), so the magnitude responds to the real
+ * offer while the existing `roomsRemaining` shape is unchanged. `AddMaxHealth`
+ * is also split out of the generic `pool` bucket it used to share with
+ * `AddMaxArmor` — `boons.ts`'s `maxHealth` effect moves current HP WITH the
+ * new ceiling, so none of it is ever wasted the way an unfilled armor pool is,
+ * and it is scored with the same "usable, not raw" formula `heal` uses below.
  */
 
 import type { BoonOption } from "../sim/boons.js";
@@ -43,6 +55,17 @@ const ROLLED_TYPES = new Set(["AddLuck", "AddEvasion", "AddTenacity", "AddBlock"
  * this tier fell through to `unknown` and scored below a rolled stat.
  */
 const POOL_PREFIX = "AddMax";
+
+/**
+ * [session 35, CODEXIMPROVE #5] Reference magnitudes the pool/upgrade scores
+ * normalise against — each is the ONE confirmed clean corpus sample of that
+ * boon shape (`src/sim/boons.ts`'s evidence), not a guess. Multiplying the old
+ * flat constant by `(actual delta / this reference)` keeps the heuristic's
+ * calibration unchanged for an offer at the reference magnitude, while making
+ * the score respond to a bigger or smaller real one.
+ */
+const POOL_REFERENCE_DELTA = 4; // AddMaxArmor's selectedVal1, session-11 pair (armorMax 16 → 20)
+const UPGRADE_REFERENCE_DELTA = 4; // UpgradeRock/UpgradeScissor's selectedVal1+val2, session-09 pairs (both +4 DEF)
 
 /** `UpgradePaper` -> `paper`. Null when the suffix is not a move we know. */
 export function upgradeTarget(type: string): MoveKey | null {
@@ -86,6 +109,17 @@ export interface RankedBoon {
 }
 
 /**
+ * §4c rank 1's "usable, not raw" formula, factored out so `AddMaxHealth`
+ * (below) can share it rather than a second heal-shaped formula being
+ * invented for it. `usable` is the caller's job to compute correctly for the
+ * boon's actual mechanic — see the two call sites for why a capped `Heal` and
+ * an uncapped `AddMaxHealth` arrive here with different `usable` amounts.
+ */
+function usableHealScore(usable: number, hpMax: number, hpFraction: number, roomsRemaining: number): number {
+  return 100 * (usable / hpMax) + (roomsRemaining > 0 ? 60 * (1 - hpFraction) : 0);
+}
+
+/**
  * Rank an offer, best first. Ties break by the order offered, so the choice is
  * reproducible.
  */
@@ -122,11 +156,24 @@ export function rankBoons(
           // on. Made continuous in `(1 - hpFraction)` so the bonus tracks how much
           // HP is actually missing, not which side of one threshold it's on.
           const usable = Math.min(option.val1, player.hpMax - player.hp);
-          score = 100 * (usable / player.hpMax) + (roomsRemaining > 0 ? 60 * (1 - hpFraction) : 0);
+          score = usableHealScore(usable, player.hpMax, hpFraction, roomsRemaining);
           rationale = `heals ${usable} usable of ${option.val1} at HP ${player.hp}/${player.hpMax}`;
           break;
         }
         case "pool": {
+          if (option.type === "AddMaxHealth") {
+            // [session 35, CODEXIMPROVE #5] `boons.ts`'s `maxHealth` effect
+            // moves current HP WITH the new ceiling (`hpMax += val1; hp +=
+            // val1`) — unlike AddMaxArmor, none of it is ever wasted against
+            // an unfilled pool, so every point of val1 is usable regardless of
+            // current HP. Scored with the SAME formula `heal` uses above, not
+            // a new one — this boon delivers HP exactly like a heal does, it
+            // just also raises the ceiling permanently.
+            const usable = option.val1;
+            score = usableHealScore(usable, player.hpMax, hpFraction, roomsRemaining);
+            rationale = `raises max HP by ${option.val1} (current HP moves with the new ceiling — all ${usable} usable), at HP ${player.hp}/${player.hpMax}`;
+            break;
+          }
           // §4c rank 3, and the user's own read from playing: max HP and max
           // armor above stat boons. Weighted by rooms remaining, since a bigger
           // pool only pays across the rooms you go on to fight.
@@ -136,7 +183,11 @@ export function rankBoons(
           // +2 only once you have regenerated into it through a won or tied
           // move's DEF, whereas a heal is HP in hand immediately and HP is the
           // one resource combat cannot renew at all.
-          score = 25 * Math.min(1, roomsRemaining / 8);
+          //
+          // [session 35, CODEXIMPROVE #5] Scaled by the boon's own val1 against
+          // the one confirmed real sample (AddMaxArmor +4, see the reference
+          // constant above) — a +2 offer and a +8 one no longer score the same.
+          score = 25 * (option.val1 / POOL_REFERENCE_DELTA) * Math.min(1, roomsRemaining / 8);
           rationale = `raises a max pool by ${option.val1}, ${roomsRemaining} rooms left to use it`;
           break;
         }
@@ -144,11 +195,17 @@ export function rankBoons(
           // §4c rank 2: upgrade the move actually played most. With no logged
           // distribution yet, every move shares the prior equally — which is the
           // honest state before Task 6 produces real play data.
+          //
+          // [session 35, CODEXIMPROVE #5] Scaled by the offer's own ATK+DEF
+          // delta against the one confirmed real sample (UpgradeRock/
+          // UpgradeScissor, both +4 DEF — see the reference constant above),
+          // so a bigger stat upgrade outscores a smaller one of the same move.
           const target = upgradeTarget(option.type)!;
           const share = totalPlays === 0 ? 1 / MOVES.length : (counts[target] ?? 0) / totalPlays;
-          score = 40 * share * Math.min(1, roomsRemaining / 4);
+          const delta = option.val1 + option.val2;
+          score = 40 * share * (delta / UPGRADE_REFERENCE_DELTA) * Math.min(1, roomsRemaining / 4);
           rationale =
-            `upgrades ${target}, played ${((share * 100) | 0)}% of ${totalPlays} logged moves` +
+            `upgrades ${target} by +${option.val1} ATK/+${option.val2} DEF, played ${((share * 100) | 0)}% of ${totalPlays} logged moves` +
             (totalPlays === 0 ? " (no play log yet — flat prior)" : "");
           break;
         }

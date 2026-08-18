@@ -65,6 +65,7 @@ import {
   saveOpponentModelAtomically,
   DEFAULT_OPPONENT_MODEL_PATH,
 } from "../src/orchestrator/opponentModelPersistence.js";
+import { loadPlayCounts, savePlayCounts, deletePlayCounts, DEFAULT_PLAY_COUNTS_PATH } from "../src/orchestrator/playCountsPersistence.js";
 import { pickLowestTier } from "../src/strategy/enemyTier.js";
 import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
@@ -419,6 +420,17 @@ export interface LiveRunDeps {
    * `data/opponent-model.json` (CLAUDE.md working-style, test isolation).
    */
   opponentModelPersistence?: { path: string; bootstrapImportedIds: Set<string> };
+  /**
+   * CODEXIMPROVE #5 (session 35): where `savePlayCounts`/`loadPlayCounts`
+   * persist this run's move distribution, keyed by `DUNGEON_ID_CID`, so a
+   * process restart mid-run doesn't forget it before `loot.ts`'s
+   * `"upgrade"` case gets to rank against it. `undefined` (the default,
+   * every existing test) preserves the previous in-memory-only-and-zeroed
+   * behavior exactly — same opt-in shape as `opponentModelPersistence`, and
+   * for the same reason: tests exercising `runOnce` must never write the
+   * real `data/play-counts.json`.
+   */
+  playCountsPersistence?: { path: string };
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -610,6 +622,11 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
   let prevFoeMove: MoveKey | null = null;
   let lastFoeId: string | null = null;
   const playCounts: Record<MoveKey, number> = { rock: 0, paper: 0, scissor: 0 };
+  // [session 35, CODEXIMPROVE #5] Loaded once the run's real DUNGEON_ID_CID
+  // is known (first iteration of the loop below) and mutated in place —
+  // `null` until then, since a fresh `getDungeonState()` read is what
+  // reveals the identity to load against. See playCountsPersistence.ts.
+  let playCountsRunId: number | null = null;
   // Set right after the use_item probe's own resync (below) — that resync
   // legitimately re-reads a state that hasn't changed (the whole point of a
   // probe that didn't apply), and without this the stall guard would trip on
@@ -721,6 +738,9 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     if (!state) {
       log.write({ event: "run_ended_or_absent" });
       console.log(`  · no active run — stopping.`);
+      // [session 35, CODEXIMPROVE #5] Per-run state, not a running total —
+      // delete rather than let it go stale for whatever attempt starts next.
+      if (deps.playCountsPersistence && playCountsRunId !== null) deletePlayCounts(deps.playCountsPersistence.path);
       return;
     }
     fixtures.write(state);
@@ -728,6 +748,19 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     const run = state.data.run as unknown as WireRun;
     const roomNum = (state.data.entity as { ROOM_NUM_CID?: number } | undefined)?.ROOM_NUM_CID ?? 0;
     const phase = classifyPhase(run);
+
+    // [session 35, CODEXIMPROVE #5] First time this run's real identity is
+    // known — load its persisted move distribution (a resume recovers
+    // exactly what was logged earlier in this SAME run; a genuinely
+    // different run's leftover, or nothing on disk, both start at zero, see
+    // playCountsPersistence.ts's loadPlayCounts).
+    if (deps.playCountsPersistence && playCountsRunId === null) {
+      playCountsRunId = run.DUNGEON_ID_CID;
+      const persisted = loadPlayCounts(playCountsRunId, deps.playCountsPersistence.path);
+      playCounts.rock = persisted.rock;
+      playCounts.paper = persisted.paper;
+      playCounts.scissor = persisted.scissor;
+    }
 
     const stateKey = JSON.stringify({ run: run, room: roomNum, phase });
     if (skipNextStateCheck) {
@@ -763,6 +796,9 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     if (phase === "over") {
       log.write({ event: "run_over", room: roomNum });
       console.log(`  ▸ run over at room ${roomNum}.`);
+      // [session 35, CODEXIMPROVE #5] Win, death, or flee all land here —
+      // delete rather than let it go stale for whatever attempt starts next.
+      if (deps.playCountsPersistence && playCountsRunId !== null) deletePlayCounts(deps.playCountsPersistence.path);
       return;
     }
 
@@ -838,6 +874,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
           // previously-learned evidence.
           if (deps.opponentModelPersistence) {
             saveOpponentModelAtomically(model, deps.opponentModelPersistence.bootstrapImportedIds, deps.opponentModelPersistence.path);
+          }
+          // [session 35, CODEXIMPROVE #5] Same "persist immediately" rule,
+          // applied to the move distribution loot.ts's "upgrade" case ranks
+          // against.
+          if (deps.playCountsPersistence && playCountsRunId !== null) {
+            savePlayCounts(playCountsRunId, playCounts, deps.playCountsPersistence.path);
           }
         }
       }
@@ -1105,6 +1147,10 @@ async function main() {
   // reused rather than reinvented, against the opponent-model file's own
   // path — see opponentModelPersistence.ts's header.
   process.once("exit", acquireGuardLock(DEFAULT_OPPONENT_MODEL_PATH));
+  // [session 35, CODEXIMPROVE #5] Same one-writer-per-file discipline against
+  // the play-counts file's own path — see playCountsPersistence.ts's header.
+  process.once("exit", acquireGuardLock(DEFAULT_PLAY_COUNTS_PATH));
+  const playCountsPersistence = { path: DEFAULT_PLAY_COUNTS_PATH };
   // [session 09] Seed from today's already-spent energy/runs so the budget
   // holds across separate process invocations, not just within one — see
   // guardPersistence.ts.
@@ -1242,6 +1288,7 @@ async function main() {
                 : undefined,
           potionPolicy: potionPolicyState,
           opponentModelPersistence,
+          playCountsPersistence,
         },
         { stage2Only: args.stage2, requireResumeConfirmation: i === 0, resumeExisting: args.resumeExisting },
       );

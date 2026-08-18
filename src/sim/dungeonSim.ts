@@ -108,10 +108,13 @@ export interface SimOptions {
    * Override the player's starting stats. Defaults to `PLAYER` (the current
    * live-confirmed gear loadout, `src/sim/enemies.ts`).
    *
-   * Exists for ONE purpose: `scripts/gearSweep.ts`'s counterfactual —
-   * "which single-stat gear upgrade is worth the most rooms cleared" — a
-   * question about progression choices, not about current play. A result
-   * produced with this override is a HYPOTHETICAL gear loadout and must be
+   * Originally for exactly ONE purpose, `scripts/gearSweep.ts`'s
+   * counterfactual — "which single-stat gear upgrade is worth the most rooms
+   * cleared" — a question about progression choices, not about current play.
+   * [session 35, CODEXIMPROVE #5] `scripts/boonRankingCheck.ts` reuses it for
+   * a second, structurally identical question: what a short continuation
+   * looks like after `applyBoon()` moves the player's stats. A result
+   * produced with this override is a HYPOTHETICAL starting state and must be
    * labelled as one; never use it to report the live win rate.
    */
   player?: Combatant;

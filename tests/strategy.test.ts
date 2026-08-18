@@ -411,6 +411,7 @@ describe("loot ranking — §4c, unvalidated by construction", () => {
     expect(categorise("UpgradePaper")).toBe("upgrade");
     expect(categorise("AddEvasion")).toBe("rolled");
     expect(categorise("AddMaxArmor")).toBe("pool");
+    expect(categorise("AddMaxHealth")).toBe("pool"); // scored specially inside rankBoons, but still this category (session 35, CODEXIMPROVE #5)
     expect(categorise("CorrosiveShield")).toBe("unknown");
     expect(upgradeTarget("UpgradeScissor")).toBe("scissor");
     expect(upgradeTarget("AddLuck")).toBeNull();
@@ -457,14 +458,48 @@ describe("loot ranking — §4c, unvalidated by construction", () => {
    * user's read from playing it: max armor over a stat boon. §4c ranked it that
    * way from the start; the implementation missed it only because `AddMaxArmor`
    * had never been seen before session 06 and fell through to `unknown`.
+   *
+   * val1 4, not the offer's actual 2 — [session 35, CODEXIMPROVE #5] made the
+   * pool score responsive to val1 (previously flat), normalised against
+   * AddMaxArmor's own confirmed real sample (+4, session 11). Using that
+   * reference magnitude here keeps this test on a real captured value rather
+   * than an arbitrary one that the new scaling would legitimately mark down.
    */
   it("ranks AddMaxArmor above rolled stats — §4c rank 3, and the recorded offer", () => {
     const ranked = rankBoons(cloneCombatant(PLAYER), [
-      { type: "AddMaxArmor", val1: 2, val2: 0 },
+      { type: "AddMaxArmor", val1: 4, val2: 0 },
       { type: "AddLuck", val1: 1, val2: 0 },
       { type: "UpgradeScissor", val1: 0, val2: 4 },
     ], 1);
     expect(ranked[0]!.option.type).toBe("AddMaxArmor");
+  });
+
+  // [session 35, CODEXIMPROVE #5] The pool/upgrade scores used to be flat
+  // category constants, blind to the boon's actual val1/val2 — a same-
+  // category boon with a bigger delta now scores higher, not identically.
+  it("scores a bigger AddMaxArmor offer higher than a smaller one", () => {
+    const small = rankBoons(cloneCombatant(PLAYER), [{ type: "AddMaxArmor", val1: 2, val2: 0 }], 1)[0]!;
+    const big = rankBoons(cloneCombatant(PLAYER), [{ type: "AddMaxArmor", val1: 8, val2: 0 }], 1)[0]!;
+    expect(big.score).toBeGreaterThan(small.score);
+  });
+
+  it("scores a bigger move-upgrade offer higher than a smaller one of the same move", () => {
+    const small = rankBoons(cloneCombatant(PLAYER), [{ type: "UpgradeScissor", val1: 2, val2: 0 }], 1)[0]!;
+    const big = rankBoons(cloneCombatant(PLAYER), [{ type: "UpgradeScissor", val1: 8, val2: 0 }], 1)[0]!;
+    expect(big.score).toBeGreaterThan(small.score);
+  });
+
+  // `AddMaxHealth` moves current HP WITH the new ceiling (src/sim/boons.ts's
+  // `maxHealth` effect); `AddMaxArmor` does NOT autofill current armor. Same
+  // val1, same nominal "pool" category, genuinely different value delivered —
+  // the score must not treat them the same.
+  it("scores AddMaxHealth differently than AddMaxArmor at the same val1", () => {
+    const hurt = { ...cloneCombatant(PLAYER), hp: 20 };
+    const armor = rankBoons(hurt, [{ type: "AddMaxArmor", val1: 8, val2: 0 }], 1)[0]!;
+    const health = rankBoons(hurt, [{ type: "AddMaxHealth", val1: 8, val2: 0 }], 1)[0]!;
+    expect(health.category).toBe("pool");
+    expect(armor.category).toBe("pool");
+    expect(health.score).not.toBe(armor.score);
   });
 
   it("still puts a usable Heal above a max pool — HP is the resource combat cannot renew", () => {
