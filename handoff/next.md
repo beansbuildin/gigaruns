@@ -1,135 +1,144 @@
-# BRIEF — session 40
+# BRIEF — session 41
 
-Session 39 closed the entire Codex-derived backlog — 22 items across
-CODEXREVIEW, CODEXIMPROVE, and CODEXAUDIT, first opened session 28 — and
-this time the "fully closed" claim is actually trustworthy: it re-verified
-the other four previously-claimed-fixed items live in the tree (grep-
-confirmed file/line, not assumed) before writing that sentence, per the
-prior brief's explicit instruction not to repeat sessions 35/36's
-overclaims. The planned work itself (the `nextPosition` gate) landed
-cleanly: a real Wilson-score lower-confidence-bound gate replacing the old
-raw-hit-count one, schema-validated log records, grid-bounds checking.
-559/559 tests, `tsc` clean, `git diff --check` clean.
+Session 40 landed the structural fix cleanly: `tests/liveFishing.test.ts`'s
+five inline `LiveFishingDeps` literals collapsed into one
+`makeLiveFishingDeps()` helper whose parameter type requires
+`transitionsPath`/`guardStatePath`/`nextPositionLogPath`/`logsDir`
+explicitly — dropping any of the four is now a compile error, not a silent
+fallback to a real path. It re-confirmed `tests/liveRun.test.ts` live
+(grep, not assumed) rather than trusting the session-32 decision-log
+entry, and correctly declined to over-apply the fix: it read every call
+site of `opponentModelPersistence`/`playCountsPersistence` before deciding
+NOT to require them the same way, since both are safe-by-omission
+(no-ops when undefined) rather than defaulting to a real path — requiring
+them would have misrepresented the actual risk. 559/559 tests (unchanged —
+pure refactor), `tsc` clean, `git diff --check` clean, and it directly
+`stat`-checked that every real data/log path was untouched after the test
+run rather than assuming the refactor worked.
 
-**The more important thing that happened this session wasn't the planned
-work.** While building the gate, session 39 found the real
-`data/nextPositionValidation.jsonl` already contaminated with 35 fake
-"hit" records — byte-for-byte a test fixture that had leaked into
-production data. Root cause: a `runOneCast` test constructed
-`LiveFishingDeps` without overriding `nextPositionLogPath`, falling back
-to the real default path, and a separate hardcoded `logs/` write in
-`dumpUnknownTerminal()` had no override mechanism at all. This is the SAME
-bug class CLAUDE.md already documents as having shipped twice before
-(sessions 30, 31) — a third occurrence, in the very file that records the
-first two. Consequence, if uncaught: the override this session was fixing
-would have been armed in live play from zero real evidence before the fix
-even landed.
-
-This session's primary work is closing that bug class structurally, not
-just fixing the third instance of it.
+It also found a live loose end and was honest that it didn't fix it:
+`scripts/liveRun.ts`'s `RunLog` class has no injectable path at all
+(hardcoded `mkdirSync("logs")` in its constructor) — currently harmless
+only because no test constructs a real one, but the exact same shape as
+the `dumpUnknownTerminal` bug session 39 fixed on the fishing side.
 
 ---
 
-## 1. Structurally prevent test-constructed Deps from omitting an isolated I/O path
+## Correcting my own prior brief before assigning new work
 
-**Root cause, confirmed by reading the actual test file, not assumed:**
-`tests/liveFishing.test.ts` has TWO independent patterns for constructing
-`LiveFishingDeps` today. A shared `makeDeps(client, guardStatePath)`
-helper (`:635`) is used by SOME tests (the guard-trip tests around
-`:651, 670`). But the `nextPosition`/dual-yield tests (`:460-580`ish)
-build `LiveFishingDeps` object literals INLINE, independently setting
-`nextPositionLogPath`/`logsDir` by hand each time — and it was exactly one
-of these ad-hoc literals that missed a field. Two independently-maintained
-construction sites is precisely how this drifts: a new optional path field
-gets added to the interface, one site is updated, the other isn't, and
-nothing catches it until the real file shows contamination.
+Session 40's brief (mine) queued "Task 13's deck-aware `simulateCast`
+prerequisite" as the next TASKS.md pick, describing it as buildable,
+no-capture-needed work. **That was wrong, and I should have caught it by
+reading the code, not just TASKS.md's own top-of-section text.** I read
+`src/sim/fishing/castSim.ts` directly this time: the `deckIds` option on
+`CastOptions` already exists, with a header comment reading
+`[ADDED session 26, Task 13 infrastructure]` — the deck-aware prerequisite
+was built three sessions before session 22's scoping text (which
+TASKS.md's Task 13 "What would unpark it" section still describes as an
+open condition) even mentions it. TASKS.md's own session-27 addendum,
+later in the SAME section, already correctly treats this infrastructure as
+existing ("the deck-aware `simulateCast` infrastructure (session 26)") —
+so the document contradicts itself between an unrevised session-22
+paragraph and a correct session-27 one, and I repeated the stale half.
 
-**The fix is to make it impossible to construct test Deps without every
-known isolated path, not to fix this one instance and hope the next
-session remembers.**
+**Consequence: there is no ready, code-shaped Task 13 work right now.**
+The infra prerequisite is done; the only remaining blocker is the real
+validation floor (double-digit real card-choice observations — currently
+one), which is a capture question, not a code question, same shape as
+QUESTIONS.md §15 and Task 14. Task 11 stays parked on its own unmet
+revival conditions. This session's actual scope is smaller and more
+honest than last brief's framing suggested.
 
-1. Consolidate every `LiveFishingDeps` construction in
-   `tests/liveFishing.test.ts` — and, same bug class, every `LiveRunDeps`
-   construction in `tests/liveRun.test.ts` — through exactly ONE per-file
-   helper. No inline object literals left outside it; every test that
-   currently builds one inline gets refactored to call the helper instead
-   (passing whatever per-test overrides it actually needs on top of the
-   isolated defaults).
-2. Give that helper a signature that REQUIRES every currently-known
-   isolated-path field explicitly — not defaulted inside the helper, not
-   optional. Something in the shape of a dedicated parameter object typed
-   against `Required<Pick<LiveFishingDeps, "transitionsPath" |
-   "guardStatePath" | "nextPositionLogPath" | "logsDir">>` (confirm the
-   exact current field list against the live interface, `:722` onward —
-   don't hardcode this brief's list if the interface has grown since).
-   The point: when a FUTURE session adds a new optional I/O-path field to
-   `LiveFishingDeps`, the helper fails to typecheck until someone updates
-   it — a compile error the moment the interface changes, not a silent
-   default three sessions later. This is the concrete version of what
-   session 39's own open question asked for.
-3. Apply the identical treatment to `LiveRunDeps`/`tests/liveRun.test.ts`
-   — check whether it already has a single consolidated helper (DECISIONS
-   2026-08-18 session 32 describes one existing at the time, but confirm
-   it's still the ONLY construction site today, the same way this session
-   found `liveFishing.test.ts` wasn't).
-4. Be honest about what's actually provable here, same discipline as
-   session 37's fsync work: a compile-time guarantee isn't something you
-   write a runtime test to prove passing. What IS worth asserting: that
-   the helper's parameter type, read by inspection, genuinely has no
-   optional/defaulted path fields left (a code-review-level claim, state
-   it plainly in the recap rather than implying a test proves it); and a
-   grep confirming zero remaining inline `LiveFishingDeps`/`LiveRunDeps`
-   object-literal constructions exist in either test file outside the one
-   helper each.
-5. Before finishing: run the full suite and then directly check the real
-   `data/nextPositionValidation.jsonl` and `logs/` (gitignored, real
-   paths) are untouched — a live check, not just trusting the refactor
-   fixed it. Session 39 already cleaned the 35 fake records and 45 stray
-   dump files with user approval; don't reintroduce them while testing
-   this fix.
+---
+
+## 1. Close the `RunLog` gap on both entry points (small, primary)
+
+Relevant code, confirmed against the current tree:
+
+- `scripts/liveRun.ts:352-364` — `RunLog`. Constructor takes no
+  parameter; `mkdirSync("logs", ...)` and `join("logs", 'run-${stamp()}.jsonl')`
+  both hardcoded. Constructed once, at `:1218` (`main()`).
+- `scripts/liveFishing.ts:627-639` — a SEPARATE `RunLog` class, same
+  shape, same bug: hardcoded `"logs"`, `fishing-${stamp()}.jsonl`. Session
+  40's open question only named the dungeon-side one — this session found
+  the fishing side has the identical gap, unfixed for the same reason
+  (no test currently constructs a real one there either).
+- Both classes are imported into `scripts/orchestrator.ts` under aliases
+  (`RunLog as DungeonRunLog`, `RunLog as FishingRunLog`,
+  `:71-72`) and constructed there too (`:273, :313`) — the same "check
+  every entry point" lesson CODEXAUDIT #1 already taught this project
+  applies here: both `main()`s AND `orchestrator.ts` need the fix, not
+  just whichever one a session happens to be looking at.
+
+**Implementation:**
+
+1. Give both `RunLog` classes an optional constructor parameter (e.g.
+   `constructor(dir: string = "logs")`), defaulting to today's real path
+   so behavior is byte-for-byte unchanged for every existing caller that
+   doesn't pass one.
+2. Nothing currently NEEDS to pass a non-default value in production —
+   this is purely closing the gap before a future test (or future
+   feature) reaches for `new RunLog()` directly and reintroduces exactly
+   the bug class sessions 30/31/39 already shipped. Don't invent a reason
+   to thread a real override through `LiveRunDeps`/`LiveFishingDeps`
+   right now if nothing needs one.
+3. Add ONE regression test per file proving the constructor parameter
+   actually works (writes into the passed directory, not `"logs"`) — this
+   makes it possible for a FUTURE test that legitimately wants a real
+   `RunLog` to do so safely via `new RunLog(isolatedTempDir)`, with a
+   working example already in the test file, instead of reaching for the
+   no-argument constructor the way the bug always started.
+4. Grep-confirm (same discipline session 40 used) that no other file
+   constructs either `RunLog` class without checking whether it should
+   now pass a path — there should be exactly the production call sites
+   named above, unchanged, plus whatever new test(s) this session adds.
+
+---
+
+## 2. Fix TASKS.md's stale Task 13 section
+
+Small, but real — this project treats TASKS.md as shared memory across
+sessions specifically because a contradiction in it "invites a future
+incorrect fix" (the same reasoning CLAUDE.md already states for other
+sections). Update Task 13's "What would unpark it" list so it doesn't
+contradict its own later session-27 addendum: state plainly that
+condition (1), the deck-aware `simulateCast` prerequisite, was built
+session 26 (cite the `deckIds` option directly), and only condition (2)
+(double-digit real card-choice data) remains outstanding. Don't rewrite
+the rest of Task 13's scoping — the validation-floor reasoning and the
+grid-coverage candidate-heuristic sketch are still accurate — just correct
+the one paragraph that's now out of sync with reality.
 
 ---
 
 ## Your task
 
-1. §1 is the whole scope this session — it's small in surface area but
-   matters more than another feature session would, given this is the
-   THIRD time this exact bug class has shipped.
-2. Do not start any TASKS.md work this session even though the Codex
-   backlog is closed — this structural fix comes first, precisely because
-   it's what would keep corrupting whatever TASKS.md work comes next.
-3. Recap normally, full suite + `tsc` + `git diff --check` against the
-   final commit, plus the live gitignored-path check in step 5 above.
+1. §1 (both `RunLog` fixes) is the primary code work.
+2. §2 (TASKS.md correction) is required, not optional — same standard this
+   project applied to DECISIONS.md corrections after sessions 35/36's
+   overclaims.
+3. There is no other ready TASKS.md work this session, per the correction
+   above — don't invent scope to fill the session. If §1 and §2 land with
+   time to spare, that's a legitimate short session; say so plainly rather
+   than manufacturing additional work.
+4. Recap normally, full suite + `tsc` + `git diff --check` against the
+   final commit, plus a live check (same as session 40's `stat` approach)
+   that no real `logs/` file was touched by the new regression tests.
 
 ---
 
-## Queued, not this session — where the spine goes after this
+## Queued, not this session
 
-The Codex backlog is closed; TASKS.md is genuinely next. I read TASKS.md
-directly rather than guessing at its state:
-
-- **Task 13** (`chooseNewCard` deck-composition scoring) is scoped but
-  explicitly NOT STARTED (session 22) — and its own scoping already found
-  a real prerequisite gap worth building on its own, separate from the
-  full scoring task: `src/sim/fishing/castSim.ts`'s `simulateCast` draws a
-  fresh RANDOM deck sample every simulated cast (`deck.push(rng.pick(catalog))`,
-  `~castSim.ts:186`), with no concept of a specific held deck that grows
-  the way a real account's does. Making `simulateCast` (or a sibling
-  function) draw from an explicit passed-in deck instead is, per Task 13's
-  own scoping, "well-scoped, needs no new live capture... the one piece of
-  this task that COULD be built today." The FULL deck-composition scorer
-  stays gated behind a real validation floor Task 13 itself states
-  (needs the deck-aware infra AND double-digit real card-choice data, not
-  today's single data point) — don't build the scorer itself yet, just
-  the deck-aware sim infrastructure, if a future session picks this up.
-- **Task 11** (dungeon utility tuning) is PARKED with explicit, unmet
-  revival conditions (a materially different utility form, not magnitude;
-  the death-room histogram shifting shape past n=11; or Task 12 Stage B
-  moving mean-rooms-cleared) — not resumable without one of those, so not
-  a natural next pick without new evidence.
+- Task 13's scoring logic itself — genuinely blocked on more real fishing
+  catches (double-digit card-choice observations), not code. Revisit once
+  that data exists.
+- Task 11 (dungeon utility tuning) — PARKED, unmet revival conditions
+  unchanged.
 - QUESTIONS.md §15 (stuck fishing account after an escape) and Task 14
-  (bot-initiated juiced `start_run`) both still need a human DevTools
+  (bot-initiated juiced `start_run`) — both still need a human DevTools
   capture, not code.
 - The scheduler still can't learn about energy gained outside its own
   tracking, and a single SIGINT during an energy-regen sleep still ends
   the whole session (unchanged since session 25).
+- The charge-reserve plateau (0.4/0.5/0.6, mutually indistinguishable) —
+  not urgent.
