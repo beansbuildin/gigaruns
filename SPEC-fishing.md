@@ -259,6 +259,26 @@ equipment (checked the same session, see below) does NOT carry oil slots or
 effects in `GET /gear/items`; oils are a separate consumable layer, matching
 the brief's framing.
 
+**Item-name -> effect mapping [session 43]**: the table above resolves
+effect *types* but not which real item name maps to which — checked
+directly against `fixtures/fishing-casts/item-metadata-sample.json`'s
+`gameItems[]` while implementing §8's oil-reserve heuristic, since acting on
+a name (per DECISIONS 2026-08-15's "don't infer from the name" discipline)
+first needs the name resolved to a real effect, not assumed from what it
+sounds like:
+
+| item name | docId | `itemEffect` |
+|---|---|---|
+| Mid Focus Oil | 942 | `FishingRestoreFocus`, amount 2 |
+| Mid Relaxing Oil | 937 | `FishingDamageFish`, amount 2 |
+
+Confirms "Mid Relaxing Oil" is a **direct fish-damage** consumable, not a
+calming/mana effect the name alone would suggest — this matches the
+session-43 brief's own use case for it exactly (a fish at low HP with no
+sure card-based kill is a legitimate spend), so the name is misleading but
+the mechanic is right where the brief expected it. "Mid Mana Oil" (docId
+939, not "Relaxing Oil") is the actual `FishingRestoreMana` item.
+
 ## 4b. Rod equipment — checked, found no encoded spell-set effect
 [2026-08-16, session 15]
 
@@ -440,3 +460,114 @@ naive schema was wrong, corrected here rather than silently loosened.
 - **A catch** (`SUCCESS_CID: true`) and a **redraw** — both genuinely
   uncaptured; their wire shapes stay `[VERIFY]` until a live cast produces
   one.
+
+---
+
+## 8. Strategy heuristics — user-stated, 2026-08-18, session 43
+
+**Terminology note**: what has informally been called the "bobber"/"bobble"/
+"center point" elsewhere in this project's own scratch discussion is the
+`focusPoint` field documented in §3/§4 above — the internal name was already
+correct; this section (and the code implementing it) writes "FocusPoint"
+consistently.
+
+Six heuristics from the user's own manual play. Four are concrete enough to
+implement directly as pure functions (`src/strategy/fishing/heuristics.ts`);
+two are judgment calls encoded as documented decision points instead of a
+single scoring formula, per the user's own framing of them.
+
+**(a) Center bias.** Bias FocusPoint toward the grid's central 2×2 square;
+avoid sitting on an edge without urgent need — from an edge, the 3-charge
+Focus budget may not reach the fish if she jumps to the opposite side.
+**Implemented** as a tie-break (`isCentralSquare`), inserted between the
+coverage tie-break (f) and the existing focus-movement-cost tie-break in
+both `bestFocusForCard` (within one card's own focus search) and
+`chooseCard`'s cross-card `isPreferred`. Deliberately a tie-break, not a
+scored term added to EV — it can only ever decide between options already
+equal on real EV/coverage ("urgent need" always wins first), matching the
+user's own "without urgent need" qualifier exactly. NOT corpus-validated:
+no live cast has measured whether staying central actually raises catch
+rate, only that the reasoning (corner-to-corner costs `2*(gridSize-1)` >
+the 3-point budget on any grid ≥ 3) is geometrically real.
+
+**(b) Deliberate non-scoring play.** It can be correct to play a
+losing/non-scoring card, or redraw the hand, purely to let the fish drift
+closer to FocusPoint first — not always taking the best-looking immediate
+card. **A judgment call, not encoded as a function** — `chooseCard`'s EV
+formula already looks one turn ahead (the current distribution), not
+several turns of fish drift, and modelling "drift toward FocusPoint over N
+future turns" would need a multi-turn lookahead this project doesn't have
+(the sim's `castSim.ts` plays turn-by-turn but `chooseCard` itself is
+single-turn-greedy). Documented as a known limitation in `cardChoice.ts`'s
+`chooseCard`/`shouldRedraw` header comments rather than forced into the
+existing single-turn EV formula.
+
+**(c) Oil reserve floor.** Always hold at least one Mid Focus Oil (itemId
+942) and one Mid Relaxing Oil (itemId 937, see §4a's addendum above — a
+direct fish-damage oil, not the "calming" effect its name suggests) in
+reserve; they don't need to fire every cast, but a fish at low HP with no
+sure card-based kill in the next few cards is a legitimate case to spend
+Mid Relaxing Oil. **A judgment call, encoded as a documented decision
+point, not a firing function**: `src/strategy/fishing/oilPolicy.ts` names
+the reserve floor (1 of each) and a low-fish-HP threshold as config
+constants, and a pure `shouldConsiderRelaxingOil(fishHp, fishMaxHp,
+relaxingOilHeld)` helper that returns whether the *situation* qualifies —
+it does NOT send anything. **This cannot go further than a recommendation
+yet**: per CLAUDE.md §2 ("never invent an endpoint"), no request shape for
+actually consuming a fishing oil mid-cast has ever been captured — §4a
+above already flags this exact gap (`itemId`/`slotIndex` on the existing
+envelope are "very likely" the mechanism, not confirmed). Recorded as an
+open capture blocker in `TASKS.md`/`QUESTIONS.md`, not guessed past.
+
+**(d) No immediate return after a 1-cell move.** A fish that just made a
+1-cell move never returns to the cell it just came from on its next move.
+**Implemented** as `pruneReturnToPrevious` — zeroes the forbidden cell's
+probability mass in whichever distribution the matcher/fallback pipeline
+produced and renormalizes the rest, applied in `scripts/liveFishing.ts`
+right before `chooseCard` (skipped when the `nextPosition` override is
+active — that branch is already a single-cell certainty from a separately-
+gated, previously higher-confidence mechanism). **NOT corpus-validated**:
+no audit of `data/fish-patterns.jsonl` has confirmed this against real
+1-cell-move-then-reversal sequences yet — implemented because it is
+concrete and cheap to apply, not because it has been checked. A future
+audit that finds a counterexample should remove the call, not explain it
+away.
+
+**(e) Edge positions are more predictable after a 2-cell move.** A fish
+that just made a 2-cell move is easier to predict when she's on the edge
+of the field and the player is centered in the middle 2×2. **Implemented
+narrowly** — `candidateCellCount(cell, gridSize, radius)` is the one piece
+of this claim that is a geometric fact rather than a probabilistic one: an
+edge/corner position has strictly fewer in-grid cells within a given
+Manhattan radius than a central position does (some directions run off the
+board), so it has a smaller candidate set — "easier to predict" in the
+narrow sense of fewer live hypotheses, independent of which specific cell
+among them the fish actually favors. Does NOT claim a probability skew
+toward any particular cell in that smaller set — that would need corpus
+evidence this project doesn't have. The "player centered" half of the
+claim is heuristic (a) itself; the two are only a genuine combined
+advantage (an edge fish is both more constrained AND within the centered
+player's 3-point reach) when applied together, which they are, but
+independently, not through any shared mechanism.
+
+**(f) Coverage-maximizing card choice.** When choosing the next card,
+prefer whichever covers the maximum number of cells the fish could
+plausibly move to next, over just the highest single-cell expected value.
+**Implemented** as `coverageCount` — an unweighted count of distinct
+distribution-support cells a (card, focus) placement's hit ∪ crit zones
+touch, inserted as a tie-break immediately after the EV comparison (ahead
+of the centering tie-break (a) and the existing movement-cost one) in both
+`bestFocusForCard` and `chooseCard`'s `isPreferred`. Framed as a tie-break
+rather than the primary objective because `evaluateCardAtFocus`'s EV
+formula already sums PROBABILITY-WEIGHTED outcomes across every cell a
+card's zones intersect with the distribution's support — a more rigorous
+generalisation of "single-cell EV" than the heuristic's own framing
+describes (the user's own manual-play heuristic is a simplification of
+what the EV formula already does more precisely), so coverage is added as
+a hedge-breadth signal among EV-tied options, not a replacement for EV.
+
+Tests: `tests/fishing/heuristics.test.ts` (all four implemented functions,
+synthetic — no live cast fixture happens to exercise any of them yet) and
+`tests/fishing/cardChoice.test.ts`'s new "coverage and centering
+tie-breaks" block (confirms the tie-breaks actually fire, with a real EV
+tie proven by direct `evaluateCardAtFocus` calls, not just asserted).

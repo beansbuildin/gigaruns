@@ -13,6 +13,7 @@
 
 import type { Cell } from "../../sim/fishing/geometry.js";
 import { allCells, cellKey, manhattan, reachableCells, zonesToCells } from "../../sim/fishing/geometry.js";
+import { coverageCount, isCentralSquare } from "./heuristics.js";
 
 /**
  * [session 31, CODEXIMPROVE #2] Two EV values within this of each other are
@@ -174,10 +175,31 @@ export function bestFocusForCard(
     // scarce, non-regenerating focus-movement budget (geometry.ts's
     // reachableCells) for zero immediate benefit. This cannot reduce EV, it
     // only breaks a real tie in favor of the cheaper placement.
-    if (focusBudget && Math.abs(candidate.ev - best.ev) <= EV_TIE_EPSILON) {
-      const candidateCost = manhattan(focusBudget.current, candidate.focus);
-      const bestCost = manhattan(focusBudget.current, best.focus);
-      if (candidateCost < bestCost) best = candidate;
+    //
+    // [session 43] Two more EV-tied tie-break tiers, same "cannot reduce EV,
+    // only breaks a real tie" discipline, inserted BEFORE movement cost —
+    // heuristic (f) (coverage of the distribution's support, hedging
+    // against being wrong about exactly which cell the fish lands on) then
+    // heuristic (a) (the central 2×2, so the next Focus move has more of
+    // the board within its 3-point reach). See `heuristics.ts`.
+    if (Math.abs(candidate.ev - best.ev) <= EV_TIE_EPSILON) {
+      const candidateCoverage = coverageCount(candidate.card, candidate.focus, dist, gridSize);
+      const bestCoverage = coverageCount(best.card, best.focus, dist, gridSize);
+      if (candidateCoverage !== bestCoverage) {
+        if (candidateCoverage > bestCoverage) best = candidate;
+        continue;
+      }
+      const candidateCentral = isCentralSquare(candidate.focus, gridSize);
+      const bestCentral = isCentralSquare(best.focus, gridSize);
+      if (candidateCentral !== bestCentral) {
+        if (candidateCentral) best = candidate;
+        continue;
+      }
+      if (focusBudget) {
+        const candidateCost = manhattan(focusBudget.current, candidate.focus);
+        const bestCost = manhattan(focusBudget.current, best.focus);
+        if (candidateCost < bestCost) best = candidate;
+      }
     }
   }
   if (!best) throw new Error("gridSize must be >= 1");
@@ -222,21 +244,43 @@ function isManaConstrained(hand: readonly FishingCardLike[], mana: number, fishH
  * the fish even under optimistic play, efficiency starts mattering again.
  */
 /**
- * [session 31, CODEXIMPROVE #2] True when `a` should be preferred over `b`
- * under the deterministic tie-break order CODEXIMPROVE #2 specifies: higher
- * EV (or EV/mana, per `useEvPerMana`) first; on an EV tie, lower focus
+ * [session 31, CODEXIMPROVE #2; extended session 43] True when `a` should be
+ * preferred over `b` under the deterministic tie-break order: higher EV (or
+ * EV/mana, per `useEvPerMana`) first; on an EV tie, HIGHER coverage of the
+ * distribution's support (session-43 heuristic (f), `heuristics.ts`'s
+ * `coverageCount` — hedges against being wrong about exactly which cell the
+ * fish lands on); on a further tie, the placement in the central 2×2
+ * (session-43 heuristic (a), `isCentralSquare` — avoids sitting on an edge
+ * without a real EV/coverage reason to); on a further tie, lower focus
  * movement cost from the current focus; on a further tie, lower mana cost;
  * otherwise keep the existing hand/grid order (i.e. `a` does NOT win a full
  * tie — `.reduce`'s strict `>` semantics below preserve first-seen order).
  * Deliberately does not compare `lethal` — callers partition lethal from
  * non-lethal options before calling this, per SPEC.md §5's "lethal check
- * first" (session 15).
+ * first" (session 15). `dist`/`gridSize` are optional so an existing caller
+ * that has neither (there is none left in this codebase, but future tests
+ * calling this directly stay unaffected) simply skips the coverage tier.
  */
-function isPreferred(a: CardFocusChoice, b: CardFocusChoice, focusBudget: FocusBudget | undefined, useEvPerMana: boolean): boolean {
+function isPreferred(
+  a: CardFocusChoice,
+  b: CardFocusChoice,
+  focusBudget: FocusBudget | undefined,
+  useEvPerMana: boolean,
+  dist?: Distribution,
+  gridSize?: number,
+): boolean {
   const evA = useEvPerMana ? a.evPerMana : a.ev;
   const evB = useEvPerMana ? b.evPerMana : b.ev;
   if (evA > evB + EV_TIE_EPSILON) return true;
   if (evB > evA + EV_TIE_EPSILON) return false;
+  if (dist && gridSize) {
+    const coverageA = coverageCount(a.card, a.focus, dist, gridSize);
+    const coverageB = coverageCount(b.card, b.focus, dist, gridSize);
+    if (coverageA !== coverageB) return coverageA > coverageB;
+    const centralA = isCentralSquare(a.focus, gridSize);
+    const centralB = isCentralSquare(b.focus, gridSize);
+    if (centralA !== centralB) return centralA;
+  }
   if (focusBudget) {
     const costA = manhattan(focusBudget.current, a.focus);
     const costB = manhattan(focusBudget.current, b.focus);
@@ -262,7 +306,7 @@ export function chooseCard(
   if (options.length === 0) return null;
 
   const pickBest = (candidates: readonly CardFocusChoice[], useEvPerMana: boolean): CardFocusChoice =>
-    candidates.reduce((best, o) => (isPreferred(o, best, focusBudget, useEvPerMana) ? o : best));
+    candidates.reduce((best, o) => (isPreferred(o, best, focusBudget, useEvPerMana, dist, gridSize) ? o : best));
 
   const lethalOptions = options.filter((o) => o.lethal);
   if (lethalOptions.length > 0) return pickBest(lethalOptions, false);

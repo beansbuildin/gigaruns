@@ -926,3 +926,30 @@ fishing action/`start_run`) while this shape is on the account: does the
 server need an explicit acknowledgment first, or does a fresh action just
 succeed past it? A capture of that follow-up request, taken while a stuck
 doc like this is still on the account, would close this out.
+
+## 16. Fishing oil-use action shape — unconfirmed, blocks heuristic (c) [session 43]
+
+`src/strategy/fishing/oilPolicy.ts`'s `shouldConsiderRelaxingOil` (session-43
+brief §3, "always hold at least one Mid Focus Oil and one Mid Relaxing Oil in
+reserve... a fish at low HP with no sure kill is a legitimate case to spend
+Mid Relaxing Oil") is a pure recommendation function with no live call site,
+and it cannot get one yet: no request shape for actually consuming a fishing
+oil mid-cast has ever been captured. SPEC-fishing.md §4a already named this
+gap generally (`itemId`/`slotIndex` on the existing `play_cards`/`start_run`
+envelope are "very likely" the mechanism, not confirmed by a captured
+oil-use request).
+
+Item ids are resolved (SPEC-fishing.md §4a addendum, session 43): Mid Focus
+Oil is 942 (`FishingRestoreFocus` +2), Mid Relaxing Oil is 937
+(`FishingDamageFish` +2 — a direct fish-damage effect, not the "calming"
+effect its name suggests).
+
+**Needs**: a DevTools capture of the real client using ANY fishing oil
+during a live cast — same method as `reward_one`/`path_two`/`loot` were
+each originally confirmed (Network tab, capture the exact `POST
+/api/fishing/action` request body, redact the JWT/wallet). Once that shape
+is confirmed, `oilPolicy.ts`'s recommendation can be wired into a real
+`use_item`-equivalent call site in `scripts/liveFishing.ts`. Until then,
+the heuristic stays a documented decision point, not live code — this is
+the same "confirm the shape, don't guess it" discipline CLAUDE.md §2
+requires everywhere else in this project.

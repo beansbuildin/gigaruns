@@ -333,6 +333,39 @@ trigger on the real cast replayed against the synthetic pool
 (`scripts/fishConvergence.ts`'s own output). Verified by:
 `npx vitest run tests/fishing` (18/18 pass), `npx tsc --noEmit` clean.
 
+**[2026-08-18, session 43] Six new user-sourced strategy heuristics added,
+per session-43 brief §3 — see SPEC-fishing.md §8 for the full writeup.**
+Four implemented as tested pure functions (`src/strategy/fishing/
+heuristics.ts`: center-bias tie-break, prune-return-to-previous-cell,
+edge-predictability geometric helper, coverage-maximizing tie-break —
+wired into `cardChoice.ts`'s `bestFocusForCard`/`chooseCard` and
+`scripts/liveFishing.ts`'s distribution pipeline). Two are judgment calls
+documented as decision points rather than functions, per the brief's own
+framing (deliberate non-scoring play/redraw to let the fish drift closer;
+oil-reserve floor, `src/strategy/fishing/oilPolicy.ts`).
+
+**Capture gap, flagged rather than guessed past (CLAUDE.md §2)**: the
+oil-reserve heuristic's recommendation function (`shouldConsiderRelaxingOil`)
+has no live call site and cannot get one yet — no request shape for
+actually consuming a fishing oil mid-cast has ever been captured. SPEC-
+fishing.md §4a already named this same gap for the general oil-use
+mechanism (`itemId`/`slotIndex` on the existing envelope are "very likely"
+it, not confirmed). A DevTools capture of the real client using ANY
+fishing oil (Mid Focus, Mid Relaxing, or otherwise) — same method as
+`reward_one`/`path_two`/`loot` were each originally confirmed — would
+unblock wiring the recommendation into a real action. See QUESTIONS.md.
+
+Also unvalidated against live/corpus data, stated plainly per SPEC-
+fishing.md §8's own honesty discipline: heuristic (d)'s prune has never
+been audited against `data/fish-patterns.jsonl` for a real 1-cell-move-
+then-reversal counterexample; heuristic (e) is only implemented in its
+narrow geometric form (fewer candidate cells from an edge), not the
+fuller probabilistic claim (which specific cell the fish favors from
+there); heuristic (a)'s centering bias has not been checked against catch
+rate. None of these are gated — they are cheap, defensible defaults
+implemented because the brief asked for them, not because they have been
+proven to help yet.
+
 ---
 
 ### 9 — Live fishing, supervised

@@ -271,6 +271,71 @@ describe("resource-conserving tie-breaks — session 31, CODEXIMPROVE #2", () =>
   });
 });
 
+describe("coverage and centering tie-breaks — session 43, heuristics (a)/(f)", () => {
+  it("chooseCard: an equal-EV card covering more distinct cells beats one covering fewer", () => {
+    const narrow: FishingCardLike = {
+      id: 1,
+      manaCost: 1,
+      hitZones: [5], // just the focus cell itself
+      critZones: [],
+      hitEffects: [{ amount: 5 }],
+      missEffects: [{ amount: -4 }],
+      critEffects: [],
+    };
+    const spread: FishingCardLike = {
+      id: 2,
+      manaCost: 1,
+      hitZones: [1, 9], // two opposite corners relative to focus
+      critZones: [],
+      hitEffects: [{ amount: 5 }],
+      missEffects: [{ amount: -4 }],
+      critEffects: [],
+    };
+    // At focus (2,2): narrow's zone 5 hits (2,2) itself, P=0.4. spread's
+    // zones 1/9 hit (1,1) and (3,3), P=0.2 each, same 0.4 total — same
+    // hitEffect on both cards, so raw EV is a genuine tie: 0.4*5 - 4*0.6 =
+    // -0.4 for both. But spread's mass comes from TWO distinct cells
+    // (coverage 2) vs. narrow's ONE (coverage 1).
+    const d = dist([
+      [{ x: 2, y: 2 }, 0.4],
+      [{ x: 1, y: 1 }, 0.2],
+      [{ x: 3, y: 3 }, 0.2],
+      [{ x: 4, y: 4 }, 0.4],
+    ]);
+    const focus = { x: 2, y: 2 };
+    const evNarrow = evaluateCardAtFocus(narrow, focus, d, 4, 1).ev;
+    const evSpread = evaluateCardAtFocus(spread, focus, d, 4, 1).ev;
+    expect(evSpread).toBeCloseTo(evNarrow); // confirms the EV tie is real, not asserted blind
+
+    const choice = chooseCard([narrow, spread], /* mana */ 10, d, 4, 1, /* fishHp */ 100);
+    expect(choice?.card.id).toBe(2); // spread — hand order alone would have picked narrow (index 0)
+  });
+
+  it("bestFocusForCard: an equal-EV, equal-coverage focus in the central 2x2 beats an edge one", () => {
+    const centerOnlyCard: FishingCardLike = {
+      id: 1,
+      manaCost: 1,
+      hitZones: [5],
+      critZones: [],
+      hitEffects: [{ amount: 10 }],
+      missEffects: [{ amount: -4 }],
+      critEffects: [],
+    };
+    // Two cells with equal probability mass, one central (2,2), one a
+    // corner (1,1) — placing focus directly on either gives the same EV
+    // (0.5*10 - 4*0.5 = 3) and the same coverage (1, the focus cell
+    // itself), a genuine double tie. No focusBudget, so movement cost
+    // cannot be the tie-break either — isolates the centering preference.
+    const d = dist([
+      [{ x: 2, y: 2 }, 0.5],
+      [{ x: 1, y: 1 }, 0.5],
+    ]);
+    const best = bestFocusForCard(centerOnlyCard, 0, d, 4, 1, 100);
+    expect(best.ev).toBeCloseTo(3);
+    expect(best.focus).toEqual({ x: 2, y: 2 });
+  });
+});
+
 describe("shouldRedraw", () => {
   // [session 13] Reads `best.ev`, not `.evPerMana` — SPEC.md §5 always said
   // raw EV; the old evPerMana read was a real bug, not a rename (see

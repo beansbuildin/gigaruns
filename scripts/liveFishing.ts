@@ -101,6 +101,7 @@ import {
   previousDisplacement,
   DEFAULT_SHRINKAGE_K,
 } from "../src/strategy/fishing/contextualFallback.js";
+import { pruneReturnToPrevious } from "../src/strategy/fishing/heuristics.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { cellKey, cellsEqual, inGrid, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
@@ -930,18 +931,29 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           `Wilson lower bound ${(overrideStats.lowerBound * 100).toFixed(1)}%) — forcing focus toward predicted cell.`,
       );
     }
+    // [session 43, heuristic (d)] "A fish that just made a 1-cell move
+    // never returns to the cell it just came from" — applied to whichever
+    // distribution wins below (hypothesis-elimination or the contextual/
+    // cell-only fallback), NOT to the nextPosition override: that branch is
+    // already a single-cell certainty from a separately-gated, previously
+    // higher-confidence mechanism (Wilson-bound hit rate), and pruning a
+    // point distribution either does nothing or destroys it outright if the
+    // predicted cell happens to be the forbidden one — neither is this
+    // heuristic's job. See `heuristics.ts`'s `pruneReturnToPrevious` for the
+    // "unverified, not corpus-validated" caveat.
+    const rawDist = matcher.candidates.length > 0
+      ? predictDistribution(matcher)
+      : contextualFallback(
+          matcher.history[matcher.history.length - 1]!,
+          previousDisplacement(matcher.history),
+          contextMap,
+          transitionLog,
+          gridSize,
+          { shrinkageK: DEFAULT_SHRINKAGE_K },
+        );
     const dist = nextPositionOverrideActive
       ? certainDistribution(pendingPrediction!.cell)
-      : matcher.candidates.length > 0
-        ? predictDistribution(matcher)
-        : contextualFallback(
-            matcher.history[matcher.history.length - 1]!,
-            previousDisplacement(matcher.history),
-            contextMap,
-            transitionLog,
-            gridSize,
-            { shrinkageK: DEFAULT_SHRINKAGE_K },
-          );
+      : pruneReturnToPrevious(rawDist, matcher.history[matcher.history.length - 1]!, previousDisplacement(matcher.history));
 
     const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, focusBudget(doc));
     if (best && shouldRedraw(best, hand.length, mana, REDRAW_THRESHOLD)) {
