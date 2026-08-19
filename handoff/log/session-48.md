@@ -1,4 +1,4 @@
-# session 48 — 2026-08-19 — live fishing batch + the `[CONFIRMED]` falsifiability audit
+# session 48 — 2026-08-19 — recap commit 5f698c5 — live fishing batch + the `[CONFIRMED]` falsifiability audit
 
 **Outcome: BATCH GATE FAILED (correctly — two independent §1c stop conditions
 fired). All offline work delivered.**
