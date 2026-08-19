@@ -1,194 +1,338 @@
-# BRIEF — session 44
+# BRIEF — session 45 (fishing)
 
-Session 43 landed Task 14 (bot-initiated juiced `start_run`, gate MET on
-both runs), the Sword-pin/Heal-overflow loot rule, and six user-sourced
-fishing heuristics (four implemented, two documented as judgment calls).
-629/629 tests, `tsc` clean, at commit `38fd190`.
+**This brief replaces the earlier session-45 draft.** That draft was right
+that `bestFocusForCard`'s objective has no cost on spending focus, and right
+that a reserve term is the fix shape. It was wrong about the priority. I went
+back to `data/fish-patterns.jsonl` (263 real transitions, 67 casts) and
+`fixtures/fishing-casts/cards.json` directly, and the focus-budget bug is the
+*second*-largest defect in fishing, not the first. Fixing it alone buys about
+5 points of catch rate. Fixing what's above it buys about 35.
 
-**The user's directive for this session, verbatim in spirit: fishing's
-14.0% live catch rate (7/50, `handoff/reports/fishing-casts.md`) is not
-acceptable — hammer out fishing refinements. This session is entirely about
-moving that number, not about new dungeon work.**
-
-Read this whole brief before spending anything — the plan below is built
-directly on SPEC.md §5's own root-cause finding, not a fresh guess.
-
----
-
-## Why 14% happened — the diagnosis already exists, don't re-derive it
-
-SPEC.md §5 already did this analysis in depth (sessions 13-15) and it holds:
-`focusMeter` accounts for a real but modest chunk of the sim-vs-live gap
-(~21pp), but the **dominant** cause is that the hypothesis-elimination
-matcher has nothing to identify against — with the real Dendren pattern
-library still mostly unmined, the matcher runs effectively **blind**
-(sim: ~7–10% catch rate, statistically consistent with a blind-run live
-result). A **fully known** pattern library gets the sim to ~70%. The 50-cast
-corpus behind today's 14.0% number was played across many sessions where
-the matcher was blind for most of it and only gained its first promoted
-pattern (`perimeterWalk(cw)`) partway through (session 18). **14% sitting
-just above the ~7-10% blind baseline is the expected, unsurprising result of
-where the pattern library actually stood — this is not a hidden bug to find,
-it's a maturity problem to attack directly**, per Task 11's own standing
-note: "no volume of transitions helps until `mineFishPatterns.ts` exists to
-turn them into a real library the matcher can search" — it exists now
-(session 15/18), so volume is finally the live lever again.
-
-**A local snapshot worth confirming, not assuming:** `data/minedFishPatterns.json`
-on disk right now shows `patterns: ["perimeterWalk(cw)", "perimeterWalk(ccw)"]`,
-`castCount: 50` — a **second** pattern beyond the one SPEC.md's prose still
-describes as the only promotion. This may already reflect the full 50-cast
-corpus and just not be written up yet, or it may be stale/local-only. §0
-below is to nail this down for real before anything else, not to trust the
-file at face value.
+Per CLAUDE.md §9 everything below is checkable against files already in the
+repo — I checked it, the numbers are in §0, and the first task of this session
+is to re-derive them independently before building on them.
 
 ---
 
-## 0. Re-establish ground truth on the pattern library — five minutes, do this first
+## 0. The finding the last brief missed: the movement model is wrong
 
-1. Re-run `scripts/mineFishPatterns.ts` fresh against the current
-   `data/fish-patterns.jsonl` (should be 169 real transitions / 50 real
-   casts per QUESTIONS.md §14's resolution — confirm this count while
-   you're in there). Report exactly what promotes, at what support, and
-   confirm/refute the `perimeterWalk(ccw)` second promotion.
-2. Confirm `scripts/liveFishing.ts` is actually reading
-   `data/minedFishPatterns.json` to seed the matcher's candidate pool
-   live (DECISIONS 2026-08-17, session 18) — i.e. that today's live casts
-   in §2 below will actually use whatever promoted set §0.1 finds, not a
-   stale in-memory default.
-3. State plainly in STATE.md what the real current promoted-pattern count
-   is and how it compares to SPEC.md's own prose (which still says "1
-   primitive promoted" as of session 21) — update SPEC.md §5 / TASKS.md
-   Task 11 if the second promotion is confirmed real.
+`data/fish-patterns.jsonl`, all 263 transitions, 67 casts, no filtering:
 
-## 1. Get an honest sim baseline for TODAY's real matcher state, before spending energy
+**Fact 1 — every move lands on the Manhattan-`k` ring around the fish's
+current cell, and `k` is fixed for the whole cast.**
 
-The 6.6%→16.2% (blind vs. one pattern) sim comparison in DECISIONS
-2026-08-17 (session 18) is now stale if §0 found a second promoted pattern.
-Before playing live:
+| | |
+|---|---|
+| transitions at Manhattan distance 1 | 148 |
+| transitions at Manhattan distance 2 | 115 |
+| transitions at any other distance | **0** |
+| casts with ≥2 moves whose every move has the same `k` | **65 / 65 (100%)** |
+| moves landing off the legal (in-grid) `k`-ring | **0 / 263** |
 
-1. Re-run the sim comparison (`scripts/fishFocusMeter.ts` or equivalent)
-   with `matcherPool` seeded from §0's real current `data/minedFishPatterns.json`
-   contents, at the same N the prior comparisons used (500, ideally also
-   3000 for a second seed per the project's own convention). This sets an
-   honest expectation for what today's live batch *should* achieve, so §2's
-   real result can be judged against a real number, not a stale one.
-2. While you're in the sim harness: run a quick ablation of the four
-   implemented session-43 heuristics (center-bias, prune-return-to-previous,
-   edge-predictability, coverage-max) — all-on vs. all-off — against the
-   SAME matcherPool from step 1, N≥2000. This is cheap and fast in sim,
-   where live validation will stay statistically noisy for a long time at
-   the cast volumes this project can afford per day. Report the delta
-   plainly, including if it's a null result — per SPEC-fishing.md §8, none
-   of these four have been corpus-validated yet, and this is the first
-   chance to get ANY signal, even a synthetic one.
-3. State both results in STATE.md before moving to §2, so the live batch's
-   outcome can be compared against a number that was committed to in
-   advance, not adjusted after seeing the result.
+This is the user's "1 box per move or 2 box per move, established on the first
+move" — confirmed exactly, with zero counterexamples, by the project's own
+corpus. `k=1` casts: 36. `k=2` casts: 31.
 
-## 2. Spend today's fishing budget on a real batch — this is the actual ask
+**Fact 2 — within a class, the next move is strongly conditioned on the
+previous one, and in opposite directions for the two classes.**
 
-`data/guard-budget-fishing.json` shows 0 energy spent today as of this
-brief being written (`config/bot.json`'s dendren budget is 240 energy / 20
-casts/day, tier-1 12-energy casts) — re-check it's still untouched before
-starting, in case the user played manually since. Playing fishing casts
-within the configured daily budget is already blanket-authorized (CLAUDE.md:
-"Playing fishing casts... fine to do autonomously within the configured
-budget") — no special sign-off needed here, unlike the dungeon juiced-start
-case.
+| class | P(repeat previous delta) | P(exact reversal) | n |
+|---|---|---|---|
+| k=1 | 27.7% | **0.0% — 0 of 112** | 112 |
+| k=2 | 3.6% | **41.7% — 35 of 84** | 84 |
 
-1. Run the live fishing loop for a full batch — up to the day's real
-   budget/cap, whichever binds first — with the current matcher
-   (§0's real promoted set) and all four session-43 heuristics active (the
-   current default wiring).
-2. Do not stop early because a few casts in a row miss — at ~14-20%
-   baseline expectations, a cold streak of 5-8 misses is ordinary variance,
-   not a signal something's broken. Only stop early on an actual guard trip
-   or unexpected state, per CLAUDE.md §5.
-3. If a catch happens, confirm `loot` resolution still fires cleanly
-   end-to-end (Task 9's session-17 fix) and the account doesn't get stuck —
-   this project's had two different stuck-doc shapes before (QUESTIONS.md
-   §10, §15).
+A 1-step fish *never* backtracks. A 2-step fish backtracks more than any other
+single option. Both are large, both are exploitable, and **neither is class-
+aware in the current code**.
 
-## 3. Measure honestly, separately from the all-time number
+**Fact 3 — the deck is built around Fact 1, and the code cannot see it.**
+From `fixtures/fishing-casts/cards.json`, the zone templates are not arbitrary:
 
-The all-time 14.0%/50-cast figure blends many sessions of a mostly-blind
-matcher and will keep changing slowly even after today's improvements, since
-it's cumulative. Report **today's own batch** as its own number too:
+- `hitZones {2,4,6,8}` (ids 8, 14, 27, 75, 79, 88, 98, 108) is *exactly* the
+  Manhattan-1 ring. Focus on the fish's current cell + one of these = **100%
+  hit against a k=1 fish**, by construction, no pattern knowledge needed.
+- `hitZones {1,3,7,9}` (ids 7, 13, 19, 38, 74, 97, 107) is the diagonal subset
+  of the Manhattan-2 ring. Focus on the fish + one of these = **71.3% (82/115)
+  against a k=2 fish**, measured on the real corpus.
+- `hitZones {1,2,3,4,6,7,8,9}` (ring-8: ids 9, 12, 15, 18, 24, 25, 76, 89, 99,
+  109) covers both rings' intersection with the 3×3 window: 100% vs k=1,
+  71.3% vs k=2, at lower damage.
 
-1. Regenerate `handoff/reports/fishing-casts.md` (`scripts/fishingReport.ts`)
-   — this updates the all-time cumulative figure.
-2. Separately, compute and state today's batch's own catch rate in
-   isolation (caught / cast, today's casts only) — this is the real signal
-   for whether §0-§2's changes did anything, since the all-time number will
-   barely move at n≈20 added to n=50 existing.
-3. Re-run `mineFishPatterns.ts` again on the grown transition log — did
-   today's batch produce a third promotable pattern, or move any existing
-   near-miss (`bounce(2,0)`, `bounce(-2,0)`, `twoCellCycle(0,-1)`) closer to
-   its ≥3-match bar? Report the current near-miss table plainly either way.
-4. Specifically audit today's new transitions for a real 1-cell-move-then-
-   reversal case that would counterexample heuristic (d)
-   (`pruneReturnToPrevious`) — STATE.md session 43's own open question #3
-   flagged this as the one heuristic with a real chance of being wrong
-   outright. If you find a counterexample, say so and remove/gate the call
-   rather than explain it away (SPEC-fishing.md §8's own instruction).
-5. State plainly whether today's batch's catch rate landed near §1's sim
-   prediction, above it, or (most likely, at these sample sizes) too noisy
-   to tell — do not claim a definitive win or loss off ~20 casts if the
-   honest read is "consistent with a wide range of true rates." Say what
-   the confidence interval actually allows.
+Best (card, focus-offset) by EV against the real corpus — focus offset is
+measured from the fish's **current** cell:
 
-## 4. Ask for one live capture — unblocks a real, currently-unused catch lever
+| class | offset (0,0) | (±1,0) | (±1,±1) | (2,0) | (2,2) |
+|---|---|---|---|---|---|
+| k=1 | **100.0%** | 75–84% | 56–59% | 40% | **0%** |
+| k=2 | **71.3%** | 54–63% | 41–48% | 64% | 8% |
 
-`oilPolicy.ts`'s `shouldConsiderRelaxingOil` (session 43) is a fully-written
-recommendation function with no live call site, because no oil-use request
-shape has ever been captured (QUESTIONS.md §16). Mid Relaxing Oil is a
-**direct fish-damage** consumable (`FishingDamageFish` +2) — exactly the
-kind of lever that could rescue a close cast (fish at low HP, no sure kill
-in hand) independent of pattern-identification progress. This can't be
-guessed past per CLAUDE.md §2.
+Focus co-location is worth 25–60 points of hit rate, and at Chebyshev distance
+2 from the fish a k=1 cast is a **guaranteed miss** — every card, every turn.
 
-Ask the user directly, at the top of your session output, to grab one
-DevTools capture of using ANY fishing oil mid-cast during today's live play
-(same method as `reward_one`/`path_two`/`loot` were each originally
-confirmed — Network tab, the real `POST /api/fishing/action` request body,
-redact JWT/wallet before it goes anywhere). If they can do this during
-§2's batch, wire `oilPolicy.ts` into a real call site in
-`scripts/liveFishing.ts` before this session's recap; if not, leave it
-queued in QUESTIONS.md §16 exactly as-is — don't invent the shape.
+**What the code does instead.** `scripts/liveFishing.ts:1009-1025` builds the
+distribution from `predictDistribution(matcher)` over two mined
+`perimeterWalk` candidates anchored at the start cell; when those die (they
+die fast) it falls to `contextualFallback`, keyed on
+`(current cell, previous displacement)` over a 263-row table. Neither tier
+knows the step class, so neither can restrict to the ring. The class-blind
+empirical map assigns mass to cells the fish provably cannot reach this turn,
+and `chooseCard` consumes the whole distribution — so that mass directly
+distorts both the card pick and the focus placement. This is why the 0/16 live
+batch looks the way it does.
+
+**Leave-one-cast-out on the real corpus**, 196 scored transitions, comparing
+predictors head to head (this is the honest out-of-sample number, not a fit):
+
+| predictor | top-1 | log loss |
+|---|---|---|
+| cell-only (today's tier 2) | 23.5% | 2.397 |
+| cell + prev-displacement (today's tier 1) | 40.8% | 2.070 |
+| **ring, class-aware (Fact 1 only)** | 31.6% | **1.249** |
+| **ring + class-aware prev-delta conditional (Facts 1+2)** | **47.4%** | **1.123** |
+
+Note the log-loss column especially. `chooseCard` integrates over the whole
+distribution, so calibration matters more than top-1 — and the ring model
+nearly halves log loss even where it loses on top-1. It also needs no
+per-cell history, so it works on turn 1 of a fresh pond where the cell-keyed
+tables are empty.
+
+### The corrected priority ordering
+
+I ran a Monte Carlo against the real deck (`fullDeck` from
+`fixtures/fishing-casts/live/cast-2026-08-19-00-55-15/state-000.json`:
+`[1,2,3,4,5,6,7,76,77,79]`), real parameters (fishHp 13/21, mana 10/10, focus
+3, hand 3), with the fish's dynamics drawn from the empirical conditional
+table. N=4000 per row:
+
+| policy | catch rate | escaped_meter | escaped_mana |
+|---|---|---|---|
+| blind cell-only + EV (≈ today) | 19.5% | 59.2% | 21.3% |
+| + step-class ring predictor | 35.9% | 38.5% | 25.6% |
+| + class-aware prev-delta conditional | 54.2% | 23.8% | 21.9% |
+| + focus-reserve term, w=3 | 59.9% | 19.4% | 20.7% |
+| (same, but shape-matched deck) | 86.6% | 5.2% | 8.2% |
+
+So: **movement model ≈ +35pp. Focus reserve ≈ +5pp. Deck shape ≈ +27pp.**
+The last brief's fix is real and worth shipping — third.
+
+**Caveat, stated plainly and not to be glossed over in the recap:** rows 2-4
+share their movement model with the simulator's own generator, so they are
+optimistic by construction — the same "sim authority is earned per domain"
+problem SPEC.md §5 already names. The leave-one-cast-out table above is the
+part that is *not* in-sample, and it is the evidence that actually justifies
+the work. Treat the Monte Carlo as an ordering of the levers, not as a catch-
+rate promise. n=263 transitions / 67 casts is also small; Fact 1 is 263/263
+and I'd bet on it, Fact 2's k=2 reversal rate rests on 84 observations and
+should be re-checked as the corpus grows.
 
 ---
 
-## Setting honest expectations — state this plainly in STATE.md, don't round up
+## 1. Build the ring model — first, and in the sim
 
-Even a **fully mined** pattern library only gets the sim to ~70% (not
-100%) — that is the real ceiling this project has ever demonstrated, and
-it assumes perfect identification, which 2 (or however many §0 confirms)
-promoted patterns out of an unknown-size real library does not yet provide.
-The realistic goal for THIS session is "measurably better than blind
-(~7-10%) and better than the stale 14% all-time figure," not "at parity
-with the sim ceiling." If today's batch lands at, say, 20-25%, that is
-real progress worth reporting as such — don't inflate it into "solved," and
-don't discount it as noise if §1's sim ablation predicted a similar-sized
-lift. If it doesn't move at all, say that plainly too and point at whatever
-§0/§3 found as the reason (e.g., today's casts' true patterns simply
-weren't in the promoted set) rather than a vague "more data needed."
+Add a movement model that encodes Facts 1 and 2. Suggested shape, a new
+`src/strategy/fishing/stepClass.ts`, pure per CLAUDE.md's strategy/API split:
+
+```
+classifyStep(history): 1 | 2 | null          // null before the first observed hop
+ringCells(cell, k, gridSize): Cell[]         // legal Manhattan-k ring
+ringDistribution(cell, k, prevDelta, corpusTable, gridSize): Distribution
+```
+
+Design notes that matter:
+
+1. **The class is a hard constraint, not a prior.** Once `k` is known, cells
+   off the `k`-ring get probability 0, full stop. 263/263 says this is safe.
+   Before the first hop, mix the two rings by the observed class prior
+   (36/67 vs 31/67).
+2. **Condition on previous delta within the class**, backing off to the class
+   marginal by the same continuous-shrinkage pattern `contextualFallback.ts`
+   already uses (`n/(n+k)`); don't re-invent a second smoothing mechanism.
+   `shrinkageK≈2` is what I used; sweep it, the existing
+   `scripts/fishingContextualCV.ts` harness already does exactly this kind of
+   leave-one-cast-out sweep and should be reused rather than duplicated.
+3. **This replaces the fallback tiers, not the matcher.** Keep
+   `predictDistribution(matcher)` as tier 0 when live candidates survive — but
+   intersect it with the ring, since a surviving candidate that predicts an
+   off-ring cell is now provably wrong and should be eliminated. The ring model
+   becomes tier 1; `contextualFallback` drops to tier 2; uniform stays last.
+4. **Don't delete the synthetic pool yet, but stop treating it as ground
+   truth.** `perimeterWalk` matches 8 of 67 real casts on full trajectory
+   (cw 4, ccw 4; lengths 1,2,2,2,3,4,5,5) — real but minor, and entirely a
+   subset of `k=1`. `patterns.ts`'s `bounceDelta` primitive, by contrast,
+   generates moves the real fish never makes, which is a live problem — see §2.
+
+**Gate for §1:** leave-one-cast-out log loss on `data/fish-patterns.jsonl`
+must beat the cell+prev-displacement baseline of **2.070**, and top-1 must
+beat **40.8%**. My run says 1.123 / 47.4%; if you can't reproduce that, stop
+and report the discrepancy rather than proceeding to §2 — a brief's numbers
+are a hypothesis (CLAUDE.md §9) and this one is mine, not the corpus's.
+
+---
+
+## 2. Correct the heuristic (d) verdict — it was measured against a wrong sim
+
+Session 44 recorded `pruneReturnToPrevious` as a reproducible ~2pp catch-rate
+**regression** (N=20000, two seeds) and traced it to `patterns.ts`'s
+`bounceDelta` wall-reflection doing exactly what the heuristic forbids. That
+trace was correct and the conclusion drawn from it was backwards: the real
+corpus says the heuristic is **exceptionless for k=1 fish — 0 reversals in
+112 observations** — and `bounceDelta` is a synthetic primitive that models a
+fish this game does not have. The sim was wrong, not the heuristic.
+
+Two consequences:
+
+- **Gate (d) on the step class rather than removing it.** It is correct and
+  free for `k=1`, and actively harmful for `k=2`, where reversal is the single
+  most likely move at 41.7%. The current implementation already checks
+  `|prev.dx| + |prev.dy| === 1`, which is the *displacement's* Manhattan
+  length, not the *class* — for a k=2 fish that guard is simply never true, so
+  today it silently no-ops on exactly the class where the opposite rule
+  applies. Once §1 exists, express both directions through the conditional
+  table and this heuristic becomes redundant; that is the preferred end state.
+- **Fix `patterns.ts`'s standing in the codebase.** Its header already says
+  "never use this library to drive live card choice", and
+  `data/minedFishPatterns.json`'s two promoted patterns are the one path where
+  it does. Keep the perimeter candidates (they're real), but stop using
+  `buildPatternPool()` as the sim's ground-truth generator — replace the sim's
+  fish with a sampler over the empirical ring/conditional table, which is what
+  makes every sim number below trustworthy.
+
+---
+
+## 3. The focus-reserve term — keep it, third, with a measured starting range
+
+Everything the previous brief said about the mechanism is correct and worth
+re-reading: `bestFocusForCard` (`cardChoice.ts:136-217`) searches
+`reachableCells(...)` and takes argmax raw `ev`; movement cost is consulted
+only inside the `EV_TIE_EPSILON = 1e-9` tie-break, which real EV differences
+essentially never hit. The 3-point budget is gone by turn 2-4 and the rest of
+the cast plays from a frozen cell. Confirmed live 16/16, sim 43%/N=300, and
+visible turn by turn in `cast-2026-08-19-00-55-15`: focus (2,2)→(2,3)→(3,3)→
+(3,2), meter 3→2→1→0 by turn 3, then six turns frozen at (3,2) while the fish
+cycled (1,3)↔(2,2)↔(2,4) and the meter ran 13→21.
+
+That same cast is also the cleanest illustration of why §1 comes first: the
+fish never left `{(1,3),(2,2),(2,4)}`, and **focus parked at (2,3) covers all
+three of those cells** — zones 4, 2 and 8 respectively, i.e. a single
+`{2,4,6,8}` card (id 79, in that very deck) hits every turn for the whole
+cast. A correct movement model finds that placement on turn 2. No amount of
+reserve weighting finds it, because the reserve term only decides *how much*
+to move, never *where*.
+
+Implement the reserve term as the previous brief specified — the shape is
+right and mirrors the dungeon side's `chargeReserveWeight` precedent:
+
+```
+reserveFraction = max(0, focusBudget.remaining − manhattan(current, focus)) / FOCUS_METER_MAX
+score(card, focus) = ev(card, focus) + focusReserveWeight * reserveFraction
+```
+
+Use `score` as the primary key in `bestFocusForCard` and `isPreferred`; keep
+raw `ev` for `isLethal`, `isManaConstrained`, and reporting.
+
+My sweep against the real deck, with the §1 model in place, N=4000:
+
+| w | 0 | 0.5 | 1 | 2 | 3 | 4 | 6 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| catch rate | 32.2% | 33.3% | 34.1% | 34.9% | **36.9%** | **37.1%** | 36.6% | 32.1% |
+
+The same inverted-U with a plateau the dungeon side found, plateau at **3-4**,
+collapsing past 6. Sweep it yourself in `scripts/focusReserveAblation.ts`
+(mirror `scripts/chargeReserveAblation.ts`'s structure) rather than taking
+3.5 on my word — but note the range brackets card `hitEffect` magnitudes, which
+is the sanity check the previous brief asked for and it passes.
+
+**Skip the 2-ply lookahead.** I tested a one-step focus lookahead against the
+flat reserve term at matched N: lookahead 32.4% vs. flat-reserve 33.6% vs.
+no-term 29.2%. The flat term captures the effect; the lookahead costs a large
+constant factor in the inner loop for nothing. Not worth building.
+
+**Also worth a cheap test while you're in here:** the previous brief's hard-cap
+sanity check (refuse any move costing >1 unless lethal or the only option) is
+still a good 20-minute experiment, and now it has a proper model to run
+against.
+
+---
+
+## 4. Deck composition — the largest lever, and currently unowned
+
+Isolating shape from damage in the sim (ring model, focus 3, N=3000):
+
+| deck | catch rate |
+|---|---|
+| real deck `[1,2,3,4,5,6,7,76,77,79]` | 32.2% |
+| high damage, wrong shape (rows/cols, 8 dmg) | 45.9% |
+| low damage, right shape (ring-8 id 76, 3 dmg) | 35.9% |
+| shape-matched mid (X id 7 / plus id 79 / ring-8 id 76) | **55.5%** |
+| shape-matched high (ids 108 / 107 / 25) | **79.0%** |
+
+`chooseNewCard` (`cardChoice.ts:346`) picks `max(hitEffect, critEffect)/manaCost`
+— pure damage efficiency, blind to zone shape, and its own doc comment already
+flags this as an unvalidated placeholder. With Fact 1 in hand it can be
+scored properly: value a card by its expected hit rate against the two rings
+at the placements the policy actually reaches, times its damage. Concretely,
+`{2,4,6,8}` and `{1,3,7,9}` and ring-8 should dominate row/column triples, and
+the `crit {5}`-only cards (ids 10, 77, 78, 90, 100, 110) are close to dead
+weight — the fish moves every turn, so zone 5 is only ever live when focus sits
+on a *predicted destination*, which is a much rarer placement than their EV
+suggests.
+
+This is a real task but it is **not** this session's priority — it only pays
+off across many catches, and there are no catches yet. Do §1 first. Note it in
+TASKS.md so it doesn't get lost.
+
+---
+
+## 5. Live validation — only after §1's gate, and small
+
+Unchanged from the previous brief and still right, per CLAUDE.md §4:
+
+1. Do not spend live fishing energy until §1 clears its leave-one-cast-out
+   gate and the sim shows a real lift over the 19.5% baseline.
+2. Then wire the model through as a real parameter (same threading pattern as
+   `heuristicsEnabled` in sessions 43/44), not a magic constant in
+   `cardChoice.ts`.
+3. Spend **5-10 casts**, not the daily budget. Report today's batch separately
+   from the all-time cumulative figure. At n=8, anything from 0 to 4 catches is
+   consistent with a 30% true rate — say so in the recap rather than declaring
+   a verdict the sample can't support.
+4. `data/nextPositionValidation.jsonl` already exists and has the right shape
+   (2 rows). Log a predicted-vs-actual row for **every** turn of the batch, and
+   report the realized top-1 accuracy against the 47.4% the corpus predicts.
+   That single number tells you whether §1 transferred, independently of how
+   the catch-rate coin flips landed.
+
+## 6. Stretch, only if §1-§3 land
+
+- Graceful SIGINT in `liveRun.ts` / `liveFishing.ts` `main()` (TASKS.md Task
+  10; `orchestrator.ts` has the working pattern).
+- Resume the cast left mid-play at turn 3 (`docId 12975755`) before starting
+  anything that touches active-cast state.
+- The first turn of a cast is an identification turn — the class is unknown
+  until the fish's first hop resolves. `fullDeck` contains ids 16 and 17
+  (all-9 zones, **no miss penalty at all**), which are free probes: nonzero
+  damage, zero meter risk. Worth checking whether forcing one of those on turn
+  1 when held beats the greedy pick. Small, cheap, plausibly real.
+
+---
 
 ## Your task
 
-1. §0 — confirm the real current promoted-pattern state and that it's
-   actually wired into live play. Five minutes, do it first.
-2. §1 — fresh sim baseline + heuristic ablation for TODAY's real matcher
-   state, committed to in STATE.md before playing live.
-3. §2 — spend today's fishing budget on a real live batch, current best
-   pipeline, don't stop early on ordinary variance.
-4. §3 — measure today's batch's own catch rate separately from the
-   all-time cumulative number, re-mine for new promotions, audit heuristic
-   (d) for a counterexample.
-5. §4 — ask the user for one oil-use DevTools capture during play; wire
-   `oilPolicy.ts` if it lands in time.
-6. Recap normally: full suite + `tsc` + `git diff --check` against the
-   final commit. State every number from §0-§3 plainly, including null or
-   disappointing ones — this session's whole point is an honest read on
-   whether the pattern-mining lever actually moves live catch rate, and
-   that's valuable to know either way.
+1. Re-derive §0's numbers yourself from `data/fish-patterns.jsonl` and
+   `fixtures/fishing-casts/cards.json` before writing any strategy code. Write
+   the check as `scripts/auditStepClass.ts` so it re-runs as the corpus grows.
+   If the corpus contradicts me, the corpus wins and the brief does not get
+   implemented as stated (CLAUDE.md §9).
+2. §1 — build the ring/conditional movement model, gate it on leave-one-cast-
+   out log loss < 2.070 and top-1 > 40.8%.
+3. §2 — replace the sim's synthetic fish generator with an empirical sampler,
+   then re-run session 44's heuristic (d) ablation against it and correct the
+   record in SPEC-fishing.md §8 either way.
+4. §3 — implement and sweep `focusReserveWeight` on top of the new model.
+5. §5 — live-validate small, only after the gates, reporting the batch
+   separately.
+6. Report the numbers plainly in STATE.md, including any that come in below
+   what this brief projects. My Monte Carlo is optimistic by construction and
+   said so in §0; a smaller real lift is a result, not a failure.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+   final commit.
