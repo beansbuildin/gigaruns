@@ -200,6 +200,19 @@ export interface RingModelOptions {
    */
   shrinkageK: number;
   /**
+   * [session 51, brief §2] Per-class OVERRIDE of `shrinkageK`. When a class
+   * has an entry here it is used instead of the shared value; absent classes
+   * fall back to `shrinkageK`, so `{shrinkageK: 3}` alone behaves exactly as
+   * it did before this field existed.
+   *
+   * Why the knob is per class at all: the two classes' conditional tables are
+   * not equally well supported. k=2's legal ring is bigger, so the same
+   * corpus spreads its (prevDelta -> delta) keys thinner and the conditional
+   * needs MORE smoothing, not the same. A single shared value can only be
+   * right for one of them.
+   */
+  shrinkageKByClass?: Partial<Record<StepClass, number>>;
+  /**
    * Mass reserved for a uniform distribution over the legal ring, mixed in
    * last. Guards log loss against a ring cell the corpus happens never to
    * have produced from this exact context — the ring itself is the hard
@@ -223,8 +236,76 @@ export interface RingModelOptions {
  * CONSTRAINT is what buys top-1, and the smoothing knobs only move
  * calibration. That is the expected shape if FACT 1 is doing the work, and
  * it is a useful sanity check that it is.
+ *
+ * ── [session 51 §2] `shrinkageKByClass: {1: 0.1, 2: 8}` ──
+ *
+ * The single shared value was near-optimal for NEITHER class. Swept per class
+ * under the SHIPPED sticky path (`scripts/fishingRingCV.ts`'s
+ * `perClassShrinkageSweep`), leave-one-cast-out, 88 clean casts / 300 scored
+ * transitions (150 per class):
+ *
+ *   k=1 turns:  K=0.1 -> logLoss 1.040   K=3 (shared) -> 1.072   K=inf -> 1.376
+ *   k=2 turns:  K=8   -> logLoss 1.649   K=3 (shared) -> 1.718   K=inf -> 1.591
+ *
+ * The classes want OPPOSITE things and the mechanism is the ring size: k=2's
+ * legal ring is bigger, so the same corpus spreads its (prevDelta -> delta)
+ * keys thinner and its conditional needs more smoothing. k=1's conditional is
+ * near-deterministic (FACT 2: 0 reversals in 109) and wants almost none.
+ *
+ * TWO THINGS THE SWEEP FOUND THAT THE PROPOSAL DID NOT PREDICT, both recorded
+ * because they change what may be concluded:
+ *
+ *  1. **k=2's log loss is FLAT from K=64 to K=infinity** (1.590, 1.589, 1.590,
+ *     1.591 — a spread of 0.002 at n=150), and K=infinity is the "conditional
+ *     tier OFF" arm. So the bare log-loss argmin (128) is noise picking a
+ *     point on a plateau, and taking it would ship "drop the k=2 conditional"
+ *     under the label "smooth it more".
+ *  2. **k=2's conditional buys top-1 and costs calibration.** Top-1 is 34.0%
+ *     at every K <= 8 and falls to 25-29% out on that plateau. So the tier is
+ *     not worthless for k=2 — it is right about the MODE (FACT 2's 41.7%
+ *     reversal) and overconfident in the TAIL. The pick is the largest gain
+ *     available with top-1 held at or above the shared value, which is K=8,
+ *     not the argmin.
+ *
+ * Gated on a FIXED pair scored at five corpus prefixes it was not chosen on —
+ * paired ΔlogLoss vs `SHARED_SHRINKAGE_BASELINE`, cluster-bootstrapped over
+ * casts, negative with the CI excluding zero at every size, top-1 never worse:
+ *
+ *   55 casts  -0.063 [-0.098, -0.036]   top1 65/149 -> 66/149
+ *   66 casts  -0.047 [-0.074, -0.026]   top1 93/193 -> 95/193
+ *   73 casts  -0.054 [-0.075, -0.035]   top1 100/235 -> 102/235
+ *   80 casts  -0.047 [-0.066, -0.030]   top1 111/261 -> 111/261
+ *   88 casts  -0.047 [-0.069, -0.026]   top1 126/300 -> 126/300
+ *
+ * `{1: 0.1, 2: 16}` scores a larger ΔlogLoss but LOSES top-1 at the two
+ * largest corpus sizes, which is why the dominance rule and not the argmin.
+ * k=1's 0.1 is the argmin at all five sizes; k=2's argmin wanders (16, 16,
+ * 512, 512, 128) and is NOT identified by the data — only its direction is.
+ * Re-run the sweep as the corpus grows and expect the k=2 value to move.
  */
-export const DEFAULT_RING_MODEL_OPTIONS: RingModelOptions = { shrinkageK: 3, ringFloor: 0.1 };
+export const DEFAULT_RING_MODEL_OPTIONS: RingModelOptions = {
+  shrinkageK: 3,
+  shrinkageKByClass: { 1: 0.1, 2: 8 },
+  ringFloor: 0.1,
+};
+
+/**
+ * [session 51 §2] The pre-session-51 SHARED-shrinkage options, kept as a named
+ * comparator so the per-class gate does not compare the default against
+ * itself once the default moves. Not a live default — nothing should call
+ * this except a sweep or a test asserting the before-arm.
+ */
+export const SHARED_SHRINKAGE_BASELINE: RingModelOptions = { shrinkageK: 3, ringFloor: 0.1 };
+
+/**
+ * The shrinkage constant in force for one step class — the per-class
+ * override when present, the shared value otherwise. One resolver, so no
+ * call site can read the shared field directly and silently miss the
+ * override.
+ */
+export function shrinkageFor(k: StepClass, opts: RingModelOptions): number {
+  return opts.shrinkageKByClass?.[k] ?? opts.shrinkageK;
+}
 
 function uniformOver(cells: readonly Cell[]): Distribution {
   const out: Distribution = new Map();
@@ -286,7 +367,7 @@ export function ringDistribution(
     if (n > 0) {
       const condDist = deltasToCells(cell, cond!, gridSize);
       if (condDist.size > 0) {
-        base = mixDistributions(condDist, base, n / (n + opts.shrinkageK));
+        base = mixDistributions(condDist, base, n / (n + shrinkageFor(k, opts)));
       }
     }
   }

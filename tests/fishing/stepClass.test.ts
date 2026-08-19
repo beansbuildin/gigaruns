@@ -23,6 +23,9 @@ import {
   ringCells,
   ringDistribution,
   ringDistributionUnknownClass,
+  shrinkageFor,
+  DEFAULT_RING_MODEL_OPTIONS,
+  SHARED_SHRINKAGE_BASELINE,
   SWITCH_PROBABILITY_FLOOR,
   type Distribution,
 } from "../../src/strategy/fishing/stepClass.js";
@@ -374,5 +377,92 @@ describe("[session 50, open question 4] estimateSwitchProbability", () => {
     const e = estimateSwitchProbability([]);
     expect(e.n).toBe(0);
     expect(e.s).toBe(SWITCH_PROBABILITY_FLOOR);
+  });
+});
+
+describe("[session 51 §2] per-class shrinkageK", () => {
+  // The table the other suites use has each class's conditional EQUAL to its
+  // own marginal (every k=1 cast walks the same way, every k=2 cast always
+  // reverses), which makes shrinkage a no-op by construction and would let
+  // these tests pass against a version that ignored the knob entirely. This
+  // table deliberately separates the two tiers: within each class the
+  // conditional given a specific prevDelta is pure, while the class MARGINAL
+  // is mixed, so any change in shrinkage weight has to show up.
+  const table = buildStepClassTable([
+    // k=1: three casts walking +y, one walking +x -> marginal is mixed,
+    // conditional on prev (0,1) is pure (0,1).
+    cast("a", [{ x: 1, y: 1 }, { x: 1, y: 2 }, { x: 1, y: 3 }, { x: 1, y: 4 }]),
+    cast("b", [{ x: 2, y: 1 }, { x: 2, y: 2 }, { x: 2, y: 3 }, { x: 2, y: 4 }]),
+    cast("c", [{ x: 3, y: 1 }, { x: 3, y: 2 }, { x: 3, y: 3 }, { x: 3, y: 4 }]),
+    cast("f", [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }, { x: 4, y: 1 }]),
+    // k=2: two casts reversing along x, one walking +y twice a turn ->
+    // marginal is mixed, conditional on prev (2,0) is pure (-2,0).
+    cast("d", [{ x: 1, y: 1 }, { x: 3, y: 1 }, { x: 1, y: 1 }, { x: 3, y: 1 }]),
+    cast("e", [{ x: 1, y: 2 }, { x: 3, y: 2 }, { x: 1, y: 2 }, { x: 3, y: 2 }]),
+    cast("g", [{ x: 1, y: 1 }, { x: 1, y: 3 }, { x: 3, y: 3 }, { x: 3, y: 1 }]),
+  ]);
+
+  it("resolves the per-class override, and falls back to the shared value for a class with no entry", () => {
+    const opts = { shrinkageK: 3, shrinkageKByClass: { 2: 8 }, ringFloor: 0.1 };
+    expect(shrinkageFor(1, opts)).toBe(3);
+    expect(shrinkageFor(2, opts)).toBe(8);
+  });
+
+  it("omitting shrinkageKByClass entirely is byte-for-byte the pre-session-51 behaviour", () => {
+    // Back-compat is the whole reason the field is optional rather than a
+    // required record: every caller written before session 51 must be unchanged.
+    for (const k of [1, 2] as const) {
+      const before = ringDistribution({ x: 2, y: 2 }, k, { dx: 0, dy: 1 }, table, GRID, { shrinkageK: 3, ringFloor: 0.1 });
+      const after = ringDistribution({ x: 2, y: 2 }, k, { dx: 0, dy: 1 }, table, GRID, {
+        shrinkageK: 3,
+        shrinkageKByClass: {},
+        ringFloor: 0.1,
+      });
+      expect([...after.entries()].map(([key, v]) => [key, v.p])).toEqual([...before.entries()].map(([key, v]) => [key, v.p]));
+    }
+  });
+
+  it("a per-class override moves ONLY its own class", () => {
+    const shared = { shrinkageK: 3, ringFloor: 0.1 };
+    const k2Only = { ...shared, shrinkageKByClass: { 2: 64 } };
+    const a1 = ringDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID, shared);
+    const b1 = ringDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID, k2Only);
+    expect(b1.get("2,3")!.p).toBeCloseTo(a1.get("2,3")!.p, 12);
+
+    const a2 = ringDistribution({ x: 3, y: 1 }, 2, { dx: 2, dy: 0 }, table, GRID, shared);
+    const b2 = ringDistribution({ x: 3, y: 1 }, 2, { dx: 2, dy: 0 }, table, GRID, k2Only);
+    // more shrinkage on k=2 pulls its conditional back toward the class marginal
+    expect(b2.get("1,1")!.p).toBeLessThan(a2.get("1,1")!.p);
+  });
+
+  it("lower shrinkage trusts the conditional harder — the direction the k=1 sweep picked", () => {
+    const high = ringDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID, { shrinkageK: 3, ringFloor: 0.1 });
+    const low = ringDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID, {
+      shrinkageK: 3,
+      shrinkageKByClass: { 1: 0.1 },
+      ringFloor: 0.1,
+    });
+    expect(low.get("2,3")!.p).toBeGreaterThan(high.get("2,3")!.p);
+  });
+
+  it("the shipped default carries the swept pair; the baseline comparator carries neither", () => {
+    // Pins BOTH sides of the gate. If someone moves the default, the baseline
+    // must stay put or `perClassShrinkageSweep` silently compares it to itself.
+    expect(DEFAULT_RING_MODEL_OPTIONS.shrinkageKByClass).toEqual({ 1: 0.1, 2: 8 });
+    expect(SHARED_SHRINKAGE_BASELINE.shrinkageKByClass).toBeUndefined();
+    expect(SHARED_SHRINKAGE_BASELINE.shrinkageK).toBe(3);
+    expect(SHARED_SHRINKAGE_BASELINE.ringFloor).toBe(DEFAULT_RING_MODEL_OPTIONS.ringFloor);
+  });
+
+  it("the floor still guarantees no zero on a legal ring cell at every per-class value", () => {
+    for (const K of [0.1, 8, Number.POSITIVE_INFINITY]) {
+      const d = ringDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID, {
+        shrinkageK: 3,
+        shrinkageKByClass: { 1: K },
+        ringFloor: 0.1,
+      });
+      for (const c of ringCells({ x: 2, y: 2 }, 1, GRID)) expect(d.get(cellKey(c))!.p).toBeGreaterThan(0);
+      expect(totalP(d)).toBeCloseTo(1, 10);
+    }
   });
 });

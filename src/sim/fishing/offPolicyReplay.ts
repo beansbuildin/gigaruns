@@ -84,6 +84,7 @@ import {
   ringDistributionUnknownClass,
   stickyStepDistribution,
   DEFAULT_RING_MODEL_OPTIONS,
+  type RingModelOptions,
   DEFAULT_SWITCH_PROBABILITY,
 } from "../../strategy/fishing/stepClass.js";
 import {
@@ -268,6 +269,14 @@ export interface ReplayOptions {
    */
   matcherTier?: "off" | "loo";
   /**
+   * [session 51 §2] Ring-model options for this arm. Defaults to what ships
+   * (`DEFAULT_RING_MODEL_OPTIONS`, per-class shrinkage since session 51);
+   * pass `SHARED_SHRINKAGE_BASELINE` for the pre-session-51 before-arm so the
+   * per-class change is A/B-able on fixed trajectories rather than only on
+   * held-out log loss.
+   */
+  ringModelOptions?: RingModelOptions;
+  /**
    * [session 50, brief §2] Place the focus by maximising EXPECTED COVERAGE
    * over the next `coverageHorizon` turns instead of this turn's EV
    * (`src/strategy/fishing/coverageFocus.ts`). Card choice stays
@@ -367,6 +376,7 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
     // Each arm keeps its OWN notion of the step class — `classifyStep`'s
     // cast-wide mode under `hardRing`, `lastStepClass` under the sticky
     // default — so the ring intersection below never mixes the two.
+    const ringOpts = opts.ringModelOptions ?? DEFAULT_RING_MODEL_OPTIONS;
     const stepClass = opts.hardRing ? classifyStep(history) : lastStepClass(history);
     const ringDist = opts.hardRing
       ? stepClass === null
@@ -378,7 +388,7 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
           prevDelta,
           table,
           gridSize,
-          DEFAULT_RING_MODEL_OPTIONS,
+          ringOpts,
           opts.stickySwitchProbability ?? DEFAULT_SWITCH_PROBABILITY,
         );
     // [session 50] Tier 0, mirroring `scripts/liveFishing.ts` exactly: the
@@ -394,7 +404,7 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
             ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist)
             : matcherDist,
           ringDist,
-          1 - DEFAULT_RING_MODEL_OPTIONS.ringFloor,
+          1 - ringOpts.ringFloor,
         )
       : ringDist;
     const baseline = contextualFallback(currentCell, prevDelta, contextMap, cellOnlyMap, gridSize, {
@@ -454,7 +464,7 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
         table,
         gridSize,
         h,
-        DEFAULT_RING_MODEL_OPTIONS,
+        ringOpts,
         opts.stickySwitchProbability ?? DEFAULT_SWITCH_PROBABILITY,
       ).slice(1);
       if (future.length > 0) {
@@ -487,7 +497,7 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
         table,
         gridSize,
         h,
-        DEFAULT_RING_MODEL_OPTIONS,
+        ringOpts,
         opts.stickySwitchProbability ?? DEFAULT_SWITCH_PROBABILITY,
       );
       const cov = chooseCoverageFocus(focus, gridSize, forward);
