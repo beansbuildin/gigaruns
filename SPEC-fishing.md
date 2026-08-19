@@ -921,13 +921,31 @@ P(next cell) = (1 - s) * P(cell | lastK) + s * P(cell | the other count)
   |---|---|---|
   | session-49 brief, from memory | "one in ~309" | ~0.5-0.7% |
   | 73 clean casts | 5 / 238 | 2.50% |
-  | **83 clean casts (shipped)** | **14 / 284** | **5.25%** |
+  | **83 clean casts** | **14 / 281** | **4.98%** |
+
+  (The 83-cast row read `14 / 284 = 5.25%` when session 49 wrote it; the
+  denominator is 281 consecutive classifiable hop PAIRS, which is what the
+  two-state chain actually models. The estimate is 4.98%, not 5.25% — a
+  correction of the arithmetic, not of the finding.)
 
   The swept optimum tracks the estimator at every corpus size (0.02-0.025 at
   73 casts, 0.050 at 83), which is the check that the two are measuring the
-  same thing. **Re-run `scripts/stickyStepSweep.ts` whenever the corpus grows
-  and do not assume this constant has settled** — CLAUDE.md §9, an
-  exceptionless count is a claim about the sample's power.
+  same thing.
+
+  **[session 50] It is no longer a shipped constant.**
+  `estimateSwitchProbability(casts, floor)` reads it off the clean corpus at
+  load; `scripts/liveFishing.ts` calls it and logs the estimate, its `n`, and
+  the shipped constant it is replacing on every run. A monotone trend
+  (~0.6% → 2.50% → 4.98%) makes a constant stale by construction, and nobody
+  knows where the trend stops. `SWITCH_PROBABILITY_FLOOR = 0.025` (the value
+  the corpus itself supported at 73 casts) stops a thin corpus from collapsing
+  it to zero — which is not "the fish never switches", it is the degenerate
+  hard-ring case the sticky latent was built to remove.
+  `DEFAULT_SWITCH_PROBABILITY = 0.05` stays as the default argument for
+  callers with no corpus in hand, and at 83 casts it is right to 0.02pp.
+  **Re-run `scripts/stickyStepSweep.ts` whenever the corpus grows and do not
+  assume this has settled** — CLAUDE.md §9, an exceptionless count is a claim
+  about the sample's power.
 - **`lastStepClass` replaces `classifyStep`'s cast-wide mode** at every ring
   call site. The two agree on all 72 constant casts and disagree on every
   turn of the alternating one.
@@ -1234,6 +1252,19 @@ the move this project keeps having to undo.
 
 ### The focus-budget policies **[session 49, brief §3 — the premise is STALE; nothing shipped]**
 
+> **[session 50 update — the precondition is now MET and the answer does not
+> change.]** Session 49 could not interpret this table: the replay ran with the
+> matcher tier OFF, spent 0.64-0.71 on the opening move against live's 1.80,
+> and so measured a system that does not spend. `matcherTier: "loo"` fixes that
+> (opening spend **1.40**, inside live's 95% interval [1.16, 2.44] at n=10
+> casts), and re-run on the now-spending harness at 83 traces the arms are
+> **still inert or worse**: every `threshold(theta)` is +0/−0 byte for byte,
+> `costCap(2)` is +1/−0, `costCap(0)` is +5/−18 (p = 0.011), and every
+> `schedule` arm is negative or null. The null result has gone from
+> uninformative to informative, and it agrees with the coverage ceilings below:
+> spend QUANTITY was never the binding dimension. Run it with
+> `npx tsx scripts/focusBudgetSweep.ts --matcher=loo`.
+
 Session 49 built all three of the brief's cheap spend policies
 (`src/strategy/fishing/focusBudget.ts`: `costCap`, `threshold`, `schedule`)
 and A/B'd them on the replay, paired per cast
@@ -1443,6 +1474,97 @@ is the thing it is good for, because the model error is common to both arms
 and differences it out. Its absolute predictions are, on the one test that
 exists, wrong by nearly a factor of two. Quote them as an ordering, not as a
 forecast.
+
+### Two standing reporting guards **[session 50, brief §4]**
+
+**Guard 1 — no corpus statistic without its `n`, and no comparator without
+re-derivation at the composition of the thing it is compared to.**
+
+Four separate errors in the session-49 brief were this one rule violated, and
+one of them was committed in the same brief that recommended null comparators
+as a defence against it:
+
+| claim | as quoted | as measured |
+|---|---|---|
+| live lands on the union-of-rings null | "to within 0.1pp" | union null 10.3% on those turns; **the model beats it** |
+| the k-ring null | 29.3% (corpus-wide) | **20.7%** at that batch's composition |
+| offline leave-one-cast-out top-1 | 46.4% | 42.6% at 73 casts, **42.3% at 83** |
+| the sticky switch probability `s` | ~0.6% | 2.50% at 73, **4.98% at 83** (n = 281 hop pairs) |
+| opening focus spend | 1.62 | transposed era 1.66, corrected 1.40, **live 1.80 (n=10)** |
+
+Null-model accuracy depends on the actual cells — legal ring sizes vary cell to
+cell — so a corpus-wide average and a 29-turn batch are never comparable
+numbers, whichever way round they are put. The mechanism that makes this
+non-optional is already in place: `scripts/ringPredictionReport.ts` re-derives
+its offline pins and prints a warning that they move. The rule is what makes
+using it mandatory rather than diligent.
+
+**Guard 2 — report COVERAGE alongside hit rate on every live readout, with the
+decomposition.**
+
+    hit rate = coverage x conversion
+
+where **coverage** = P(the fish's actual next cell landed inside the 3x3 zone
+window around the focus that was played), and **conversion** = P(hit |
+covered). Coverage is what focus PLACEMENT controls; conversion is what the
+card's zone subset and the aim inside the window control. Both are computed
+from fields `data/ringPrediction.jsonl` has always carried (`playedFocus`,
+`actual`, `realizedHit`), so this needed no new capture.
+
+It is printed on every readout because without it a low hit rate does not say
+which half to fix — and three sessions were spent tuning a third quantity
+(spend volume) that turned out to be neither.
+
+**What it said the first time it was run** (session 50, n=85 live shots,
+corrected zone map): coverage **64.7%** [54.1%, 74.0%], conversion **54.5%**,
+product **35.3%** — which is the realized hit rate to the decimal.
+
+### Coverage is NOT the binding half — conversion is **[session 50, brief §2/§3 — built, swept, REJECTED]**
+
+The session-50 brief's reframe was that the 3-point focus budget is not scarce
+and the lever is placement quality. **The premise reproduced and the policy
+built on it failed its own gate.**
+
+The hindsight ceilings (`scripts/focusCoverage.ts`, 83 clean casts / 364 scored
+turns) confirm the premise exactly:
+
+| focus policy | coverage |
+|---|---|
+| frozen at (2,2), never moves — budget 0 | 223/364 = **61.3%** |
+| best FIXED placement, hindsight, reachable within 3 | 336/364 = **92.3%** |
+| optimal schedule at budget 3, hindsight | 363/364 = **99.7%** |
+| optimal schedule at budget 6 or 12, hindsight | 364/364 = **100.0%** |
+
+Budget 3 is one turn short of a hindsight-perfect schedule; more budget buys
+0.27pp. So `focusReserveWeight` (session 48), `costCap` and `threshold`
+(session 49) were all regulating a dimension that was never binding.
+
+But the objective that follows from that does not work
+(`scripts/focusCoverageSweep.ts`, 83 traces, matcher tier leave-one-cast-out,
+paired on 270 common (cast, turn) pairs):
+
+| arm | coverage | conversion | per-turn hit | caught |
+|---|---|---|---|---|
+| EV placement (shipped) | 73.6% | **62.3%** | 45.8% | 24/83 |
+| expected-coverage override, H = 2..5 | **89.6%** (+42/−5, p < 0.001) | 48.5% | 43.7% (+32/−41, p = 0.35) | 18/83 (+5/−11) |
+| blended `ev + w * futureCoverage`, w 0.5-6, H 2-3 | ~flat | ~60% | ~44.6% | 24-25/83 |
+
+**The objective wins decisively and does not convert.** The mechanism, measured
+rather than asserted: the cards actually played average **3.57 of 9 zones**, so
+**39.7%** is the conversion a covering window yields with no aiming inside it.
+The EV placement earns 62.3% — 22.6pp of aiming on top of the structure. The
+coverage placement earns 48.5% — 8.8pp. It buys window and spends aim, and the
+product goes down. Card mix is identical across arms (3.6 zones both), so this
+is placement quality, not a card-selection shift.
+
+Nothing shipped. `coverageFocus.ts` and the two replay options
+(`coverageHorizon`, `coverageWeight`) stay in the tree as the measuring
+instrument and the arms; the live default is unchanged.
+
+**What this redirects to.** Live coverage is 64.7% and live conversion 54.5%.
+Coverage can be pushed to ~90% online and hits do not follow, so the next
+lever is the conversion half — the deck's zone shapes and the aim within a
+covering window — not another placement objective and not another spend knob.
 
 ### What is NOT claimed
 
