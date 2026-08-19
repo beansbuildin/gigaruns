@@ -1107,16 +1107,20 @@ modelled or allowlisted.
 question the brief (§5) explicitly asked me to RAISE rather than decide, and
 CLAUDE.md's "don't reopen a settled decision silently" applies.
 
-### Where it stands
+### Where it stands — and this moved a lot during session 49 itself
 
-`data/nextPositionValidation.jsonl` is at **4 attempts / 4 hits / Wilson lower
-bound 0.5101** after session 49 backfilled the fourth observation
-(`12956718` t1, `backfilled: true`, source recorded in the row).
+`data/nextPositionValidation.jsonl` is at **8 attempts / 8 hits / Wilson lower
+bound 0.6756**.
+
+Three of those were pre-existing, one is session 49's backfill (`12956718` t1,
+`backfilled: true`, source recorded in the row), and **four are new live hits
+from session 49's own two batches** — `12991353` t3 and t9, `12991355` t1 and
+t5. All four realized exactly.
 
 The gate is `attempts >= NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS (10)` **and**
 `lowerBound >= NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND (0.5)`. The bound half is
-met; the attempts half is not, so the override stays **off**. Correct as
-written.
+met with room to spare; the attempts half is **two short**, so the override
+stays **off**. Correct as written.
 
 ### Why it may be worth re-specifying
 
@@ -1129,21 +1133,26 @@ longer the situation. `scripts/auditMovePaths.ts` at 84 casts:
 - decoded path ends exactly on `nextPosition`: **11/11**
 - decoded path is unit steps from the current cell: **11/11**
 - multi-cell (so NOT a `nextPosition` duplicate): **3/11**
-- the fish actually went there, where the cast continued: **4/4**
-- next turn's `lastMovePath` equals it byte-for-byte: **4/4**
+- the fish actually went there, where the cast continued: **8/8**
+- next turn's `lastMovePath` equals it byte-for-byte: **8/8**
 
 That is structural evidence the hit count cannot express: the field decodes
 correctly under the confirmed row-major identity every single time, and where
-it was checkable it was right every single time. The 4/4 hit record is the
-*weakest* thing known about it.
+it was checkable it was right every single time.
 
-### The cost of waiting
+### The cost of waiting — MUCH lower than it looked
 
-The field is non-null on ~11 of 451 state docs (~2.4%), and only a subset are
-mid-cast (the rest are terminal, where the prediction can never be validated
-because the cast is over). Reaching 10 *validated attempts* therefore takes
-roughly **80–160 more casts** — at 20 casts/day, a month of play, to move a
-threshold that was set without knowing what the field was.
+**Correction to this section's own first draft, written earlier in session 49
+from the pre-batch state.** I estimated ~80-160 more casts to reach 10 validated
+attempts, from a rate of ~2.4% of state docs. That rate is not uniform: the
+field clusters, and session 49's ten casts produced **four** validated attempts
+on their own — two casts (`12991353`, `12991355`) carried it on most turns while
+the other eight carried none.
+
+At that observed rate, **roughly 5 more casts reaches n = 10** — a single batch,
+not a month. That substantially weakens the "waiting is expensive" argument
+below, and it is the honest reason to consider simply *waiting one more batch*
+rather than re-specifying the gate at all.
 
 ### The question
 
@@ -1152,7 +1161,11 @@ Should the gate become **two-armed** — structural decode valid (path ends on
 n >= 5 — rather than a single attempt count?
 
 Arguments against, stated fairly:
-- 4/4 is still 4/4. A two-armed gate that fires at n=5 fires on very little.
+- **The cheapest answer is now "wait one batch."** At n=8 and ~4 attempts per
+  10 casts, the existing gate resolves itself in about 5 more casts. Changing a
+  threshold two observations before it would have been met is the worst time to
+  change it.
+- 8/8 is still only 8. A two-armed gate that fires at n=5 fires on very little.
 - The structural check validates the *decode*, not the *prediction*. A field
   could decode perfectly and still be a plan the server revises.
 - The override replaces the movement model with a point mass. Being wrong
