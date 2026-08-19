@@ -74,16 +74,22 @@ console.log(`  corpus: ${casts.length} clean casts; card hitEffect magnitudes in
 
 function sweep(label: string, base: Omit<CastOptions, "seed" | "policy">) {
   console.log(`  ${label}`);
-  console.log(`  ${"weight".padStart(8)} ${SEEDS.map((s) => `seed ${s}`.padStart(16)).join("  ")}`);
-  console.log(`  ${"".padStart(8)} ${SEEDS.map(() => "catch% / fishHP".padStart(16)).join("  ")}`);
+  console.log(`  ${"weight".padStart(8)} ${SEEDS.map((s) => `seed ${s}`.padStart(24)).join("  ")}`);
+  // [session 47, brief §1c] Per-turn hit rate added alongside catch rate.
+  // Session 46 built `CastSummary.hitRate` precisely because the two axes are
+  // separable (its HIGH deck arm has the LOWEST hit rate and a HIGHER catch
+  // rate than MID), and a focus-reserve weight moves focus placement, which
+  // is the hit-rate axis directly. A sweep that reports only catch rate can
+  // therefore show a flat plateau while the mechanism it is tuning is moving.
+  console.log(`  ${"".padStart(8)} ${SEEDS.map(() => "catch% / hit% / fishHP".padStart(24)).join("  ")}`);
   for (const w of WEIGHTS) {
     const cells: string[] = [];
     for (const seed of SEEDS) {
       const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, true, w);
       const r = simulateCasts(N, { policy, ...REAL_PARAMS, ...base }, seed);
-      cells.push(`${(r.catchRate * 100).toFixed(1)}% / ${r.meanFinalFishHp.toFixed(2)}`);
+      cells.push(`${(r.catchRate * 100).toFixed(1)}% / ${(r.hitRate * 100).toFixed(1)}% / ${r.meanFinalFishHp.toFixed(2)}`);
     }
-    console.log(`  ${String(w).padStart(8)} ${cells.map((c) => c.padStart(16)).join("  ")}`);
+    console.log(`  ${String(w).padStart(8)} ${cells.map((c) => c.padStart(24)).join("  ")}`);
   }
   console.log("");
 }
