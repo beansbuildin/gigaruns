@@ -50,12 +50,12 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     const corrected = auditFishHp(traces, correctedZoneOffset);
     const transposed = auditFishHp(traces, transposedZoneOffset);
     expect(corrected.agree).toBe(corrected.scored);
-    // [session 49] 4 → 8 across this session's two live batches, every one
-    // again exactly `critEffects` at a cell inside the card's TRANSLATED
-    // `critZones`. The discrimination is now 364/364 with 8 crits for the
-    // corrected table against 357/364 with 1 for the transposed one — the
+    // [session 50] 8 → 10 across this session's live batch, every one again
+    // exactly `critEffects` at a cell inside the card's TRANSLATED
+    // `critZones`. The discrimination is now 391/391 with 10 crits for the
+    // corrected table against 383/391 with 2 for the transposed one — the
     // inequalities below are what assert that gap rather than just the pass.
-    expect(corrected.crits).toBe(8);
+    expect(corrected.crits).toBe(10);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

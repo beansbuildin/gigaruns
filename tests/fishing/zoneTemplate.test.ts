@@ -54,15 +54,15 @@ describe("cast-trace corpus reconciliation", () => {
 
   it("matches the figures the other two corpus views report", () => {
     const clean = traces.filter(isCleanTrace);
-    // [session 49] Recount after this session's TWO 5-cast live batches
-    // (2 caught each — 4 in 10, the best day on record). Old figures 74/73/308/8.
-    expect(traces.length).toBe(84);
-    expect(clean.length).toBe(83);
-    // 364 play turns across the clean traces — the same 364 as
+    // [session 50] Recount after this session's 5-cast batch (1 caught).
+    // Old figures 84/83/364/12; before that 74/73/308/8.
+    expect(traces.length).toBe(89);
+    expect(clean.length).toBe(88);
+    // 388 play turns across the clean traces — the same 388 as
     // auditStepClass.ts's off-ring denominator and auditStateFields.ts's, and
-    // the same 12 catches as the all-time 12/84.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(364);
-    expect(traces.filter((t) => t.caught).length).toBe(12);
+    // the same 13 catches as the all-time 13/89.
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(388);
+    expect(traces.filter((t) => t.caught).length).toBe(13);
   });
 
   it("the one non-clean trace is session 45's resumed cast, which has no start_run", () => {

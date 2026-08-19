@@ -1557,6 +1557,12 @@ coverage placement earns 48.5% — 8.8pp. It buys window and spends aim, and the
 product goes down. Card mix is identical across arms (3.6 zones both), so this
 is placement quality, not a card-selection shift.
 
+**It replicates at 88 clean casts** (the corpus after session 50's own batch):
+ceilings 235/388 = 60.6% frozen, 386/388 = 99.5% at budget 3, 388/388
+unlimited; sweep base coverage 70.6% x conversion 63.9%, override coverage
+87.5% (+57/−11, p < 0.001) x conversion 46.9%, hit 46.1% → 42.0%, caught
+19/88 → 16/88. Same ordering, same sign, five casts of fresh data.
+
 Nothing shipped. `coverageFocus.ts` and the two replay options
 (`coverageHorizon`, `coverageWeight`) stay in the tree as the measuring
 instrument and the arms; the live default is unchanged.

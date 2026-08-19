@@ -1179,3 +1179,38 @@ Arguments for:
 
 **Not changed unilaterally.** `NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS` stays at
 10 until the user or Claude says otherwise.
+
+---
+
+### RESOLVED [session 50] — the gate CLEARED itself. Nothing was re-specified.
+
+The session-50 brief's answer was "wait one batch," and one batch was exactly
+right. Session 50's five casts produced two more validated attempts
+(`12992261` turns 3 and 8, both exact), and the ledger is now:
+
+    attempts = 10   hits = 10   Wilson lower bound = 0.7225   READY = true
+
+Both halves of the gate are met — `attempts >= 10` and `lowerBound >= 0.5` —
+so `nextPositionOverrideStats` reports `ready` and **the override will arm on
+the next live cast.** No threshold was touched, no question was re-opened, and
+the two-armed redesign proposed above is moot: the original gate resolved
+itself in five casts, which is the outcome its own design was betting on.
+
+**What the next session must watch, because nobody has seen this fire yet.**
+
+- The override replaces the entire movement distribution with a point mass on
+  `nextPosition` (`certainDistribution`), so it does not merely nudge the
+  focus — it removes the ring model from that turn's decision completely.
+  Rows written on such a turn carry `tier: "override"` and are excluded from
+  every ring-tier comparator, which is correct but means a batch dominated by
+  override turns produces a much thinner ring-model readout.
+- 10/10 is 10. The bound is 0.7225, not 1. A first live miss is not evidence
+  the gate was wrong; it is the sample doing what a sample at n=10 does. What
+  would be worth acting on is a RUN of misses, and the ledger keeps scoring
+  every attempt whether the override is armed or not.
+- Session 50's own batch is a reason for care rather than confidence about the
+  movement model generally: it was k=2-heavy (17 of 19 scored turns), live
+  coverage fell to 37.5%, and the shipped model LOST to the k-ring null
+  (21.1% vs 26.3%). The override is a different mechanism from the ring model
+  and this does not bear on its ledger — but it is the context the first
+  armed batch will be read in.

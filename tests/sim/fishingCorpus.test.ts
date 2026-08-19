@@ -42,14 +42,14 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // longer the account's active cast. If this fails after a future live
     // session added real casts, update the expected numbers — don't revert
     // the loader.
-    // [session 49] Recount after this session's TWO live batches: 10 more
-    // completed casts, 4 caught (12991312, 12991320, 12991355, 12991361).
-    // Previous entry was session 48's.
-    expect(summary.casts).toBe(84);
-    expect(summary.responseDocs).toBe(462);
-    expect(summary.playTurns).toBe(368);
-    expect(summary.caught).toBe(12);
-    expect(summary.escaped).toBe(71);
+    // [session 50] Recount after this session's 5-cast batch: 5 more
+    // completed casts, 1 caught (12992267, a Barnaboo). Previous entry was
+    // session 49's.
+    expect(summary.casts).toBe(89);
+    expect(summary.responseDocs).toBe(492);
+    expect(summary.playTurns).toBe(392);
+    expect(summary.caught).toBe(13);
+    expect(summary.escaped).toBe(75);
     expect(summary.incomplete).toBe(1);
   });
 
