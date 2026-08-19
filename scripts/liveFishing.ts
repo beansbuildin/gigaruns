@@ -569,6 +569,38 @@ function topCellOf(dist: ReadonlyMap<string, { cell: Cell; p: number }>): { cell
   return tied[0] ?? null;
 }
 
+/**
+ * [session 46] The server's OWN message for a failed action, not the
+ * transport-level summary.
+ *
+ * `client.ts` throws `UnexpectedResponseError` for every non-2xx, and that
+ * error's `.message` is only ever `"Unexpected response from <path>: HTTP
+ * <status>"` — the server's actual text (`"Player is already in a game"`,
+ * `"...reached max runs..."`, an energy-floor rejection) lives ONLY in
+ * `.body`. Two consequences, both found live this session while trying to
+ * diagnose a start_run HTTP 400:
+ *
+ *  1. `runOneCast`'s server-cap classifier tested `.message` for
+ *     `/reached max runs/i`, which that string can never appear in — so the
+ *     branch was dead from the day it was written (session 29). Same failure
+ *     mode as heuristic (d): a guard wired to the wrong field, silently
+ *     never firing. It now tests THIS.
+ *  2. CLAUDE.md §5 requires the full response body in `logs/` on an
+ *     unexpected state. Logging `.message` alone did not honour that, and it
+ *     is what made this session's HTTP 400 ambiguous between a stuck doc,
+ *     a server cap, and a real energy floor.
+ *
+ * Falls back to `.message` for any error that is not an
+ * `UnexpectedResponseError` (a network failure, an abort), so callers can use
+ * it unconditionally.
+ */
+export function serverErrorDetail(e: unknown): { message: string; body?: string } {
+  if (e instanceof UnexpectedResponseError) {
+    return { message: `${e.message} — ${e.body}`, body: e.body };
+  }
+  return { message: (e as Error).message };
+}
+
 export const DEFAULT_RING_PREDICTION_LOG_PATH = join("data", "ringPrediction.jsonl");
 
 /** Append-one-line writer, same never-fatal convention as `appendTransition`. */
@@ -958,7 +990,11 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     } catch (e) {
       if (e instanceof TokenExpiredError) throw e;
       guards.recordActionResult(false);
-      const message = (e as Error).message;
+      // [session 46] `.message` alone never carries the server's own text —
+      // see `serverErrorDetail`. Both the classifier below and the log line
+      // need the BODY, or the classifier is dead and the log is undiagnosable.
+      const detail = serverErrorDetail(e);
+      const message = detail.message;
       // [session 29, CODEXREVIEW #6] Fishing has no authoritative "today"
       // read endpoint to proactively check (unlike dungeon's GET
       // /game/dungeon/today), so this stays fail-closed on the real
@@ -973,8 +1009,8 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         log.write({ event: "server_cap_reached", mode: "fishing", message });
         throw new GuardTrip("session run cap reached", { source: "server start_run rejection", message });
       }
-      log.write({ event: "action_failed", reason: "start_run rejected", error: message });
-      throw new GuardTrip("fishing start_run rejected", { error: message });
+      log.write({ event: "action_failed", reason: "start_run rejected", error: message, body: detail.body });
+      throw new GuardTrip("fishing start_run rejected", { error: message, body: detail.body });
     }
     guards.recordActionResult(true);
     guards.recordRunStarted();
@@ -1281,8 +1317,9 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     } catch (e) {
       if (e instanceof TokenExpiredError) throw e;
       guards.recordActionResult(false);
-      log.write({ event: "action_failed", reason: "play_cards rejected", error: (e as Error).message });
-      throw new GuardTrip("fishing play_cards rejected", { error: (e as Error).message });
+      const detail = serverErrorDetail(e);
+      log.write({ event: "action_failed", reason: "play_cards rejected", error: detail.message, body: detail.body });
+      throw new GuardTrip("fishing play_cards rejected", { error: detail.message, body: detail.body });
     }
     guards.recordActionResult(true);
     log.write({ event: "post_response", resp });
@@ -1419,9 +1456,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       } catch (e) {
         if (e instanceof TokenExpiredError) throw e;
         guards.recordActionResult(false);
-        log.write({ event: "action_failed", reason: "loot rejected", error: (e as Error).message });
+        const lootDetail = serverErrorDetail(e);
+        log.write({ event: "action_failed", reason: "loot rejected", error: lootDetail.message, body: lootDetail.body });
         console.log(`  ✗ loot rejected — account may be left in the stuck-until-resolved state; see QUESTIONS.md §10.`);
-        throw new GuardTrip("fishing loot rejected", { error: (e as Error).message });
+        throw new GuardTrip("fishing loot rejected", { error: lootDetail.message });
       }
     }
   }
