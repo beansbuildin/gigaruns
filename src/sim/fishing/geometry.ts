@@ -1,12 +1,39 @@
 /**
  * src/sim/fishing/geometry.ts — the confirmed Dendren board geometry.
  *
- * Everything here is [CONFIRMED] against the one real captured cast
- * (`fixtures/fishing-casts/cast.json`) — see SPEC.md §5 and
- * SPEC-fishing.md §4 for the derivation. Zones are a fixed 3×3 template,
- * row-major, numbered 1–9, centred on the submitted `focusPoint`. A card's
- * hit/crit zones translate through this template to absolute cells; a zone
- * that lands off-grid is simply unreachable that turn, not clamped.
+ * Zones are a fixed 3×3 template, row-major, numbered 1–9, centred on the
+ * submitted `focusPoint`. A card's hit/crit zones translate through this
+ * template to absolute cells; a zone that lands off-grid is simply
+ * unreachable that turn, not clamped.
+ *
+ * **[CORRECTED session 47 — `ZONE_OFFSET` was TRANSPOSED, and had been since
+ * session 05.]** The original table was derived from
+ * `fixtures/fishing-casts/cast.json`, whose cards happen to be
+ * transpose-symmetric, so it fit the one capture it was checked against and
+ * was marked CONFIRMED on that basis. Against the full 282-play corpus it
+ * predicts the recorded hit/miss outcome on **228 of 282** plays; the
+ * transposed table predicts **282 of 282, exceptionless**
+ * (`scripts/auditZoneTemplate.ts`).
+ *
+ * The cause, confirmed independently of the outcome fit: **`Cell.x` is the
+ * ROW and `Cell.y` is the COLUMN**, because `position[0]` is the row.
+ * `doc.data.lastMovePath` carries 1-based cell INDICES, and across the whole
+ * corpus `index === (position[0] - 1) * gridSize + position[1]` holds
+ * **289/289** — row-major over `position`, which only works if `position[0]`
+ * indexes the row. The zone template is numbered row-major too, so zone 2 is
+ * (row − 1, col) = `[-1, 0]` in this file's `(x, y)` naming, NOT the `[0, -1]`
+ * the old table had. Two independent lines of evidence, same conclusion.
+ *
+ * This was a live-only defect. The sim used this table on BOTH sides — to
+ * place the policy's focus and to resolve the shot — so it stayed internally
+ * consistent and its numbers never flinched; the live server resolves with
+ * the true map while the policy aimed with the transposed one. That is a
+ * systematic aiming error on every card whose zone set is not
+ * transpose-symmetric, and it is the most likely single cause of the
+ * long-standing live-vs-sim hit-rate gap (live 7/69 = 10.1% all-time).
+ *
+ * Everything else here remains [CONFIRMED] as before — see SPEC.md §5 and
+ * SPEC-fishing.md §4.
  */
 
 export interface Cell {
@@ -14,16 +41,20 @@ export interface Cell {
   y: number;
 }
 
-/** zone (1-9) -> (dx, dy) offset from the focus point. Row-major, 3x3. */
+/**
+ * zone (1-9) -> (dx, dy) offset from the focus point. Row-major, 3x3, where
+ * `x` is the ROW and `y` is the COLUMN (see this file's header). Equivalent
+ * closed form: `dx = floor((z - 1) / 3) - 1`, `dy = ((z - 1) % 3) - 1`.
+ */
 const ZONE_OFFSET: Record<number, readonly [number, number]> = {
   1: [-1, -1],
-  2: [0, -1],
-  3: [1, -1],
-  4: [-1, 0],
+  2: [-1, 0],
+  3: [-1, 1],
+  4: [0, -1],
   5: [0, 0],
-  6: [1, 0],
-  7: [-1, 1],
-  8: [0, 1],
+  6: [0, 1],
+  7: [1, -1],
+  8: [1, 0],
   9: [1, 1],
 };
 

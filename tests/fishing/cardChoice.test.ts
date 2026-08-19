@@ -172,7 +172,12 @@ describe("argmax EV, not argmax P_hit — session 15 [RE-DERIVED]", () => {
   const safeButWeak: FishingCardLike = {
     id: 1,
     manaCost: 1,
-    hitZones: [5, 2], // (0,0) and (0,-1) relative to focus
+    // (0,0) and (0,-1) relative to focus. [session 47] Was `[5, 2]`, written
+    // against the TRANSPOSED `ZONE_OFFSET` this project shipped until this
+    // session — zone 2 is (-1, 0), not (0, -1). Zone 4 is the offset this
+    // scenario always meant; the scenario itself (wide-and-weak vs
+    // narrow-and-strong) is unchanged, and so are both expected EVs.
+    hitZones: [5, 4],
     critZones: [],
     hitEffects: [{ amount: 2 }],
     missEffects: [{ amount: -1 }],
