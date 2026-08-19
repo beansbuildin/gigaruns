@@ -628,6 +628,37 @@ describe("postWithVerifiedRetry", () => {
   });
 });
 
+describe("start_run rejection carries the server's own message — [session 47, brief §1e]", () => {
+  it("logs the response BODY, not just the transport-level status line", async () => {
+    // The dungeon twin of session 46's fishing incident: `.message` on an
+    // `UnexpectedResponseError` is only "Unexpected response from <path>:
+    // HTTP <status>", so logging it alone throws away the ONE place the
+    // server says why a start_run was refused. Two consecutive fishing
+    // sessions misdiagnosed a 400 from the doc state because of exactly this.
+    const logged: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+        if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        return { status: 400, body: { success: false, message: "Player has reached max runs for dungeon" } };
+      }),
+    );
+    const deps = makeDeps(false);
+    deps.log = { write: (r: Record<string, unknown>) => logged.push(r), filePath: "test.jsonl" } as unknown as LiveRunDeps["log"];
+
+    const p = runOnce(deps, { stage2Only: true });
+    const assertion = expect(p).rejects.toBeInstanceOf(GuardTrip);
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    const failure = logged.find((r) => r.reason === "start_run rejected" || String(r.event).includes("fail") || r.body !== undefined);
+    expect(failure).toBeDefined();
+    expect(JSON.stringify(logged)).toContain("Player has reached max runs for dungeon");
+  });
+});
+
 describe("runOnce — stage 2 (single POST then halt)", () => {
   it("sends exactly one start_run POST and returns without polling further", async () => {
     const calls: { url: string; method: string; body?: string }[] = [];

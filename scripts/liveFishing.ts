@@ -81,7 +81,12 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 
 import { GigaverseClient } from "../src/api/client.js";
-import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
+import { TokenExpiredError, UnexpectedResponseError, serverErrorDetail } from "../src/api/errors.js";
+// [session 47, brief §1e] `serverErrorDetail` moved to src/api/errors.ts — it is a
+// property of the error type, and keeping it here is what let the dungeon side go
+// three sessions with the same swallowed-body bug. Re-exported so every existing
+// `from "./liveFishing.js"` import site is unchanged.
+export { serverErrorDetail };
 import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from "../src/api/fishing.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
@@ -570,38 +575,6 @@ function topCellOf(dist: ReadonlyMap<string, { cell: Cell; p: number }>): { cell
   return tied[0] ?? null;
 }
 
-/**
- * [session 46] The server's OWN message for a failed action, not the
- * transport-level summary.
- *
- * `client.ts` throws `UnexpectedResponseError` for every non-2xx, and that
- * error's `.message` is only ever `"Unexpected response from <path>: HTTP
- * <status>"` — the server's actual text (`"Player is already in a game"`,
- * `"...reached max runs..."`, an energy-floor rejection) lives ONLY in
- * `.body`. Two consequences, both found live this session while trying to
- * diagnose a start_run HTTP 400:
- *
- *  1. `runOneCast`'s server-cap classifier tested `.message` for
- *     `/reached max runs/i`, which that string can never appear in — so the
- *     branch was dead from the day it was written (session 29). Same failure
- *     mode as heuristic (d): a guard wired to the wrong field, silently
- *     never firing. It now tests THIS.
- *  2. CLAUDE.md §5 requires the full response body in `logs/` on an
- *     unexpected state. Logging `.message` alone did not honour that, and it
- *     is what made this session's HTTP 400 ambiguous between a stuck doc,
- *     a server cap, and a real energy floor.
- *
- * Falls back to `.message` for any error that is not an
- * `UnexpectedResponseError` (a network failure, an abort), so callers can use
- * it unconditionally.
- */
-export function serverErrorDetail(e: unknown): { message: string; body?: string } {
-  if (e instanceof UnexpectedResponseError) {
-    return { message: `${e.message} — ${e.body}`, body: e.body };
-  }
-  return { message: (e as Error).message };
-}
-
 export const DEFAULT_RING_PREDICTION_LOG_PATH = join("data", "ringPrediction.jsonl");
 
 /** Append-one-line writer, same never-fatal convention as `appendTransition`. */
@@ -953,18 +926,32 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   let doc: FishingGameDoc;
 
   if (existing.gameState && existing.gameState.COMPLETE_CID) {
-    // Session 15/QUESTIONS.md §10: this exact shape (a completed-but-not-
-    // resumable doc) is what stuck the account for the rest of a session —
-    // `start_run` below will predictably reject "Player is already in a
-    // game" rather than clear it. Dump loudly here, before that opaque 400,
-    // so the unknown terminal field is visible immediately rather than only
-    // discoverable via a separate `checkFishingStuck.ts` run.
+    // A terminal doc with an unrecognized field is worth dumping — that is
+    // how QUESTIONS.md §10's CATCH shape (a pending `cardsToAdd` triple) was
+    // first characterized, and it is genuinely resolvable, by `loot`.
+    //
+    // **[session 47, brief §1d] It is NOT a prediction that `start_run` will
+    // reject, and this warning used to say it was.** It fired on every run
+    // that saw any terminal doc and caused two consecutive misdiagnoses:
+    // sessions 45 and 46 both attributed a `start_run` HTTP 400 to "the
+    // account is stuck" when the server's own body said
+    // `"Player has reached max runs for fishing"` — the daily cap, which no
+    // doc state predicts. Session 46's misdiagnosis then propagated into the
+    // session-47 brief as its first instruction.
+    //
+    // The condition this fires on is not the condition that rejects
+    // `start_run`, so it now reports only what was observed. Diagnose a 400
+    // from its BODY (`serverErrorDetail`, logged at the throw site below),
+    // never from the doc.
     const unknown = unknownDocKeys(existing.gameState as unknown as Record<string, unknown>);
     if (unknown.length > 0) {
       const path = dumpUnknownTerminal(existing, unknown, "terminal", logsDir);
       log.write({ event: "unknown_terminal_fields", source: "pre_start_state_check", keys: unknown, dump: path });
       console.log(`  ★★★ UNKNOWN FIELD(S) on the existing completed-but-unresolved doc: ${unknown.join(", ")}`);
-      console.log(`  ★★★ full response dumped to ${path} — the account is likely stuck (QUESTIONS.md §10); start_run below will probably reject.`);
+      console.log(`  ★★★ full response dumped to ${path}.`);
+      console.log(`      A terminal doc is present. This does NOT by itself predict a start_run rejection —`);
+      console.log(`      if start_run does fail below, read the 400's BODY, which is logged (session 46).`);
+      console.log(`      QUESTIONS.md §10's stuck shape is the CATCH one (pending cardsToAdd), resolved by \`loot\`.`);
     }
   }
 
@@ -1031,7 +1018,11 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         const path = dumpUnknownTerminal(resp, unknown, "terminal", logsDir);
         log.write({ event: "unknown_terminal_fields", keys: unknown, dump: path });
         console.log(`  ★★★ UNKNOWN TERMINAL FIELD(S) on start_run's returned doc: ${unknown.join(", ")}`);
-        console.log(`  ★★★ full response dumped to ${path} — this is the account-stuck mechanic (QUESTIONS.md §10), look here first.`);
+        // [session 47, brief §1d] Same reword as the pre-start check above:
+        // report what was seen, do not assert a mechanic. A start_run that
+        // SUCCEEDED and came back terminal is a different and more
+        // interesting event than the account being stuck.
+        console.log(`  ★★★ full response dumped to ${path} — start_run succeeded but returned a terminal doc; look here first.`);
       }
     }
   }

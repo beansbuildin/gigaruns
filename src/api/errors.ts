@@ -38,3 +38,40 @@ export class UnexpectedResponseError extends Error {
     this.name = "UnexpectedResponseError";
   }
 }
+
+/**
+ * [session 46, MOVED HERE session 47] The server's OWN message for a failed
+ * action, not the transport-level summary.
+ *
+ * `UnexpectedResponseError.message` is only ever `"Unexpected response from
+ * <path>: HTTP <status>"` — the server's actual text (`"Player is already in
+ * a game"`, `"...reached max runs..."`, an energy-floor rejection) lives ONLY
+ * in `.body`. Two consequences, both found live in session 46 while trying to
+ * diagnose a fishing `start_run` HTTP 400:
+ *
+ *  1. `runOneCast`'s server-cap classifier tested `.message` for
+ *     `/reached max runs/i`, a string that can never appear there — so the
+ *     branch was dead from the day it was written (session 29). A guard's
+ *     condition can name a real fact while reading a field that fact never
+ *     appears in.
+ *  2. CLAUDE.md §5 requires the full response body in `logs/` on an
+ *     unexpected state. Logging `.message` alone did not honour that, and it
+ *     is what made session 46's HTTP 400 ambiguous between a stuck doc, a
+ *     server cap, and a real energy floor.
+ *
+ * It lived in `scripts/liveFishing.ts` until session 47, which found the same
+ * omission on the DUNGEON side in three places (`start_run rejected`,
+ * `dungeon action rejected`, `postWithVerifiedRetry`'s `post_attempt_failed`)
+ * — the fishing-only home is what let that happen. It is a property of the
+ * error type, so it lives with the error type now.
+ *
+ * Falls back to `.message` for any error that is not an
+ * `UnexpectedResponseError` (a network failure, an abort), so callers can use
+ * it unconditionally.
+ */
+export function serverErrorDetail(e: unknown): { message: string; body?: string } {
+  if (e instanceof UnexpectedResponseError) {
+    return { message: `${e.message} — ${e.body}`, body: e.body };
+  }
+  return { message: (e as Error).message };
+}

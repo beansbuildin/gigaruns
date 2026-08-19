@@ -47,7 +47,7 @@ import { basename, join } from "node:path";
 
 import { GigaverseClient } from "../src/api/client.js";
 import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, DungeonState } from "../src/api/schemas.js";
-import { TokenExpiredError, UnexpectedResponseError } from "../src/api/errors.js";
+import { TokenExpiredError, UnexpectedResponseError, serverErrorDetail } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
@@ -559,7 +559,11 @@ export async function postWithVerifiedRetry(
       return resp;
     } catch (e) {
       if (e instanceof TokenExpiredError) throw e;
-      log.write({ event: "post_attempt_failed", reason, error: (e as Error).message });
+      // [session 47, brief §1e] `.message` is only "Unexpected response from
+      // <path>: HTTP <status>" — the server's own text lives in `.body`. See
+      // `serverErrorDetail`'s doc comment for the fishing-side incident that
+      // established this; the same omission was here.
+      log.write({ event: "post_attempt_failed", reason, ...serverErrorDetail(e) });
 
       const fresh = await client.getDungeonState();
       const freshRun = fresh ? (fresh.data.run as unknown as WireRun) : null;
@@ -786,7 +790,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       resp = await client.postDungeonAction(body);
     } catch (e) {
       if (e instanceof TokenExpiredError) throw e;
-      fail(guards, log, "start_run rejected", { error: (e as Error).message });
+      // [session 47, brief §1e] The dungeon twin of session 46's fishing
+      // incident: a `start_run` rejection is the ONE place the server tells
+      // you WHY (daily cap, run already active, energy floor), and this line
+      // threw that away. It is also the exact call whose fishing counterpart
+      // spent two sessions being misdiagnosed from the doc state.
+      fail(guards, log, "start_run rejected", serverErrorDetail(e));
     }
     guards.recordActionResult(true);
     guards.recordRunStarted(runUnits);
@@ -943,7 +952,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         resp = await client.postDungeonAction(body);
       } catch (e) {
         if (e instanceof TokenExpiredError) throw e; // JWT rejected — never retry, SPEC §6.
-        fail(guards, log, "dungeon action rejected", { action: d.move, error: (e as Error).message });
+        fail(guards, log, "dungeon action rejected", { action: d.move, ...serverErrorDetail(e) });
       }
       guards.recordActionResult(true);
       log.write({ event: "post_response", resp });
