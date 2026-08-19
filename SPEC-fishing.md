@@ -394,6 +394,28 @@ translated hit set. Full derivation and the zone-offset table in
 community note explicitly warns this "looks right on 3×3 and breaks on
 4×4," and this capture confirms it rather than just corroborating it.
 
+**[CORRECTED 2026-08-19, session 47] The bobber-relative FINDING above is
+right; session 12's zone-offset TABLE was the transpose of the truth and
+shipped that way for eleven sessions.** Card 79's `hitZones [2,4,6,8]` is
+transpose-symmetric, so the one capture this was derived from could not
+discriminate the two tables — and nothing re-checked the table against the 68
+casts that accumulated afterwards. Against all 282 recorded plays the
+corrected table predicts the server's hit/miss **282/282**; session 12's gets
+54 wrong. `position[0]` is the ROW, established independently from
+`lastMovePath`'s cell indices (289/289). The corrected table and both lines of
+evidence are in `SPEC.md §5` and `src/sim/fishing/geometry.ts`'s header;
+`scripts/auditZoneTemplate.ts` re-scores it as the corpus grows, and
+`tests/fishing/zoneTemplate.test.ts` is the regression guard that did not
+exist before.
+
+The generalized lesson, which is the same one heuristic (d) and the
+`.message` server-cap classifier each taught (§8, session 46): **a fact
+confirmed against a sample that could not have falsified it is not
+confirmed.** All three cases had a real mechanism, a plausible derivation, and
+an evidence base blind to the specific way the claim was wrong. The cheap
+guard is not more care at derivation time — it is re-scoring the claim against
+the corpus once the corpus is big enough to bite.
+
 ## 4c. `chooseCard`/`bestFocusForCard` chronically overspend the focus
 budget in the first 2-4 turns of a cast, then play blind for the rest of
 it — [session 44, live AND sim-confirmed, THE dominant finding of this

@@ -1565,16 +1565,51 @@ against its own wire values:
 `playerHp` on the wire is the mana pool, not health — **[CONFIRMED]**,
 `SPEC-fishing.md §4`.
 
-**Hitbox geometry, [CONFIRMED 2026-08-15, session 12]** (previously
-"[VERIFY, but very likely correct]" in `SPEC-fishing.md §4`): zones are
-numbered 1–9 in a fixed 3×3 template, row-major, centred on the submitted
-`focusPoint` — `1=(-1,-1) 2=(0,-1) 3=(1,-1) 4=(-1,0) 5=(0,0) 6=(1,0)
-7=(-1,1) 8=(0,1) 9=(1,1)`, absolute cell = `focusPoint + offset`, clipped to
-the grid (an off-grid translated zone is simply unreachable that turn, which
-matters near edges). Verified by replaying the real cast's one genuine hit
-(turn 3, card id 79, `hitZones [2,4,6,8]`, submitted `focusPoint [3,3]`): the
-fish's post-move cell `[3,4]` equals `focusPoint + zone8's (0,1)` exactly,
-and no other turn's miss contradicts it. The **submitted `focusPoint`
+**Hitbox geometry, [CONFIRMED 2026-08-15, session 12 — TABLE CORRECTED
+2026-08-19, session 47]**: zones are numbered 1–9 in a fixed 3×3 template,
+row-major, centred on the submitted `focusPoint`, absolute cell =
+`focusPoint + offset`, clipped to the grid (an off-grid translated zone is
+simply unreachable that turn, which matters near edges).
+
+The correct table, in `(position[0], position[1])` order:
+
+```
+1=(-1,-1) 2=(-1, 0) 3=(-1, 1)
+4=( 0,-1) 5=( 0, 0) 6=( 0, 1)
+7=( 1,-1) 8=( 1, 0) 9=( 1, 1)
+```
+
+i.e. `offset(z) = (floor((z-1)/3) - 1, (z-1) % 3 - 1)`.
+
+**Session 12's table was the TRANSPOSE of this, and it shipped for eleven
+sessions.** It was derived by replaying the one real cast's single genuine
+hit — turn 3, card id 79, `hitZones [2,4,6,8]`, `focusPoint [3,3]`, fish at
+`[3,4]`. That card's zone set is **transpose-symmetric**, so it could not
+possibly have discriminated the two tables, and nothing checked the table
+again as the corpus grew.
+
+Two independent lines of evidence settle it, both session 47:
+
+  - **282/282 vs 228/282.** `scripts/auditZoneTemplate.ts` scores a template
+    against every recorded play: given the focus actually submitted, the card
+    actually played, and the cell the fish actually occupied, did it predict
+    the server's own hit/miss? The corrected table is exceptionless; session
+    12's gets 54 plays wrong.
+  - **`position[0]` is the ROW.** `doc.data.lastMovePath` carries 1-based cell
+    indices, and `index === (position[0] - 1) * gridSize + position[1]` holds
+    **289/289** across the corpus — row-major over `position`, which only works
+    if `position[0]` indexes the row. (`lastMovePath[0]` decodes cleanly as the
+    k=2 move's waypoint, a third consistency check.) The zone template is
+    numbered row-major too, so zone 2 is (row − 1, col), not (row, col − 1).
+
+**The defect was live-only, which is why it hid so long.** The sim applies
+this table on BOTH sides — to place the policy's focus and to resolve the shot
+— so it stayed internally consistent and its numbers never flinched. The live
+server resolves with the true map while the policy aimed with the transposed
+one. Off-policy replay prices it: per-turn hit rate 42.8% under the old
+geometry vs 50.9% corrected, same predictor and same trajectories.
+
+The **submitted `focusPoint`
 applies to the fish's position AFTER that turn's move**, not before — you
 are placing a bet on where the fish will land, not where it already is. This
 is the mechanical fact `SPEC.md`'s hypothesis-elimination section already
@@ -1582,11 +1617,27 @@ assumed; now it's load-bearing and confirmed, not just assumed.
 
 You may **redraw** your hand instead of casting, at 1 mana per card still
 held — **[VERIFY]**, never captured; see `SPEC-fishing.md §0`. Separately
-**[CONFIRMED]**: the hand refills to its starting size automatically, drawn
-from `fullDeck` via `nextCardIndex`, the moment it hits zero cards — not
-every turn, and not tied to hit/miss (the real cast's `NEW_HAND` event fired
-the turn the hand was played down to empty, turn 3, immediately after that
-turn's card resolved).
+**[CONFIRMED]**: the hand refills to its starting size automatically the
+moment it hits zero cards — not every turn, and not tied to hit/miss (the real
+cast's `NEW_HAND` event fired the turn the hand was played down to empty, turn
+3, immediately after that turn's card resolved). Confirmed corpus-wide in
+session 47: 282/282 plays remove exactly one card by hand index, and 61/61
+refills restore exactly 3.
+
+**[CORRECTED 2026-08-19, session 47] The refill is NOT "drawn from `fullDeck`
+via `nextCardIndex`".** That was asserted here without being checked, and it
+is false: across the corpus **0 of 56 refills and 1 of 69 opening hands** match
+the corresponding slice of `fullDeck`. `fullDeck` is a canonical, sorted deck
+list; `nextCardIndex` counts how many cards have been drawn (and reconciles
+exactly with `cardInDrawPile`), but the ORDER comes from a server-side shuffle
+that never appears on the wire. There is no way to predict the next draw.
+
+This matters for anything counterfactual: the draw order cannot be
+reconstructed, so a replayed policy cannot be given "the cards it would have
+drawn" in general. What CAN be reconstructed is the block structure — one card
+per turn means the hand empties on the same turn whatever the policy picks, so
+the recorded `NEW_HAND` is the right refill and only the ORDER within each
+3-card block is free. See `src/sim/fishing/castTrace.ts`'s `newHand`.
 
 Cast tiers cost energy: Small 12, Normal 16, Big 20. Daily cap 10 casts (20 if
 juiced). **[INFERRED, corroborated by capture]** — `SPEC-fishing.md §3`
