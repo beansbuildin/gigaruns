@@ -15,6 +15,7 @@ import type { Cell } from "../../sim/fishing/geometry.js";
 import { allCells, cellKey,
   FOCUS_METER_MAX, manhattan, reachableCells, zonesToCells } from "../../sim/fishing/geometry.js";
 import { coverageCount, isCentralSquare } from "./heuristics.js";
+import { UNCONSTRAINED, type FocusSpendConstraint } from "./focusBudget.js";
 
 /**
  * [session 31, CODEXIMPROVE #2] Two EV values within this of each other are
@@ -228,8 +229,24 @@ export function bestFocusForCard(
    * what the live loop and the sim policy actually pass.
    */
   focusReserveWeight: number = 0,
+  /**
+   * [session 49, brief §3] The turn's focus SPEND constraint
+   * (`focusBudget.ts`). Defaults to `UNCONSTRAINED`, so every pre-session-49
+   * caller, test and sim script behaves byte-for-byte as before — the same
+   * convention `heuristicsEnabled` and `focusReserveWeight` were added under.
+   *
+   * Applied as an eligibility filter over placements, NOT as another score
+   * term. That is the whole point: session 48 proved a score term cannot
+   * encode an opportunity cost that changes with the turn index.
+   */
+  spendConstraint: FocusSpendConstraint = UNCONSTRAINED,
 ): CardFocusChoice {
   const searchSpace = focusBudget ? reachableCells(gridSize, focusBudget.current, focusBudget.remaining) : allCells(gridSize);
+  const moveCostOf = (focus: Cell): number => (focusBudget ? manhattan(focusBudget.current, focus) : 0);
+  // The best placement that spends NOTHING — the reference point the EV
+  // threshold is measured against, and the guaranteed-eligible fallback that
+  // makes it impossible for any policy to empty the search space.
+  let bestStay: CardFocusChoice | null = null;
   let best: CardFocusChoice | null = null;
   for (const focus of searchSpace) {
     const { ev, pHit, pCrit } = evaluateCardAtFocus(card, focus, dist, gridSize, missPenaltyMultiplier);
@@ -246,6 +263,11 @@ export function bestFocusForCard(
       pCrit,
       lethal: isLethal(card, pHit, pCrit, fishHp),
     };
+    const moveCost = moveCostOf(focus);
+    if (moveCost === 0 && (!bestStay || candidate.score > bestStay.score + EV_TIE_EPSILON)) bestStay = candidate;
+    // A LETHAL placement is never blocked — no schedule gets to talk the bot
+    // out of landing the catch. Everything else respects the cap.
+    if (!candidate.lethal && moveCost > spendConstraint.maxMoveCost) continue;
     if (!best) {
       best = candidate;
       continue;
@@ -293,7 +315,22 @@ export function bestFocusForCard(
       }
     }
   }
+  // A cost-0 placement is always in `reachableCells`, so `bestStay` is only
+  // null when the grid itself is degenerate — the same condition `best` was
+  // already guarding.
+  if (!best) best = bestStay;
   if (!best) throw new Error("gridSize must be >= 1");
+  // The EV threshold: a non-lethal move has to clear the best stay-put
+  // placement by more than `moveEvThreshold` to be worth a focus point.
+  if (
+    spendConstraint.moveEvThreshold > 0 &&
+    bestStay &&
+    !best.lethal &&
+    moveCostOf(best.focus) > 0 &&
+    best.ev - bestStay.ev <= spendConstraint.moveEvThreshold
+  ) {
+    return bestStay;
+  }
   return best;
 }
 
@@ -398,11 +435,26 @@ export function chooseCard(
   heuristicsEnabled: boolean = true,
   /** [session 45] See `bestFocusForCard`'s doc comment — same weight, threaded through. */
   focusReserveWeight: number = 0,
+  /** [session 49, brief §3] See `bestFocusForCard`'s doc comment — same constraint, threaded through. */
+  spendConstraint: FocusSpendConstraint = UNCONSTRAINED,
 ): CardFocusChoice | null {
   const options = hand
     .map((c, i) => [c, i] as const)
     .filter(([c]) => c.manaCost <= mana)
-    .map(([c, i]) => bestFocusForCard(c, i, dist, gridSize, missPenaltyMultiplier, fishHp, focusBudget, heuristicsEnabled, focusReserveWeight));
+    .map(([c, i]) =>
+      bestFocusForCard(
+        c,
+        i,
+        dist,
+        gridSize,
+        missPenaltyMultiplier,
+        fishHp,
+        focusBudget,
+        heuristicsEnabled,
+        focusReserveWeight,
+        spendConstraint,
+      ),
+    );
   if (options.length === 0) return null;
 
   const pickBest = (candidates: readonly CardFocusChoice[], useEvPerMana: boolean): CardFocusChoice =>

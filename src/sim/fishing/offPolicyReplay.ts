@@ -75,6 +75,7 @@ import {
 import type { Cast } from "./transitionCorpus.js";
 import type { CastTrace, TraceCard } from "./castTrace.js";
 import { cellKey, manhattan, zonesToCells, type Cell } from "./geometry.js";
+import { NO_FOCUS_POLICY, spendConstraint, type FocusBudgetPolicy } from "../../strategy/fishing/focusBudget.js";
 
 export type ReplayOutcome =
   | "caught"
@@ -98,6 +99,10 @@ export interface ReplayTurn {
   logLoss: number;
   /** Same, by the shipped `contextualFallback` baseline — the paired comparison. */
   baselineLogLoss: number;
+  /** [session 49, §3] Focus-meter points spent on this turn's move. */
+  moveCost: number;
+  /** [session 49, §3] Points left on the meter AFTER this turn's move. */
+  focusRemaining: number;
 }
 
 export interface ReplayCastResult {
@@ -202,6 +207,12 @@ export interface ReplayOptions {
    * at exactly zero). Exists only as the A/B's before-arm.
    */
   hardRing?: boolean;
+  /**
+   * [session 49, brief §3] The focus-meter spend policy
+   * (`src/strategy/fishing/focusBudget.ts`). Defaults to `NO_FOCUS_POLICY`,
+   * which is byte-for-byte today's behavior.
+   */
+  focusPolicy?: FocusBudgetPolicy;
 }
 
 /** Reflect `c` about the diagonal through `focus` — see `ReplayOptions.mismatchedZones`. */
@@ -262,8 +273,33 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       shrinkageK: DEFAULT_SHRINKAGE_K,
     });
 
-    const cards = hand.map((id) => toCardLike(target.cards.get(id)!));
-    const choice = chooseCard(cards, mana, dist, gridSize, missPenaltyMultiplier, fishHp, focus, true, focusReserveWeight);
+      const cards = hand.map((id) => toCardLike(target.cards.get(id)!));
+    // [session 49, brief §3] The turn's focus spend constraint. `bestHitEffect`
+    // is read off the hand actually held, matching `isManaConstrained`'s
+    // estimator rather than inventing a second one.
+    const bestHitEffect = cards.length
+      ? Math.max(...cards.map((c) => Math.max(c.hitEffects[0]?.amount ?? 0, c.critEffects[0]?.amount ?? 0)))
+      : 0;
+    const constraint = spendConstraint(opts.focusPolicy ?? NO_FOCUS_POLICY, {
+      turn: i - 1,
+      spent: t0.focusMeter - focus.remaining,
+      meterMax: t0.focusMeter,
+      remaining: focus.remaining,
+      fishHp,
+      bestHitEffect,
+    });
+    const choice = chooseCard(
+      cards,
+      mana,
+      dist,
+      gridSize,
+      missPenaltyMultiplier,
+      fishHp,
+      focus,
+      true,
+      focusReserveWeight,
+      constraint,
+    );
     if (!choice) {
       outcome = "no_affordable_card";
       break;
@@ -297,6 +333,8 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       focus: choice.focus,
       logLoss: lossOn(dist, actual),
       baselineLogLoss: lossOn(baseline, actual),
+      moveCost,
+      focusRemaining: focus.remaining,
     });
 
     history.push(actual);

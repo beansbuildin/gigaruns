@@ -125,7 +125,7 @@ import {
 } from "../src/strategy/fishing/stepClass.js";
 import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
-import { cellKey, cellsEqual, inGrid, type Cell } from "../src/sim/fishing/geometry.js";
+import { cellKey, cellsEqual, inGrid, manhattan, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
@@ -575,6 +575,22 @@ export interface RingPredictionRecord {
   // field IS, since the field only exists after the fix. Marked, not deleted —
   // one field, no data loss, reversible.
   zoneMapVersion?: ZoneMapVersion;
+
+  // ---- [session 49, brief §3] the focus SPEND, measured live ---------------
+  // Session 48's §5c decomposition — 80.8% meter-out, 50.4% of turns at focus
+  // zero, 1.62 of 3 points on the opening move — was measured on the RECORDED
+  // corpus, i.e. on what the pre-session-47 policy did while aiming with the
+  // transposed zone map. In the replay TODAY's policy spends 0.62 on the
+  // opening move, 38% of that (`scripts/focusBudgetSweep.ts`), which is why
+  // all three of the brief's cheap spend policies came back inert or worse.
+  //
+  // The replay runs with the matcher tier OFF, so it cannot settle whether
+  // live spends 0.62 or 1.62. These two fields make the next batch settle it
+  // directly instead of inferring it.
+  /** Focus-meter points spent moving to `playedFocus` this turn. */
+  focusMoveCost?: number;
+  /** Points left on the meter BEFORE this turn's move. */
+  focusRemainingBefore?: number;
 }
 
 /**
@@ -1303,7 +1319,11 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           : "contextual";
     const predictedTop = topCellOf(dist);
 
-    const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, focusBudget(doc), true, focusReserveWeight);
+    // [session 49, §3] Bound once so the record below reports the SAME budget
+    // the choice was made against, rather than re-reading a doc that has since
+    // been replaced by the response.
+    const turnFocusBudget = focusBudget(doc);
+    const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, turnFocusBudget, true, focusReserveWeight);
     if (best && shouldRedraw(best, hand.length, mana, REDRAW_THRESHOLD)) {
       log.write({ event: "redraw_indicated_not_sent", turn, reason: "redraw action unconfirmed, SPEC-fishing.md §7" });
     }
@@ -1424,6 +1444,8 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         baselineHit: baselineTop ? cellsEqual(toCell, baselineTop.cell) : undefined,
         playedCardId: best.card.id,
         playedFocus: [best.focus.x, best.focus.y],
+        focusMoveCost: manhattan(turnFocusBudget.current, best.focus),
+        focusRemainingBefore: turnFocusBudget.remaining,
         pHitPredicted: best.pHit + best.pCrit,
         realizedHit,
         zoneMapVersion: CURRENT_ZONE_MAP_VERSION,

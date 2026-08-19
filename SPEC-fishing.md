@@ -1212,6 +1212,65 @@ session 45. This quantifies it and confirms it survived the fix aimed at it.
 measurement, and changing the utility on the strength of one batch is exactly
 the move this project keeps having to undo.
 
+### The focus-budget policies **[session 49, brief §3 — the premise is STALE; nothing shipped]**
+
+Session 49 built all three of the brief's cheap spend policies
+(`src/strategy/fishing/focusBudget.ts`: `costCap`, `threshold`, `schedule`)
+and A/B'd them on the replay, paired per cast
+(`scripts/focusBudgetSweep.ts`). **All three are inert or worse. None ships;
+the default stays `NO_FOCUS_POLICY`.**
+
+| policy | caught | per-turn hit | Δcaught (casts) | McNemar p |
+|---|---|---|---|---|
+| shipped | 22/73 = 30.1% | 119/233 = 51.1% | — | — |
+| costCap(0) | 8/73 = 11.0% | 61/212 = 28.8% | +2 / −16 | **0.001** |
+| costCap(1) | 20/73 = 27.4% | 111/227 = 48.9% | +1 / −3 | 0.625 |
+| costCap(2) | 22/73 = 30.1% | 119/233 = 51.1% | +0 / −0 | 1.000 |
+| threshold(0.1 … 1) | 22/73 = 30.1% | 119/233 = 51.1% | +0 / −0 | 1.000 |
+| threshold(2) | 19/73 = 26.0% | 119/242 = 49.2% | +0 / −3 | 0.250 |
+| schedule(auto) | 22/73 = 30.1% | 118/230 = 51.3% | +0 / −0 | 1.000 |
+| schedule(3 … 8) | 19–20/73 | 108–118 hits | +0/−2 … +3/−6 | ≥ 0.45 |
+
+**But the null result is not the finding — the PRECONDITION check is.** The
+sweep measures whether the replay reproduces the meter-out dynamics these
+policies target, and it does not:
+
+| | casts ever at focus 0 | turns at focus 0 | spend on the FIRST move |
+|---|---|---|---|
+| recorded corpus, pooled | 56/73 = 76.7% | 192/308 = 62.3% | **1.62** |
+| … transposed-map era, 68 casts | | | **1.66** |
+| … CORRECTED-map era, 5 casts | | | **1.00** |
+| today's policy in the replay | 22/73 = 30.1% | 52/233 = 22.3% | **0.62** |
+
+**§5c's 1.62 describes the pre-session-47 policy, not the current one.**
+`lossDecomposition.ts` measures the RECORDED corpus — correctly, for its own
+question ("why did those casts fail") — and 68 of those 73 casts were aimed
+with the transposed `ZONE_OFFSET`. Reading it as a statement about what the
+bot does *now* is the error, and it is the error the whole of the session-49
+brief's §3 is built on. Session 47's zone fix appears to have already cut the
+opening overspend substantially as a side effect (1.66 → 1.00 at n=5), which
+nobody measured because the two questions were never separated.
+
+That is why `costCap(2)` and `threshold(≤1)` are byte-for-byte inert: today's
+policy essentially never wants a cost-3 move, and never moves for an EV gain
+under 1. And `costCap(1)`/`costCap(0)` are net-NEGATIVE, which says that if
+anything the current policy spends too LITTLE, not too much.
+
+**What is not settled:** the replay runs with the matcher tier OFF, and the
+matcher produces the sharpest distributions the live stack has, so it is the
+tier most likely to pull the focus a long way. 1.66 (transposed, matcher on)
+→ 1.00 (corrected, matcher on, n=5) → 0.62 (corrected, matcher off) is
+monotone and consistent with the matcher accounting for the remainder, but
+n=5 cannot establish it. `RingPredictionRecord` therefore gains
+`focusMoveCost` and `focusRemainingBefore` so the next batch settles it by
+measurement rather than inference.
+
+**Standing correction, generalised:** a decomposition measured on the recorded
+corpus describes the policy that RECORDED it. Before treating any such figure
+as a target, check which era of the code produced the rows — the same
+discipline as `zoneMapVersion` on the prediction log, applied to the loss
+decomposition.
+
 ### The two tunable knobs are INERT **[session 48, brief §5b — null results, no defaults changed]**
 
 Both were previously evidenced only by the in-sample sim that needs a 2.5-3×
