@@ -55,6 +55,13 @@ export interface TraceCard {
   critZones: number[];
   hitEffects: { type: string; amount: number }[];
   missEffects: { type: string; amount: number }[];
+  /**
+   * [session 48] Crit damage. A crit fires an ordinary `HIT` event (session
+   * 47 — there is no `CRIT` event type), so the ONLY way to tell a crit from
+   * a hit is that the damage matches this instead of `hitEffects`, at a fish
+   * cell inside the translated `critZones`. See `stateFieldAudit.ts`.
+   */
+  critEffects: { type: string; amount: number }[];
 }
 
 export interface CastTurn {

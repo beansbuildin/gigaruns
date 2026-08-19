@@ -27,6 +27,7 @@ const spot: TraceCard = {
   critZones: [],
   hitEffects: [{ type: "FISH_HP", amount: 5 }],
   missEffects: [{ type: "FISH_HP", amount: -3 }],
+  critEffects: [],
 };
 
 function turn(index: number, pos: Cell): CastTurn {
