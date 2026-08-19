@@ -88,6 +88,26 @@ export interface CastTurn {
     /** Signed `FISH_HP_DIFF.value`: positive on a hit (damage), negative on a miss (the fish regenerates). */
     fishHpDiff: number;
   } | null;
+  /**
+   * The hand the server dealt when this turn emptied the hand, off the
+   * `NEW_HAND` event; `null` on every other turn.
+   *
+   * **This is the only reconstructible source of future draws, and the
+   * session-47 brief was wrong about that.** The brief asserted "`fullDeck`
+   * plus `nextCardIndex` reconstructs the exact sequence"; checked against the
+   * corpus, **0 of 56 refills and 1 of 69 opening hands** match a `fullDeck`
+   * slice. `fullDeck` is a canonical, sorted deck list — the real draw pile is
+   * a server-side shuffle that never appears on the wire.
+   *
+   * The replay survives anyway, on firmer ground: across all 282 recorded
+   * plays, with **zero exceptions**, a play removes exactly one card by hand
+   * index and the hand refills to 3 exactly when it empties. Since every turn
+   * plays exactly one card, a counterfactual policy empties the hand on the
+   * SAME turn no matter which card it picks — so the refill lands at the same
+   * turn index and its contents are this recorded value. Card ORDER within a
+   * 3-card block is free; the blocks themselves are pinned.
+   */
+  newHand: number[] | null;
   fishDied: boolean;
   fishEscaped: boolean;
 }
@@ -136,6 +156,10 @@ interface RawEvent {
   type?: string;
   value?: unknown;
   data?: { result?: number };
+}
+
+function numberArray(v: unknown): number[] | null {
+  return Array.isArray(v) && v.every((x) => typeof x === "number") ? (v as number[]) : null;
 }
 
 /**
@@ -224,6 +248,7 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
         nextCardIndex: Number(d.nextCardIndex),
         discard: Array.isArray(d.discard) ? (d.discard as number[]) : [],
         play,
+        newHand: numberArray(events.find((e) => e.type === "NEW_HAND")?.value),
         fishDied: events.some((e) => e.type === "FISH_DIED"),
         fishEscaped: events.some((e) => e.type === "FISH_ESCAPED"),
       });
