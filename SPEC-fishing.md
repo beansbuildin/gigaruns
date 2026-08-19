@@ -934,9 +934,53 @@ project shipped before session 45, all of which were class-blind.
   covers both rings' intersection with the 3×3 window, at lower damage.
 
 Focus co-location is worth 25-60 points of hit rate. The **diagonal-2** focus
-offsets (±2,±2) are a **guaranteed miss vs a k=1 fish** — 0.0%, every card,
-every turn. Note this is the diagonal-2 offsets specifically, NOT all offsets
-at Chebyshev distance 2: (2,0) is Chebyshev 2 and scores 41.1%.
+offsets (±2,±2) are a near-**guaranteed miss vs a k=1 fish**. Note this is the
+diagonal-2 offsets specifically, NOT all offsets at Chebyshev distance 2:
+(2,0) is Chebyshev 2 and scores 40.3%.
+
+**[RE-DERIVED 2026-08-19, session 48, brief §5a — under the corrected
+`ZONE_OFFSET` and the current corpus.]** The session-45 brief warned that any
+"best card" row naming a row/column zone triple (`{1,2,3}`, `{1,4,7}`, …)
+had to be re-derived, because those triples swap roles under the transpose.
+**No row of FACT 3 names one.** Every set it rests on — `{2,4,6,8}` (the
+orthogonal neighbours), `{1,3,7,9}` (the diagonals), and the ring-8 block —
+is **transpose-symmetric**, so FACT 3's structure was never at risk. Only its
+numbers needed refreshing, and they are now (`scripts/auditStepClass.ts`,
+n=154 per class):
+
+Best hit rate over all card templates, by focus offset from the fish's
+current cell — rows are `dx` (ROW offset), columns `dy` (COLUMN offset):
+
+**class k=1**
+
+| | dy=−2 | dy=−1 | dy=0 | dy=+1 | dy=+2 |
+|---|---|---|---|---|---|
+| **dx=−2** | 0.0% | 21.6% | 29.3% | 29.3% | 0.0% |
+| **dx=−1** | 32.2% | 53.9% | 74.4% | 54.1% | 25.8% |
+| **dx=0** | 34.7% | **82.7%** | **99.4%** | 73.9% | 26.6% |
+| **dx=+1** | 29.1% | 70.5% | **80.2%** | 59.1% | 27.9% |
+| **dx=+2** | 3.2% | 43.4% | 40.3% | 34.1% | 0.0% |
+
+Best at (0,0): **99.4%** via template `{1,2,3,4,6,7,8,9}`.
+
+**class k=2**
+
+| | dy=−2 | dy=−1 | dy=0 | dy=+1 | dy=+2 |
+|---|---|---|---|---|---|
+| **dx=−2** | 12.9% | 44.6% | 62.3% | 42.6% | 30.4% |
+| **dx=−1** | 42.0% | 47.8% | 55.0% | 45.3% | 40.0% |
+| **dx=0** | **64.2%** | 60.7% | **72.1%** | 51.2% | 52.9% |
+| **dx=+1** | 48.2% | 47.3% | 52.4% | 41.8% | 32.4% |
+| **dx=+2** | 33.3% | 45.9% | **64.9%** | 41.9% | 19.5% |
+
+Best at (0,0): **72.1%** via template `{1,3,7,9}`.
+
+**Two figures moved off their old absolutes, and the same single cast explains
+both.** k=1 at (0,0) was 100.0% and is now 99.4%; the diagonal-2 offsets were
+0.0% everywhere and (+2,−2) is now 3.2%. Both are cast `12988700`, whose step
+count alternated 1,2,1,2,1,2 — it is classified k=1 off its first move, so its
+2-step turns land outside the k=1 ring and show up here as the exceptions.
+This is FACT 1's correction propagating, not a change in the card templates.
 
 ### What the model does with this
 
