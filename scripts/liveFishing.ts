@@ -76,7 +76,7 @@
  * printed sweep for the numbers.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
@@ -98,6 +98,7 @@ import {
 } from "../src/strategy/fishing/cardChoice.js";
 import {
   initMatcher,
+  mixDistributions,
   observe,
   predictDistribution,
   type MatcherState,
@@ -115,6 +116,7 @@ import {
   intersectWithRing,
   ringDistribution,
   ringDistributionUnknownClass,
+  DEFAULT_RING_MODEL_OPTIONS,
 } from "../src/strategy/fishing/stepClass.js";
 import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
@@ -488,6 +490,69 @@ export function extractNextPosition(doc: unknown): Cell | null {
   return { x, y };
 }
 
+/**
+ * [session 45, brief §5.4] Per-turn record of THIS project's OWN next-cell
+ * prediction against what the fish actually did.
+ *
+ * Deliberately separate from `nextPositionValidation.jsonl`, which validates
+ * the API's own occasional `nextPosition` field (2 rows in the whole corpus)
+ * — a different, much rarer signal. This one fires on EVERY turn, so a live
+ * batch produces a realized top-1 accuracy that can be compared directly
+ * against the 48.2% `scripts/fishingRingCV.ts` measured out-of-sample on the
+ * corpus. That single number says whether the ring model transferred to live,
+ * independently of how the catch-rate coin flips landed on a handful of
+ * casts — which at n=5-10 they cannot possibly settle.
+ *
+ * `tier` records WHICH predictor produced the row, so a mixed batch can be
+ * split by tier rather than averaged into a number that describes nothing.
+ */
+export interface RingPredictionRecord {
+  ts: string;
+  castId: string;
+  turn: number;
+  tier: "matcher" | "matcher_ring" | "ring" | "ring_unknown_class" | "contextual" | "override";
+  stepClass: 1 | 2 | null;
+  predicted: [number, number];
+  pPredicted: number;
+  /** Probability the distribution assigned to the cell the fish ACTUALLY moved to — the calibration half, not just top-1. */
+  pActual: number;
+  actual: [number, number];
+  hit: boolean;
+  gridSize: number;
+}
+
+/** Deterministic top-1 of a distribution — highest p, ties by lowest x then lowest y, the same rule `scripts/fishingRingCV.ts` scores with so live and offline numbers are comparable. */
+function topCellOf(dist: ReadonlyMap<string, { cell: Cell; p: number }>): { cell: Cell; p: number } | null {
+  const values = [...dist.values()];
+  if (values.length === 0) return null;
+  const maxP = Math.max(...values.map((v) => v.p));
+  const tied = values.filter((v) => Math.abs(v.p - maxP) < 1e-9);
+  tied.sort((a, b) => a.cell.x - b.cell.x || a.cell.y - b.cell.y);
+  return tied[0] ?? null;
+}
+
+export const DEFAULT_RING_PREDICTION_LOG_PATH = join("data", "ringPrediction.jsonl");
+
+/** Append-one-line writer, same never-fatal convention as `appendTransition`. */
+export function appendRingPrediction(rec: RingPredictionRecord, path: string = DEFAULT_RING_PREDICTION_LOG_PATH): void {
+  mkdirSync(dirname(path), { recursive: true });
+  appendFileSync(path, `${JSON.stringify(rec)}\n`, "utf8");
+}
+
+export function loadRingPredictions(path: string = DEFAULT_RING_PREDICTION_LOG_PATH): RingPredictionRecord[] {
+  if (!existsSync(path)) return [];
+  const out: RingPredictionRecord[] = [];
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line) as RingPredictionRecord);
+    } catch {
+      continue; // one bad line shouldn't lose the whole log
+    }
+  }
+  return out;
+}
+
 export function appendNextPositionValidation(rec: NextPositionValidation, path: string = DEFAULT_NEXT_POSITION_LOG_PATH): void {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(rec) + "\n", { flag: "a" });
@@ -747,6 +812,8 @@ export interface LiveFishingDeps {
   guardStatePath?: string;
   /** [session 30] Validation-only recording of predicted vs. actual `nextPosition` — see this file's "nextPosition validation" section. */
   nextPositionLogPath?: string;
+  /** [session 45] Path for the per-turn ring-prediction log (see `appendRingPrediction`). Tests MUST override this — CLAUDE.md working-style, "tests must never write to a real data path". */
+  ringPredictionLogPath?: string;
   /** Directory `dumpUnknownTerminal`/`checkPossibleDualYield` write surprise-field dumps into. Defaults to the real `logs/` — tests must override this, same as every other I/O path here (CLAUDE.md working-style, "tests must never write to a real data path"). */
   logsDir?: string;
   /**
@@ -793,6 +860,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const { client, config, guards, fixtures, log, address, dryRun } = deps;
   const transitionsPath = deps.transitionsPath ?? DEFAULT_TRANSITIONS_PATH;
   const nextPositionLogPath = deps.nextPositionLogPath ?? DEFAULT_NEXT_POSITION_LOG_PATH;
+  const ringPredictionLogPath = deps.ringPredictionLogPath ?? DEFAULT_RING_PREDICTION_LOG_PATH;
   const logsDir = deps.logsDir ?? "logs";
   const ringModelEnabled = deps.ringModelEnabled ?? true;
   const focusReserveWeight = deps.focusReserveWeight ?? DEFAULT_FOCUS_RESERVE_WEIGHT;
@@ -1076,10 +1144,26 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         ? ringDistributionUnknownClass(currentCell, prevDelta, stepClassTable, gridSize)
         : ringDistribution(currentCell, stepClass, prevDelta, stepClassTable, gridSize)
       : null;
+    // [session 45, live-batch finding] The matcher tier gets the ring FLOOR
+    // too, not just the ring intersection. Two turn-0 rows in this session's
+    // own live batch had a fully-converged mined candidate assign p=1 to a
+    // cell the fish did not reach and p=0 to the cell it did — an unbounded
+    // log-loss event (`-log(1e-9)`) that the ring model's own floor exists
+    // precisely to prevent, and which tier 0 was bypassing. Mixing the (
+    // possibly ring-intersected) matcher distribution with the ring model at
+    // `ringFloor` bounds it. Sim catch-rate effect is neutral within noise;
+    // the justification is calibration, and it is a live observation, not a
+    // sim one.
     const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
     const rawDist = matcherDist
-      ? ringModelEnabled && stepClass !== null
-        ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+      ? ringModelEnabled
+        ? mixDistributions(
+            stepClass !== null
+              ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+              : matcherDist,
+            ringDist!,
+            1 - DEFAULT_RING_MODEL_OPTIONS.ringFloor,
+          )
         : matcherDist
       : (ringDist ??
         contextualFallback(
@@ -1093,6 +1177,21 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     const dist = nextPositionOverrideActive
       ? certainDistribution(pendingPrediction!.cell)
       : pruneReturnToPrevious(rawDist, matcher.history[matcher.history.length - 1]!, previousDisplacement(matcher.history));
+
+    // [session 45, brief §5.4] Remember what we predicted, to be scored
+    // against the fish's real move once this turn's response comes back.
+    const predictionTier: RingPredictionRecord["tier"] = nextPositionOverrideActive
+      ? "override"
+      : matcherDist
+        ? ringModelEnabled && stepClass !== null
+          ? "matcher_ring"
+          : "matcher"
+        : ringDist
+          ? stepClass === null
+            ? "ring_unknown_class"
+            : "ring"
+          : "contextual";
+    const predictedTop = topCellOf(dist);
 
     const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, focusBudget(doc), true, focusReserveWeight);
     if (best && shouldRedraw(best, hand.length, mana, REDRAW_THRESHOLD)) {
@@ -1187,6 +1286,25 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
     const predictedNext = extractNextPosition(newDoc);
     if (predictedNext) pendingPrediction = { turn: turn + 1, cell: predictedNext };
+
+    if (predictedTop) {
+      const hit = cellsEqual(toCell, predictedTop.cell);
+      const rec: RingPredictionRecord = {
+        ts: new Date().toISOString(),
+        castId,
+        turn,
+        tier: predictionTier,
+        stepClass,
+        predicted: [predictedTop.cell.x, predictedTop.cell.y],
+        pPredicted: predictedTop.p,
+        pActual: dist.get(cellKey(toCell))?.p ?? 0,
+        actual: [toCell.x, toCell.y],
+        hit,
+        gridSize,
+      };
+      appendRingPrediction(rec, ringPredictionLogPath);
+      log.write({ event: "ring_prediction", ...rec });
+    }
 
     const transitionRec: TransitionRecord = {
       ts: new Date().toISOString(),

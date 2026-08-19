@@ -107,6 +107,17 @@ function runFold(casts: readonly Cast[], gridSize: number, opts: RingModelOption
   const cellPrevShipped = newEval("cell + prev-displacement (shipped backoff)");
   const ringOnly = newEval("ring, class-aware (Fact 1 only)");
   const ringCond = newEval("ring + class-aware prev-delta (Facts 1+2)");
+  // [session 45] Split by the held-out cast's own class. This session's live
+  // batch happened to draw two k=2 casts, and a k=2 fish is a genuinely
+  // easier prediction problem than a k=1 one (reversal is 39% of its moves,
+  // where k=1's most likely single move is 28%) — so comparing a k=2-only
+  // live batch against the class-MIXED figure would flatter or damn the model
+  // for the wrong reason. These rows are what a class-matched live batch
+  // should actually be read against.
+  const ringCondByClass = new Map<number, EvalResult>([
+    [1, newEval("  ...on k=1 casts only")],
+    [2, newEval("  ...on k=2 casts only")],
+  ]);
 
   for (let i = 0; i < casts.length; i++) {
     const heldOut = casts[i]!;
@@ -154,10 +165,11 @@ function runFold(casts: readonly Cast[], gridSize: number, opts: RingModelOption
             ? ringDistributionUnknownClass(hop.from, prev, stepTable, gridSize, opts)
             : ringDistribution(hop.from, k, prev, stepTable, gridSize, opts);
         score(ringCond, dist, hop.to);
+        if (k !== null) score(ringCondByClass.get(k)!, dist, hop.to);
       }
     }
   }
-  return { cellOnly, cellPrevRaw, cellPrevShipped, ringOnly, ringCond };
+  return { cellOnly, cellPrevRaw, cellPrevShipped, ringOnly, ringCond, ringCondByClass };
 }
 
 function main() {
@@ -184,6 +196,7 @@ function main() {
   const r3 = report(base.cellPrevShipped);
   report(base.ringOnly);
   const r5 = report(base.ringCond);
+  for (const k of [1, 2]) report(base.ringCondByClass.get(k)!);
 
   console.log("\n── GATE (session-45 brief §1) ──");
   const baselineLl = Math.min(r2.ll, r3.ll);

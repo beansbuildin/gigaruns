@@ -30,6 +30,7 @@ import { pruneReturnToPrevious } from "../../strategy/fishing/heuristics.js";
 import {
   emptyFallback,
   initMatcher,
+  mixDistributions,
   observe,
   predictDistribution,
   type MatcherState,
@@ -357,8 +358,14 @@ export function simulateCast(opts: CastOptions): CastResult {
     const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
     const rawDist =
       matcherDist
-        ? opts.ringModel && stepClass !== null
-          ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+        ? opts.ringModel
+          ? mixDistributions(
+              stepClass !== null
+                ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+                : matcherDist,
+              ringDist!,
+              1 - ringOpts.ringFloor,
+            )
           : matcherDist
         : ringDist
           ? ringDist

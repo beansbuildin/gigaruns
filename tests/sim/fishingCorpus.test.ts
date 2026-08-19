@@ -27,6 +27,7 @@ import { loadFishingCorpus, summarizeFishingCorpus } from "../../src/sim/fishing
 import { FixtureWriter, runOneCast, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { GigaverseClient } from "../../src/api/client.js";
 import { GuardState } from "../../src/orchestrator/guards.js";
+import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
 import type { BotConfig } from "../../src/orchestrator/config.js";
 import type { FishingGameDoc } from "../../src/api/fishing.js";
 
@@ -34,16 +35,18 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
   it("counts by docId, not by directory or raw file — reproduces the CODEXREVIEW-corrected numbers", () => {
     const casts = loadFishingCorpus();
     const summary = summarizeFishingCorpus(casts);
-    // [session 44] Recount after today's live batch (16 completed casts, 0
-    // caught, 1 left mid-play at turn 3, docId 12975755 — see
-    // TASKS.md/SPEC-fishing.md §4c). If this fails after a future live
+    // [session 45] Recount after this session's live batch: 2 more completed
+    // casts, both escaped, 0 caught (session 44's 16-cast batch is the
+    // previous entry here). `incomplete` stays 1 — that is session 44's
+    // docId 12975755, which a `--dry-run` read this session confirmed is no
+    // longer the account's active cast. If this fails after a future live
     // session added real casts, update the expected numbers — don't revert
     // the loader.
-    expect(summary.casts).toBe(67);
-    expect(summary.responseDocs).toBe(335);
-    expect(summary.playTurns).toBe(263);
+    expect(summary.casts).toBe(69);
+    expect(summary.responseDocs).toBe(357);
+    expect(summary.playTurns).toBe(283);
     expect(summary.caught).toBe(7);
-    expect(summary.escaped).toBe(59);
+    expect(summary.escaped).toBe(61);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -173,7 +176,15 @@ describe("loadFishingCorpus — synthetic corpus regression (session 28, CODEXRE
       // loop now does (previously constructed once, reused across casts).
       const fixtures = new FixtureWriter("0xUSER", (t) => t, root);
       const log = { write: vi.fn(), filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"];
-      const p = runOneCast({
+      // [session 45] Constructed through the SHARED factory
+      // (`tests/helpers/liveFishingDeps.ts`) rather than as a raw object
+      // literal. As a literal this call site silently escaped the type guard
+      // that covers every other `LiveFishingDeps` construction, and leaked
+      // this test's synthetic docIds into the real
+      // `data/ringPrediction.jsonl` the moment session 45 added that path —
+      // the fourth occurrence of the bug class the comments below document
+      // the first three of. See that file's header.
+      const p = runOneCast(makeLiveFishingDeps({
         client,
         config: TEST_CONFIG,
         guards,
@@ -202,8 +213,9 @@ describe("loadFishingCorpus — synthetic corpus regression (session 28, CODEXRE
         // paths on principle (CLAUDE.md working-style), not just the ones
         // proven to fire by the current fixture.
         nextPositionLogPath: join(root, "next-position-test.jsonl"),
+        ringPredictionLogPath: join(root, "ring-prediction-test.jsonl"),
         logsDir: join(root, "logs"),
-      });
+      }));
       await vi.runAllTimersAsync();
       await p;
       castIndex++;

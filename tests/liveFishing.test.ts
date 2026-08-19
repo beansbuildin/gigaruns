@@ -46,36 +46,7 @@ const cast = JSON.parse(readFileSync("fixtures/fishing-casts/cast.json", "utf8")
   response: { data: { doc: FishingGameDoc } };
 }>;
 
-type LiveFishingIsolatedPaths = Required<
-  Pick<LiveFishingDeps, "transitionsPath" | "guardStatePath" | "nextPositionLogPath" | "logsDir">
->;
-
-/**
- * The ONLY place `LiveFishingDeps` is constructed anywhere in this file
- * (session 40) — every isolated I/O path is required here, not optional or
- * defaulted, so a future field added to the interface fails to typecheck at
- * this one call site until it's updated, instead of silently falling back
- * to a real path three sessions later (session 39's
- * `data/nextPositionValidation.jsonl` contamination). `address`/`dryRun`
- * carry test defaults since they're not I/O paths and every call site here
- * used the same values anyway.
- */
-function makeLiveFishingDeps(
-  overrides: Omit<
-    LiveFishingDeps,
-    "transitionsPath" | "guardStatePath" | "nextPositionLogPath" | "logsDir" | "fixtures" | "log" | "address" | "dryRun"
-  > &
-    LiveFishingIsolatedPaths &
-    Partial<Pick<LiveFishingDeps, "fixtures" | "log" | "address" | "dryRun">>,
-): LiveFishingDeps {
-  return {
-    address: "0xUSER",
-    dryRun: false,
-    fixtures: { write: () => {}, dir: "test-fixtures" } as unknown as LiveFishingDeps["fixtures"],
-    log: { write: () => {}, filePath: "test.jsonl" } as unknown as LiveFishingDeps["log"],
-    ...overrides,
-  };
-}
+import { makeLiveFishingDeps } from "./helpers/liveFishingDeps.js";
 
 describe("cardsById / buildHand", () => {
   it("maps deckCardData by real card id, and resolves hand ids off it", () => {
@@ -525,6 +496,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
+      ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
     });
@@ -553,6 +525,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
+      ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
     });
@@ -586,6 +559,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       guardStatePath: join(dir, "guard-budget.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       logsDir: join(dir, "logs"),
     });
 
@@ -663,6 +637,7 @@ describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW 
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       guardStatePath: join(dir, "guard-budget-fishing.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       logsDir: join(dir, "logs"),
     });
   }
@@ -808,6 +783,7 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
       transitionsPath,
       guardStatePath: join(dir, "guard-budget.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       logsDir: join(dir, "logs"),
     });
 
@@ -843,6 +819,7 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
       transitionsPath,
       guardStatePath: join(dir, "guard-budget.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       logsDir: join(dir, "logs"),
     });
 
