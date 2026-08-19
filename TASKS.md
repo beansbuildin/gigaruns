@@ -900,6 +900,80 @@ production runs accumulate and isn't itself a dedicated task.
 
 ---
 
+**[2026-08-19, session 46] The live batch could NOT be run — the gate was
+unreachable before the session began, and the reason was misdiagnosed twice.**
+The session-46 brief made a 20-30 cast live batch the session's whole point,
+naming the completed-but-unresolved doc state (QUESTIONS.md §10) as the one
+blocker to clear first. Both halves of that turned out wrong, in a way worth
+recording because the wrong diagnosis had already propagated through two
+recaps and a brief.
+
+Two hard limits, neither of them the doc state:
+
+1. **The server-side daily cap was already reached.** `start_run` rejected
+   HTTP 400 with `"Player has reached max runs for fishing"` — captured
+   verbatim only after fixing the bug described below.
+2. **Energy.** The account held 15-16 of 420, regenerating at 18/hour. Twenty
+   casts cost 240 energy, i.e. **12.5 hours of regen**. Even after the 11:00
+   Pacific cap reset the account would hold ~41 energy — three casts. No
+   ordering of this session's work could have produced 200-300 scored turns.
+
+**Why it was invisible: a dead guard, found live.** `client.ts` throws
+`UnexpectedResponseError` for every non-2xx, and that error's `.message` is
+only ever `"Unexpected response from <path>: HTTP <status>"` — the server's
+own text lives ONLY in `.body`, which `liveFishing.ts` discarded at all three
+fishing action call sites (contrary to CLAUDE.md §5). Consequently
+`runOneCast`'s server-cap classifier, which tested `/reached max runs/i`
+against `.message`, **had been dead since session 29 wrote it**. Fixed
+(`serverErrorDetail()`); it fired correctly for the first time on this
+session's capture. Strong inference, flagged as inference: session 45's cast-3
+rejection was most likely this same server cap (its batch stood at cast 18-19
+of the day, right at the 20-cast juiced cap), recorded instead as the stuck
+doc and propagated from there into STATE.md and the brief.
+
+Note the shape: **this is the same defect class as heuristic (d)**, retired
+earlier the same session — a guard whose condition names a real fact while
+reading a field that fact never appears in. Two instances in one session, one
+in strategy code and one in production error handling, neither found by a
+reviewer applying a rule. See SPEC-fishing.md §8's closing paragraph.
+
+**Delivered instead, all offline, all committed:**
+
+- **§1b/§1d instrumentation, landed BEFORE any cast** (the brief's explicit
+  sequencing, and the one part of §1 that was fully achievable). Every
+  `ringPrediction` row now carries the shipped `contextualFallback`
+  baseline's numbers scored on the SAME turn against the SAME fish, plus the
+  played shot's own predicted hit probability and whether it landed.
+  `ringPredictionReport.ts` prints the paired mean ΔLL with a 95% CI,
+  per-class top-1 for both predictors, and a Wilson-interval calibration
+  curve. **The next session can run the batch and get the full §1 readout
+  with no further building** — this is the session's main hand-off.
+- **§2 heuristic (d) retired** in full, with its arc preserved in
+  SPEC-fishing.md §8.
+- **§3 deck thread CLOSED with a reason, not just a verdict.** Per-turn hit
+  rate added to the sim; the shape-matched MID deck's hit rate is genuinely
+  *lower* than the real deck's (42.2% vs 48.8%, both seeds), which is the
+  brief's "geometry claim is wrong" branch. Session 45's refutation stands
+  unqualified.
+- **§4 SPEC hygiene**: the log-loss smoothing convention (reconciling
+  2.070-vs-3.536 exactly) and the in-sample calibration discount, both written
+  in as standing rules.
+- **FACT 1 re-verified** on the unchanged corpus: 0/279 off-ring, 66/66 casts
+  class-consistent.
+
+**What the next session needs**, stated so the gate is meetable rather than
+merely restated: **energy at or above 240 before the batch starts** (an
+overnight gap does this on its own — 12.5h of regen from empty), and the
+11:00 Pacific cap reset passed. Read `GET /offchain/player/energy` FIRST and
+compute the affordable cast count from it; do not infer the budget from
+`data/guard-budget-fishing.json`, which is this bot's own policy ledger and
+knows nothing about either the real energy pool or the server's own counter.
+
+**No dungeon work for a fourth consecutive session** — a deliberate
+consequence of the fishing model being where the open questions are, not an
+oversight. The scheduler energy-tracking gap and the charge-reserve plateau
+(sessions 40-42) remain untouched and unblocked.
+
 ### 12 — Potion timing ← restored 2026-08-15, session 12 (see Task 5's retracted extension)
 
 **Restores the standalone task session 10 §7 originally asked for, superseding
