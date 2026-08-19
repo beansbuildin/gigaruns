@@ -705,6 +705,86 @@ materially different utility form" is now a concrete, evidenced candidate
 (pricing focus-budget reserve), not a repeat of the dungeon side's already-
 exhausted magnitude sweep.
 
+**[2026-08-18, session 45] The dominant fishing defect was NOT the focus
+budget — it was the movement model, and that is now built.** Session 44
+scoped a focus-reserve term as this session's top priority. The session-45
+brief re-derived the corpus first and found a larger defect above it; this
+session verified that finding independently before implementing anything
+(`scripts/auditStepClass.ts`, new and re-runnable) and it holds:
+
+- **FACT 1**: the fish walks a Manhattan-`k` ring, `k ∈ {1,2}` fixed per
+  cast — **0 counterexamples in 279 clean transitions / 68 casts**, including
+  the 20 transitions this session's own live batch added out-of-sample.
+- **FACT 2**: within a class the next move is conditioned on the previous one
+  in OPPOSITE directions — `k=1` never reverses (0/109), `k=2` reverses 39.2%
+  (40/102).
+- **FACT 3**: the deck's zone templates are exactly the two rings; focus
+  co-located on the fish is 100.0% vs `k=1` and 71.3% vs `k=2`.
+
+Every predictor this project shipped before now was class-blind, so it
+assigned probability mass to cells the fish provably could not reach, and
+`chooseCard` consumes the whole distribution — the mass distorted both the
+card pick and the focus placement. Full writeup: **SPEC-fishing.md §9**.
+
+**§1 GATE MET** (`scripts/fishingRingCV.ts`, leave-one-cast-out, 68 clean
+casts / 211 scored transitions, same conventions as `fishingContextualCV.ts`):
+
+```
+cell-only (old tier 2)                  top1 19.4%  logLoss 3.912  zeroP 23
+cell + prev-displacement (shipped)      top1 42.7%  logLoss 3.536  zeroP 23
+ring, class-aware (FACT 1 only)         top1 26.1%  logLoss 1.287  zeroP  0
+ring + prev-delta conditional (1+2)     top1 46.4%  logLoss 1.118  zeroP  0
+  ...k=1 casts only                     top1 54.1%  logLoss 0.803
+  ...k=2 casts only                     top1 38.2%  logLoss 1.455
+```
+
+Gate was "beat the cell+prev baseline on BOTH log loss and top-1" — met on
+both, by wide margins. NOTE the brief's own claimed baseline (logLoss 2.070)
+did not reproduce: measured it is 3.536, because 23 of the held-out cells get
+exactly zero probability under that predictor and take this project's standing
+`-log(1e-9)` floor. The ring model's own numbers came in slightly BETTER than
+the brief projected. Both divergences favour the ring model, so the gate's
+direction was never in doubt, but the brief's baseline figure is wrong and
+should not be carried forward.
+
+**Also this session, in priority order as delivered:**
+
+- §2: `src/sim/fishing/empiricalFish.ts` replaces the sim's synthetic
+  ground-truth fish with a sampler over the real corpus's own statistics.
+  Session 44's heuristic-(d) regression verdict is **corrected to NEUTRAL**
+  (SPEC-fishing.md §8) — the ~2pp regression was an artifact of
+  `patterns.ts`'s `bounceDelta`, which models a fish this game does not have.
+- §3: the focus-reserve term IS built and swept (`focusReserveAblation.ts`),
+  `DEFAULT_FOCUS_RESERVE_WEIGHT = 3` from a two-seed plateau. **Lift +1.6pp,
+  not the ~+5pp projected.** Focus exhaustion 79.5% → 69.5% of casts.
+  SPEC-fishing.md §4c.
+- §4 (deck composition): **the brief's claim does not reproduce and is NOT a
+  live lever as described.** Projected shape-matched decks at 55.5%/79.0% vs
+  the real deck's 32.2%; measured, the real deck WINS (33.2% vs 15.2% mid /
+  22.0% high). Premise was wrong: cards 7, 79 and 76 — one of each key
+  template — are ALREADY in the real deck. Left as a NON-task; anyone reviving
+  it needs a new premise, not a rerun.
+- §5: 2 live casts (the day's remaining budget), both escaped. New per-turn
+  predicted-vs-actual log `data/ringPrediction.jsonl` +
+  `scripts/ringPredictionReport.ts`. Live ring-tier top-1 27.8% (5/18, both
+  casts `k=2`) against the class-matched offline 38.2% — inside the CI,
+  settles nothing at this n, and says so.
+
+**Still open on the fishing side, in the order a next session should take
+them:**
+
+1. **A real live batch under the ring model.** This session could only afford
+   2 casts. 20-30 casts under `ringModelEnabled: true` would give the per-turn
+   accuracy figure enough n to actually confirm or refute transfer, per class.
+   That is the only remaining question the corpus cannot answer.
+2. **Retire heuristic (d).** It is now a proven no-op for `k=2` (guard tests
+   displacement length, not class) and redundant for `k=1` once §9's
+   conditional table ships. Removing it is a deliberate change, not a
+   side effect — hence not done here.
+3. **Graceful SIGINT in `liveRun.ts`/`liveFishing.ts` `main()`** (Task 10) —
+   still not wired, still small, still using an already-proven pattern.
+4. `data.nextMovePath` — new unknown wire field, QUESTIONS.md §17.
+
 **Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
 superseding the item-per-energy form above for the dungeon side** — Task 5's
 gate served its purpose and is retired to reported-metrics (see Task 5). The

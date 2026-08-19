@@ -1527,7 +1527,19 @@ Fish occupies one cell. On each turn you submit one card and a **focus
 point** (Dendren only — see the correction below); the server then moves the
 fish per its own deterministic pattern and checks the fish's **new** cell
 against the card's hitbox, translated to be centred on the focus point you
-submitted. Cards have a mana cost, a hitbox, and a flat hit/miss effect on
+submitted.
+
+**[session 45] The movement rule is now largely characterised — see
+`SPEC-fishing.md §9`, which supersedes this section's "its own deterministic
+pattern" as the description of what the fish actually does.** In one line: the
+fish walks a Manhattan-`k` ring around its current cell with `k ∈ {1,2}` fixed
+for the whole cast (0 counterexamples in 279 clean transitions), and within a
+class the next move is strongly conditioned on the previous one in OPPOSITE
+directions (`k=1` never reverses, 0/109; `k=2` reverses 39.2% of the time,
+40/102). Both facts are exploitable and neither was visible to any predictor
+this project shipped before session 45. That section also carries the
+leave-one-cast-out evidence, the live-wiring tier order, and an explicit list
+of what is NOT claimed. Cards have a mana cost, a hitbox, and a flat hit/miss effect on
 the catch meter (`fishHp`).
 
 **[CORRECTED 2026-08-15, session 12]** This paragraph previously said "Hit →
@@ -1904,6 +1916,30 @@ own honesty caveat above (session 14's "sim authority is earned per
 domain") still applies: this number has not yet been checked against a
 live batch played under the same 2-pattern seeding — see
 `handoff/STATE.md` (session 44) for that live comparison.
+
+**[session 45] The 22.4% figure above is not a live prediction and should not
+be quoted as one.** It was measured against `patterns.ts`'s SYNTHETIC fish at
+default deck and default parameters. At the account's REAL deck and real
+parameters, the same configuration scores 13.3-13.6% — and against a fish
+sampled from the real corpus's own movement statistics
+(`src/sim/fishing/empiricalFish.ts`, session 45), with the distribution
+pipeline `liveFishing.ts` actually wires, it scores ~24.8%, against a live
+all-time rate of 10.1% (7/69). The empirical-fish sim over-predicts live by
+roughly 2.4x and is additionally in-sample twice over (its predictor and its
+fish are both fitted to the same corpus), so it too has not earned live
+authority — see the rule immediately below, which session 45 re-confirmed
+rather than retired. The mined library's promotion status is unchanged and the
+lift over blind is real; only its magnitude was domain-specific.
+
+Also session 45, checked directly against the seven supporting casts named
+above rather than taken from the session-45 brief (which asserted eight, cw 4 /
+ccw 4): **`perimeterWalk`'s support is 7 casts — cw 4, ccw 3 — and every one of
+the seven is a `k=1` cast**, every hop of every one at Manhattan distance 1.
+The mined library is real, but it is a strict subset of ONE step class and can
+say nothing at all about the 33 `k=2` casts in the corpus. That is why the ring
+model (`SPEC-fishing.md §9`) is the general predictor and the matcher is kept
+above it only as a sharper special case, intersected with the ring and floored
+against it.
 
 ### A standing rule: sim authority is earned per domain, never inherited
 

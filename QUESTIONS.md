@@ -967,3 +967,34 @@ is confirmed, `oilPolicy.ts`'s recommendation can be wired into a real
 the heuristic stays a documented decision point, not live code — this is
 the same "confirm the shape, don't guess it" discipline CLAUDE.md §2
 requires everywhere else in this project.
+
+---
+
+## §17 — `data.nextMovePath`: a new wire field, one non-null observation
+
+**[session 45, live]** Three docs in this session's 2-cast live batch carried
+`data.nextMovePath` alongside the already-known `data.nextPosition`, both
+flagged as unknown fields by `unknownDocKeys` (dumps in `logs/
+fishing-unknown-{midcast,terminal}-2026-08-19-05-14-*.json`).
+
+Observed values:
+
+| dump | `fishPosition` | `nextPosition` | `nextMovePath` |
+|---|---|---|---|
+| midcast 05-14-28 | `[2,1]` | `[1,2]` | `[1,2]` |
+| midcast 05-14-30 | `[1,2]` | `null` | `null` |
+| terminal 05-14-32 | `[2,1]` | `null` | `null` |
+
+In the one non-null sample the two fields are **identical**, and it is a single
+cell, not a path — despite the name. The fish did in fact move `[2,1] → [1,2]`,
+Manhattan distance 2, so this was a `k=2` cast and the prediction was correct.
+
+**Question for Claude / the user:** is `nextMovePath` ever an actual multi-cell
+path (which would be a substantially stronger signal than `nextPosition` — the
+fish's whole remaining route), or is it always a one-cell duplicate? One
+observation cannot distinguish "always equals `nextPosition`" from "usually a
+single cell, occasionally longer". A DevTools capture of a cast where the field
+is non-null over several consecutive turns would settle it. Not acted on: per
+the standing "don't invent behavior that wasn't captured" rule, nothing reads
+this field yet, and `unknownDocKeys` will keep flagging it until it is either
+modelled or allowlisted.

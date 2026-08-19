@@ -459,6 +459,66 @@ section for this scoped as the clear top priority.
 
 ---
 
+**[session 45] FIXED — the focus-reserve continuation term.**
+`cardChoice.ts` gains `focusReserveFraction` and a `focusReserveWeight`
+parameter on `bestFocusForCard`/`chooseCard`:
+
+```
+reserveFraction = max(0, focusBudget.remaining − manhattan(current, focus)) / FOCUS_METER_MAX
+score(card, focus)  = ev(card, focus) + focusReserveWeight * reserveFraction
+```
+
+`score` is the new primary sort key in both `bestFocusForCard` and
+`isPreferred`; raw `ev` is kept alongside it and is still what `isLethal`,
+`isManaConstrained` and all reporting use — the reserve term prices a FUTURE
+option, and letting it into a lethality or mana-sufficiency test would be a
+category error. The parameter defaults to `0`, so every pre-session-45 caller,
+test and sim script is byte-for-byte unchanged; `DEFAULT_FOCUS_RESERVE_WEIGHT
+= 3` is what `scripts/liveFishing.ts` passes. `FOCUS_METER_MAX` moved
+`castSim.ts` → `geometry.ts` (already the shared strategy/sim dependency, and
+already the home of the spend rule's documentation) so strategy does not
+import from the simulator; `castSim.ts` re-exports it.
+
+Swept by `scripts/focusReserveAblation.ts` against the EMPIRICAL fish (§9),
+real deck and real parameters, N=12000, two far-apart seeds, on the arm that
+ships — ring model plus mined matcher:
+
+| w | 0 | 0.5 | 1 | 2 | **3** | 4 | 6 | 8 | 12 |
+|---|---|---|---|---|---|---|---|---|---|
+| seed 1 | 38.6% | 38.4% | 38.6% | 39.5% | **40.0%** | 39.6% | 39.9% | 38.4% | 35.3% |
+| seed 2 | 37.4% | 37.5% | 37.9% | 38.7% | **39.2%** | 38.8% | 39.3% | 37.9% | 35.4% |
+
+The same inverted-U-with-plateau the dungeon side's `chargeReserveWeight`
+found, peaking at 3 on both seeds and collapsing past 8. 3 also sits inside the
+real deck's `hitEffect` magnitudes (3-6), which is the intended sanity check: a
+weight worth more than a whole hit would be buying a future option at an
+obviously wrong price.
+
+**The lift is +1.6pp, not the ~+5pp the session-45 brief projected.** Stated as
+measured. A 2-ply focus lookahead was tested by that brief against this flat
+term at matched N and lost (32.4% vs 33.6%) at a large constant factor, so the
+flat form is deliberate, not a shortcut.
+
+The mechanism does move, which is the part that generalizes beyond the sim's
+optimism: share of casts exhausting the focus budget, N=3000,
+
+| arm | w=0 | w=3 | w=8 |
+|---|---|---|---|
+| live config | 79.5% (median turn 4) | 69.5% (turn 4) | 50.5% (turn 5) |
+| ring model | 73.9% (turn 5) | 60.9% (turn 5) | 13.0% (turn 7) |
+
+Note the live-config w=0 figure of 79.5% at median turn 4: that DOES reproduce
+session 44's live 16/16 at turns 1-4, and is the check that the simulated
+defect is the same defect. An earlier version of `focusReserveAblation.ts`
+showed 1.6% here — that arm was mis-specified (it omitted the contextual
+fallback tier `liveFishing.ts` really wires, leaving the sim on a uniform
+distribution where every focus placement is EV-identical and the tie-break
+therefore never moves the focus at all). Worth remembering as a failure mode:
+a sim arm labelled "today's live config" is worth exactly as much as the care
+taken to make it one.
+
+---
+
 ## 5. Item metadata — resolves `QUESTIONS.md §3`'s other half
 
 `GET /items/balances` returns **only** `ID_CID` + `BALANCE_CID` — no names,
@@ -673,8 +733,199 @@ describes (the user's own manual-play heuristic is a simplification of
 what the EV formula already does more precisely), so coverage is added as
 a hedge-breadth signal among EV-tied options, not a replacement for EV.
 
+**[session 45] The (d) verdict above is CORRECTED: it was measured against a
+fish this game does not have.** The trace to `bounceDelta` was right; the
+conclusion drawn from it was backwards. The real corpus has **0 reversals in
+109 k=1 observations** (§9, FACT 2), so `bounceDelta`'s billiard bounce models
+behavior real Dendren never shows — the SIM was wrong, not the heuristic.
+`src/sim/fishing/empiricalFish.ts` (new) replaces the sim's synthetic
+ground-truth fish with a sampler over the real corpus's ring/conditional
+statistics, and `scripts/fishingEmpiricalAblation.ts` re-runs the ablation
+against it. At N=20000, two far-apart seeds, real deck and real parameters,
+with the distribution pipeline `liveFishing.ts` ACTUALLY wires (mined matcher →
+`contextualFallback`, not the hardcoded uniform an earlier version of that
+script mis-specified):
+
+| arm | (d) OFF | (d) ON |
+|---|---|---|
+| empirical fish, live config | 24.8% / 24.6% | 24.6% / 24.6% |
+| synthetic fish, live config | 14.3% / 15.1% | 14.0% / 14.8% |
+| empirical fish, ring model | 33.2% / 32.9% | 33.1% / 32.7% |
+
+So: **NEUTRAL against a realistic fish**, a ~0.3pp synthetic regression once
+the live fallback tier is modelled (down from the ~2pp session 44 reported
+against a mis-specified arm), and **redundant** once the ring model ships,
+which is where it ends up. No code change — it is neither helping nor hurting.
+
+Session 45 also confirmed the mechanical claim that (d) is gated on the wrong
+thing: a k=2-only fish gives **byte-identical** numbers with (d) on and off
+(45.8% / 45.6% in both arms), because the guard tests
+`|prev.dx| + |prev.dy| === 1` — the DISPLACEMENT's Manhattan length, not the
+step CLASS — so for a k=2 fish it is never true. It silently no-ops on exactly
+the class where reversal is the single most likely move (39.2%). §9's
+conditional table expresses both directions correctly and is the preferred end
+state; (d) is left in place as a harmless no-op rather than removed, so the
+change that retires it can be made deliberately rather than as a side effect.
+
 Tests: `tests/fishing/heuristics.test.ts` (all four implemented functions,
 synthetic — no live cast fixture happens to exercise any of them yet) and
 `tests/fishing/cardChoice.test.ts`'s new "coverage and centering
 tie-breaks" block (confirms the tie-breaks actually fire, with a real EV
 tie proven by direct `evaluateCardAtFocus` calls, not just asserted).
+
+---
+
+## 9. The step-class ring movement model **[session 45]**
+
+The largest single finding about Dendren this project has made. Derived and
+re-derivable with `scripts/auditStepClass.ts`; implemented in
+`src/strategy/fishing/stepClass.ts`; gated by `scripts/fishingRingCV.ts`.
+
+### FACT 1 — the fish walks a fixed Manhattan-`k` ring, and `k` is per-cast
+
+Every move of a cast lands on the Manhattan-`k` ring around the fish's
+CURRENT cell, and `k` is fixed for the whole cast. On the 68 clean casts /
+279 transitions of `data/fish-patterns.jsonl` as of session 45's live batch:
+
+| | |
+|---|---|
+| transitions at Manhattan distance 1 | 144 |
+| transitions at Manhattan distance 2 | 135 |
+| transitions at **any other distance** | **0** |
+| multi-move casts whose every move has the same `k` | **66 / 66** |
+| moves landing off the legal in-grid `k`-ring | **0 / 279** |
+
+Only `k = 1` (35 casts) and `k = 2` (33 casts) are ever observed. This is the
+user's own "1 box per move or 2 box per move, established on the first move",
+confirmed exceptionlessly by the project's own corpus.
+
+**Read the exclusion carefully.** The exceptionless claim holds on
+`isCleanCast`-filtered casts. The RAW log contains one zero-length "move", two
+off-ring moves and one `k`-inconsistent cast — all four from a single cast,
+`12923189`, whose turn 0 carries two disagreeing records. That is the session-29
+CODEXREVIEW #5 duplicate-turn artifact, a logging failure, not fish behavior,
+and every trajectory analysis in this project already excludes it. Any future
+restatement of FACT 1 must carry this exclusion; without it the fact reads as
+having counterexamples when it does not.
+
+FACT 1 was established on 66 casts and has since survived contact with 2 new
+live casts (20 transitions) that were out-of-sample for it. It is treated as a
+HARD CONSTRAINT: once `k` is known, every off-ring cell gets probability
+exactly zero.
+
+### FACT 2 — within a class, the next move is conditioned on the previous one, in OPPOSITE directions
+
+| class | P(repeat previous delta) | P(exact reversal) | n |
+|---|---|---|---|
+| k=1 | 28.4% | **0.0% — 0 of 109** | 109 |
+| k=2 | 3.9% | **39.2% — 40 of 102** | 102 |
+
+A 1-step fish never backtracks. A 2-step fish backtracks more than it does
+anything else. Both are large and neither was visible to any predictor this
+project shipped before session 45, all of which were class-blind.
+
+### FACT 3 — the deck's zone templates are built around the rings
+
+`fixtures/fishing-casts/cards.json`'s hit-zone templates are not arbitrary:
+
+- `{2,4,6,8}` (ids 8, 14, 27, 75, 79, 88, 98, 108) is exactly the Manhattan-1
+  ring. Focus on the fish's own cell + one of these = **100.0% hit vs a k=1
+  fish** (n=144), by construction.
+- `{1,3,7,9}` (ids 7, 13, 19, 38, 74, 97, 107) is the diagonal subset of the
+  Manhattan-2 ring: **71.3% vs a k=2 fish** (n=115) at the same placement.
+- ring-8 `{1,2,3,4,6,7,8,9}` (ids 9, 12, 15, 18, 24, 25, 76, 89, 99, 109)
+  covers both rings' intersection with the 3×3 window, at lower damage.
+
+Focus co-location is worth 25-60 points of hit rate. The **diagonal-2** focus
+offsets (±2,±2) are a **guaranteed miss vs a k=1 fish** — 0.0%, every card,
+every turn. Note this is the diagonal-2 offsets specifically, NOT all offsets
+at Chebyshev distance 2: (2,0) is Chebyshev 2 and scores 41.1%.
+
+### What the model does with this
+
+`stepClass.ts`:
+
+- `classifyStep(history)` → `1 | 2 | null`. `null` before any hop resolves —
+  **turn 1 of a cast is an identification turn** and the honest answer is
+  "unknown", not a guess. Uses the mode of observed nonzero step lengths so a
+  single anomalous record cannot pin a cast to the wrong class; with FACT 1
+  holding that is the same answer as "the first hop".
+- `ringCells(cell, k, gridSize)` — the legal in-grid ring. Not to be confused
+  with `geometry.ts`'s `reachableCells`, which is the FOCUS point's movement
+  budget (distance ≤ max); this is the fish's next-cell support (distance
+  exactly `k`).
+- `ringDistribution(...)` — the (class, previous-delta) conditional, shrunk
+  toward the class marginal by `n / (n + shrinkageK)` (the same continuous
+  mechanism `contextualFallback.ts` uses — one smoothing scheme, not two),
+  then mixed with a uniform-over-ring `ringFloor`. Defaults
+  `{shrinkageK: 3, ringFloor: 0.1}`, from the plateau interior of
+  `fishingRingCV.ts`'s sweep.
+- `ringDistributionUnknownClass(...)` — before the first hop, mixes the two
+  rings by the observed class prior. The one place the class stops being a
+  hard constraint, and only because there is no evidence yet.
+- `intersectWithRing(dist, ...)` — restricts any other predictor to the legal
+  ring, returning `null` if nothing survives (a fully refuted predictor).
+
+### The evidence that justifies it
+
+Leave-one-cast-out on the real corpus (68 clean casts, 211 scored
+transitions — hops with a previous displacement), same tie-break and
+`-log(1e-9)` zero-probability convention `fishingContextualCV.ts` has always
+used:
+
+| predictor | top-1 | log loss | zero-prob events |
+|---|---|---|---|
+| cell-only (the old tier 2) | 19.4% | 3.912 | 23 |
+| cell + prev-displacement, raw | 39.3% | 6.791 | 63 |
+| cell + prev-displacement, shipped backoff | 42.7% | 3.536 | 23 |
+| ring, class-aware (FACT 1 only) | 26.1% | 1.287 | **0** |
+| **ring + class-aware prev-delta (FACTS 1+2)** | **46.4%** | **1.118** | **0** |
+| …on k=1 casts only | 54.1% | 0.803 | 0 |
+| …on k=2 casts only | 38.2% | 1.455 | 0 |
+
+The log-loss column is the one that matters most: `chooseCard` integrates over
+the whole distribution, so calibration dominates top-1. The ring model's zero
+count of zero-probability events is structural, not lucky — the ring floor
+guarantees it.
+
+**k=1 is the EASIER class** (4 ring cells, never reverses), k=2 the harder one
+(up to 8 ring cells). A live batch that draws one class must be scored against
+that class's row, not the mixed one.
+
+### Live wiring and the tier order
+
+`scripts/liveFishing.ts`, `ringModelEnabled` (default `true`) and
+`focusReserveWeight` (default `DEFAULT_FOCUS_RESERVE_WEIGHT`), threaded as real
+parameters:
+
+0. the mined-pattern matcher while candidates survive, **intersected** with the
+   legal ring and then **mixed with the ring model at `ringFloor`**;
+1. the ring model itself;
+2. `contextualFallback` (unchanged, demoted from tier 1);
+3. uniform.
+
+Tier 0's floor was added after this session's own live batch: two turn-0 rows
+had a fully-converged mined candidate assign p=1 to a cell the fish did not
+reach and p=0 to the one it did — an unbounded log-loss event that the ring
+model's floor prevents everywhere except the tier that was bypassing it.
+
+### Live transfer, so far
+
+Session 45's batch was 2 casts (the day's remaining budget), 20 scored turns,
+both casts k=2. Ring tier: top-1 **27.8%** (5/18), log loss **1.594**, against
+the class-matched offline figures of 38.2% / 1.455. The 95% CI on 5/18 is
+roughly [12%, 51%] and contains 38.2%, so this neither confirms nor refutes
+transfer. `scripts/ringPredictionReport.ts` re-runs this as
+`data/ringPrediction.jsonl` grows; the next batch should be judged the same
+way, per class.
+
+### What is NOT claimed
+
+The catch-rate numbers from `scripts/fishingEmpiricalAblation.ts` are
+**optimistic by construction** — the policy shares its movement model with the
+fish generator, and the contextual-fallback arm additionally trains on the same
+corpus the fish is sampled from. The empirical-fish sim puts today's live
+configuration at ~25% against a live all-time rate of 10.1%; it over-predicts
+by roughly 2.4x and is not calibrated to live. The leave-one-cast-out table
+above is the only out-of-sample evidence in this section, and it is what the
+gate was set on.
