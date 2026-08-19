@@ -1519,7 +1519,7 @@ which half to fix — and three sessions were spent tuning a third quantity
 corrected zone map): coverage **64.7%** [54.1%, 74.0%], conversion **54.5%**,
 product **35.3%** — which is the realized hit rate to the decimal.
 
-### Coverage is NOT the binding half — conversion is **[session 50, brief §2/§3 — built, swept, REJECTED]**
+### Coverage vs conversion — which half binds is REGIME-DEPENDENT **[session 50, brief §2/§3 — the objective was built, swept, and REJECTED]**
 
 The session-50 brief's reframe was that the 3-point focus budget is not scarce
 and the lever is placement quality. **The premise reproduced and the policy
@@ -1567,10 +1567,39 @@ Nothing shipped. `coverageFocus.ts` and the two replay options
 (`coverageHorizon`, `coverageWeight`) stay in the tree as the measuring
 instrument and the arms; the live default is unchanged.
 
-**What this redirects to.** Live coverage is 64.7% and live conversion 54.5%.
-Coverage can be pushed to ~90% online and hits do not follow, so the next
-lever is the conversion half — the deck's zone shapes and the aim within a
-covering window — not another placement objective and not another spend knob.
+**And then the live batch reversed it, in the same session. Read both.**
+
+Session 50's own five casts, scored by the same decomposition:
+
+| | coverage | conversion | hit |
+|---|---|---|---|
+| replay, EV placement, 83 casts / 299 turns | 73.6% | 62.3% | 45.8% |
+| live, pooled, n=85 shots | 64.7% | 54.5% | 35.3% |
+| **live, session-50 batch, n=24 shots** | **37.5%** [21.2%, 57.3%] | **66.7%** | **25.0%** |
+
+Conversion **held** on that batch — 66.7%, above the pooled live figure and
+comparable to the replay's. Coverage **collapsed** to 37.5%.
+
+**So which half binds is not a fixed property of the policy. It tracks the
+movement model's accuracy on the batch.** In the replay the model is fitted to
+the corpus, predicts well, the window usually contains the fish, and
+conversion is what is left over — which is why forcing coverage higher there
+only trades away aim. Live, on a batch the model reads badly, the window
+simply misses and coverage is the whole loss. Session 50's batch was
+k=2-heavy (17 of 19 scored turns), scored live k=2 top-1 23.5% against an
+offline LOO 33.9%, and **lost to the k-ring null** (21.1% vs 26.3%).
+
+Two consequences, and they are the durable ones:
+
+1. **Do not read "conversion is binding" as a standing fact.** It is the
+   replay's regime. Anyone acting on it should first check the coverage number
+   on the batch in front of them — which is exactly why Guard 2 puts it on
+   every readout.
+2. **Coverage is downstream of prediction quality**, so a placement objective
+   cannot rescue a batch where the movement model is wrong; it can only
+   redistribute a window that was already going to miss. The expected-coverage
+   objective is rejected for the replay's regime AND is not the answer to the
+   live one.
 
 ### What is NOT claimed
 

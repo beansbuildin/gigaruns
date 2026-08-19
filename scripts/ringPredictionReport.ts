@@ -443,9 +443,11 @@ function main() {
     console.log("");
     console.log("  Offline reference (scripts/focusCoverageSweep.ts, 83 clean casts / 299 replayed");
     console.log("  turns, matcher LOO): the shipped EV placement scores coverage 73.6% x conversion");
-    console.log("  62.3%. Pushing coverage to 89.6% with an expected-coverage objective dropped");
-    console.log("  conversion to 48.5% and hits with it — CONVERSION is the binding half, not");
-    console.log("  coverage. These pins move with the corpus; re-derive before comparing.");
+    console.log("  62.3%, and pushing coverage to 89.6% dropped conversion to 48.5% and hits with it.");
+    console.log("  But session 50's live batch inverted that (coverage 37.5%, conversion 66.7%), so");
+    console.log("  WHICH HALF BINDS IS REGIME-DEPENDENT — it tracks the movement model's accuracy on");
+    console.log("  the batch. Read the numbers above, not the reference. These pins move with the");
+    console.log("  corpus; re-derive before comparing (SPEC-fishing.md §9, Guard 1).");
   }
 
   console.log("\n── SHADOW RING TIER (open question 2 — is the matcher tier worth its place?) ──");
