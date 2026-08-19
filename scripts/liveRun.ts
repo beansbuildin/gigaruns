@@ -52,6 +52,7 @@ import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
+import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
 import { regenerateRunReports } from "./regenerateReports.js";
 import { toCombatant, exchangeIdentity, exchangeLabel, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
@@ -1125,6 +1126,9 @@ export function parseArgs(argv: string[]) {
   // itself start this invocation — see the runOnce comment at the "existing"
   // branch for why. Absence is fail-closed (refuse), not fail-open.
   const resumeExisting = argv.includes("--resume-existing");
+  // [session 47, brief §1a] Opt OUT of the ROM-claim preflight — see the
+  // identical flag in scripts/liveFishing.ts.
+  const noRomClaim = argv.includes("--no-rom-claim");
   // [session 42, Task 14] `--juiced` only takes effect on a genuinely new
   // start_run (never a resume — a resumed run's juiced status was already
   // decided by whoever originally started it, see runOnce's "existing"
@@ -1153,6 +1157,7 @@ export function parseArgs(argv: string[]) {
     potionThreshold,
     potionsUsed,
     resumeExisting,
+    noRomClaim,
     juiced,
     juicedIndex,
   };
@@ -1410,6 +1415,21 @@ async function main() {
   const uninstallSigint = installProcessSigintHandler(shutdownSignal);
 
   const targetRuns = args.dryRun || args.stage2 ? 1 : args.runs;
+
+  // [session 47, brief §1a] Energy preflight — same module and same rationale
+  // as scripts/liveFishing.ts's; see src/orchestrator/energyPreflight.ts. A
+  // juiced start costs 3x, so the batch's real cost is priced off the same
+  // JUICED_COST_MULTIPLIER the guard charges. A resume spends no energy at
+  // all, so `--resume-existing` skips the preflight rather than demanding a
+  // pool it will not touch.
+  if (!args.dryRun && !args.stage2 && !args.resumeExisting && !args.noRomClaim) {
+    const perRun = args.juiced ? config.energyCostPerRun * JUICED_COST_MULTIPLIER : config.energyCostPerRun;
+    const preflight = await ensureEnergyFor(targetRuns * perRun, clientEnergyPreflightDeps(client, me.address, (line) => console.log(line)));
+    log.write({ event: "energy_preflight", ...preflight });
+  } else if (args.noRomClaim) {
+    console.log(`  · --no-rom-claim: skipping the energy preflight; the pool is used exactly as-is.`);
+  }
+
   for (let i = 0; i < targetRuns; i++) {
     if (shutdownSignal.requested) {
       console.log(`\n▸ stopped by SIGINT before run ${i + 1}/${targetRuns}.`);
@@ -1503,6 +1523,7 @@ if (isMain) {
   main().catch((e) => {
     console.error(`\n✗ ${e instanceof Error ? e.message : e}\n`);
     if (e instanceof GuardTrip) console.error(`  detail: ${JSON.stringify(e.detail)}`);
+    if (e instanceof EnergyPreflightError) console.error(`  detail: ${JSON.stringify(e.detail)}`);
     if (e instanceof UnexpectedResponseError) console.error(`  status ${e.status}  path ${e.path}\n  body: ${e.body}`);
     process.exit(1);
   });

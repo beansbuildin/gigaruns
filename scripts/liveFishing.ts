@@ -87,6 +87,7 @@ import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
+import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
 import { regenerateRunReports } from "./regenerateReports.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
 import {
@@ -1476,7 +1477,12 @@ function parseArgs(argv: string[]) {
   const status = argv.includes("--status");
   const castsArg = argv.find((a) => a.startsWith("--casts="));
   const casts = castsArg ? Number(castsArg.split("=")[1]) : 1;
-  return { dryRun, status, casts };
+  // [session 47, brief §1a] Opt OUT of the ROM-claim preflight. The default is
+  // to claim, per the brief's §0a lifting of the session-19/20 ask-first
+  // instruction; this flag exists for the case where the operator wants the
+  // pool left exactly as it is (e.g. measuring regen).
+  const noRomClaim = argv.includes("--no-rom-claim");
+  return { dryRun, status, casts, noRomClaim };
 }
 
 /**
@@ -1560,6 +1566,30 @@ async function main() {
   const uninstallSigint = installProcessSigintHandler(shutdownSignal);
 
   const targetCasts = args.dryRun ? 1 : args.casts;
+
+  // [session 47, brief §1a] Energy preflight — reads the REAL pool and, if it
+  // is short of what this batch costs, tops it up from the ROM bank before
+  // spending a single request on `start_run`.
+  //
+  // Session 46 planned a batch off `data/guard-budget-fishing.json` (which
+  // said 2 casts were available; the server said zero) and then reported the
+  // batch blocked on a 12.5-hour regen wait while 2,603 energy sat claimable
+  // across 27 ROMs. Both halves of that are addressed here: the pool is read
+  // live, and the ROM bank is read live rather than inferred.
+  //
+  // This does NOT raise any ceiling — `guards` still enforces
+  // `config/bot.json`'s daily budget and the per-session cast cap below, and
+  // spending above the configured daily budget remains on CLAUDE.md's
+  // ask-first list. It only ensures the account pool can fund a batch the
+  // guards have already authorized.
+  if (!args.dryRun && !args.noRomClaim) {
+    const requiredEnergy = targetCasts * config.dendren.energyCostPerCast;
+    const preflight = await ensureEnergyFor(requiredEnergy, clientEnergyPreflightDeps(client, me.address, (line) => console.log(line)));
+    log.write({ event: "energy_preflight", ...preflight });
+  } else if (args.noRomClaim) {
+    console.log(`  · --no-rom-claim: skipping the energy preflight; the pool is used exactly as-is.`);
+  }
+
   let lastFixturesDir = "";
   for (let i = 0; i < targetCasts; i++) {
     if (shutdownSignal.requested) {
@@ -1629,6 +1659,7 @@ if (isMain) {
   main().catch((e) => {
     console.error(`\n✗ ${e instanceof Error ? e.message : e}\n`);
     if (e instanceof GuardTrip) console.error(`  detail: ${JSON.stringify(e.detail)}`);
+    if (e instanceof EnergyPreflightError) console.error(`  detail: ${JSON.stringify(e.detail)}`);
     if (e instanceof UnexpectedResponseError) console.error(`  status ${e.status}  path ${e.path}\n  body: ${e.body}`);
     process.exit(1);
   });
