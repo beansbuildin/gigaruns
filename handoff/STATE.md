@@ -1,4 +1,4 @@
-# STATE — session 49 — 2026-08-19 — commit <SHA>
+# STATE — session 49 — 2026-08-19 — commit 2b7cce3
 
 ## Status
 Session-49 brief: **all six items delivered. §1 and §3 both came back the
