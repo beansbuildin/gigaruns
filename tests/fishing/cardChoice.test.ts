@@ -497,3 +497,73 @@ describe("chooseCard with a focus-reserve weight", () => {
     expect(cellKey(reserved!.focus)).toBe("2,2");
   });
 });
+
+describe("[session 50, brief §2] focusCandidates — restricting the placement search", () => {
+  // The fish is certainly at (3,3) — two points from the starting focus, so
+  // it is inside the 3-point meter. Unrestricted, the single-cell card aims
+  // there; restricted to (1,1) it must aim at (1,1) and eat the miss.
+  const d = dist([[{ x: 3, y: 3 }, 1]]);
+
+  it("is undefined by default and leaves the search space exactly as it was", () => {
+    const free = bestFocusForCard(centerOnlyCard, 0, d, 4, 1, 50, { current: { x: 2, y: 2 }, remaining: 3 });
+    expect(free.focus).toEqual({ x: 3, y: 3 });
+  });
+
+  it("confines the placement to the listed cells even when EV is worse there", () => {
+    const pinned = bestFocusForCard(
+      centerOnlyCard,
+      0,
+      d,
+      4,
+      1,
+      50,
+      { current: { x: 2, y: 2 }, remaining: 3 },
+      true,
+      0,
+      undefined,
+      [{ x: 1, y: 1 }],
+    );
+    expect(pinned.focus).toEqual({ x: 1, y: 1 });
+    expect(pinned.pHit).toBe(0);
+  });
+
+  it("still picks the best CARD at the pinned focus — that separation is the point", () => {
+    // At focus (3,2) the ring card 79 covers (3,3) through zone 6; the
+    // centre-only card does not cover it at all.
+    const pinned = chooseCard(
+      [centerOnlyCard, realCard79],
+      10,
+      d,
+      4,
+      1,
+      50,
+      { current: { x: 2, y: 2 }, remaining: 3 },
+      true,
+      0,
+      undefined,
+      [{ x: 3, y: 2 }],
+    );
+    expect(pinned!.focus).toEqual({ x: 3, y: 2 });
+    expect(pinned!.card.id).toBe(79);
+  });
+
+  it("never returns null just because the constraint forbids the only listed cell", () => {
+    // A cost-2 move under a cost-cap of 0: the placement is blocked, but the
+    // search space must not collapse to nothing.
+    const pinned = chooseCard(
+      [centerOnlyCard],
+      10,
+      d,
+      4,
+      1,
+      50,
+      { current: { x: 2, y: 2 }, remaining: 3 },
+      true,
+      0,
+      { maxMoveCost: 0, moveEvThreshold: 0 },
+      [{ x: 3, y: 3 }],
+    );
+    expect(pinned).not.toBeNull();
+    expect(pinned!.focus).toEqual({ x: 3, y: 3 });
+  });
+});

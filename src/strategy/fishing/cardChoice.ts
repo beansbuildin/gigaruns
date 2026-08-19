@@ -240,14 +240,39 @@ export function bestFocusForCard(
    * encode an opportunity cost that changes with the turn index.
    */
   spendConstraint: FocusSpendConstraint = UNCONSTRAINED,
+  /**
+   * [session 50, brief §2] Restrict the placement search to these cells.
+   * Default `undefined` — the full reachable set, byte-for-byte the
+   * pre-session-50 behavior for every existing caller.
+   *
+   * This is how the expected-COVERAGE objective
+   * (`src/strategy/fishing/coverageFocus.ts`) is composed with EV card
+   * choice without touching either one's scoring: coverage picks WHERE to
+   * aim, then this function picks the best card to play from there. The
+   * alternative — folding a coverage term into `score` — would repeat
+   * session 48's mistake of encoding a horizon-dependent quantity as a flat
+   * penalty, and would also make the two objectives inseparable at report
+   * time.
+   */
+  focusCandidates?: readonly Cell[],
 ): CardFocusChoice {
-  const searchSpace = focusBudget ? reachableCells(gridSize, focusBudget.current, focusBudget.remaining) : allCells(gridSize);
+  const searchSpace =
+    focusCandidates ?? (focusBudget ? reachableCells(gridSize, focusBudget.current, focusBudget.remaining) : allCells(gridSize));
   const moveCostOf = (focus: Cell): number => (focusBudget ? manhattan(focusBudget.current, focus) : 0);
   // The best placement that spends NOTHING — the reference point the EV
   // threshold is measured against, and the guaranteed-eligible fallback that
   // makes it impossible for any policy to empty the search space.
   let bestStay: CardFocusChoice | null = null;
   let best: CardFocusChoice | null = null;
+  /**
+   * [session 50] Any evaluated placement at all. Only ever consulted when the
+   * search space contains no cost-0 cell — impossible for the default
+   * `reachableCells` space, possible for an explicit `focusCandidates` list —
+   * so this cannot change any pre-session-50 result. Without it a restricted
+   * search space whose only member is blocked by `spendConstraint` would
+   * throw.
+   */
+  let anyCandidate: CardFocusChoice | null = null;
   for (const focus of searchSpace) {
     const { ev, pHit, pCrit } = evaluateCardAtFocus(card, focus, dist, gridSize, missPenaltyMultiplier);
     const evPerMana = card.manaCost > 0 ? ev / card.manaCost : ev;
@@ -263,6 +288,7 @@ export function bestFocusForCard(
       pCrit,
       lethal: isLethal(card, pHit, pCrit, fishHp),
     };
+    if (!anyCandidate) anyCandidate = candidate;
     const moveCost = moveCostOf(focus);
     if (moveCost === 0 && (!bestStay || candidate.score > bestStay.score + EV_TIE_EPSILON)) bestStay = candidate;
     // A LETHAL placement is never blocked — no schedule gets to talk the bot
@@ -318,7 +344,7 @@ export function bestFocusForCard(
   // A cost-0 placement is always in `reachableCells`, so `bestStay` is only
   // null when the grid itself is degenerate — the same condition `best` was
   // already guarding.
-  if (!best) best = bestStay;
+  if (!best) best = bestStay ?? anyCandidate;
   if (!best) throw new Error("gridSize must be >= 1");
   // The EV threshold: a non-lethal move has to clear the best stay-put
   // placement by more than `moveEvThreshold` to be worth a focus point.
@@ -437,6 +463,8 @@ export function chooseCard(
   focusReserveWeight: number = 0,
   /** [session 49, brief §3] See `bestFocusForCard`'s doc comment — same constraint, threaded through. */
   spendConstraint: FocusSpendConstraint = UNCONSTRAINED,
+  /** [session 50, brief §2] See `bestFocusForCard`'s doc comment — same restriction, threaded through. */
+  focusCandidates?: readonly Cell[],
 ): CardFocusChoice | null {
   const options = hand
     .map((c, i) => [c, i] as const)
@@ -453,6 +481,7 @@ export function chooseCard(
         heuristicsEnabled,
         focusReserveWeight,
         spendConstraint,
+        focusCandidates,
       ),
     );
   if (options.length === 0) return null;

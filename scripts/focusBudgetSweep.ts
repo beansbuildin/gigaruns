@@ -17,7 +17,17 @@
  * difference against the shipped arm on the same casts, and the absolute
  * columns are context, not forecasts.
  *
- * Usage: npx tsx scripts/focusBudgetSweep.ts
+ * **[session 50, brief §1] The precondition FAILED as this script originally
+ * ran it, and the failure is now fixable rather than merely reported.** The
+ * replay disabled the matcher tier (`offPolicyReplay.ts` conservatism #3), and
+ * that tier is exactly what pulls focus a long way; with it off the replayed
+ * policy spent 0.64-0.71 on the opening move against live's 1.80, so
+ * `costCap(2)` and `threshold(<=1)` were byte-for-byte inert and the A/B said
+ * nothing about the policies. `--matcher=loo` runs the tier leave-one-cast-out
+ * instead of dropping it, which is the arm whose behaviour regime actually
+ * matches live. Read the precondition block before reading any arm.
+ *
+ * Usage: npx tsx scripts/focusBudgetSweep.ts [--matcher=loo|off]
  */
 
 import { loadCastTraces, isCleanTrace } from "../src/sim/fishing/castTrace.js";
@@ -25,6 +35,28 @@ import { replayCorpus, type ReplayReport } from "../src/sim/fishing/offPolicyRep
 import { manhattan } from "../src/sim/fishing/geometry.js";
 import { loadRingPredictions, zoneMapVersionOf } from "./liveFishing.js";
 import { describePolicy, type FocusBudgetPolicy } from "../src/strategy/fishing/focusBudget.js";
+
+/**
+ * [session 50] Live's own opening focus spend, read off `ringPrediction.jsonl`'s
+ * `focusMoveCost` rather than quoted — per the brief's §0 rule that no corpus
+ * statistic may be cited without its `n`. Returns the per-cast turn-0 spends,
+ * so the precondition can be a real interval comparison instead of an
+ * eyeballed one.
+ */
+function liveOpeningSpends(): number[] {
+  return loadRingPredictions()
+    .filter((r) => r.turn === 0 && typeof r.focusMoveCost === "number")
+    .map((r) => r.focusMoveCost as number);
+}
+
+function meanAndCi(xs: number[]): { mean: number; lo: number; hi: number; n: number } {
+  const n = xs.length;
+  const mean = xs.reduce((a, b) => a + b, 0) / Math.max(1, n);
+  if (n < 2) return { mean, lo: mean, hi: mean, n };
+  const varr = xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+  const se = Math.sqrt(varr / n);
+  return { mean, lo: mean - 1.96 * se, hi: mean + 1.96 * se, n };
+}
 
 function pairedCasts(arm: ReplayReport, base: ReplayReport): { gained: number; lost: number } {
   const byId = new Map(base.results.map((r) => [r.docId, r]));
@@ -99,9 +131,12 @@ function focusStats(report: ReplayReport) {
 
 function main() {
   const traces = loadCastTraces().filter(isCleanTrace);
-  const base = replayCorpus(traces, {});
+  const matcherArg = process.argv.find((a) => a.startsWith("--matcher="))?.split("=")[1];
+  const matcherTier: "off" | "loo" = matcherArg === "loo" ? "loo" : "off";
+  const armOpts = { matcherTier } as const;
+  const base = replayCorpus(traces, armOpts);
 
-  console.log(`\n▸ focusBudgetSweep.ts — ${traces.length} clean recorded traces`);
+  console.log(`\n▸ focusBudgetSweep.ts — ${traces.length} clean recorded traces — matcher tier ${matcherTier.toUpperCase()}`);
   console.log(`  every arm paired against the shipped arm on the SAME casts.`);
   console.log(`  ABSOLUTES ARE NOT FORECASTS (session 48, DECISIONS.md) — read the Δ columns.\n`);
   const b0 = focusStats(base);
@@ -181,7 +216,7 @@ function main() {
   console.log(
     `      CORRECTED map,  ${String(correctedEra.casts).padStart(2)} casts: first move ${(correctedEra.profile[0] ?? 0).toFixed(2)}   by turn ${correctedEra.profile.map((v) => v.toFixed(2)).join(" ")}`,
   );
-  console.log("\n    TODAY's policy in the replay (corrected zone map, matcher tier OFF):");
+  console.log(`\n    TODAY's policy in the replay (corrected zone map, matcher tier ${matcherTier.toUpperCase()}):`);
   console.log(
     `      casts that ever hit focus 0: ${b0.meterOutCasts}/${base.casts} = ${((b0.meterOutCasts / base.casts) * 100).toFixed(1)}%   ` +
       `turns at focus 0: ${b0.zeroFocusTurns}/${b0.totalTurns} = ${((b0.zeroFocusTurns / Math.max(1, b0.totalTurns)) * 100).toFixed(1)}%`,
@@ -191,7 +226,21 @@ function main() {
   console.log(
     `\n    => the replay's policy spends ${((b0.firstMoveSpend / Math.max(1e-9, recProfile[0] ?? 0)) * 100).toFixed(0)}% of what the recorded one did on the opening move.`,
   );
-  console.log("       A null result on the arms below is only informative to the extent this number is near 100%.\n");
+  // [session 50] The precondition, stated as an interval rather than a
+  // ratio. The reference is LIVE's own opening spend — the newest casts,
+  // played by today's stack under the corrected map — not the pooled corpus,
+  // whose transposed-era majority answers a different question.
+  const live = meanAndCi(liveOpeningSpends());
+  console.log(
+    `    LIVE opening spend (ringPrediction.jsonl, n=${live.n} casts): ${live.mean.toFixed(2)} of 3, 95% CI [${live.lo.toFixed(2)}, ${live.hi.toFixed(2)}]`,
+  );
+  const inside = b0.firstMoveSpend >= live.lo && b0.firstMoveSpend <= live.hi;
+  console.log(
+    inside
+      ? `    => PRECONDITION MET: the replay's ${b0.firstMoveSpend.toFixed(2)} is INSIDE live's interval. The arms below are measuring a system that spends.`
+      : `    => PRECONDITION FAILED: the replay's ${b0.firstMoveSpend.toFixed(2)} is OUTSIDE live's interval. A null result below says nothing about the policies — it says the harness cannot see the phenomenon they target.`,
+  );
+  console.log("");
 
   const arms: FocusBudgetPolicy[] = [
     { kind: "costCap", cap: 0 },
@@ -211,7 +260,7 @@ function main() {
 
   console.log("  policy                       caught          per-turn hit      Δcaught (casts)   turns/cast   McNemar p");
   for (const policy of arms) {
-    const arm = replayCorpus(traces, { focusPolicy: policy });
+    const arm = replayCorpus(traces, { ...armOpts, focusPolicy: policy });
     const { gained, lost } = pairedCasts(arm, base);
     const p = exactMcNemarP(gained, lost);
     const st = focusStats(arm);

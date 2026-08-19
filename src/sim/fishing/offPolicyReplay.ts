@@ -40,10 +40,23 @@
  *     ring table, the contextual fallback's two maps) is rebuilt with the cast
  *     being replayed excluded. Without that the number is in-sample and
  *     worthless.
- *  3. **The pattern-matcher tier is disabled.** Live it sits above the ring
- *     model, but its candidates are mined FROM this corpus, and leave-one-out
- *     on the ring table would not undo that leakage. Dropping it removes the
- *     policy's strongest tier, so the replay understates the live stack.
+ *  3. **The pattern-matcher tier is off by default, and can be run
+ *     leave-one-cast-out instead.** Live it sits above the ring model, but its
+ *     candidates are mined FROM this corpus. Session 47 dropped it outright;
+ *     session 49 measured what that costs, and it is not a mild
+ *     understatement. With the matcher off the distribution is flat, EV
+ *     differences between focus placements shrink, `chooseCard`'s
+ *     movement-cost tie-break dominates, and the replayed policy barely moves
+ *     its focus — 0.64 points on the opening move against live's 1.80. Every
+ *     focus-budget A/B run on that arm was therefore measuring a system that
+ *     does not spend.
+ *
+ *     `matcherTier: "loo"` re-mines the promoted library from the OTHER casts
+ *     only (`patternMining.ts`'s `promotePatterns`, at the same threshold
+ *     `mineFishPatterns.ts` promotes at), so cast X's matcher never saw cast
+ *     X — the identical discipline already applied to the ring table and the
+ *     contextual maps. The default stays `"off"` so every number published
+ *     before session 50 remains reproducible from this file.
  *
  * Pure — corpus in, numbers out, no I/O and no network (CLAUDE.md's sim/api
  * split). Loading the traces is the caller's job.
@@ -65,6 +78,7 @@ import {
 import {
   buildStepClassTable,
   classifyStep,
+  intersectWithRing,
   lastStepClass,
   ringDistribution,
   ringDistributionUnknownClass,
@@ -72,10 +86,31 @@ import {
   DEFAULT_RING_MODEL_OPTIONS,
   DEFAULT_SWITCH_PROBABILITY,
 } from "../../strategy/fishing/stepClass.js";
+import {
+  initMatcher,
+  mixDistributions,
+  observe,
+  predictDistribution,
+  type MatcherState,
+} from "../../strategy/fishing/matcher.js";
+import { promotePatterns } from "./patternMining.js";
+import { toCandidate } from "./patterns.js";
 import type { Cast } from "./transitionCorpus.js";
 import type { CastTrace, TraceCard } from "./castTrace.js";
-import { cellKey, manhattan, zonesToCells, type Cell } from "./geometry.js";
-import { NO_FOCUS_POLICY, spendConstraint, type FocusBudgetPolicy } from "../../strategy/fishing/focusBudget.js";
+import { cellKey, manhattan, reachableCells, zonesToCells, type Cell } from "./geometry.js";
+import {
+  NO_FOCUS_POLICY,
+  expectedRemainingTurns,
+  spendConstraint,
+  type FocusBudgetPolicy,
+} from "../../strategy/fishing/focusBudget.js";
+import {
+  chooseCoverageFocus,
+  coverageHorizon as clampHorizon,
+  covers,
+  expectedCoverage,
+  forwardCellDistributions,
+} from "../../strategy/fishing/coverageFocus.js";
 
 export type ReplayOutcome =
   | "caught"
@@ -103,6 +138,15 @@ export interface ReplayTurn {
   moveCost: number;
   /** [session 49, §3] Points left on the meter AFTER this turn's move. */
   focusRemaining: number;
+  /**
+   * [session 50, brief §2] Did the chosen focus's 3×3 window contain the cell
+   * the fish actually moved to? Recorded on EVERY arm, not just the coverage
+   * one — `hit = coverage × conversion`, and the decomposition is only
+   * readable if both halves are measured on the same turns.
+   */
+  covered: boolean;
+  /** [session 50] Same question for the RECORDED policy's focus on this turn. */
+  actualCovered: boolean;
 }
 
 export interface ReplayCastResult {
@@ -131,6 +175,10 @@ export interface ReplayReport {
   actualShotsOnReplayedTurns: number;
   /** Paired per-turn (baseline − policy) log-loss differences; positive favours the policy. */
   logLossDiffs: number[];
+  /** [session 50, brief §2] Turns whose chosen focus window contained the fish. */
+  covered: number;
+  /** [session 50] Same for the recorded policy, over the same turns. */
+  actualCovered: number;
   results: ReplayCastResult[];
 }
 
@@ -208,6 +256,54 @@ export interface ReplayOptions {
    */
   hardRing?: boolean;
   /**
+   * [session 50, brief §1] The pattern-matcher tier — the top tier of the live
+   * stack, and the one session 47 disabled here. See conservatism #3 in this
+   * file's header.
+   *
+   *  - `"off"` (default): the pre-session-50 behavior, byte for byte.
+   *  - `"loo"`: re-mine the promoted pattern library from the OTHER casts and
+   *    run the tier exactly as `scripts/liveFishing.ts` does — ring
+   *    intersection, then the `ringFloor` mix — so the arm's behaviour regime
+   *    matches live rather than a flattened version of it.
+   */
+  matcherTier?: "off" | "loo";
+  /**
+   * [session 50, brief §2] Place the focus by maximising EXPECTED COVERAGE
+   * over the next `coverageHorizon` turns instead of this turn's EV
+   * (`src/strategy/fishing/coverageFocus.ts`). Card choice stays
+   * EV-maximising given the chosen focus.
+   *
+   * `undefined` (default) leaves placement exactly as it ships. A LETHAL
+   * placement is never overridden — the same invariant `focusBudget.ts`'s
+   * constraints hold, and for the same reason: no objective gets to talk the
+   * bot out of landing the catch.
+   */
+  coverageHorizon?: number;
+  /**
+   * [session 50, brief §2] The BLENDED form: instead of letting coverage
+   * override EV outright, price the coverage of the turns AFTER this one as a
+   * continuation term and maximise `ev + coverageWeight * futureCoverage`
+   * over the reachable placements.
+   *
+   * This exists because the hard override loses: it raises coverage a long
+   * way (75.9% -> 89.6%, p < 0.001) and conversion falls further
+   * (62.3% -> 48.5%), because a window chosen with no regard for the card's
+   * zone shape contains the fish more often and fits it worse. The blend is
+   * the obvious repair — keep this turn's EV, which already prices
+   * conversion, and add only what the pure objective was contributing that
+   * EV cannot see: where the fish will be NEXT.
+   *
+   * Only the `h >= 2` terms enter, deliberately. `h = 1` is this turn, and
+   * `ev` already integrates the same distribution over it; including it would
+   * double-count. Requires `coverageHorizon >= 2` to have anything to say.
+   *
+   * Units: `ev` is in fishHp-damage, so the weight is too — the same
+   * convention `DEFAULT_FOCUS_RESERVE_WEIGHT` is expressed in, and it can be
+   * sanity-checked the same way against real card `hitEffect` magnitudes
+   * (3-11).
+   */
+  coverageWeight?: number;
+  /**
    * [session 49, brief §3] The focus-meter spend policy
    * (`src/strategy/fishing/focusBudget.ts`). Defaults to `NO_FOCUS_POLICY`,
    * which is byte-for-byte today's behavior.
@@ -243,6 +339,19 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
   let hand = [...t0.hand];
   const history: Cell[] = [t0.fishPosition];
 
+  // [session 50, brief §1] The leave-one-cast-out matcher tier. The library is
+  // re-mined from `others` — which `replayCorpus` guarantees excludes this
+  // cast — so the candidates anchored here have never seen the trajectory they
+  // are about to be scored on.
+  let matcher: MatcherState | null = null;
+  if ((opts.matcherTier ?? "off") === "loo") {
+    const patterns = promotePatterns(otherCasts);
+    matcher = initMatcher(
+      patterns.map((pat) => toCandidate(pat, t0.fishPosition, gridSize, target.turns.length + 1)),
+      t0.fishPosition,
+    );
+  }
+
   const turns: ReplayTurn[] = [];
   let outcome: ReplayOutcome = "truncated";
 
@@ -255,20 +364,39 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
     // [session 49, brief §2] Sticky by default, matching what now ships in
     // `liveFishing.ts` and `castSim.ts`. `hardRing: true` restores the old
     // hard-zero arm so the A/B stays runnable from `stickyStepSweep.ts`.
-    const dist = opts.hardRing
-      ? ((k) =>
-          k === null
-            ? ringDistributionUnknownClass(currentCell, prevDelta, table, gridSize)
-            : ringDistribution(currentCell, k, prevDelta, table, gridSize))(classifyStep(history))
+    // Each arm keeps its OWN notion of the step class — `classifyStep`'s
+    // cast-wide mode under `hardRing`, `lastStepClass` under the sticky
+    // default — so the ring intersection below never mixes the two.
+    const stepClass = opts.hardRing ? classifyStep(history) : lastStepClass(history);
+    const ringDist = opts.hardRing
+      ? stepClass === null
+        ? ringDistributionUnknownClass(currentCell, prevDelta, table, gridSize)
+        : ringDistribution(currentCell, stepClass, prevDelta, table, gridSize)
       : stickyStepDistribution(
           currentCell,
-          lastStepClass(history),
+          stepClass,
           prevDelta,
           table,
           gridSize,
           DEFAULT_RING_MODEL_OPTIONS,
           opts.stickySwitchProbability ?? DEFAULT_SWITCH_PROBABILITY,
         );
+    // [session 50] Tier 0, mirroring `scripts/liveFishing.ts` exactly: the
+    // matcher's distribution is intersected with the legal step-class ring
+    // (an off-ring candidate is provably wrong), a candidate set that survives
+    // nothing hands the turn back to the ring model, and whatever comes out is
+    // mixed with the ring at `ringFloor` so a converged candidate can never
+    // assign probability zero to the cell the fish actually reached.
+    const matcherDist = matcher && matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
+    const dist = matcherDist
+      ? mixDistributions(
+          stepClass !== null
+            ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist)
+            : matcherDist,
+          ringDist,
+          1 - DEFAULT_RING_MODEL_OPTIONS.ringFloor,
+        )
+      : ringDist;
     const baseline = contextualFallback(currentCell, prevDelta, contextMap, cellOnlyMap, gridSize, {
       shrinkageK: DEFAULT_SHRINKAGE_K,
     });
@@ -288,21 +416,87 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       fishHp,
       bestHitEffect,
     });
-    const choice = chooseCard(
-      cards,
-      mana,
-      dist,
-      gridSize,
-      missPenaltyMultiplier,
-      fishHp,
-      focus,
-      true,
-      focusReserveWeight,
-      constraint,
-    );
+    const chooseAt = (focusCandidates?: readonly Cell[]) =>
+      chooseCard(
+        cards,
+        mana,
+        dist,
+        gridSize,
+        missPenaltyMultiplier,
+        fishHp,
+        focus,
+        true,
+        focusReserveWeight,
+        constraint,
+        focusCandidates,
+      );
+    let choice = chooseAt();
     if (!choice) {
       outcome = "no_affordable_card";
       break;
+    }
+    // [session 50, brief §2] The expected-coverage placement, applied AFTER
+    // the unconstrained EV pick so a lethal placement is never overridden.
+    // Re-running `chooseCard` restricted to the coverage cell is what keeps
+    // card choice EV-maximising GIVEN the focus, rather than blending two
+    // objectives into one score.
+    const coverageWeight = opts.coverageWeight ?? 0;
+    // `coverageWeight` SELECTS the blended form. A blend asked for at horizon
+    // 1 has no continuation term to add, so it is a no-op — it must not
+    // silently fall through to the hard override, which is a different policy.
+    if (coverageWeight > 0 && (opts.coverageHorizon ?? 0) >= 2 && !choice.lethal) {
+      const h = clampHorizon(opts.coverageHorizon!, expectedRemainingTurns(fishHp, bestHitEffect));
+      // `h >= 2` only — `ev` already integrates this turn's distribution.
+      const future = forwardCellDistributions(
+        currentCell,
+        stepClass,
+        prevDelta,
+        table,
+        gridSize,
+        h,
+        DEFAULT_RING_MODEL_OPTIONS,
+        opts.stickySwitchProbability ?? DEFAULT_SWITCH_PROBABILITY,
+      ).slice(1);
+      if (future.length > 0) {
+        let bestChoice = choice;
+        let bestValue = choice.ev + coverageWeight * expectedCoverage(choice.focus, future);
+        for (const f of reachableCells(gridSize, focus.current, focus.remaining)) {
+          if (manhattan(focus.current, f) > constraint.maxMoveCost) continue;
+          const c = chooseAt([f]);
+          if (!c) continue;
+          const value = c.ev + coverageWeight * expectedCoverage(f, future);
+          if (c.lethal && !bestChoice.lethal) {
+            bestChoice = c;
+            bestValue = value;
+            continue;
+          }
+          if (!c.lethal && bestChoice.lethal) continue;
+          if (value > bestValue + 1e-9) {
+            bestChoice = c;
+            bestValue = value;
+          }
+        }
+        choice = bestChoice;
+      }
+    } else if (coverageWeight <= 0 && opts.coverageHorizon && opts.coverageHorizon > 0 && !choice.lethal) {
+      const h = clampHorizon(opts.coverageHorizon, expectedRemainingTurns(fishHp, bestHitEffect));
+      const forward = forwardCellDistributions(
+        currentCell,
+        stepClass,
+        prevDelta,
+        table,
+        gridSize,
+        h,
+        DEFAULT_RING_MODEL_OPTIONS,
+        opts.stickySwitchProbability ?? DEFAULT_SWITCH_PROBABILITY,
+      );
+      const cov = chooseCoverageFocus(focus, gridSize, forward);
+      // Respect the spend constraint the same way the EV path does: a
+      // placement the constraint forbids is simply not offered.
+      if (cov.moveCost <= constraint.maxMoveCost) {
+        const covChoice = chooseAt([cov.focus]);
+        if (covChoice) choice = covChoice;
+      }
     }
 
     // The fish moves before the card resolves — this is the cell it moved to.
@@ -335,9 +529,12 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       baselineLogLoss: lossOn(baseline, actual),
       moveCost,
       focusRemaining: focus.remaining,
+      covered: covers(choice.focus, actual),
+      actualCovered: covers(rec.focusPoint, actual),
     });
 
     history.push(actual);
+    if (matcher) matcher = observe(matcher, actual);
     hand = hand.filter((_, idx) => idx !== choice.handIndex);
 
     if (fishHp <= 0) {
@@ -392,6 +589,8 @@ export function replayCorpus(traces: readonly CastTrace[], opts: ReplayOptions =
     actualHits: 0,
     actualShotsOnReplayedTurns: 0,
     logLossDiffs: [],
+    covered: 0,
+    actualCovered: 0,
     results,
   };
   for (const r of results) {
@@ -400,6 +599,8 @@ export function replayCorpus(traces: readonly CastTrace[], opts: ReplayOptions =
       if (t.hit) report.hits++;
       report.actualShotsOnReplayedTurns++;
       if (t.actualHit) report.actualHits++;
+      if (t.covered) report.covered++;
+      if (t.actualCovered) report.actualCovered++;
       report.logLossDiffs.push(t.baselineLogLoss - t.logLoss);
     }
   }

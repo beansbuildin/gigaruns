@@ -35,7 +35,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { cellsEqual } from "../src/sim/fishing/geometry.js";
 import { buildPatternPool, type Pattern } from "../src/sim/fishing/patterns.js";
 import { simulateCasts, matcherFishPolicy } from "../src/sim/fishing/castSim.js";
 import {
@@ -43,9 +42,18 @@ import {
   type Cast,
   type TransitionRecord,
 } from "../src/sim/fishing/transitionCorpus.js";
+import {
+  PROMOTION_THRESHOLD,
+  testPrimitives,
+  type ExcludedCast,
+  type PrimitiveSupport,
+  type PrimitiveTestResult,
+} from "../src/sim/fishing/patternMining.js";
 
 export type { Cast, TransitionRecord };
 export { groupByCast };
+export { PROMOTION_THRESHOLD, testPrimitives };
+export type { ExcludedCast, PrimitiveSupport, PrimitiveTestResult };
 
 const DEFAULT_PATH = join("data", "fish-patterns.jsonl");
 
@@ -96,92 +104,13 @@ function tallyFirstMoves(casts: Cast[]): Map<MoveClass, number> {
 }
 
 // ── 2. Exact-match testing against the existing synthetic primitive pool. ──
-
-/**
- * **Not the same statistical regime as the project's ~30-observation rate
- * floor (DECISIONS.md 2026-08-15/16), and this constant is deliberately
- * smaller — say so explicitly rather than silently reusing "30" out of
- * habit.** That floor bounds how many samples it takes to read a NOISY RATE
- * (a proc chance, an opponent's move mix) without overfitting a small
- * sample — the enemy-63 mistake, made twice. An exact multi-turn trajectory
- * match against one of ~23 candidate primitives is a different kind of
- * evidence: if a fish's movement were NOT drawn from this primitive set at
- * all, the chance of even ONE real cast exactly matching a primitive across
- * every one of its turns by coincidence is already small, and two
- * independent real casts matching the SAME primitive from different start
- * cells by pure coincidence is smaller still (roughly 1-in-23 squared if
- * primitives were hit uniformly at random, ignoring that a short cast has
- * few turns to be wrong about). Three independent matches is used here as a
- * conservative promotion bar for THIS kind of evidence — not a claim that it
- * is equally strong evidence as 30 rate observations, just that requiring 30
- * EXACT independent trajectory matches before ever promoting anything would
- * make this miner permanently inert at any live-play volume this project
- * could plausibly reach in one project's lifetime.
- */
-const PROMOTION_THRESHOLD = 3;
-
-export interface PrimitiveSupport {
-  pattern: Pattern;
-  matchingCasts: string[];
-}
-
-export interface ExcludedCast {
-  castId: string;
-  reason: string;
-}
-
-export interface PrimitiveTestResult {
-  supports: PrimitiveSupport[];
-  excluded: ExcludedCast[];
-}
-
-/**
- * [session 29, CODEXREVIEW #5] A cast with duplicate/conflicting turn
- * numbers or a gap before its own last turn is excluded from exact-match
- * testing entirely — it is REJECTED, not silently patched around. The old
- * behavior skipped gaps mid-loop and still called the remaining turns an
- * "exact full-trajectory match," which is exactly the shape of false
- * confidence CODEXREVIEW #5 flagged (and duplicate/conflicting turns are the
- * resumed-cast numbering bug's direct fingerprint — see
- * `scripts/liveFishing.ts`'s `lastRecordForCast` doc comment).
- */
-export function testPrimitives(casts: Cast[]): PrimitiveTestResult {
-  const pool = buildPatternPool();
-  const results: PrimitiveSupport[] = pool.map((pattern) => ({ pattern, matchingCasts: [] }));
-  const excluded: ExcludedCast[] = [];
-
-  for (const cast of casts) {
-    if (cast.maxTurn < 0) continue;
-    if (cast.duplicateTurns.length > 0) {
-      excluded.push({
-        castId: cast.castId,
-        reason: `duplicate/conflicting record(s) at turn(s) ${cast.duplicateTurns.join(",")} — likely a resumed-process numbering collision (CODEXREVIEW #5)`,
-      });
-      continue;
-    }
-    if (cast.hasGaps) {
-      excluded.push({
-        castId: cast.castId,
-        reason: `gapped trajectory (a turn before maxTurn ${cast.maxTurn} is missing) — cannot be an exact FULL-trajectory match`,
-      });
-      continue;
-    }
-    for (const support of results) {
-      const trajectory = support.pattern.path(cast.start, cast.gridSize, cast.maxTurn + 2);
-      let matches = true;
-      for (let t = 0; t <= cast.maxTurn; t++) {
-        const observed = cast.byTurn.get(t)!; // no gaps at this point — guaranteed present
-        const predicted = trajectory[t + 1];
-        if (!predicted || !cellsEqual(predicted, observed)) {
-          matches = false;
-          break;
-        }
-      }
-      if (matches) support.matchingCasts.push(cast.castId);
-    }
-  }
-  return { supports: results.filter((s) => s.matchingCasts.length > 0), excluded };
-}
+//
+// [session 50] `PROMOTION_THRESHOLD`, `testPrimitives` and the promotion rule
+// itself moved to `src/sim/fishing/patternMining.ts` so the off-policy
+// replay's leave-one-cast-out matcher tier can promote by the identical rule
+// instead of a lookalike (brief §1). Behavior is unchanged; they are
+// re-exported here so every existing import site — including
+// `tests/mineFishPatterns.test.ts` — is untouched.
 
 // ── main ─────────────────────────────────────────────────────────────────
 

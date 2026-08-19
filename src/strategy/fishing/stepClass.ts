@@ -378,6 +378,78 @@ export function intersectWithRing(dist: Distribution, cell: Cell, k: StepClass, 
 export const DEFAULT_SWITCH_PROBABILITY = 0.05;
 
 /**
+ * [session 50, brief §3 / open question 4] The floor under an ESTIMATED `s`.
+ *
+ * `estimateSwitchProbability` reads `s` off the corpus at load, and a small
+ * corpus that happens to contain no class switch at all would hand back 0 —
+ * which is not "the fish never switches", it is "we have not seen one yet",
+ * and it is the degenerate hard-ring case the sticky latent was built to
+ * remove (an off-ring landing collapses to `-log(1e-9)`). The floor makes
+ * that impossible.
+ *
+ * Set at the value the corpus produced at 73 casts (2.50%), so the floor is a
+ * number the data has actually supported rather than an invention, and it is
+ * well below every count since.
+ */
+export const SWITCH_PROBABILITY_FLOOR = 0.025;
+
+export interface SwitchProbabilityEstimate {
+  /** The floored estimate, ready to pass to `stickyStepDistribution`. */
+  s: number;
+  /** The raw switches/transitions ratio, BEFORE the floor. */
+  raw: number;
+  /** Consecutive hop pairs both of whose step counts were classifiable. */
+  n: number;
+  /** How many of those pairs changed class. */
+  switches: number;
+  /** True when the floor bound the estimate — worth logging loudly. */
+  floored: boolean;
+}
+
+/**
+ * Estimate the sticky chain's switch probability from the corpus.
+ *
+ * **Why this is estimated rather than shipped as a constant.** `s` has risen
+ * at every single count: the session-49 brief put it at ~0.6% ("one in
+ * ~309"), 73 clean casts made it 2.50%, 83 made it 5.25%, and
+ * `scripts/stickyStepSweep.ts`'s swept optimum tracked the estimator at both
+ * sizes. A shipped constant is stale by construction under a monotone trend,
+ * and nobody knows where the trend stops — so the number is read off the
+ * corpus at load, floored, and logged with its `n` on every run (the brief's
+ * §0 rule: no corpus statistic without its `n`).
+ *
+ * The unit is the consecutive hop PAIR, not the cast: a switch is observable
+ * only between two adjacent classifiable hops, which is exactly the
+ * transition the two-state chain models.
+ */
+export function estimateSwitchProbability(
+  casts: readonly Cast[],
+  floor: number = SWITCH_PROBABILITY_FLOOR,
+): SwitchProbabilityEstimate {
+  let n = 0;
+  let switches = 0;
+  for (const cast of casts) {
+    let prevK: StepClass | null = null;
+    let prev: Cell = cast.start;
+    for (let t = 0; t <= cast.maxTurn; t++) {
+      const to = cast.byTurn.get(t);
+      if (!to) break;
+      const len = stepLen(prev, to);
+      const k: StepClass | null = len === 1 || len === 2 ? (len as StepClass) : null;
+      if (k !== null && prevK !== null) {
+        n++;
+        if (k !== prevK) switches++;
+      }
+      if (k !== null) prevK = k;
+      prev = to;
+    }
+  }
+  const raw = n > 0 ? switches / n : 0;
+  const s = Math.max(floor, raw);
+  return { s, raw, n, switches, floored: s > raw };
+}
+
+/**
  * The step count of the fish's MOST RECENT nonzero hop.
  *
  * Deliberately not `classifyStep`, which takes the cast-wide mode. The mode

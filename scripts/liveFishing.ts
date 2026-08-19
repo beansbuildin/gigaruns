@@ -118,10 +118,13 @@ import {
 } from "../src/strategy/fishing/contextualFallback.js";
 import {
   buildStepClassTable,
+  estimateSwitchProbability,
+  SWITCH_PROBABILITY_FLOOR,
   intersectWithRing,
   lastStepClass,
   stickyStepDistribution,
   DEFAULT_RING_MODEL_OPTIONS,
+  DEFAULT_SWITCH_PROBABILITY,
 } from "../src/strategy/fishing/stepClass.js";
 import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
@@ -608,6 +611,29 @@ export interface RingPredictionRecord {
   focusMoveCost?: number;
   /** Points left on the meter BEFORE this turn's move. */
   focusRemainingBefore?: number;
+
+  // ---- [session 50, brief §3 / open question 2] the SHADOW ring tier -------
+  // Session 49 found the turn-0 tier scoring WORSE than the plain baseline:
+  // pooled n=15, shipped 2/15 at logLoss 3.410 against the baseline's 2.073,
+  // ΔLL +1.337 [+0.429, +2.245]. The interval excludes zero but the batches
+  // disagree sharply (b1 +1.745, b2 +2.291, b3 −0.025), so it is real but not
+  // settled — and turn 0 is 22% of scored turns, which makes it worth settling
+  // properly rather than quickly.
+  //
+  // The cheapest possible test, and it costs nothing and changes no policy:
+  // whenever the MATCHER tier produced the row, also record what the pure ring
+  // model underneath it would have said, and score both on the same turn. On
+  // turn 0 that is `ringDistributionUnknownClass`, which is exactly the
+  // comparison in question. Absent on rows where the matcher did not fire —
+  // there the shipped distribution already IS the ring model.
+  /** The ring model's own top-1, on a turn the matcher tier overrode it. */
+  shadowRingPredicted?: [number, number];
+  /** Probability the ring model assigned to its own top-1. */
+  shadowRingPPredicted?: number;
+  /** Probability the ring model assigned to the cell the fish actually reached. */
+  shadowRingPActual?: number;
+  /** Did the ring model's top-1 match the realized cell? */
+  shadowRingHit?: boolean;
 }
 
 /**
@@ -1114,10 +1140,24 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // [session 45] Same clean-cast corpus, a different summary of it — the
   // per-class delta table the ring model predicts from.
   const stepClassTable = buildStepClassTable(contextCasts);
+  // [session 50, brief §3 / open question 4] The sticky chain's switch
+  // probability is ESTIMATED from this same clean corpus at load, not taken
+  // from the shipped constant. `s` has risen at every count (~0.6% -> 2.50%
+  // -> 4.98%) and the swept optimum has tracked the estimator at both corpus
+  // sizes, so a constant is stale by construction under a monotone trend. The
+  // floor stops a thin corpus from collapsing it to the degenerate hard-ring
+  // case. Logged with its `n` on every run — the brief's §0 rule.
+  const switchEstimate = estimateSwitchProbability(contextCasts);
   if (ringModelEnabled) {
     console.log(
       `  · ring model ON: class prior k=1 ${stepClassTable.classCasts.get(1) ?? 0} / k=2 ${stepClassTable.classCasts.get(2) ?? 0} cast(s), ` +
         `${stepClassTable.conditional.size} (class, prev-delta) key(s); focusReserveWeight ${focusReserveWeight}`,
+    );
+    console.log(
+      `  · sticky switch probability s = ${(switchEstimate.s * 100).toFixed(2)}% ` +
+        `(estimated: ${switchEstimate.switches}/${switchEstimate.n} consecutive hop pairs = ${(switchEstimate.raw * 100).toFixed(2)}%` +
+        `${switchEstimate.floored ? `, FLOORED at ${(SWITCH_PROBABILITY_FLOOR * 100).toFixed(2)}%` : ""}; ` +
+        `shipped constant ${(DEFAULT_SWITCH_PROBABILITY * 100).toFixed(2)}%)`,
     );
   }
   if (contextMap.size > 0) {
@@ -1271,7 +1311,15 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // `classifyStep`'s cast-wide mode for the same reason.
     const stepClass = ringModelEnabled ? lastStepClass(matcher.history) : null;
     const ringDist = ringModelEnabled
-      ? stickyStepDistribution(currentCell, stepClass, prevDelta, stepClassTable, gridSize)
+      ? stickyStepDistribution(
+          currentCell,
+          stepClass,
+          prevDelta,
+          stepClassTable,
+          gridSize,
+          DEFAULT_RING_MODEL_OPTIONS,
+          switchEstimate.s,
+        )
       : null;
     // [session 45, live-batch finding] The matcher tier gets the ring FLOOR
     // too, not just the ring intersection. Two turn-0 rows in this session's
@@ -1335,6 +1383,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
             : "ring"
           : "contextual";
     const predictedTop = topCellOf(dist);
+    // [session 50, §3 / Q2] The shadow ring row — recorded only when the
+    // matcher tier actually overrode the ring model, since otherwise the two
+    // are the same distribution and the comparison would be vacuous.
+    const shadowRingTop = matcherDist && ringDist ? topCellOf(ringDist) : null;
 
     // [session 49, §3] Bound once so the record below reports the SAME budget
     // the choice was made against, rather than re-reading a doc that has since
@@ -1463,6 +1515,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         playedFocus: [best.focus.x, best.focus.y],
         focusMoveCost: manhattan(turnFocusBudget.current, best.focus),
         focusRemainingBefore: turnFocusBudget.remaining,
+        shadowRingPredicted: shadowRingTop ? [shadowRingTop.cell.x, shadowRingTop.cell.y] : undefined,
+        shadowRingPPredicted: shadowRingTop?.p,
+        shadowRingPActual: shadowRingTop ? (ringDist!.get(cellKey(toCell))?.p ?? 0) : undefined,
+        shadowRingHit: shadowRingTop ? cellsEqual(toCell, shadowRingTop.cell) : undefined,
         pHitPredicted: best.pHit + best.pCrit,
         realizedHit,
         zoneMapVersion: CURRENT_ZONE_MAP_VERSION,

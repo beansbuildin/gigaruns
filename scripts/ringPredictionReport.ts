@@ -216,6 +216,63 @@ function nullComparators(rows: readonly RingPredictionRecord[]) {
   console.log("");
 }
 
+
+/**
+ * [session 50, brief §4 standing guard 2] The coverage / conversion
+ * decomposition, computed from rows this log has always carried
+ * (`playedFocus` + `actual`) — no new field and no new capture needed.
+ *
+ *     hit rate = coverage x conversion
+ *
+ * coverage   = P(the fish's actual cell landed inside the 3x3 window around
+ *              the focus that was played) — what focus PLACEMENT controls.
+ * conversion = P(hit | covered) — what the CARD's zone subset and the aim
+ *              inside the window control.
+ *
+ * It is printed on every readout because without it a low hit rate does not
+ * say which half to fix, and three sessions were spent tuning the half that
+ * turned out not to be binding.
+ */
+function coverageDecomposition(rows: readonly RingPredictionRecord[]) {
+  const scored = rows.filter((r) => r.playedFocus && typeof r.realizedHit === "boolean");
+  let covered = 0;
+  let coveredHits = 0;
+  let hits = 0;
+  for (const r of scored) {
+    const [fx, fy] = r.playedFocus!;
+    const [ax, ay] = r.actual;
+    const isCovered = Math.abs(fx - ax) <= 1 && Math.abs(fy - ay) <= 1;
+    if (isCovered) covered++;
+    if (r.realizedHit) {
+      hits++;
+      if (isCovered) coveredHits++;
+    }
+  }
+  return { n: scored.length, covered, hits, coveredHits };
+}
+
+/**
+ * [session 50, brief §3 / open question 2] The shadow ring tier: on turns
+ * where the MATCHER overrode the ring model, what would the ring model alone
+ * have said? Scored as a paired log-loss difference (shipped - shadow) on
+ * exactly those turns, so a positive mean means the matcher tier COST nats.
+ *
+ * Session 49 measured the turn-0 tier at ΔLL +1.337 [+0.429, +2.245] against
+ * the plain baseline at n=15, with the three batches disagreeing sharply.
+ * This is the comparison that settles it, and it needed no policy change to
+ * collect — only rows written after session 50 carry it.
+ */
+function shadowRingTier(rows: readonly RingPredictionRecord[]) {
+  const scored = rows.filter((r) => typeof r.shadowRingPActual === "number");
+  const diffs = scored.map((r) => nats(r.pActual) - nats(r.shadowRingPActual));
+  return {
+    rows: scored,
+    diffs,
+    shippedHits: scored.filter((r) => r.hit).length,
+    shadowHits: scored.filter((r) => r.shadowRingHit).length,
+  };
+}
+
 function main() {
   // [session 48] Positional path only — a leading `--since=...` used to be
   // taken as the log path, so `ringPredictionReport.ts --since=<t>` (the
@@ -351,6 +408,61 @@ function main() {
     console.log("  movement model is fine and the binding constraint is focus budget / deck / mana.");
     console.log("  Realized well BELOW predicted means focus placement is the defect — the policy is");
     console.log("  aiming at cells the model likes but cannot actually cover.");
+  }
+
+  console.log("\n── COVERAGE / CONVERSION (brief §4 guard 2 — hit = coverage x conversion) ──");
+  const cov = coverageDecomposition(rows);
+  if (cov.n === 0) {
+    console.log("  no rows carry a played focus yet.");
+  } else {
+    const coverage = cov.covered / cov.n;
+    const conversion = cov.covered > 0 ? cov.coveredHits / cov.covered : 0;
+    const wc = wilson(cov.covered, cov.n);
+    console.log(`  n = ${cov.n} scored shot(s)`);
+    console.log(
+      `    coverage   (fish inside the played 3x3 window)  ${cov.covered}/${cov.n} = ${(coverage * 100).toFixed(1)}%  [${(wc.lo * 100).toFixed(1)}%, ${(wc.hi * 100).toFixed(1)}%]`,
+    );
+    console.log(`    conversion (hit | covered)                     ${cov.coveredHits}/${cov.covered} = ${(conversion * 100).toFixed(1)}%`);
+    console.log(`    product                                        ${(coverage * conversion * 100).toFixed(1)}%   realized hit ${cov.hits}/${cov.n} = ${((cov.hits / cov.n) * 100).toFixed(1)}%`);
+    console.log("");
+    // Split by zone map, per the brief's §0 rule: the transposed-era rows were
+    // aimed with the wrong table, so pooling their conversion with the
+    // corrected era's describes neither policy. Coverage is affected only
+    // indirectly (the 3x3 window is map-independent; which cell got chosen as
+    // the focus is not), conversion directly.
+    for (const era of ["transposed", "corrected"] as const) {
+      const rs = rows.filter((r) => zoneMapVersionOf(r) === era);
+      const c = coverageDecomposition(rs);
+      if (c.n === 0) continue;
+      console.log(
+        `    ${era.padEnd(11)} n=${String(c.n).padStart(3)}  coverage ${((c.covered / c.n) * 100).toFixed(1).padStart(5)}%  ` +
+          `conversion ${(c.covered ? (c.coveredHits / c.covered) * 100 : 0).toFixed(1).padStart(5)}%  ` +
+          `hit ${((c.hits / c.n) * 100).toFixed(1).padStart(5)}%`,
+      );
+    }
+    console.log("");
+    console.log("  Offline reference (scripts/focusCoverageSweep.ts, 83 clean casts / 299 replayed");
+    console.log("  turns, matcher LOO): the shipped EV placement scores coverage 73.6% x conversion");
+    console.log("  62.3%. Pushing coverage to 89.6% with an expected-coverage objective dropped");
+    console.log("  conversion to 48.5% and hits with it — CONVERSION is the binding half, not");
+    console.log("  coverage. These pins move with the corpus; re-derive before comparing.");
+  }
+
+  console.log("\n── SHADOW RING TIER (open question 2 — is the matcher tier worth its place?) ──");
+  const shadow = shadowRingTier(rows);
+  if (shadow.rows.length === 0) {
+    console.log("  no rows carry a shadow ring prediction yet — only turns logged from session 50");
+    console.log("  onward, on which the matcher tier actually overrode the ring model, carry one.");
+  } else {
+    const ci = meanDiffCI(shadow.diffs);
+    console.log(`  n = ${shadow.rows.length} matcher-overridden turn(s)`);
+    console.log(`    top-1: SHIPPED (matcher) ${shadow.shippedHits}/${shadow.rows.length} vs ring alone ${shadow.shadowHits}/${shadow.rows.length}`);
+    if (ci) {
+      console.log(
+        `    paired ΔlogLoss (shipped − ring alone) = ${ci.mean >= 0 ? "+" : ""}${ci.mean.toFixed(3)} nats [${ci.lo.toFixed(3)}, ${ci.hi.toFixed(3)}]`,
+      );
+      console.log("    POSITIVE means the matcher tier is COSTING nats over the ring model beneath it.");
+    }
   }
 
   console.log("\n── by cast ──");

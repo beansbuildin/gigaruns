@@ -12,7 +12,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { groupByCast, testPrimitives, type Cast, type TransitionRecord } from "../scripts/mineFishPatterns.js";
+import { groupByCast, testPrimitives, PROMOTION_THRESHOLD, type Cast, type TransitionRecord } from "../scripts/mineFishPatterns.js";
+import { promotePatterns } from "../src/sim/fishing/patternMining.js";
 import { buildPatternPool } from "../src/sim/fishing/patterns.js";
 
 describe("groupByCast — duplicate/gap detection (CODEXREVIEW #5)", () => {
@@ -124,5 +125,51 @@ describe("the exact real-world 12923189 scenario (session 29, CODEXREVIEW #5)", 
     for (const s of supports) {
       expect(s.matchingCasts).not.toContain("12923189");
     }
+  });
+});
+
+describe("[session 50] promotePatterns — the promotion rule the replay's LOO matcher reuses", () => {
+  const GRID = 4;
+  const pool = buildPatternPool();
+  const perimeter = pool.find((p) => p.name === "perimeterWalk(cw)")!;
+
+  /** Records tracing `perimeterWalk(cw)` exactly, so the miner must match it. */
+  function following(castId: string, start: { x: number; y: number }, turns: number): TransitionRecord[] {
+    const path = perimeter.path(start, GRID, turns + 1);
+    const out: TransitionRecord[] = [];
+    for (let t = 0; t < turns; t++) {
+      out.push({
+        ts: `2026-08-19T00:00:0${t}.000Z`,
+        castId,
+        turn: t,
+        from: [path[t]!.x, path[t]!.y],
+        to: [path[t + 1]!.x, path[t + 1]!.y],
+        gridSize: GRID,
+      });
+    }
+    return out;
+  }
+
+  const three = groupByCast([
+    ...following("one", { x: 1, y: 1 }, 4),
+    ...following("two", { x: 1, y: 3 }, 4),
+    ...following("three", { x: 4, y: 2 }, 4),
+  ]);
+
+  it("promotes exactly the primitives at or above the threshold, in pool order", () => {
+    const { supports } = testPrimitives(three);
+    const expected = supports.filter((s) => s.matchingCasts.length >= PROMOTION_THRESHOLD).map((s) => s.pattern.name);
+    expect(promotePatterns(three).map((p) => p.name)).toEqual(expected);
+    expect(promotePatterns(three).map((p) => p.name)).toContain("perimeterWalk(cw)");
+  });
+
+  it("un-promotes when a cast is left out and the support drops below the bar", () => {
+    const two = groupByCast([...following("one", { x: 1, y: 1 }, 4), ...following("two", { x: 1, y: 3 }, 4)]);
+    expect(promotePatterns(two).map((p) => p.name)).not.toContain("perimeterWalk(cw)");
+  });
+
+  it("honours an explicit threshold", () => {
+    expect(promotePatterns(three, 1000)).toEqual([]);
+    expect(promotePatterns(three, 1).length).toBeGreaterThan(0);
   });
 });

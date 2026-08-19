@@ -15,6 +15,7 @@ import { groupByCast, type TransitionRecord } from "../../src/sim/fishing/transi
 import {
   buildStepClassTable,
   classifyStep,
+  estimateSwitchProbability,
   intersectWithRing,
   lastStepClass,
   stickyStepDistribution,
@@ -22,6 +23,7 @@ import {
   ringCells,
   ringDistribution,
   ringDistributionUnknownClass,
+  SWITCH_PROBABILITY_FLOOR,
   type Distribution,
 } from "../../src/strategy/fishing/stepClass.js";
 
@@ -296,5 +298,81 @@ describe("stickyStepDistribution", () => {
     const prior = ringDistributionUnknownClass({ x: 2, y: 2 }, null, table, GRID);
     const sticky = stickyStepDistribution({ x: 2, y: 2 }, null, null, table, GRID);
     for (const [k, v] of prior) expect(sticky.get(k)!.p).toBeCloseTo(v.p, 12);
+  });
+});
+
+describe("[session 50, open question 4] estimateSwitchProbability", () => {
+  const GRID_S = 4;
+
+  function castOf(castId: string, cells: readonly [number, number][]) {
+    const byTurn = new Map<number, { x: number; y: number }>();
+    for (let i = 1; i < cells.length; i++) byTurn.set(i - 1, { x: cells[i]![0], y: cells[i]![1] });
+    return {
+      castId,
+      gridSize: GRID_S,
+      start: { x: cells[0]![0], y: cells[0]![1] },
+      byTurn,
+      maxTurn: cells.length - 2,
+      duplicateTurns: [] as number[],
+      hasGaps: false,
+    };
+  }
+
+  it("counts a switch per consecutive hop PAIR, not per cast", () => {
+    // 1,1,1: two pairs, no switch.
+    const constant = castOf("c", [
+      [1, 1],
+      [1, 2],
+      [1, 3],
+      [1, 4],
+    ]);
+    const e = estimateSwitchProbability([constant], 0);
+    expect(e.n).toBe(2);
+    expect(e.switches).toBe(0);
+    expect(e.raw).toBe(0);
+  });
+
+  it("sees an alternating cast as a switch on every pair", () => {
+    // steps 1,2,1: two pairs, both switches.
+    const alternating = castOf("a", [
+      [1, 1],
+      [1, 2],
+      [1, 4],
+      [2, 4],
+    ]);
+    const e = estimateSwitchProbability([alternating], 0);
+    expect(e.n).toBe(2);
+    expect(e.switches).toBe(2);
+    expect(e.raw).toBe(1);
+  });
+
+  it("applies the floor, and says so, when the corpus has seen no switch", () => {
+    const constant = castOf("c", [
+      [1, 1],
+      [1, 2],
+      [1, 3],
+    ]);
+    const e = estimateSwitchProbability([constant]);
+    expect(e.raw).toBe(0);
+    expect(e.s).toBe(SWITCH_PROBABILITY_FLOOR);
+    expect(e.floored).toBe(true);
+  });
+
+  it("does not floor an estimate that already exceeds it", () => {
+    const alternating = castOf("a", [
+      [1, 1],
+      [1, 2],
+      [1, 4],
+      [2, 4],
+    ]);
+    const e = estimateSwitchProbability([alternating]);
+    expect(e.s).toBe(1);
+    expect(e.floored).toBe(false);
+  });
+
+  it("is empty-corpus safe — the floor, not a NaN", () => {
+    const e = estimateSwitchProbability([]);
+    expect(e.n).toBe(0);
+    expect(e.s).toBe(SWITCH_PROBABILITY_FLOOR);
   });
 });

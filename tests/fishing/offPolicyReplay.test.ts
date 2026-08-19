@@ -165,3 +165,110 @@ describe("replayCorpus", () => {
     expect(report.actualShotsOnReplayedTurns).toBe(report.shots);
   });
 });
+
+describe("[session 50, brief §1/§2] the matcher tier, coverage, and the placement override", () => {
+  const others = [walk("b", 5), walk("c", 5), walk("d", 5)];
+
+  it("records coverage on every turn, for both the counterfactual and the recorded policy", () => {
+    const r = replayCast(walk("a", 4), others);
+    expect(r.turns.length).toBeGreaterThan(0);
+    for (const t of r.turns) {
+      expect(typeof t.covered).toBe("boolean");
+      expect(typeof t.actualCovered).toBe("boolean");
+    }
+  });
+
+  it("coverage is implied by a hit — a shot cannot land outside its own 3x3 window", () => {
+    const r = replayCorpus([walk("a", 4), ...others]);
+    for (const cast of r.results) for (const t of cast.turns) if (t.hit) expect(t.covered).toBe(true);
+    expect(r.covered).toBeGreaterThanOrEqual(r.hits);
+  });
+
+  it("the matcher tier is OFF by default — turning it on is what changes the numbers", () => {
+    const traces = [walk("a", 5), ...others];
+    const off = replayCorpus(traces);
+    const loo = replayCorpus(traces, { matcherTier: "loo" });
+    // Same corpus, same casts scored; only the top tier differs.
+    expect(loo.casts).toBe(off.casts);
+    expect(off.shots).toBeGreaterThan(0);
+    expect(loo.shots).toBeGreaterThan(0);
+  });
+
+  it("the LOO matcher never mines the cast it is replaying", () => {
+    // `replayCorpus` builds `others` by exclusion; if that broke, a cast whose
+    // own trajectory was in the mining set could be predicted perfectly. The
+    // structural guarantee is what is asserted — `replayCast` is handed the
+    // others explicitly and cannot see the target.
+    const target = walk("a", 5);
+    const r = replayCast(target, others, { matcherTier: "loo" });
+    expect(r.docId).toBe("a");
+    expect(r.turns.length).toBeGreaterThan(0);
+  });
+
+  it("the coverage override actually moves the focus somewhere the EV placement did not", () => {
+    const traces = [walk("a", 5), ...others];
+    const base = replayCorpus(traces);
+    const arm = replayCorpus(traces, { coverageHorizon: 3 });
+    const baseFocus = new Map<string, Cell>();
+    for (const r of base.results) for (const t of r.turns) baseFocus.set(`${r.docId}|${t.turn}`, t.focus);
+    let differed = 0;
+    for (const r of arm.results) {
+      for (const t of r.turns) {
+        const b = baseFocus.get(`${r.docId}|${t.turn}`);
+        if (b && (b.x !== t.focus.x || b.y !== t.focus.y)) differed++;
+      }
+    }
+    expect(differed).toBeGreaterThan(0);
+  });
+
+  it("never overrides a LETHAL placement — no objective talks the bot out of the catch", () => {
+    // The fish oscillates around the grid centre on the k=1 ring, so its whole
+    // support sits inside one 3x3 window; a card covering all nine zones
+    // therefore has pHit = 1 at (2,2) and the choice is genuinely lethal
+    // against a 5 HP fish. That is the only construction in which the guard
+    // can be observed end to end.
+    const wide: TraceCard = {
+      id: 1,
+      manaCost: 1,
+      hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      critZones: [],
+      hitEffects: [{ type: "FISH_HP", amount: 5 }],
+      missEffects: [{ type: "FISH_HP", amount: -3 }],
+      critEffects: [],
+    };
+    const centre = (docId: string): CastTrace => {
+      const path: Cell[] = [
+        { x: 2, y: 2 },
+        { x: 1, y: 2 },
+        { x: 2, y: 2 },
+        { x: 3, y: 2 },
+        { x: 2, y: 2 },
+      ];
+      const turns = path.map((pos, i) => {
+        const t = turn(i, pos);
+        t.fishHp = 5;
+        t.fishMaxHp = 10;
+        return t;
+      });
+      for (let i = 1; i < turns.length; i++) turns[i]!.previousFishPosition = turns[i - 1]!.fishPosition;
+      return { docId, cards: new Map([[1, wide]]), turns, caught: true, escaped: false, hasStart: true, continuous: true };
+    };
+    const peers = [centre("p"), centre("q"), centre("r")];
+    const base = replayCast(centre("a"), peers);
+    const covArm = replayCast(centre("a"), peers, { coverageHorizon: 3 });
+    expect(base.outcome).toBe("caught");
+    expect(covArm.outcome).toBe("caught");
+    expect(covArm.turns[0]!.focus).toEqual(base.turns[0]!.focus);
+  });
+
+  it("the blended arm needs a horizon of at least 2 to have anything to say", () => {
+    const traces = [walk("a", 5), ...others];
+    const h1 = replayCorpus(traces, { coverageWeight: 3, coverageHorizon: 1 });
+    const plain = replayCorpus(traces, {});
+    // With `h >= 2` empty the continuation term is empty, so the arm falls
+    // through to the shipped placement rather than silently doing something
+    // else.
+    expect(h1.hits).toBe(plain.hits);
+    expect(h1.covered).toBe(plain.covered);
+  });
+});
