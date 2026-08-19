@@ -23,6 +23,7 @@
 import { loadCastTraces, isCleanTrace } from "../src/sim/fishing/castTrace.js";
 import { replayCorpus, type ReplayReport } from "../src/sim/fishing/offPolicyReplay.js";
 import { manhattan } from "../src/sim/fishing/geometry.js";
+import { loadRingPredictions, zoneMapVersionOf } from "./liveFishing.js";
 import { describePolicy, type FocusBudgetPolicy } from "../src/strategy/fishing/focusBudget.js";
 
 function pairedCasts(arm: ReplayReport, base: ReplayReport): { gained: number; lost: number } {
@@ -138,7 +139,15 @@ function main() {
   // landed mid-corpus, and the five session-48 casts are the only ones played
   // under the corrected map. Pooling them with the 68 that aimed with the
   // transpose produces a profile that describes neither policy.
-  const CORRECTED_MAP_CASTS = new Set(["12988700", "12988705", "12988708", "12988710", "12988717"]);
+  // Derived from `data/ringPrediction.jsonl`'s own `zoneMapVersion`, not
+  // hard-coded: that field IS the authoritative record of which map a cast was
+  // aimed with (session 48), and a hard-coded list silently goes stale the
+  // next time a batch runs — which it did, once, within this same session.
+  const CORRECTED_MAP_CASTS = new Set(
+    loadRingPredictions()
+      .filter((r) => zoneMapVersionOf(r) === "corrected")
+      .map((r) => r.castId),
+  );
   const eraProfile = (ids: (id: string) => boolean) => {
     const sp: number[] = [];
     const ct: number[] = [];

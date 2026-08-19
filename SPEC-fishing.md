@@ -1242,34 +1242,65 @@ policies target, and it does not:
 | … CORRECTED-map era, 5 casts | | | **1.00** |
 | today's policy in the replay | 22/73 = 30.1% | 52/233 = 22.3% | **0.62** |
 
-**§5c's 1.62 describes the pre-session-47 policy, not the current one.**
-`lossDecomposition.ts` measures the RECORDED corpus — correctly, for its own
-question ("why did those casts fail") — and 68 of those 73 casts were aimed
-with the transposed `ZONE_OFFSET`. Reading it as a statement about what the
-bot does *now* is the error, and it is the error the whole of the session-49
-brief's §3 is built on. Session 47's zone fix appears to have already cut the
-opening overspend substantially as a side effect (1.66 → 1.00 at n=5), which
-nobody measured because the two questions were never separated.
+#### The batch settled it, and it goes AGAINST the replay
 
-That is why `costCap(2)` and `threshold(≤1)` are byte-for-byte inert: today's
-policy essentially never wants a cost-3 move, and never moves for an EV gain
-under 1. And `costCap(1)`/`costCap(0)` are net-NEGATIVE, which says that if
-anything the current policy spends too LITTLE, not too much.
+`RingPredictionRecord` gained `focusMoveCost`/`focusRemainingBefore` for
+exactly this, and session 49's own five-cast batch measured it directly:
 
-**What is not settled:** the replay runs with the matcher tier OFF, and the
-matcher produces the sharpest distributions the live stack has, so it is the
-tier most likely to pull the focus a long way. 1.66 (transposed, matcher on)
-→ 1.00 (corrected, matcher on, n=5) → 0.62 (corrected, matcher off) is
-monotone and consistent with the matcher accounting for the remainder, but
-n=5 cannot establish it. `RingPredictionRecord` therefore gains
-`focusMoveCost` and `focusRemainingBefore` so the next batch settles it by
-measurement rather than inference.
+```
+12991310  moveCost [3, 0]              meterBefore [3, 0]
+12991312  moveCost [2, 1]              meterBefore [3, 1]        <- CAUGHT
+12991317  moveCost [2, 1, 0]           meterBefore [3, 1, 0]
+12991320  moveCost [1, 1, 1, 0, 0]     meterBefore [3, 2, 1, 0, 0]  <- CAUGHT
+12991326  moveCost [1, 0, 1, 0, 1]     meterBefore [3, 2, 2, 1, 1]
+```
+
+**Live opening spend: 1.80 of 3.** Not 0.62. The full picture:
+
+| measured on | opening-move spend |
+|---|---|
+| recorded, transposed-map era (68 casts) | 1.66 |
+| recorded, CORRECTED-map era (10 casts) | **1.40** |
+| … the newest 5 casts alone | **1.80** |
+| today's policy in the REPLAY | **0.64** |
+
+**So the focus overspend is real, current, and undiminished — and the replay
+understates it by roughly 3x.** The cause is named in the replay's own header
+conservatism #3: the matcher tier is disabled there, and the matcher produces
+the sharpest distributions the live stack has, so it is precisely the tier that
+pulls the focus a long way. The replay is blind to the phenomenon these
+policies exist to fix.
+
+**Therefore the three-policy null result above is UNINFORMATIVE about the
+policies.** It measures a harness in which `costCap(2)` and `threshold(≤1)`
+can never fire, because the arm being constrained does not spend. The result
+that stands is the *precondition failure*, not the A/B.
+
+Two things this does correct in the brief, both real:
+
+- **§5c's pooled 1.62 is a transposed-era figure** (68 of 73 casts).
+  `lossDecomposition.ts` measures the RECORDED corpus, correctly for its own
+  question ("why did those casts fail"). Reading such a number as a statement
+  about what the bot does *now* needs the era split first.
+- **The zone fix did NOT fix the overspend.** 1.66 → 1.40 is a modest move,
+  and the n=5 reading of 1.00 that suggested otherwise mid-session was noise —
+  the next 5 casts came in at 1.80.
+
+Exhaustion IS milder than the recorded corpus, though: **4 of 17 live turns
+(23.5%) were entered with an empty meter, against 61.8% recorded.** Casts are
+ending sooner (2 catches in 5) rather than grinding to meter-out.
+
+**What session 50 needs before re-testing any spend policy:** an evaluation
+harness that includes the matcher tier without leaking. Until then a replay
+A/B of a focus policy is measuring the wrong system, and that — not the null
+result — is the finding.
 
 **Standing correction, generalised:** a decomposition measured on the recorded
-corpus describes the policy that RECORDED it. Before treating any such figure
-as a target, check which era of the code produced the rows — the same
-discipline as `zoneMapVersion` on the prediction log, applied to the loss
-decomposition.
+corpus describes the policy that RECORDED it, and an A/B run on the replay
+describes the replay's policy, which is not the live one. Before treating
+either figure as a target, check that the harness reproduces the phenomenon —
+the same discipline as `zoneMapVersion` on the prediction log, applied to the
+evaluation harness itself.
 
 ### The two tunable knobs are INERT **[session 48, brief §5b — null results, no defaults changed]**
 
