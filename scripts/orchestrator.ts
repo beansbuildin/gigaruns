@@ -57,6 +57,7 @@ import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/gu
 import { acquireGuardLock, loadGuardBudget, DEFAULT_GUARD_STATE_PATH } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { nextAction, type EnergyState, type ModeBudget } from "../src/orchestrator/scheduler.js";
+import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
 import { runWithGuaranteedAccounting } from "../src/orchestrator/runWithAccounting.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
 import {
@@ -80,7 +81,10 @@ function parseArgs(argv: string[]) {
   const dryRun = argv.includes("--dry-run");
   const hoursArg = argv.find((a) => a.startsWith("--hours="));
   const hours = hoursArg ? Number(hoursArg.split("=")[1]) : 8;
-  return { dryRun, hours };
+  // [session 47, brief §1a/§1f] Opt OUT of ROM claiming — same flag name and
+  // meaning as scripts/liveFishing.ts's and scripts/liveRun.ts's.
+  const noRomClaim = argv.includes("--no-rom-claim");
+  return { dryRun, hours, noRomClaim };
 }
 
 async function currentEnergyFull(client: GigaverseClient, address: string): Promise<EnergyState> {
@@ -237,6 +241,34 @@ async function main() {
     }
 
     if (decision.kind === "sleep") {
+      // [session 47, brief §1f] Claim before you wait.
+      //
+      // Every scheduler `sleep` is an energy shortfall, and since session 22
+      // an energy shortfall has been a CLAIM, not a wait — the ROM bank
+      // routinely holds thousands (2,603 measured in session 46). Session 25
+      // hit the old behaviour live: the loop computed a ~1600s sleep at 4/420,
+      // the user topped up from ROMs out-of-band, and the sleeping process had
+      // no way to notice. This closes the standing scheduler energy-tracking
+      // gap carried from sessions 25 and 40-42.
+      //
+      // Fail-soft, unlike the pre-batch preflight: if the bank cannot cover
+      // the shortfall, sleeping is still the correct action, so the error is
+      // reported and the original sleep is honoured rather than ending the
+      // session.
+      let toppedUp = false;
+      if (!args.noRomClaim) {
+        try {
+          const preflight = await ensureEnergyFor(decision.targetEnergy, clientEnergyPreflightDeps(client, me.address, (l) => console.log(l)));
+          toppedUp = !preflight.alreadySufficient;
+        } catch (e) {
+          if (!(e instanceof EnergyPreflightError)) throw e;
+          console.log(`  · ROM bank can't cover the shortfall (${e.message}) — sleeping as planned.`);
+        }
+      }
+      if (toppedUp) {
+        console.log(`  ▸ topped up from the ROM bank instead of sleeping — re-deciding.`);
+        continue;
+      }
       console.log(`  ▸ sleeping ~${decision.seconds}s — ${decision.reason}`);
       await sleepUntil(decision.seconds, deadlineMs, shutdownSignal);
       continue;

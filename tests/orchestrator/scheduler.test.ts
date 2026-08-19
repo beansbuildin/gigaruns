@@ -54,6 +54,10 @@ describe("nextAction — real energy too low right now", () => {
     if (d.kind === "sleep") {
       // needs 7 more energy at 18/hr (0.005/s) -> 1400s
       expect(d.seconds).toBe(1400);
+      // [session 47, brief §1f] The target the orchestrator tries to claim to
+      // before honouring the sleep — the CHEAPER eligible mode's cost, same
+      // number the sleep is sized off.
+      expect(d.targetEnergy).toBe(12);
     }
   });
 
@@ -66,6 +70,9 @@ describe("nextAction — real energy too low right now", () => {
     if (d.kind === "sleep") {
       // needs 20 more energy at 36/hr (0.01/s) -> 2000s, NOT sized off dungeon's cheaper (already-exhausted) cost
       expect(d.seconds).toBe(2000);
+      // Likewise the claim target must ignore the exhausted mode — claiming to
+      // 5 would top up to a level that still can't start anything.
+      expect(d.targetEnergy).toBe(30);
     }
   });
 

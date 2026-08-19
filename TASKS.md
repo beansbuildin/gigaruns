@@ -990,6 +990,48 @@ consequence of the fishing model being where the open questions are, not an
 oversight. The scheduler energy-tracking gap and the charge-reserve plateau
 (sessions 40-42) remain untouched and unblocked.
 
+**[session 47, brief §1f] Both carried items are now RESOLVED — one closed,
+one formally parked.** CLAUDE.md §6's discipline applied to the backlog: an
+item that has drifted five sessions is either work or it is parked with a
+stated unpark condition, and "carried forward" is neither.
+
+**CLOSED — the scheduler energy-tracking gap.** Every `sleep` the scheduler
+returns is an energy shortfall, and since session 22 an energy shortfall has
+been a *claim*, not a wait — the ROM bank routinely holds thousands (2,603
+measured in session 46). Session 25 hit the old behaviour live: the loop
+computed a ~1600s sleep at 4/420 energy, the user topped up from ROMs
+out-of-band, and the sleeping process had no way to notice. `nextAction` now
+reports `targetEnergy` on its sleep decision (staying pure — it reports the
+number, it claims nothing), and `scripts/orchestrator.ts` runs
+`ensureEnergyFor` against that target before honouring the sleep, re-deciding
+if the bank covers it. Fail-SOFT, unlike the pre-batch preflight: if the bank
+cannot cover the shortfall then sleeping really is the right action, so the
+error is reported and the original sleep is honoured. `--no-rom-claim` opts
+out, same flag as the two live scripts.
+
+The other half of session 25's finding — that a *sleeping* process still
+cannot be told about an out-of-band top-up — is untouched and now much less
+likely to matter, since the loop no longer starts a long sleep it could have
+claimed its way out of. Not worth a live channel for that residue.
+
+**PARKED — the charge-reserve plateau.** `chargeReserveWeight` ships at 0.4.
+Session 34 established the shape thoroughly: an inverted-U with 0.4/0.5/0.6 a
+statistically indistinguishable plateau, each separated above 0.2, 0.3 and
+0.8, at N=60000/weight over two seeds. 0.4 is the plateau's low-risk edge.
+
+*What would unpark it, stated so the next reader can tell a hard task from a
+finished one:* nothing about the plateau itself — re-sweeping it at higher N
+buys a tighter interval around a difference already measured as absent, which
+is the definition of work that cannot pay. It unparks only if the utility
+function it sits inside CHANGES (a new term added beside it, or the HP/armor
+weights re-tuned), because the plateau is a property of the whole utility, not
+of this weight alone. Absent that, 0.4 stands and no further sweep is owed.
+
+This differs from the fishing-side focus-reserve sweep re-run this same
+session, which was *not* a re-sweep for its own sake: the sim underneath it
+had genuinely moved twice (heuristic (d) retired, the zone template
+corrected), which is exactly the "utility changed" condition above.
+
 ### 12 — Potion timing ← restored 2026-08-15, session 12 (see Task 5's retracted extension)
 
 **Restores the standalone task session 10 §7 originally asked for, superseding

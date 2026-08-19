@@ -26,7 +26,27 @@ export interface ModeBudget {
 export type SchedulerDecision =
   | { kind: "dungeon" }
   | { kind: "fishing" }
-  | { kind: "sleep"; seconds: number; reason: string }
+  | {
+      kind: "sleep";
+      seconds: number;
+      reason: string;
+      /**
+       * [session 47, brief §1f] The energy level being waited for — the
+       * cheaper still-eligible mode's `costPerAction`.
+       *
+       * Every `sleep` this module returns is an energy shortfall, and since
+       * session 22 an energy shortfall has been a CLAIM, not a wait: the ROM
+       * bank routinely holds thousands. Session 25 hit this live — the loop
+       * computed a ~1600s sleep at 4/420 energy, the user topped up from ROMs
+       * out-of-band, and the running process had no way to notice. Exposing
+       * the target lets `scripts/orchestrator.ts` try `ensureEnergyFor` before
+       * honouring the sleep, without parsing it back out of `reason`.
+       *
+       * This module stays pure and network-free — it reports the number, it
+       * does not claim anything.
+       */
+      targetEnergy: number;
+    }
   | { kind: "done"; reason: string };
 
 /** Same two-check shape as `GuardState.assertCanStartRun` — a mode is policy-affordable only if BOTH the run/cast cap and the energy budget have room. */
@@ -84,5 +104,5 @@ export function nextAction(energy: EnergyState, dungeon: ModeBudget | null, fish
   }
   const regenPerSecond = energy.regenPerHour / 3600;
   const seconds = Math.ceil(needed / regenPerSecond);
-  return { kind: "sleep", seconds, reason: `waiting for real energy to reach ${targetCost} (currently ${energy.value})` };
+  return { kind: "sleep", seconds, targetEnergy: targetCost, reason: `waiting for real energy to reach ${targetCost} (currently ${energy.value})` };
 }
