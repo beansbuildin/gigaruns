@@ -633,6 +633,25 @@ unchanged at 3 — no new independent match this batch), plus two new
 support-1 near-misses (`bounce(2,0)`, `bounce(-2,0)`) from a single cast,
 not yet promotable. Honest null result on new promotions, not a miner bug.
 
+**[2026-08-18, session 44] Ground truth re-established before spending anything
+this session (brief §0) — this "still 1 primitive promoted" line above is
+now STALE, corrected here rather than silently.** Fresh `mineFishPatterns.ts`
+run against the full current corpus (169 transitions, 50 casts — matching
+QUESTIONS.md §14's resolved count) confirms **2 primitives promoted**:
+`perimeterWalk(cw)` (support=4) and `perimeterWalk(ccw)` (support=3, its 3rd
+confirming cast landed sometime around session 28 per DECISIONS.md
+2026-08-18 session 29's reference — never rolled up into this file's own
+narrative the way `perimeterWalk(cw)`'s session-18 promotion was at line
+609 above). `data/minedFishPatterns.json` on disk matched this exactly
+(`castCount: 50`), so it was current, not stale/local-only. Confirmed live
+that `scripts/liveFishing.ts`'s `runOneCast` actually reads this file
+(`loadMinedPatterns()`, default path) to seed the matcher — not a
+theoretical wiring. Fresh sim comparison at the SAME N the miner's own
+built-in report always uses (500): matcher BLIND 7.0% (35/500) vs. matcher
+WITH the current 2-pattern library 22.4% (112/500) — see SPEC.md §5 for
+the full writeup and `handoff/STATE.md` (session 44) for this session's
+live batch measured against this baseline.
+
 **Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
 superseding the item-per-energy form above for the dungeon side** — Task 5's
 gate served its purpose and is retired to reported-metrics (see Task 5). The

@@ -260,4 +260,14 @@ function main() {
   console.log();
 }
 
-main();
+// [session 44] Guarded behind isMain — every other script in this project
+// with an exported `loadRecords`/similar (deathRooms.ts, dungeonReport.ts,
+// fishingReport.ts, liveRun.ts, liveFishing.ts, orchestrator.ts) already
+// does this; this file was the one outlier, unconditionally calling
+// `main()` (a real write to `data/minedFishPatterns.json`, plus console
+// output) as a side effect of merely IMPORTING its exports. Found the hard
+// way: `scripts/auditPruneCounterexample.ts` originally imported
+// `loadRecords`/`groupByCast` from here and silently re-ran the whole
+// miner as a side effect.
+const isMain = process.argv[1] && process.argv[1].endsWith("mineFishPatterns.ts");
+if (isMain) main();

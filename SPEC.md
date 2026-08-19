@@ -1876,16 +1876,34 @@ full turn-by-turn trajectory against the existing synthetic primitive pool
 promotes a primitive only once ≥3 independent casts match it exactly (a
 smaller bar than the project's usual ~30-observation floor, deliberately —
 see the script's own comment for why an exact multi-turn trajectory match is
-a different, stronger kind of evidence than a noisy rate). **Result: 0
-primitives promoted, correctly** — not enough real casts yet — but one
+a different, stronger kind of evidence than a noisy rate). At the time:
+**0 primitives promoted, correctly** — not enough real casts yet — but one
 genuine near-miss worth flagging: `perimeterWalk(cw)` matches **2 of 9**
-real casts exactly, including this session's 5-turn catch cast
+real casts exactly, including that session's 5-turn catch cast
 (`12925773`: `[3,4]→[2,4]→[1,4]→[1,3]→[1,2]→[1,1]`, walking the bottom edge
 then turning up the left edge exactly where the ring turns — not a short,
-easily-coincidental match). One more independent confirming cast clears the
-promotion bar. With 0 promoted, `matcherPool` stays empty and the sim catch
-rate is unchanged from blind (6.6%, N=500) — reported, not asserted as a
-final answer; see the script's own output.
+easily-coincidental match).
+
+**[session 44] STALE — this is no longer the corpus state.** Re-ran
+`mineFishPatterns.ts` fresh against the full corpus (169 transitions, 50
+casts — matching QUESTIONS.md §14's resolved count) and confirmed **2
+primitives ARE now promoted**: `perimeterWalk(cw)` (support=4, casts
+`12923267,12925773,12942030,12945319`) and `perimeterWalk(ccw)` (support=3,
+casts `12945306,12956727,12957096`) — the same set already sitting on disk
+in `data/minedFishPatterns.json` (`castCount: 50`, so not stale/local-only
+either). This has been true since around session 18/28 per DECISIONS.md
+2026-08-18 (session 29)'s own reference to "session 28's promotions," but
+this section of SPEC.md was never updated to say so, leaving it reading
+as if the corpus were still library-blind. `scripts/liveFishing.ts`
+confirmed live (`runOneCast` → `loadMinedPatterns()`, default path
+`data/minedFishPatterns.json`) to actually seed the matcher from this set,
+not a stale in-memory default. Fresh sim re-check (N=500, this session):
+matcher BLIND 7.0% (35/500) vs. matcher WITH the 2-pattern mined library
+22.4% (112/500) — a real, non-trivial lift over blind, though the sim's
+own honesty caveat above (session 14's "sim authority is earned per
+domain") still applies: this number has not yet been checked against a
+live batch played under the same 2-pattern seeding — see
+`handoff/STATE.md` (session 44) for that live comparison.
 
 ### A standing rule: sim authority is earned per domain, never inherited
 

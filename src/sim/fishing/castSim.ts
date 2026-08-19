@@ -13,6 +13,7 @@
  */
 
 import { chooseCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../../strategy/fishing/cardChoice.js";
+import { pruneReturnToPrevious } from "../../strategy/fishing/heuristics.js";
 import {
   emptyFallback,
   initMatcher,
@@ -121,13 +122,18 @@ export const REDRAW_THRESHOLD = 0;
  * `scripts/redrawThresholdSweep.ts` can sweep the threshold against the sim
  * without duplicating `matcherFishPolicy`'s decision logic. `matcherFishPolicy`
  * below is just `makeMatcherFishPolicy(REDRAW_THRESHOLD)`, unchanged behavior.
+ *
+ * [session 44] `heuristicsEnabled` (default `true`, matching `chooseCard`'s
+ * own default) threads through to heuristics (a)/(f) inside `chooseCard`
+ * itself — see `scripts/fishingHeuristicAblation.ts`, which is the only
+ * caller that ever passes `false`.
  */
-export function makeMatcherFishPolicy(redrawThreshold: number): FishPolicy {
+export function makeMatcherFishPolicy(redrawThreshold: number, heuristicsEnabled: boolean = true): FishPolicy {
   return {
     name: `matcher-ev(redraw=${redrawThreshold})`,
     act(ctx) {
       const missPenaltyMultiplier = 1;
-      const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget);
+      const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget, heuristicsEnabled);
       if (!best) {
         if (ctx.mana >= ctx.hand.length && ctx.hand.length > 0) return { type: "redraw" };
         return { type: "pass" };
@@ -204,6 +210,20 @@ export interface CastOptions {
     cellOnlyMap: ReadonlyMap<string, readonly Cell[]>;
     shrinkageK?: number;
   };
+  /**
+   * [session 44] Session-43 heuristic (d) — "a fish that just made a
+   * 1-cell move never returns to the cell it just came from." Opt-in,
+   * default `false`/omitted so every EXISTING sim caller stays byte-for-byte
+   * unchanged (this sim never applied this heuristic before this option was
+   * added — unlike `chooseCard`'s (a)/(f), which shipped live-default-on
+   * directly in `cardChoice.ts` session 43, (d) has only ever lived in
+   * `scripts/liveFishing.ts`'s own turn loop, never in this sim). Applied to
+   * `dist` the same way the live loop applies it — after prediction/
+   * fallback, before the policy sees it — so `scripts/
+   * fishingHeuristicAblation.ts` can measure it against the SAME
+   * matcher/matcherPool as heuristics (a)/(f) with one combined flag.
+   */
+  pruneReturnToPrevious?: boolean;
 }
 
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
@@ -257,7 +277,7 @@ export function simulateCast(opts: CastOptions): CastResult {
     if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp };
     if (hand.length === 0) ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
 
-    const dist =
+    const rawDist =
       matcher.candidates.length > 0
         ? predictDistribution(matcher)
         : opts.blindFallback
@@ -270,6 +290,9 @@ export function simulateCast(opts: CastOptions): CastResult {
               { shrinkageK: opts.blindFallback.shrinkageK ?? DEFAULT_SHRINKAGE_K },
             )
           : emptyFallback(matcher.history[matcher.history.length - 1]!, new Map(), gridSize);
+    const dist = opts.pruneReturnToPrevious
+      ? pruneReturnToPrevious(rawDist, matcher.history[matcher.history.length - 1]!, previousDisplacement(matcher.history))
+      : rawDist;
 
     const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp, focusBudget: focus }, rng);
 

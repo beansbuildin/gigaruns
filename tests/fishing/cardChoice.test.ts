@@ -334,6 +334,65 @@ describe("coverage and centering tie-breaks — session 43, heuristics (a)/(f)",
     expect(best.ev).toBeCloseTo(3);
     expect(best.focus).toEqual({ x: 2, y: 2 });
   });
+
+  it("heuristicsEnabled: false disables the coverage tie-break — session 44, for scripts/fishingHeuristicAblation.ts", () => {
+    const narrow: FishingCardLike = {
+      id: 1,
+      manaCost: 1,
+      hitZones: [5],
+      critZones: [],
+      hitEffects: [{ amount: 5 }],
+      missEffects: [{ amount: -4 }],
+      critEffects: [],
+    };
+    const spread: FishingCardLike = {
+      id: 2,
+      manaCost: 1,
+      hitZones: [1, 9],
+      critZones: [],
+      hitEffects: [{ amount: 5 }],
+      missEffects: [{ amount: -4 }],
+      critEffects: [],
+    };
+    const d = dist([
+      [{ x: 2, y: 2 }, 0.4],
+      [{ x: 1, y: 1 }, 0.2],
+      [{ x: 3, y: 3 }, 0.2],
+      [{ x: 4, y: 4 }, 0.4],
+    ]);
+    // Pinned to a single focus (remaining: 0) — unlike the test above, this
+    // stops `bestFocusForCard`'s own free search from finding spread a
+    // STRICTLY better focus elsewhere (it can: at focus (3,3), spread's
+    // zones would hit (2,2)+(4,4), both p=0.4, a real 0.8 combined hit
+    // chance beating either card's best at a fixed (2,2) — that's a real EV
+    // win, not a coverage tie, so it must be pinned out to isolate the
+    // tie-break this test actually targets).
+    const focusBudget = { current: { x: 2, y: 2 }, remaining: 0 };
+    const choice = chooseCard([narrow, spread], 10, d, 4, 1, 100, focusBudget, false);
+    expect(choice?.card.id).toBe(1);
+  });
+
+  it("heuristicsEnabled: false disables the centering tie-break — session 44", () => {
+    const centerOnlyCard: FishingCardLike = {
+      id: 1,
+      manaCost: 1,
+      hitZones: [5],
+      critZones: [],
+      hitEffects: [{ amount: 10 }],
+      missEffects: [{ amount: -4 }],
+      critEffects: [],
+    };
+    const d = dist([
+      [{ x: 2, y: 2 }, 0.5],
+      [{ x: 1, y: 1 }, 0.5],
+    ]);
+    const best = bestFocusForCard(centerOnlyCard, 0, d, 4, 1, 100, undefined, false);
+    expect(best.ev).toBeCloseTo(3);
+    // No centering preference and no focusBudget movement-cost tie-break
+    // either — falls through to grid enumeration order (allCells' x-major,
+    // y-minor raster: (1,1) is hit before (2,2)).
+    expect(best.focus).toEqual({ x: 1, y: 1 });
+  });
 });
 
 describe("shouldRedraw", () => {

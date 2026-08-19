@@ -544,6 +544,39 @@ concrete and cheap to apply, not because it has been checked. A future
 audit that finds a counterexample should remove the call, not explain it
 away.
 
+**[session 44] Two new, independent checks — neither found a live counterexample, but one found a real sim-domain regression worth flagging honestly.**
+`scripts/auditPruneCounterexample.ts` (new) walks every clean cast in the
+real corpus (169 transitions, 50 casts) for a literal instance of this
+heuristic's exact failure case: **0 counterexamples found**. Not proof the
+heuristic is right — merely that it hasn't been caught wrong yet, same
+epistemic status the rest of this section already states.
+
+Separately, `scripts/fishingHeuristicAblation.ts` (new) found this
+heuristic causes a REAL, reproducible ~2 percentage point catch-rate
+REGRESSION in the sim's own synthetic domain (N=20000, two independent
+seeds, matcherPool seeded from the real 2-pattern mined library):
+21.9%/22.1% (heuristic on) vs. 23.8%/24.2% (off) — non-overlapping 95%
+CIs (±~0.6pp each), and isolating (d) from heuristics (a)/(f) (which
+showed no measurable effect either way, exactly as their "provably
+EV-neutral" tie-break design predicts) confirms (d) alone accounts for the
+entire gap. The mechanism is identifiable and sim-specific: `patterns.ts`'s
+`bounceDelta` (a billiard-style wall reflection, part of the 23-primitive
+synthetic pool this sim's true patterns are drawn from) literally DOES
+return to its predecessor cell on the exact turn it bounces off a wall —
+that is the correct move for that pattern, and this heuristic actively
+zeroes it out. Per the standing "sim authority is earned per domain" rule
+(DECISIONS.md 2026-08-15, session 14), this is evidence about the SIM's
+own synthetic domain (specifically, that domain's literal billiard-bounce
+mechanic), not live evidence about real Dendren — the real-corpus audit
+above found no matching failure, and whether real Dendren has a genuine
+"bounce" mechanic at all is unconfirmed (the real corpus's own `bounce(...)`
+near-misses, §0 above, are partial trajectory matches, not exact ones).
+Not acted on this session (no removal, no gating) — flagged here per this
+heuristic's own "don't explain it away" instruction, as a real, monitored
+finding rather than a null result, and specifically as the mechanism a
+future audit should watch for if real Dendren ever turns out to have a
+reflection-style movement pattern.
+
 **(e) Edge positions are more predictable after a 2-cell move.** A fish
 that just made a 2-cell move is easier to predict when she's on the edge
 of the field and the player is centered in the middle 2×2. **Implemented

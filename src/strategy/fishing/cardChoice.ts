@@ -141,6 +141,14 @@ export function bestFocusForCard(
   missPenaltyMultiplier: number,
   fishHp: number,
   focusBudget?: FocusBudget,
+  /**
+   * [session 44] Gates heuristics (a)/(f) below, default `true` to preserve
+   * this project's already-shipped live behavior byte-for-byte for every
+   * existing caller. Added so `scripts/fishingHeuristicAblation.ts` can
+   * measure their sim effect against the SAME matcher/matcherPool with one
+   * flag, instead of duplicating this function's tie-break logic.
+   */
+  heuristicsEnabled: boolean = true,
 ): CardFocusChoice {
   const searchSpace = focusBudget ? reachableCells(gridSize, focusBudget.current, focusBudget.remaining) : allCells(gridSize);
   let best: CardFocusChoice | null = null;
@@ -183,17 +191,19 @@ export function bestFocusForCard(
     // heuristic (a) (the central 2×2, so the next Focus move has more of
     // the board within its 3-point reach). See `heuristics.ts`.
     if (Math.abs(candidate.ev - best.ev) <= EV_TIE_EPSILON) {
-      const candidateCoverage = coverageCount(candidate.card, candidate.focus, dist, gridSize);
-      const bestCoverage = coverageCount(best.card, best.focus, dist, gridSize);
-      if (candidateCoverage !== bestCoverage) {
-        if (candidateCoverage > bestCoverage) best = candidate;
-        continue;
-      }
-      const candidateCentral = isCentralSquare(candidate.focus, gridSize);
-      const bestCentral = isCentralSquare(best.focus, gridSize);
-      if (candidateCentral !== bestCentral) {
-        if (candidateCentral) best = candidate;
-        continue;
+      if (heuristicsEnabled) {
+        const candidateCoverage = coverageCount(candidate.card, candidate.focus, dist, gridSize);
+        const bestCoverage = coverageCount(best.card, best.focus, dist, gridSize);
+        if (candidateCoverage !== bestCoverage) {
+          if (candidateCoverage > bestCoverage) best = candidate;
+          continue;
+        }
+        const candidateCentral = isCentralSquare(candidate.focus, gridSize);
+        const bestCentral = isCentralSquare(best.focus, gridSize);
+        if (candidateCentral !== bestCentral) {
+          if (candidateCentral) best = candidate;
+          continue;
+        }
       }
       if (focusBudget) {
         const candidateCost = manhattan(focusBudget.current, candidate.focus);
@@ -268,12 +278,13 @@ function isPreferred(
   useEvPerMana: boolean,
   dist?: Distribution,
   gridSize?: number,
+  heuristicsEnabled: boolean = true,
 ): boolean {
   const evA = useEvPerMana ? a.evPerMana : a.ev;
   const evB = useEvPerMana ? b.evPerMana : b.ev;
   if (evA > evB + EV_TIE_EPSILON) return true;
   if (evB > evA + EV_TIE_EPSILON) return false;
-  if (dist && gridSize) {
+  if (heuristicsEnabled && dist && gridSize) {
     const coverageA = coverageCount(a.card, a.focus, dist, gridSize);
     const coverageB = coverageCount(b.card, b.focus, dist, gridSize);
     if (coverageA !== coverageB) return coverageA > coverageB;
@@ -298,15 +309,17 @@ export function chooseCard(
   missPenaltyMultiplier: number,
   fishHp: number,
   focusBudget?: FocusBudget,
+  /** [session 44] See `bestFocusForCard`'s doc comment — same flag, threaded through. */
+  heuristicsEnabled: boolean = true,
 ): CardFocusChoice | null {
   const options = hand
     .map((c, i) => [c, i] as const)
     .filter(([c]) => c.manaCost <= mana)
-    .map(([c, i]) => bestFocusForCard(c, i, dist, gridSize, missPenaltyMultiplier, fishHp, focusBudget));
+    .map(([c, i]) => bestFocusForCard(c, i, dist, gridSize, missPenaltyMultiplier, fishHp, focusBudget, heuristicsEnabled));
   if (options.length === 0) return null;
 
   const pickBest = (candidates: readonly CardFocusChoice[], useEvPerMana: boolean): CardFocusChoice =>
-    candidates.reduce((best, o) => (isPreferred(o, best, focusBudget, useEvPerMana, dist, gridSize) ? o : best));
+    candidates.reduce((best, o) => (isPreferred(o, best, focusBudget, useEvPerMana, dist, gridSize, heuristicsEnabled) ? o : best));
 
   const lethalOptions = options.filter((o) => o.lethal);
   if (lethalOptions.length > 0) return pickBest(lethalOptions, false);
