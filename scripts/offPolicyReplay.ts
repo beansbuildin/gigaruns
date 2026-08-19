@@ -8,7 +8,7 @@
  * Run `scripts/auditMovementIndependence.ts` FIRST — it is the precondition,
  * and this number means nothing if it fails.
  *
- * Usage: npx tsx scripts/offPolicyReplay.ts [--focus-reserve=N]
+ * Usage: npx tsx scripts/offPolicyReplay.ts [--focus-reserve=N] [--miss-penalty=N]
  */
 
 import { loadCastTraces, isCleanTrace } from "../src/sim/fishing/castTrace.js";
@@ -54,15 +54,20 @@ function mcnemar(report: ReplayReport): { b: number; c: number } {
 function main() {
   const w = process.argv.find((a) => a.startsWith("--focus-reserve="));
   const focusReserveWeight = w ? Number(w.split("=")[1]) : DEFAULT_FOCUS_RESERVE_WEIGHT;
+  // [session 48, brief §5b] SPEC.md §5 calls this "the ONE tunable knob" and
+  // it has sat at 1 since it was written. `ReplayOptions` already carried it;
+  // nothing on the CLI could reach it.
+  const m = process.argv.find((a) => a.startsWith("--miss-penalty="));
+  const missPenaltyMultiplier = m ? Number(m.split("=")[1]) : 1;
 
   const traces = loadCastTraces().filter(isCleanTrace);
-  const report = replayCorpus(traces, { focusReserveWeight });
+  const report = replayCorpus(traces, { focusReserveWeight, missPenaltyMultiplier });
   // The decomposition: same policy, same predictor, same trajectories, but
   // shots resolved under the transposed zone template every recorded cast was
   // actually played in. The gap between this and the main arm is the zone fix;
   // the gap between this and what was actually played is the predictor and
   // the focus-reserve policy.
-  const legacy = replayCorpus(traces, { focusReserveWeight, mismatchedZones: true });
+  const legacy = replayCorpus(traces, { focusReserveWeight, missPenaltyMultiplier, mismatchedZones: true });
 
   console.log(`\n▸ off-policy replay — today's stack against ${report.casts} real recorded casts\n`);
   console.log(`  focus-reserve weight ${focusReserveWeight}; ring model + contextual fallback, matcher tier OFF (it would leak);`);

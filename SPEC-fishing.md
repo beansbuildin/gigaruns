@@ -1105,6 +1105,116 @@ So: any brief or recap quoting an in-sample catch rate should carry this
 discount explicitly rather than rediscovering it a third time. An in-sample
 number is evidence about ordering and shape, not about the level.
 
+### Where the loss actually sits **[session 48, brief §5c — measured, not fixed]**
+
+The replay puts per-turn hit at 50.9% and catch at 27.9%; live batch 1 put
+per-turn hit at 27.6% with 1 catch in 5. Either way there is a gap between
+"shots land" and "fish caught". `scripts/lossDecomposition.ts` measures which
+constraint it sits behind, on the real corpus rather than the replay —
+terminal reasons and focus profiles are observations, not model output.
+
+**73 clean casts, terminal reason:**
+
+| reason | n | mean final focusMeter | mean final mana | mean turns |
+|---|---|---|---|---|
+| **escaped (meter out)** | **59 (80.8%)** | **0.25** | 6.08 | 3.9 |
+| caught | 8 (11.0%) | 1.13 | 7.00 | 3.0 |
+| mana out | 5 (6.8%) | 0.00 | 0.00 | 10.0 |
+| truncated / unresolved | 1 (1.4%) | 0.00 | 7.00 | 3.0 |
+
+**Focus-meter profile, mean over casts still alive at that turn:**
+
+| turn | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| focus | 3.00 | 1.38 | 0.72 | 0.36 | 0.14 | 0.04 | 0.00 | 0.00 | 0.00 |
+| mana | 10.0 | 9.0 | 8.0 | 7.0 | 6.0 | 5.0 | 4.0 | 3.0 | 2.0 |
+| n alive | 73 | 73 | 71 | 45 | 37 | 28 | 16 | 15 | 11 |
+
+**The verdict, against the brief's own decision table: meter-outs dominate AND
+focus hits 0 early, so the binding constraint is the FOCUS BUDGET, still.**
+Not the damage economy, not cast length. **50.4% of all turns (192/381) are
+played at `focusMeter` 0** — the bobber cannot move at all — and **56 of 73
+casts reach 0**. Mana-outs are 6.8% and are the *long* casts, not the failing
+ones.
+
+This holds under `focusReserveWeight: 3`, which is the current default and was
+supposed to address exactly this. Session 48's five live casts, focus meter by
+turn:
+
+```
+12988700  3 3 3 1 0 0 0
+12988705  3 1 1 1 1 1        <- the one CATCH
+12988708  3 2 1 1 0 0 0 0 0
+12988710  3 2 1 0 0 0 0 0 0 0
+12988717  3 2 1
+```
+
+The reserve weight is not preventing exhaustion; it is at most delaying it by
+a turn. Suggestive but n=1: the only cast that caught anything is the only one
+that stopped spending and held a point in reserve for the whole cast.
+
+SPEC-fishing.md §4c has flagged "chronically overspend the focus" since
+session 45. This quantifies it and confirms it survived the fix aimed at it.
+**This is session 49's §1.** Not fixed here — the brief asked for the
+measurement, and changing the utility on the strength of one batch is exactly
+the move this project keeps having to undo.
+
+### The two tunable knobs are INERT **[session 48, brief §5b — null results, no defaults changed]**
+
+Both were previously evidenced only by the in-sample sim that needs a 2.5-3×
+discount. Swept on the replay instead — 73 real trajectories, leave-one-cast-
+out. **Neither shows a detectable effect over its plausible range, and neither
+default changes.**
+
+`focusReserveWeight` (ships at 3):
+
+| w | catch | per-turn hit |
+|---|---|---|
+| 0 | 30.1% [20.8, 41.4] | 50.8% [44.5, 57.1] |
+| 1 | 28.8% | 51.4% |
+| 2 | 30.1% | 51.7% |
+| **3 (shipped)** | **30.1%** | **51.1%** |
+| 4 | 27.4% | 49.4% |
+| 6 | 26.0% | 47.3% |
+| 8 | 26.0% | 44.0% [37.9, 50.3] |
+| 12 | 26.0% | 41.8% [35.8, 48.2] |
+
+**w = 0 through 3 are indistinguishable; above 3 it monotonically HURTS.**
+The striking half is w=0: removing the focus-reserve term entirely performs
+identically to the shipped value on 73 real trajectories. The term is not
+wrong, it is inert — which matters, because §5c's finding is that the focus
+budget IS the binding constraint and this is the knob that was supposed to
+address it. **It is not the lever. Session 49 should not spend a session on
+it.**
+
+`missPenaltyMultiplier` (ships at 1 — SPEC.md §5's "the ONE tunable knob",
+untouched since it was written):
+
+| m | catch | per-turn hit |
+|---|---|---|
+| 0 | 26.0% | 47.8% |
+| 0.5 | 28.8% | 49.2% |
+| **1 (shipped)** | **30.1%** | **51.1%** |
+| 2 | 30.1% | 51.5% |
+| 3 | 31.5% [22.0, 42.9] | 52.0% |
+| 5 | 28.8% | 50.2% |
+
+Flat from 0.5 to 5; only m=0 (ignoring misses entirely) is worse. **1 stands.**
+
+**Stated honestly: these are UNPAIRED point estimates with Wilson intervals,
+not the paired differences the brief asked for.** `scripts/offPolicyReplay.ts`
+reports each arm independently and the arms score different turn counts
+(233-253), so a paired CI is not derivable from its output. The intervals
+overlap so completely across w ∈ [0,3] and m ∈ [0.5,5] that the null is safe
+regardless, but a paired harness is what would make a *small* real effect
+visible, and it does not exist yet.
+
+**Not swept, and why:** `REDRAW_THRESHOLD` and the mined-matcher tier are not
+on `ReplayOptions` and plumbing them through is real surgery on
+`replayCast`. Given §5c's finding — the constraint is the focus budget, and
+the knob aimed at it is inert — tuning either against a replay whose absolute
+level was just refuted live is low-value work. Handed over, not done.
+
 ### What gates a strategy change **[session 48, brief §3 — adopted WITH a caveat this session's own data forces]**
 
 **The rule.** Any future fishing strategy change is gated on the off-policy
