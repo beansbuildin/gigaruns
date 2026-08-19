@@ -1,228 +1,210 @@
-# BRIEF — session 46 (fishing)
+# BRIEF — session 47 (fishing, offline-only)
 
-Session 45 cleared its gate. The ring model (`stepClass.ts`) beat the shipped
-predictor out-of-sample on 68 clean casts / 211 transitions — log loss **1.118
-vs 3.536**, top-1 **46.4% vs 42.7%**, and **0 zero-probability events vs 23** —
-and is live-wired, default-on, at commit `1c86561`. The focus-reserve term
-shipped at `w=3` (+1.6pp, honestly reported against the ~+5pp I projected).
-Heuristic (d)'s regression verdict was corrected to neutral. Suite 664/664.
+**No live play this session.** The account is inside the server-side daily cast
+cap window. **This is a stated constraint, not a gate to be failed** — per
+CLAUDE.md §6, a gate set on something unreachable before the session begins is
+not a gate. The live batch moves to session 48; nothing in this brief depends
+on a cast being played, and the recap should not record a fishing GATE FAIL.
 
-Everything the corpus can settle by itself is now settled. **The only question
-left is whether the model transfers live, and that needs casts.** This session
-is mostly about spending energy well and instrumenting it properly — not about
-building more model.
+If the cap resets while this session is still running, **still do not play.**
+A batch tacked onto the end of a build session is precisely how 17 of 20 casts
+went into flawed logic. The batch belongs to a session that opens with the §0b
+checkpoint discipline in front of it.
 
----
-
-## 0. The blocker, first
-
-The account is stuck in the completed-but-unresolved doc state (QUESTIONS.md
-§10). It killed cast 3 of session 45's batch: `start_run` rejected HTTP 400,
-guard tripped, batch stopped. That is the fail-closed behaviour working
-correctly, and it is also a hard wall in front of everything below.
-
-Session 44 saw a fresh `start_run` succeed past this doc shape **twice**, so it
-is not reliably fatal — the state clears sometimes and nobody has established
-when or why. Before anything else:
-
-1. Dry-run `scripts/checkFishingStuck.ts` and read the current doc shape.
-2. If a `cardsToAdd` offer is pending, resolve it with the `loot` action — that
-   is the confirmed exit from this state (session 17, QUESTIONS.md §10) and the
-   most likely cause.
-3. If it clears, go straight to §1. If it does not clear after one honest
-   attempt, **do not keep poking it** — do §3 and §4 offline, write what you
-   observed into QUESTIONS.md §10 with the full doc body, and stop. A blocked
-   fishing session that leaves clean offline work behind is a fine session.
-
-Do not spend energy probing whether the state cleared by starting casts. Read
-state, don't guess at it.
+**First, my own error, carried from the last brief.** It opened with "resolve
+the stuck doc state via `loot`." Wrong. The `start_run` HTTP 400 was the
+server-side daily cap (`"Player has reached max runs for fishing"`); the
+terminal-doc shape was a red herring and `loot` resolves the *catch* shape,
+which was not present. I inherited session 45's diagnosis and promoted it to
+instruction #1 instead of treating it as a hypothesis — the exact failure
+CLAUDE.md §9 names. **Do not diagnose a fishing 400 from the doc state; read
+the body, which `serverErrorDetail()` now logs.**
 
 ---
 
-## 1. The live batch — 20-30 casts, instrumented paired
+## 0. Two standing policy changes from the user — in force from session 48
 
-This is the session's whole point. Three things to get right.
+These do not apply this session (no live play) but are recorded here so they
+are not rediscovered.
 
-### 1a. It spans two days, so plan it that way
+### 0a. ROM energy is claimable on demand. Energy is never a reason not to run.
 
-`maxPerDay` is 10, `maxPerDayJuiced` 20; Dendren tier 0 is `node0Energy = 12`
-against a 240 daily energy budget. So **20 casts is one full juiced day**, and
-a 20-30 cast batch is 1.5 days. Run 20 today, the remainder tomorrow, and
-report each day separately as well as pooled. Do not let a partial second day
-get silently averaged into the first.
+The session 19-20 "ask before automating ROM claiming" instruction is
+**lifted by the user**. It predated `GET /roms/player?id=<address>` being
+confirmed (session 22) and overflow past the 420 cap being proven non-wasting
+(sessions 21/22).
 
-### 1b. Gate on scored TURNS, not casts, and log both predictors
+- **Preflight every live batch** with `GET /offchain/player/energy` **and**
+  `GET /roms/player?id=<address>`. If the pool is short, run
+  `npx tsx scripts/claimAllRoms.ts` and proceed. Session 46 measured **2,603
+  energy claimable** across 27 of 37 ROMs while reporting the batch blocked on
+  a "12.5-hour regen wait."
+- **Never plan a batch from `data/guard-budget-fishing.json` or
+  `config/bot.json`.** Those are this bot's policy ledgers; they know nothing
+  about the real pool, the ROM bank, or the server's counter. Session 46's
+  ledger implied 2 casts available; the server said zero.
+- **The ceilings already agree and need no config change.** Dendren tier 0 is
+  `node0Energy = 12`, the server's juiced daily cap is 20 casts, and
+  `config/bot.json`'s 240 daily fishing budget is exactly 20 × 12. ROM claiming
+  exists to ensure the *pool* can fund that 240 — it is not a licence to exceed
+  it. Spending above the configured daily budget stays on the ask-first list.
+- **Caveat that still holds:** if claiming turns out to require an on-chain
+  transaction that spends ETH, stop and ask. The user authorized the claim, not
+  an ETH spend.
 
-Session 45's live read was n=18 scored turns with a 95% CI of roughly
-[12%, 51%] — a number that could not have failed. At ~10 turns per cast, 20-30
-casts gives **200-300 scored turns**, which at p≈0.4 is a CI half-width of
-about ±7pp per class. That is a gate that can actually be met or missed, which
-is what CLAUDE.md §6 asks for.
+### 0b. Fishing runs in batches of 5 casts, with a mandatory checkpoint between
 
-**The methodological upgrade this session should make:** log the shipped
-cell+prev-displacement predictor's distribution *alongside* the ring model's
-on every turn, and compare them **paired**, on the same turns, on the same
-fish. Comparing a live number against an offline constant (38.2%) throws away
-the fact that some fish are simply harder than others; a paired comparison
-removes that variance entirely. `scripts/ringPredictionReport.ts` already
-prints per-class top-1 — extend its row schema to carry both predictors'
-probability assigned to the realized cell, then report:
+**User directive: 5 casts at a time, maximum**, then stop and read
+`scripts/ringPredictionReport.ts --since=<batch start>` before deciding
+anything.
 
-- **paired mean log-loss difference** (ring − baseline), with a CI. This is the
-  decisive statistic. The offline gap is 2.4 nats; at n=200 paired turns that
-  is overwhelming if it transfers at all.
-- per-class top-1 for each predictor, **split by `k`** — against 54.1% (k=1)
-  and 38.2% (k=2), never the pooled 46.4%. Session 45's two casts were both
-  `k=2`, which is exactly why the pooled comparator misled.
+This costs almost nothing in evidence. From the leave-one-cast-out paired
+differences on the existing corpus — **paired per-turn ΔLL (baseline − ring):
+mean 2.599, sd 5.996, n=196**:
 
-### 1c. The cheapest and sharpest check: FACT 1 out-of-sample
+| scored turns | 95% CI on paired ΔLL | excludes 0? |
+|---|---|---|
+| 25 (~2-3 casts) | [0.25, 4.95] | yes |
+| **50 (one 5-cast batch)** | **[0.94, 4.26]** | **yes** |
+| 200 (the old 20-cast ask) | [1.77, 3.43] | yes |
 
-Every new transition either lands on the legal Manhattan-`k` ring or it does
-not. Session 45's batch added 20 with **0 counterexamples**. At 200-300 new
-transitions, a violation rate above ~1% becomes visible.
+**One 5-cast batch settles the primary question.** The paired design removes
+fish-to-fish variance — both predictors scored on the same turn against the
+same fish. The 20-cast batch was only ever needed for *per-class top-1*, which
+is weaker (±14pp at 50 turns/class, ±8pp at 150) and should accumulate across
+batches as a running figure with its CI, never be read from one batch.
 
-**Primary gate for §1: 0 off-ring moves, and 0 class-inconsistent casts, across
-the whole batch** (on the `isCleanCast`-filtered corpus — carry session 45's
-exclusion of cast `12923189`'s duplicate turn-0 records; any restatement of
-FACT 1 that drops that caveat is wrong).
-
-If this holds, the model's core is confirmed regardless of how the catch-rate
-coin lands, and that is the durable result. If it fails, that is a much more
-important finding than any catch rate and the session should stop and report
-it immediately.
-
-### 1d. Add one instrument: predicted vs. realized hit rate
-
-Log, per turn, the hit probability `chooseCard` assigned to the card and focus
-it actually played, next to whether it hit. Pooling those into a calibration
-curve costs almost nothing and is the one diagnostic that separates the three
-ways this can still go wrong:
-
-| observed | means |
-|---|---|
-| prediction good, realized hit ≈ predicted, catch rate still low | the model is fine; the binding constraint is focus budget, deck, or mana |
-| prediction good, realized hit **below** predicted | focus placement is the defect — the policy is aiming at cells the model likes but cannot cover |
-| prediction poor (paired log loss doesn't transfer) | the model doesn't generalize past the corpus it was fitted on |
-
-Without this, a low catch rate is uninterpretable and you will be tempted to
-tune something at random. With it, the next session's brief writes itself.
-
-**Reporting discipline:** today's batch catch rate separately from the all-time
-7/69 = 10.1%. At n=20-30 casts a catch rate is nearly uninformative — say so
-rather than reading a verdict into it. The per-turn numbers are the result;
-the catch rate is a byproduct.
+Checkpoint order after every batch: **FACT 1 violations** (any → stop
+immediately) → **paired ΔLL with CI** (includes 0 after two batches → stop and
+report) → **calibration curve** → **catch rate, flagged as underpowered**.
 
 ---
 
-## 2. Retire heuristic (d)
+## 1. This session's work, in order
 
-Session 45 established that `pruneReturnToPrevious` is a **proven no-op for
-`k=2`** — its guard tests `|prev.dx| + |prev.dy| === 1`, the displacement's
-length rather than the step class, so it can never fire on the one class where
-reversal is the single most likely move (39.2%). For `k=1` it is redundant:
-§9's conditional table already assigns reversal ~0 probability from the data
-itself.
+### 1a. Build the energy preflight (session 46's own "highest-value unbuilt thing")
 
-Remove it, and remove its call sites in `castSim.ts` and `liveFishing.ts`.
-A dead guard that *looks* like it encodes a movement rule is worse than either
-enforcing the rule or deleting it — the next reader will assume the codebase
-handles reversal via this function and stop looking for §9's table.
+Fold an energy-floor check plus ROM-bank read and claim into
+`scripts/liveFishing.ts`'s and `scripts/liveRun.ts`'s preflight. Fully
+buildable and testable offline against fixtures — mock the two GETs, assert the
+claim fires when the pool is below the planned batch's cost and does not fire
+when it isn't, assert it fails closed on a claim error rather than proceeding
+with a short pool.
 
-Keep the finding in SPEC-fishing.md §8, including the history: it was
-user-proposed, implemented unverified, measured as a regression against a
-synthetic fish the game does not have, corrected to neutral, and finally
-retired as subsumed. That arc is worth preserving as a worked example of why
-sim authority is earned per domain.
+This removes the constraint that blocked or truncated sessions 44, 45 and 46.
+It should exist before the next batch, and this session is the natural place.
 
----
+### 1b. Off-policy replay — the centerpiece, and the reason this session is worth running
 
-## 3. Close the deck thread properly — one diagnostic run
+**Predict the batch's outcome before spending it.** Every recorded cast fixture
+carries the full per-turn state: `fishPosition`, `previousFishPosition`,
+`fishHp`, `focusPoint`, `focusMeter`, `playerHp` (mana), `hand`, `fullDeck`,
+`nextCardIndex`. That is enough to re-run today's policy against a real
+recorded fish and ask **"what would the current stack have done on the 69 casts
+we actually played?"**
 
-Session 45 refuted brief §4's deck-composition claim and the refutation should
-stand. But one number in it is not consistent with the geometry, and the thread
-should be closed with a reason rather than just a verdict.
+**Precondition, test this first and do not skip it:** the replay is only valid
+if the fish's movement is independent of whether your shot hit. Test it
+directly — for every recorded transition, classify the *preceding* play as hit
+or miss (from the `fishHp` delta), then compare the next-delta distributions
+conditional on hit vs. miss, **within step class and controlling for previous
+delta**. If they differ materially, the movement model needs a term it does not
+have and the replay is invalid; that would itself be the session's headline
+finding. If they don't, replay is sound and the rest follows.
 
-Measured there: shape-matched MID `[7,79,76]` at **15.2%/14.7%**, *below* the
-real deck's 33.2%/32.9%. Independently re-run with the same three cards, the
-opposite ordering appears — MID **83.1% catch at 71.8% per-turn hit** vs. the
-real deck's 57.6% at 51.4%. Two harnesses producing a ~20pp inversion cannot
-both be describing the same card geometry.
+**Harness design:**
 
-**The diagnostic: re-run the deck arms printing per-turn hit rate alongside
-catch rate.** Hit rate is very nearly a pure function of card zones and focus
-placement — independent of the HP arithmetic, the mana curve, and the
-sequential-`drawHand` confound session 45 already flagged. Then:
+- Take the recorded fish trajectory as ground truth and re-simulate everything
+  the policy controls: focus placement, card choice, mana, `fishHp`, focus
+  meter. Draws are deterministic — `fullDeck` plus `nextCardIndex` reconstructs
+  the exact sequence — so a different card choice still yields a well-defined
+  subsequent hand.
+- **Refit leave-one-cast-out.** The cast being replayed must be excluded from
+  the model it is scored against, or the number is in-sample and worthless.
+- **Truncate at the recorded trajectory length.** If the replayed cast would
+  have run longer than the record, score it as not-caught. That makes the
+  result a **conservative lower bound**, which is the right direction to err in
+  — say so explicitly rather than quietly.
 
-- MID's per-turn hit rate **≥** the real deck's, catch rate lower → the deck
-  harness has a bug, most likely in the draw/refill path with a short repeated
-  deck. Same class of defect as the `blindFallback` omission caught mid-session.
-- MID's per-turn hit rate genuinely **lower** → the geometry claim is wrong,
-  the refutation stands unqualified, and it should say *why*.
+**Report:** counterfactual catch rate vs. the actual 7/69 = 10.1%, per-turn hit
+rate vs. what was actually realized, and paired ΔLL — all against the same
+trajectories the old policy actually played, which makes it a paired *policy*
+comparison, not just a paired predictor comparison.
 
-Either way, **the practical conclusion does not change and this is not worth
-more than one run.** You gain one card per catch, so wholesale deck replacement
-is unreachable; the only regime you can ever act in is marginal. A marginal
-sweep — real deck plus exactly one added card, 16 candidates — moves catch rate
-by ~0-3pp, inside noise. The deck lever is small where you can actually pull it.
-Record that and close the thread.
+**What it can and cannot tell you.** It cannot confirm the model on fish it has
+never seen — every replayed trajectory is already in the corpus, and
+leave-one-cast-out mitigates but does not eliminate that. It *can* tell you
+whether the new policy would have converted the shots the old one missed, on
+real fish, with real decks and real mana curves. If the replay says the new
+stack catches 15-20 of 69 where the old caught 7, the 5-cast batch goes in with
+a genuine prior instead of a hope. If it says 8 of 69, that is worth knowing
+before spending 60 energy.
 
----
+### 1c. Re-check the focus-reserve weight — the sim moved under it
 
-## 4. SPEC hygiene, cheap and worth doing while blocked
+`w=3` was swept before heuristic (d) was retired and before `hits/shots`
+instrumentation existed. Session 46 changed the sim under that result. One run
+of `scripts/focusReserveAblation.ts` on the current empirical-fish + ring
+configuration, reporting **catch rate and per-turn hit rate side by side**,
+confirms whether 3 is still the plateau. Small, cheap, and the kind of stale
+constant that survives for ten sessions if nobody looks.
 
-- **Write the log-loss smoothing convention into SPEC-fishing.md §9.** The
-  brief-vs-measured baseline discrepancy (2.070 vs 3.536) reconciles exactly:
-  the brief's figure floored every predictor with ε=0.02 uniform smoothing; the
-  shipped path has no floor, so a zero-probability event costs ~20.7 nats
-  instead of ~6.7. With 23 such events in 211 transitions that is
-  23/211 × (20.7 − 6.7) ≈ **1.5 nats** against a measured gap of **1.47**. Both
-  numbers were right; only the convention differed. State the convention so the
-  next comparison is unambiguous, and note that the ring model's **0
-  zero-probability events** is structural (the ring floor), which is why its
-  advantage is robust to whichever convention is chosen.
-- **Record the calibration discount as a standing rule.** Two independent
-  in-sample projections have now over-predicted live by roughly 2.5-3x (the
-  22.4% sim figure vs 10.1% live; my ~+5pp reserve projection vs +1.6pp
-  measured). The *shape* of these projections transfers — w=3 landed exactly on
-  the predicted plateau, the ring model's log loss came in slightly better than
-  projected — but the *magnitudes* do not. Any future brief quoting an
-  in-sample catch rate should carry that discount explicitly rather than
-  rediscovering it.
+### 1d. Reword the `unknownDocKeys` stuck-doc warning
 
-## 5. Low priority
+It prints "the account is likely stuck… `start_run` below will probably
+reject" on every run that sees a terminal doc, and it has now caused two
+consecutive misdiagnoses — one of which propagated into a brief as its first
+instruction. The condition it fires on is not the condition that rejects
+`start_run`. Reword to state only what was observed ("terminal doc present;
+this does not by itself predict a `start_run` rejection — read the 400 body"),
+or remove it.
 
-- `data.nextMovePath` / `nextPosition` (QUESTIONS.md §17): capture
-  opportunistically if it fires during the batch, but do not chase it. A ~1-2%
-  proc behind a Wilson gate at 2/10 attempts is a long way from arming, and
-  the gate design is already sound.
-- Standing and unaddressed since sessions 40-42: scheduler energy-tracking gap,
-  charge-reserve plateau. No dungeon work in three sessions — worth a line in
-  the recap acknowledging that's a deliberate choice, not an oversight.
+### 1e. Check the dungeon side for the same swallowed-error-body bug
+
+`client.ts` throws `UnexpectedResponseError` whose `.message` carries only the
+status; the server's text lives in `.body`. That made `runOneCast`'s
+server-cap classifier **dead since session 29**. `scripts/liveRun.ts` was never
+checked — same shape, likely the same bug.
+
+While in there, **grep for every other classifier that tests a pattern against
+`.message`**. The generalized lesson from session 46 is worth acting on, not
+just recording: *a guard's condition can name a real fact while reading a field
+that fact never appears in.* Two worked instances in one session (heuristic
+(d)'s displacement-vs-class guard, the server-cap classifier's `.message`) is
+a pattern, not a coincidence.
+
+### 1f. Decide the dungeon items rather than deferring a fifth time
+
+The scheduler energy-tracking gap and the charge-reserve plateau (sessions
+40-42) have been carried unaddressed for four consecutive sessions. That was
+right while fishing had the open questions. With fishing now reduced to "run 5
+casts and read the report," it no longer fills a session. Either pick one up
+this session or **formally park them in TASKS.md with what would unpark them** —
+CLAUDE.md §6's own discipline applied to the backlog.
 
 ---
 
 ## Your task
 
-1. §0 — read the stuck doc state and resolve it via `loot` if an offer is
-   pending. One honest attempt. If it doesn't clear, document and move to
-   §2/§3/§4 offline, then stop.
-2. §1 — run 20 casts today (the full juiced daily cap), the remainder tomorrow.
-   Extend the prediction log to carry both predictors and the played card's
-   predicted hit probability *before* the first cast, not after.
-3. Report against §1's gates: FACT 1 violations (primary), paired log-loss
-   difference with a CI, per-class top-1 vs 54.1% / 38.2%, and the calibration
-   curve from §1d. Catch rate reported separately from all-time and explicitly
-   flagged as underpowered at this n.
-4. §2 — retire heuristic (d) and its call sites.
-5. §3 — one diagnostic run with per-turn hit rate, then close the deck thread.
-6. §4 — SPEC hygiene.
+1. §1a — build and test the energy preflight offline.
+2. §1b — run the movement-independence precondition test first. If it passes,
+   build the off-policy replay harness and report the counterfactual numbers
+   with the truncation caveat stated. If it fails, stop there and report that
+   instead; it is the more important finding.
+3. §1c — one focus-reserve re-sweep on the current sim configuration.
+4. §1d / §1e — the warning reword and the dungeon-side error-body check plus
+   the `.message` grep.
+5. §1f — pick up a dungeon item or formally park both.
+6. **Do not play a cast, even if the cap resets mid-session.** The batch is
+   session 48's, and it opens with §0b's checkpoint in front of it.
 7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
-   final commit.
+   final commit. Record §0a/§0b as standing policy so session 48 inherits them.
 
-A note on honest expectations: the most likely outcome of this session is
-"FACT 1 holds out-of-sample, the paired log-loss advantage transfers, and the
-catch rate is still disappointing." That is a **good** session, not a null one
-— it would mean the movement model is solved and the binding constraint has
-moved somewhere else, and §1d's calibration curve would tell you where. Say so
-plainly if that is what happens, rather than reaching for a tuning knob to
-make the headline number move.
+Honest expectation: §1b is the one that could surprise. The most likely outcome
+is that movement is independent of hits, the replay works, and it shows a
+meaningful but smaller lift than the in-sample sim projects — which is exactly
+what SPEC-fishing.md §9's calibration discount predicts and would be a healthy
+confirmation of it. The outcome worth watching for is a replay lift near zero
+despite the predictor's large log-loss advantage: that would mean better
+prediction isn't converting into better shots, and would point squarely at
+focus placement as the remaining defect.
