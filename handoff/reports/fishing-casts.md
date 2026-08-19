@@ -1,8 +1,8 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-18T22:09:36.200Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-19T00:57:16.416Z.
 
-50 recorded casts — 7 caught (14.0%).
+67 recorded casts — 7 caught (10.4%).
 
 ## Fish caught, by name
 
@@ -67,3 +67,20 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 | 12957122 | no | — |
 | 12957127 | no | — |
 | 12957129 | no | — |
+| 12975152 | no | — |
+| 12975700 | no | — |
+| 12975704 | no | — |
+| 12975708 | no | — |
+| 12975713 | no | — |
+| 12975717 | no | — |
+| 12975724 | no | — |
+| 12975728 | no | — |
+| 12975733 | no | — |
+| 12975736 | no | — |
+| 12975740 | no | — |
+| 12975744 | no | — |
+| 12975745 | no | — |
+| 12975750 | no | — |
+| 12975751 | no | — |
+| 12975753 | no | — |
+| 12975755 | no | — |

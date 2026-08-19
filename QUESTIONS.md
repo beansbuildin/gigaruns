@@ -927,6 +927,20 @@ server need an explicit acknowledgment first, or does a fresh action just
 succeed past it? A capture of that follow-up request, taken while a stuck
 doc like this is still on the account, would close this out.
 
+**2026-08-18 (session 44) — the "still open" question above is now
+ANSWERED, twice, live: a fresh `start_run` just succeeds past this exact
+stuck shape, no acknowledgment needed.** This session's live batch hit the
+`COMPLETE_CID: true, SUCCESS_CID: false` shape (this section's own
+"unknown terminal field... account is likely stuck" warning) TWICE, ahead
+of casts 16 and 17 (loop-numbered) — both times the very next `start_run`
+call this project's own process sent (no special handling, no separate
+acknowledgment action) returned HTTP 200 and started cleanly. The original
+2026-08-18 HTTP 400 that opened this section is therefore most likely
+attributable to something else entirely (a stale action token, rate
+limiting, a transient error) rather than this doc shape itself — though
+that specific correlation is still not directly confirmed, only the
+"does a fresh action succeed past it" half is now settled.
+
 ## 16. Fishing oil-use action shape — RESOLVED 2026-08-18 [session 44]: user DevTools capture confirmed `use_fishing_item` — `{action:"use_fishing_item", actionToken:"<string>", data:{cards:[], nodeId:"", focusPoint:[], itemId:821, slotIndex:0, tierId:0}}`, captured using one "Lil Mana Oil" (itemId 821) mid-cast. Same six-field envelope as every other fishing action; `itemId`/`slotIndex` do address the item, confirming SPEC-fishing.md §4a's "very likely" hypothesis. `oilPolicy.ts`'s `shouldConsiderRelaxingOil` is now wired into a real call site in `scripts/liveFishing.ts`'s `runOneCast` (item 937, Mid Relaxing Oil) — `slotIndex:0` is a stated, fail-closed hypothesis for THAT item specifically (the capture confirms it only for item 821), see `src/api/fishing.ts`'s `FishingActionSchema` doc comment and DECISIONS.md 2026-08-18 (session 44). Original question preserved below for context. [session 43]
 
 `src/strategy/fishing/oilPolicy.ts`'s `shouldConsiderRelaxingOil` (session-43

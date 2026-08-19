@@ -394,6 +394,69 @@ translated hit set. Full derivation and the zone-offset table in
 community note explicitly warns this "looks right on 3×3 and breaks on
 4×4," and this capture confirms it rather than just corroborating it.
 
+## 4c. `chooseCard`/`bestFocusForCard` chronically overspend the focus
+budget in the first 2-4 turns of a cast, then play blind for the rest of
+it — [session 44, live AND sim-confirmed, THE dominant finding of this
+session]
+
+The user's own live observation, mid-diagnosis of a 0/16-caught session
+(`handoff/log/session-44.md`, live batch below): reviewing the account's
+real mid-cast state directly showed `7/10 mana, 0/3 focus` — the ENTIRE
+non-regenerating 3-point focus budget (§4 above) already spent, this early
+in the cast. Checked directly against this session's own live log
+(`logs/fishing-2026-08-19-00-52-19.jsonl`, 16 completed casts): **every
+single cast reaches `focusMeter: 0` within turns 1-4** (never later), and
+from that turn onward the bot is aiming from a FROZEN `focusPoint` for
+however many turns remain — several casts (4, 5, 8, 9, 10, 12, 13, 14, 15)
+played 5-9+ MORE turns after going blind, and the `fishHp` trajectory
+during those turns is almost pure misses (the meter climbing back toward
+`fishMaxHp`/escape) rather than progress toward a catch. Cast 4 got the
+fish to HP 2 (one hit from a kill) at turn 4, immediately before focus ran
+out, then missed 5 turns straight and escaped.
+
+**This is not a live-only surprise — the exact same behavior is already
+baked into the sim's own numbers.** A direct instrumentation of
+`castSim.ts`'s own `simulateCast` decision loop (same `chooseCard`/
+`bestFocusForCard` code, N=300, matcherPool seeded from the real mined
+library) found **129/300 (43%) of simulated casts exhaust the full 3-point
+budget by a median of turn 2** (mean 1.93, min 1, max 6) — yet the sim
+still nets a 72/300 (24%) catch rate despite this, because a card's hit
+zone can still cover several OFFSET cells around a frozen focus, so some
+catches still land by luck even blind. `scripts/fishFocusMeter.ts`'s
+session-14 finding ("modelling the budget alone drops 92.4%→~70%") already
+showed the budget MATTERS; this session's finding is sharper — it isn't
+just that the budget constrains movement, it's that the current EV formula
+has no notion of PACING that spend across a cast of unknown remaining
+length, so it burns the whole budget almost immediately whenever doing so
+looks even marginally better in THIS turn's single-turn EV.
+
+**Root cause**: `bestFocusForCard`/`isPreferred` (`cardChoice.ts`) are
+purely single-turn-greedy — they maximize EV *this turn* within
+`reachableCells(gridSize, focusBudget.current, focusBudget.remaining)`,
+with zero cost assigned to spending down a scarce, non-regenerating,
+multi-turn resource. The existing focus-movement tie-break
+(`DECISIONS.md` 2026-08-18 session 31, CODEXIMPROVE #2) only conserves
+budget on a genuine EV TIE — it does nothing when there's ANY positive EV
+edge to moving, however small, which is nearly always true early in a cast
+before the matcher has converged.
+
+**Not fixed this session, by explicit user direction** (asked directly:
+document-only vs. design-and-validate-a-fix-now; user chose document-only)
+— this project's own hard rule (CLAUDE.md §4, "simulate first") means an
+unvalidated fix has no business shipping live regardless. **The clear next
+step, and the dungeon side of this project already has the exact template
+for it**: `src/strategy/utility.ts` hit an almost identical problem
+(players spending a resource greedily with no value on holding some in
+reserve) and fixed it with a continuation term pricing the VALUE of
+retained resource (`chargeReserveWeight`, DECISIONS.md 2026-08-18 session
+34) — sim-ablated at N=20000-60000 across multiple weights before shipping
+non-zero. The same shape almost certainly applies here: a term in
+`bestFocusForCard`'s scoring (or a new pacing rule) that prices remaining
+`focusBudget.remaining` against expected remaining cast length, ablated in
+the sim exactly the way `scripts/chargeReserveAblation.ts` did for the
+dungeon side, BEFORE any live wiring. See TASKS.md Task 11's fishing
+section for this scoped as the clear top priority.
+
 ---
 
 ## 5. Item metadata — resolves `QUESTIONS.md §3`'s other half

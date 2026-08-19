@@ -553,6 +553,27 @@ this project's pacing, so an eight-hour unattended window was never the
 right thing to gate on. Nothing further is owed to Task 10 unless a future
 session wants to re-verify after a mechanism change.
 
+**[2026-08-18, session 44] New open item, found not fixed**: this task's
+graceful-SIGINT contract (`ShutdownSignal`, `installProcessSigintHandler`)
+is wired into `scripts/orchestrator.ts`'s `main()` but NOT into either
+direct-CLI entry point's own `main()` (`scripts/liveRun.ts`,
+`scripts/liveFishing.ts` — grepped both, confirmed absent from each). Found
+live: stopping this session's `npx tsx scripts/liveFishing.ts --casts=20`
+invocation via `kill -INT` on the real PID fell through to Node's default
+SIGINT behavior (immediate termination) instead of the documented "stop
+before the next card, cast left in progress" path, because `deps.
+shutdownSignal` was simply `undefined` for that entry point. Turned out
+harmless THIS time (the in-flight cast's next action hadn't been sent yet
+— confirmed via a follow-up `--dry-run` read showing the account still at
+the exact pre-kill turn, no orphaned or double-counted state), but that
+was circumstance, not a guarantee the mechanism provides for a direct-CLI
+invocation. Both `runOnce()`/`runOneCast()` already accept the same
+`shutdownSignal` param either way (only the orchestrator's own `main()`
+constructs and installs one) — wiring it into `liveRun.ts`'s and
+`liveFishing.ts`'s own `main()` functions the same way is a small, low-risk
+fix using an already-proven pattern, not attempted this session (found
+while diagnosing something else, and out of this session's actual scope).
+
 ---
 
 ### 11 — Tuning ← DUNGEON HALF PARKED 2026-08-15, session 13 (see below)
@@ -651,6 +672,38 @@ built-in report always uses (500): matcher BLIND 7.0% (35/500) vs. matcher
 WITH the current 2-pattern library 22.4% (112/500) — see SPEC.md §5 for
 the full writeup and `handoff/STATE.md` (session 44) for this session's
 live batch measured against this baseline.
+
+**[2026-08-18, session 44] Live batch: 16 completed casts, 0 caught
+(0.0%) — a real, dominant cause found, not noise.** Spent today's fishing
+budget (192/240 energy, 16 new `start_run`s + 1 resumed pre-existing cast)
+under the freshly-reconfirmed 2-pattern mined library and the full
+session-43 heuristic pipeline. All 16 completed casts escaped. All-time
+figure moved 14.0%(7/50) → 10.4%(7/67) — down, not up, since today added
+16 zero-catch casts to the denominator with no new catches. **This was
+NOT bad luck at the sim's own predicted rate** (0/16 has under a 2% chance
+if the true rate were 22-24%, the sim's own prediction from earlier this
+session) — a real cause was found and confirmed in BOTH live and sim
+domains: SPEC-fishing.md §4c (new), `chooseCard`/`bestFocusForCard`
+chronically burn the entire 3-point focus budget within the first 2-4
+turns of every cast (confirmed at 16/16 live, and 43% of N=300 simulated
+casts by a median of turn 2), then play the rest of a cast blind from a
+frozen focus point. Diagnosed live by the USER directly, off their own
+reading of the account's real mid-cast state (`7/10 mana, 0/3 focus`), not
+found by this session's own analysis first — the analysis that followed
+(live log turn-by-turn, then a sim instrumentation of the same decision
+code) confirmed it in full. Session stopped by explicit user instruction
+after the first observed failed catch this batch (cast 16, loop-numbered)
+— a genuinely stuck-mid-cast case at turn 3 (docId `12975755`) is left
+resumable, not force-completed. See SPEC-fishing.md §4c for the full
+root-cause writeup and the proposed fix shape (a focus-reserve
+continuation term, same pattern as the dungeon side's `chargeReserveWeight`,
+DECISIONS.md 2026-08-18 session 34) — **explicitly scoped as next
+session's top priority, not attempted this session** (user chose
+document-only over design-and-validate-now when asked directly). This is
+the Task 11 revival condition CLAUDE.md §6 requires stated up front: "a
+materially different utility form" is now a concrete, evidenced candidate
+(pricing focus-budget reserve), not a repeat of the dungeon side's already-
+exhausted magnitude sweep.
 
 **Dungeon half PROMOTED to the live objective [2026-08-16, session-10 brief §2],
 superseding the item-per-energy form above for the dungeon side** — Task 5's

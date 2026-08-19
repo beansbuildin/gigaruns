@@ -34,21 +34,33 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
   it("counts by docId, not by directory or raw file — reproduces the CODEXREVIEW-corrected numbers", () => {
     const casts = loadFishingCorpus();
     const summary = summarizeFishingCorpus(casts);
-    // Direct recount, session 28 (CODEXREVIEW #1): 30 directories but 50
-    // distinct casts, 225 response docs, 169 play_cards turns, 7 catches.
-    // If this fails after a future live session added real casts, update
-    // the expected numbers — don't revert the loader.
-    expect(summary.casts).toBe(50);
-    expect(summary.responseDocs).toBe(225);
-    expect(summary.playTurns).toBe(169);
+    // [session 44] Recount after today's live batch (16 completed casts, 0
+    // caught, 1 left mid-play at turn 3, docId 12975755 — see
+    // TASKS.md/SPEC-fishing.md §4c). If this fails after a future live
+    // session added real casts, update the expected numbers — don't revert
+    // the loader.
+    expect(summary.casts).toBe(67);
+    expect(summary.responseDocs).toBe(335);
+    expect(summary.playTurns).toBe(263);
     expect(summary.caught).toBe(7);
-    expect(summary.escaped).toBe(43);
-    expect(summary.incomplete).toBe(0);
+    expect(summary.escaped).toBe(59);
+    expect(summary.incomplete).toBe(1);
   });
 
-  it("every cast has at least one start_run response", () => {
+  it("every cast has at least one start_run response, except a cast this project's own process only ever RESUMED", () => {
     const casts = loadFishingCorpus();
-    expect(casts.every((c) => c.responses.some((r) => r.kind === "start_run"))).toBe(true);
+    // [session 44] docId 12975152 was an active pre-existing cast (the
+    // user's own manual play, user-confirmed OK to take over) when this
+    // project's process first read it — logged as "resuming_existing_cast"
+    // rather than a fresh start_run (logs/fishing-2026-08-19-00-52-19.jsonl's
+    // very first event). No start_run for it exists in OUR committed corpus
+    // because we never sent one. A genuinely legitimate exception, not a gap
+    // in the loader; exactly one is allowed. (Not to be confused with
+    // 12975755, this same session's LATER interrupted cast — see
+    // TASKS.md/SPEC-fishing.md §4c — which DID get a real start_run from us,
+    // it just never finished playing.)
+    const withoutStartRun = casts.filter((c) => !c.responses.some((r) => r.kind === "start_run"));
+    expect(withoutStartRun.map((c) => c.docId)).toEqual(["12975152"]);
   });
 });
 
