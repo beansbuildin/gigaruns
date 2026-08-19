@@ -68,7 +68,10 @@ HTTP 400 — {"success":false,
 (`data/guard-budget-fishing.json`) read `{"date":"2026-08-18","energySpent":216,
 "runsStarted":18}` — implying 2 casts still available. The server disagreed.
 
-### 2. Energy — the constraint nothing in the codebase models
+### 2. Energy — NOT a real constraint. This section was WRONG.
+
+**Corrected after the user caught it, and preserved as an error rather than
+silently rewritten, because the mistake is more instructive than the fix.**
 
 `GET /offchain/player/energy`:
 
@@ -77,19 +80,63 @@ HTTP 400 — {"success":false,
   "isPlayerJuiced": true, "secondsSinceLastUpdate": 3207 }
 ```
 
-A cast costs 12 energy. Twenty casts cost 240. From 15, that is
-`(240 − 15) / 18 = 12.5 hours` of regeneration. The 11:00 Pacific cap reset was
-~85 minutes away at the time of measurement, by which point the pool would hold
-`15 + 18 × 1.42 ≈ 41` energy — **three casts**.
+A cast costs 12 energy; twenty cost 240. From 15, I computed
+`(240 − 15) / 18 = 12.5 hours` of regeneration, concluded that even past the
+11:00 Pacific reset the pool would hold only ~41 energy (three casts), and
+reported the gate as unreachable on that basis. I then offered the user a
+three-way choice built on that number, and they stopped the session.
 
-So no ordering of this session's work could have produced the brief's 200-300
-scored turns. The user was given the choice (wait ~85 min for 3 casts /
-dry-run smoke test only / stop and recap) and chose to stop.
+**The number was wrong, and so was the conclusion.** The user pointed out
+immediately afterward that the account's ROM NFTs supply well over 1,300
+energy/day. Read live, read-only, `GET /roms/player?id=<address>`:
 
-**This is the durable lesson for future briefs**: `config/bot.json`'s budgets
-and `guard-budget-fishing.json` are *policy ceilings* layered on top of a real
-account energy pool that neither of them reads. Planning N casts without a live
-energy read produces unreachable gates.
+```
+ROMs: 37
+with energyCollectable > 0: 27
+TOTAL claimable energy: 2603
+top 5: 540, 315, 161, 161, 109
+```
+
+**2,603 energy was sitting claimable the entire time** — roughly 10x what the
+batch needed — obtainable in a single pass with `npx tsx
+scripts/claimAllRoms.ts`. Overflow past the 420 cap is CONFIRMED non-wasting
+(DECISIONS 2026-08-17, sessions 21 and 22: ROMs claimed while the account is at
+cap show `success:true` with `energyCollectable` completely untouched), so there
+is no batching problem and no reason to defer a claim.
+
+So the true picture is: **the only real blocker was the server-side daily cap**,
+which resets at 11:00 Pacific and which ROM energy does not solve. After that
+reset, a full 20-cast batch was affordable. The correct choice to offer was
+"claim ROMs, wait for the reset, run 20" — not "3 casts".
+
+**Why this is worth a long entry rather than a one-line fix.** None of the
+required knowledge was missing, unconfirmed, or hard to find:
+
+- `GET /roms/player?id=<address>` — CONFIRMED session 22, wired into
+  `GigaverseClient.getRomsPlayer`.
+- `scripts/claimAllRoms.ts` — exists since session 22, sources all 37 ROMs live
+  rather than from a hardcoded list, filters to `energyCollectable > 0`, claims
+  in descending order.
+- SPEC.md has a "ROM factory-claim" section; QUESTIONS.md §11 covers it at
+  length; **six** DECISIONS.md lines record it (2026-08-16 x3, 2026-08-17 x3).
+- The user had stated the >1,300/day figure explicitly before this session.
+
+I read `energyValue: 15` and stopped there. The failure was not arithmetic and
+not missing information — it was treating a *balance* as a *rate*, and never
+asking where else energy comes from.
+
+**The mechanical gap that permits it**: nothing in the live-play path knows ROMs
+exist. `liveFishing.ts`, `liveRun.ts` and `orchestrator.ts` never read
+`GET /roms/player` and never prompt to claim when the pool is below the planned
+batch's cost. `claimAllRoms.ts` is a standalone manual script. Closing that gap
+is now the highest-value unbuilt item in the project — worth more than further
+model work, because this constraint has blocked or truncated live batches in
+sessions 44, 45 and 46.
+
+**The durable lesson for future briefs**, restated correctly: `config/bot.json`
+and `guard-budget-fishing.json` are policy ceilings; `energyValue` is a spendable
+balance; the ROM bank is a claimable reserve worth thousands. A batch plan needs
+all three, and a low `energyValue` is a *claim*, not a *wait*.
 
 ## The dead classifier — a real bug, found live
 
@@ -265,6 +312,11 @@ out-of-sample data.
 
 ## Surprises worth carrying forward
 
+0. **I invented a blocker and reported it as fact.** The energy analysis above
+   was wrong, was central to the recap's verdict, and shaped a decision the user
+   made. It was caught by the user, not by me, and not by any check in this
+   repo. Two of this session's three "findings" were guards reading the wrong
+   field; this third one was me reading the wrong field. See §2 above.
 1. **The loud warning was not the load-bearing one.** `unknownDocKeys` prints
    "the account is likely stuck (QUESTIONS.md §10); start_run below will
    probably reject" on every run that sees a terminal doc. It is right that the
@@ -278,7 +330,9 @@ out-of-sample data.
 
 ## Not done
 
-- **The live batch** (§1's actual measurement) — the gate. FAIL.
+- **The live batch** (§1's actual measurement) — the gate. FAIL. Note that it
+  was affordable after the 11:00 Pacific reset with a ROM claim; it was not run
+  because of my own incorrect energy analysis, not because it was impossible.
 - **`data.nextMovePath`** (§5) — no casts ran, so no opportunistic capture.
 - **Dungeon work** — none, for a **fourth** consecutive session. Deliberate
   (fishing is where the open questions are) but now worth an explicit decision

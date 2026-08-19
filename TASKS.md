@@ -913,10 +913,17 @@ Two hard limits, neither of them the doc state:
 1. **The server-side daily cap was already reached.** `start_run` rejected
    HTTP 400 with `"Player has reached max runs for fishing"` — captured
    verbatim only after fixing the bug described below.
-2. **Energy.** The account held 15-16 of 420, regenerating at 18/hour. Twenty
-   casts cost 240 energy, i.e. **12.5 hours of regen**. Even after the 11:00
-   Pacific cap reset the account would hold ~41 energy — three casts. No
-   ordering of this session's work could have produced 200-300 scored turns.
+2. ~~**Energy.**~~ **CORRECTED — this was not a real limit, and reporting it as
+   one was this session's own error.** The account held 15-16 of 420 with an
+   18/hour regen, from which I computed "12.5 hours" and declared the gate
+   unreachable. But the account's 37 ROMs held **2,603 claimable energy** at
+   that moment (read live: 27 ROMs with `energyCollectable > 0`), obtainable in
+   one pass via `scripts/claimAllRoms.ts`, with overflow past the 420 cap
+   CONFIRMED non-wasting since session 21/22. That is ~10x what the batch
+   needed. **After the 11:00 Pacific cap reset, a full 20-cast batch was
+   affordable.** It was not run because of this incorrect analysis, not because
+   it was impossible. Caught by the user, who had already stated the >1,300
+   energy/day ROM figure explicitly before the session began.
 
 **Why it was invisible: a dead guard, found live.** `client.ts` throws
 `UnexpectedResponseError` for every non-2xx, and that error's `.message` is
@@ -962,12 +969,21 @@ reviewer applying a rule. See SPEC-fishing.md §8's closing paragraph.
   class-consistent.
 
 **What the next session needs**, stated so the gate is meetable rather than
-merely restated: **energy at or above 240 before the batch starts** (an
-overnight gap does this on its own — 12.5h of regen from empty), and the
-11:00 Pacific cap reset passed. Read `GET /offchain/player/energy` FIRST and
-compute the affordable cast count from it; do not infer the budget from
-`data/guard-budget-fishing.json`, which is this bot's own policy ledger and
-knows nothing about either the real energy pool or the server's own counter.
+merely restated: **the 11:00 Pacific cap reset passed, and a ROM claim.** That
+is the whole list. Energy is not a constraint on this project — claim first
+(`npx tsx scripts/claimAllRoms.ts`), then run 20 casts. Read
+`GET /offchain/player/energy` AND `GET /roms/player?id=<address>` when planning;
+do not infer the budget from `data/guard-budget-fishing.json`, which is this
+bot's own policy ledger and knows nothing about the real pool, the ROM bank, or
+the server's own counter.
+
+**And the gap that caused this**: nothing in the live-play path knows ROMs
+exist. `liveFishing.ts`, `liveRun.ts` and `orchestrator.ts` never read
+`GET /roms/player` and never prompt to claim when the pool is below a planned
+batch's cost. Folding an energy-floor check plus a ROM-claim prompt into the
+live loops is now the highest-value unbuilt item in the project — it is worth
+more than further model work, because this constraint has blocked or truncated
+live batches in **three consecutive sessions** (44, 45, 46).
 
 **No dungeon work for a fourth consecutive session** — a deliberate
 consequence of the fishing model being where the open questions are, not an

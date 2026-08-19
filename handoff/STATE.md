@@ -7,30 +7,48 @@ cast live batch (200-300 scored turns). **Zero casts were played.** §2, §3, §
 all delivered in full offline; §1's *instrumentation* landed complete and
 tested, but the batch itself could not run.
 
-Next per TASKS.md: the same live batch, once energy allows. **Read
-`GET /offchain/player/energy` FIRST and compute the affordable cast count from
-it.** Do not infer the budget from `data/guard-budget-fishing.json` — that is
-this bot's own policy ledger and knows nothing about either the real energy
-pool or the server's own daily counter.
+Next per TASKS.md: the same live batch. **Energy is NOT a constraint on it —
+claim ROMs first (`npx tsx scripts/claimAllRoms.ts`, 2,603 energy claimable as
+of this session).** The only real gate is the server-side daily cast cap, which
+resets at 11:00 Pacific. Read `GET /offchain/player/energy` AND
+`GET /roms/player?id=<address>` before planning a batch; never infer the budget
+from `data/guard-budget-fishing.json`, which is this bot's own policy ledger and
+knows nothing about the real pool, the ROM bank, or the server's counter.
 
 Overall: the movement model is unchanged and still unconfirmed live. What this
 session actually produced is a corrected diagnosis of *why* live fishing keeps
 stalling, plus the instrumentation to make the next batch decisive.
 
-## Why the gate was unreachable
-Two hard limits, **neither** of them the completed-but-unresolved doc state
-that STATE.md (session 45) and the session-46 brief §0 both named as the top
-blocker:
+## Why the gate failed — ONE real blocker, and one I invented
+**Corrected after the user caught it. The first version of this recap was
+wrong and the error is recorded here rather than quietly fixed.**
 
-1. **Server-side daily cap already reached.** `start_run` → HTTP 400,
-   `{"success":false,"message":"Player has reached max runs for fishing"}`.
-   Resets 11:00 Pacific.
-2. **Energy: 15-16 of 420, regen 18/hour.** Twenty casts cost 240 energy —
-   **12.5 hours of regen**. Even past the 11:00 reset the account would hold
-   ~41 energy = 3 casts. No ordering of this session's work reaches 20.
+**The one real blocker: the server-side daily cap.** `start_run` → HTTP 400,
+`{"success":false,"message":"Player has reached max runs for fishing"}`.
+Resets 11:00 Pacific. ROM energy does not solve this.
 
-Flagged at the top of the session per CLAUDE.md §6, not saved for the recap.
-User was asked and chose to stop rather than wait ~85 minutes for 3 casts.
+**The blocker I invented: energy.** I read `energyValue: 15` of 420 with
+`regenPerHour: 18`, computed "240 energy is 12.5 hours away", and reported the
+gate as unreachable on that basis. **That analysis was wrong.** The account's
+37 ROMs had **2,603 energy claimable at that moment** (27 of 37 with
+`energyCollectable > 0`; top five 540, 315, 161, 161, 109), obtainable in a
+single pass with `npx tsx scripts/claimAllRoms.ts`. Overflow past the 420 cap
+is CONFIRMED non-wasting (DECISIONS 2026-08-17, sessions 21/22) so there is no
+batching problem. That is ~10x what a 20-cast batch needs.
+
+None of this was new or undocumented: `GET /roms/player?id=<address>` has been
+CONFIRMED since session 22, `scripts/claimAllRoms.ts` has existed since then and
+sources all 37 ROMs live, and SPEC.md, QUESTIONS.md §11 and six DECISIONS lines
+all describe it. **I did not consider it, and nothing in the live-fishing path
+prompts for it.**
+
+Worse than the analysis error: the choice put to the user was framed as "~41
+energy = 3 casts", and they made a stop-or-continue decision on that number.
+The correct framing was "claim ROMs, wait for the 11:00 cap reset, run the full
+20." The user's own standing guidance — that ROMs supply well over 1,300
+energy/day — had already made this point, and the recap reproduced the regen-rate
+framing anyway. **This is the repeat failure worth carrying forward, not the
+arithmetic.**
 
 ## What works
 - **Paired-predictor + calibration logging** (`scripts/liveFishing.ts`,
@@ -59,11 +77,17 @@ User was asked and chose to stop rather than wait ~85 minutes for 3 casts.
 - **The ring model's live transfer is STILL unconfirmed.** Unchanged from
   session 45: n=18 scored turns, both casts `k=2`, top-1 27.8% vs the
   class-matched offline 38.2%, CI ≈ [12%, 51%]. No new live data this session.
-- **Energy is the real binding constraint on all live fishing work**, and no
-  part of the codebase models it. `config/bot.json`'s budgets and
-  `guard-budget-fishing.json` are policy ceilings layered on a real account
-  pool they never read. A brief that plans N casts without checking the pool
-  will keep producing unreachable gates.
+- **Nothing in the live-play path knows ROMs exist.** `scripts/claimAllRoms.ts`
+  is a manual, standalone script; neither `liveFishing.ts`, `liveRun.ts` nor
+  `orchestrator.ts` reads `GET /roms/player` or prompts to claim when the pool
+  is low. That gap is what let this session mistake a one-command top-up for a
+  12.5-hour wait. **Folding an energy-floor check + ROM-claim prompt into the
+  live loops is the single highest-value unbuilt thing right now** — it is worth
+  more than any further model work, because it removes the constraint that has
+  now blocked or truncated live batches in sessions 44, 45 and 46.
+- `config/bot.json`'s budgets and `guard-budget-fishing.json` are policy
+  ceilings layered on a real account pool they never read, and which the ROM
+  bank tops up. A brief planning N casts must check the pool AND the bank.
 - **`unknownDocKeys`' stuck-doc warning is loud and NOT load-bearing.** It
   prints "the account is likely stuck (QUESTIONS.md §10); start_run below will
   probably reject" on every run that sees a terminal doc. It has now caused
@@ -99,8 +123,11 @@ User was asked and chose to stop rather than wait ~85 minutes for 3 casts.
   rejection to the stuck doc, and the second one propagated into a brief as
   its first instruction.
 - **Do not plan a live fishing batch from `guard-budget-fishing.json`.** It
-  said 216/18 of 240/20 — implying 2 casts available. The real answers were
-  "server says zero" and "16 energy". Both live reads, both cheap.
+  said 216/18 of 240/20 — implying 2 casts available. The server said zero.
+- **Do not treat a low `energyValue` as a wait.** It is a claim. 2,603 energy
+  sat in the ROM bank while this session concluded "12.5 hours of regen".
+  `GET /roms/player?id=<address>` is one read; `scripts/claimAllRoms.ts` is one
+  command; overflow is non-wasting so there is no reason to defer it.
 - **The deck thread — closed, do not reopen without a new premise.** The
   §3 diagnostic settled the session-45-vs-independent-rerun inversion in favour
   of session 45: shape-matched MID's per-turn hit rate is *genuinely lower*
@@ -124,25 +151,31 @@ User was asked and chose to stop rather than wait ~85 minutes for 3 casts.
 - **FACT 1**: 0 off-ring in 279 clean transitions, 66/66 casts class-consistent.
 - **Live: 0 casts played.** All-time unchanged at **7/69 = 10.1%**. Live
   prediction log unchanged at 20 rows / 2 casts.
+- **ROM bank, read live this session**: 37 ROMs, 27 with
+  `energyCollectable > 0`, **2,603 energy claimable**, top five 540/315/161/
+  161/109. Read-only; nothing claimed.
 - Suite 663 (664 − 5 retired (d) tests + 4 new paired/calibration tests).
 
 ## Open questions for Claude
 1. **The live batch is still the only open question the corpus can't answer,
-   and it needs energy, not effort.** Budget the brief against a real reading:
-   240 energy = 20 casts; the pool regenerates 18/hour to a 420 cap. An
-   overnight gap covers it from empty. Ask for the batch only if the session
-   starts after the 11:00 Pacific reset with the pool already high — otherwise
-   ask for N casts where N is read live, and gate on scored TURNS.
-   `scripts/ringPredictionReport.ts` prints the entire §1 readout with no
-   further building: paired ΔLL with CI, per-class top-1 vs 54.1% (k=1) /
-   38.2% (k=2), and the calibration curve.
-2. Should the `unknownDocKeys` stuck-doc warning be reworded or removed? It has
+   and energy is NOT what stands in its way.** Ask for it plainly: claim ROMs,
+   then run 20 casts any time after the 11:00 Pacific reset. The instrumentation
+   is finished — `scripts/ringPredictionReport.ts` prints the entire §1 readout
+   with no further building: paired ΔLL with CI, per-class top-1 vs 54.1%
+   (k=1) / 38.2% (k=2), and the calibration curve. Gate on scored TURNS.
+2. **Should the live loops claim ROM energy themselves when the pool is below
+   the planned batch's cost?** Everything needed is confirmed and scripted; the
+   only reason it hasn't happened is the standing "ask before automating ROM
+   claiming" instruction from session 19-20. That instruction predates the
+   endpoint being confirmed and the overflow being proven non-wasting. Worth an
+   explicit decision rather than leaving the gap that cost this session.
+3. Should the `unknownDocKeys` stuck-doc warning be reworded or removed? It has
    now caused two consecutive misdiagnoses and the condition it fires on is not
    the condition that rejects `start_run`.
-3. Does the same swallowed-error-body bug exist on the **dungeon** side
+4. Does the same swallowed-error-body bug exist on the **dungeon** side
    (`scripts/liveRun.ts`)? Not checked — out of this session's fishing scope.
-4. `data.nextMovePath` (QUESTIONS.md §17) — unchanged, one non-null observation.
-5. Standing and unaddressed for a **fourth** consecutive session: scheduler
+5. `data.nextMovePath` (QUESTIONS.md §17) — unchanged, one non-null observation.
+6. Standing and unaddressed for a **fourth** consecutive session: scheduler
    energy-tracking gap, charge-reserve plateau (sessions 40-42). Deliberate —
    fishing is where the open questions are — but worth a decision rather than
    continued drift.
