@@ -1,254 +1,209 @@
-# BRIEF — session 49 (fishing)
+# BRIEF — session 50 (fishing)
 
-Session 48 ran the batch and found that FACT 1 — my claim, the foundation of
-the last five briefs — is wrong. It also produced the first real live readout
-in the project's history. Both are taken below, my error first.
+4 catches in 10 casts, the best day on record, all-time 10.8% → **14.3%**. The
+movement model transferred (batch 2 ring top-1 41.7% against an offline 42.6%,
+beating both null comparators), the sticky latent did exactly what it was
+supposed to (zero-probability events 8 → 0, live and offline), and session 49
+correctly identified that the blocker is now evaluation, not modelling.
 
----
-
-## 0. FACT 1 was wrong, and the way it was wrong is my error, not the corpus's
-
-`data.lastMovePath` shows the fish always walks **unit steps**. What I called a
-"step class `k`, fixed per cast" is a **step count per turn**, 1 or 2,
-**constant in 72 of 73 casts — not universally**. Cast `12988700` locked to
-k=1 and then landed off-ring three times, producing a log loss of 11.316 with
-three zero-probability events against a corpus LOO of 0.803.
-
-The specific failure is precise and worth naming, because it is the same one
-that hid the zone transpose for eleven sessions. I derived the claim from
-`data/fish-patterns.jsonl`, which projects each turn to its `from`/`to`
-endpoints and discards the path between them. **That corpus view cannot
-represent a two-unit-step path.** It was structurally incapable of falsifying
-"unit steps with a per-turn count" versus "a single jump of fixed size" — so
-the 263/263 and 65/65 I reported were not evidence for the second reading over
-the first. They were evidence the two are indistinguishable in that projection.
-
-I also asserted "100%, zero counterexamples" from 65 casts. At 73 there is one.
-That is the third recorded instance of CLAUDE.md §9 landing on a brief of mine,
-and the pattern is now clear enough to state as a rule for my own output:
-**an exceptionless count is a claim about the sample's power, not about the
-mechanism, until something in the sample could have come out the other way.**
-
-What survives: the fish walks unit steps; the per-turn step count is 1 or 2;
-Manhattan displacement has the same parity as the step count; the count is
-strongly sticky within a cast. Everything downstream that depends only on
-"the next cell is near the current one" is unaffected. What does **not**
-survive is treating the ring as a hard constraint — §2.
+My corrections first, then the answer to open question 1 — which turns out to
+change what the focus policy should even be optimising.
 
 ---
 
-## 1. The live/offline gap — three explanations eliminated, and one that fits exactly
+## 0. Corrections to me
 
-Live top-1 was **4/29 = 13.8%** against an offline LOO of **46.4%**. Session
-48's open question 4 calls this unexplained. I tested the three obvious
-explanations against the corpus and all three fail:
+**The union-of-rings "exact fit" was wrong, and the error is embarrassing in a
+specific way.** I scored the null models as corpus-wide averages over 263 turns
+and compared them to a 29-turn batch with a different cell composition and a
+k=2-heavy class mix. Null-model accuracy depends on the actual cells — legal
+ring sizes vary from cell to cell — so the two numbers were never comparable.
+On those 29 turns the union null is 10.3% and the ring model **beats** it; the
+k-ring null is 20.7%, not 29.3%. That is precisely the composition error
+session 49 diagnosed, committed in the same brief where I recommended null
+comparators as a guard against exactly this. The recommendation was right; my
+own use of it was the wrong way round.
 
-| hypothesis | test | result |
-|---|---|---|
-| day-level leakage (fish drawn per day; LOO leaks within a day) | leave-one-**day**-out vs leave-one-cast-out | **47.4% vs 47.4%** — no leakage |
-| temporal drift (model stale) | train on all days before the last, test on the last | **45.5%** — no drift |
-| turns within a cast are correlated, so CIs are too narrow | intra-cast correlation from the corpus | **ρ = 0.006, design effect 1.01** — clustering changes nothing |
+Three more, all the same shape:
 
-Per-day top-1 under leave-one-day-out is 45.5–60.0% across four days. A
-cast-level bootstrap — drawing 5-cast batches from the corpus itself — gives a
-median of 47.4% with a 90% interval of **[23.1%, 68.4%]** and
-**P(top-1 ≤ 13.8%) = 1.5%**. So the gap is real at roughly the 1.5% tail, and
-it is not sampling noise, day effects, drift, or clustering.
+- **`s` ≈ 0.6%** — about 4× too small. Counted at 73 casts it was 2.50%, at 83
+  it is 5.25%, and it has risen at every count.
+- **The 1.62 opening focus spend** was a transposed-era figure (68 of 73
+  casts). Era split: transposed 1.66, corrected 1.40, live newest **1.80**.
+- **Offline LOO 46.4%** was the 68-cast figure quoted against a 73-cast world;
+  it is 42.6% at 73 and 42.3% at 83.
 
-**What does fit — exactly.** Scoring uninformed null models on the real corpus:
+**The generalized rule, and it should go in SPEC-fishing.md §9:** *no corpus
+statistic may be quoted without its corpus size, and no comparator may be quoted
+without being re-derived at the composition of the thing it is being compared
+to.* Every one of these four errors is that rule violated. Session 49's
+refreshed pins with a printed "these move" warning is the right mechanism; the
+rule is what makes it non-optional.
 
-| model | expected top-1 |
+---
+
+## 1. Open question 1 — how to evaluate a focus policy
+
+Session 49 offers four options. Taking them in turn:
+
+- **(b) held-out day — reject.** I tested this directly on the corpus:
+  leave-one-**day**-out scores 47.4% against leave-one-cast-out's 47.4%, and a
+  train-on-earlier-days temporal split scores 45.5%. Day is not the leak axis,
+  and the days are badly imbalanced (40 of 73 casts on one day). It costs most
+  of the data to control something that isn't there.
+- **(c) within-batch A/B — reject on power.** At 5 casts a 2-versus-3 split
+  cannot resolve anything; catch-rate variance alone is enormous.
+- **(d) live-only at n=5 — reject as a gate.** That is the failure mode the
+  5-cast rule was introduced to prevent.
+- **(a) leave-one-cast-out the matcher too — take it, and the cost objection
+  does not survive inspection.** The matcher's mined library is
+  `perimeterWalk(cw/ccw)`, promoted from 7 supporting casts by a miner that is
+  a pattern match over the corpus. Re-mining 83 times is seconds of compute,
+  not a research project. It is also the only option that fixes the actual
+  defect: with the matcher off, the distribution is flat, EV differences shrink,
+  the movement-cost tie-break dominates and focus never moves (replay spends
+  0.64); with the matcher leaking, it is over-confident and moves too much. LOO
+  gives the honest middle, and it is the only arm whose *behaviour regime*
+  matches live.
+
+**And add a fifth thing they didn't list, because it does most of the work.**
+
+---
+
+## 2. The reframe: measure COVERAGE, and the budget is not the constraint
+
+Define **coverage** = P(the fish's actual next cell lands inside the 3×3 window
+around the focus you chose). It is the thing a focus policy actually controls,
+it is scored geometrically against a recorded trajectory with **no predictor in
+the scoring path at all**, and it bounds everything downstream:
+
+```
+hit rate = coverage × conversion
+```
+
+— the window must contain the fish before the card's zones can. Live hit rate
+is 22/56 = 39.3%, so coverage and conversion are both well under 1 and it
+matters enormously which one is binding.
+
+I computed the coverage ceilings by dynamic programming over the 67-cast /
+263-transition corpus I have (the pre-session-48 snapshot — **re-derive at 83
+casts before acting on it**, per §0's own rule):
+
+| focus policy | coverage |
 |---|---|
-| uniform over the whole 4×4 grid | 6.2% |
-| **uniform over the UNION of both rings** | **13.9%** |
-| uniform over the legal k-ring, k known | 29.3% |
-| ring + conditional model (LOO) | 47.4% |
-| **LIVE, session 48** | **13.8%** |
+| frozen at (2,2), never moves — budget 0 | **59.7%** |
+| best FIXED placement, hindsight, reachable within 3 | **94.7%** |
+| optimal schedule at budget 3, hindsight | **100.0%** |
+| optimal schedule at budget 6 or infinite | 100.0% |
 
-The live number lands on the union-of-both-rings null to within 0.1pp. That is
-the score of a model that knows the fish moves one or two steps **and nothing
-else** — no step count, no conditional. A model can lose its conditional edge
-and fall back to the k-known prior at 29.3%; it cannot systematically score
-*below* its own prior unless the step-count information is not reaching the
-distribution being scored, or the distribution being scored is not the one the
-policy used.
+**Budget 3 is not scarce.** It is enough for a hindsight-perfect schedule, and
+more budget buys literally nothing. One well-chosen *static* placement gets
+94.7%. Casts are short (mean 3.9 turns) and a unit-stepping fish does not get
+far.
 
-At n=29 this could still be coincidence. It is cheap to settle, and the recent
-history argues for settling it: session 48 fixed a `ringPredictionReport.ts`
-bug where `argv[2]` silently swallowed `--since` and printed "nothing logged
-yet" as an answer — the same defect family as the dead `.message` guard.
+This explains three inert results in a row. `focusReserveWeight`, `costCap` and
+`threshold` all regulate **how much** budget to spend. The corpus says how much
+was never the problem — **where** is. A policy that spends nothing scores 59.7%
+and a policy that spends optimally scores 100%, and the entire gap is placement
+quality, not spend quantity.
 
-**Diagnostic, in order, before any new casts:**
+### The policy that follows, and what it scores
 
-1. **Recompute live top-1 by hand from the raw logged rows**, independently of
-   `ringPredictionReport.ts`. If it disagrees with 13.8%, the finding is a
-   reporting bug and stops there.
-2. **Score all three null models on the same 29 live turns.** If the ring model
-   ties the union-null and loses to the k-known-null, the class information is
-   not reaching the scoring path — that is a wiring bug, not a modelling one.
-3. **Check how many of the 5 casts alternated step count.** One is known
-   (`12988700`). If two or three did, the ring lock was wrong for most of the
-   batch and §2's fix largely explains the gap on its own.
-4. **Verify the logged predicted cell and the actual cell use the same
-   coordinate convention** end to end. `position[0]` is the ROW; the zone
-   transpose was live for eleven sessions; a second orientation mismatch in the
-   logging path is exactly the kind of thing that survives a passing test suite.
+Replace the objective. Focus placement should maximise **expected coverage over
+the remaining cast**, not this turn's EV. Card choice stays EV-maximising given
+the focus — that separation is clean and keeps `cardChoice.ts` intact.
 
----
+Concretely: at each turn, choose the reachable focus `f` maximising
+`Σ_{h=1..H} P(fish at a cell within Chebyshev 1 of f, h turns ahead)`, forward-
+simulating the sticky step model, `H = min(3, estimated turns remaining)`,
+ties broken by cheaper move.
 
-## 2. The ring hard-zero fix — model the step count per turn, as a sticky latent
+| | coverage |
+|---|---|
+| frozen at (2,2) | 59.7% |
+| **horizon-3 expected-coverage policy, in-sample** | **79.1%** |
+| **horizon-3 expected-coverage policy, leave-one-cast-out** | **77.2%** |
+| best fixed placement, hindsight | 94.7% |
 
-Session 48 offers three options: (a) floor off-ring probabilities, (b) model
-step count per turn, (c) reclassify on an off-ring observation. **Recommend (b),
-implemented as a sticky two-state latent, because done properly it subsumes
-both others.**
+Leave-one-cast-out costs 1.9pp, so it is not an artefact. It captures a bit
+over half the headroom between doing nothing and hindsight, and it is perhaps
+forty lines against the existing `stickyStepDistribution`.
 
-Model the per-turn step count `n_t ∈ {1,2}` as a two-state Markov chain with a
-switch probability `s`, and predict by marginalising:
+**Why this also solves the evaluation blocker.** Coverage is scored against the
+recorded trajectory geometrically; the predictor enters only through the
+*decision*, and that is held constant across arms in a paired comparison. So
+coverage A/Bs are far less sensitive to the matcher leak than catch-rate A/Bs —
+and combined with §1's LOO-the-matcher fix, the replay becomes usable for focus
+work. Coverage is also per-turn and low-variance: ~280 paired turns gives real
+power where 78 cast outcomes do not.
 
-```
-P(next cell) = Σ_n P(n_t = n | history) · P(next cell | current cell, n, prevDelta)
-```
-
-- **`s` is estimable**: one switch observed across ~309 transitions. With
-  Laplace smoothing that is roughly **0.5–0.7%**. Sweep it on the replay
-  rather than fixing it by hand.
-- **The floor falls out for free.** Off-"ring" cells get the small mass that
-  the count switched — about `s` spread over the alternate ring's ~4 cells,
-  so ~0.15% each, capping a surprise at ~6.5 nats instead of the 11.3 seen or
-  the ∞ that a true zero implies. **No arbitrary floor constant to justify**,
-  which is why this beats (a).
-- **Reclassification is automatic.** An off-ring observation updates the
-  posterior on `n_t` by Bayes on the next turn, which is (c) without a special
-  case — and unlike (c) it acts *before* the damage rather than after.
-
-Gate it on the replay as a paired difference against the current hard-zero
-model, and report log loss **and** the count of zero-probability events. The
-second number should go to zero by construction; if it does not, the
-implementation is wrong.
+**Caveats, stated rather than buried.** The hindsight rows are hindsight and
+not achievable. My numbers are on the 67-cast snapshot, not the current 83. And
+coverage deliberately ignores conversion — a policy that maximises coverage
+while sitting where the deck's zone shapes fit badly could gain coverage and
+lose hits. Report both, and report the decomposition.
 
 ---
 
-## 3. Focus is the binding constraint, and the reserve term was the wrong instrument
+## 3. The other open questions
 
-The decomposition is unambiguous and it is the most valuable thing session 48
-produced: **80.8% of casts escape by meter-out** at a mean final `focusMeter`
-of 0.25; **50.4% of all turns (192/381) are played at zero focus**; 56 of 73
-casts empty the meter. The focus profile by turn is
+- **Q2, is the turn-0 tier finding real?** Their proposed test is right and
+  costs nothing: log what the ring-unknown-class tier *would* have predicted on
+  turn 0 alongside the matcher, and score both. Do that; do not change the
+  policy on ΔLL +1.337 [+0.429, +2.245] at n=15 with batch 3 at −0.025. Turn 0
+  is 22% of scored turns, so it is worth settling properly rather than quickly.
+- **Q3, the `nextPosition` gate.** Their read is right and mine was wrong: I
+  estimated 80-160 casts to reach n=10 by treating sightings as independent,
+  and the field **clusters** — this session's 10 casts produced 4 attempts.
+  At 8/8 with a Wilson bound of 0.6756, **wait one batch**. Do not re-specify a
+  gate that is about to clear on its own; that is the expensive answer to a
+  problem that solves itself in five casts.
+- **Q4, estimate `s` at load time — yes.** It has risen at every single count
+  (0.6% → 2.50% → 5.25%) and the swept optimum has tracked the estimator at
+  both corpus sizes. A shipped constant is guaranteed stale by construction.
+  Estimate from the corpus at load, log the estimate and its `n` on every run,
+  and keep a floor so a small corpus cannot drive it to zero. **Do not** treat
+  the current value as converged — the trend is monotone and nobody knows where
+  it stops.
+- **Q5, 5 casts unspent**, cap resets 11:00 Pacific.
 
-```
-3.00 → 1.38 → 0.72 → 0.36 → 0.14 → 0.04 → 0.00 → 0.00 → 0.00
-```
+## 4. Standing guards, updated
 
-**The first move alone spends 1.62 of 3 points on average.** That is the entire
-problem in one number, and it is the same finding session 44 made — but now
-measured on real trajectories rather than in a sim, and now with the knowledge
-that `focusReserveWeight` is **inert**: w=0 and w=3 are indistinguishable on
-73 real traces, w≥4 is monotonically worse.
-
-**Why the reserve term was always going to be inert**, and this is worth
-writing down so it is not retried in another form: it adds a *fixed penalty*
-proportional to budget retained. But the policy's problem is not that it
-undervalues retention — it is that it has no representation of **how many
-turns remain and what a point will be worth in them**. A constant penalty
-either loses to a real EV gain every turn (w small: inert) or blocks moves that
-are genuinely correct (w large: worse). There is no value of a constant that
-encodes an opportunity cost that changes with the turn index. Session 45's
-brief proposed the secondary refinement of tapering the weight by remaining
-turns and it was never built; that instinct was right and the flat version was
-the part that could not work.
-
-**Replace the penalty with a budget schedule, and A/B the family on the
-replay** — which is exactly what the replay is good for, since these are
-differences on fixed trajectories:
-
-- **cost cap**: refuse any move costing more than 1 unless lethal or the only
-  affordable option (spreads 3 points over ≥3 turns; directly attacks the
-  1.62-point first move). This is the cheapest thing to try and it has been
-  proposed twice without ever being run.
-- **threshold**: move only when the EV gain over the best stay-put option
-  exceeds θ; sweep θ.
-- **schedule**: allow at most ⌈3 · t / expectedTurns⌉ cumulative spend by turn
-  t; sweep the expected-turns estimate (`isManaConstrained`'s
-  `⌈fishHp / bestHitEffect⌉` is the existing building block).
-- **shadow price**: charge each move the estimated marginal value of a focus
-  point, from a short rollout. Most principled, most expensive; only build it
-  if the cheap three all fail.
-
-One caveat on interpretation: the only cast that caught a fish held reserve
-throughout. That is a single cast and proves nothing — do not let it become a
-premise the way "17/20" nearly did.
-
----
-
-## 4. Standing: the replay is for differences, never absolutes
-
-Session 48 established this the hard way. The replay's 50.9% per-turn hit rate
-matched the mean `pHitPredicted` (0.515) the policy assigned to the same shots,
-because resolution and aiming share a movement model fitted to the same corpus.
-Live refuted the absolute at p=0.012. The replay remains the best offline
-evidence this project has for **paired comparisons on fixed trajectories** —
-§2 and §3 both depend on it — but no absolute rate from it should ever appear
-in a brief or a gate again, including mine. Record that in SPEC-fishing.md §9
-next to the existing calibration discount.
-
----
-
-## 5. Small decisions
-
-- **`nextMovePath` backfill (open question 3): do it, with provenance.** The
-  fourth observation (`12956718` t1, predicted/realized `[2,4]`) is verifiable
-  from the fixture, so this is recovering a record that was always true, not
-  inventing one. Add a `backfilled: true` field so the gate's audit trail shows
-  exactly which rows were not written by the live path. Lower bound moves to
-  0.51, still under the 10-attempt threshold — which is the honest outcome.
-- **Worth raising, as your decision, not mine to take:** the 10-attempt Wilson
-  gate was designed when the field's *meaning* was unknown. It is now known —
-  six of six decode to valid unit-step paths ending on `nextPosition` under the
-  confirmed row-major identity, four of four realized exactly including the
-  path. That is structural evidence the hit count does not capture. At ~1-2% of
-  turns and ~6 turns per cast, reaching 10 attempts takes roughly 80-160 more
-  casts. Consider a two-armed gate — structural decode valid **and** Wilson
-  lower bound ≥ 0.5 at n ≥ 5 — rather than waiting a month for a threshold set
-  under different information. Do not change it unilaterally.
-- **Unspent casts (open question 5): 15 remain today.** Under §0b they are
-  three batches, each behind a checkpoint. But §1's diagnostic is free and
-  strictly ordered before them — if live top-1 is a reporting bug, a batch
-  spent before finding that out is a batch spent measuring the wrong thing.
-  **Run §1's diagnostic first, then batch.**
-
-## 6. A standing guard that would have caught §1 immediately
-
-**Report the null-model comparators alongside every live prediction metric,
-every time.** Uniform-over-grid, uniform-over-union-of-rings, uniform-over-
-k-ring. They cost nothing to compute and they turn "13.8%, which seems low"
-into "13.8%, which is exactly the no-information score" — a statement that
-diagnoses itself. Add them to `scripts/ringPredictionReport.ts`'s output.
-
-This is the reporting-side analogue of the audit discipline session 47 and 48
-built on the derivation side, and it closes the same loop: **a number is not
-interpretable until you know what it would be if nothing worked.**
+1. **No corpus statistic without its `n`.** No comparator without re-derivation
+   at the compared thing's composition. (§0.)
+2. **Report coverage alongside hit rate** on every live readout, with the
+   `hit = coverage × conversion` decomposition. It says which half to fix, and
+   right now nobody knows.
+3. Replay for differences only, never absolutes (session 48, standing).
 
 ---
 
 ## Your task
 
-1. §1's four diagnostics, **before spending any cast.** Report which of the
-   four explains the gap, or report plainly that none does.
-2. §2 — implement the sticky step-count latent, gate on the replay as a paired
-   difference, and report zero-probability-event count alongside log loss.
-3. §3 — build and A/B the three cheap focus-budget policies on the replay
-   (cost cap, threshold, schedule). Shadow price only if all three fail.
-4. Then, and only then, batch under §0b's checkpoint discipline — with §6's
-   null comparators in the readout.
-5. §5 — the backfill with its provenance flag. Raise the gate question, do not
-   decide it.
-6. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+1. §1 — implement leave-one-cast-out for the **matcher** in the replay, and
+   verify the precondition: the LOO arm's opening focus spend should land near
+   live's 1.80, not the current 0.64. If it does not, say so and stop before
+   A/Bing anything on it.
+2. §2 — re-derive the coverage ceiling table at 83 casts. If budget 3 is again
+   sufficient for a hindsight-optimal schedule, that settles the focus question:
+   **the lever is placement, not spend.**
+3. §2 — build the horizon-H expected-coverage focus objective, sweep `H`, and
+   gate it on the replay as a paired difference in **coverage first**, then hit
+   rate, then catch. Report all three; a coverage gain that does not convert is
+   itself a finding about the deck's zone shapes.
+4. §3 — the free turn-0 dual-logging (Q2), `s` estimated at load with a floor
+   and logged (Q4). Leave the `nextPosition` gate alone (Q3).
+5. Then batch under the 5-cast checkpoint discipline, with coverage in the
+   readout.
+6. §4 — the two new standing guards into SPEC-fishing.md §9.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
    final commit.
 
-Honest expectation: §1 resolves to either a wiring bug or the step-count lock,
-and both are fixable. §3 is where the catch rate actually lives now — 80.8%
-meter-out with an empty meter is not a prediction problem, and no further
-improvement to the movement model will move it. If the cost cap alone
-recovers a meaningful slice of the replay's catch rate, that is the session's
-result and it will have cost almost nothing to find.
+Honest expectation. The coverage ceiling table is the thing to run first
+because it is cheap and it can kill this whole direction in one command: if
+budget 3 turns out **not** to be sufficient at 83 casts, then spend quantity
+matters after all and §2's reframe is wrong. If it confirms, the last three
+inert results stop being three separate null findings and become one
+explanation — the code has been tuning the wrong dimension since session 44 —
+and the horizon-coverage objective is the first thing built that addresses the
+right one.
