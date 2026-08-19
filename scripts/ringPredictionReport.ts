@@ -102,6 +102,120 @@ function summarize(label: string, rows: readonly RingPredictionRecord[], referen
   );
 }
 
+
+/**
+ * [session 49, brief §6] The no-information comparators, printed alongside
+ * every live prediction metric.
+ *
+ * The standing guard session 49 was asked to install: **a number is not
+ * interpretable until you know what it would be if nothing worked.** Session
+ * 48 reported live top-1 13.8% against an offline 46.4% and called the gap
+ * unexplained; three of the comparators below plus the turn-0 note would have
+ * diagnosed it on sight.
+ *
+ * Scored on turn >= 1 ONLY, and that restriction is half the point. The
+ * offline leave-one-cast-out figures skip hops with no previous displacement,
+ * so a turn-0 row has no offline counterpart — pooling them into a number
+ * compared against 42.6% understates it, which is exactly what session 48's
+ * headline did (13.8% pooled vs 16.7% on the comparable set).
+ *
+ * `from` is reconstructed within the cast — turn t's starting cell is turn
+ * t-1's `actual` — so this stays self-contained on one log file, with no
+ * second corpus to fall out of sync with.
+ */
+function nullComparators(rows: readonly RingPredictionRecord[]) {
+  const byCast = new Map<string, RingPredictionRecord[]>();
+  for (const r of rows) {
+    const arr = byCast.get(r.castId) ?? [];
+    arr.push(r);
+    byCast.set(r.castId, arr);
+  }
+
+  interface Scored {
+    from: [number, number];
+    actual: [number, number];
+    stepClass: 1 | 2 | null;
+    gridSize: number;
+    modelHit: boolean;
+  }
+  const scored: Scored[] = [];
+  for (const [, arr] of byCast) {
+    arr.sort((a, b) => a.turn - b.turn);
+    for (let i = 1; i < arr.length; i++) {
+      const prev = arr[i - 1]!;
+      const cur = arr[i]!;
+      if (cur.turn !== prev.turn + 1) continue; // a gap makes `from` unrecoverable
+      scored.push({
+        from: prev.actual,
+        actual: cur.actual,
+        stepClass: cur.stepClass,
+        gridSize: cur.gridSize,
+        modelHit: cur.hit,
+      });
+    }
+  }
+
+  console.log("\n── NULL COMPARATORS (turn >= 1 only — the offline LOO's scored set) ──");
+  if (scored.length === 0) {
+    console.log("  no consecutive-turn pairs yet.\n");
+    return;
+  }
+
+  const inGrid = (c: [number, number], g: number) => c[0] >= 1 && c[0] <= g && c[1] >= 1 && c[1] <= g;
+  const ring = (from: [number, number], k: number, g: number): [number, number][] => {
+    const out: [number, number][] = [];
+    for (let dx = -k; dx <= k; dx++) {
+      const rem = k - Math.abs(dx);
+      for (const dy of rem === 0 ? [0] : [-rem, rem]) {
+        const c: [number, number] = [from[0] + dx, from[1] + dy];
+        if (inGrid(c, g)) out.push(c);
+      }
+    }
+    return out;
+  };
+  const key = (c: [number, number]) => `${c[0]},${c[1]}`;
+  const union = (from: [number, number], g: number) => {
+    const m = new Map<string, [number, number]>();
+    for (const k of [1, 2]) for (const c of ring(from, k, g)) m.set(key(c), c);
+    return [...m.values()];
+  };
+
+  // A uniform model's top-1 is a tie among all its cells, so its EXPECTED
+  // top-1 is 1/|support| when the actual is in support and 0 otherwise —
+  // reported as an expectation rather than picking a tie-break winner, which
+  // would make the comparator depend on an arbitrary ordering rule.
+  let eGrid = 0;
+  let eUnion = 0;
+  let eKRing = 0;
+  let modelHits = 0;
+  for (const s of scored) {
+    const g = s.gridSize;
+    const gridCells = g * g;
+    eGrid += 1 / gridCells;
+    const u = union(s.from, g);
+    if (u.some((c) => key(c) === key(s.actual))) eUnion += 1 / u.length;
+    const kr = s.stepClass === null ? u : ring(s.from, s.stepClass, g);
+    if (kr.some((c) => key(c) === key(s.actual))) eKRing += 1 / kr.length;
+    if (s.modelHit) modelHits++;
+  }
+  const n = scored.length;
+  const pc = (v: number) => `${((v / n) * 100).toFixed(1).padStart(5)}%`;
+  console.log(`  n = ${n} consecutive-turn pair(s)`);
+  console.log(`    uniform over the whole grid          ${pc(eGrid)}`);
+  console.log(`    uniform over the UNION of both rings ${pc(eUnion)}`);
+  console.log(`    uniform over the legal k-ring        ${pc(eKRing)}`);
+  console.log(`    THE SHIPPED MODEL                    ${pc(modelHits)}   (${modelHits}/${n})`);
+  const beatsUnion = modelHits > eUnion;
+  const beatsKRing = modelHits > eKRing;
+  console.log(
+    `  => the model ${beatsUnion ? "beats" : "does NOT beat"} the union-of-rings null and ${beatsKRing ? "beats" : "does NOT beat"} the k-ring null.`,
+  );
+  if (!beatsKRing) {
+    console.log("     Losing to the k-ring null means the CONDITIONAL tier is not paying for itself on these turns.");
+  }
+  console.log("");
+}
+
 function main() {
   // [session 48] Positional path only — a leading `--since=...` used to be
   // taken as the log path, so `ringPredictionReport.ts --since=<t>` (the
@@ -132,10 +246,14 @@ function main() {
   }
 
   console.log("\n── ring tier, by step class (the class-matched comparison) ──");
+  console.log("  offline comparators re-derived at 73 clean casts (scripts/fishingRingCV.ts);");
+  console.log("  they MOVE as the corpus grows — session 48 compared live against the 68-cast 46.4%.");
   const ringRows = rows.filter((r) => r.tier === "ring" || r.tier === "matcher_ring");
-  summarize("k=1", ringRows.filter((r) => r.stepClass === 1), "top1 54.1%, logLoss 0.803");
-  summarize("k=2", ringRows.filter((r) => r.stepClass === 2), "top1 38.2%, logLoss 1.455");
-  summarize("all classes", ringRows, "top1 46.4%, logLoss 1.118");
+  summarize("k=1", ringRows.filter((r) => r.stepClass === 1), "top1 53.6%, logLoss 0.803");
+  summarize("k=2", ringRows.filter((r) => r.stepClass === 2), "top1 33.9%, logLoss 1.455");
+  summarize("all classes", ringRows, "top1 42.6%, logLoss 1.418");
+
+  nullComparators(rows);
 
   // ---- [session 46, brief §1b] the paired comparison -----------------------
   const pairedRows = paired(rows);

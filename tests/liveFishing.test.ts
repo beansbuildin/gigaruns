@@ -282,6 +282,38 @@ describe("nextPosition validation log round-trip", () => {
     expect(confirmedHitCount("/nonexistent/path.jsonl")).toBe(0);
   });
 
+  it("[session 49, brief §5] round-trips the `backfilled` provenance flag and its source", () => {
+    // The gate this ledger feeds decides whether the bot overrides its own
+    // model with the server's pre-rolled cell. A row recovered from a fixture
+    // has to stay distinguishable from one the live loop wrote, or the audit
+    // trail is gone.
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-test-"));
+    const path = join(dir, "nextPositionValidation.jsonl");
+    const live: NextPositionValidation = { ts: "t1", castId: "c1", turn: 1, predicted: [2, 2], actual: [2, 2], hit: true, gridSize: 4 };
+    const recovered: NextPositionValidation = {
+      ts: "t0",
+      castId: "c0",
+      turn: 1,
+      predicted: [2, 4],
+      actual: [2, 4],
+      hit: true,
+      gridSize: 4,
+      backfilled: true,
+      source: "fixtures/somewhere/state-001.json",
+    };
+    appendNextPositionValidation(live, path);
+    appendNextPositionValidation(recovered, path);
+
+    const loaded = loadNextPositionValidations(path);
+    expect(loaded).toEqual([live, recovered]);
+    expect(loaded[0]!.backfilled).toBeUndefined();
+    expect(loaded[1]!.backfilled).toBe(true);
+    expect(loaded[1]!.source).toBe("fixtures/somewhere/state-001.json");
+    // A backfilled hit still counts — the flag is provenance, not a filter.
+    expect(confirmedHitCount(path)).toBe(2);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("[session 39, CODEXAUDIT #4] skips a well-formed-JSON-but-schema-invalid line instead of trusting it", () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-test-"));
     const path = join(dir, "nextPositionValidation.jsonl");

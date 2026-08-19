@@ -450,6 +450,21 @@ export interface NextPositionValidation {
    * wire carries a real one" discipline `TransitionRecord` already applies.
    */
   gridSize: number;
+  /**
+   * [session 49, brief §5] True for a record RECOVERED from a committed
+   * fixture rather than written by the live loop as it happened.
+   *
+   * The gate this ledger feeds (`NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND`
+   * over `NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS`) decides whether the bot
+   * trusts the server's own pre-rolled next cell over its own model. Moving
+   * a live gate with rows its author never sanctioned needs an audit trail,
+   * so the provenance is in the row rather than in a comment: absent means
+   * "the live path wrote this", `true` means "reconstructed from a fixture,
+   * and here is the fixture" in `source`.
+   */
+  backfilled?: boolean;
+  /** Fixture path a `backfilled` record was recovered from. Absent on live rows. */
+  source?: string;
 }
 
 function inBoundsTuple([x, y]: [number, number], gridSize: number): boolean {
@@ -466,6 +481,8 @@ const NextPositionValidationSchema = z
     actual: z.tuple([z.number(), z.number()]),
     hit: z.boolean(),
     gridSize: z.number().int().positive(),
+    backfilled: z.boolean().optional(),
+    source: z.string().optional(),
   })
   .refine((v) => inBoundsTuple(v.predicted, v.gridSize) && inBoundsTuple(v.actual, v.gridSize), {
     message: "predicted/actual must be within [1, gridSize]",
