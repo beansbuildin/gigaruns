@@ -41,7 +41,7 @@
  * Usage: npx tsx scripts/ringPredictionReport.ts [path]
  */
 
-import { loadRingPredictions, DEFAULT_RING_PREDICTION_LOG_PATH, type RingPredictionRecord } from "./liveFishing.js";
+import { loadRingPredictions, DEFAULT_RING_PREDICTION_LOG_PATH, zoneMapVersionOf, type RingPredictionRecord } from "./liveFishing.js";
 
 /**
  * Log loss of one row under one predictor, with the ZERO-PROBABILITY
@@ -176,6 +176,30 @@ function main() {
 
   // ---- [session 46, brief §1d] calibration --------------------------------
   const shots = rows.filter((r) => r.pHitPredicted !== undefined && r.realizedHit !== undefined);
+  // [session 48, brief §3] Rows written before session 47's ZONE_OFFSET fix
+  // were logged by a policy AIMING with the transposed map. Their movement
+  // predictions are unaffected (movement is zone-independent), but every
+  // hit-flavoured field on them describes a mis-aimed shot. Pooling the two
+  // eras into one hit rate quietly drags it down, so the split is printed
+  // whenever both are present rather than left for someone to notice.
+  const byZoneMap = new Map<string, RingPredictionRecord[]>();
+  for (const r of rows) {
+    const v = zoneMapVersionOf(r);
+    byZoneMap.set(v, [...(byZoneMap.get(v) ?? []), r]);
+  }
+  if (byZoneMap.size > 1) {
+    console.log("\n── ⚠ MIXED ZONE MAPS in this selection — do not pool the hit rates ──");
+    for (const [version, rs] of [...byZoneMap.entries()].sort()) {
+      const shots = rs.filter((r) => r.realizedHit !== undefined);
+      const landed = shots.filter((r) => r.realizedHit).length;
+      console.log(
+        `  ${version.padEnd(11)} n=${String(rs.length).padStart(4)}  shots scored=${String(shots.length).padStart(4)}` +
+          `  realized hit=${shots.length ? `${((landed / shots.length) * 100).toFixed(1)}%` : "  n/a"}`,
+      );
+    }
+    console.log("  'transposed' rows aimed with session 12's wrong table (SPEC-fishing.md §9).");
+  }
+
   console.log("\n── CALIBRATION: predicted P(hit) of the shot actually played vs. realized ──");
   if (shots.length === 0) {
     console.log("  no rows carry a played-shot probability yet.\n");

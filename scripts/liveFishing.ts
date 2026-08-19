@@ -563,6 +563,38 @@ export interface RingPredictionRecord {
   pHitPredicted?: number;
   /** Did it actually connect? Read off `fishHp` DECREASING across the turn (a miss pushes `fishHp` toward `fishMaxHp`, QUESTIONS.md §15). */
   realizedHit?: boolean;
+
+  // ---- [session 48, brief §3] which zone map the shot was AIMED with -------
+  // Session 47 found `ZONE_OFFSET` had been the transpose of the truth for
+  // eleven sessions. Every row written before that fix was logged by a policy
+  // aiming with the wrong map. The row's PREDICTIONS are unaffected — fish
+  // movement is zone-independent — but `pHitPredicted` and `realizedHit`
+  // describe mis-aimed shots, and pooling them into a hit-rate figure silently
+  // drags it down.
+  //
+  // Optional, and absent means `"transposed"`: that is what a row without the
+  // field IS, since the field only exists after the fix. Marked, not deleted —
+  // one field, no data loss, reversible.
+  zoneMapVersion?: ZoneMapVersion;
+}
+
+/**
+ * [session 48] Which `ZONE_OFFSET` table the aiming decision on a row was made
+ * with. `"transposed"` is session 12's table, wrong and shipped for eleven
+ * sessions; `"corrected"` is session 47's fix.
+ */
+export type ZoneMapVersion = "transposed" | "corrected";
+
+/** The map every shot is aimed with from session 47 onward. */
+export const CURRENT_ZONE_MAP_VERSION: ZoneMapVersion = "corrected";
+
+/**
+ * A row's zone map, defaulting an absent field to `"transposed"` — see
+ * `RingPredictionRecord.zoneMapVersion`. Use this rather than reading the
+ * field directly, so the default lives in exactly one place.
+ */
+export function zoneMapVersionOf(rec: RingPredictionRecord): ZoneMapVersion {
+  return rec.zoneMapVersion ?? "transposed";
 }
 
 /** Deterministic top-1 of a distribution — highest p, ties by lowest x then lowest y, the same rule `scripts/fishingRingCV.ts` scores with so live and offline numbers are comparable. */
@@ -1390,6 +1422,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         playedFocus: [best.focus.x, best.focus.y],
         pHitPredicted: best.pHit + best.pCrit,
         realizedHit,
+        zoneMapVersion: CURRENT_ZONE_MAP_VERSION,
       };
       appendRingPrediction(rec, ringPredictionLogPath);
       log.write({ event: "ring_prediction", ...rec });

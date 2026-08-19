@@ -1061,6 +1061,44 @@ So: any brief or recap quoting an in-sample catch rate should carry this
 discount explicitly rather than rediscovering it a third time. An in-sample
 number is evidence about ordering and shape, not about the level.
 
+### What gates a strategy change **[session 48, brief §3 — adopted WITH a caveat this session's own data forces]**
+
+**The rule.** Any future fishing strategy change is gated on the off-policy
+replay (`src/sim/fishing/offPolicyReplay.ts`, `scripts/offPolicyReplay.ts`)
+first, as a paired difference against the current default on the same
+trajectories, with a CI. Change a default only where the CI excludes zero.
+**The in-sample sim is a debugging tool, not evidence** — its own §9
+calibration discount exists because it over-predicts live by 2.5-3×, and
+session 47's zone bug was invisible in-sim for eleven sessions precisely
+because the sim applies the zone table on both sides of the comparison.
+
+**The caveat, and it is not small.** The replay is BETTER evidence than the
+sim. It is not yet evidence of an absolute rate. Session 48's batch is the
+first live test of a replay prediction and the prediction failed:
+
+| | replay prior | live, batch 1 |
+|---|---|---|
+| per-turn hit rate | **50.9%** [44.3%, 57.5%] | **27.6%** (8/29) [14.7%, 45.7%] |
+
+The prior sits **outside** the live 95% interval (two-proportion z = −2.51,
+**p = 0.012**), while the live figure is indistinguishable from the historical
+27.5% baseline it was supposed to beat (z = +0.01, p = 0.99). Excluding the
+one FACT-1-violating cast does not rescue it (30.4%, p = 0.050 against the
+prior).
+
+Note also what the replay's 50.9% is numerically close to: the mean
+`pHitPredicted` the policy assigned to the shots it actually played that
+batch, **0.515**. Both numbers come from the same movement model, so the
+replay's absolute rate is substantially the model marking its own homework —
+whereas the realized 27.6% is not.
+
+**So use the replay for the difference, never for the level.** A paired ΔLL or
+a paired hit-rate difference between two policies on the same 68 trajectories
+is the thing it is good for, because the model error is common to both arms
+and differences it out. Its absolute predictions are, on the one test that
+exists, wrong by nearly a factor of two. Quote them as an ordering, not as a
+forecast.
+
 ### What is NOT claimed
 
 The catch-rate numbers from `scripts/fishingEmpiricalAblation.ts` are
