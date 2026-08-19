@@ -41,10 +41,9 @@ import {
   type ContextStats,
 } from "../../strategy/fishing/contextualFallback.js";
 import {
-  classifyStep,
   intersectWithRing,
-  ringDistribution,
-  ringDistributionUnknownClass,
+  lastStepClass,
+  stickyStepDistribution,
   DEFAULT_RING_MODEL_OPTIONS,
   type RingModelOptions,
   type StepClassTable,
@@ -349,11 +348,20 @@ export function simulateCast(opts: CastOptions): CastResult {
 
     const ringOpts: RingModelOptions = opts.ringModel?.options ?? DEFAULT_RING_MODEL_OPTIONS;
     const currentCell = matcher.history[matcher.history.length - 1]!;
-    const stepClass = opts.ringModel ? classifyStep(matcher.history) : null;
+    // [session 49, brief §2] `lastStepClass`, not `classifyStep`'s cast-wide
+    // mode: under the sticky chain the LAST observed count is the sufficient
+    // statistic, and the two only disagree on a cast that alternates — which
+    // is exactly the case the hard ring got catastrophically wrong.
+    const stepClass = opts.ringModel ? lastStepClass(matcher.history) : null;
     const ringDist = opts.ringModel
-      ? stepClass === null
-        ? ringDistributionUnknownClass(currentCell, previousDisplacement(matcher.history), opts.ringModel.table, gridSize, ringOpts)
-        : ringDistribution(currentCell, stepClass, previousDisplacement(matcher.history), opts.ringModel.table, gridSize, ringOpts)
+      ? stickyStepDistribution(
+          currentCell,
+          stepClass,
+          previousDisplacement(matcher.history),
+          opts.ringModel.table,
+          gridSize,
+          ringOpts,
+        )
       : null;
 
     const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;

@@ -65,8 +65,12 @@ import {
 import {
   buildStepClassTable,
   classifyStep,
+  lastStepClass,
   ringDistribution,
   ringDistributionUnknownClass,
+  stickyStepDistribution,
+  DEFAULT_RING_MODEL_OPTIONS,
+  DEFAULT_SWITCH_PROBABILITY,
 } from "../../strategy/fishing/stepClass.js";
 import type { Cast } from "./transitionCorpus.js";
 import type { CastTrace, TraceCard } from "./castTrace.js";
@@ -181,6 +185,23 @@ export interface ReplayOptions {
    * how much of the lift is the zone fix, and how much is the predictor?
    */
   mismatchedZones?: boolean;
+  /**
+   * [session 49, brief §2] The sticky step-count latent's switch probability;
+   * defaults to the shipped `DEFAULT_SWITCH_PROBABILITY`. Ignored under
+   * `hardRing`.
+   *
+   * `0` is NOT the pre-session-49 model: it is the sticky arm's degenerate
+   * case, which uses the LAST observed count rather than the cast-wide mode
+   * and is measurably worse on its own (`scripts/stickyStepSweep.ts` — logLoss
+   * 1.576 vs the mode's 1.407). The win is the marginalisation, not the switch
+   * from mode to last. Use `hardRing` for the real before-arm.
+   */
+  stickySwitchProbability?: number;
+  /**
+   * Restore the pre-session-49 hard-zero ring (cast-wide mode, off-ring cells
+   * at exactly zero). Exists only as the A/B's before-arm.
+   */
+  hardRing?: boolean;
 }
 
 /** Reflect `c` about the diagonal through `focus` — see `ReplayOptions.mismatchedZones`. */
@@ -220,11 +241,23 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
 
     const currentCell = history[history.length - 1]!;
     const prevDelta = previousDisplacement(history);
-    const stepClass = classifyStep(history);
-    const dist =
-      stepClass === null
-        ? ringDistributionUnknownClass(currentCell, prevDelta, table, gridSize)
-        : ringDistribution(currentCell, stepClass, prevDelta, table, gridSize);
+    // [session 49, brief §2] Sticky by default, matching what now ships in
+    // `liveFishing.ts` and `castSim.ts`. `hardRing: true` restores the old
+    // hard-zero arm so the A/B stays runnable from `stickyStepSweep.ts`.
+    const dist = opts.hardRing
+      ? ((k) =>
+          k === null
+            ? ringDistributionUnknownClass(currentCell, prevDelta, table, gridSize)
+            : ringDistribution(currentCell, k, prevDelta, table, gridSize))(classifyStep(history))
+      : stickyStepDistribution(
+          currentCell,
+          lastStepClass(history),
+          prevDelta,
+          table,
+          gridSize,
+          DEFAULT_RING_MODEL_OPTIONS,
+          opts.stickySwitchProbability ?? DEFAULT_SWITCH_PROBABILITY,
+        );
     const baseline = contextualFallback(currentCell, prevDelta, contextMap, cellOnlyMap, gridSize, {
       shrinkageK: DEFAULT_SHRINKAGE_K,
     });

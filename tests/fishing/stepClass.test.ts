@@ -16,6 +16,9 @@ import {
   buildStepClassTable,
   classifyStep,
   intersectWithRing,
+  lastStepClass,
+  stickyStepDistribution,
+  DEFAULT_SWITCH_PROBABILITY,
   ringCells,
   ringDistribution,
   ringDistributionUnknownClass,
@@ -208,5 +211,90 @@ describe("buildStepClassTable", () => {
     const cond = table.conditional.get("1|0,1")!;
     expect(cond.castIds.size).toBe(1);
     expect([...cond.counts.values()].reduce((a, b) => a + b, 0)).toBe(2);
+  });
+});
+
+// ── [session 49, brief §2] the sticky step-count latent ────────────────────
+
+describe("lastStepClass", () => {
+  it("is null before any nonzero hop resolves", () => {
+    expect(lastStepClass([])).toBeNull();
+    expect(lastStepClass([{ x: 2, y: 2 }])).toBeNull();
+    expect(lastStepClass([{ x: 2, y: 2 }, { x: 2, y: 2 }])).toBeNull();
+  });
+
+  it("reads the MOST RECENT hop, not the cast-wide mode", () => {
+    // Three k=1 hops then one k=2: the mode is 1, the last is 2. This is the
+    // whole difference between the two, and it is the alternating cast's case.
+    const history = [
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 1, y: 3 },
+      { x: 1, y: 4 },
+      { x: 3, y: 4 },
+    ];
+    expect(classifyStep(history)).toBe(1);
+    expect(lastStepClass(history)).toBe(2);
+  });
+
+  it("skips a zero-length hop to reach the last real move", () => {
+    const history = [{ x: 2, y: 2 }, { x: 2, y: 4 }, { x: 2, y: 4 }];
+    expect(lastStepClass(history)).toBe(2);
+  });
+});
+
+describe("stickyStepDistribution", () => {
+  const table = buildStepClassTable([
+    cast("a", [{ x: 1, y: 1 }, { x: 1, y: 2 }, { x: 1, y: 3 }, { x: 1, y: 4 }]),
+    cast("b", [{ x: 1, y: 1 }, { x: 1, y: 3 }, { x: 1, y: 1 }, { x: 1, y: 3 }]),
+  ]);
+
+  it("gives the OFF-ring cells nonzero mass — the session-48 failure cannot recur", () => {
+    // Cast `12988700` locked k=1 and then landed two steps away three times,
+    // each at probability exactly zero. Under the sticky chain that cell is
+    // reachable with roughly `s` of the mass.
+    const d = stickyStepDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID);
+    const offRing = d.get(cellKey({ x: 2, y: 4 })); // Manhattan 2 from (2,2)
+    expect(offRing).toBeDefined();
+    expect(offRing!.p).toBeGreaterThan(0);
+    expect(offRing!.p).toBeLessThan(DEFAULT_SWITCH_PROBABILITY);
+  });
+
+  it("puts NO cell at exactly zero across the union of both rings", () => {
+    for (const lastK of [1, 2] as const) {
+      const d = stickyStepDistribution({ x: 2, y: 2 }, lastK, { dx: 0, dy: 1 }, table, GRID);
+      for (const k of [1, 2]) {
+        for (const c of ringCells({ x: 2, y: 2 }, k, GRID)) {
+          expect(d.get(cellKey(c))?.p ?? 0).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it("still sums to 1", () => {
+    for (const lastK of [1, 2] as const) {
+      expect(totalP(stickyStepDistribution({ x: 2, y: 2 }, lastK, { dx: 0, dy: 1 }, table, GRID))).toBeCloseTo(1, 10);
+      expect(totalP(stickyStepDistribution({ x: 1, y: 1 }, lastK, null, table, GRID))).toBeCloseTo(1, 10);
+    }
+  });
+
+  it("keeps the stay-class dominant — stickiness is preserved, not discarded", () => {
+    const d = stickyStepDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID);
+    let onRing = 0;
+    for (const c of ringCells({ x: 2, y: 2 }, 1, GRID)) onRing += d.get(cellKey(c))?.p ?? 0;
+    expect(onRing).toBeGreaterThan(0.9);
+  });
+
+  it("collapses to the hard ring at s = 0", () => {
+    const hard = ringDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID);
+    const sticky = stickyStepDistribution({ x: 2, y: 2 }, 1, { dx: 0, dy: 1 }, table, GRID, undefined, 0);
+    expect([...sticky.keys()].sort()).toEqual([...hard.keys()].sort());
+    for (const [k, v] of hard) expect(sticky.get(k)!.p).toBeCloseTo(v.p, 12);
+  });
+
+  it("hands over to the class prior when no hop has resolved yet", () => {
+    const prior = ringDistributionUnknownClass({ x: 2, y: 2 }, null, table, GRID);
+    const sticky = stickyStepDistribution({ x: 2, y: 2 }, null, null, table, GRID);
+    for (const [k, v] of prior) expect(sticky.get(k)!.p).toBeCloseTo(v.p, 12);
   });
 });

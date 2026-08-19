@@ -118,10 +118,9 @@ import {
 } from "../src/strategy/fishing/contextualFallback.js";
 import {
   buildStepClassTable,
-  classifyStep,
   intersectWithRing,
-  ringDistribution,
-  ringDistributionUnknownClass,
+  lastStepClass,
+  stickyStepDistribution,
   DEFAULT_RING_MODEL_OPTIONS,
 } from "../src/strategy/fishing/stepClass.js";
 import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
@@ -1230,11 +1229,16 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // pre-session-45 two-tier pipeline.
     const currentCell = matcher.history[matcher.history.length - 1]!;
     const prevDelta = previousDisplacement(matcher.history);
-    const stepClass = ringModelEnabled ? classifyStep(matcher.history) : null;
+    // [session 49, brief §2] The ring is no longer a HARD constraint. The
+    // step count is sticky, not constant (session 48 falsified the constant
+    // half of FACT 1), so the distribution marginalises over a two-state
+    // chain on the LAST observed count — see `stickyStepDistribution`. Cast
+    // `12988700` drew three probability-ZERO outcomes under the old reading;
+    // this construction cannot produce one. `lastStepClass` replaces
+    // `classifyStep`'s cast-wide mode for the same reason.
+    const stepClass = ringModelEnabled ? lastStepClass(matcher.history) : null;
     const ringDist = ringModelEnabled
-      ? stepClass === null
-        ? ringDistributionUnknownClass(currentCell, prevDelta, stepClassTable, gridSize)
-        : ringDistribution(currentCell, stepClass, prevDelta, stepClassTable, gridSize)
+      ? stickyStepDistribution(currentCell, stepClass, prevDelta, stepClassTable, gridSize)
       : null;
     // [session 45, live-batch finding] The matcher tier gets the ring FLOOR
     // too, not just the ring intersection. Two turn-0 rows in this session's

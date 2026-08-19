@@ -902,6 +902,59 @@ projects each turn down to `from`/`to` and discards the path between them, so
 the corpus view used to FIT the movement model could not represent the thing
 that breaks it.
 
+#### [session 49] The fix: a sticky two-state count, not a hard ring
+
+`src/strategy/fishing/stepClass.ts`'s `stickyStepDistribution` replaces the
+hard constraint. The count is **observed** the moment a hop resolves, so
+nothing here is a hidden-state filter — the only unknown is the NEXT turn's
+count, and a two-state Markov chain on the last observed one is its whole
+sufficient statistic:
+
+```
+P(next cell) = (1 - s) * P(cell | lastK) + s * P(cell | the other count)
+```
+
+- **`s` measured, not assumed: 5 switches / 238 consecutive hop pairs =
+  2.10% raw, 2.50% Laplace(+1)** — `DEFAULT_SWITCH_PROBABILITY`. The
+  session-49 brief estimated "one switch ... roughly 0.5-0.7%"; there are
+  five, because the one alternating cast switches on EVERY one of its five
+  pairs rather than once. The brief's figure is ~4x too small.
+- **`lastStepClass` replaces `classifyStep`'s cast-wide mode** at every ring
+  call site. The two agree on all 72 constant casts and disagree on every
+  turn of the alternating one.
+- The floor is **free** — no constant to justify. Off-count cells get about
+  `s` spread over the alternate ring, capping a surprise at ~5 nats instead
+  of the `-log(1e-9)` = 20.7 a true zero collapses to.
+- Reclassification is automatic AND prompt: an off-ring landing changes
+  `lastStepClass` for the very next prediction.
+
+Measured, leave-one-cast-out on 73 clean casts / 235 scored transitions
+(`scripts/stickyStepSweep.ts`):
+
+| arm | top-1 | logLoss | zero-prob events |
+|---|---|---|---|
+| shipped: cast-wide mode + hard ring | 42.6% | 1.407 | **3** |
+| sticky: last count + marginal, s=0.025 | 42.6% | **1.268** | **0** |
+
+Paired ΔlogLoss (sticky − shipped) **−0.139 [−0.510, +0.025]**, cluster-
+bootstrapped over casts. Paired Δtop-1 **0.00pp [0.00, 0.00]** — at
+s=0.025 the mixture never moves the argmax. All of the log-loss movement is
+cast `12988700` (−7.685); **70 of 73 casts move by less than 0.05**, which
+is the bounded cost of being wrong about the mechanism.
+
+`s = 0` is NOT the pre-session-49 model — it is the sticky arm's degenerate
+case, using the last count rather than the mode, and it is *worse* on its own
+(logLoss 1.576, 5 zero-prob events). **The win is the marginalisation, not
+the switch from mode to last.** `ReplayOptions.hardRing` is the real
+before-arm.
+
+**On the replay the change is behaviorally INERT**: paired per cast on 73
+clean traces, catch 22/73 and per-turn hit 119/233 are *identical* for every
+`s` from 0 to 0.05 (+0/−0 casts, +0/−0 turns); only at s=0.1 does one turn's
+card choice move. This is a calibration and robustness fix that removes an
+unbounded-loss failure mode. **It does not raise the catch rate and was never
+going to** — see §5c, the focus budget.
+
 **Also newly readable, `data.nextMovePath` / `data.nextPosition`
 (QUESTIONS.md §17):** 6 non-null observations, all on TERMINAL docs, and in
 all 6 `nextMovePath` decodes to exactly `nextPosition` under the same

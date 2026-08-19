@@ -337,3 +337,89 @@ export function intersectWithRing(dist: Distribution, cell: Cell, k: StepClass, 
   for (const v of out.values()) v.p /= total;
   return out;
 }
+
+// ── the sticky step-count latent ──────────────────────────────────────────
+
+/**
+ * [session 49, brief §2] The switch probability of the per-turn step count,
+ * estimated from `data/fish-patterns.jsonl` at 73 clean casts.
+ *
+ * Session 48 falsified the half of FACT 1 that said the step count is fixed
+ * for a cast (`scripts/auditMovePaths.ts`, cast `12988700`). The count is
+ * still STICKY — 233 of 238 consecutive hop pairs keep it — but the model
+ * treated stickiness as certainty, so cast `12988700` drew three
+ * probability-ZERO outcomes and a log loss of 11.316.
+ *
+ * The count is OBSERVED the moment a hop resolves, so nothing here is a
+ * hidden-state filter: the only unknown is the NEXT turn's count, and a
+ * two-state Markov chain on the last observed one is its whole sufficient
+ * statistic. That is why this takes `lastK` and not a posterior.
+ *
+ * 5 switches / 238 pairs = 2.10% raw, 2.50% with Laplace +1. **Correction to
+ * the session-49 brief**, which estimated "one switch across ~309
+ * transitions ... roughly 0.5-0.7%": there are five, because the one
+ * alternating cast switches on EVERY one of its five consecutive pairs
+ * rather than once. The brief's figure is ~4x too small.
+ *
+ * Swept on the replay rather than trusted (`scripts/stickyStepSweep.ts`).
+ */
+export const DEFAULT_SWITCH_PROBABILITY = 0.025;
+
+/**
+ * The step count of the fish's MOST RECENT nonzero hop.
+ *
+ * Deliberately not `classifyStep`, which takes the cast-wide mode. The mode
+ * is the right summary only under the retracted "constant per cast" reading;
+ * under a sticky chain the last observation is the sufficient statistic, and
+ * on an alternating cast the two disagree on every turn. They agree on all
+ * 72 constant casts in the corpus.
+ */
+export function lastStepClass(history: readonly Cell[]): StepClass | null {
+  for (let i = history.length - 1; i >= 1; i--) {
+    const len = stepLen(history[i - 1]!, history[i]!);
+    if (len === 1 || len === 2) return len as StepClass;
+  }
+  return null;
+}
+
+/**
+ * The next-cell distribution under the sticky two-state step count:
+ *
+ *   P(next cell) = (1 - s) * P(cell | lastK) + s * P(cell | the other class)
+ *
+ * marginalising the ring model over both counts instead of conditioning
+ * hard on one. Three things fall out of that and none of them needed a new
+ * constant:
+ *
+ *  - **The floor is free.** An off-"ring" cell gets roughly `s` spread over
+ *    the alternate ring, capping a surprise at ~5 nats instead of the
+ *    `-log(1e-9)` = 20.7 a true zero collapses to. There is no arbitrary
+ *    floor to justify, which is why the brief prefers this to flooring.
+ *  - **Reclassification is automatic and PROMPT.** An off-ring landing
+ *    changes `lastStepClass` on the very next turn, so the model corrects
+ *    before the next prediction rather than after a mode has been outvoted.
+ *  - **On the 72 constant casts it is a `s`-sized perturbation** of what
+ *    shipped, so the cost of being wrong about the mechanism is bounded.
+ *
+ * `lastK === null` (no hop resolved yet) hands over to
+ * `ringDistributionUnknownClass` unchanged — the class prior is already the
+ * honest answer there and stickiness has nothing to be sticky about.
+ */
+export function stickyStepDistribution(
+  cell: Cell,
+  lastK: StepClass | null,
+  prevDelta: Displacement | null,
+  table: StepClassTable,
+  gridSize: number,
+  opts: RingModelOptions = DEFAULT_RING_MODEL_OPTIONS,
+  switchProbability: number = DEFAULT_SWITCH_PROBABILITY,
+): Distribution {
+  if (lastK === null) return ringDistributionUnknownClass(cell, prevDelta, table, gridSize, opts);
+  const s = Math.min(Math.max(switchProbability, 0), 1);
+  const other: StepClass = lastK === 1 ? 2 : 1;
+  const stay = ringDistribution(cell, lastK, prevDelta, table, gridSize, opts);
+  if (s <= 0) return stay;
+  const jump = ringDistribution(cell, other, prevDelta, table, gridSize, opts);
+  // `mixDistributions(a, b, w)` is `w*a + (1-w)*b`, so the stay-weight is 1-s.
+  return mixDistributions(stay, jump, 1 - s);
+}
