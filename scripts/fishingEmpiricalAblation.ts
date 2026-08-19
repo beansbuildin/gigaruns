@@ -105,6 +105,22 @@ function run(label: string, extra: Omit<CastOptions, "seed" | "policy">, heurist
   console.log(`  ${label.padEnd(48)} ${cells.map((c) => c.padStart(14)).join("  ")}`);
 }
 
+/** [session 46, brief §3] Catch rate AND per-turn hit rate, plus the mean turns each arm actually gets — a deck that ends casts sooner takes fewer shots, which is itself part of the story. */
+function runHit(label: string, extra: Omit<CastOptions, "seed" | "policy">) {
+  const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, true);
+  const cells: string[] = [];
+  for (const seed of SEEDS) {
+    const r = simulateCasts(N, { policy, ...REAL_PARAMS, ...extra }, seed);
+    cells.push(`${(r.catchRate * 100).toFixed(1)}% / ${(r.hitRate * 100).toFixed(1)}% / ${r.meanTurns.toFixed(1)}`);
+  }
+  console.log(`  ${label.padEnd(48)} ${cells.map((c) => c.padStart(22)).join("  ")}`);
+}
+
+function headerHit() {
+  console.log(`  ${"".padEnd(48)} ${SEEDS.map((s) => `seed ${s}`.padStart(22)).join("  ")}`);
+  console.log(`  ${"".padEnd(48)} ${SEEDS.map(() => "catch% / hit% / turns".padStart(22)).join("  ")}`);
+}
+
 function header() {
   console.log(`  ${"".padEnd(48)} ${SEEDS.map((s) => `seed ${s}`.padStart(14)).join("  ")}`);
   console.log(`  ${"".padEnd(48)} ${SEEDS.map(() => "catch% / fishHP".padStart(14)).join("  ")}`);
@@ -155,9 +171,22 @@ run("LIVE config (mined + contextual fallback)", empiricalLive, true);
 run("RING model", empiricalRing, true);
 run("RING model + mined matcher, ring-intersected", { ...empiricalMined, ringModel: { table } }, true);
 
-console.log("\n3. Deck shape (brief §4) — sizing the lever only, nothing acts on this\n");
-header();
-run("real deck  [1,2,3,4,5,6,7,76,77,79]", empiricalRing, true);
-run("shape-matched MID  [7,79,76] (all 3 already in deck)", { ...empiricalRing, deckIds: [...SHAPE_DECK] }, true);
-run("shape-matched HIGH [107,108,25] (same shapes, 10-11 dmg)", { ...empiricalRing, deckIds: [...SHAPE_DECK_HIGH] }, true);
+console.log("\n3. Deck shape — the session-46 §3 DIAGNOSTIC, closing the thread\n");
+console.log("   Session 45 measured shape-matched MID BELOW the real deck; an independent");
+console.log("   re-run of the same three cards put it ~20pp ABOVE. Two harnesses cannot both");
+console.log("   be describing the same card geometry, so this run prints PER-TURN HIT RATE");
+console.log("   beside catch rate. Hit rate is very nearly a pure function of card zones and");
+console.log("   focus placement — independent of the HP arithmetic, the mana curve, and the");
+console.log("   sequential-drawHand confound — so it separates the two explanations:");
+console.log("     MID hit rate >= real deck's, catch rate lower  -> harness bug in the draw path");
+console.log("     MID hit rate genuinely lower                   -> the geometry claim is wrong\n");
+headerHit();
+runHit("real deck  [1,2,3,4,5,6,7,76,77,79]", empiricalRing);
+runHit("shape-matched MID  [7,79,76] (all 3 already in deck)", { ...empiricalRing, deckIds: [...SHAPE_DECK] });
+runHit("shape-matched HIGH [107,108,25] (same shapes, 10-11 dmg)", { ...empiricalRing, deckIds: [...SHAPE_DECK_HIGH] });
+console.log("");
+console.log("   Practical conclusion either way, and it does not change: you gain ONE card per");
+console.log("   catch, so wholesale deck replacement is unreachable. The only regime available");
+console.log("   is marginal — real deck plus one added card — and that moves catch rate by");
+console.log("   ~0-3pp, inside noise. The deck lever is small where it can actually be pulled.");
 console.log("");

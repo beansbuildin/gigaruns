@@ -941,6 +941,56 @@ limiting, a transient error) rather than this doc shape itself — though
 that specific correlation is still not directly confirmed, only the
 "does a fresh action succeed past it" half is now settled.
 
+**2026-08-19 (session 46) — the HTTP 400 that opened this section is now
+ATTRIBUTED, and it was never this doc shape.** The account was carrying the
+exact shape above at the top of this session (`docId 12978003`,
+`COMPLETE_CID: true`, `SUCCESS_CID: false`, `cardChosenId: -1`, no
+`cardsToAdd` anywhere — n=3 for this shape now), and `start_run` rejected
+HTTP 400 again. The session-46 brief's §0 prescribed resolving it with the
+`loot` action; **that remedy does not apply** — `loot` resolves §10's CATCH
+shape, where a real `cardsToAdd` triple sits pending. There is nothing to
+loot on an escape.
+
+The actual cause was invisible because of a separate bug, fixed this session.
+`client.ts` throws `UnexpectedResponseError` for every non-2xx, and that
+error's `.message` is only ever `"Unexpected response from <path>: HTTP
+<status>"` — the server's own text lives ONLY in `.body`, which
+`liveFishing.ts` was discarding at all three action call sites (contrary to
+CLAUDE.md §5's "log the full response body"). With `serverErrorDetail()`
+wired in, one further attempt returned:
+
+```
+HTTP 400 {"success":false,
+          "message":"Player has reached max runs for fishing",
+          "error":"Player has reached max runs for fishing"}
+```
+
+**It is the server-side daily cap.** Not the stuck doc, and not the energy
+floor either (the account also sat at 15/420 energy, which is a real
+constraint but not this one). The same bug had also killed `runOneCast`'s
+server-cap classifier, which tested `/reached max runs/i` against `.message`
+— a string that text can never appear in — so the branch had been **dead
+since session 29 wrote it**. It fired correctly for the first time on this
+capture, reclassifying the rejection as a budget trip.
+
+**Strong inference, flagged as inference:** session 45's cast-3 rejection was
+most likely the same thing. Its batch stood at cast 18-19 of the day (session
+44's 16 plus its own 2), right at the 20-cast juiced cap, and the message
+that would have identified it was being discarded by this same bug. It was
+recorded instead as "the account is stuck in the completed-but-unresolved doc
+state", propagated into `handoff/STATE.md` as the top blocker, and from there
+into the session-46 brief's §0 as the session's first instruction.
+
+**Consequence for future sessions: the stuck-doc warning is loud and it is
+not load-bearing.** `unknownDocKeys` prints "the account is likely stuck
+(QUESTIONS.md §10); start_run below will probably reject" on *every* run that
+sees a terminal doc, and session 44 already established that a fresh
+`start_run` succeeds past that shape. Do not attribute a `start_run` HTTP 400
+to it without reading the body first — the body is now logged, so there is no
+longer any excuse to infer.
+
+---
+
 ## 16. Fishing oil-use action shape — RESOLVED 2026-08-18 [session 44]: user DevTools capture confirmed `use_fishing_item` — `{action:"use_fishing_item", actionToken:"<string>", data:{cards:[], nodeId:"", focusPoint:[], itemId:821, slotIndex:0, tierId:0}}`, captured using one "Lil Mana Oil" (itemId 821) mid-cast. Same six-field envelope as every other fishing action; `itemId`/`slotIndex` do address the item, confirming SPEC-fishing.md §4a's "very likely" hypothesis. `oilPolicy.ts`'s `shouldConsiderRelaxingOil` is now wired into a real call site in `scripts/liveFishing.ts`'s `runOneCast` (item 937, Mid Relaxing Oil) — `slotIndex:0` is a stated, fail-closed hypothesis for THAT item specifically (the capture confirms it only for item 821), see `src/api/fishing.ts`'s `FishingActionSchema` doc comment and DECISIONS.md 2026-08-18 (session 44). Original question preserved below for context. [session 43]
 
 `src/strategy/fishing/oilPolicy.ts`'s `shouldConsiderRelaxingOil` (session-43

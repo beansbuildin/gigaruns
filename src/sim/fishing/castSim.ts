@@ -62,6 +62,19 @@ export interface CastResult {
   outcome: CastOutcome;
   turns: number;
   finalFishHp: number;
+  /**
+   * [session 46, brief §3] Shots that CONNECTED (hit or crit) and shots
+   * taken, per cast.
+   *
+   * Per-turn hit rate is very nearly a pure function of card zones and focus
+   * placement — independent of the HP arithmetic, the mana curve, and the
+   * sequential-`drawHand` confound. That makes it the right instrument for
+   * telling a genuine geometry difference apart from a harness bug when two
+   * deck arms disagree on catch rate, which is exactly what the session-45
+   * deck measurement and its independent re-run did (a ~20pp inversion).
+   */
+  hits: number;
+  shots: number;
 }
 
 export interface FishPolicyContext {
@@ -327,8 +340,11 @@ export function simulateCast(opts: CastOptions): CastResult {
   let focus: FocusBudget = { current: defaultStartFocus(gridSize), remaining: FOCUS_METER_MAX };
 
   let turn = 0;
+  // [session 46, brief §3] Per-turn shot accounting — see `CastResult`.
+  let hits = 0;
+  let shots = 0;
   while (turn < maxTurns) {
-    if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp };
+    if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp, hits, shots };
     if (hand.length === 0) ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
 
     const ringOpts: RingModelOptions = opts.ringModel?.options ?? DEFAULT_RING_MODEL_OPTIONS;
@@ -374,7 +390,7 @@ export function simulateCast(opts: CastOptions): CastResult {
     const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp, focusBudget: focus }, rng);
 
     if (action.type === "pass") {
-      return { outcome: "stalled", turns: turn, finalFishHp: fishHp };
+      return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots };
     }
     if (action.type === "redraw") {
       mana -= hand.length;
@@ -400,7 +416,9 @@ export function simulateCast(opts: CastOptions): CastResult {
     const zoneOffsets = zoneToOffsets(card.hitZones, card.critZones, action.focus, gridSize);
     const outcome = resolveOutcome(zoneOffsets, actualCell);
 
+    shots++;
     if (outcome === "crit" || outcome === "hit") {
+      hits++;
       const amount = outcome === "crit" ? (card.critEffects[0]?.amount ?? card.hitEffects[0]?.amount ?? 0) : (card.hitEffects[0]?.amount ?? 0);
       fishHp = Math.max(0, fishHp - amount);
     } else {
@@ -408,10 +426,10 @@ export function simulateCast(opts: CastOptions): CastResult {
       fishHp = Math.min(fishMaxHp, fishHp - amount);
     }
 
-    if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp };
-    if (fishHp >= fishMaxHp) return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp };
+    if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots };
+    if (fishHp >= fishMaxHp) return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots };
   }
-  return { outcome: "stalled", turns: turn, finalFishHp: fishHp };
+  return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots };
 }
 
 function zoneToOffsets(
@@ -452,6 +470,16 @@ export interface CastSummary {
   escapedMana: number;
   stalled: number;
   meanFinalFishHp: number;
+  /**
+   * [session 46, brief §3] Pooled per-turn hit rate across the batch —
+   * connected shots / shots taken. See `CastResult.hits` for why this is the
+   * right instrument for a deck comparison: it isolates card geometry and
+   * focus placement from the HP arithmetic, the mana curve, and the
+   * sequential-`drawHand` confound.
+   */
+  hitRate: number;
+  hits: number;
+  shots: number;
 }
 
 export function simulateCasts(runs: number, opts: Omit<CastOptions, "seed">, seed = 1): CastSummary {
@@ -461,8 +489,12 @@ export function simulateCasts(runs: number, opts: Omit<CastOptions, "seed">, see
   let escapedMana = 0;
   let stalled = 0;
   let totalFinalHp = 0;
+  let hits = 0;
+  let shots = 0;
   for (let i = 0; i < runs; i++) {
     const r = simulateCast({ ...opts, seed: seed + i });
+    hits += r.hits;
+    shots += r.shots;
     if (r.outcome === "caught") caught++;
     else if (r.outcome === "escaped_meter") escapedMeter++;
     else if (r.outcome === "escaped_mana") escapedMana++;
@@ -479,5 +511,8 @@ export function simulateCasts(runs: number, opts: Omit<CastOptions, "seed">, see
     escapedMana,
     stalled,
     meanFinalFishHp: totalFinalHp / runs,
+    hitRate: shots > 0 ? hits / shots : 0,
+    hits,
+    shots,
   };
 }

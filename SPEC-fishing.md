@@ -767,6 +767,34 @@ conditional table expresses both directions correctly and is the preferred end
 state; (d) is left in place as a harmless no-op rather than removed, so the
 change that retires it can be made deliberately rather than as a side effect.
 
+**[session 46] (d) is now RETIRED — that deliberate change, made.** The
+function, its `castSim.ts` option, its `liveFishing.ts` call site, its five
+unit tests, its ablation arms, and `scripts/auditPruneCounterexample.ts` are
+all removed. `src/strategy/fishing/heuristics.ts` carries a tombstone comment
+in its place.
+
+The reason for deleting rather than keeping a no-op: **a dead guard that looks
+like it encodes a movement rule is worse than either enforcing the rule or
+removing it.** The next reader sees a function named `pruneReturnToPrevious`,
+assumes reversal is handled there, and stops looking for §9's conditional
+table — which is where it is actually handled, and handled correctly in both
+directions.
+
+This whole arc is kept here as a worked example, because the shape of it
+recurs: **user-proposed → implemented unverified → measured as a regression
+against a synthetic fish the game does not have → corrected to NEUTRAL against
+the empirical fish → retired as subsumed by a measured rule.** Sim authority is
+earned per domain, not assumed; and a heuristic's *stated* claim can be right
+in spirit while the *implemented* guard tests the wrong field entirely.
+
+That second failure mode is not hypothetical or confined to (d). Session 46
+found the identical shape in production code the same day: `runOneCast`'s
+server-cap classifier tested `/reached max runs/i` against an Error's
+`.message`, a string the server's text can never appear in (it lives in
+`UnexpectedResponseError.body`), so that branch had been dead since session 29.
+It was found only because a live HTTP 400 needed diagnosing. **When a guard's
+condition names a fact, check which field it actually reads.**
+
 Tests: `tests/fishing/heuristics.test.ts` (all four implemented functions,
 synthetic — no live cast fixture happens to exercise any of them yet) and
 `tests/fishing/cardChoice.test.ts`'s new "coverage and centering
@@ -919,6 +947,51 @@ transfer. `scripts/ringPredictionReport.ts` re-runs this as
 `data/ringPrediction.jsonl` grows; the next batch should be judged the same
 way, per class.
 
+### The log-loss smoothing convention **[session 46]**
+
+Pin this before comparing any two log-loss numbers in this project, because a
+2.070-vs-3.536 discrepancy between the session-45 brief and the measured
+baseline turned out to be **entirely** a convention difference, with both
+numbers correct under their own rule.
+
+**This project's convention: no smoothing. A zero-probability event is charged
+`-log(1e-9)` ≈ 20.7 nats.** `scripts/fishingRingCV.ts`,
+`scripts/fishingContextualCV.ts` and `scripts/ringPredictionReport.ts` all use
+this floor, and it is stated in each.
+
+The alternative the brief used was ε=0.02 uniform smoothing applied to every
+predictor, which charges ~6.7 nats for the same event. The reconciliation is
+exact: the shipped baseline had **23 zero-probability events in 211
+transitions**, so 23/211 × (20.7 − 6.7) ≈ **1.5 nats** against a measured gap of
+**1.47**.
+
+Two things follow.
+
+1. The convention only ever moves the **baseline's** number. The ring model has
+   **0** zero-probability events by construction — the ring floor guarantees
+   every legal ring cell carries mass — so its log loss is identical under
+   either rule. The ring model's advantage is therefore **robust to the choice
+   of convention**, which is a stronger claim than the headline gap alone.
+2. Quoting a log loss without its convention is quoting half a number.
+
+### The in-sample calibration discount **[session 46]** — a standing rule
+
+Two independent in-sample projections have now over-predicted live by roughly
+**2.5-3x**:
+
+| projection | in-sample | live |
+|---|---|---|
+| SPEC.md §5's standing sim figure | 22.4% | 10.1% |
+| session-45 brief's focus-reserve gain | ~+5pp | +1.6pp measured |
+
+The **shape** of these projections transfers well — `w=3` landed exactly on the
+predicted plateau, and the ring model's log loss came in slightly *better* than
+projected. The **magnitudes** do not.
+
+So: any brief or recap quoting an in-sample catch rate should carry this
+discount explicitly rather than rediscovering it a third time. An in-sample
+number is evidence about ordering and shape, not about the level.
+
 ### What is NOT claimed
 
 The catch-rate numbers from `scripts/fishingEmpiricalAblation.ts` are
@@ -929,3 +1002,53 @@ configuration at ~25% against a live all-time rate of 10.1%; it over-predicts
 by roughly 2.4x and is not calibrated to live. The leave-one-cast-out table
 above is the only out-of-sample evidence in this section, and it is what the
 gate was set on.
+
+### The deck-composition thread — CLOSED **[session 46]**
+
+Session 45 refuted the session-45 brief's deck-composition claim (projected
+shape-matched decks at 55.5%/79.0% against the real deck's 32.2%; measured the
+opposite ordering). An independent re-run of the same three cards then reported
+the *inverse* — MID ~20pp above the real deck — and two harnesses cannot both
+be describing the same card geometry. The session-46 brief asked for one
+diagnostic to settle it: re-run the deck arms printing **per-turn hit rate**
+beside catch rate. Hit rate is very nearly a pure function of card zones and
+focus placement, independent of the HP arithmetic, the mana curve, and the
+sequential-`drawHand` confound.
+
+Measured, `scripts/fishingEmpiricalAblation.ts` §3, empirical fish + ring
+model, N=20000 × 2 far-apart seeds, **after (d)'s retirement**:
+
+| deck | catch% | **per-turn hit%** | mean turns |
+|---|---|---|---|
+| real `[1,2,3,4,5,6,7,76,77,79]` | 32.5 / 32.3 | **48.8 / 48.7** | 4.6 |
+| shape-matched MID `[7,79,76]` | 17.8 / 17.2 | **42.2 / 41.8** | 4.1 |
+| shape-matched HIGH `[107,108,25]` | 22.6 / 22.5 | **38.0 / 38.1** | 2.3 |
+
+**Verdict: the geometry claim is wrong and session 45's refutation stands
+unqualified.** MID's per-turn hit rate is genuinely *lower* than the real
+deck's — −6.6pp, consistent across both seeds — which is the brief's own
+"geometry claim is wrong" branch, not its "harness bug in the draw path"
+branch. Had this been a draw-path defect, MID's hit rate would have sat at or
+above the real deck's while only its catch rate lagged. It does not. The
+~20pp inversion in the independent re-run was measuring a different
+configuration, not exposing a bug in this one.
+
+The HIGH arm is worth reading too, as it validates the instrument: it has the
+**lowest** hit rate (38.0%) yet a **higher** catch rate than MID (22.6% vs
+17.8%), because it does far more damage per connect and ends casts in 2.3 turns
+instead of 4.1. Hit rate and catch rate are genuinely separable axes, and a
+deck comparison that reports only the latter cannot tell coverage apart from
+damage.
+
+(These figures sit slightly below session 45's — real deck 32.5 vs 33.2, MID
+17.8 vs 15.2 — because heuristic (d) was retired in between, which changes the
+distribution reaching the policy. The ordering, which is the result, is
+unchanged.)
+
+**The thread is closed and should not be reopened without a new premise.** The
+practical reason is independent of all of the above: **you gain one card per
+catch**, so wholesale deck replacement is unreachable at any catch rate this
+project can achieve. The only regime available is marginal — the real deck plus
+exactly one added card, 16 candidates — and that moves catch rate by ~0-3pp,
+inside noise. The deck lever is small precisely where it can actually be
+pulled.
