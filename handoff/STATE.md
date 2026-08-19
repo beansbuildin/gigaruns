@@ -1,133 +1,144 @@
-# STATE — session 43 — 2026-08-18 — commit 38fd190
+# STATE — session 44 — 2026-08-18 — commit b75cfb2
 
 ## Status
-Task 14 "Bot-initiated juiced `start_run`, with per-mode potion equip":
-**GATE MET.** Two bot-initiated juiced Tier-3 `start_run` calls were sent by
-this project's own process (not resumes) under the user's standing
-authorization (session-43 brief §0), both closing the gate's two conditions
-exactly (3x reward, `dayProgressEntities` +3) — see Metrics. §2 (dungeon
-loot-pick priority: Sword-upgrade pin + 15%-overflow Heal gate) and §3
-(fishing strategy heuristics) are both **DONE**, code + tests + SPEC/
-DECISIONS updates, all three committed separately.
-Next per TASKS.md: no numbered task is ready to start cleanly. Task 13
-stays capture-blocked (needs more real fishing card choices). Task 11 stays
-parked. The new fishing oil-reserve heuristic (§3c) is blocked on an
-unconfirmed oil-use action shape (QUESTIONS.md §16) — needs a DevTools
-capture, not code.
+Session-44 brief's task: "fishing's 14.0% live catch rate is not acceptable
+— hammer out fishing refinements." **GATE FAIL, not softened.** The
+all-time figure moved 14.0%(7/50) → 10.4%(7/67); today's own 16-cast batch
+went 0/16 (0.0%). This is worse than the starting point, not better.
+However, the session did not end in noise: a real, dominant, well-evidenced
+root cause was found (focus-budget exhaustion, below) — confirmed in BOTH
+live and sim domains, not attempted-and-abandoned. The brief's own honest-
+expectations section anticipated a possible null result and asked for it to
+be reported plainly if so; this went further than null, and that too is
+reported plainly. Next per TASKS.md: Task 11's fishing half, revived with
+a concrete fix candidate scoped and NOT yet implemented (see below) — this
+is the clear top priority for the next fishing session, ahead of any other
+fishing work.
 
 ## What works
-- **Task 14's gate MET, live-verified, not assumed:** run 1 —
-  `dayProgressEntities` for Dungeon#5 moved 6→9 (+3 exactly), first-kill
-  `gameItemBalanceChanges` carried three duplicate `{id:846, amount:5}`
-  entries (15 total, matching the user's 5→15 reference), died room 6, HP
-  0/40. Run 2 (after the user's manual level-up, brief §1) — `dayProgressEntities`
-  moved 9→12 (+3 exactly, exhausting today's 12-run juiced cap), same 3x
-  pattern (5,9,14,19,25 progression, byte-identical to run 1 and to session
-  42's resumed runs), died room 5, HP 0/40. Both numbers matched the gate's
-  terms exactly on both runs — nothing rounded up.
-- `UpgradePaper` gets its first-ever pickup pair (run 2, room 4, ATK-variant
-  roll: `selectedVal1` 8/`selectedVal2` 0 → paper ATK 6→14, DEF unchanged) —
-  modelled `{kind:"moveDelta", move:"paper"}`, `contaminates: []`. All three
-  `Upgrade*` types are now modelled and clean; this retroactively cleans 8
-  already-recorded room-1 `UpgradePaper` offers (same mechanic as
-  `AddMaxArmor`, session 11). See `src/sim/boons.ts`.
-- PLAYER's hpMax moved 38→40 (armorMax/moves unchanged) — the level-up
-  landed before this session's run 1 even started (both runs' own
-  state-000 already read 40), not between the two runs as the brief
-  planned; recorded honestly rather than folded into the assumed
-  narrative. See `src/sim/enemies.ts`'s PLAYER doc.
-- `src/strategy/loot.ts`: `UpgradeRock` (Sword) now wins whenever offered
-  (hard tier-separation bonus, `SWORD_PIN_BONUS`, not a bigger multiplier —
-  cannot be outscored by a big pool offer). Heal is now gated:
-  `hpCurrent < hpMax && wasted <= 0.15 * healAmount`, else scores 0 and
-  falls through. Both are user directives (2026-08-18), SPEC.md §4c updated.
-- `src/strategy/fishing/heuristics.ts` (new): four user-sourced heuristics
-  implemented as tested pure functions — center-bias tie-break
-  (`isCentralSquare`), prune-return-to-previous-cell after a 1-cell move
-  (`pruneReturnToPrevious`), an edge position's narrower candidate-cell
-  count (`candidateCellCount`, geometric claim only), coverage-maximizing
-  card/focus tie-break (`coverageCount`). Wired into `cardChoice.ts`'s
-  `bestFocusForCard`/`chooseCard` (as tie-breaks, never overriding real EV)
-  and `scripts/liveFishing.ts`'s distribution pipeline (prune skipped under
-  the `nextPosition` override). `src/strategy/fishing/oilPolicy.ts` (new):
-  the oil-reserve heuristic as a documented recommendation function, not
-  wired to any live action (see Open questions).
-- Opportunistic finding: "Mid Relaxing Oil" (itemId 937) is a direct
-  fish-damage consumable (`FishingDamageFish` +2), not the calming/mana
-  effect its name suggests — "Mid Mana Oil" (939) is the real restore-mana
-  item. Matches the user's own stated use case for Relaxing Oil exactly.
-  See SPEC-fishing.md §4a addendum.
-- Two new unmodelled boon type sightings: `CritHeal`, `LossLuckUp`.
-- Tests: **629/629 passing** (595 baseline + 34 new). `npx tsc --noEmit`
-  clean, `git diff --check` clean, both re-checked at this session's actual
-  final commit (38fd190), not a mid-session snapshot.
+- Pattern-mining ground truth reconfirmed, not stale: `mineFishPatterns.ts`
+  re-run fresh against the real 169-transition/50-cast corpus (pre-session)
+  confirms 2 patterns promoted (`perimeterWalk(cw)` support=4,
+  `perimeterWalk(ccw)` support=3) — matches `data/minedFishPatterns.json`
+  on disk exactly, and confirmed live-wired into `scripts/liveFishing.ts`'s
+  `runOneCast`. SPEC.md §5 / TASKS.md's own prose was stale (still said "0
+  promoted" from session 15) and is corrected in place.
+- `use_fishing_item` action CONFIRMED via a user DevTools capture (item
+  821, Lil Mana Oil) — same 6-field envelope as every other fishing
+  action. Resolves QUESTIONS.md §16. Wired `oilPolicy.ts`'s
+  `shouldConsiderRelaxingOil` into a real live call site in
+  `scripts/liveFishing.ts` — reads the account's real Mid Relaxing Oil
+  (937) balance once per cast, fires only when the heuristic's condition
+  is met, fails closed (non-fatal) on a rejected `slotIndex` guess.
+- QUESTIONS.md §15's open sub-question answered: a fresh `start_run`
+  succeeds past the `COMPLETE_CID:true,SUCCESS_CID:false` "stuck" doc
+  shape with no acknowledgment needed — confirmed TWICE live this session.
+- Test suite: 632/632 passing, `tsc --noEmit` clean, `git diff --check`
+  clean, all checked at this session's actual final commit (b75cfb2).
 
 ## What's broken
-Nothing shipped this session broke anything — full suite green, tsc clean,
-at the actual final commit. Unchanged standing items: room 6 (Enemy Room
-68) still has never been offered at Safe tier live — reinforced this
-session (n=2 offers now, both non-Safe, run 1's own room-6 entry). Scheduler
-can't learn energy gained outside its own tracking; a SIGINT during an
-energy-regen sleep ends the whole session (unchanged since session 25).
-Charge-reserve plateau (unchanged since session 40).
+- **THE finding**: `chooseCard`/`bestFocusForCard` chronically burn the
+  ENTIRE 3-point, non-regenerating focus budget within the first 2-4 turns
+  of every cast, then play the rest of the cast — often 5-9+ more turns —
+  from a frozen focus position while the fish drifts away. Confirmed
+  16/16 in this session's live batch (every cast hit `focusMeter:0` by
+  turn 1-4) AND in the sim (43% of N=300 simulated casts by median turn 2,
+  direct instrumentation of the real decision code). Diagnosed FIRST by
+  the user, off their own reading of the account's real mid-cast state
+  (7/10 mana, 0/3 focus) — not found by this session's own analysis first.
+  Root cause: the EV formula is purely single-turn-greedy, with zero cost
+  on depleting a scarce multi-turn resource early. See SPEC-fishing.md §4c
+  for the full writeup. **Not fixed this session** — asked the user
+  directly (document-only vs. design-and-validate-a-fix-now); user chose
+  document-only, consistent with CLAUDE.md §4 ("simulate first"). Proposed
+  fix shape: a focus-reserve continuation term in `bestFocusForCard`'s
+  scoring, mirroring the dungeon side's `chargeReserveWeight` precedent
+  (2026-08-18 session 34) — sim-ablate at real N before any live wiring.
+- Graceful SIGINT is NOT wired in either direct-CLI entry point
+  (`scripts/liveRun.ts`, `scripts/liveFishing.ts`) — only
+  `scripts/orchestrator.ts` installs the handler. Found live: stopping
+  this session's batch via `kill -INT` fell through to Node's default
+  immediate-termination instead of the documented graceful stop. Confirmed
+  harmless THIS TIME (no orphaned/double-counted state), but that was
+  circumstance. Not fixed this session (out of scope, found while
+  diagnosing something else).
+- Heuristic (d) `pruneReturnToPrevious` causes a real, reproducible ~2pp
+  catch-rate REGRESSION in the sim (N=20000, two independent seeds),
+  traced entirely to `patterns.ts`'s `bounceDelta` wall-reflection
+  primitive doing exactly what the heuristic forbids on its bounce turn.
+  Zero counterexamples found in the real corpus (67 casts, both before and
+  after this session's live batch) — sim-domain-only finding, not acted
+  on. Heuristics (a)/(f) show no measurable effect, exactly as their
+  provably-EV-neutral tie-break design predicts.
+- One cast (docId `12975755`) left mid-play at turn 3, unresolved —
+  resumable, not force-completed, per the user's stop instruction.
 
 ## Corrections to SPEC.md
-- §4c: Heal is now gated (≤15% overflow) instead of unconditional-below-max;
-  `UpgradeRock` is pinned ahead of the play-share inference. Both dated
-  2026-08-18, user directive.
-- No corrections to confirmed wire shapes this session — Task 14's envelope
-  shape (session 42) held byte-for-byte across both live sends.
+- §5: corrected from session-15/21's stale "0 primitives promoted, 1
+  near-miss" framing to the real current state (2 promoted, reconfirmed
+  fresh this session).
+- New §4c (SPEC-fishing.md): the focus-budget-exhaustion finding, full
+  writeup, not previously documented anywhere.
+- §8 (SPEC-fishing.md): heuristic (d)'s sim-domain regression finding
+  added, real-corpus audit result (0 counterexamples) added.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
-- Move charges: PRESENT (unchanged).
+- Move charges: PRESENT (unchanged, dungeon side untouched this session).
 
 ## Dead ends
-None. Both bot-initiated runs completed (not abandoned, both deaths were
-the expected outcome of a played-to-completion run), all three brief items
-landed as scoped.
+None abandoned — every thread opened this session (pattern-mining
+reverification, heuristic ablation, live batch, focus-budget diagnosis,
+oil-use wiring) reached a concrete, documented conclusion.
 
 ## Metrics
-Live: 2 bot-initiated juiced Tier-3 dungeon runs (Task 14), rooms 1-6 and
-1-5, both died. 120 energy spent (60 each), 6 run-units (3 each) — today's
-real juiced cap for Dungeon#5 (12) now fully exhausted. Corpus grew to 51
-total recorded dungeon attempts (49 + 2). No fishing casts sent this
-session (§3 was code + doc only, no live cast). No sim runs this session.
+- Sim: matcher BLIND 7.0-9.2% vs. MINED library 22.4-24.2% (N=500/3000,
+  two independent seeds — note `simulateCasts`'s `seed+i` internal draw
+  means two seed BASES must be far apart for genuine independence, a real
+  gotcha found this session). Heuristic ablation (a,d,f) at N=20000, two
+  seeds: all-on 21.9-22.1%, all-off 23.8-24.2% — (d) alone drives the
+  entire ~2pp gap. Focus-budget exhaustion: 129/300 (43%) sim casts
+  exhaust by median turn 2.
+- Live (fishing only, no dungeon work this session): 16 completed casts
+  today (15 new `start_run`s + 1 resumed pre-existing cast), 0 caught.
+  192/240 daily energy spent. All-time: 67 casts, 7 caught (10.4%, down
+  from 14.0%/50 pre-session).
 
 ## Open questions for Claude
-1. **Fishing oil-use action shape is unconfirmed** (QUESTIONS.md §16) —
-   blocks wiring `oilPolicy.ts`'s recommendation into a real action. Needs
-   a DevTools capture of the real client using any fishing oil mid-cast,
-   same method as `reward_one`/`path_two`/`loot` were each confirmed.
-2. **Room 6 still has no Safe-tier capture** — now n=2 offers, both
-   non-Safe (`{Dangerous, Dangerous, Risky}` pattern repeating). Not
-   blocking anything, just still open.
-3. **None of session 43's four implemented fishing heuristics (a/d/e/f)
-   are corpus-validated** — stated explicitly in SPEC-fishing.md §8, not
-   left implicit. Worth auditing `data/fish-patterns.jsonl` for a real
-   1-cell-move-then-reversal counterexample to heuristic (d) once there's
-   time — that's the one with a real chance of being wrong outright.
-4. Standing from session 40/41: scheduler energy-tracking gap,
-   SIGINT-during-sleep behavior, charge-reserve plateau — none addressed,
-   none urgent.
+1. **Top priority**: design + sim-validate a focus-budget-reserve
+   continuation term for `bestFocusForCard` (SPEC-fishing.md §4c, mirrors
+   `chargeReserveWeight`) — this is a code+sim task, not a capture
+   question, and it's the clear next step before any more live fishing
+   budget is spent.
+2. Wire graceful SIGINT into `liveRun.ts`'s and `liveFishing.ts`'s own
+   `main()` functions (TASKS.md Task 10) — small, low-risk, already-proven
+   pattern from `orchestrator.ts`. Not urgent but a real gap.
+3. Heuristic (d)'s sim-domain regression: worth deciding whether to gate
+   it (e.g., skip pruning when the recent trajectory looks bounce-like) or
+   leave as-is pending more real-corpus evidence — not urgent, no live
+   counterexample yet.
+4. Standing from session 40/41/42: scheduler energy-tracking gap,
+   charge-reserve plateau — none addressed, none urgent.
 
 ## Files changed
 ```
- QUESTIONS.md                       |  27 +++++++
- SPEC-fishing.md                    | 131 ++++++++++++++++++++++++++++++
- SPEC.md                            |  40 ++++++---
- TASKS.md                           |  61 ++++++++++++++
- config/bot.json                    |   2 +-
- handoff/DECISIONS.md               |   6 ++
- handoff/reports/*.md               |  14 +--
- scripts/liveFishing.ts             |  32 +++++---
- src/sim/boons.ts                   |  82 ++++++++++++++++++-
- src/sim/enemies.ts                 |  20 ++++-
- src/strategy/fishing/cardChoice.ts |  64 ++++++++++++---
- src/strategy/fishing/heuristics.ts | 138 (new)
- src/strategy/fishing/oilPolicy.ts  |  74 (new)
- src/strategy/loot.ts               | 109 ++++++++++++++++++++-----
- tests/*.test.ts                    | ~475 (boons/dungeonSim/enemies/
-                                        strategy/fishing — 34 new tests)
- 22 non-fixture files changed, 1194 insertions(+), 81 deletions(-)
- + fixtures/dungeon-runs/run-2026-08-18-{22-00-28,22-07-14}/ (164 files,
-   85 + 79 states, this session's two bot-initiated runs)
+ QUESTIONS.md                        |  16 ++
+ SPEC-fishing.md                     | 125 +++++++++++++++++++++++++---
+ SPEC.md                             |  32 +++++--
+ TASKS.md                            |  72 ++++++++++++++
+ handoff/DECISIONS.md                |   6 ++
+ handoff/reports/dungeon-runs.md     |   2 +-
+ handoff/reports/fishing-casts.md    |  21 +++-
+ scripts/auditPruneCounterexample.ts |  71 (new)
+ scripts/fishingHeuristicAblation.ts |  79 (new)
+ scripts/liveFishing.ts              |  69 ++
+ scripts/mineFishPatterns.ts         |  12 ++
+ src/api/fishing.ts                  |  18 ++
+ src/sim/fishing/castSim.ts          |  29 ++
+ src/strategy/fishing/cardChoice.ts  |  41 ++
+ src/strategy/fishing/oilPolicy.ts   |  25 ++
+ tests/fishing/cardChoice.test.ts    |  59 (new tests)
+ tests/liveFishing.test.ts           |   9 +
+ tests/sim/fishingCorpus.test.ts     |  34 ++
+ 18 non-fixture files, 660 insertions, 60 deletions
+ + fixtures/fishing-casts/live/cast-2026-08-19-*/ (110 files, 17 casts —
+   today's live batch, one still incomplete at turn 3)
 ```
