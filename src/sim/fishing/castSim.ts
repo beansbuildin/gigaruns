@@ -4,12 +4,25 @@
  *
  * The confirmed mechanics (mana pool, catch-meter direction, hit/crit
  * geometry, hand refill-on-empty) come from the one real capture — see
- * SPEC.md §5 / SPEC-fishing.md §4. The fish's actual movement rule is drawn
- * from the SYNTHETIC pattern pool (`patterns.ts`) for internal consistency
- * with the matcher under test — this sim answers "does the algorithm work,
- * and does an EV-informed policy beat random card choice", not "what does
- * Dendren actually do". See `patterns.ts`'s header for why that's the right
- * scope for Task 8's gate.
+ * SPEC.md §5 / SPEC-fishing.md §4.
+ *
+ * The fish's movement rule has TWO modes:
+ *
+ *  - default, and every caller before session 45: drawn from the SYNTHETIC
+ *    pattern pool (`patterns.ts`), for internal consistency with the matcher
+ *    under test. Answers "does the algorithm work, and does an EV-informed
+ *    policy beat random card choice", not "what does Dendren actually do" —
+ *    see `patterns.ts`'s header for why that was the right scope for Task 8's
+ *    gate.
+ *  - `empiricalFish` [session 45]: drawn from the REAL corpus's movement
+ *    statistics (`empiricalFish.ts`). This is the mode that answers the
+ *    second question, and it changes the answers materially — at the real
+ *    deck and real parameters, today's live configuration scores 13.3-13.6%
+ *    against the synthetic fish and 5.5% against the empirical one, and the
+ *    live figure it is trying to predict is 7/67 = 10.4% all-time (0/16 on
+ *    session 44's batch). It also reverses session 44's heuristic-(d)
+ *    verdict; see `scripts/fishingEmpiricalAblation.ts` and
+ *    SPEC-fishing.md §8.
  */
 
 import { chooseCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../../strategy/fishing/cardChoice.js";
@@ -27,10 +40,20 @@ import {
   DEFAULT_SHRINKAGE_K,
   type ContextStats,
 } from "../../strategy/fishing/contextualFallback.js";
+import {
+  classifyStep,
+  intersectWithRing,
+  ringDistribution,
+  ringDistributionUnknownClass,
+  DEFAULT_RING_MODEL_OPTIONS,
+  type RingModelOptions,
+  type StepClassTable,
+} from "../../strategy/fishing/stepClass.js";
 import type { Cell } from "./geometry.js";
 import { cellKey, manhattan, reachableCells, zonesToCells } from "./geometry.js";
 import { loadDendrenDeck } from "./deck.js";
 import { buildPatternPool, toCandidate, type Pattern } from "./patterns.js";
+import { sampleEmpiricalTrajectory, type EmpiricalFishOptions } from "./empiricalFish.js";
 import { makeRng, type Rng } from "../rng.js";
 
 export type CastOutcome = "caught" | "escaped_meter" | "escaped_mana" | "stalled";
@@ -224,6 +247,40 @@ export interface CastOptions {
    * matcher/matcherPool as heuristics (a)/(f) with one combined flag.
    */
   pruneReturnToPrevious?: boolean;
+  /**
+   * [session 45, brief §2] Draw the TRUE fish from the real corpus's
+   * movement statistics (`empiricalFish.ts`) instead of from `patterns.ts`'s
+   * synthetic primitive pool. Opt-in and additive: omitted, the sim is
+   * byte-for-byte the synthetic-pool sim it has always been.
+   *
+   * When supplied, `matcherPool` defaults to `[]` (permanently blind) rather
+   * than to the true pool — an empirically-sampled fish is not a member of
+   * the synthetic library, so defaulting the matcher to "can always identify
+   * the truth in principle" would be false by construction. Pass the mined
+   * `perimeterWalk` candidates explicitly if you want them searched; they
+   * match 8 of 67 real casts, so that is a legitimate configuration, just
+   * not the default.
+   */
+  empiricalFish?: {
+    table: StepClassTable;
+    options?: EmpiricalFishOptions;
+  };
+  /**
+   * [session 45, brief §1 design note 3] Use the step-class RING model as the
+   * policy's predictor. Tier 0 stays the pattern matcher while live
+   * candidates survive — but its output is INTERSECTED with the legal
+   * `k`-ring, since a surviving candidate predicting an off-ring cell is
+   * provably wrong (FACT 1, 259/259) and its mass should never reach
+   * `chooseCard`. If nothing survives that intersection the candidate set is
+   * fully refuted and the ring model takes over for that turn. Tier 1 is the
+   * ring model itself; `blindFallback`/`emptyFallback` drop to tier 2.
+   *
+   * Opt-in: omitted, the distribution pipeline is unchanged.
+   */
+  ringModel?: {
+    table: StepClassTable;
+    options?: RingModelOptions;
+  };
 }
 
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
@@ -263,10 +320,22 @@ export function simulateCast(opts: CastOptions): CastResult {
 
   const truePool = opts.candidatePool ?? buildPatternPool();
   const startCell: Cell = { x: rng.int(gridSize) + 1, y: rng.int(gridSize) + 1 };
-  const truePattern = truePool[rng.int(truePool.length)]!;
-  const trueTrajectory = truePattern.path(startCell, gridSize, maxTurns + 2);
+  let trueTrajectory: Cell[];
+  if (opts.empiricalFish) {
+    trueTrajectory = sampleEmpiricalTrajectory(
+      opts.empiricalFish.table,
+      startCell,
+      gridSize,
+      maxTurns + 2,
+      rng,
+      opts.empiricalFish.options,
+    ).cells;
+  } else {
+    const truePattern = truePool[rng.int(truePool.length)]!;
+    trueTrajectory = truePattern.path(startCell, gridSize, maxTurns + 2);
+  }
 
-  const matcherPool = opts.matcherPool ?? truePool;
+  const matcherPool = opts.matcherPool ?? (opts.empiricalFish ? [] : truePool);
   const candidates = matcherPool.map((p) => toCandidate(p, startCell, gridSize, maxTurns + 1));
   let matcher: MatcherState = initMatcher(candidates, startCell);
 
@@ -277,10 +346,24 @@ export function simulateCast(opts: CastOptions): CastResult {
     if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp };
     if (hand.length === 0) ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
 
+    const ringOpts: RingModelOptions = opts.ringModel?.options ?? DEFAULT_RING_MODEL_OPTIONS;
+    const currentCell = matcher.history[matcher.history.length - 1]!;
+    const stepClass = opts.ringModel ? classifyStep(matcher.history) : null;
+    const ringDist = opts.ringModel
+      ? stepClass === null
+        ? ringDistributionUnknownClass(currentCell, previousDisplacement(matcher.history), opts.ringModel.table, gridSize, ringOpts)
+        : ringDistribution(currentCell, stepClass, previousDisplacement(matcher.history), opts.ringModel.table, gridSize, ringOpts)
+      : null;
+
+    const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
     const rawDist =
-      matcher.candidates.length > 0
-        ? predictDistribution(matcher)
-        : opts.blindFallback
+      matcherDist
+        ? opts.ringModel && stepClass !== null
+          ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+          : matcherDist
+        : ringDist
+          ? ringDist
+          : opts.blindFallback
           ? contextualFallback(
               matcher.history[matcher.history.length - 1]!,
               previousDisplacement(matcher.history),
@@ -289,7 +372,7 @@ export function simulateCast(opts: CastOptions): CastResult {
               gridSize,
               { shrinkageK: opts.blindFallback.shrinkageK ?? DEFAULT_SHRINKAGE_K },
             )
-          : emptyFallback(matcher.history[matcher.history.length - 1]!, new Map(), gridSize);
+          : emptyFallback(currentCell, new Map(), gridSize);
     const dist = opts.pruneReturnToPrevious
       ? pruneReturnToPrevious(rawDist, matcher.history[matcher.history.length - 1]!, previousDisplacement(matcher.history))
       : rawDist;
@@ -363,15 +446,44 @@ export interface CastSummary {
   caught: number;
   catchRate: number;
   meanTurns: number;
+  /**
+   * [session 45] Outcome mix and mean final fish HP, added additively (every
+   * existing field above is unchanged). Needed because against the empirical
+   * fish (`empiricalFish.ts`) a blind policy's catch rate is 0.0% — matching
+   * live — and a metric that is zero in both arms cannot measure anything.
+   * Mean final fish HP still separates "nearly had it" from "never close",
+   * so an ablation has something to move even where no cast is ever won.
+   */
+  escapedMeter: number;
+  escapedMana: number;
+  stalled: number;
+  meanFinalFishHp: number;
 }
 
 export function simulateCasts(runs: number, opts: Omit<CastOptions, "seed">, seed = 1): CastSummary {
   let caught = 0;
   let totalTurns = 0;
+  let escapedMeter = 0;
+  let escapedMana = 0;
+  let stalled = 0;
+  let totalFinalHp = 0;
   for (let i = 0; i < runs; i++) {
     const r = simulateCast({ ...opts, seed: seed + i });
     if (r.outcome === "caught") caught++;
+    else if (r.outcome === "escaped_meter") escapedMeter++;
+    else if (r.outcome === "escaped_mana") escapedMana++;
+    else stalled++;
     totalTurns += r.turns;
+    totalFinalHp += r.finalFishHp;
   }
-  return { runs, caught, catchRate: caught / runs, meanTurns: totalTurns / runs };
+  return {
+    runs,
+    caught,
+    catchRate: caught / runs,
+    meanTurns: totalTurns / runs,
+    escapedMeter,
+    escapedMana,
+    stalled,
+    meanFinalFishHp: totalFinalHp / runs,
+  };
 }
