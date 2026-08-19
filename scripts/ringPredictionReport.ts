@@ -273,6 +273,58 @@ function shadowRingTier(rows: readonly RingPredictionRecord[]) {
   };
 }
 
+
+/**
+ * [session 51 §4] The ring model's OWN accuracy on EVERY scored turn,
+ * including the ones something overrode it on.
+ *
+ * The defect this closes, named in the session-51 brief §3: a turn where the
+ * `nextPosition` override fired is written as `tier: "override"`, and every
+ * ring comparator in this report filters on `tier`, so those turns silently
+ * left the ring model's sample. That is selection on the outcome-adjacent
+ * variable — the override fires precisely on the turns the server told us the
+ * answer, which are not a random subset — and it makes the ring's live figure
+ * a figure about "turns nothing else had an opinion on".
+ *
+ * The fix is NOT to relabel an override row as a ring row. It is to use the
+ * SHADOW row: since session 50 (matcher) and session 51 (override) every
+ * overridden turn dual-logs what the ring model alone would have predicted on
+ * that same turn. So the ring's real sample is `ring` rows scored on their own
+ * prediction, plus overridden rows scored on their shadow — the same model,
+ * every turn, one number.
+ *
+ * Rows written before that dual-logging existed cannot be recovered and are
+ * counted as missing rather than quietly dropped.
+ */
+function ringOnEveryTurn(rows: readonly RingPredictionRecord[]) {
+  const ringNative = rows.filter((r) => r.tier === "ring" || r.tier === "ring_unknown_class");
+  const overridden = rows.filter((r) => r.tier === "matcher" || r.tier === "matcher_ring" || r.tier === "override");
+  const recoverable = overridden.filter((r) => typeof r.shadowRingPActual === "number");
+  const unrecoverable = overridden.length - recoverable.length;
+
+  const hits = ringNative.filter((r) => r.hit).length + recoverable.filter((r) => r.shadowRingHit).length;
+  const lls =
+    ringNative.reduce((a, r) => a + nats(r.pActual), 0) + recoverable.reduce((a, r) => a + nats(r.shadowRingPActual), 0);
+  const n = ringNative.length + recoverable.length;
+
+  console.log("\n── the RING MODEL on every turn (override rows re-entered via their shadow) ──");
+  console.log(
+    `  ${ringNative.length} row(s) where the ring model shipped, + ${recoverable.length} overridden row(s) recovered from their shadow` +
+      `${unrecoverable > 0 ? `, ${unrecoverable} row(s) NOT recoverable (written before dual-logging)` : ""}`,
+  );
+  if (n === 0) {
+    console.log("  (no rows)\n");
+    return;
+  }
+  console.log(
+    `  ring model, ALL turns              n=${String(n).padStart(4)}  top1=${((hits / n) * 100).toFixed(1).padStart(5)}%  logLoss=${(lls / n).toFixed(3).padStart(7)}`,
+  );
+  if (unrecoverable > 0) {
+    console.log(`  NOTE: ${unrecoverable} overridden turn(s) are still missing from this figure — pre-dual-logging rows.`);
+  }
+  console.log("");
+}
+
 function main() {
   // [session 48] Positional path only — a leading `--since=...` used to be
   // taken as the log path, so `ringPredictionReport.ts --since=<t>` (the
@@ -309,6 +361,8 @@ function main() {
   summarize("k=1", ringRows.filter((r) => r.stepClass === 1), "top1 53.6%, logLoss 0.803");
   summarize("k=2", ringRows.filter((r) => r.stepClass === 2), "top1 33.9%, logLoss 1.455");
   summarize("all classes", ringRows, "top1 42.6%, logLoss 1.418");
+
+  ringOnEveryTurn(rows);
 
   nullComparators(rows);
 

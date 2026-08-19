@@ -17,6 +17,7 @@ import {
   buildHand,
   cardsById,
   certainDistribution,
+  NEXT_POSITION_OVERRIDE_WEIGHT,
   confirmedHitCount,
   detectPossibleDualYield,
   extractNextPosition,
@@ -36,6 +37,8 @@ import {
   type NextPositionValidation,
   type TransitionRecord,
 } from "../scripts/liveFishing.js";
+import type { Cell } from "../src/sim/fishing/geometry.js";
+import { mixDistributions } from "../src/strategy/fishing/matcher.js";
 import type { FishingGameDoc } from "../src/api/fishing.js";
 import type { GigaverseClient } from "../src/api/client.js";
 import { loadGuardBudget } from "../src/orchestrator/guardPersistence.js";
@@ -260,6 +263,51 @@ describe("certainDistribution", () => {
     const dist = certainDistribution({ x: 3, y: 1 });
     expect(dist.size).toBe(1);
     expect([...dist.values()]).toEqual([{ cell: { x: 3, y: 1 }, p: 1 }]);
+  });
+});
+
+describe("[session 51 §4] the FLOORED nextPosition override", () => {
+  const ring: Map<string, { cell: Cell; p: number }> = new Map([
+    ["1,2", { cell: { x: 1, y: 2 }, p: 0.4 }],
+    ["2,1", { cell: { x: 2, y: 1 }, p: 0.3 }],
+    ["3,2", { cell: { x: 3, y: 2 }, p: 0.3 }],
+  ]);
+  const floored = mixDistributions(certainDistribution({ x: 2, y: 3 }), ring, NEXT_POSITION_OVERRIDE_WEIGHT);
+
+  it("keeps 0.99 on the server's cell — the override still dominates the shot", () => {
+    expect(NEXT_POSITION_OVERRIDE_WEIGHT).toBe(0.99);
+    expect(floored.get("2,3")!.p).toBeCloseTo(0.99, 10);
+  });
+
+  it("hands the remaining 0.01 back to the ring model, in the ring's own proportions", () => {
+    expect(floored.get("1,2")!.p).toBeCloseTo(0.004, 10);
+    expect(floored.get("2,1")!.p).toBeCloseTo(0.003, 10);
+    expect(floored.get("3,2")!.p).toBeCloseTo(0.003, 10);
+    let total = 0;
+    for (const v of floored.values()) total += v.p;
+    expect(total).toBeCloseTo(1, 10);
+  });
+
+  it("BOUNDS the loss when the override is wrong — the property the floor exists for", () => {
+    // Unfloored, a wrong point mass collapses the turn to -log(1e-9) = 20.7
+    // nats. Floored, the worst any cell the RING can see costs is
+    // -log(0.01 * p_ring). Nobody has watched this override fire yet, so this
+    // is the guard on its first miss.
+    const unfloored = certainDistribution({ x: 2, y: 3 });
+    expect(unfloored.get("2,1")).toBeUndefined();
+    const worst = Math.min(...[...ring.values()].map((v) => v.p));
+    expect(-Math.log(floored.get("2,1")!.p)).toBeLessThan(-Math.log(0.01 * worst) + 1e-9);
+    expect(-Math.log(floored.get("2,1")!.p)).toBeLessThan(6);
+  });
+
+  it("costs almost nothing when the override is RIGHT", () => {
+    expect(-Math.log(floored.get("2,3")!.p)).toBeLessThan(0.011);
+  });
+
+  it("does NOT rescue a cell the ring model itself assigns zero — stated, not assumed", () => {
+    // The floor removes the OVERRIDE's unbounded failure mode. It does not
+    // remove the ring model's own, which the sticky chain handles separately.
+    expect(floored.get("4,4")).toBeUndefined();
   });
 });
 

@@ -659,6 +659,12 @@ export interface RingPredictionRecord {
   matcherWeight?: number;
   /** [session 51 §3] Turns of evidence folded into the posterior when this row was written. */
   matcherPosteriorUpdates?: number;
+  /**
+   * [session 51 §4] Present exactly on the turns the armed `nextPosition`
+   * override fired, carrying the floor weight it fired at. A `tier:
+   * "override"` row without it predates the floor.
+   */
+  overrideWeight?: number;
 }
 
 /**
@@ -812,6 +818,34 @@ export function nextPositionOverrideStats(path: string = DEFAULT_NEXT_POSITION_L
 export function certainDistribution(cell: Cell): Map<string, { cell: Cell; p: number }> {
   return new Map([[cellKey(cell), { cell, p: 1 }]]);
 }
+
+/**
+ * [session 51 §4] The mass the armed `nextPosition` override keeps for the
+ * server's pre-rolled cell; the remainder goes back to the ring model.
+ *
+ * The ledger stands at 10/10 with a Wilson lower bound of 0.7225, so the
+ * field is very likely right — but "very likely right" and "certain" differ
+ * by an UNBOUNDED amount in log loss, and nobody has yet watched this
+ * override fire. A point mass that is wrong once collapses that turn to
+ * `-log(1e-9)` = 20.7 nats and, worse, aims the shot at a cell the fish is
+ * not in. 0.99 costs ~0.01 nats when the field is right, which is nothing
+ * against a 72%+ lower bound.
+ *
+ * **What the floor does and does not bound, stated precisely rather than
+ * quoted.** The residual 0.01 is spread by the RING model, so the worst case
+ * is `-log(0.01 * p_ring(actual))`: with `ringFloor = 0.1` over a ring of at
+ * most 8 cells, a legal cell gets at least ~0.0125 from the ring, capping a
+ * wrong override at about 9 nats. It does NOT rescue a cell the ring model
+ * itself assigns zero — the sticky chain covers both step rings, so that is
+ * the same residual exposure the ring model already carries alone, and it has
+ * produced 0 zero-probability events across five live batches (session 50).
+ * The floor removes the override's OWN unbounded failure mode; it does not
+ * claim to remove every one.
+ *
+ * This does not reverse QUESTIONS.md §18's settled arming decision. It makes
+ * the armed behaviour survive its first miss.
+ */
+export const NEXT_POSITION_OVERRIDE_WEIGHT = 0.99;
 
 // ---------------------------------------------------------------------------
 // Fixture writing — same shape as scripts/liveRun.ts's FixtureWriter.
@@ -1415,7 +1449,13 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           gridSize,
           { shrinkageK: DEFAULT_SHRINKAGE_K },
         ));
-    const dist = nextPositionOverrideActive ? certainDistribution(pendingPrediction!.cell) : rawDist;
+    // [session 51 §4] The override is FLOORED, not absolute — see
+    // `NEXT_POSITION_OVERRIDE_WEIGHT`. `rawDist` is the fallback for the
+    // residual mass when the ring model is off, so the floor exists on every
+    // configuration rather than only the one that ships.
+    const dist = nextPositionOverrideActive
+      ? mixDistributions(certainDistribution(pendingPrediction!.cell), ringDist ?? rawDist, NEXT_POSITION_OVERRIDE_WEIGHT)
+      : rawDist;
 
     // [session 46, brief §1b] The paired baseline, computed on this same
     // turn but NEVER consumed by the policy — it exists only to be scored
@@ -1450,7 +1490,14 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // [session 50, §3 / Q2] The shadow ring row — recorded only when the
     // matcher tier actually overrode the ring model, since otherwise the two
     // are the same distribution and the comparison would be vacuous.
-    const shadowRingTop = matcherDist && ringDist ? topCellOf(ringDist) : null;
+    // [session 51 §4] Widened from "matcher overrode the ring" to "ANYTHING
+    // overrode the ring", which now includes the armed `nextPosition`
+    // override. That is the brief's §4 point: dual-logging what the ring
+    // would have said on the same turn gives the override a paired
+    // before/after on the SAME fish, instead of two batches on different
+    // ones. Still skipped when the shipped distribution IS the ring
+    // distribution, where the comparison would be vacuous.
+    const shadowRingTop = ringDist && (matcherOnRing || nextPositionOverrideActive) ? topCellOf(ringDist) : null;
 
     // [session 49, §3] Bound once so the record below reports the SAME budget
     // the choice was made against, rather than re-reading a doc that has since
@@ -1583,6 +1630,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         shadowRingPPredicted: shadowRingTop?.p,
         shadowRingPActual: shadowRingTop ? (ringDist!.get(cellKey(toCell))?.p ?? 0) : undefined,
         shadowRingHit: shadowRingTop ? cellsEqual(toCell, shadowRingTop.cell) : undefined,
+        overrideWeight: nextPositionOverrideActive ? NEXT_POSITION_OVERRIDE_WEIGHT : undefined,
         matcherWeight: matcherOnRing ? matcherMixWeight : undefined,
         matcherPosteriorUpdates: matcherOnRing ? matcherPosterior.updates : undefined,
         pHitPredicted: best.pHit + best.pCrit,
