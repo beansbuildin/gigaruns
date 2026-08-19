@@ -914,11 +914,20 @@ sufficient statistic:
 P(next cell) = (1 - s) * P(cell | lastK) + s * P(cell | the other count)
 ```
 
-- **`s` measured, not assumed: 5 switches / 238 consecutive hop pairs =
-  2.10% raw, 2.50% Laplace(+1)** — `DEFAULT_SWITCH_PROBABILITY`. The
-  session-49 brief estimated "one switch ... roughly 0.5-0.7%"; there are
-  five, because the one alternating cast switches on EVERY one of its five
-  pairs rather than once. The brief's figure is ~4x too small.
+- **`s` measured, not assumed** — `DEFAULT_SWITCH_PROBABILITY`. And the
+  measurement has moved every time anyone has counted it, always upward:
+
+  | counted at | switches / pairs | Laplace(+1) |
+  |---|---|---|
+  | session-49 brief, from memory | "one in ~309" | ~0.5-0.7% |
+  | 73 clean casts | 5 / 238 | 2.50% |
+  | **83 clean casts (shipped)** | **14 / 284** | **5.25%** |
+
+  The swept optimum tracks the estimator at every corpus size (0.02-0.025 at
+  73 casts, 0.050 at 83), which is the check that the two are measuring the
+  same thing. **Re-run `scripts/stickyStepSweep.ts` whenever the corpus grows
+  and do not assume this constant has settled** — CLAUDE.md §9, an
+  exceptionless count is a claim about the sample's power.
 - **`lastStepClass` replaces `classifyStep`'s cast-wide mode** at every ring
   call site. The two agree on all 72 constant casts and disagree on every
   turn of the alternating one.
@@ -931,16 +940,27 @@ P(next cell) = (1 - s) * P(cell | lastK) + s * P(cell | the other count)
 Measured, leave-one-cast-out on 73 clean casts / 235 scored transitions
 (`scripts/stickyStepSweep.ts`):
 
+Measured leave-one-cast-out at **83 clean casts / 281 scored transitions**,
+after the two live batches this session added:
+
 | arm | top-1 | logLoss | zero-prob events |
 |---|---|---|---|
-| shipped: cast-wide mode + hard ring | 42.6% | 1.407 | **3** |
-| sticky: last count + marginal, s=0.025 | 42.6% | **1.268** | **0** |
+| shipped: cast-wide mode + hard ring | 42.3% | 1.689 | **8** |
+| sticky: last count + marginal, s=0.05 | 41.3% | **1.337** | **0** |
 
-Paired ΔlogLoss (sticky − shipped) **−0.139 [−0.510, +0.025]**, cluster-
-bootstrapped over casts. Paired Δtop-1 **0.00pp [0.00, 0.00]** — at
-s=0.025 the mixture never moves the argmax. All of the log-loss movement is
-cast `12988700` (−7.685); **70 of 73 casts move by less than 0.05**, which
-is the bounded cost of being wrong about the mechanism.
+Paired ΔlogLoss (sticky − shipped) **−0.351 [−0.982, +0.051]**, cluster-
+bootstrapped over casts. Paired Δtop-1 **−1.07pp [−3.38pp, 0.00pp]** — the
+mixture flips three near-tied argmaxes out of 281, a small real cost reported
+rather than buried. All of the log-loss movement is the two alternating casts
+(`12988700` −8.337, `12991364` −7.853); **79 of 83 casts move by less than
+0.2**, which is the bounded cost of being wrong about the mechanism. The
+CI's upper end of +0.051 is exactly that per-constant-cast cost, which is a
+useful sanity check on the bootstrap.
+
+**The zero-prob column is why this shipped when it did.** At 73 casts the
+hard ring had 3 such events; ten casts later it has **8**, because
+`12991364` — the second-ever alternating cast — turned up in the very next
+batch and contributed 5 on its own.
 
 `s = 0` is NOT the pre-session-49 model — it is the sticky arm's degenerate
 case, using the last count rather than the mode, and it is *worse* on its own
@@ -1255,7 +1275,8 @@ exactly this, and session 49's own five-cast batch measured it directly:
 12991326  moveCost [1, 0, 1, 0, 1]     meterBefore [3, 2, 2, 1, 1]
 ```
 
-**Live opening spend: 1.80 of 3.** Not 0.62. The full picture:
+**Live opening spend: 1.80 of 3, replicated exactly in a second batch
+(1.80 and 1.80, n=10 casts / 56 turns).** Not 0.62. The full picture:
 
 | measured on | opening-move spend |
 |---|---|
@@ -1286,9 +1307,36 @@ Two things this does correct in the brief, both real:
   and the n=5 reading of 1.00 that suggested otherwise mid-session was noise —
   the next 5 casts came in at 1.80.
 
-Exhaustion IS milder than the recorded corpus, though: **4 of 17 live turns
-(23.5%) were entered with an empty meter, against 61.8% recorded.** Casts are
-ending sooner (2 catches in 5) rather than grinding to meter-out.
+#### The mechanism, measured live — and this is the strongest evidence the project has
+
+Pooled over both instrumented batches (n=56 turns, 10 casts):
+
+| | turns | realized hit | the model's OWN predicted P(hit) |
+|---|---|---|---|
+| meter **empty** on entry | 29 (51.8%) | **9/29 = 31.0%** | **0.286** |
+| meter has points left | 27 (48.2%) | **13/27 = 48.1%** | **0.706** |
+
+**51.8% of live turns are played with a bobber that cannot move**, against
+61.8% in the recorded corpus — barely improved. And the collapse is visible in
+the policy's own belief before the shot resolves: predicted P(hit) more than
+halves, 0.706 → 0.286. The bot is not making bad shots at an empty meter; it
+is making the only shot available from wherever it got stranded.
+
+Cast `12991359` is the whole failure mode in one trace: focus moved 3 on turn
+0, then sat at `[4,1]` for the next nine turns, playing cards at
+`P_hit 0.00, 0.00, 0.01, 0.00, 0.00, 0.00` until the cast ran out.
+
+**Do not read the table as causal.** Long casts accumulate empty-meter turns
+AND are the casts going badly, so the two columns are confounded by cast
+length. What it establishes is that the constraint is REAL and CURRENT — not
+that spending less early would fix it. Establishing that needs an A/B, and the
+harness for one does not exist yet (above).
+
+Calibration, by contrast, is fine and improving: pooled predicted P(hit)
+0.497 vs realized 35.3% (n=85), and batch 3 alone was 0.415 vs 41.0% —
+near-exact. Per the brief's own §1d decision rule, **"realized ≈ predicted
+with a low catch rate means the movement model is fine and the binding
+constraint is focus budget / deck / mana."** That is now the live verdict.
 
 **What session 50 needs before re-testing any spend policy:** an evaluation
 harness that includes the matcher tier without leaking. Until then a replay

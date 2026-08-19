@@ -355,15 +355,27 @@ export function intersectWithRing(dist: Distribution, cell: Cell, k: StepClass, 
  * two-state Markov chain on the last observed one is its whole sufficient
  * statistic. That is why this takes `lastK` and not a posterior.
  *
- * 5 switches / 238 pairs = 2.10% raw, 2.50% with Laplace +1. **Correction to
- * the session-49 brief**, which estimated "one switch across ~309
- * transitions ... roughly 0.5-0.7%": there are five, because the one
- * alternating cast switches on EVERY one of its five consecutive pairs
- * rather than once. The brief's figure is ~4x too small.
+ * **14 switches / 284 consecutive hop pairs = 4.93% raw, 5.25% with
+ * Laplace +1**, at 83 clean casts. The swept optimum sits at 0.050, on top of
+ * that estimate — as it did at the previous corpus size, which is the check
+ * that the estimator and the sweep are measuring the same thing.
  *
- * Swept on the replay rather than trusted (`scripts/stickyStepSweep.ts`).
+ * This number has moved every time anyone counted it, always upward, and that
+ * history is the point (CLAUDE.md §9 — an exceptionless count is a claim
+ * about the SAMPLE'S POWER, not about the mechanism):
+ *
+ *   session-49 brief, from memory:  "one switch in ~309"     ~0.5-0.7%
+ *   73 clean casts, counted:         5 switches / 238         2.50%
+ *   83 clean casts, counted:        14 switches / 284         5.25%
+ *
+ * The jump came from ONE cast: `12991364` alternates 2,1,2,1,2,1,2,1,2,1 over
+ * ten turns — the second such cast ever seen, and it turned up in the very
+ * next ten casts played after the first one was found. At `s = 0`, i.e. under
+ * the hard ring this replaced, the corpus now carries **8 zero-probability
+ * events**, up from 3. Re-run `scripts/stickyStepSweep.ts` whenever the
+ * corpus grows; do not assume this constant has settled.
  */
-export const DEFAULT_SWITCH_PROBABILITY = 0.025;
+export const DEFAULT_SWITCH_PROBABILITY = 0.05;
 
 /**
  * The step count of the fish's MOST RECENT nonzero hop.

@@ -188,7 +188,8 @@ function main() {
   console.log("\n  the structural check — zero-probability events must go to ZERO by construction:");
   console.log(`    shipped ${shippedZero}  →  sticky ${stickyZero}   ${stickyZero === 0 ? "PASS" : "FAIL — the implementation is wrong"}`);
 
-  console.log("\n  where the log loss actually moves (per cast, |Δ| > 0.05):");
+  const SHOW = 0.2; // above the uniform per-constant-cast cost, which rises with s
+  console.log(`\n  where the log loss actually moves (per cast, |Δ| > ${SHOW}):`);
   const byCast = new Map<string, { d: number; n: number; zero: number }>();
   for (const x of scores) {
     const e = byCast.get(x.castId) ?? { d: 0, n: 0, zero: 0 };
@@ -199,11 +200,11 @@ function main() {
   }
   const rows = [...byCast.entries()].map(([id, e]) => ({ id, mean: e.d / e.n, n: e.n, zero: e.zero }));
   rows.sort((a, b) => a.mean - b.mean);
-  for (const r of rows.filter((r) => Math.abs(r.mean) > 0.05)) {
+  for (const r of rows.filter((r) => Math.abs(r.mean) > SHOW)) {
     console.log(`    ${r.id}  n=${String(r.n).padStart(2)}  ΔlogLoss ${r.mean >= 0 ? "+" : ""}${r.mean.toFixed(3)}${r.zero ? `   (${r.zero} shipped zero-prob event(s))` : ""}`);
   }
-  const unchanged = rows.length - rows.filter((r) => Math.abs(r.mean) > 0.05).length;
-  console.log(`    ...and ${unchanged} cast(s) moved by less than 0.05 — the bounded cost on the constant casts.\n`);
+  const unchanged = rows.length - rows.filter((r) => Math.abs(r.mean) > SHOW).length;
+  console.log(`    ...and ${unchanged} cast(s) moved by less than ${SHOW} — the bounded cost on the constant casts.\n`);
 
   replayArm();
 }
