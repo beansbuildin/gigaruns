@@ -863,6 +863,53 @@ live casts (20 transitions) that were out-of-sample for it. It is treated as a
 HARD CONSTRAINT: once `k` is known, every off-ring cell gets probability
 exactly zero.
 
+**[CORRECTED 2026-08-19, session 48 — the "`k` is per-cast" half is FALSE, and
+`lastMovePath` says what is really true.]** Session 48's first live cast
+(`12988700`) ran `k = 1, 2, 1, 2, 1, 2` across all six turns — a perfect
+alternation, on a clean cast, not a logging artifact. That is 3 off-ring moves
+and 1 `k`-inconsistent cast on the `isCleanCast`-filtered corpus, where the
+standing figure was 0/279 and 66/66.
+
+The field that explains it was on the wire from the first capture and nothing
+had ever read it. `data.lastMovePath` is the server's own account of the move:
+1-based row-major cell indices, **one per unit step**, ending on
+`fishPosition`. Three identities, scored over every recorded turn by
+`scripts/auditMovePaths.ts` and pinned by `tests/fishing/movePath.test.ts`:
+
+| identity | ALL casts | clean casts |
+|---|---|---|
+| `lastMovePath.length == manhattan(previousFishPosition, fishPosition)` | **312/312** | **308/308** |
+| `lastMovePath[last]` decodes to `fishPosition` | **312/312** | **308/308** |
+| every hop along `prev -> ...path` is a **unit** step | **312/312** | **308/308** |
+
+Steps-per-turn is only ever 1 or 2 (155 / 157 across all casts). So:
+
+- **What is exceptionless** is the unit-step decomposition. The fish only ever
+  walks one cell at a time; what varies is how many cells it walks in a turn.
+  The quantity FACT 1 calls a "step class" is a **step COUNT**.
+- **What is merely very common** is that the count is constant within a cast:
+  **72 / 73 clean casts**. One alternates.
+
+The `k`-as-hard-constraint treatment is therefore unsafe as written, and it
+failed live in exactly the predicted way: the ring model locked `k = 1` from
+cast `12988700`'s first move and then assigned ~0 probability to three
+subsequent landings, giving that one cast a log-loss of **11.316** with 3
+zero-probability events against a corpus LOO of 0.803 for `k = 1`.
+
+The generalized lesson is session 47's, for the fourth time: **the refuting
+evidence was in every capture from the beginning.** `data/fish-patterns.jsonl`
+projects each turn down to `from`/`to` and discards the path between them, so
+the corpus view used to FIT the movement model could not represent the thing
+that breaks it.
+
+**Also newly readable, `data.nextMovePath` / `data.nextPosition`
+(QUESTIONS.md §17):** 6 non-null observations, all on TERMINAL docs, and in
+all 6 `nextMovePath` decodes to exactly `nextPosition` under the same
+row-major rule. The server pre-rolls the next move; it is exposed only once
+the cast is over and the move will never happen, so it is not an exploitable
+mid-cast oracle. It does confirm the movement draw is server-side and
+precomputed at least one turn ahead.
+
 ### FACT 2 — within a class, the next move is conditioned on the previous one, in OPPOSITE directions
 
 | class | P(repeat previous delta) | P(exact reversal) | n |

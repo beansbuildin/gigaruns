@@ -1,12 +1,12 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-19T16:22:13.078Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-19T18:46:33.549Z.
 
-69 recorded casts — 7 caught (10.1%).
+74 recorded casts — 8 caught (10.8%).
 
 ## Fish caught, by name
 
-- Finley: 2
+- Finley: 3
 - Zombo: 1
 - Plankton: 1
 - Ollie: 1
@@ -86,3 +86,8 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 | 12975755 | no | — |
 | 12978000 | no | — |
 | 12978003 | no | — |
+| 12988700 | no | — |
+| 12988705 | yes | Finley (rarity 0) |
+| 12988708 | no | — |
+| 12988710 | no | — |
+| 12988717 | no | — |

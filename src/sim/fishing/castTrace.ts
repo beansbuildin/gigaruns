@@ -63,6 +63,14 @@ export interface CastTurn {
   index: number;
   fishPosition: Cell;
   previousFishPosition: Cell;
+  /**
+   * [session 48] The server's own account of HOW the fish got here this turn:
+   * 1-based row-major cell indices, one per UNIT step, ending on
+   * `fishPosition`. `null` on turn 0 and on any doc that omits the field.
+   *
+   * This is the field that corrected FACT 1. See `movePathAudit.ts`.
+   */
+  lastMovePath: number[] | null;
   fishHp: number;
   fishMaxHp: number;
   /** `playerHp` on the wire; it is the mana pool, not health. */
@@ -235,6 +243,7 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
         index,
         fishPosition: pos,
         previousFishPosition: prev,
+        lastMovePath: Array.isArray(d.lastMovePath) ? (d.lastMovePath as number[]) : null,
         fishHp: Number(d.fishHp),
         fishMaxHp: Number(d.fishMaxHp),
         mana: Number(d.playerHp),

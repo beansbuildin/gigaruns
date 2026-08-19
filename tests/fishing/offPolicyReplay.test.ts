@@ -35,6 +35,7 @@ function turn(index: number, pos: Cell): CastTurn {
     index,
     fishPosition: pos,
     previousFishPosition: pos,
+    lastMovePath: null,
     fishHp: 10,
     fishMaxHp: 20,
     mana: 10,

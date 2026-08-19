@@ -103,7 +103,15 @@ function summarize(label: string, rows: readonly RingPredictionRecord[], referen
 }
 
 function main() {
-  const path = process.argv[2] ?? DEFAULT_RING_PREDICTION_LOG_PATH;
+  // [session 48] Positional path only — a leading `--since=...` used to be
+  // taken as the log path, so `ringPredictionReport.ts --since=<t>` (the
+  // session-48 brief's own checkpoint invocation) read a nonexistent file,
+  // got back an empty array, and printed "nothing logged yet". A silent empty
+  // result that reads as a legitimate answer is the same defect class as the
+  // dead `.message` guard (session 46) and heuristic (d): the code names a
+  // real thing while reading somewhere that thing never appears.
+  const positional = process.argv.slice(2).find((a) => !a.startsWith("--"));
+  const path = positional ?? DEFAULT_RING_PREDICTION_LOG_PATH;
   const all = loadRingPredictions(path);
   const sinceArg = process.argv.find((a) => a.startsWith("--since="));
   const since = sinceArg ? sinceArg.slice("--since=".length) : null;
