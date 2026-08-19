@@ -70,7 +70,7 @@ import { pickLowestTier } from "../src/strategy/enemyTier.js";
 import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import { shouldUsePotion, DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
-import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
+import { createShutdownSignal, installProcessSigintHandler, type ShutdownSignal } from "../src/orchestrator/shutdown.js";
 
 /**
  * Hard cap, DECISIONS.md 2026-08-15 (session 11): potions are a
@@ -1396,8 +1396,25 @@ async function main() {
     );
   }
 
+  // [session 45, TASKS.md Task 10] Graceful SIGINT, wired into this
+  // direct-CLI entry point's own `main()`. `runOnce` has accepted a
+  // `shutdownSignal` since Task 10 (it is checked once per turn, before the
+  // next move is chosen — see `deps.shutdownSignal?.requested` in `runOnce`),
+  // but only `scripts/orchestrator.ts` ever constructed and installed one, so
+  // `kill -INT` on a `npx tsx scripts/liveRun.ts` process fell through to
+  // Node's default immediate termination instead of the documented "stop
+  // before the next move" path. Session 44 found this on the fishing side and
+  // confirmed the identical gap here; this closes both. A second press
+  // force-exits, same as the orchestrator.
+  const shutdownSignal = createShutdownSignal();
+  const uninstallSigint = installProcessSigintHandler(shutdownSignal);
+
   const targetRuns = args.dryRun || args.stage2 ? 1 : args.runs;
   for (let i = 0; i < targetRuns; i++) {
+    if (shutdownSignal.requested) {
+      console.log(`\n▸ stopped by SIGINT before run ${i + 1}/${targetRuns}.`);
+      break;
+    }
     console.log(`\n▸ run ${i + 1}/${targetRuns}`);
     const before = args.dryRun ? null : await currentEnergy(client, me.address);
     // [session 31, CODEXREVIEW #8] Captured before `runOnce` so the diff
@@ -1444,6 +1461,7 @@ async function main() {
           potionPolicy: potionPolicyState,
           opponentModelPersistence,
           playCountsPersistence,
+          shutdownSignal,
         },
         { stage2Only: args.stage2, requireResumeConfirmation: i === 0, resumeExisting: args.resumeExisting },
       );
@@ -1467,6 +1485,8 @@ async function main() {
     if (runError) throw runError;
     if (args.stage2) break;
   }
+
+  uninstallSigint();
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, runs ${guards.runCount}`);
   console.log(`▸ log: ${log.filePath}`);

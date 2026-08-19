@@ -88,6 +88,7 @@ import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { regenerateRunReports } from "./regenerateReports.js";
+import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
 import {
   chooseCard,
   chooseNewCard,
@@ -1443,9 +1444,26 @@ async function main() {
   const me = await client.getMe();
   console.log(`  account <USER>`);
 
+  // [session 45, TASKS.md Task 10] Graceful SIGINT, wired into this direct-CLI
+  // entry point's own `main()` — `runOneCast` has accepted a `shutdownSignal`
+  // since Task 10, but only `scripts/orchestrator.ts` ever constructed and
+  // installed one, so `kill -INT` on a `npx tsx scripts/liveFishing.ts`
+  // process fell through to Node's default immediate termination instead of
+  // the documented "stop before the next card" path. Found live in session 44
+  // (harmless that time, by circumstance rather than by the mechanism), and
+  // hit again in session 45's own batch. Same construction as
+  // `orchestrator.ts`'s, including the between-casts check below: a second
+  // press force-exits.
+  const shutdownSignal = createShutdownSignal();
+  const uninstallSigint = installProcessSigintHandler(shutdownSignal);
+
   const targetCasts = args.dryRun ? 1 : args.casts;
   let lastFixturesDir = "";
   for (let i = 0; i < targetCasts; i++) {
+    if (shutdownSignal.requested) {
+      console.log(`\n▸ stopped by SIGINT before cast ${i + 1}/${targetCasts}.`);
+      break;
+    }
     console.log(`\n▸ cast ${i + 1}/${targetCasts}`);
     // [session 28, CODEXREVIEW #1] Fresh per cast, not once per invocation —
     // one directory must correspond to exactly one docId. See FixtureWriter's
@@ -1469,6 +1487,7 @@ async function main() {
         address: me.address,
         dryRun: args.dryRun,
         guardStatePath: FISHING_GUARD_STATE_PATH,
+        shutdownSignal,
       });
     } catch (e) {
       castError = e;
@@ -1485,7 +1504,12 @@ async function main() {
     }
     if (castError) throw castError;
     if (result?.outcome === "dry_run") break;
+    if (result?.outcome === "shutdown") {
+      console.log(`\n▸ stopped by SIGINT mid-cast — the cast is left resumable, not force-completed.`);
+      break;
+    }
   }
+  uninstallSigint();
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, casts ${guards.runCount}`);
   console.log(`▸ log: ${log.filePath}`);
