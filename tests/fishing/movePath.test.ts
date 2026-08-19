@@ -18,7 +18,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadCastTraces, isCleanTrace } from "../../src/sim/fishing/castTrace.js";
-import { auditMovePaths, stepCountsPerCast, indexToCell } from "../../src/sim/fishing/movePathAudit.js";
+import { auditMovePaths, stepCountsPerCast, indexToCell, auditNextMovePaths } from "../../src/sim/fishing/movePathAudit.js";
 
 describe("lastMovePath against the real corpus", () => {
   const traces = loadCastTraces();
@@ -64,5 +64,20 @@ describe("lastMovePath against the real corpus", () => {
     // Still overwhelmingly the common case, which is why the ring model is
     // not simply wrong — it is unguarded against a case that does occur.
     expect(counts.filter((c) => c.constant).length / counts.length).toBeGreaterThan(0.9);
+  });
+
+  it("reads nextMovePath as a real path, not a nextPosition duplicate (QUESTIONS.md §17)", () => {
+    const rows = auditNextMovePaths(traces);
+    expect(rows.length).toBeGreaterThanOrEqual(6);
+    // Every one decodes to a unit-step path from the current cell, ending on
+    // nextPosition. This is what refutes §17's "always a one-cell duplicate".
+    expect(rows.every((r) => r.endsOnNextPosition)).toBe(true);
+    expect(rows.every((r) => r.unitStepsFromCurrent)).toBe(true);
+    expect(rows.some((r) => r.nextMovePath.length > 1)).toBe(true);
+    // Where the cast continued, the pre-roll was exact — position and path.
+    const testable = rows.filter((r) => r.realized !== null);
+    expect(testable.length).toBeGreaterThanOrEqual(4);
+    expect(testable.every((r) => r.realized)).toBe(true);
+    expect(testable.every((r) => JSON.stringify(r.realizedPath) === JSON.stringify(r.nextMovePath))).toBe(true);
   });
 });

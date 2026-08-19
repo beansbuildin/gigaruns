@@ -1020,7 +1020,57 @@ requires everywhere else in this project.
 
 ---
 
-## §17 — `data.nextMovePath`: a new wire field, one non-null observation
+## §17 — `data.nextMovePath` — ANSWERED 2026-08-19 [session 48]: it IS a genuine multi-cell path, and the "identical to `nextPosition`" reading was a type confusion
+
+**Answer.** `nextMovePath` is the same encoding as `lastMovePath` — a list of
+1-based **row-major cell indices**, one per unit step — applied to the fish's
+NEXT move instead of its last one. `nextPosition` is that path's endpoint.
+
+The §17 table below reads `nextMovePath [1,2]` and `nextPosition [1,2]` and
+concludes "the two fields are identical, and it is a single cell, not a path,
+despite the name". They are not identical; they are **different types**.
+`[1,2]` as a path is two indices decoding to `[1,1]` then `[1,2]`; `[1,2]` as
+a position is row 1, column 2. The coincidence was in the formatting.
+
+Scored over all six non-null observations by `scripts/auditMovePaths.ts`
+(`auditNextMovePaths`), pinned by `tests/fishing/movePath.test.ts`:
+
+| check | result |
+|---|---|
+| decoded path ends exactly on `nextPosition` | **6/6** |
+| decoded path is unit steps from the fish's current cell | **6/6** |
+| **multi-cell** (length > 1) — i.e. NOT a `nextPosition` duplicate | **2/6** |
+| fish actually went there (the 4 where the cast continued) | **4/4** |
+| next turn's `lastMovePath` equals it byte-for-byte | **4/4** |
+
+So it is a real, exact, one-turn-ahead oracle when present, and its LENGTH is
+the next move's step count — the quantity FACT 1 got wrong (see
+SPEC-fishing.md §9).
+
+**Two things this does NOT change.**
+
+1. **It is not unexploited, and the override is correctly gated.**
+   `scripts/liveFishing.ts` already validates each prediction into
+   `data/nextPositionValidation.jsonl` and enables `certainDistribution` only
+   once `nextPositionOverrideStats` reports ≥ `NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS`
+   (10) with a Wilson lower bound ≥ 0.5. It currently stands at **3 attempts,
+   3 hits, lower bound 0.438 — not ready.** Working as designed.
+2. **Still no idea WHY it is populated** — 6 of 385 state docs (~1.6%), and
+   session 27 checked and did not confirm the Fintuition hypothesis (§12).
+   Four of the six are mid-cast (`COMPLETE_CID: false`), so it is not a
+   terminal-doc-only artifact.
+
+**One decision left for a human, deliberately not taken.** Cast `12956718`
+turn 1 is a **fourth** validated observation (predicted `[2,4]`, realized
+`[2,4]`) that predates the validation ledger and so is not counted toward the
+10-attempt gate. Backfilling it would move a live gate using data the gate's
+author never sanctioned, so it was left alone. If backfilled the count becomes
+4/4, lower bound 0.51 — still short of 10 attempts, so it changes nothing
+today either way.
+
+Original question preserved below for context.
+
+## §17 (original) — `data.nextMovePath`: a new wire field, one non-null observation
 
 **[session 45, live]** Three docs in this session's 2-cast live batch carried
 `data.nextMovePath` alongside the already-known `data.nextPosition`, both

@@ -151,3 +151,68 @@ export function stepCountsPerCast(traces: readonly CastTrace[]): StepCountCast[]
   }
   return out;
 }
+
+export interface NextMovePathRow {
+  castId: string;
+  turnIndex: number;
+  nextMovePath: number[];
+  /** `nextMovePath` decoded to cells. */
+  decoded: { x: number; y: number }[];
+  nextPosition: { x: number; y: number };
+  /** Does the decoded path end exactly on `nextPosition`? */
+  endsOnNextPosition: boolean;
+  /** Is the decoded path a chain of unit steps from the fish's current cell? */
+  unitStepsFromCurrent: boolean;
+  /** The realized `lastMovePath` on the FOLLOWING turn, when there is one. */
+  realizedPath: number[] | null;
+  /** Did the fish actually go there? `null` when the cast ended first. */
+  realized: boolean | null;
+}
+
+/**
+ * [session 48] Scores `data.nextMovePath` / `data.nextPosition` — the
+ * server's PRE-ROLLED next move, QUESTIONS.md §17.
+ *
+ * §17 asked whether `nextMovePath` is ever a genuine multi-cell path or
+ * always a one-cell duplicate of `nextPosition`. It is a genuine path. The
+ * one non-null sample §17 had read `nextMovePath [1,2]` and `nextPosition
+ * [1,2]` and called them identical — but they are different types.
+ * `nextMovePath` is a list of 1-based row-major cell INDICES ([1,2] decodes
+ * to [1,1] then [1,2]); `nextPosition` is a coordinate pair. The apparent
+ * identity was a coincidence of formatting.
+ *
+ * It is the same unit-step path structure as `lastMovePath`, one turn early,
+ * and its LENGTH is the next move's step count — the quantity FACT 1 got
+ * wrong.
+ */
+export function auditNextMovePaths(traces: readonly CastTrace[]): NextMovePathRow[] {
+  const out: NextMovePathRow[] = [];
+  for (const trace of traces) {
+    trace.turns.forEach((turn, i) => {
+      const path = turn.nextMovePath;
+      const next = turn.nextPosition;
+      if (!path || path.length === 0 || !next) return;
+      const decoded = path.map((idx) => indexToCell(idx, turn.gridSize));
+      const end = decoded[decoded.length - 1]!;
+      const chain = [turn.fishPosition, ...decoded];
+      let unit = true;
+      for (let j = 0; j + 1 < chain.length; j++) {
+        if (manhattan(chain[j]!, chain[j + 1]!) !== 1) unit = false;
+      }
+      const following = trace.turns[i + 1];
+      out.push({
+        castId: trace.docId,
+        turnIndex: turn.index,
+        nextMovePath: path,
+        decoded,
+        nextPosition: next,
+        endsOnNextPosition: end.x === next.x && end.y === next.y,
+        unitStepsFromCurrent: unit,
+        realizedPath: following?.lastMovePath ?? null,
+        realized: following ? following.fishPosition.x === next.x && following.fishPosition.y === next.y : null,
+      });
+    });
+  }
+  return out;
+}
+

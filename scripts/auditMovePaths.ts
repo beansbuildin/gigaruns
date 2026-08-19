@@ -12,7 +12,7 @@
  */
 
 import { loadCastTraces, isCleanTrace } from "../src/sim/fishing/castTrace.js";
-import { auditMovePaths, stepCountsPerCast } from "../src/sim/fishing/movePathAudit.js";
+import { auditMovePaths, stepCountsPerCast, auditNextMovePaths } from "../src/sim/fishing/movePathAudit.js";
 
 function main() {
   const all = loadCastTraces();
@@ -52,6 +52,23 @@ function main() {
   console.log(`  casts neither constant nor alternating: ${other.length}/${counts.length}`);
   for (const c of [...alternating, ...other]) {
     console.log(`      cast ${c.castId}: ${c.counts.join(",")}`);
+  }
+  console.log("");
+
+  console.log("── data.nextMovePath / data.nextPosition — the server's PRE-ROLLED next move (QUESTIONS.md §17) ──");
+  const nxt = auditNextMovePaths(all);
+  const testable = nxt.filter((r) => r.realized !== null);
+  console.log(`  non-null observations: ${nxt.length} (of ${all.reduce((n, t) => n + t.turns.length, 0)} state docs)`);
+  console.log(`  decoded path ends exactly on nextPosition: ${nxt.filter((r) => r.endsOnNextPosition).length}/${nxt.length}`);
+  console.log(`  decoded path is unit steps from the current cell: ${nxt.filter((r) => r.unitStepsFromCurrent).length}/${nxt.length}`);
+  console.log(`  multi-cell (length > 1), i.e. NOT a nextPosition duplicate: ${nxt.filter((r) => r.nextMovePath.length > 1).length}/${nxt.length}`);
+  console.log(`  fish actually went there (cast continued): ${testable.filter((r) => r.realized).length}/${testable.length}`);
+  console.log(`  next turn's lastMovePath equals it byte-for-byte: ${testable.filter((r) => JSON.stringify(r.realizedPath) === JSON.stringify(r.nextMovePath)).length}/${testable.length}`);
+  for (const r of nxt) {
+    console.log(
+      `      cast ${r.castId} t${r.turnIndex}: nextMovePath ${JSON.stringify(r.nextMovePath)} -> ${JSON.stringify(r.decoded.map((c) => [c.x, c.y]))}` +
+        `  nextPosition [${r.nextPosition.x},${r.nextPosition.y}]  realized=${r.realized === null ? "cast ended" : r.realized}`,
+    );
   }
   console.log("");
 }

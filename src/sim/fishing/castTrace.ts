@@ -78,6 +78,14 @@ export interface CastTurn {
    * This is the field that corrected FACT 1. See `movePathAudit.ts`.
    */
   lastMovePath: number[] | null;
+  /**
+   * [session 48] The server's PRE-ROLLED next move, same encoding as
+   * `lastMovePath`. Non-null on only ~1.5% of state docs and nobody knows
+   * why. QUESTIONS.md §17; `movePathAudit.ts`'s `auditNextMovePaths`.
+   */
+  nextMovePath: number[] | null;
+  /** [session 48] Endpoint of `nextMovePath`. Null whenever that is null. */
+  nextPosition: Cell | null;
   fishHp: number;
   fishMaxHp: number;
   /** `playerHp` on the wire; it is the mana pool, not health. */
@@ -251,6 +259,8 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
         fishPosition: pos,
         previousFishPosition: prev,
         lastMovePath: Array.isArray(d.lastMovePath) ? (d.lastMovePath as number[]) : null,
+        nextMovePath: Array.isArray(d.nextMovePath) ? (d.nextMovePath as number[]) : null,
+        nextPosition: cellOf(d.nextPosition),
         fishHp: Number(d.fishHp),
         fishMaxHp: Number(d.fishMaxHp),
         mana: Number(d.playerHp),
