@@ -94,7 +94,17 @@ import {
   predictDistribution,
   type MatcherState,
 } from "../../strategy/fishing/matcher.js";
-import { promotePatterns } from "./patternMining.js";
+import { promotedSupport } from "./patternMining.js";
+import {
+  initMatcherPosterior,
+  matcherPriorFromSupport,
+  matcherWeight,
+  probabilityOf,
+  updateMatcherPosterior,
+  DEFAULT_MATCHER_POSTERIOR_OPTIONS,
+  type MatcherPosterior,
+  type MatcherPosteriorOptions,
+} from "../../strategy/fishing/matcherPosterior.js";
 import { toCandidate } from "./patterns.js";
 import type { Cast } from "./transitionCorpus.js";
 import type { CastTrace, TraceCard } from "./castTrace.js";
@@ -148,6 +158,16 @@ export interface ReplayTurn {
   covered: boolean;
   /** [session 50] Same question for the RECORDED policy's focus on this turn. */
   actualCovered: boolean;
+  /**
+   * [session 51 §3] The weight the matcher tier actually received on this
+   * turn — the fixed `1 - ringFloor` under the shipped arm, the posterior
+   * under `matcherPosterior`, and 0 when there was no matcher distribution
+   * at all. Recorded so the mixture can be READ, not just scored: a posterior
+   * that never leaves its prior and one that swings to 0.9 on a real
+   * perimeter walker produce the same mean log loss for very different
+   * reasons.
+   */
+  matcherWeight: number;
 }
 
 export interface ReplayCastResult {
@@ -277,6 +297,28 @@ export interface ReplayOptions {
    */
   ringModelOptions?: RingModelOptions;
   /**
+   * [session 51 §3] How much of the mass the matcher tier gets when it has a
+   * live candidate set. Only meaningful with `matcherTier: "loo"` — with the
+   * tier off there is no matcher distribution to weight.
+   *
+   *  - `"posterior"` (DEFAULT, and what ships live since session 51): the
+   *    posterior that this fish is drawn from the mined library, updated by
+   *    the likelihood ratio the two tiers assign to what actually happened.
+   *  - `"fixed"`: the pre-session-51 constant `1 - ringFloor` = 0.9. This is
+   *    the BEFORE-ARM, kept so the change stays A/B-able and so every
+   *    session-50 `matcherTier: "loo"` figure is reproducible from the file.
+   *
+   * The default is the posterior rather than the old constant DELIBERATELY,
+   * against this file's usual "defaults preserve old numbers" convention. The
+   * convention exists so a stale default cannot silently invalidate published
+   * figures; here the competing risk is worse and this repo has been bitten by
+   * it repeatedly — a future session runs `matcherTier: "loo"`, believes it is
+   * measuring live behaviour, and is actually measuring a weighting live no
+   * longer uses. Reproducibility is preserved by naming the old arm, not by
+   * making it the default.
+   */
+  matcherWeighting?: "posterior" | "fixed";
+  /**
    * [session 50, brief §2] Place the focus by maximising EXPECTED COVERAGE
    * over the next `coverageHorizon` turns instead of this turn's EV
    * (`src/strategy/fishing/coverageFocus.ts`). Card choice stays
@@ -353,12 +395,23 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
   // cast — so the candidates anchored here have never seen the trajectory they
   // are about to be scored on.
   let matcher: MatcherState | null = null;
+  // [session 51 §3] The prior is the mined library's OWN support rate on the
+  // held-out training set — the fraction of those casts some promoted
+  // primitive explains exactly — so it is re-derived per fold like everything
+  // else here rather than carried in as a constant.
+  let posterior: MatcherPosterior | null = null;
+  const posteriorOpts: MatcherPosteriorOptions = {
+    prior: 0.5,
+    ...DEFAULT_MATCHER_POSTERIOR_OPTIONS,
+  };
   if ((opts.matcherTier ?? "off") === "loo") {
-    const patterns = promotePatterns(otherCasts);
+    const { patterns, supportingCasts, totalCasts } = promotedSupport(otherCasts);
     matcher = initMatcher(
       patterns.map((pat) => toCandidate(pat, t0.fishPosition, gridSize, target.turns.length + 1)),
       t0.fishPosition,
     );
+    posteriorOpts.prior = matcherPriorFromSupport(supportingCasts, totalCasts);
+    posterior = initMatcherPosterior(posteriorOpts.prior);
   }
 
   const turns: ReplayTurn[] = [];
@@ -398,15 +451,20 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
     // mixed with the ring at `ringFloor` so a converged candidate can never
     // assign probability zero to the cell the fish actually reached.
     const matcherDist = matcher && matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
-    const dist = matcherDist
-      ? mixDistributions(
-          stepClass !== null
-            ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist)
-            : matcherDist,
-          ringDist,
-          1 - ringOpts.ringFloor,
-        )
-      : ringDist;
+    const matcherOnRing = matcherDist
+      ? stepClass !== null
+        ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist)
+        : matcherDist
+      : null;
+    // [session 51 §3] The mixture weight. `1 - ringFloor` is the shipped
+    // FIXED weight; under `matcherPosterior` it is the posterior that this
+    // fish is drawn from the mined library, so the tier earns its mass from
+    // its own record within the cast instead of being handed 0.9 on turn 1.
+    const matcherWeightHere =
+      (opts.matcherWeighting ?? "posterior") === "posterior" && posterior
+        ? matcherWeight(posterior, posteriorOpts)
+        : 1 - ringOpts.ringFloor;
+    const dist = matcherOnRing ? mixDistributions(matcherOnRing, ringDist, matcherWeightHere) : ringDist;
     const baseline = contextualFallback(currentCell, prevDelta, contextMap, cellOnlyMap, gridSize, {
       shrinkageK: DEFAULT_SHRINKAGE_K,
     });
@@ -541,9 +599,16 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       focusRemaining: focus.remaining,
       covered: covers(choice.focus, actual),
       actualCovered: covers(rec.focusPoint, actual),
+      matcherWeight: matcherOnRing ? matcherWeightHere : 0,
     });
 
     history.push(actual);
+    // Update the posterior BEFORE narrowing the candidate set: the likelihood
+    // ratio is what the two tiers said about this move while it was still
+    // unknown, and `observe()` is the thing that consumes the answer.
+    if (posterior && matcherOnRing) {
+      posterior = updateMatcherPosterior(posterior, probabilityOf(matcherOnRing, actual), probabilityOf(ringDist, actual), posteriorOpts);
+    }
     if (matcher) matcher = observe(matcher, actual);
     hand = hand.filter((_, idx) => idx !== choice.handIndex);
 

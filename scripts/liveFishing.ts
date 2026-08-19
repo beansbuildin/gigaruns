@@ -128,6 +128,16 @@ import {
 } from "../src/strategy/fishing/stepClass.js";
 import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
+import { supportingCastCount } from "../src/sim/fishing/patternMining.js";
+import {
+  initMatcherPosterior,
+  matcherPriorFromSupport,
+  matcherWeight,
+  probabilityOf,
+  updateMatcherPosterior,
+  DEFAULT_MATCHER_POSTERIOR_OPTIONS,
+  type MatcherPosteriorOptions,
+} from "../src/strategy/fishing/matcherPosterior.js";
 import { cellKey, cellsEqual, inGrid, manhattan, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
@@ -634,6 +644,21 @@ export interface RingPredictionRecord {
   shadowRingPActual?: number;
   /** Did the ring model's top-1 match the realized cell? */
   shadowRingHit?: boolean;
+  /**
+   * [session 51 §3] The weight the matcher tier actually received on this
+   * turn. Absent on rows written before session 51, where it was always the
+   * fixed `1 - ringFloor` = 0.9 whenever `tier` is `matcher`/`matcher_ring`;
+   * `matcherWeightOf()` supplies that so old rows stay readable.
+   *
+   * Logged because the tier LABEL stopped being sufficient the moment the
+   * weight became a belief: a `matcher_ring` row at weight 0.13 and one at
+   * 0.58 are different predictions, and pooling them would repeat exactly the
+   * mistake session 49 catalogued — a comparator read at a composition that
+   * is not the composition of the thing it is compared to.
+   */
+  matcherWeight?: number;
+  /** [session 51 §3] Turns of evidence folded into the posterior when this row was written. */
+  matcherPosteriorUpdates?: number;
 }
 
 /**
@@ -653,6 +678,17 @@ export const CURRENT_ZONE_MAP_VERSION: ZoneMapVersion = "corrected";
  */
 export function zoneMapVersionOf(rec: RingPredictionRecord): ZoneMapVersion {
   return rec.zoneMapVersion ?? "transposed";
+}
+
+/**
+ * [session 51 §3] The matcher weight a row was written under, defaulting a
+ * pre-session-51 row to the fixed weight that was in force when it was
+ * written. Same discipline as `zoneMapVersionOf` — the default encodes the
+ * historical fact, so an old row is never silently read as a new one.
+ */
+export function matcherWeightOf(rec: RingPredictionRecord): number {
+  if (rec.matcherWeight !== undefined) return rec.matcherWeight;
+  return rec.tier === "matcher" || rec.tier === "matcher_ring" ? 1 - DEFAULT_RING_MODEL_OPTIONS.ringFloor : 0;
 }
 
 /** Deterministic top-1 of a distribution — highest p, ties by lowest x then lowest y, the same rule `scripts/fishingRingCV.ts` scores with so live and offline numbers are comparable. */
@@ -1148,6 +1184,25 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // floor stops a thin corpus from collapsing it to the degenerate hard-ring
   // case. Logged with its `n` on every run — the brief's §0 rule.
   const switchEstimate = estimateSwitchProbability(contextCasts);
+  // [session 51 §3] The matcher tier's mixture weight is now a POSTERIOR, not
+  // the fixed `1 - ringFloor = 0.9` it has been since session 45. The prior is
+  // the loaded library's own support rate on this same clean corpus — the
+  // fraction of casts `perimeterWalk(cw)`/`(ccw)` explain exactly — so it is
+  // read off the data rather than invented, and it describes the library
+  // actually in use rather than a freshly mined one.
+  const matcherSupport = supportingCastCount(contextCasts, minedPatterns);
+  const matcherPosteriorOpts: MatcherPosteriorOptions = {
+    prior: matcherPriorFromSupport(matcherSupport.supportingCasts, matcherSupport.totalCasts),
+    ...DEFAULT_MATCHER_POSTERIOR_OPTIONS,
+  };
+  let matcherPosterior = initMatcherPosterior(matcherPosteriorOpts.prior);
+  if (matcherCandidates.length > 0) {
+    console.log(
+      `  · matcher posterior: prior ${(matcherPosteriorOpts.prior * 100).toFixed(1)}% ` +
+        `(${matcherSupport.supportingCasts}/${matcherSupport.totalCasts} clean casts explained exactly by the loaded library, Laplace +1/+2); ` +
+        `was a FIXED ${((1 - DEFAULT_RING_MODEL_OPTIONS.ringFloor) * 100).toFixed(0)}% before session 51`,
+    );
+  }
   if (ringModelEnabled) {
     console.log(
       `  · ring model ON: class prior k=1 ${stepClassTable.classCasts.get(1) ?? 0} / k=2 ${stepClassTable.classCasts.get(2) ?? 0} cast(s), ` +
@@ -1332,16 +1387,25 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // the justification is calibration, and it is a live observation, not a
     // sim one.
     const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
-    const rawDist = matcherDist
+    // [session 51 §3] The matcher tier is a MIXTURE weighted by belief, not a
+    // fixed 0.9. Measured on the 88-cast replay, the old constant handed 90%
+    // of the mass to the perimeter-walk hypothesis on EVERY cast in the corpus
+    // (88/88 casts, 134 turns, weight 0.900 on all of them); the posterior
+    // exceeds 0.5 on 4 casts and sits at a median 0.135. Refutation is
+    // automatic — a dead candidate set drives the weight to 0 for the rest of
+    // the cast, which the constant had no way to express.
+    const matcherOnRing = matcherDist
       ? ringModelEnabled
-        ? mixDistributions(
-            stepClass !== null
-              ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
-              : matcherDist,
-            ringDist!,
-            1 - DEFAULT_RING_MODEL_OPTIONS.ringFloor,
-          )
+        ? stepClass !== null
+          ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+          : matcherDist
         : matcherDist
+      : null;
+    const matcherMixWeight = matcherOnRing ? matcherWeight(matcherPosterior, matcherPosteriorOpts) : 0;
+    const rawDist = matcherOnRing
+      ? ringModelEnabled
+        ? mixDistributions(matcherOnRing, ringDist!, matcherMixWeight)
+        : matcherOnRing
       : (ringDist ??
         contextualFallback(
           currentCell,
@@ -1519,6 +1583,8 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         shadowRingPPredicted: shadowRingTop?.p,
         shadowRingPActual: shadowRingTop ? (ringDist!.get(cellKey(toCell))?.p ?? 0) : undefined,
         shadowRingHit: shadowRingTop ? cellsEqual(toCell, shadowRingTop.cell) : undefined,
+        matcherWeight: matcherOnRing ? matcherMixWeight : undefined,
+        matcherPosteriorUpdates: matcherOnRing ? matcherPosterior.updates : undefined,
         pHitPredicted: best.pHit + best.pCrit,
         realizedHit,
         zoneMapVersion: CURRENT_ZONE_MAP_VERSION,
@@ -1528,7 +1594,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       console.log(
         `  · predictors: ring p(actual)=${rec.pActual.toFixed(3)} ${hit ? "TOP1" : "    "}` +
           ` | baseline p(actual)=${(rec.baselinePActual ?? 0).toFixed(3)} ${rec.baselineHit ? "TOP1" : "    "}` +
-          ` | shot P_hit ${(rec.pHitPredicted ?? 0).toFixed(2)} → ${realizedHit ? "HIT" : "miss"}`,
+          ` | shot P_hit ${(rec.pHitPredicted ?? 0).toFixed(2)} → ${realizedHit ? "HIT" : "miss"}` +
+          (rec.matcherWeight !== undefined
+            ? ` | matcher π=${rec.matcherWeight.toFixed(3)} (n=${rec.matcherPosteriorUpdates ?? 0})`
+            : ""),
       );
     }
 
@@ -1545,6 +1614,17 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     arr.push(toCell);
     transitionLog.set(cellKey(fromCell), arr); // later turns in THIS cast benefit too, not just future casts
 
+    // [session 51 §3] Fold this turn's evidence into the matcher posterior
+    // BEFORE `observe()` narrows the candidate set: the likelihood ratio is
+    // what the two tiers said about this move while it was still unknown.
+    if (matcherOnRing && ringDist) {
+      matcherPosterior = updateMatcherPosterior(
+        matcherPosterior,
+        probabilityOf(matcherOnRing, toCell),
+        probabilityOf(ringDist, toCell),
+        matcherPosteriorOpts,
+      );
+    }
     matcher = observe(matcher, toCell);
     doc = newDoc;
     turn++;

@@ -129,3 +129,62 @@ export function promotePatterns(casts: Cast[], threshold: number = PROMOTION_THR
     .supports.filter((s) => s.matchingCasts.length >= threshold)
     .map((s) => s.pattern);
 }
+
+/**
+ * [session 51 §3] The promoted library together with the DISTINCT casts it
+ * explains — the prior for `matcherPosterior.ts`'s mixture weight.
+ *
+ * The union, not the sum: two primitives that each match the same cast (a
+ * cw and a ccw perimeter walk agree on a cast too short to tell them apart)
+ * are one piece of evidence that this fish is a perimeter walker, not two.
+ * Summing `matchingCasts.length` over promoted patterns double-counts exactly
+ * those casts and would inflate the prior.
+ */
+export function promotedSupport(
+  casts: Cast[],
+  threshold: number = PROMOTION_THRESHOLD,
+): { patterns: Pattern[]; supportingCasts: number; totalCasts: number } {
+  const supports = testPrimitives(casts).supports.filter((s) => s.matchingCasts.length >= threshold);
+  const union = new Set<string>();
+  for (const s of supports) for (const id of s.matchingCasts) union.add(id);
+  return { patterns: supports.map((s) => s.pattern), supportingCasts: union.size, totalCasts: casts.length };
+}
+
+/**
+ * [session 51 §3] How many DISTINCT casts in `casts` a given set of patterns
+ * explains exactly — the live prior for `matcherPosterior.ts`.
+ *
+ * Deliberately takes the patterns rather than re-mining: live loads its
+ * library from `data/mined-patterns.json`, which can be older than the
+ * corpus, and the prior must describe the library actually in use. Mining a
+ * fresh one here to count its support would give the right number for the
+ * wrong library.
+ *
+ * Applies the same exclusions `testPrimitives` does — a duplicate-turn or
+ * gapped cast cannot be an exact full-trajectory match — so the numerator and
+ * the denominator are counted on the same footing.
+ */
+export function supportingCastCount(casts: Cast[], patterns: readonly Pattern[]): { supportingCasts: number; totalCasts: number } {
+  let supporting = 0;
+  let total = 0;
+  for (const cast of casts) {
+    if (cast.maxTurn < 0 || cast.duplicateTurns.length > 0 || cast.hasGaps) continue;
+    total++;
+    for (const pattern of patterns) {
+      const trajectory = pattern.path(cast.start, cast.gridSize, cast.maxTurn + 2);
+      let matches = true;
+      for (let t = 0; t <= cast.maxTurn; t++) {
+        const predicted = trajectory[t + 1];
+        if (!predicted || !cellsEqual(predicted, cast.byTurn.get(t)!)) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) {
+        supporting++;
+        break; // DISTINCT casts — two patterns agreeing on one cast is one piece of evidence
+      }
+    }
+  }
+  return { supportingCasts: supporting, totalCasts: total };
+}

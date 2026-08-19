@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CastTrace, CastTurn, TraceCard } from "../../src/sim/fishing/castTrace.js";
 import { replayCast, replayCorpus, traceToCast } from "../../src/sim/fishing/offPolicyReplay.js";
+import { loadCastTraces, isCleanTrace } from "../../src/sim/fishing/castTrace.js";
 import type { Cell } from "../../src/sim/fishing/geometry.js";
 
 /** A card covering the single cell under the focus point (zone 5), 5 damage, 3 self-harm on a miss. */
@@ -270,5 +271,48 @@ describe("[session 50, brief §1/§2] the matcher tier, coverage, and the placem
     // else.
     expect(h1.hits).toBe(plain.hits);
     expect(h1.covered).toBe(plain.covered);
+  });
+});
+
+describe("[session 51 §3] matcherWeighting", () => {
+  // READ-only against the committed cast fixtures — nothing here writes, so
+  // CLAUDE.md's isolated-temp-path rule for I/O-owning tests is not engaged.
+  // Asserted rather than skipped: a guard that silently returns turns this
+  // whole block vacuous the day the fixtures move.
+  const traces = loadCastTraces().filter(isCleanTrace);
+  it("has the committed cast corpus to work against", () => {
+    expect(traces.length).toBeGreaterThan(20);
+  });
+
+  it("defaults to the posterior, and 'fixed' reproduces the pre-session-51 arm", () => {
+    // Pins the deliberate break with this file's usual default convention:
+    // the DEFAULT is the new behaviour, and the old one has to be asked for
+    // by name. If someone flips this back, a future session measuring
+    // `matcherTier: "loo"` silently stops measuring what ships.
+    const bare = replayCorpus(traces, { matcherTier: "loo" });
+    const explicit = replayCorpus(traces, { matcherTier: "loo", matcherWeighting: "posterior" });
+    const fixed = replayCorpus(traces, { matcherTier: "loo", matcherWeighting: "fixed" });
+    expect(bare.caught).toBe(explicit.caught);
+    expect(bare.hits).toBe(explicit.hits);
+    // The two arms must actually differ, or this test proves nothing.
+    expect(fixed.hits === bare.hits && fixed.shots === bare.shots).toBe(false);
+  });
+
+  it("the fixed arm gives every matcher turn the same weight; the posterior does not", () => {
+    const weightsOf = (o: Parameters<typeof replayCorpus>[1]) =>
+      replayCorpus(traces, o)
+        .results.flatMap((r) => r.turns.map((t) => t.matcherWeight))
+        .filter((w) => w > 0);
+    const fixed = new Set(weightsOf({ matcherTier: "loo", matcherWeighting: "fixed" }));
+    const post = new Set(weightsOf({ matcherTier: "loo" }));
+    expect(fixed.size).toBe(1);
+    expect([...fixed][0]).toBeCloseTo(0.9, 10);
+    expect(post.size).toBeGreaterThan(1);
+  });
+
+  it("with the matcher tier off, no turn carries any matcher weight at all", () => {
+    for (const t of replayCorpus(traces, { matcherTier: "off" }).results.flatMap((r) => r.turns)) {
+      expect(t.matcherWeight).toBe(0);
+    }
   });
 });
