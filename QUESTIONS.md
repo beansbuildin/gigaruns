@@ -1098,3 +1098,71 @@ is non-null over several consecutive turns would settle it. Not acted on: per
 the standing "don't invent behavior that wasn't captured" rule, nothing reads
 this field yet, and `unknownDocKeys` will keep flagging it until it is either
 modelled or allowlisted.
+
+---
+
+## §18 — the `nextPosition` override gate was set under different information; should it be re-specified? [session 49]
+
+**Not blocking.** The gate is doing the right thing today. This is a design
+question the brief (§5) explicitly asked me to RAISE rather than decide, and
+CLAUDE.md's "don't reopen a settled decision silently" applies.
+
+### Where it stands
+
+`data/nextPositionValidation.jsonl` is at **4 attempts / 4 hits / Wilson lower
+bound 0.5101** after session 49 backfilled the fourth observation
+(`12956718` t1, `backfilled: true`, source recorded in the row).
+
+The gate is `attempts >= NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS (10)` **and**
+`lowerBound >= NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND (0.5)`. The bound half is
+met; the attempts half is not, so the override stays **off**. Correct as
+written.
+
+### Why it may be worth re-specifying
+
+The 10-attempt threshold was chosen when the field's *meaning* was unknown —
+QUESTIONS.md §17 read `nextMovePath` as a possible duplicate of `nextPosition`
+and could not rule out that the whole thing was a wire artifact. That is no
+longer the situation. `scripts/auditMovePaths.ts` at 84 casts:
+
+- **11** non-null observations of `nextMovePath` / `nextPosition`
+- decoded path ends exactly on `nextPosition`: **11/11**
+- decoded path is unit steps from the current cell: **11/11**
+- multi-cell (so NOT a `nextPosition` duplicate): **3/11**
+- the fish actually went there, where the cast continued: **4/4**
+- next turn's `lastMovePath` equals it byte-for-byte: **4/4**
+
+That is structural evidence the hit count cannot express: the field decodes
+correctly under the confirmed row-major identity every single time, and where
+it was checkable it was right every single time. The 4/4 hit record is the
+*weakest* thing known about it.
+
+### The cost of waiting
+
+The field is non-null on ~11 of 451 state docs (~2.4%), and only a subset are
+mid-cast (the rest are terminal, where the prediction can never be validated
+because the cast is over). Reaching 10 *validated attempts* therefore takes
+roughly **80–160 more casts** — at 20 casts/day, a month of play, to move a
+threshold that was set without knowing what the field was.
+
+### The question
+
+Should the gate become **two-armed** — structural decode valid (path ends on
+`nextPosition`, unit steps, non-empty) **AND** Wilson lower bound >= 0.5 at
+n >= 5 — rather than a single attempt count?
+
+Arguments against, stated fairly:
+- 4/4 is still 4/4. A two-armed gate that fires at n=5 fires on very little.
+- The structural check validates the *decode*, not the *prediction*. A field
+  could decode perfectly and still be a plan the server revises.
+- The override replaces the movement model with a point mass. Being wrong
+  costs a whole turn's aim, and the movement model is currently healthy
+  (session 49: live ring top-1 41.7% against an offline 42.6%).
+
+Arguments for:
+- The threshold encodes uncertainty that has since been resolved by a
+  different kind of evidence.
+- Waiting a month to learn something already visible is a real cost.
+
+**Not changed unilaterally.** `NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS` stays at
+10 until the user or Claude says otherwise.
