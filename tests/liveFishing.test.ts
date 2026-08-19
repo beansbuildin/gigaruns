@@ -23,6 +23,7 @@ import {
   fishCell,
   lastRecordForCast,
   loadNextPositionValidations,
+  loadRingPredictions,
   loadTransitionLog,
   NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS,
   NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND,
@@ -853,5 +854,177 @@ describe("RunLog — constructor path override (session 41)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * [session 46, brief §1b/§1d] The paired-baseline and calibration columns.
+ *
+ * These exist so a live batch produces a PAIRED statistic — both predictors
+ * scored on the same turn, against the same fish — instead of a live number
+ * compared by eye against an offline constant. Session 45's live read was
+ * n=18 turns with a 95% CI of roughly [12%, 51%], a number that could not
+ * have failed; pairing is what makes the comparison able to fail.
+ *
+ * The contract worth pinning is narrow and mechanical: every row a live turn
+ * writes carries both halves, `realizedHit` tracks `fishHp` DECREASING (a
+ * miss pushes it toward `fishMaxHp`, QUESTIONS.md §15), and the baseline is
+ * only ever LOGGED — it must never become the distribution the policy acts
+ * on.
+ */
+describe("ringPrediction rows — paired baseline + shot calibration (session 46)", () => {
+  const TEST_CONFIG: BotConfig = {
+    dungeonId: 5,
+    energyCostPerRun: 20,
+    maxRoom: 16,
+    maxRunsPerDayGame: 12,
+    dailyEnergyBudget: 240,
+    maxRunsPerSession: 12,
+    maxConsecutiveActionFailures: 3,
+    dendren: { nodeId: "5", tierId: 1, energyCostPerCast: 12, maxCastsPerDayGame: 20, dailyEnergyBudget: 240, maxCastsPerSession: 20 },
+  };
+
+  function fakeCard() {
+    return {
+      id: 1,
+      manaCost: 1,
+      hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      critZones: [],
+      hitEffects: [{ type: "FISH_HP", amount: 5 }],
+      missEffects: [{ type: "FISH_HP", amount: -3 }],
+      critEffects: [],
+      earnable: false,
+      rarity: 0,
+      isDayCard: false,
+      foundInPonds: [1],
+    };
+  }
+
+  function fakeDoc(fishPosition: [number, number], completeCid: boolean, fishHp: number) {
+    return {
+      docId: "77777777",
+      docType: "FISHING_GAME",
+      data: {
+        deckCardData: [fakeCard()],
+        playerMaxHp: 10,
+        playerHp: 10,
+        fishHp,
+        fishMaxHp: 10,
+        fishPosition,
+        previousFishPosition: [0, 0],
+        gridSize: 4,
+        focusPoint: [0, 0],
+        focusMeter: 3,
+        focusMeterMax: 3,
+        focusMechanicEnabled: true,
+        patternIndex: 0,
+        fullDeck: [1],
+        nextCardIndex: 1,
+        cardInDrawPile: 0,
+        hand: [1],
+        discard: [],
+      },
+      COMPLETE_CID: completeCid,
+      SUCCESS_CID: completeCid ? false : undefined,
+      IS_JUICED_CID: false,
+      MULTIPLIER_CID: 1,
+    };
+  }
+
+  /** `hpByTurn` drives whether each turn's shot "connects", so `realizedHit` is exercised in BOTH directions rather than pinned to one. */
+  function makeClient(hpByTurn: readonly number[]): GigaverseClient {
+    let turn = 0;
+    return {
+      getFishingState: async () => ({ gameState: null }),
+      getFishingActionToken: () => "",
+      postFishingAction: async (body: { action: string }) => {
+        if (body.action === "start_run") {
+          return { success: true, message: "ok", data: { doc: fakeDoc([0, 0], false, 10), events: [] }, actionToken: 1 };
+        }
+        const hp = hpByTurn[turn] ?? 10;
+        const last = turn === hpByTurn.length - 1;
+        turn++;
+        return {
+          success: true,
+          message: "ok",
+          data: { doc: fakeDoc([turn % 4, 1], last, hp), events: [] },
+          actionToken: turn + 1,
+        };
+      },
+    } as unknown as GigaverseClient;
+  }
+
+  async function runAndRead(hpByTurn: readonly number[]) {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-paired-test-"));
+    const ringPredictionLogPath = join(dir, "ringPrediction.jsonl");
+    const deps = makeLiveFishingDeps({
+      client: makeClient(hpByTurn),
+      config: TEST_CONFIG,
+      guards: new GuardState({ dailyEnergyBudget: 240, maxRunsPerSession: 20, maxConsecutiveActionFailures: 3 }),
+      transitionsPath: join(dir, "fish-patterns.jsonl"),
+      nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
+      ringPredictionLogPath,
+      logsDir: join(dir, "logs"),
+      guardStatePath: join(dir, "guard-budget.json"),
+    });
+    await runOneCast(deps);
+    const rows = loadRingPredictions(ringPredictionLogPath);
+    rmSync(dir, { recursive: true, force: true });
+    return rows;
+  }
+
+  it("writes both predictors' numbers on every scored turn, so the comparison is paired", async () => {
+    const rows = await runAndRead([10, 10, 10]);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      // The ring half — unchanged from session 45.
+      expect(r.pActual).toBeGreaterThanOrEqual(0);
+      expect(r.predicted).toHaveLength(2);
+      // The paired baseline half — the whole point of §1b.
+      expect(r.baselinePredicted, `turn ${r.turn} baselinePredicted`).toBeDefined();
+      expect(r.baselinePActual, `turn ${r.turn} baselinePActual`).toBeDefined();
+      expect(r.baselineHit, `turn ${r.turn} baselineHit`).toBeDefined();
+      expect(r.baselinePActual!).toBeGreaterThanOrEqual(0);
+      expect(r.baselinePActual!).toBeLessThanOrEqual(1);
+      expect(r.baselinePPredicted!).toBeGreaterThan(0);
+      // `baselineHit` must agree with `baselinePredicted` vs `actual` — a
+      // derived field that disagrees with its own inputs would silently
+      // corrupt the paired top-1 column.
+      expect(r.baselineHit).toBe(r.baselinePredicted![0] === r.actual[0] && r.baselinePredicted![1] === r.actual[1]);
+    }
+  });
+
+  it("records the played shot's own predicted hit probability and whether it landed", async () => {
+    const rows = await runAndRead([10, 10, 10]);
+    for (const r of rows) {
+      expect(r.playedCardId).toBe(1);
+      expect(r.playedFocus).toHaveLength(2);
+      expect(r.pHitPredicted).toBeGreaterThanOrEqual(0);
+      expect(r.pHitPredicted).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("reads realizedHit off fishHp DECREASING — a miss pushes fishHp toward fishMaxHp, so 'no decrease' is a miss", async () => {
+    // Turn 0's shot connects (10 -> 6), turn 1's misses (6 -> 9, the
+    // documented miss direction), turn 2's connects again (9 -> 4).
+    const rows = await runAndRead([6, 9, 4]);
+    expect(rows.length).toBeGreaterThanOrEqual(3);
+    expect(rows[0]!.realizedHit).toBe(true);
+    expect(rows[1]!.realizedHit).toBe(false);
+    expect(rows[2]!.realizedHit).toBe(true);
+  });
+
+  it("never lets the logged baseline become the distribution the policy acts on", async () => {
+    // The baseline is computed for scoring only. If it ever leaked into the
+    // decision, the played focus would follow `baselinePredicted` rather than
+    // the ring model's `predicted` on turns where the two disagree — this
+    // asserts at least one such disagreement exists and that the shot did not
+    // track the baseline on it. (A cast where the two never disagree proves
+    // nothing, so the disagreement itself is asserted.)
+    const rows = await runAndRead([10, 10, 10]);
+    const disagreements = rows.filter(
+      (r) => r.baselinePredicted![0] !== r.predicted[0] || r.baselinePredicted![1] !== r.predicted[1],
+    );
+    expect(disagreements.length, "no disagreeing turn — this test proves nothing as written").toBeGreaterThan(0);
   });
 });

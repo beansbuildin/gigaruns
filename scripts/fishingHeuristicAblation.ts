@@ -37,9 +37,13 @@ const minedPool = loadMinedPatterns();
 console.log(`\n▸ fishingHeuristicAblation.ts`);
 console.log(`  mined library: ${minedPool.length} pattern(s) — ${minedPool.map((p) => p.name).join(", ") || "(none)"}\n`);
 
-function report(label: string, N: number, seed: number, heuristicsEnabled: boolean, pruneReturnToPrevious: boolean) {
+// [session 46, brief §2] The `pruneReturnToPrevious` arm is gone — heuristic
+// (d) is retired (see `heuristics.ts`'s tombstone and SPEC-fishing.md §8).
+// What remains here is the (a)/(f) heuristics flag, which is what this
+// script's other sections were always actually measuring.
+function report(label: string, N: number, seed: number, heuristicsEnabled: boolean) {
   const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, heuristicsEnabled);
-  const result = simulateCasts(N, { policy, matcherPool: minedPool, pruneReturnToPrevious }, seed);
+  const result = simulateCasts(N, { policy, matcherPool: minedPool }, seed);
   console.log(
     `  ${label.padEnd(38)} N=${N} seed=${seed}  ${result.caught}/${N} = ${(result.catchRate * 100).toFixed(1)}%`,
   );
@@ -57,22 +61,22 @@ for (const [N, seed] of [[500, 1], [3000, 1], [3000, 50000]] as const) {
   const blindPolicy = makeMatcherFishPolicy(REDRAW_THRESHOLD);
   const blind = simulateCasts(N, { policy: blindPolicy, matcherPool: [] }, seed);
   console.log(`  ${"matcher BLIND".padEnd(38)} N=${N} seed=${seed}  ${blind.caught}/${N} = ${(blind.catchRate * 100).toFixed(1)}%`);
-  report("matcher w/ MINED library", N, seed, true, false);
+  report("matcher w/ MINED library", N, seed, true);
   console.log();
 }
 
 console.log("2. Heuristic ablation (a)/(d)/(f), all-on vs. all-off, against the MINED library\n");
 for (const [N, seed] of [[2000, 1], [2000, 50000], [20000, 1], [20000, 50000]] as const) {
-  report("heuristics ALL-ON  (a,d,f)", N, seed, true, true);
-  report("heuristics ALL-OFF (a,d,f)", N, seed, false, false);
+  report("heuristics ALL-ON  (a,d,f)", N, seed, true);
+  report("heuristics ALL-OFF (a,d,f)", N, seed, false);
   console.log();
 }
 
 console.log("2b. Breakdown — which of (a)/(f) [cardChoice.ts tie-breaks] vs. (d) [dist pruning] drives the delta above\n");
 for (const [N, seed] of [[20000, 1], [20000, 50000]] as const) {
-  report("(a,f) ON,  (d) OFF", N, seed, true, false);
-  report("(a,f) OFF, (d) ON ", N, seed, false, true);
-  report("(a,f) OFF, (d) OFF (= all-off)", N, seed, false, false);
+  report("(a,f) ON,  (d) OFF", N, seed, true);
+  report("(a,f) OFF, (d) ON ", N, seed, false);
+  report("(a,f) OFF, (d) OFF (= all-off)", N, seed, false);
   console.log();
 }
 

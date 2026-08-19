@@ -14,7 +14,6 @@
 
 import type { Cell } from "../../sim/fishing/geometry.js";
 import { cellKey, reachableCells, zonesToCells } from "../../sim/fishing/geometry.js";
-import type { Displacement } from "./contextualFallback.js";
 import type { Distribution, FishingCardLike } from "./cardChoice.js";
 
 /**
@@ -46,46 +45,33 @@ export function isCentralSquare(cell: Cell, gridSize: number): boolean {
 }
 
 /**
- * (d) "A fish that just made a 1-cell move never returns to the cell it
- * just came from on its next move — usable to prune the predicted next-move
- * set."
+ * (d) `pruneReturnToPrevious` — REMOVED [session 46, brief §2].
  *
- * User-stated, session 43. NOT corpus-validated — no capture has confirmed
- * this rule against real fish trajectories yet (`data/fish-patterns.jsonl`
- * has never been audited for a same-turn-adjacent 1-cell move followed by
- * an immediate reversal); implemented as stated because it is concrete and
- * cheap to apply, but treated as an unverified prune, not a proven one — a
- * future audit against the transition log could falsify it and should
- * remove this call rather than "explain around" a counterexample.
+ * "A fish that just made a 1-cell move never returns to the cell it just
+ * came from." User-stated session 43, implemented unverified, and now
+ * retired as SUBSUMED — not as wrong-in-spirit, but as a guard that could
+ * never do the job its name advertises:
  *
- * Zeroes the probability mass at the one cell the rule forbids (the cell
- * `fromCell - prev` — where the fish would have to step back to) and
- * renormalises the remainder. Only applies after a 1-cell previous move
- * (`|prev.dx| + |prev.dy| === 1`); a 2-cell move or a cast's first hop
- * (`prev === null`) leaves the distribution untouched, since the rule says
- * nothing about either case. Refuses to prune down to an empty
- * distribution — returns the input unchanged if the forbidden cell was the
- * ENTIRE remaining probability mass (a matcher/fallback distribution
- * degenerate enough to be wrong about that would be a bigger problem than
- * this prune could fix, and an empty `Distribution` breaks every downstream
- * consumer).
+ *  - For `k=2` casts it was a **proven no-op**. Its guard tested
+ *    `|prev.dx| + |prev.dy| === 1` — the previous displacement's LENGTH,
+ *    not the cast's step class — so it could never fire on the one class
+ *    where reversal is the single most likely move (39.2%, SPEC-fishing.md
+ *    §9's conditional table).
+ *  - For `k=1` casts it was **redundant**. §9's conditional table already
+ *    assigns reversal ~0 probability from the corpus itself, which is a
+ *    measured rule rather than an asserted one.
+ *
+ * Deleted rather than left in place because a dead guard that LOOKS like it
+ * encodes a movement rule is worse than either enforcing the rule or
+ * removing it: the next reader assumes reversal is handled here and stops
+ * looking for §9's table, which is where it is actually handled.
+ *
+ * The full arc — user-proposed, implemented unverified, measured as a
+ * regression against a synthetic fish the game does not have, corrected to
+ * NEUTRAL against the empirical fish, then retired as subsumed — is kept in
+ * SPEC-fishing.md §8 as a worked example of why sim authority is earned per
+ * domain rather than assumed. Do not re-add without a corpus measurement.
  */
-export function pruneReturnToPrevious(dist: Distribution, fromCell: Cell, prev: Displacement | null): Distribution {
-  if (!prev) return dist;
-  if (Math.abs(prev.dx) + Math.abs(prev.dy) !== 1) return dist;
-  const forbidden: Cell = { x: fromCell.x - prev.dx, y: fromCell.y - prev.dy };
-  const key = cellKey(forbidden);
-  const removed = dist.get(key);
-  if (!removed) return dist;
-  const remaining = 1 - removed.p;
-  if (remaining <= 1e-9) return dist;
-  const out = new Map<string, { cell: Cell; p: number }>();
-  for (const [k, v] of dist) {
-    if (k === key) continue;
-    out.set(k, { cell: v.cell, p: v.p / remaining });
-  }
-  return out;
-}
 
 /**
  * (e) "A fish that just made a 2-cell move is easier to predict when she's

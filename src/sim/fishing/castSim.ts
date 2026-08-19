@@ -26,7 +26,6 @@
  */
 
 import { chooseCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../../strategy/fishing/cardChoice.js";
-import { pruneReturnToPrevious } from "../../strategy/fishing/heuristics.js";
 import {
   emptyFallback,
   initMatcher,
@@ -233,21 +232,7 @@ export interface CastOptions {
     cellOnlyMap: ReadonlyMap<string, readonly Cell[]>;
     shrinkageK?: number;
   };
-  /**
-   * [session 44] Session-43 heuristic (d) — "a fish that just made a
-   * 1-cell move never returns to the cell it just came from." Opt-in,
-   * default `false`/omitted so every EXISTING sim caller stays byte-for-byte
-   * unchanged (this sim never applied this heuristic before this option was
-   * added — unlike `chooseCard`'s (a)/(f), which shipped live-default-on
-   * directly in `cardChoice.ts` session 43, (d) has only ever lived in
-   * `scripts/liveFishing.ts`'s own turn loop, never in this sim). Applied to
-   * `dist` the same way the live loop applies it — after prediction/
-   * fallback, before the policy sees it — so `scripts/
-   * fishingHeuristicAblation.ts` can measure it against the SAME
-   * matcher/matcherPool as heuristics (a)/(f) with one combined flag.
-   */
-  pruneReturnToPrevious?: boolean;
-  /**
+    /**
    * [session 45, brief §2] Draw the TRUE fish from the real corpus's
    * movement statistics (`empiricalFish.ts`) instead of from `patterns.ts`'s
    * synthetic primitive pool. Opt-in and additive: omitted, the sim is
@@ -379,9 +364,12 @@ export function simulateCast(opts: CastOptions): CastResult {
               { shrinkageK: opts.blindFallback.shrinkageK ?? DEFAULT_SHRINKAGE_K },
             )
           : emptyFallback(currentCell, new Map(), gridSize);
-    const dist = opts.pruneReturnToPrevious
-      ? pruneReturnToPrevious(rawDist, matcher.history[matcher.history.length - 1]!, previousDisplacement(matcher.history))
-      : rawDist;
+    // [session 46, brief §2] Heuristic (d) `pruneReturnToPrevious` used to
+    // sit here, between the fallback and the policy. Retired as subsumed by
+    // SPEC-fishing.md §9's conditional table — see `heuristics.ts`'s
+    // tombstone for why it could never fire on `k=2` and was redundant on
+    // `k=1`. The distribution now reaches the policy unmodified.
+    const dist = rawDist;
 
     const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp, focusBudget: focus }, rng);
 

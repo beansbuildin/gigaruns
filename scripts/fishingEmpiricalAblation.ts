@@ -40,10 +40,9 @@
 import { join } from "node:path";
 
 import { simulateCasts, makeMatcherFishPolicy, REDRAW_THRESHOLD, type CastOptions } from "../src/sim/fishing/castSim.js";
-import { groupByCast, isCleanCast, loadTransitionRecords, type Cast } from "../src/sim/fishing/transitionCorpus.js";
+import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { buildCellOnlyMap, buildContextualMap } from "../src/strategy/fishing/contextualFallback.js";
-import { buildStepClassTable, classifyStep } from "../src/strategy/fishing/stepClass.js";
-import { castHops } from "../src/strategy/fishing/contextualFallback.js";
+import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
 import { loadMinedPatterns } from "./liveFishing.js";
 
 /** The account's real held deck — `doc.data.fullDeck` from the live capture named in this file's header. */
@@ -83,11 +82,6 @@ const minedPool = loadMinedPatterns();
  * live does.
  */
 const LIVE_FALLBACK = { contextMap: buildContextualMap(casts), cellOnlyMap: buildCellOnlyMap(casts) };
-
-/** A cast's own step class, for the class-split arms of question 1b. */
-function castClass(c: Cast): 1 | 2 | null {
-  return classifyStep([c.start, ...castHops(c).map((h) => h.to)]);
-}
 
 const N = Number(process.argv[2] ?? 20000);
 // `simulateCasts(runs, opts, seed)` draws `seed + i` internally, so two seed
@@ -144,37 +138,13 @@ run("mined matcher, EMPIRICAL fish", empiricalMined, true);
 run("mined + contextual fallback, EMPIRICAL fish (= LIVE)", empiricalLive, true);
 console.log("\n   Live reality to compare against: 16 casts, 0 caught (session 44), 7/67 = 10.4% all-time.\n");
 
-console.log("1. Heuristic (d) pruneReturnToPrevious, against the EMPIRICAL fish\n");
-console.log("   1a. whole corpus (both classes mixed, at the class prior)\n");
-header();
-for (const [label, base] of [
-  ["live config (mined + contextual)", empiricalLive],
-  ["ring model", empiricalRing],
-] as const) {
-  run(`${label}, (d) OFF`, { ...base, pruneReturnToPrevious: false }, true);
-  run(`${label}, (d) ON`, { ...base, pruneReturnToPrevious: true }, true);
-}
-
-console.log("\n   1b. class-split — the brief's actual claim: (d) is free for k=1, wrong for k=2\n");
-header();
-for (const k of [1, 2] as const) {
-  const classTable = buildStepClassTable(casts.filter((c) => castClass(c) === k));
-  const base: Omit<CastOptions, "seed" | "policy"> = {
-    empiricalFish: { table: classTable },
-    matcherPool: [],
-    ringModel: { table },
-    deckIds: [...REAL_DECK],
-  };
-  run(`k=${k} fish only, (d) OFF`, { ...base, pruneReturnToPrevious: false }, true);
-  run(`k=${k} fish only, (d) ON`, { ...base, pruneReturnToPrevious: true }, true);
-}
-
-console.log("\n   Same ablation against the SYNTHETIC fish, the side-by-side session 44 measured:\n");
-header();
-run("synthetic fish, mined matcher, (d) OFF", { matcherPool: minedPool, deckIds: [...REAL_DECK], pruneReturnToPrevious: false }, true);
-run("synthetic fish, mined matcher, (d) ON", { matcherPool: minedPool, deckIds: [...REAL_DECK], pruneReturnToPrevious: true }, true);
-run("synthetic fish, LIVE config,   (d) OFF", { matcherPool: minedPool, blindFallback: LIVE_FALLBACK, deckIds: [...REAL_DECK], pruneReturnToPrevious: false }, true);
-run("synthetic fish, LIVE config,   (d) ON", { matcherPool: minedPool, blindFallback: LIVE_FALLBACK, deckIds: [...REAL_DECK], pruneReturnToPrevious: true }, true);
+// [session 46, brief §2] Section 1 was heuristic (d)'s ablation. (d) is now
+// RETIRED — proven a no-op for k=2 (its guard tested displacement length,
+// not step class) and redundant for k=1 (SPEC-fishing.md §9's conditional
+// table already assigns reversal ~0 from the data). The measurement that
+// retired it, and the full arc that got there, live in SPEC-fishing.md §8;
+// the arm is removed here rather than kept as a permanently-identical pair
+// of rows.
 
 console.log("\n2. Predictor: blind fallback vs. the step-class RING model");
 console.log("   (ring rows share their movement model with the generator — optimistic by construction)\n");

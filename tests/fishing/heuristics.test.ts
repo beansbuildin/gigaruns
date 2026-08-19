@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 import type { Cell } from "../../src/sim/fishing/geometry.js";
 import { cellKey } from "../../src/sim/fishing/geometry.js";
 import type { Distribution, FishingCardLike } from "../../src/strategy/fishing/cardChoice.js";
-import { candidateCellCount, coverageCount, isCentralSquare, pruneReturnToPrevious } from "../../src/strategy/fishing/heuristics.js";
+import { candidateCellCount, coverageCount, isCentralSquare } from "../../src/strategy/fishing/heuristics.js";
 
 function dist(entries: Array<[Cell, number]>): Distribution {
   const m = new Map<string, { cell: Cell; p: number }>();
@@ -42,57 +42,6 @@ describe("isCentralSquare — heuristic (a)", () => {
       { x: 4, y: 3 },
     ];
     for (const c of edges) expect(isCentralSquare(c, 4), `${c.x},${c.y}`).toBe(false);
-  });
-});
-
-describe("pruneReturnToPrevious — heuristic (d), NOT corpus-validated (see heuristics.ts header)", () => {
-  it("zeroes the forbidden return cell after a 1-cell move and renormalizes the rest", () => {
-    // Fish was at (2,2), moved 1 cell to (3,2) -- prev = {dx:1, dy:0}. The
-    // forbidden return cell is (3,2) - (1,0) = (2,2), the cell it just left.
-    const d = dist([
-      [{ x: 2, y: 2 }, 0.4],
-      [{ x: 3, y: 3 }, 0.3],
-      [{ x: 4, y: 2 }, 0.3],
-    ]);
-    const pruned = pruneReturnToPrevious(d, { x: 3, y: 2 }, { dx: 1, dy: 0 });
-    expect(pruned.has(cellKey({ x: 2, y: 2 }))).toBe(false);
-    expect(pruned.get(cellKey({ x: 3, y: 3 }))!.p).toBeCloseTo(0.3 / 0.6);
-    expect(pruned.get(cellKey({ x: 4, y: 2 }))!.p).toBeCloseTo(0.3 / 0.6);
-    const total = [...pruned.values()].reduce((s, v) => s + v.p, 0);
-    expect(total).toBeCloseTo(1);
-  });
-
-  it("leaves the distribution untouched after a 2-cell move — the rule only applies to 1-cell moves", () => {
-    const d = dist([
-      [{ x: 2, y: 2 }, 0.5],
-      [{ x: 3, y: 3 }, 0.5],
-    ]);
-    const pruned = pruneReturnToPrevious(d, { x: 4, y: 2 }, { dx: 2, dy: 0 });
-    expect(pruned).toBe(d);
-  });
-
-  it("leaves the distribution untouched on a cast's first hop (prev === null)", () => {
-    const d = dist([[{ x: 2, y: 2 }, 1]]);
-    const pruned = pruneReturnToPrevious(d, { x: 2, y: 2 }, null);
-    expect(pruned).toBe(d);
-  });
-
-  it("leaves the distribution untouched if the forbidden cell has no probability mass to prune", () => {
-    const d = dist([
-      [{ x: 3, y: 3 }, 0.6],
-      [{ x: 4, y: 2 }, 0.4],
-    ]);
-    const pruned = pruneReturnToPrevious(d, { x: 3, y: 2 }, { dx: 1, dy: 0 });
-    expect(pruned).toBe(d);
-  });
-
-  it("refuses to prune down to an empty distribution — returns the input unchanged", () => {
-    // Degenerate: the ENTIRE distribution sits on the forbidden cell. Pruning
-    // it would leave an empty Distribution, which breaks every downstream
-    // consumer — refuse rather than produce one.
-    const d = dist([[{ x: 2, y: 2 }, 1]]);
-    const pruned = pruneReturnToPrevious(d, { x: 3, y: 2 }, { dx: 1, dy: 0 });
-    expect(pruned).toBe(d);
   });
 });
 

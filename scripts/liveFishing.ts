@@ -110,7 +110,6 @@ import {
   previousDisplacement,
   DEFAULT_SHRINKAGE_K,
 } from "../src/strategy/fishing/contextualFallback.js";
-import { pruneReturnToPrevious } from "../src/strategy/fishing/heuristics.js";
 import {
   buildStepClassTable,
   classifyStep,
@@ -520,6 +519,44 @@ export interface RingPredictionRecord {
   actual: [number, number];
   hit: boolean;
   gridSize: number;
+
+  // ---- [session 46, brief §1b] the PAIRED baseline ------------------------
+  // The shipped pre-session-45 predictor (`contextualFallback`, the
+  // "cell + prev-displacement (shipped backoff)" arm of
+  // `scripts/fishingRingCV.ts`, offline logLoss 3.536) scored on the SAME
+  // turn, against the SAME fish, from the SAME history. Comparing the ring
+  // model's live number against an offline CONSTANT throws away the fact
+  // that some fish are simply harder than others; scoring both predictors
+  // on the same turns removes that variance entirely and makes the
+  // difference a paired statistic with a real CI.
+  //
+  // Optional, so the 20 rows session 45 already wrote still parse (
+  // `loadRingPredictions` is a plain JSON.parse) — a row without these is a
+  // pre-session-46 row and the report drops it from the paired arm rather
+  // than treating a missing baseline as a zero.
+  /** Baseline's top-1 cell. */
+  baselinePredicted?: [number, number];
+  /** Probability the baseline assigned to its own top-1. */
+  baselinePPredicted?: number;
+  /** Probability the baseline assigned to the cell the fish ACTUALLY reached. */
+  baselinePActual?: number;
+  /** Did the baseline's top-1 match the realized cell? */
+  baselineHit?: boolean;
+
+  // ---- [session 46, brief §1d] predicted vs. realized HIT ------------------
+  // `chooseCard` returns the probability it believes the chosen (card, focus)
+  // pair will connect. Logging that beside whether the shot actually landed
+  // is what separates the three ways a low catch rate can be caused —
+  // see the brief's §1d table. Without it a low catch rate is uninterpretable
+  // and the temptation is to tune something at random.
+  /** The card actually played. */
+  playedCardId?: number;
+  /** The focus cell actually played. */
+  playedFocus?: [number, number];
+  /** `pHit + pCrit` for the played (card, focus) — the model's own belief it connects. */
+  pHitPredicted?: number;
+  /** Did it actually connect? Read off `fishHp` DECREASING across the turn (a miss pushes `fishHp` toward `fishMaxHp`, QUESTIONS.md §15). */
+  realizedHit?: boolean;
 }
 
 /** Deterministic top-1 of a distribution — highest p, ties by lowest x then lowest y, the same rule `scripts/fishingRingCV.ts` scores with so live and offline numbers are comparable. */
@@ -1114,16 +1151,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           `Wilson lower bound ${(overrideStats.lowerBound * 100).toFixed(1)}%) — forcing focus toward predicted cell.`,
       );
     }
-    // [session 43, heuristic (d)] "A fish that just made a 1-cell move
-    // never returns to the cell it just came from" — applied to whichever
-    // distribution wins below (hypothesis-elimination or the contextual/
-    // cell-only fallback), NOT to the nextPosition override: that branch is
-    // already a single-cell certainty from a separately-gated, previously
-    // higher-confidence mechanism (Wilson-bound hit rate), and pruning a
-    // point distribution either does nothing or destroys it outright if the
-    // predicted cell happens to be the forbidden one — neither is this
-    // heuristic's job. See `heuristics.ts`'s `pruneReturnToPrevious` for the
-    // "unverified, not corpus-validated" caveat.
+    // [session 46, brief §2] Heuristic (d) `pruneReturnToPrevious` used to
+    // wrap the chosen distribution here. Retired as subsumed by
+    // SPEC-fishing.md §9's conditional table — see `heuristics.ts`'s
+    // tombstone. The tier pipeline below is now the whole story.
     // [session 45, brief §1 design note 3] Tier order with the ring model on:
     //   0. the mined-pattern matcher, while live candidates survive — but
     //      INTERSECTED with the legal step-class ring, since FACT 1 (259/259,
@@ -1175,9 +1206,23 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           gridSize,
           { shrinkageK: DEFAULT_SHRINKAGE_K },
         ));
-    const dist = nextPositionOverrideActive
-      ? certainDistribution(pendingPrediction!.cell)
-      : pruneReturnToPrevious(rawDist, matcher.history[matcher.history.length - 1]!, previousDisplacement(matcher.history));
+    const dist = nextPositionOverrideActive ? certainDistribution(pendingPrediction!.cell) : rawDist;
+
+    // [session 46, brief §1b] The paired baseline, computed on this same
+    // turn but NEVER consumed by the policy — it exists only to be scored
+    // against the live distribution above. This is deliberately the plain
+    // `contextualFallback` call, matching `fishingRingCV.ts`'s
+    // "cell + prev-displacement (shipped backoff)" arm exactly, so the live
+    // paired difference is on the same footing as the offline 3.536.
+    const baselineDist = contextualFallback(
+      currentCell,
+      prevDelta,
+      contextMap,
+      transitionLog,
+      gridSize,
+      { shrinkageK: DEFAULT_SHRINKAGE_K },
+    );
+    const baselineTop = topCellOf(baselineDist);
 
     // [session 45, brief §5.4] Remember what we predicted, to be scored
     // against the fish's real move once this turn's response comes back.
@@ -1290,6 +1335,12 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
 
     if (predictedTop) {
       const hit = cellsEqual(toCell, predictedTop.cell);
+      // [session 46, brief §1d] A miss pushes `fishHp` toward `fishMaxHp`
+      // (the confirmed catch-meter direction, QUESTIONS.md §15), so a
+      // DECREASE is the unambiguous signal that the played card connected —
+      // read off the doc rather than parsed out of the event list, which is
+      // one fewer wire shape to be wrong about.
+      const realizedHit = newDoc.data.fishHp < fishHp;
       const rec: RingPredictionRecord = {
         ts: new Date().toISOString(),
         castId,
@@ -1302,9 +1353,22 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         actual: [toCell.x, toCell.y],
         hit,
         gridSize,
+        baselinePredicted: baselineTop ? [baselineTop.cell.x, baselineTop.cell.y] : undefined,
+        baselinePPredicted: baselineTop?.p,
+        baselinePActual: baselineDist.get(cellKey(toCell))?.p ?? 0,
+        baselineHit: baselineTop ? cellsEqual(toCell, baselineTop.cell) : undefined,
+        playedCardId: best.card.id,
+        playedFocus: [best.focus.x, best.focus.y],
+        pHitPredicted: best.pHit + best.pCrit,
+        realizedHit,
       };
       appendRingPrediction(rec, ringPredictionLogPath);
       log.write({ event: "ring_prediction", ...rec });
+      console.log(
+        `  · predictors: ring p(actual)=${rec.pActual.toFixed(3)} ${hit ? "TOP1" : "    "}` +
+          ` | baseline p(actual)=${(rec.baselinePActual ?? 0).toFixed(3)} ${rec.baselineHit ? "TOP1" : "    "}` +
+          ` | shot P_hit ${(rec.pHitPredicted ?? 0).toFixed(2)} → ${realizedHit ? "HIT" : "miss"}`,
+      );
     }
 
     const transitionRec: TransitionRecord = {
