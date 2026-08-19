@@ -41,6 +41,7 @@ import { join } from "node:path";
 
 import { simulateCasts, makeMatcherFishPolicy, REDRAW_THRESHOLD, type CastOptions } from "../src/sim/fishing/castSim.js";
 import { groupByCast, isCleanCast, loadTransitionRecords, type Cast } from "../src/sim/fishing/transitionCorpus.js";
+import { buildCellOnlyMap, buildContextualMap } from "../src/strategy/fishing/contextualFallback.js";
 import { buildStepClassTable, classifyStep } from "../src/strategy/fishing/stepClass.js";
 import { castHops } from "../src/strategy/fishing/contextualFallback.js";
 import { loadMinedPatterns } from "./liveFishing.js";
@@ -70,6 +71,18 @@ const records = loadTransitionRecords(join("data", "fish-patterns.jsonl"));
 const casts = groupByCast(records).filter(isCleanCast);
 const table = buildStepClassTable(casts);
 const minedPool = loadMinedPatterns();
+
+/**
+ * The distribution tiers `scripts/liveFishing.ts` ACTUALLY wires today
+ * (lines ~1009-1025): mined matcher first, then `contextualFallback` over the
+ * real corpus maps — NOT the hardcoded-uniform `emptyFallback` the sim
+ * defaults to when `blindFallback` is omitted. Without this a "today's live
+ * config" row is not today's live config: a uniform distribution makes every
+ * focus placement EV-identical, so the tie-break never moves the focus point
+ * and the focus budget is never spent, which is the exact opposite of what
+ * live does.
+ */
+const LIVE_FALLBACK = { contextMap: buildContextualMap(casts), cellOnlyMap: buildCellOnlyMap(casts) };
 
 /** A cast's own step class, for the class-split arms of question 1b. */
 function castClass(c: Cast): 1 | 2 | null {
@@ -113,6 +126,8 @@ const empiricalMined: Omit<CastOptions, "seed" | "policy"> = {
   matcherPool: minedPool,
   deckIds: [...REAL_DECK],
 };
+/** As above, plus the contextual fallback tier `liveFishing.ts` really wires — see LIVE_FALLBACK. */
+const empiricalLive: Omit<CastOptions, "seed" | "policy"> = { ...empiricalMined, blindFallback: LIVE_FALLBACK };
 const empiricalRing: Omit<CastOptions, "seed" | "policy"> = {
   empiricalFish: { table },
   matcherPool: [],
@@ -125,14 +140,15 @@ header();
 run("blind predictor, SYNTHETIC fish  (session 44's sim)", { matcherPool: [], deckIds: [...REAL_DECK] }, true);
 run("mined matcher, SYNTHETIC fish    (session 44's sim)", { matcherPool: minedPool, deckIds: [...REAL_DECK] }, true);
 run("blind predictor, EMPIRICAL fish", empiricalBlind, true);
-run("mined matcher, EMPIRICAL fish    (= today's live config)", empiricalMined, true);
+run("mined matcher, EMPIRICAL fish", empiricalMined, true);
+run("mined + contextual fallback, EMPIRICAL fish (= LIVE)", empiricalLive, true);
 console.log("\n   Live reality to compare against: 16 casts, 0 caught (session 44), 7/67 = 10.4% all-time.\n");
 
 console.log("1. Heuristic (d) pruneReturnToPrevious, against the EMPIRICAL fish\n");
 console.log("   1a. whole corpus (both classes mixed, at the class prior)\n");
 header();
 for (const [label, base] of [
-  ["mined matcher", empiricalMined],
+  ["live config (mined + contextual)", empiricalLive],
   ["ring model", empiricalRing],
 ] as const) {
   run(`${label}, (d) OFF`, { ...base, pruneReturnToPrevious: false }, true);
@@ -157,12 +173,15 @@ console.log("\n   Same ablation against the SYNTHETIC fish, the side-by-side ses
 header();
 run("synthetic fish, mined matcher, (d) OFF", { matcherPool: minedPool, deckIds: [...REAL_DECK], pruneReturnToPrevious: false }, true);
 run("synthetic fish, mined matcher, (d) ON", { matcherPool: minedPool, deckIds: [...REAL_DECK], pruneReturnToPrevious: true }, true);
+run("synthetic fish, LIVE config,   (d) OFF", { matcherPool: minedPool, blindFallback: LIVE_FALLBACK, deckIds: [...REAL_DECK], pruneReturnToPrevious: false }, true);
+run("synthetic fish, LIVE config,   (d) ON", { matcherPool: minedPool, blindFallback: LIVE_FALLBACK, deckIds: [...REAL_DECK], pruneReturnToPrevious: true }, true);
 
 console.log("\n2. Predictor: blind fallback vs. the step-class RING model");
 console.log("   (ring rows share their movement model with the generator — optimistic by construction)\n");
 header();
 run("blind fallback (today's live tier 2/3)", empiricalBlind, true);
-run("mined matcher only, no ring", empiricalMined, true);
+run("mined matcher only, no fallback tier", empiricalMined, true);
+run("LIVE config (mined + contextual fallback)", empiricalLive, true);
 run("RING model", empiricalRing, true);
 run("RING model + mined matcher, ring-intersected", { ...empiricalMined, ringModel: { table } }, true);
 

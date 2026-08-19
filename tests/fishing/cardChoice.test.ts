@@ -12,9 +12,11 @@ import {
   chooseCard,
   chooseNewCard,
   evaluateCardAtFocus,
+  focusReserveFraction,
   shouldRedraw,
   type Distribution,
   type FishingCardLike,
+  type FocusBudget,
 } from "../../src/strategy/fishing/cardChoice.js";
 
 function dist(entries: Array<[Cell, number]>): Distribution {
@@ -406,5 +408,87 @@ describe("shouldRedraw", () => {
     expect(shouldRedraw(weak, 3, 2, 0)).toBe(false); // not enough mana
     const strong = { ev: 5 } as ReturnType<typeof bestFocusForCard>;
     expect(shouldRedraw(strong, 3, 10, 0)).toBe(false);
+  });
+});
+
+// ── [session 45] focus-reserve continuation term ─────────────────────────
+
+describe("focusReserveFraction", () => {
+  it("is 0 with no budget to conserve", () => {
+    expect(focusReserveFraction(undefined, { x: 1, y: 1 })).toBe(0);
+  });
+
+  it("rewards what a placement LEAVES, normalized by the full meter", () => {
+    const budget: FocusBudget = { current: { x: 2, y: 2 }, remaining: 3 };
+    expect(focusReserveFraction(budget, { x: 2, y: 2 })).toBeCloseTo(1, 10); // stay put: all 3 left
+    expect(focusReserveFraction(budget, { x: 2, y: 3 })).toBeCloseTo(2 / 3, 10);
+    expect(focusReserveFraction(budget, { x: 3, y: 3 })).toBeCloseTo(1 / 3, 10);
+    expect(focusReserveFraction(budget, { x: 4, y: 3 })).toBeCloseTo(0, 10);
+  });
+
+  it("never goes negative when a caller overspends the budget", () => {
+    const budget: FocusBudget = { current: { x: 1, y: 1 }, remaining: 1 };
+    expect(focusReserveFraction(budget, { x: 4, y: 4 })).toBe(0);
+  });
+});
+
+describe("bestFocusForCard with a focus-reserve weight", () => {
+  const budget: FocusBudget = { current: { x: 2, y: 2 }, remaining: 3 };
+  // Two live cells: one right under the current focus, one two moves away and
+  // slightly better. Weight 0 must take the better cell; a large weight must
+  // refuse to pay for it.
+  const d = dist([
+    [{ x: 2, y: 2 }, 0.45],
+    [{ x: 3, y: 4 }, 0.55],
+  ]);
+  const centerCard: FishingCardLike = {
+    id: 1001,
+    manaCost: 1,
+    hitZones: [5],
+    critZones: [],
+    hitEffects: [{ amount: 5 }],
+    missEffects: [{ amount: -3 }],
+    critEffects: [],
+  };
+
+  it("weight 0 leaves behavior exactly as it was — the greedy pick", () => {
+    const best = bestFocusForCard(centerCard, 0, d, 4, 1, 20, budget, true, 0);
+    expect(cellKey(best.focus)).toBe("3,4");
+    expect(best.score).toBeCloseTo(best.ev, 12);
+  });
+
+  it("a large weight declines to spend the whole budget for a small EV edge", () => {
+    const best = bestFocusForCard(centerCard, 0, d, 4, 1, 20, budget, true, 12);
+    expect(cellKey(best.focus)).toBe("2,2");
+  });
+
+  it("keeps raw ev for reporting even when score drives the pick", () => {
+    const best = bestFocusForCard(centerCard, 0, d, 4, 1, 20, budget, true, 12);
+    // score carries the reserve bonus; ev is still the plain expected damage
+    expect(best.score).toBeGreaterThan(best.ev);
+    const { ev } = evaluateCardAtFocus(centerCard, best.focus, d, 4, 1);
+    expect(best.ev).toBeCloseTo(ev, 12);
+  });
+
+  it("never lets the reserve term outrank a lethal option", () => {
+    // A lethal placement two moves away vs. a comfortable non-lethal one at home.
+    const lethalDist = dist([[{ x: 3, y: 4 }, 1]]);
+    const best = bestFocusForCard(centerCard, 0, lethalDist, 4, 1, 3, budget, true, 1000);
+    expect(best.lethal).toBe(true);
+    expect(cellKey(best.focus)).toBe("3,4");
+  });
+});
+
+describe("chooseCard with a focus-reserve weight", () => {
+  it("threads the weight through to every card's focus search", () => {
+    const budget: FocusBudget = { current: { x: 2, y: 2 }, remaining: 3 };
+    const d = dist([
+      [{ x: 2, y: 2 }, 0.45],
+      [{ x: 3, y: 4 }, 0.55],
+    ]);
+    const greedy = chooseCard([centerOnlyCard], 10, d, 4, 1, 20, budget, true, 0);
+    const reserved = chooseCard([centerOnlyCard], 10, d, 4, 1, 20, budget, true, 12);
+    expect(cellKey(greedy!.focus)).toBe("3,4");
+    expect(cellKey(reserved!.focus)).toBe("2,2");
   });
 });

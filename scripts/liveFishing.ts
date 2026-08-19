@@ -88,7 +88,14 @@ import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { regenerateRunReports } from "./regenerateReports.js";
-import { chooseCard, chooseNewCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../src/strategy/fishing/cardChoice.js";
+import {
+  chooseCard,
+  chooseNewCard,
+  shouldRedraw,
+  DEFAULT_FOCUS_RESERVE_WEIGHT,
+  type FishingCardLike,
+  type FocusBudget,
+} from "../src/strategy/fishing/cardChoice.js";
 import {
   initMatcher,
   observe,
@@ -102,6 +109,13 @@ import {
   DEFAULT_SHRINKAGE_K,
 } from "../src/strategy/fishing/contextualFallback.js";
 import { pruneReturnToPrevious } from "../src/strategy/fishing/heuristics.js";
+import {
+  buildStepClassTable,
+  classifyStep,
+  intersectWithRing,
+  ringDistribution,
+  ringDistributionUnknownClass,
+} from "../src/strategy/fishing/stepClass.js";
 import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { cellKey, cellsEqual, inGrid, type Cell } from "../src/sim/fishing/geometry.js";
@@ -741,6 +755,28 @@ export interface LiveFishingDeps {
    * cast isn't already complete and BEFORE the next card is chosen/sent.
    */
   shutdownSignal?: ShutdownSignal;
+  /**
+   * [session 45, brief §1/§5] Use the step-class RING movement model
+   * (`src/strategy/fishing/stepClass.ts`) as the predictor. Threaded as a
+   * real parameter rather than hardcoded, same pattern as
+   * `heuristicsEnabled` in sessions 43/44, so a live batch can be run with
+   * and without it and the sim ablations can address the same switch.
+   *
+   * Default `true`: the model cleared its leave-one-cast-out gate on the real
+   * corpus by a wide margin on BOTH axes it was gated on (log loss 1.074 vs.
+   * the cell+prev baseline's 3.733, top-1 48.2% vs. 42.0% —
+   * `scripts/fishingRingCV.ts`), and unlike every other fishing heuristic
+   * shipped so far it rests on an exceptionless corpus fact (FACT 1, 259/259)
+   * rather than on an unvalidated plausibility argument.
+   */
+  ringModelEnabled?: boolean;
+  /**
+   * [session 45, brief §3] Weight on `cardChoice.ts`'s focus-reserve
+   * continuation term — the fix for SPEC-fishing.md §4c's focus-budget
+   * exhaustion. See `DEFAULT_FOCUS_RESERVE_WEIGHT` for where the value comes
+   * from and `scripts/focusReserveAblation.ts` for the sweep.
+   */
+  focusReserveWeight?: number;
 }
 
 export type CastOutcome = "dry_run" | "caught" | "escaped" | "turn_cap" | "shutdown";
@@ -758,6 +794,8 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const transitionsPath = deps.transitionsPath ?? DEFAULT_TRANSITIONS_PATH;
   const nextPositionLogPath = deps.nextPositionLogPath ?? DEFAULT_NEXT_POSITION_LOG_PATH;
   const logsDir = deps.logsDir ?? "logs";
+  const ringModelEnabled = deps.ringModelEnabled ?? true;
+  const focusReserveWeight = deps.focusReserveWeight ?? DEFAULT_FOCUS_RESERVE_WEIGHT;
   // [session 30] Set when the PRIOR turn's response revealed a non-null
   // `nextPosition` — validated against the NEXT turn's actual position, then
   // cleared. Reset per cast (not carried across a resume): attributing a
@@ -875,6 +913,15 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // touched by this addition.
   const contextCasts = groupByCast(loadTransitionRecords(transitionsPath)).filter(isCleanCast);
   const contextMap = buildContextualMap(contextCasts);
+  // [session 45] Same clean-cast corpus, a different summary of it — the
+  // per-class delta table the ring model predicts from.
+  const stepClassTable = buildStepClassTable(contextCasts);
+  if (ringModelEnabled) {
+    console.log(
+      `  · ring model ON: class prior k=1 ${stepClassTable.classCasts.get(1) ?? 0} / k=2 ${stepClassTable.classCasts.get(2) ?? 0} cast(s), ` +
+        `${stepClassTable.conditional.size} (class, prev-delta) key(s); focusReserveWeight ${focusReserveWeight}`,
+    );
+  }
   if (contextMap.size > 0) {
     console.log(`  · contextual fallback: ${contextMap.size} (cell, previous-direction) key(s) from ${contextCasts.length} clean logged cast(s)`);
   }
@@ -1008,21 +1055,46 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // predicted cell happens to be the forbidden one — neither is this
     // heuristic's job. See `heuristics.ts`'s `pruneReturnToPrevious` for the
     // "unverified, not corpus-validated" caveat.
-    const rawDist = matcher.candidates.length > 0
-      ? predictDistribution(matcher)
-      : contextualFallback(
-          matcher.history[matcher.history.length - 1]!,
-          previousDisplacement(matcher.history),
+    // [session 45, brief §1 design note 3] Tier order with the ring model on:
+    //   0. the mined-pattern matcher, while live candidates survive — but
+    //      INTERSECTED with the legal step-class ring, since FACT 1 (259/259,
+    //      `scripts/auditStepClass.ts`) makes an off-ring prediction provably
+    //      wrong, and `chooseCard` consumes the whole distribution, so that
+    //      mass would distort both the card pick and the focus placement. A
+    //      candidate set that survives nothing after intersection is fully
+    //      refuted and hands over to tier 1 for that turn.
+    //   1. the ring model itself (class-aware, prev-delta conditional).
+    //   2. `contextualFallback` — unchanged, now the tier-2 fallback.
+    //   3. uniform, inside `emptyFallback`, unchanged.
+    // With `ringModelEnabled: false` this collapses to exactly the
+    // pre-session-45 two-tier pipeline.
+    const currentCell = matcher.history[matcher.history.length - 1]!;
+    const prevDelta = previousDisplacement(matcher.history);
+    const stepClass = ringModelEnabled ? classifyStep(matcher.history) : null;
+    const ringDist = ringModelEnabled
+      ? stepClass === null
+        ? ringDistributionUnknownClass(currentCell, prevDelta, stepClassTable, gridSize)
+        : ringDistribution(currentCell, stepClass, prevDelta, stepClassTable, gridSize)
+      : null;
+    const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
+    const rawDist = matcherDist
+      ? ringModelEnabled && stepClass !== null
+        ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+        : matcherDist
+      : (ringDist ??
+        contextualFallback(
+          currentCell,
+          prevDelta,
           contextMap,
           transitionLog,
           gridSize,
           { shrinkageK: DEFAULT_SHRINKAGE_K },
-        );
+        ));
     const dist = nextPositionOverrideActive
       ? certainDistribution(pendingPrediction!.cell)
       : pruneReturnToPrevious(rawDist, matcher.history[matcher.history.length - 1]!, previousDisplacement(matcher.history));
 
-    const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, focusBudget(doc));
+    const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, focusBudget(doc), true, focusReserveWeight);
     if (best && shouldRedraw(best, hand.length, mana, REDRAW_THRESHOLD)) {
       log.write({ event: "redraw_indicated_not_sent", turn, reason: "redraw action unconfirmed, SPEC-fishing.md §7" });
     }

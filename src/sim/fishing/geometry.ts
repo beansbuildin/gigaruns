@@ -83,3 +83,18 @@ export function manhattan(a: Cell, b: Cell): number {
 export function reachableCells(gridSize: number, current: Cell, maxDistance: number): Cell[] {
   return allCells(gridSize).filter((c) => manhattan(c, current) <= maxDistance);
 }
+
+/**
+ * **[MODELLED session 14, MOVED here session 45]** The focus-movement
+ * budget's size: 3 points per cast, non-regenerating (see `reachableCells`
+ * above for the four confirmed live data points on the spend rule).
+ *
+ * Lived in `src/sim/fishing/castSim.ts` until session 45, which needed it in
+ * `src/strategy/fishing/cardChoice.ts` to normalize the focus-reserve term.
+ * `geometry.ts` is already the shared dependency of both the sim and the
+ * strategy modules (and already documents this mechanic), so the constant
+ * moved here rather than being duplicated or having strategy import from the
+ * simulator — which CLAUDE.md's working-style split forbids. `castSim.ts`
+ * re-exports it, so every existing import site is unchanged.
+ */
+export const FOCUS_METER_MAX = 3;

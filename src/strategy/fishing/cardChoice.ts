@@ -12,7 +12,8 @@
  */
 
 import type { Cell } from "../../sim/fishing/geometry.js";
-import { allCells, cellKey, manhattan, reachableCells, zonesToCells } from "../../sim/fishing/geometry.js";
+import { allCells, cellKey,
+  FOCUS_METER_MAX, manhattan, reachableCells, zonesToCells } from "../../sim/fishing/geometry.js";
 import { coverageCount, isCentralSquare } from "./heuristics.js";
 
 /**
@@ -60,10 +61,80 @@ export interface CardFocusChoice {
   focus: Cell;
   ev: number;
   evPerMana: number;
+  /**
+   * [session 45, brief §3] `ev` plus the focus-reserve continuation term —
+   * the value actually maximized by `bestFocusForCard`/`isPreferred`. With
+   * `focusReserveWeight` at 0 (the default, and every pre-session-45 caller)
+   * this is exactly `ev`. Raw `ev` is deliberately kept alongside it and is
+   * what `isLethal`, `isManaConstrained` and all reporting still use — the
+   * reserve term prices a FUTURE option, and letting it leak into a lethality
+   * or mana-sufficiency test would be a category error.
+   */
+  score: number;
   pHit: number;
   pCrit: number;
   /** True only when every non-zero-probability outcome is a guaranteed catch this turn. */
   lethal: boolean;
+}
+
+/**
+ * [session 45, brief §3] The focus-reserve continuation term.
+ *
+ * THE PROBLEM (SPEC-fishing.md §4c, found live session 44 by the user):
+ * `bestFocusForCard`'s objective is purely single-turn-greedy. The 3-point
+ * focus budget does not regenerate within a cast, but nothing in the scoring
+ * charges for spending it — movement cost is consulted only inside the
+ * `EV_TIE_EPSILON = 1e-9` tie-break, which real EV differences essentially
+ * never hit. Result, confirmed 16/16 live and in 43% of N=300 sim casts by a
+ * median of turn 2: the whole budget is gone within 2-4 turns and the rest of
+ * the cast is played from a frozen focus point while the fish drifts away.
+ *
+ * THE SHAPE: reward the budget a placement LEAVES, normalized to [0,1] by
+ * `FOCUS_METER_MAX` so the weight is expressed in fishHp-damage units and can
+ * be sanity-checked against real card `hitEffect` magnitudes (3-11). This
+ * mirrors the dungeon side's `chargeReserveWeight` precedent (DECISIONS.md
+ * 2026-08-18, session 34) rather than inventing a new mechanism.
+ *
+ * A 2-ply focus lookahead was tested by the session-45 brief against this
+ * flat term at matched N and lost (32.4% vs 33.6%) at a large constant factor
+ * in the inner loop — so this stays flat on purpose, not for lack of trying
+ * the richer form.
+ */
+/**
+ * [session 45] Picked from `scripts/focusReserveAblation.ts`'s sweep against
+ * the EMPIRICAL fish (`src/sim/fishing/empiricalFish.ts`) at the real deck
+ * and real parameters, N=12000, two far-apart seeds. The arm that matters is
+ * the configuration that actually ships live — ring model plus the mined
+ * matcher, ring-intersected:
+ *
+ *   w:        0      0.5      1      2      3      4      6      8     12
+ *   seed 1  38.6%  38.4%  38.6%  39.5%  40.0%  39.6%  39.9%  38.4%  35.3%
+ *   seed 2  37.4%  37.5%  37.9%  38.7%  39.2%  38.8%  39.3%  37.9%  35.4%
+ *
+ * The same inverted-U with a plateau the dungeon side's `chargeReserveWeight`
+ * found (DECISIONS.md 2026-08-18, session 34): a broad optimum across 2-6,
+ * peaking at 3 on BOTH seeds, collapsing past 8. 3 also sits inside the real
+ * deck's `hitEffect` magnitudes (3-6), which is the sanity check the fix's
+ * original proposal asked for — a weight worth more than a whole hit would be
+ * buying a future option at an obviously wrong price.
+ *
+ * **The lift is +1.6pp (38.6->40.0, 37.4->39.2), not the ~+5pp the session-45
+ * brief projected.** Reported as measured. The ring-model rows this is swept
+ * on are themselves optimistic by construction (the policy shares its
+ * movement model with the fish generator), so the honest reading is an
+ * ordering of levers: the movement model is the large one and this is a small
+ * real refinement on top of it, not a second large one.
+ *
+ * NOT the default of `bestFocusForCard`/`chooseCard` — those default to `0`
+ * so every pre-session-45 caller, test and sim script stays byte-for-byte
+ * unchanged. `scripts/liveFishing.ts` is what passes this.
+ */
+export const DEFAULT_FOCUS_RESERVE_WEIGHT = 3;
+
+export function focusReserveFraction(focusBudget: FocusBudget | undefined, focus: Cell): number {
+  if (!focusBudget) return 0;
+  const left = focusBudget.remaining - manhattan(focusBudget.current, focus);
+  return Math.max(0, left) / FOCUS_METER_MAX;
 }
 
 const amountOf = (effects: readonly { amount: number }[]): number => effects[0]?.amount ?? 0;
@@ -149,18 +220,28 @@ export function bestFocusForCard(
    * flag, instead of duplicating this function's tie-break logic.
    */
   heuristicsEnabled: boolean = true,
+  /**
+   * [session 45, brief §3] Weight on `focusReserveFraction` above. Default
+   * `0` — with no weight the score IS the EV and every pre-session-45 caller
+   * behaves byte-for-byte as before. `DEFAULT_FOCUS_RESERVE_WEIGHT` carries
+   * the value picked from `scripts/focusReserveAblation.ts`'s sweep and is
+   * what the live loop and the sim policy actually pass.
+   */
+  focusReserveWeight: number = 0,
 ): CardFocusChoice {
   const searchSpace = focusBudget ? reachableCells(gridSize, focusBudget.current, focusBudget.remaining) : allCells(gridSize);
   let best: CardFocusChoice | null = null;
   for (const focus of searchSpace) {
     const { ev, pHit, pCrit } = evaluateCardAtFocus(card, focus, dist, gridSize, missPenaltyMultiplier);
     const evPerMana = card.manaCost > 0 ? ev / card.manaCost : ev;
+    const score = ev + focusReserveWeight * focusReserveFraction(focusBudget, focus);
     const candidate: CardFocusChoice = {
       card,
       handIndex,
       focus,
       ev,
       evPerMana,
+      score,
       pHit,
       pCrit,
       lethal: isLethal(card, pHit, pCrit, fishHp),
@@ -174,7 +255,7 @@ export function bestFocusForCard(
       continue;
     }
     if (!candidate.lethal && best.lethal) continue;
-    if (candidate.ev > best.ev + EV_TIE_EPSILON) {
+    if (candidate.score > best.score + EV_TIE_EPSILON) {
       best = candidate;
       continue;
     }
@@ -190,7 +271,7 @@ export function bestFocusForCard(
     // against being wrong about exactly which cell the fish lands on) then
     // heuristic (a) (the central 2×2, so the next Focus move has more of
     // the board within its 3-point reach). See `heuristics.ts`.
-    if (Math.abs(candidate.ev - best.ev) <= EV_TIE_EPSILON) {
+    if (Math.abs(candidate.score - best.score) <= EV_TIE_EPSILON) {
       if (heuristicsEnabled) {
         const candidateCoverage = coverageCount(candidate.card, candidate.focus, dist, gridSize);
         const bestCoverage = coverageCount(best.card, best.focus, dist, gridSize);
@@ -280,8 +361,12 @@ function isPreferred(
   gridSize?: number,
   heuristicsEnabled: boolean = true,
 ): boolean {
-  const evA = useEvPerMana ? a.evPerMana : a.ev;
-  const evB = useEvPerMana ? b.evPerMana : b.ev;
+  // [session 45] `score` (EV + focus reserve) is the primary key on the
+  // ordinary path; the mana-constrained path stays on raw `evPerMana`, since
+  // once mana genuinely cannot cover finishing the fish, per-mana efficiency
+  // is the question and a future focus option is not.
+  const evA = useEvPerMana ? a.evPerMana : a.score;
+  const evB = useEvPerMana ? b.evPerMana : b.score;
   if (evA > evB + EV_TIE_EPSILON) return true;
   if (evB > evA + EV_TIE_EPSILON) return false;
   if (heuristicsEnabled && dist && gridSize) {
@@ -311,11 +396,13 @@ export function chooseCard(
   focusBudget?: FocusBudget,
   /** [session 44] See `bestFocusForCard`'s doc comment — same flag, threaded through. */
   heuristicsEnabled: boolean = true,
+  /** [session 45] See `bestFocusForCard`'s doc comment — same weight, threaded through. */
+  focusReserveWeight: number = 0,
 ): CardFocusChoice | null {
   const options = hand
     .map((c, i) => [c, i] as const)
     .filter(([c]) => c.manaCost <= mana)
-    .map(([c, i]) => bestFocusForCard(c, i, dist, gridSize, missPenaltyMultiplier, fishHp, focusBudget, heuristicsEnabled));
+    .map(([c, i]) => bestFocusForCard(c, i, dist, gridSize, missPenaltyMultiplier, fishHp, focusBudget, heuristicsEnabled, focusReserveWeight));
   if (options.length === 0) return null;
 
   const pickBest = (candidates: readonly CardFocusChoice[], useEvPerMana: boolean): CardFocusChoice =>

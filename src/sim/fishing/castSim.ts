@@ -50,7 +50,7 @@ import {
   type StepClassTable,
 } from "../../strategy/fishing/stepClass.js";
 import type { Cell } from "./geometry.js";
-import { cellKey, manhattan, reachableCells, zonesToCells } from "./geometry.js";
+import { cellKey, FOCUS_METER_MAX, manhattan, reachableCells, zonesToCells } from "./geometry.js";
 import { loadDendrenDeck } from "./deck.js";
 import { buildPatternPool, toCandidate, type Pattern } from "./patterns.js";
 import { sampleEmpiricalTrajectory, type EmpiricalFishOptions } from "./empiricalFish.js";
@@ -74,19 +74,13 @@ export interface FishPolicyContext {
 }
 
 /**
- * **[MODELLED session 14]** `focusMeter`'s confirmed spend rule
- * (`geometry.ts`'s `reachableCells` doc comment / SPEC.md §5): a 3-point
- * per-cast budget, costing the Manhattan distance from the CURRENT focus,
- * that does NOT regenerate within a cast (the one live cast never showed
- * regeneration — still `[VERIFY]` per the session-13 brief's open question 3,
- * so this sim assumes the conservative reading, never, until a live probe
- * says otherwise). Session 13 shipped `FocusBudget` as an optional parameter
- * on `chooseCard`/`bestFocusForCard` that the live loop threaded through but
- * the sim never supplied, so its 92.4% catch-rate figure assumed free focus
- * movement every turn. This constant and `defaultStartFocus` below make the
- * sim supply a real, tracked budget instead.
+ * [session 45] `FOCUS_METER_MAX` now lives in `geometry.ts` (alongside
+ * `reachableCells`, which documents the spend rule it belongs to) so
+ * `src/strategy/fishing/cardChoice.ts` can normalize its focus-reserve term
+ * against it without a strategy->sim import. Re-exported here so every
+ * existing `from "./castSim.js"` import site is unchanged.
  */
-export const FOCUS_METER_MAX = 3;
+export { FOCUS_METER_MAX };
 
 /**
  * **[CONFIRMED 2026-08-15, session 13, live]** The one real cast's
@@ -151,12 +145,17 @@ export const REDRAW_THRESHOLD = 0;
  * itself — see `scripts/fishingHeuristicAblation.ts`, which is the only
  * caller that ever passes `false`.
  */
-export function makeMatcherFishPolicy(redrawThreshold: number, heuristicsEnabled: boolean = true): FishPolicy {
+export function makeMatcherFishPolicy(
+  redrawThreshold: number,
+  heuristicsEnabled: boolean = true,
+  /** [session 45] Weight on `cardChoice.ts`'s focus-reserve continuation term. Default 0 = the pre-session-45 greedy policy, unchanged. Swept by `scripts/focusReserveAblation.ts`. */
+  focusReserveWeight: number = 0,
+): FishPolicy {
   return {
-    name: `matcher-ev(redraw=${redrawThreshold})`,
+    name: `matcher-ev(redraw=${redrawThreshold},w=${focusReserveWeight})`,
     act(ctx) {
       const missPenaltyMultiplier = 1;
-      const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget, heuristicsEnabled);
+      const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget, heuristicsEnabled, focusReserveWeight);
       if (!best) {
         if (ctx.mana >= ctx.hand.length && ctx.hand.length > 0) return { type: "redraw" };
         return { type: "pass" };
