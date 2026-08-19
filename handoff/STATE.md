@@ -1,168 +1,162 @@
-# STATE — session 49 — 2026-08-19 — commit 2b7cce3
+# STATE — session 50 — 2026-08-19 — commit f140754
 
 ## Status
-Session-49 brief: **all six items delivered. §1 and §3 both came back the
-OPPOSITE of what the brief predicted, and the live batches settled both.**
+Session-50 brief: **all seven items delivered.** The brief's §2 premise
+REPRODUCED and the policy built on it **FAILED its own gate** — reported as a
+finding, not buried. Then the live batch **reversed the offline conclusion in
+the same session**, which is the thing to read first.
 
-Two 5-cast live batches ran, **2 catches each — 4 in 10, the best day on
-record.** All-time 8/74 = 10.8% → **12/84 = 14.3%**. No guard trips. 5 of
-today's 20 casts deliberately left unspent.
+5 casts, 1 caught. All-time 12/84 = 14.3% → **13/89 = 14.6%**.
 
-Next: **the focus budget is confirmed as the binding constraint, and the
-blocker is that NO HARNESS CAN EVALUATE A FIX.** See "What's broken" #1.
+Next: **conversion vs coverage is REGIME-DEPENDENT, and the `nextPosition`
+override arms on the next cast without anyone having seen it fire.**
 
 ## What works
-- **§1 — the live/offline movement gap was never a gap.**
-  `scripts/liveGapDiagnostic.ts` runs the brief's four diagnostics. Live top-1
-  recomputed by hand = 13.8%, 0 disagreements with the logged `hit` field.
-  Predicted sits on its own declared k-ring 24/24 — one coordinate convention.
-  1 of 5 casts alternated. **The offline LOO re-derivation of the exact same
-  29 turns reproduces the shipped 13.8% exactly** — not a wiring bug.
-  It was three compounding comparison errors: turn-0 rows pooled into a figure
-  that never scores them (13.8% pooled vs 16.7% comparable); a k=2-heavy batch
-  read against a class-MIXED average (k=1 53.6% / k=2 33.9%); and one
-  alternating cast whose only corpus peer scores 0/5. Composition-matched
-  expectation 30.0% vs observed 16.7% [6.7%, 35.9%] — **INSIDE**.
-- **§2 — the ring hard-zero is gone.** `stickyStepDistribution` marginalises a
-  two-state Markov chain over the per-turn step count. Gate at 83 clean casts /
-  281 transitions: logLoss 1.689 → **1.337**, **zero-prob events 8 → 0 PASS**,
-  paired ΔLL −0.351 [−0.982, +0.051]. Shipped as default in `liveFishing.ts`,
-  `castSim.ts`, `offPolicyReplay.ts`. **Zero zero-probability events in 56
-  live turns.**
-- **§3 — all three focus policies built** (`focusBudget.ts`: costCap /
-  threshold / schedule) and A/B'd. Invariants tested: a cost-0 placement always
-  survives, a LETHAL placement is never blocked.
-- **§5 — the backfill, verified from the fixture first.** Ledger now
-  **8 attempts / 8 hits / Wilson lower bound 0.6756** (4 new live hits arrived
-  in this session's batches). `backfilled`/`source` provenance fields round-trip.
-- **§6 — null comparators print on every live readout.** They immediately
-  discriminated: batch 1 lost to the k-ring null, batches 2 and 3 beat both.
-- Live focus spend instrumented: `focusMoveCost`, `focusRemainingBefore`.
-- Suite **718/718**, `tsc --noEmit` clean, `git diff --check` clean, all at the
-  final commit. No test writes to a real data path.
+- **§2 ceiling table — PASS, the premise holds.** `scripts/focusCoverage.ts`,
+  83 clean casts / 364 turns: frozen (2,2) **61.3%**, best fixed hindsight
+  **92.3%**, budget-3 optimal **99.7%**, budget 6/12 **100.0%**. Budget 3 is
+  one turn short of hindsight-perfect; more buys 0.27pp. **Spend quantity was
+  never the binding dimension.** Replicates at 88 casts (60.6 / 91.2 / 99.5 /
+  100.0).
+- **§1 LOO matcher — PASS, precondition MET.** `patternMining.ts` extracts the
+  promotion rule out of `mineFishPatterns.ts` verbatim (re-exported; its test
+  untouched). `ReplayOptions.matcherTier: "loo"` re-mines from the other casts
+  and runs the tier exactly as `liveFishing.ts` does. Opening focus spend
+  **0.71 → 1.40** against **live 1.80, 95% CI [1.16, 2.44] at n=10 casts** —
+  INSIDE; the matcher-off arm is outside. `focusBudgetSweep.ts --matcher=loo`.
+- **Re-running session 49's three spend policies on the now-spending harness:
+  still inert or worse.** Every `threshold(θ)` +0/−0 byte for byte,
+  `costCap(2)` +1/−0, `costCap(0)` +5/−18 (p=0.011). The null went from
+  *uninformative* to *informative*, and it agrees with the ceilings.
+- **§3 free items.** `s` estimated at load with a floor, logged with its `n` on
+  every cast. Shadow ring tier dual-logged on every matcher-overridden turn.
+- **§6 two standing guards in SPEC-fishing.md §9**, plus the coverage
+  decomposition printed on every live readout.
+- Suite **750/750** (was 718), `tsc --noEmit` clean, `git diff --check` clean,
+  all at the final commit. No test writes to a real data path.
 
 ## What's broken
-1. **THE BLOCKER: no harness can evaluate a focus-budget fix.** The replay
-   disables the matcher tier (its own conservatism #3), and that is exactly the
-   tier that pulls focus a long way. Opening spend: **live 1.80 of 3** (batch 2
-   = 1.80, batch 3 = 1.80, replicated) against the **replay's 0.64**. So the
-   §3 A/B measured a system that does not spend: `costCap(2)` and
-   `threshold(≤1)` are byte-for-byte inert (+0/−0 casts, identical hit counts)
-   and cannot fire. **The null result is uninformative about the policies.**
-   The finding is the precondition failure, not the A/B.
-2. **The focus budget IS the binding constraint, measured live** (n=56 turns):
-   | | turns | realized hit | policy's OWN P(hit) |
-   |---|---|---|---|
-   | meter EMPTY on entry | 29 (51.8%) | 9/29 = 31.0% | 0.286 |
-   | meter has points left | 27 (48.2%) | 13/27 = 48.1% | 0.706 |
-   Cast `12991359`: focus moved 3 on turn 0, then sat at `[4,1]` for nine turns
-   at `P_hit 0.00, 0.00, 0.01, 0.00, 0.00, 0.00`. **NOT causal** — long casts
-   accumulate empty-meter turns AND are the casts going badly.
-3. **The turn-0 tier is worse than the plain baseline**, pooled n=15:
-   shipped 2/15 LL 3.410, baseline 2/15 LL 2.073, ΔLL **+1.337 [+0.429,
-   +2.245]** — excludes zero but heterogeneous (b1 +1.745, b2 +2.291, b3
-   −0.025). Real, not settled. Turn 0 is 22% of scored turns.
-4. Sticky costs **3 near-tied argmaxes of 281** (Δtop-1 −1.07pp [−3.38, 0.00])
-   and +0.051 nats on every constant cast. Small, real, reported not buried.
+1. **§3's gate FAILED. The expected-coverage objective does not ship.**
+   `focusCoverageSweep.ts`, 83 traces, matcher LOO, paired on 270 (cast, turn):
+
+   | arm | coverage | conversion | hit | caught |
+   |---|---|---|---|---|
+   | EV placement (shipped) | 73.6% | **62.3%** | 45.8% | 24/83 |
+   | coverage override H=2..5 | **89.6%** (+42/−5, p<0.001) | 48.5% | 43.7% (+32/−41, p=0.35) | 18/83 |
+   | blend `ev + w·futureCoverage`, w 0.5–6 | ~flat | ~60% | ~44.6% | 24–25/83 |
+
+   It wins its own objective decisively and does not convert. Mechanism,
+   measured: cards played average **3.57 of 9 zones**, so **39.7%** is the
+   conversion a covering window gives with NO aiming. EV earns 62.3% (+22.6pp
+   of aiming); coverage earns 48.5% (+8.8pp). It buys window and spends aim.
+   Card mix identical (3.6z both arms). Replicates at 88 casts.
+2. **THE LIVE BATCH REVERSED IT.** n=24 shots: coverage **9/24 = 37.5%**
+   [21.2%, 57.3%], conversion **6/9 = 66.7%**, product 25.0% = realized hit
+   exactly. Conversion HELD *above* the pooled live 54.5%; coverage collapsed.
+   **Which half binds is not a property of the policy — it tracks the movement
+   model's accuracy on the batch.** Coverage is downstream of prediction.
+3. **The movement model had a bad batch, and it was k=2-heavy** (17 of 19
+   scored turns). Live k=2 top-1 **23.5%** (n=17) vs offline LOO 33.9%; k=1
+   0/2. Nulls: grid 6.3 | union 14.9 | k-ring **26.3** | **SHIPPED 21.1** —
+   beats the union, **LOSES to the k-ring null**. Calibration predicted 0.562
+   vs realized 25.0%. Zero-probability events **0** (sticky holding, 5 batches).
+4. **The `nextPosition` override arms on the next cast and nobody has seen it
+   fire.** Ledger **10/10, Wilson lower bound 0.7225, READY=true**. It replaces
+   the whole distribution with a point mass; its rows are `tier: "override"`
+   and drop out of every ring comparator.
 
 ## Corrections to SPEC.md
-- **`DEFAULT_SWITCH_PROBABILITY` 0.025 → 0.05.** A SECOND alternating cast
-  appeared (`12991364`: 2,1,2,1,2,1,2,1,2,1) in the very next ten casts.
-  Counted: brief "one in ~309" ~0.6% → 73 casts **5/238 = 2.50%** → 83 casts
-  **14/284 = 5.25%**. Upward every single time it has been counted. The swept
-  optimum tracks the estimator at both sizes. **Do not assume it has settled.**
-- **The brief's §1 table does not survive the fixtures** (Claude-chat had no
-  fixture access): "live lands on the union-of-rings null to within 0.1pp" is
-  FALSE — on those turns the union null is 10.3% and the ring model BEATS it;
-  the k-ring null is 20.7%, not 29.3%; offline LOO is 42.6% at 73 casts, not
-  the 46.4% quoted (that was the 68-cast figure).
-- **The brief's `s` estimate was ~4x too small** — see above.
-- **§5c's 1.62 opening spend is a TRANSPOSED-ERA figure** (68 of 73 casts).
-  `lossDecomposition.ts` measures the RECORDED corpus, correctly for its own
-  question. Era split: transposed 1.66, corrected 1.40, live newest 1.80.
-  **The zone fix did NOT fix the overspend** — my own mid-session claim that it
-  had was based on n=5 reading 1.00, and the next 5 casts came in at 1.80.
-- `scripts/focusBudgetSweep.ts` hard-coded its corrected-map cast list and went
-  stale one batch later; now derived from `ringPrediction.jsonl`'s own
-  `zoneMapVersion`.
-- `ringPredictionReport.ts`'s pinned offline comparators were the 68-cast ones;
-  refreshed to 73-cast with a printed warning that they move.
+- **"Conversion is the binding half" is WRONG as a standing fact** — it is the
+  replay's regime only. SPEC-fishing.md §9's section is retitled
+  "REGIME-DEPENDENT" and carries both readings; the report's own reference
+  block was corrected too, so the readout cannot restate the superseded claim.
+  I committed the un-corrected version first and fixed it an hour later.
+- **`s` is no longer a shipped constant.** `estimateSwitchProbability(casts,
+  floor)`, `SWITCH_PROBABILITY_FLOOR = 0.025`. **The 83-cast figure was
+  14/284 = 5.25%; it is 14/281 = 4.98%** — the denominator is consecutive
+  classifiable hop PAIRS, which is what the chain models. Arithmetic fix.
+- **`s` went DOWN this session: 4.98% (83 casts) → 4.67% (88).** The brief's
+  "risen at every single count" is **no longer true**. The swept optimum still
+  agrees (0.050 at 88, logLoss 1.368), so estimating it is still right — but
+  the monotone-trend argument for it is weaker than the brief stated.
+- The mined library is **8** supporting casts (`perimeterWalk(cw)` 4 + `(ccw)`
+  4), not the brief's 7.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
-- Move charges: PRESENT (unchanged — no dungeon play, seventh session running).
+- Move charges: PRESENT (unchanged — no dungeon play, eighth session running).
 
 ## Dead ends
-- **Do not build the shadow-price focus policy yet.** The brief says "only if
-  the cheap three fail." They failed, but they failed because the harness is
-  blind to the target (What's broken #1). Building the most expensive
-  instrument against an unmeasurable target is the wrong move.
-- **Do not A/B any focus policy on the replay** until the matcher tier is in it
-  without leaking. The replay's arm spends 36% of what live spends.
-- **Do not quote a replay ABSOLUTE as a forecast** (session 48, still standing).
-- **Do not re-sweep `focusReserveWeight` or `missPenaltyMultiplier`** (session 48).
-- `s = 0` is NOT the pre-session-49 model — it is the sticky arm's degenerate
-  case and is *worse* than the mode alone. Use `ReplayOptions.hardRing`.
+- **Do not rebuild the expected-coverage focus objective.** Override and
+  blended forms both built, swept over H∈{1..5} and w∈{0.5,1,2,3,6}, gated on
+  coverage→hit→catch, and rejected on two corpus sizes. H saturates at 2.
+- **Do not tune spend quantity again.** `focusReserveWeight` (48), `costCap` /
+  `threshold` / `schedule` (49, and re-run this session on a harness that DOES
+  spend). Three knobs, one dimension, no effect. The ceilings say why.
+- **Do not act on the shadow-tier signal yet** — n=6.
+- Standing: replay for DIFFERENCES never absolutes (48); do not re-sweep
+  `focusReserveWeight` / `missPenaltyMultiplier` (48); `s = 0` is the sticky
+  arm's degenerate case, use `ReplayOptions.hardRing` for the real before-arm.
 
 ## Metrics
-- **Live, today: 10 casts, 4 caught (40%).** All-time **12/84 = 14.3%**.
-  Batch 2: escaped 2t / **CAUGHT 2t** / escaped 3t / **CAUGHT 5t** / escaped 5t.
-  Batch 3: escaped 10t / **CAUGHT 6t** / escaped 10t / **CAUGHT 3t** / escaped 10t.
-- **The movement model transferred.** Batch 2 ring tier top-1 **41.7%** against
-  an offline **42.6%**. Batch 3 30.0%. Zero-prob events across both: **0**.
-- **Null comparators, batch 2**: grid 6.3% | union-of-rings 13.3% | k-ring
-  26.4% | **SHIPPED MODEL 41.7%** — beats both. Batch 3: 6.3 / 13.4 / 23.3 /
-  **26.5%** — beats both. (Batch 1 lost to the k-ring null.)
-- **Calibration is fine and improving**: batch 3 predicted 0.415 vs realized
-  41.0%; pooled 0.497 vs 35.3% (n=85). Per the brief's own §1d rule this means
-  the movement model is fine and the constraint is focus/deck/mana.
-- Offline LOO (`fishingRingCV.ts`, hard-ring arm) **at 83 clean casts / 281
-  transitions**: k=1 52.1%, k=2 31.9%, all 42.3%. **At 73 casts these were
-  53.6 / 33.9 / 42.6** — those are the numbers §1's diagnostic and the report's
-  pins use. They move with the corpus; always re-derive before comparing.
-- Replay (differences only): shipped caught 22/78, per-turn hit 124/249.
-- FACT 1 at 83 clean: 81 constant, 2 alternating, 0 neither. Unit steps 368/368.
-- Crits 4 → **8**; discrimination 364/364 corrected vs 357/364 transposed.
-- Suite 697 → **718** (+9 sticky, +11 focusBudget, +1 backfill provenance).
-- Energy 407 → 288, 120 spent, 12/cast, observed delta matched committed 10/10.
-  Guard 15/20 casts, 180/240 energy today.
+- **Live, this batch: 5 casts, 1 caught (20%)** — `12992267`, a Barnaboo.
+  All-time **13/89 = 14.6%**. Today 20/20 casts, 240/240 energy, guard clean,
+  observed energy delta matched committed 5/5.
+- **Live coverage decomposition, first ever run** (pooled, n=85 shots):
+  coverage 64.7% [54.1%, 74.0%] × conversion 54.5% = **35.3%** = realized.
+- **Shadow ring tier, first batch**: n=6 matcher-overridden turns, top-1
+  shipped 1/6 vs ring alone 0/6, paired **ΔLL +1.300 nats [0.006, 2.593]** —
+  CI excludes zero, barely. Lands within 0.04 nats of session 49's +1.337
+  turn-0 finding, now against the RIGHT comparator (the ring beneath the tier).
+- Replay at 88 casts, matcher LOO: coverage 70.6%, hit 147/326 = 45.1%,
+  conversion 63.9%, caught 19/88. Recorded policy same turns: 60.1% / 28.5%.
+- Corpus: traces 84→**89**, clean 83→**88**, clean play turns 364→**388**,
+  catches 12→**13**, responseDocs 462→**492**, playTurns 368→**392**,
+  escaped 71→**75**, crits 8→**10** (discrimination 391/391 corrected vs
+  383/391 transposed).
+- Suite 718 → **750** (+13 coverageFocus, +6 replay, +5 `s` estimator,
+  +3 promotePatterns, +4 focusCandidates, +1 net).
 
 ## Open questions for Claude
-1. **How should a focus policy be evaluated?** This is the whole blocker. The
-   replay cannot include the matcher tier without leaking (its candidates are
-   mined from the same corpus). Options: (a) leave-one-cast-out the MATCHER too
-   and accept the cost, (b) a held-out day, (c) an A/B split across live casts
-   within a batch, (d) accept live-only evaluation at n=5/batch. **Pick one and
-   say why** — no focus work can be gated until this exists.
-2. **Is the turn-0 tier finding real?** ΔLL +1.337 [+0.429, +2.245] at n=15,
-   but batch 3 alone was −0.025. Cheapest test: log what the ring-unknown-class
-   tier WOULD have predicted on turn 0 alongside the matcher, and score both.
-   That is free and needs no policy change.
-3. **QUESTIONS.md §18 — the `nextPosition` override gate.** Ledger is 8/8,
-   bound 0.6756, threshold is 10 attempts. **It is now TWO short, and the field
-   clusters** — this session's 10 casts produced 4 attempts, so ~5 more casts
-   reaches n=10. My own first draft of §18 said 80-160 casts; that was wrong.
-   The cheapest answer is probably "wait one batch," not "re-specify the gate."
-4. **`DEFAULT_SWITCH_PROBABILITY` has risen every time it was counted.** Should
-   it be estimated at load time from the corpus rather than shipped as a
-   constant? The estimator and the sweep have agreed at both corpus sizes.
-5. 5 of today's 20 casts unspent. Cap resets 11:00 Pacific.
+1. **Coverage or conversion — you now have both answers and they disagree.**
+   Replay says conversion (73.6% × 62.3%, and forcing coverage costs aim); the
+   live batch says coverage (37.5% × 66.7%). My reading is that coverage is
+   downstream of prediction quality, so neither is a lever on its own and the
+   real lever is the movement model on k=2. **Is that right, or is there a
+   conversion-side change worth making that I dismissed too fast?**
+2. **The model lost to the k-ring null on this batch** (21.1% vs 26.3%) — the
+   conditional tier not paying for itself. Session 49's batch 1 did this too,
+   batches 2 and 3 did not. Is this k=2 composition, or is the conditional
+   tier's shrinkage wrong at 88 casts? `fishingRingCV.ts` can sweep it.
+3. **The shadow tier says the matcher costs +1.300 nats [0.006, 2.593] at
+   n=6**, agreeing with session 49's +1.337 at n=15 against a different
+   comparator. Two independent measurements, same sign, same magnitude. **How
+   many more turns before this is worth acting on**, and what is the action —
+   drop the matcher tier, or floor it harder than `ringFloor` already does?
+4. **The `nextPosition` override arms on the next cast.** Should the first
+   armed batch be run at 5 casts as usual, or should the ledger keep scoring
+   with the override still OFF for one more batch so there is a paired
+   before/after? I did not disarm it — that would silently reverse a settled
+   design (§18) — but the choice of how to observe it is yours.
+5. Today's cap is fully spent (20/20). Next window resets 11:00 Pacific.
 
 ## Files changed
 ```
- 90 files changed, 44277 insertions(+), 48 deletions(-)
- (57 of those are the two batches' new redacted cast fixtures)
+ 53 files changed, 22048 insertions(+), 150 deletions(-)
+ (31 of those are the batch's 5 new redacted cast fixtures)
 
-     scripts/liveGapDiagnostic.ts        | 420  (§1's four diagnostics)
-     scripts/stickyStepSweep.ts          | 262  (§2's paired gate + replay arm)
-     scripts/focusBudgetSweep.ts         | 229  (§3's A/B + the precondition check)
-     tests/fishing/focusBudget.test.ts   | 169
-     src/strategy/fishing/focusBudget.ts | 143  (§3's three policies)
-     scripts/ringPredictionReport.ts     | 124  (§6's null comparators)
-     src/strategy/fishing/stepClass.ts   |  98  (§2's sticky latent)
-     tests/fishing/stepClass.test.ts     |  88
-     src/sim/fishing/offPolicyReplay.ts  |  85  (sticky default + hardRing arm)
-     scripts/liveFishing.ts              |  61  (sticky wiring, focus spend, §5)
-     src/strategy/fishing/cardChoice.ts  |  54  (FocusSpendConstraint)
-     tests/liveFishing.test.ts           |  32
-     src/sim/fishing/castSim.ts          |  22
-     SPEC-fishing.md, QUESTIONS.md       (FACT 1's fix, §3's correction, §18)
+     src/strategy/fishing/coverageFocus.ts   | 268  (§2's objective + forward sim)
+     src/sim/fishing/offPolicyReplay.ts      | 249  (LOO matcher, coverage arms)
+     scripts/focusCoverageSweep.ts           | 200  (§3's gate)
+     scripts/focusCoverage.ts                | 169  (§2's ceiling table)
+     tests/fishing/coverageFocus.test.ts     | 180
+     src/sim/fishing/patternMining.ts        | 131  (extracted, verbatim)
+     scripts/ringPredictionReport.ts         | 114  (coverage + shadow sections)
+     tests/fishing/offPolicyReplay.test.ts   | 107
+     scripts/mineFishPatterns.ts             | 103  (net −, moved out)
+     tests/fishing/stepClass.test.ts         |  78
+     src/strategy/fishing/stepClass.ts       |  72  (estimateSwitchProbability)
+     tests/fishing/cardChoice.test.ts        |  70
+     scripts/focusBudgetSweep.ts             |  61  (--matcher, interval check)
+     scripts/liveFishing.ts                  |  58  (estimated s, shadow rows)
+     src/strategy/fishing/cardChoice.ts      |  33  (focusCandidates)
+     SPEC-fishing.md, QUESTIONS.md           (§9 guards + findings, §18 RESOLVED)
 ```
