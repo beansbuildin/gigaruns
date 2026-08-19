@@ -110,9 +110,20 @@ const paceMs = () => 1200 + Math.random() * 400;
  * sessions 21/22) — whatever doesn't fit stays banked in the ROM — so there is
  * no cap-aware batching to do and no reason to under-claim.
  */
-export async function ensureEnergyFor(requiredEnergy: number, deps: EnergyPreflightDeps): Promise<EnergyPreflightResult> {
+export async function ensureEnergyFor(
+  requiredEnergy: number,
+  deps: EnergyPreflightDeps,
+  opts: { readOnly?: boolean } = {},
+): Promise<EnergyPreflightResult> {
   const sleep = deps.sleep ?? defaultSleep;
   const log = deps.log ?? (() => {});
+  // [session 51 §5] `readOnly` runs every READ and every verdict — pool, ROM
+  // bank, the sufficiency arithmetic, the "cannot fund" halt — and claims
+  // NOTHING. It exists so `scripts/liveRun.ts --dry-run` can exercise this
+  // path, which it previously skipped outright: the dry run's whole purpose is
+  // to find a dead classifier before a real entry pays for it, and a step the
+  // dry run steps over is a step the dry run cannot vouch for.
+  const readOnly = opts.readOnly ?? false;
 
   const poolBefore = await deps.getEnergy();
   if (poolBefore >= requiredEnergy) {
@@ -146,6 +157,26 @@ export async function ensureEnergyFor(requiredEnergy: number, deps: EnergyPrefli
 
   const claimedDocIds: string[] = [];
   let claimedSnapshotTotal = 0;
+  if (readOnly) {
+    // Report exactly what a real invocation WOULD claim, without claiming it.
+    const wouldClaim: string[] = [];
+    let wouldTotal = 0;
+    for (const rom of claimable) {
+      if (wouldTotal >= deficit) break;
+      wouldClaim.push(rom.docId);
+      wouldTotal += rom.energyCollectable;
+    }
+    log(`  ▸ [read-only] would claim ${wouldClaim.length} ROM(s) for a snapshot total of ${wouldTotal}/${deficit}; claiming NOTHING.`);
+    return {
+      requiredEnergy,
+      poolBefore,
+      poolAfter: poolBefore,
+      alreadySufficient: false,
+      bankTotal,
+      claimedDocIds: [],
+      claimedSnapshotTotal: 0,
+    };
+  }
   for (const rom of claimable) {
     if (claimedSnapshotTotal >= deficit) break;
     await sleep(paceMs());

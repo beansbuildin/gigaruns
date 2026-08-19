@@ -65,12 +65,26 @@ export class UnexpectedResponseError extends Error {
  * — the fishing-only home is what let that happen. It is a property of the
  * error type, so it lives with the error type now.
  *
- * Falls back to `.message` for any error that is not an
- * `UnexpectedResponseError` (a network failure, an abort), so callers can use
- * it unconditionally.
+ * [session 51 §5] `TokenExpiredError` was MISSING here, and the omission is
+ * the same one this function exists to fix — one class up. It carries a
+ * `.body` exactly like `UnexpectedResponseError` does (the server's own 401/
+ * 403 text), and this function dropped it, so every dungeon and fishing call
+ * site logged `"Auth rejected (HTTP 401). The JWT is expired or invalid"` and
+ * nothing about what the server actually said. That summary is written by
+ * THIS repo; the server's reason for rejecting — an expired token, a revoked
+ * session, a wrong audience, rate-limited auth — is only in the body, and
+ * those want different responses from the user.
+ *
+ * Found by session 51's §5 dungeon dry-run, by corrupting the JWT and reading
+ * what the log would have carried. It is the fourth instance of this repo's
+ * recurring shape (SPEC-fishing.md §4): the fix was applied to one class and
+ * the sibling with the identical field was never re-scored.
+ *
+ * Falls back to `.message` for any error carrying no server body (a network
+ * failure, an abort), so callers can use it unconditionally.
  */
 export function serverErrorDetail(e: unknown): { message: string; body?: string } {
-  if (e instanceof UnexpectedResponseError) {
+  if (e instanceof UnexpectedResponseError || e instanceof TokenExpiredError) {
     return { message: `${e.message} — ${e.body}`, body: e.body };
   }
   return { message: (e as Error).message };

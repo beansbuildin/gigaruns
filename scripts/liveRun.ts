@@ -1431,10 +1431,19 @@ async function main() {
   // JUICED_COST_MULTIPLIER the guard charges. A resume spends no energy at
   // all, so `--resume-existing` skips the preflight rather than demanding a
   // pool it will not touch.
-  if (!args.dryRun && !args.stage2 && !args.resumeExisting && !args.noRomClaim) {
+  if (!args.stage2 && !args.resumeExisting && !args.noRomClaim) {
     const perRun = args.juiced ? config.energyCostPerRun * JUICED_COST_MULTIPLIER : config.energyCostPerRun;
-    const preflight = await ensureEnergyFor(targetRuns * perRun, clientEnergyPreflightDeps(client, me.address, (line) => console.log(line)));
-    log.write({ event: "energy_preflight", ...preflight });
+    // [session 51 §5] `--dry-run` used to skip this block entirely, so the
+    // preflight — wired in session 47 and never once exercised against the
+    // live API in the eight sessions since — was the ONE step a dry run could
+    // not vouch for. It now runs read-only: every read, every verdict, no
+    // claim.
+    const preflight = await ensureEnergyFor(
+      targetRuns * perRun,
+      clientEnergyPreflightDeps(client, me.address, (line) => console.log(line)),
+      { readOnly: args.dryRun },
+    );
+    log.write({ event: "energy_preflight", dryRun: args.dryRun, ...preflight });
   } else if (args.noRomClaim) {
     console.log(`  · --no-rom-claim: skipping the energy preflight; the pool is used exactly as-is.`);
   }
