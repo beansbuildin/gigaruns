@@ -12,6 +12,8 @@
  * trackable quantity that should climb every session.
  */
 
+import { isScorableBuff } from "./enemyBuffs.js";
+
 export const REASONS = [
   /**
    * `pickedBoons` non-empty on a RECORDED state. Used when replaying the
@@ -40,7 +42,13 @@ export const REASONS = [
   "STATUS_EFFECT",
   /** evasion/block/lck/tenacity non-zero. Their damage effect is unexplained. */
   "ROLLED_STATS",
-  /** `activeEnemyBuff` set on the run (e.g. shatterblade / Vulnerable). */
+  /**
+   * A run-level enemy buff that adds a MECHANIC — a status application
+   * (shatterblade / Vulnerable), a lifesteal, a max-armor corrode — or a buff
+   * whose id or effect kind we do not recognise. A stat-only buff
+   * (`bloodthirsty`, `hardy`, `overgrown`) does NOT raise this: its whole
+   * effect is already inside the stats we read. [session 56]
+   */
   "ENEMY_BUFF",
   /** `battleArmorReduction` non-zero. Semantics unknown. */
   "ARMOR_REDUCTION",
@@ -69,7 +77,7 @@ export const REASON_DETAIL: Record<Reason, string> = {
   BOON_OFFER_UNKNOWN: "room cleared at a depth where no reward offer was ever recorded",
   STATUS_EFFECT: "Burn tick rate and its armor-regen interaction are unknown",
   ROLLED_STATS: "evasion/block/lck/tenacity affect damage by an unexplained rule",
-  ENEMY_BUFF: "run-level enemy buff applies statuses we do not model",
+  ENEMY_BUFF: "run-level enemy buff adds a RULE (status/lifesteal/corrode) we do not model; stat-only buffs are already in the numbers and do not raise this",
   ARMOR_REDUCTION: "battleArmorReduction semantics unknown",
   UNKNOWN_EFFECT: "activeEffects/triggeredBoons/gearBoons/focusBuffs semantics unknown",
   CHARGES_ALL_LOCKED: "every move locked under chargesAreHardLimit; server behaviour unobserved",
@@ -157,12 +165,33 @@ export interface RunProbe {
   perpetualBuffs?: unknown[];
 }
 
+/**
+ * [session 56] `ENEMY_BUFF` is raised for a buff that adds a RULE, not for one
+ * that only moves numbers.
+ *
+ * The corpus contains a natural experiment settling which is which: four
+ * enemies were captured both clean and buffed, and the buff's declared
+ * `effects[]` predict the buffed stats exactly, 30 of 30 (see
+ * `src/sim/enemyBuffs.ts` and `scripts/enemyBuffAudit.ts`). A `statOnly` buff
+ * is therefore ALREADY inside the numbers `probeCombatant` reads, and marking
+ * the battle unscorable for it would be refusing to score a state we fully
+ * understand. A `mechanic` buff — a status application, a lifesteal, a corrode
+ * — genuinely adds something the clean exchange model has no rule for, and
+ * still fails closed. So does an unrecognised effect kind or an unknown id.
+ *
+ * This matters because CLAUDE.md rule 8 may be reversed in session 57, after
+ * which 100% of fights carry a buff (622/622 non-Safe paths in the corpus).
+ * Without this distinction the simulator would go permanently blind.
+ *
+ * NOTE this removes only ONE of the two blockers. `ROLLED_STATS` is untouched
+ * and still catches 617 of those same 622 paths — see enemyBuffs.ts's header.
+ */
 export function probeRun(r: RunProbe): Reason[] {
-  const buffed =
-    (r.activeEnemyBuff ?? null) !== null ||
-    (r.enemyStartingBuff ?? null) !== null ||
-    nonEmpty(r.perpetualBuffs);
-  return buffed ? ["ENEMY_BUFF"] : [];
+  const buffs = [r.activeEnemyBuff, r.enemyStartingBuff, ...(r.perpetualBuffs ?? [])].filter(
+    (b) => (b ?? null) !== null,
+  );
+  const blocking = buffs.filter((b) => !isScorableBuff(b));
+  return blocking.length > 0 ? ["ENEMY_BUFF"] : [];
 }
 
 /** Aggregated counts across many scored units, for the headline report. */

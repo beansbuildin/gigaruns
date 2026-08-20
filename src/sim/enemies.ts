@@ -406,10 +406,24 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
     // 60-energy entry here for zero loot benefit.
     //
     // The move numbers below therefore INCLUDE the buff and cannot be used as
-    // a clean baseline for this enemy — `unmodelled` says so and
-    // `src/sim/coverage.ts` makes any battle against this instance
-    // unscorable. A Safe room-9 capture would supersede it.
-    unmodelled: ["ROLLED_STATS", "ENEMY_BUFF"],
+    // a clean baseline for this enemy. A Safe room-9 capture would supersede it.
+    //
+    // [session 56] RE-CHECKED after `bloodthirsty` was modelled, and the answer
+    // is NO — room 9 does not become scorable. `ENEMY_BUFF` is dropped, because
+    // `bloodthirsty` is `statOnly`: its whole effect (+4 ATK on all moves) is
+    // already inside the ATK numbers below, verified 30/30 against clean
+    // baselines elsewhere in the corpus (`src/sim/enemyBuffs.ts`). But
+    // `ROLLED_STATS` remains and it is the harder blocker — evasion 3, block 1,
+    // lck 2, tenacity 2, which SPEC §4e says are 1-5% PROC CHANCES needing
+    // hundreds of observations to read. So this battle stays unscorable, and
+    // the reason list is now honest about which of the two walls is standing.
+    //
+    // Worth recording for whoever revisits this: `bloodthirsty` being exactly
+    // +4 ATK means the CLEAN baseline for this enemy is derivable — rock(20,8),
+    // paper(18,7), scissor(17,10). Deliberately NOT applied. The stats below
+    // are what this instance was actually fought with, which is what replay
+    // needs; a derived baseline belongs in a Safe capture, not here.
+    unmodelled: ["ROLLED_STATS"],
     enemy: {
       id: "Enemy Room 71",
       hp: 55,

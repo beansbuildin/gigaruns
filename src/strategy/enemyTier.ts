@@ -37,9 +37,17 @@
  */
 
 import { SAFE_TIER } from "../sim/enemies.js";
+import { isPerpetualBuff } from "../sim/enemyBuffs.js";
 
 export interface TierOption {
   tier: number;
+  /**
+   * [session 56] The path's own buff, when the caller has it. Read ONLY to
+   * break a tie between options that already share the chosen tier — see
+   * `pickLowestTier`. Optional so every existing caller and test compiles
+   * unchanged and behaves identically.
+   */
+  enemyBuff?: unknown;
 }
 
 /** Picks the lowest `tier` in the offer. Throws on an empty offer — no recorded offer is empty. */
@@ -87,5 +95,44 @@ export function pickSafeTier<T extends TierOption>(options: readonly T[]): T {
  * one.
  */
 export function pickLowestTier<T extends TierOption>(options: readonly T[]): T {
-  return chooseTier(options);
+  const chosen = chooseTier(options);
+  return preferNonPerpetual(options, chosen);
+}
+
+/**
+ * **[USER DIRECTIVE, 2026-08-20]** "If the red/hardest/highest-risk enemy card
+ * contains the condition `Perpetual`, do NOT select that — go with the next
+ * best option based on existing criteria."
+ *
+ * Applied here as a strict TIE-BREAK: among the options that already share the
+ * tier `chooseTier` selected, one without a `perpetual_` buff is preferred.
+ *
+ * **This cannot change which tier is fought, and that is the point.** CLAUDE.md
+ * rule 8 is in force and untouched — `chooseTier` still returns the minimum
+ * tier on offer, and this only reorders equals. A perpetual buff on a HIGHER
+ * tier is already unreachable under rule 8, so today the directive can only
+ * bite in the case where every option shares one tier, which `chooseTier`
+ * previously resolved on array order alone.
+ *
+ * Measured on the corpus (134 distinct enemy offers, `scripts/enemyBuffAudit.ts`):
+ *
+ *   - 47 offers (35%) put a `perpetual_` buff on the highest tier — so after a
+ *     rule-8 reversal this directive would fire on about a third of rooms. It
+ *     is a substantial carve-out, not an edge case.
+ *   - 4 offers have EVERY option at one tier with a perpetual among them —
+ *     the only shape that reaches this code under rule 8 — and all 4 have a
+ *     non-perpetual alternative at that same tier.
+ *   - **0 offers are entirely perpetual**, so a fallback has always existed.
+ *
+ * If one ever is entirely perpetual, this keeps `chooseTier`'s pick rather
+ * than halting. Fail-OPEN is right for a tie-break and only for a tie-break:
+ * there is no lower-risk option to take instead, and stranding a 60-energy
+ * run mid-combat for a preference among equals would cost far more than it
+ * saves — the same reasoning session 09 used to generalize `pickSafeTier` into
+ * `pickLowestTier`. The tier rule itself still fails closed.
+ */
+function preferNonPerpetual<T extends TierOption>(options: readonly T[], chosen: T): T {
+  if (!isPerpetualBuff(chosen.enemyBuff)) return chosen;
+  const alternative = options.find((o) => o.tier === chosen.tier && !isPerpetualBuff(o.enemyBuff));
+  return alternative ?? chosen;
 }

@@ -78,6 +78,7 @@ import {
 } from "../src/orchestrator/opponentModelPersistence.js";
 import { loadPlayCounts, savePlayCounts, deletePlayCounts, DEFAULT_PLAY_COUNTS_PATH } from "../src/orchestrator/playCountsPersistence.js";
 import { pickLowestTier } from "../src/strategy/enemyTier.js";
+import { isPerpetualBuff } from "../src/sim/enemyBuffs.js";
 import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import {
@@ -1203,9 +1204,14 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     }
 
     if (phase === "enemyPath") {
-      const r = run as WireRun & { enemyPathOptions?: Array<{ tier: number; index: number }> };
+      // `enemyBuff` is read here ONLY so `pickLowestTier` can apply the user's
+      // 2026-08-20 perpetual tie-break among options that already share the
+      // chosen tier. It cannot change which tier is fought — see enemyTier.ts.
+      const r = run as WireRun & {
+        enemyPathOptions?: Array<{ tier: number; index: number; enemyBuff?: unknown }>;
+      };
       const options = r.enemyPathOptions ?? [];
-      let chosen: { tier: number; index: number };
+      let chosen: { tier: number; index: number; enemyBuff?: unknown };
       try {
         chosen = pickLowestTier(options);
       } catch (e) {
@@ -1221,7 +1227,27 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       console.log(
         `  ▸ enemy path: choosing lowest offered tier ${chosen.tier}${chosen.tier === SAFE_TIER ? " (Safe)" : " — NOT Safe, none was offered (session-09: expected, not a bug)"}`,
       );
-      log.write({ event: "tier_choice", chosen, position: posn, options, safeOffered });
+      // The user's perpetual directive fired iff the FIRST option at the chosen
+      // tier carried a perpetual buff and the one actually taken does not.
+      const firstAtTier = options.find((o) => o.tier === chosen.tier);
+      const perpetualAvoided = Boolean(
+        firstAtTier && isPerpetualBuff(firstAtTier.enemyBuff) && !isPerpetualBuff(chosen.enemyBuff),
+      );
+      if (perpetualAvoided) {
+        console.log(
+          `  ▸ perpetual avoided (user directive 2026-08-20): skipped a "perpetual_" card at the ` +
+            `same tier ${chosen.tier} in favour of the next option. Tier unchanged — rule 8 intact.`,
+        );
+      }
+      log.write({
+        event: "tier_choice",
+        chosen,
+        position: posn,
+        options,
+        safeOffered,
+        perpetualAvoided,
+        perpetualOffered: options.some((o) => isPerpetualBuff(o.enemyBuff)),
+      });
 
       if (dryRun) {
         console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(posn)} (data.index 0 — see buildPathSelectionEnvelope)`);

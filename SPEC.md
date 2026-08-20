@@ -909,6 +909,68 @@ needs a pickup pair.
 
 ---
 
+### 3h. `enemyBuff` — self-describing on the wire **[CONFIRMED 2026-08-20, session 56]**
+
+`activePath.enemyBuff`, `enemyPathOptions[].enemyBuff`, `run.activeEnemyBuff`
+and `run.perpetualBuffs[]` all carry the SAME object shape, and it is
+**machine-readable** — not just a name:
+
+```json
+{ "id": "bloodthirsty", "name": "Bloodthirsty", "minTier": 1,
+  "description": "+4 <color=#EF4444>ATK</color> on all moves",
+  "effects": [ { "kind": "flatAtk", "amount": 4 } ] }
+```
+
+**46 distinct ids** in the corpus: 23 base plus 23 `perpetual_` twins whose
+`effects` are byte-identical to their base (the prefix is a DELIVERY
+difference — the buff persists for the rest of the run — not an effect one).
+
+Only **12 effect kinds** exist across all 46, in two groups:
+
+- **stat modifiers** — `flatAtk` `flatDef` `flatHP` `flatShield` `pctAtk`
+  `pctDef` `pctHP` `pctShield`
+- **mechanics** — `onEnemyWinExchange_applyStatus`,
+  `onEnemyWinExchange_lifesteal`, `onEnemyWinExchange_corrode`,
+  `startBattleStatus`
+
+**The load-bearing finding: a stat modifier is ALREADY APPLIED in the stats the
+wire reports.** The corpus contains a natural experiment — four enemies (Rooms
+64, 65, 66, 67) captured both clean (`enemyBuff: null`) and buffed — and the
+declared `effects[]` predict the buffed `startingATK` / `startingDEF` /
+`health.starting` / `shield.starting` **exactly, 30 of 30, zero mismatches**:
+
+```
+Enemy Room 64  base rock ATK 14  ->  bloodthirsty 18      (+4)
+Enemy Room 64  base hp 35 / armor 14  ->  hardy 38 / 16   (+3 / +2)
+Enemy Room 64  base hp 35 / armor 14  ->  overgrown 46 / 19  (+30%, CEILING)
+```
+
+Percentages round UP: 14 × 1.3 = 18.2 lands on 19, which rules out floor and
+round-half. Re-derived by `scripts/enemyBuffAudit.ts`; never quoted from here.
+
+So a stat-only buff changes no combat RULE and `src/sim/coverage.ts` no longer
+raises `ENEMY_BUFF` for one. A mechanic buff still does, as does an unknown id
+or an unrecognised effect KIND — the fail-closed line is drawn on the kind, not
+the id, because ids are added by the game far faster than mechanics are.
+
+**What this does NOT fix.** `rolledEnemyStats` (always exactly
+`{evasion, block, lck, tenacity}`) is untouched and is the bigger blocker. Of
+the **622** non-Safe paths ever offered, **617 (99.2%)** also carry non-zero
+rolled stats, and §4e establishes those are 1–5% proc chances needing hundreds
+of observations. Measured end to end: modelling the buffs drops `ENEMY_BUFF`
+from 256 exchanges to 184 and frees **zero** additional exchanges, because
+`ROLLED_STATS` co-occurs on every one of them.
+
+Tier composition, which is why this matters for a CLAUDE.md rule-8 reversal:
+
+| tier | paths offered | with a buff | rolled ≠ 0 |
+|---|---|---|---|
+| 0 Safe | 188 | 0 | 0 |
+| 1 Risky | 298 | 298 | 293 |
+| 2 Dangerous | 324 | 324 | 324 |
+
+---
+
 ## 4. Dungeon strategy
 
 ### The core mistake to avoid
