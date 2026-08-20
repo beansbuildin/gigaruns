@@ -918,6 +918,26 @@ different `dropMultiplier`s) — the two runs' Hard Core amounts differ
 because of `dropMultiplier`, not despite it; Dendren Root doesn't respond to
 `dropMultiplier` at all, only to `isJuiced`.
 
+**[CONFIRMED 2026-08-20, session 60] A juiced entry charges EXACTLY its
+committed energy at `start_run`, and the ~1-energy discrepancy seen at run END
+is not a dungeon mechanic.** A tight probe reading `GET /offchain/player/energy`
+immediately either side of the `start_run` POST — armed since session 54, unable
+to fire for want of a run — measured **345 → 285, a delta of exactly −60**
+against a committed 60. So the `JUICED_COST_MULTIPLIER` 3x does **not**
+miscount, which had been the leading hypothesis for six sessions.
+
+Run-end accounting for the same run read 345 → 286, an observed delta of **59**,
+so 1 energy is credited back somewhere between the two measurements. **The
+evidence that identifies it as account-wide rather than dungeon-specific arrived
+the same day from the other game mode:** one of five Dendren casts drifted
+identically (committed 12, observed 11) while the other four were exact. Two
+different run types, same signature, and in both cases the drift landed on the
+longest-elapsed measurement of its batch — consistent with passive regen
+(`regenPerHour: 18`, i.e. 1 per ~3.3 minutes) ticking across the window rather
+than with anything the run itself does. Treat run-length energy accounting as
+having ±1 of regen noise; the guard is enforced off COMMITTED spend, not the
+observed delta, which is why this was never a correctness problem.
+
 ---
 
 ### 3g. Move names — the Rosetta stone **[CONFIRMED, user-stated 2026-08-20]**
