@@ -62,11 +62,25 @@ export interface EnergyPreflightResult {
   alreadySufficient: boolean;
   /** Total `energyCollectable` across the whole bank at read time. Null when the bank was never read. */
   bankTotal: number | null;
-  /** ROMs actually claimed, in the order they were claimed (descending by snapshot). */
+  /** ROMs actually claimed, in the order they were claimed (by snapshot, per `claimOrder`). */
   claimedDocIds: string[];
   /** Sum of the *snapshot* `energyCollectable` of the claimed ROMs — an estimate; `poolAfter - poolBefore` is the measured truth. */
   claimedSnapshotTotal: number;
+  /** [session 52 §1a] Which order the bank was walked in. `"descending"` unless the caller asked otherwise. */
+  claimOrder: ClaimOrder;
+  /**
+   * [session 52 §1a] Set when the `maxClaims` bound was reached still short of
+   * the deficit and the largest remaining ROM was claimed to close it in one
+   * step. Null on every unbounded pass — which is every pass that omits
+   * `maxClaims`.
+   */
+  fallbackClaimDocId: string | null;
+  /** Per-claim snapshots, in claim order — §1c wants the running total attributable per ROM, not just the sum. */
+  claims: { docId: string; snapshot: number; fallback: boolean }[];
 }
+
+/** [session 52 §1a] Which end of the bank `ensureEnergyFor` claims from. */
+export type ClaimOrder = "ascending" | "descending";
 
 /**
  * Fail-closed stop. Thrown when the pool cannot fund the planned batch even
@@ -97,11 +111,25 @@ const paceMs = () => 1200 + Math.random() * 400;
  *  2. Read the bank. If pool + bank still can't cover the batch, throw before
  *     claiming anything: claiming into a short pool just spends requests to
  *     arrive at the same stop.
- *  3. Claim in descending order by `energyCollectable`, stopping as soon as the
- *     claimed snapshots cover the deficit — the biggest wins land first, so an
- *     interrupted pass still made the most progress it could (same rationale as
- *     `scripts/claimAllRoms.ts`, which this deliberately does not replace: that
- *     script is still the right tool for draining the whole bank).
+ *  3. Claim in `opts.order` by `energyCollectable` — **descending by default**,
+ *     stopping as soon as the claimed snapshots cover the deficit. The biggest
+ *     wins land first, so an interrupted pass still made the most progress it
+ *     could (same rationale as `scripts/claimAllRoms.ts`, which this
+ *     deliberately does not replace: that script is still the right tool for
+ *     draining the whole bank).
+ *
+ *     [session 52 §1a] `order: "ascending"` inverts that, and `maxClaims`
+ *     bounds the loop. Ascending is NOT a better default — it is the right
+ *     posture for a *first live exercise* of an unproven path, and for nothing
+ *     else. Session 52's live claim had a 53-energy deficit against a
+ *     2496-energy bank: descending would have claimed exactly one ROM (docId
+ *     4543, snapshot 315, the largest single accrual on the account), pointing
+ *     a never-executed code path at the most valuable asset in the bank and
+ *     leaving the claim *loop* — pacing, running total, break condition, the
+ *     `success: false` check — untested while reporting "claim path verified".
+ *     Ascending claimed 13 + 26 + 30 instead. Once the path is proven, the
+ *     descending rationale is the better one again, which is why omitting
+ *     `order` and `maxClaims` is byte-for-byte the session-47 behaviour.
  *  4. Re-read the pool and verify against the real number, not the snapshots.
  *     A snapshot is a read-time estimate; the 420 cap and in-flight regen both
  *     make the measured delta the only figure worth gating on.
@@ -113,10 +141,16 @@ const paceMs = () => 1200 + Math.random() * 400;
 export async function ensureEnergyFor(
   requiredEnergy: number,
   deps: EnergyPreflightDeps,
-  opts: { readOnly?: boolean } = {},
+  opts: { readOnly?: boolean; order?: ClaimOrder; maxClaims?: number } = {},
 ): Promise<EnergyPreflightResult> {
   const sleep = deps.sleep ?? defaultSleep;
   const log = deps.log ?? (() => {});
+  const order: ClaimOrder = opts.order ?? "descending";
+  // Unbounded by default. `claimedDocIds.length >= Infinity` is never true and
+  // the fallback below is reachable only through that same condition, so an
+  // omitted `maxClaims` cannot change a single request the session-47 code
+  // would have made.
+  const maxClaims = opts.maxClaims ?? Number.POSITIVE_INFINITY;
   // [session 51 §5] `readOnly` runs every READ and every verdict — pool, ROM
   // bank, the sufficiency arithmetic, the "cannot fund" halt — and claims
   // NOTHING. It exists so `scripts/liveRun.ts --dry-run` can exercise this
@@ -136,6 +170,9 @@ export async function ensureEnergyFor(
       bankTotal: null,
       claimedDocIds: [],
       claimedSnapshotTotal: 0,
+      claimOrder: order,
+      fallbackClaimDocId: null,
+      claims: [],
     };
   }
 
@@ -144,9 +181,14 @@ export async function ensureEnergyFor(
 
   await sleep(paceMs());
   const bank = await deps.getRomBank();
-  const claimable = bank.filter((r) => r.energyCollectable > 0).sort((a, b) => b.energyCollectable - a.energyCollectable);
+  const claimable = bank
+    .filter((r) => r.energyCollectable > 0)
+    .sort((a, b) => (order === "ascending" ? a.energyCollectable - b.energyCollectable : b.energyCollectable - a.energyCollectable));
   const bankTotal = claimable.reduce((s, r) => s + r.energyCollectable, 0);
-  log(`  ▸ ROM bank: ${bank.length} ROMs, ${claimable.length} with energyCollectable > 0, ${bankTotal} energy claimable.`);
+  log(
+    `  ▸ ROM bank: ${bank.length} ROMs, ${claimable.length} with energyCollectable > 0, ${bankTotal} energy claimable` +
+      ` (claiming ${order}${Number.isFinite(maxClaims) ? `, max ${maxClaims} claims` : ""}).`,
+  );
 
   if (poolBefore + bankTotal < requiredEnergy) {
     throw new EnergyPreflightError(
@@ -156,17 +198,25 @@ export async function ensureEnergyFor(
   }
 
   const claimedDocIds: string[] = [];
+  const claims: { docId: string; snapshot: number; fallback: boolean }[] = [];
   let claimedSnapshotTotal = 0;
+  let fallbackClaimDocId: string | null = null;
   if (readOnly) {
     // Report exactly what a real invocation WOULD claim, without claiming it.
     const wouldClaim: string[] = [];
     let wouldTotal = 0;
     for (const rom of claimable) {
       if (wouldTotal >= deficit) break;
+      if (wouldClaim.length >= maxClaims) break;
       wouldClaim.push(rom.docId);
       wouldTotal += rom.energyCollectable;
     }
-    log(`  ▸ [read-only] would claim ${wouldClaim.length} ROM(s) for a snapshot total of ${wouldTotal}/${deficit}; claiming NOTHING.`);
+    const wouldFallback = wouldTotal < deficit && wouldClaim.length >= maxClaims ? largestRemaining(claimable, new Set(wouldClaim)) : undefined;
+    if (wouldFallback) wouldTotal += wouldFallback.energyCollectable;
+    log(
+      `  ▸ [read-only] would claim ${wouldClaim.length + (wouldFallback ? 1 : 0)} ROM(s) for a snapshot total of ` +
+        `${wouldTotal}/${deficit}${wouldFallback ? ` (incl. largest-remaining fallback ${wouldFallback.docId})` : ""}; claiming NOTHING.`,
+    );
     return {
       requiredEnergy,
       poolBefore,
@@ -175,10 +225,13 @@ export async function ensureEnergyFor(
       bankTotal,
       claimedDocIds: [],
       claimedSnapshotTotal: 0,
+      claimOrder: order,
+      fallbackClaimDocId: null,
+      claims: [],
     };
   }
-  for (const rom of claimable) {
-    if (claimedSnapshotTotal >= deficit) break;
+
+  const claimOne = async (rom: RomBankEntry, fallback: boolean) => {
     await sleep(paceMs());
     try {
       await deps.claimRom(rom.docId);
@@ -194,8 +247,34 @@ export async function ensureEnergyFor(
       });
     }
     claimedDocIds.push(rom.docId);
+    claims.push({ docId: rom.docId, snapshot: rom.energyCollectable, fallback });
     claimedSnapshotTotal += rom.energyCollectable;
-    log(`    · claimed ${rom.docId} (snapshot ${rom.energyCollectable}); running total ${claimedSnapshotTotal}/${deficit}`);
+    log(
+      `    · claimed ${rom.docId} (snapshot ${rom.energyCollectable})${fallback ? " [largest-remaining fallback]" : ""}` +
+        `; running total ${claimedSnapshotTotal}/${deficit}`,
+    );
+  };
+
+  for (const rom of claimable) {
+    if (claimedSnapshotTotal >= deficit) break;
+    if (claimedDocIds.length >= maxClaims) break;
+    await claimOne(rom, false);
+  }
+
+  // [session 52 §1a] Bounded-and-still-short. Not a fail-closed case: closing
+  // the gap with the single largest remaining ROM is exactly what a descending
+  // pass would have done anyway — reached deliberately and logged, instead of
+  // either looping unbounded or throwing on a deficit the bank can cover.
+  if (claimedSnapshotTotal < deficit && claimedDocIds.length >= maxClaims) {
+    const largest = largestRemaining(claimable, new Set(claimedDocIds));
+    if (largest) {
+      log(
+        `  ▸ maxClaims (${maxClaims}) reached at ${claimedSnapshotTotal}/${deficit} — falling back to the largest remaining ROM ` +
+          `${largest.docId} (snapshot ${largest.energyCollectable}) to close the deficit in one step.`,
+      );
+      fallbackClaimDocId = largest.docId;
+      await claimOne(largest, true);
+    }
   }
 
   await sleep(paceMs());
@@ -213,7 +292,28 @@ export async function ensureEnergyFor(
     });
   }
 
-  return { requiredEnergy, poolBefore, poolAfter, alreadySufficient: false, bankTotal, claimedDocIds, claimedSnapshotTotal };
+  return {
+    requiredEnergy,
+    poolBefore,
+    poolAfter,
+    alreadySufficient: false,
+    bankTotal,
+    claimedDocIds,
+    claimedSnapshotTotal,
+    claimOrder: order,
+    fallbackClaimDocId,
+    claims,
+  };
+}
+
+/** The biggest ROM in `claimable` not already claimed. Undefined when the bank is exhausted. */
+function largestRemaining(claimable: RomBankEntry[], taken: Set<string>): RomBankEntry | undefined {
+  let best: RomBankEntry | undefined;
+  for (const rom of claimable) {
+    if (taken.has(rom.docId)) continue;
+    if (!best || rom.energyCollectable > best.energyCollectable) best = rom;
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------------------

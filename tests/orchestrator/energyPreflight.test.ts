@@ -181,3 +181,90 @@ describe("ensureEnergyFor", () => {
     }
   });
 });
+
+/**
+ * [session 52 §1a] Claim ordering.
+ *
+ * The live shape this was built for: pool 7, a 53-energy deficit, and a bank of
+ * 27 ROMs totalling 2496 whose largest single entry is 315. Descending claims
+ * that 315 ROM alone; ascending claims 13 + 26 + 30. Both fund the run; only
+ * one of them exercises the loop, and only one of them risks the biggest asset
+ * in the bank on a code path that had never executed.
+ */
+describe("ensureEnergyFor — claim order [session 52 §1a]", () => {
+  const liveBank = (): RomBankEntry[] => [
+    { docId: "3777", energyCollectable: 13 },
+    { docId: "7959", energyCollectable: 26 },
+    { docId: "2114", energyCollectable: 30 },
+    { docId: "7210", energyCollectable: 50 },
+    { docId: "4543", energyCollectable: 315 },
+  ];
+
+  it("defaults to descending — omitting `order` is byte-for-byte the session-47 behaviour", async () => {
+    const acct = fakeAccount(7, liveBank());
+    const res = await ensureEnergyFor(60, acct.deps);
+    expect(acct.claims).toEqual(["4543"]);
+    expect(res.claimOrder).toBe("descending");
+    expect(res.fallbackClaimDocId).toBeNull();
+    expect(res.poolAfter).toBe(322);
+  });
+
+  it("claims smallest-first under `order: \"ascending\"`, still stopping at the deficit", async () => {
+    const acct = fakeAccount(7, liveBank());
+    const res = await ensureEnergyFor(60, acct.deps, { order: "ascending" });
+    // 13 + 26 = 39 < 53; + 30 = 69 >= 53. The 50 and the 315 stay banked.
+    expect(acct.claims).toEqual(["3777", "7959", "2114"]);
+    expect(res.claimedSnapshotTotal).toBe(69);
+    expect(res.claimOrder).toBe("ascending");
+    expect(res.fallbackClaimDocId).toBeNull();
+    expect(res.claims.map((c) => c.snapshot)).toEqual([13, 26, 30]);
+    expect(res.claims.every((c) => !c.fallback)).toBe(true);
+    expect(res.poolAfter).toBe(76);
+  });
+
+  it("falls back to the largest remaining ROM when `maxClaims` is hit still short of the deficit", async () => {
+    const acct = fakeAccount(0, [
+      { docId: "a", energyCollectable: 1 },
+      { docId: "b", energyCollectable: 1 },
+      { docId: "c", energyCollectable: 1 },
+      { docId: "big", energyCollectable: 200 },
+      { docId: "mid", energyCollectable: 100 },
+    ]);
+    const res = await ensureEnergyFor(60, acct.deps, { order: "ascending", maxClaims: 3 });
+    expect(acct.claims).toEqual(["a", "b", "c", "big"]);
+    expect(res.fallbackClaimDocId).toBe("big");
+    expect(res.claims.at(-1)).toEqual({ docId: "big", snapshot: 200, fallback: true });
+    expect(res.poolAfter).toBe(203);
+  });
+
+  it("does not fall back when `maxClaims` is reached exactly AT the deficit", async () => {
+    const acct = fakeAccount(0, [
+      { docId: "a", energyCollectable: 30 },
+      { docId: "b", energyCollectable: 30 },
+      { docId: "big", energyCollectable: 200 },
+    ]);
+    const res = await ensureEnergyFor(60, acct.deps, { order: "ascending", maxClaims: 2 });
+    expect(acct.claims).toEqual(["a", "b"]);
+    expect(res.fallbackClaimDocId).toBeNull();
+  });
+
+  it("still fails closed when the bank cannot fund the batch, whatever the order", async () => {
+    const acct = fakeAccount(0, [{ docId: "a", energyCollectable: 5 }]);
+    await expect(ensureEnergyFor(60, acct.deps, { order: "ascending", maxClaims: 15 })).rejects.toBeInstanceOf(EnergyPreflightError);
+    expect(acct.claims).toEqual([]);
+  });
+
+  it("read-only reports the ascending plan, including the fallback, and claims nothing", async () => {
+    const lines: string[] = [];
+    const acct = fakeAccount(0, [
+      { docId: "a", energyCollectable: 1 },
+      { docId: "b", energyCollectable: 1 },
+      { docId: "big", energyCollectable: 200 },
+    ]);
+    const res = await ensureEnergyFor(60, { ...acct.deps, log: (l) => lines.push(l) }, { order: "ascending", maxClaims: 2, readOnly: true });
+    expect(acct.claims).toEqual([]);
+    expect(res.poolAfter).toBe(0);
+    expect(lines.join("\n")).toContain("largest-remaining fallback big");
+    expect(lines.join("\n")).toContain("would claim 3 ROM(s)");
+  });
+});

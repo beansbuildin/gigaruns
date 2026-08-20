@@ -52,7 +52,16 @@ import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
-import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
+import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError, type ClaimOrder } from "../src/orchestrator/energyPreflight.js";
+
+/**
+ * [session 52 §1a] Bound on the ascending claim loop. 15 is well above the 3
+ * claims session 52's live 53-energy deficit actually needed and well below
+ * anything that would turn a preflight into a request storm. Only applied when
+ * `--claim-order=ascending` is passed; a descending pass is unbounded, exactly
+ * as it has been since session 47.
+ */
+const ASCENDING_MAX_CLAIMS = 15;
 import { regenerateRunReports } from "./regenerateReports.js";
 import { toCombatant, exchangeIdentity, exchangeLabel, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
@@ -1138,6 +1147,14 @@ export function parseArgs(argv: string[]) {
   // [session 47, brief §1a] Opt OUT of the ROM-claim preflight — see the
   // identical flag in scripts/liveFishing.ts.
   const noRomClaim = argv.includes("--no-rom-claim");
+  // [session 52 §1a] Default `descending` — the shipped session-47 order.
+  // Omitting the flag must leave the preflight byte-for-byte what it was.
+  const claimOrderArg = argv.find((a) => a.startsWith("--claim-order="));
+  const claimOrderRaw = claimOrderArg?.split("=")[1];
+  if (claimOrderRaw !== undefined && claimOrderRaw !== "ascending" && claimOrderRaw !== "descending") {
+    throw new Error(`--claim-order=${claimOrderRaw} is not a valid order — pass "ascending" or "descending".`);
+  }
+  const claimOrder: ClaimOrder = claimOrderRaw ?? "descending";
   // [session 42, Task 14] `--juiced` only takes effect on a genuinely new
   // start_run (never a resume — a resumed run's juiced status was already
   // decided by whoever originally started it, see runOnce's "existing"
@@ -1167,6 +1184,7 @@ export function parseArgs(argv: string[]) {
     potionsUsed,
     resumeExisting,
     noRomClaim,
+    claimOrder,
     juiced,
     juicedIndex,
   };
@@ -1438,12 +1456,65 @@ async function main() {
     // live API in the eight sessions since — was the ONE step a dry run could
     // not vouch for. It now runs read-only: every read, every verdict, no
     // claim.
+    // [session 52 §1a] `--claim-order` defaults to `descending` — the shipped
+    // session-47 posture, unchanged when the flag is absent. `ascending` is
+    // for a FIRST live exercise of the claim path: it walks the loop several
+    // times instead of once, and it risks the smallest ROM in the bank rather
+    // than the largest. Bounded at ASCENDING_MAX_CLAIMS so a tiny-ROM bank
+    // can't turn one preflight into fifty requests; the bound's fallback
+    // claims the largest remaining ROM, which is what descending would have
+    // done anyway.
     const preflight = await ensureEnergyFor(
       targetRuns * perRun,
       clientEnergyPreflightDeps(client, me.address, (line) => console.log(line)),
-      { readOnly: args.dryRun },
+      {
+        readOnly: args.dryRun,
+        order: args.claimOrder,
+        ...(args.claimOrder === "ascending" ? { maxClaims: ASCENDING_MAX_CLAIMS } : {}),
+      },
     );
     log.write({ event: "energy_preflight", dryRun: args.dryRun, ...preflight });
+    // [session 52 §1c] The claim path's whole value is that it is now
+    // measurable. A snapshot is a read-time estimate; `poolAfter - poolBefore`
+    // is the measured truth, and the gap between them is the signal. Small
+    // POSITIVE drift is expected and confirms the snapshot is live (session 20
+    // saw romId 689 credit +12 against a snapshot of 11 — accrual between read
+    // and claim). A NEGATIVE gap, or a claim crediting zero, is the failure
+    // mode this exercise exists to catch, and it is invisible if only the
+    // total is reported.
+    if (preflight.claimedDocIds.length > 0) {
+      const measured = preflight.poolAfter - preflight.poolBefore;
+      const drift = measured - preflight.claimedSnapshotTotal;
+      console.log(
+        `  ▸ claim audit: ${preflight.claimedDocIds.length} claim(s) ${preflight.claimOrder}, snapshot total ` +
+          `${preflight.claimedSnapshotTotal}, measured pool delta ${measured >= 0 ? "+" : ""}${measured} ` +
+          `(drift ${drift >= 0 ? "+" : ""}${drift})` +
+          (preflight.fallbackClaimDocId ? ` [largest-remaining fallback: ${preflight.fallbackClaimDocId}]` : ""),
+      );
+      if (drift < 0) {
+        console.log(`  ⚠ NEGATIVE drift — the pool moved LESS than the claimed snapshots. Do not treat this claim as clean.`);
+      }
+      // Per-ROM attribution: re-read the bank and report each claimed ROM's
+      // post-claim `energyCollectable`. A claimed ROM should read ~0; anything
+      // else means the claim moved less than the ROM held.
+      const after = await client.getRomsPlayer(me.address);
+      const post = new Map(after.entities.map((e) => [e.docId, e.factoryStats.energyCollectable]));
+      for (const c of preflight.claims) {
+        const remaining = post.get(c.docId);
+        console.log(
+          `    · ${c.docId}: snapshot ${c.snapshot} -> post-claim energyCollectable ${remaining ?? "?"}` +
+            (c.fallback ? " [fallback]" : "") +
+            (remaining !== undefined && remaining > c.snapshot * 0.5 ? "  ⚠ still holds most of its snapshot" : ""),
+        );
+      }
+      log.write({
+        event: "claim_audit",
+        measuredDelta: measured,
+        snapshotTotal: preflight.claimedSnapshotTotal,
+        drift,
+        perRom: preflight.claims.map((c) => ({ ...c, postClaimCollectable: post.get(c.docId) ?? null })),
+      });
+    }
   } else if (args.noRomClaim) {
     console.log(`  · --no-rom-claim: skipping the energy preflight; the pool is used exactly as-is.`);
   }
