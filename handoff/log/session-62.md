@@ -171,3 +171,155 @@ exercised as routine verification rather than as a rescue.
      handoff/DECISIONS.md                     |   4  (LICENSE, oils, mana, r8)
      config/bot.json / LICENSE                |   4
 ```
+
+---
+
+# Session 62 — verbose appendix
+
+## A correction to commit 776618e's own message
+
+That message says the two runs had "0/46 and 0/47 first-attempt failures". The
+real figures are **0/46 and 0/46** — both runs, verified from
+`logs/run-62-2.log`'s own TOTAL line after the commit had landed. The commit
+message cannot be edited without a rewrite that is not worth it; the correction
+lives here and in STATE.md. Nothing downstream used the 47.
+
+## The full 4-vs-4, all eight raw runs
+
+| arm | # | run | depth | HARD CORES | Dendren | tier | energy | HC/energy |
+|---|---|---|---|---|---|---|---|---|
+| historical | H1 | 24924689 | room 8 | 6864 | 420 | 3 | 60 | 114.4 |
+| historical | H2 | 24924936 | room 7 | 4896 | 309 | 3 | 60 | 81.6 |
+| historical | H3 | 24925597 | room 4 | 2976 | 84 | 3 | 60 | 49.6 |
+| historical | H4 | 24925642 | room 10 | 8112 | 687 | 3 | 60 | 135.2 |
+| rule 8 | R1 | 24943210 | room 5 | 4224 | 141 | 3 | 60 | 70.4 |
+| rule 8 | R2 | 24945829 | room 5 | 3840 | 141 | 3 | 60 | 64.0 |
+| rule 8 | R3 | 24949925 | room 7 | 6336 | 309 | 3 | 60 | 105.6 |
+| rule 8 | R4 | 24949982 | room 7 | 6240 | 309 | 3 | 60 | 104.0 |
+
+Full write-up, including the §2c precondition evidence and the §2f corrode
+recommendation, is in `handoff/reports/session-62-comparison.md`. It was
+committed at 27c7f84 with the comparison group fixed and the Results section
+empty, BEFORE either run started.
+
+### Power arithmetic, so the "unfinishable" claim is checkable
+
+Using the historical arm's own sd as the between-run variance, n per arm at 80%
+power / alpha 0.05, via the `16 (sd/delta)^2` rule of thumb:
+
+    Hard Core, 10% effect (delta 571, sd 2254):  16 * (2254/571)^2  = 250 runs
+    Depth, 1 room          (delta 1,   sd 2.50):  16 * (2.50/1)^2    = 100 runs
+
+At rule 11's 4 juiced runs/day that is 62 and 25 days PER ARM, and the control
+arm's n is frozen at 4 forever. Power depends on both arms, so running the
+rule-8 arm alone does not move it.
+
+## The §2c scan, reproducibly
+
+    total state-*.json under fixtures/dungeon-runs (excluding raw/):  2877
+    files with a non-empty gameItemBalanceChanges:                     274
+    files carrying an id 845 entry:                                    136
+    earliest id-845 capture:  run-2026-08-14-22-02-31/state-001.json
+                              {id: 845, amount: 84}
+    earliest of the eight runs: 24924689 @ run-2026-08-20-00-30-50
+
+Six days of margin. Every one of the 12 juiced runs on record has a real 845
+entry, so no run's count is an artifact of an absent field.
+
+## The corrode trace, run 24949982 room 5
+
+Buff: `corrosiveShield`, name "Miasmaguard", description "Reduces 3 max armor on
+Shield wins", `minTier: 2`, `effects: [{kind: "onEnemyWinExchange_corrode",
+amount: 3, moveType: "paper"}]`.
+
+    state-050..055   me shield 0/17   (armor currentMax 17)
+    state-056        me shield 0/14   enemy lastMove PAPER   <- -3, the trigger
+    state-058        me shield 12/14  enemy lastMove rock    (I won)
+    state-060        me shield 14/14  enemy lastMove scissor (I won)
+    state-062        me shield 0/14   enemy lastMove SCISSOR (enemy won) <- NO shred
+    state-064..067   me shield 9/14
+    state-068        me shield 9/17   room boundary — restored
+
+`state-062` is the new evidence and the reason this is worth modelling: an enemy
+win with a NON-matching move that did not shred. Sessions 61 and 62 have three
+corrode applications between them, but until this run there had never been a
+case that could have falsified the `moveType` gate.
+
+## The five new boon pairs, with the mechanism that produced each
+
+| type | run | states | val1 | picked by |
+|---|---|---|---|---|
+| WeakeningCrit | 24949925 | 005→006 | 1 | orb fallback (20 of [20,12,13]) |
+| AddBurnMagic | 24949925 | 047→048 | 3 | orb fallback (24 of [24,20,12]) |
+| SecondWind | 24949982 | 005→006 | 10 | orb fallback (23 of [23,21,18]) |
+| AddVulnerableMagic | 24949982 | 065→066 | 2 | BOON-PRIORITY 5, Vulnerable family |
+| Vengeance | 24949982 | 087→088 | 15 | orb fallback (26 of [17,16,26]) |
+
+All five: the ONLY difference between the before and after states is the boon
+appearing in `pickedBoons`. Health, shield, all three moves and every rolled
+stat byte-identical. The identical diff run against AddLuck, AddEvasion and Heal
+on the same corpus DOES show their changes:
+
+    ctrl AddLuck      lck:     {current:0} -> {current:1}
+    ctrl AddEvasion   evasion: {current:0} -> {current:1}
+    ctrl Heal         health:  {current:15} -> {current:31}
+    NEW  WeakeningCrit / AddBurnMagic / SecondWind /
+         AddVulnerableMagic / Vengeance                    (none)
+
+So "latent" is a measured result here, not an unexamined default. `SecondWind`
+at val1 10 with `health` completely unchanged is the clearest case of a name
+that would have produced a wrong model.
+
+## Gate demonstrations, verbatim
+
+Gate 1, with `if (held <= 0)` replaced by `if (false)`:
+
+    × plays the cast to a normal outcome, sends no use_fishing_item, and
+      records the third state
+      AssertionError: expected 0 to be greater than 0
+    × separates 'the account holds none' from 'we never found out'
+      AssertionError: expected Set{} to deeply equal Set{ 'balance_unknown' }
+    Tests  2 failed | 4 passed (6)
+
+Gate 2, with heuristic (c)'s fraction-of-max trigger spliced back in:
+
+    × on a fish where heuristic (c) WOULD spend and lethality would not, the
+      live loop spends NOTHING
+      AssertionError: expected [ 'start_run', …(4) ] to not include
+      'use_fishing_item'
+    Tests  1 failed | 5 passed (6)
+
+Both restored from a byte-identical backup; the full suite is green at the
+final commit.
+
+## Environment note for the next session
+
+`npx tsx` fails under the Claude Code sandbox in this project: first
+`listen EPERM` on a unix socket for tsx's IPC server, and with that worked
+around, `getaddrinfo ENOTFOUND gigaverse.io` even though that host is on the
+sandbox allowlist. Every live script and every `git` invocation this session ran
+with the sandbox disabled. `node --import tsx/esm <script>` avoids the IPC
+failure but not the DNS one, so it only helps for offline scripts.
+
+Two vitest files ALSO fail under the sandbox for the same reason and pass
+outside it — `tests/api/redact.test.ts` and `tests/profile.test.ts`, both of
+which shell out to `git`. **A sandboxed test run therefore reports two false
+failures.** Anyone reading a red suite should re-run unsandboxed before
+believing it.
+
+## Secret scan, session diff 9365cb9..HEAD
+
+    0x[a-fA-F0-9]{4,} excluding 0xUSER   0 matches
+    eyJ (JWT prefix)                     0
+    noobId <digits>                      0
+    PRIVATE                              0
+    .secrets                             0
+    .gitignore covers .env, *.key, data/, logs/   all IGNORED
+    config/discovered.json               NOT ignored — deliberate, 2026-08-20
+
+One thing worth recording because it looks alarming and is not: a raw numeric
+`"NOOB_TOKEN_CID": <NOOB>` (a real numeric token) exists in this session's captures, inside
+`fixtures/dungeon-runs/run-*/raw/`. `fixtures/**/raw/` is gitignored
+(`.gitignore:28`), the tracked copies carry `"<NOOB_TOKEN>"`, and the string
+that token string appears **zero** times in the tracked tree and zero times in the session
+diff. Checked rather than assumed.
