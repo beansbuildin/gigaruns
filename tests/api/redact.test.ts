@@ -17,13 +17,23 @@ import { describe, expect, it } from "vitest";
 
 import { redactNoobToken, NOOB_TOKEN_PLACEHOLDER } from "../../src/api/redact.js";
 
+/**
+ * SYNTHETIC ids, deliberately. The first draft of this file used the real
+ * token id and the real equipment instance id as test data — which would have
+ * re-committed, into a tracked file, the exact identifier the module under
+ * test exists to remove. Caught by the recap's secret scan, not by review.
+ * The rules are keyed by SHAPE, so a fake id exercises them identically.
+ */
+const FAKE_NOOB = "11111";
+const FAKE_INSTANCE = "22222222222222222222222222222222222222222222";
+
 describe("redactNoobToken", () => {
   it("redacts the NOOB_TOKEN_CID field, numeric as the API sends it", () => {
-    expect(redactNoobToken('{"NOOB_TOKEN_CID": 72946}')).toBe(`{"NOOB_TOKEN_CID": "${NOOB_TOKEN_PLACEHOLDER}"}`);
+    expect(redactNoobToken(`{"NOOB_TOKEN_CID": ${FAKE_NOOB}}`)).toBe(`{"NOOB_TOKEN_CID": "${NOOB_TOKEN_PLACEHOLDER}"}`);
   });
 
   it("is idempotent — re-redacting an already-redacted fixture is a no-op", () => {
-    const once = redactNoobToken('{"NOOB_TOKEN_CID": 72946}');
+    const once = redactNoobToken(`{"NOOB_TOKEN_CID": ${FAKE_NOOB}}`);
     expect(redactNoobToken(once)).toBe(once);
   });
 
@@ -31,15 +41,15 @@ describe("redactNoobToken", () => {
     // Trimming only the trailing token would leave the leading instance id,
     // which is also stable and account-scoped — the same half-measure this
     // module exists to stop.
-    const raw = '{"docId": "EntityEquipment#79966817350501100526447415351088260038671993089879876864314793285447998749147-72946"}';
+    const raw = `{"docId": "EntityEquipment#${FAKE_INSTANCE}-${FAKE_NOOB}"}`;
     const out = redactNoobToken(raw);
     expect(out).toBe(`{"docId": "EntityEquipment#${NOOB_TOKEN_PLACEHOLDER}"}`);
-    expect(out).not.toContain("72946");
-    expect(out).not.toContain("799668173505011");
+    expect(out).not.toContain(FAKE_NOOB);
+    expect(out).not.toContain(FAKE_INSTANCE);
   });
 
   it("redacts the account doc's own docId, keyed on tableName not on a value", () => {
-    const raw = '{"docId": "72946", "tableName": "GigaNoobNFT"}';
+    const raw = `{"docId": "${FAKE_NOOB}", "tableName": "GigaNoobNFT"}`;
     expect(redactNoobToken(raw)).toBe(`{"docId": "${NOOB_TOKEN_PLACEHOLDER}", "tableName": "GigaNoobNFT"}`);
   });
 

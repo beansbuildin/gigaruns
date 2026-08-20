@@ -1,190 +1,166 @@
-# STATE — session 53 — 2026-08-20 — commit ed66de1
+# STATE — session 54 — 2026-08-19 (PT) — commit fe24aa8
 
 ## Status
-Session-53 brief: **all eight items delivered. GATE PASS.**
-The gate was zero path-selection first-attempt rejections across ~26 live
-decisions, against a current rate of 100%. Result: **24 decisions, 0
-rejections.**
+Session-54 brief: **items §1, §3, §4, §5 delivered. §2 — the §19 fishing batch —
+COULD NOT RUN.**
 
-Two questions the last two sessions carried are now CLOSED (§21, §22), and the
-session's central finding is that **session 52's diagnosis of §21 was wrong in
-both directions** — the server never changed, and the fix was not an envelope
-change but a delay.
+There was no gate this session; §19 was the only measurement and it is blocked.
+**Report it as: §19 unmeasured for a fourth session, blocked on the game's own
+daily cast cap, not on anything reprioritisable.**
 
-Next: §19 (matcher drop-vs-mix) finally has its de-aliased library and needs a
-live fishing batch, which the 11:00 PT cap reset makes possible.
+The brief's premise for §2 ("the cap resets 11:00 PT... it is not blocked now")
+assumed this session would begin after the reset. It began ~2 hours after
+session 53, **inside the same guard-day session 53 exhausted.** Verified live,
+not assumed. Everything else in the brief is done.
+
+Next: §19 still needs a batch. It is schedulable only in a session beginning
+after 11:00 PT on a day the caps have not already been spent.
 
 ## What works
-- **§0c the pacing fix, LIVE, GATE PASS.** `RequestPacing.minGapSinceResponseMs
-  = 4000` on `reward_*`/`path_*` only (`liveRun.ts`'s `pacingForAction`).
-  **24 path-selection decisions across two runs, 0 first-attempt rejections**
-  (historical: 66/66 = 100%). Direct proof it lands, measured `post` → outcome:
-  empty-token 0.72–1.78s → **4.21–4.55s**, numeric-token unchanged at
-  1.02–1.71s. Envelope byte-identical; `postWithVerifiedRetry` untouched.
-- **§0d `scripts/rejectionAudit.ts`**, run over all 13 run logs. Reproduces and
-  sharpens the split: the 132 historical empty-token POSTs are **66 DECISIONS
-  each sent twice**, so the rate is 66/66 = 100%, not 66/132 = 50%.
-- **§1 `src/orchestrator/attemptTelemetry.ts`** — first-attempt failures per
-  class, counted even when the retry succeeds, printed in the run summary
-  (including on the failure path), WARN at ≥20%. Both runs reported 0/31 and
-  0/59 across all classes.
-- **§3 `maxSnapshot`/`headroom`/`overflowReachable` in `claim_audit`.**
-  **315 < 394** on both runs → no single claim this path can make can reach the
-  cap. The overflow question is closed by construction for this code path.
-- **§4 de-aliasing, shipped.** Pool 23 → 18, library 4 → 3 patterns.
-- **§6 `scripts/boonCoverage.ts`** — reports both coverage directions.
-- **Two live juiced Tier-3 runs.** Run 2 reached **room 10 / score 8112 / loot
-  687** — the deepest and highest-scoring run in this corpus by a wide margin
-  (prior best: room 8 / 6864 / 420).
-- **Tier enumeration held: 12/12 decisions took the lowest offered tier**, and
-  **5 of 12 rooms offered no Safe tier at all**.
-- Suite **862/862** (was 806), `tsc --noEmit` clean, `git diff --check` clean,
+- **§1 the orchestrator's dungeon arm is CLOSED** (`scripts/orchestrator.ts`).
+  `nextAction` is called with `DUNGEON_ARM_DISABLED` (null); the `dungeon`
+  branch is a loud fail-closed naming rule 11. Deleted rather than left
+  unreachable: `resolvePotionLoadout`, the `startConsumables`/`potionPolicy`
+  wiring, `dungeonBudgetSnapshot`, the `runOnce` call, the opponent-model
+  bootstrap/save. Verified live: `orchestrator.ts --dry-run` returns a
+  fishing-only decision.
+- **§1 `config/bot.json`'s `forbiddenWoods.potions` is PERMANENT** —
+  `{allowedItemId: 131, maxPerRun: 3}`. `_potionsComment` rewritten from ~1,900
+  chars of add/remove history to the safety argument plus the reopening
+  condition.
+- **§1 `tests/orchestrator/dungeonArmClosed.test.ts`** — 9 tests, source-level
+  because the invariant is about which code paths EXIST.
+- **§4 `overflowReachable`** derived once in `EnsureEnergyResult` on every
+  return path, with a **WARN when it flips true**, plus an `overflow_reachable`
+  log event that fires independently of whether a claim happened.
+- **§3 the §23 tight energy probe is BUILT and ARMED** (`LiveRunDeps.
+  energyProbe`) — two GETs bracketing `start_run`, zero energy, on every real
+  run. **Not fired: no run happened.**
+- **§5 `scripts/boonCoverage.ts` now RANKS** the 36 unmodelled types by offer
+  frequency and shallowest room, and reports the rooms 1–3 subset separately.
+- **Fixture redaction: `NOOB_TOKEN_CID` and the two docId shapes carrying the
+  same id are redacted**, 2,726 tracked files backfilled, 0 raw occurrences
+  left outside three pre-existing handoff documents. `fixtures/README.md`
+  states what this does and does not achieve.
+- **`src/api/redact.ts`** — the redaction logic was SIX near-identical private
+  copies; all seven capture scripts now route through one module.
+- Suite **886/886** (was 862), `tsc --noEmit` clean, `git diff --check` clean,
   all at the final commit. No test writes to a real data path.
 
 ## What's broken
-1. **§23 — three consecutive juiced runs under-report energy spend by exactly
-   1.** `observedDelta` 59 vs `committedDelta` 60, `drifted: true`, same
-   direction every time (session 52 run 1; session 53 runs 1 and 2). **Not
-   regen** — regen at 18/hr over a ~2-minute run is ~0.6 and would not land on
-   exactly −1 three times. Conservative in the safe direction (the guard
-   enforces off committed spend), so nothing is at risk, but it is systematic
-   and unexplained. Resolvable with a zero-energy read. QUESTIONS.md §23.
-2. **Enemy Room 71 (room 9) is captured UNCLEAN and cannot be modelled.**
-   Room 9 offered tiers `[1,1,1]` — no Safe — so the capture carries
-   `bloodthirsty` (+4 ATK all moves) and non-zero rolled stats. Its move
-   numbers include the buff. `unmodelled: ["ROLLED_STATS","ENEMY_BUFF"]`.
-3. **This session's own corpus growth lowered one sim arm's
-   `deepestScorableRoom` from 5 to 4** (verified by stashing; deterministic
-   across three runs). The 12 new offers introduced three new UNMODELLED types
-   at rooms 3/4, so more simulated runs go unscorable earlier. Honest capture
-   reducing a coverage metric — not a code regression — but Task 4.5's old gate
-   sat exactly at 4.
-4. **36 boon types have been OFFERED with no `BOON_MODELS` entry.** This is the
-   real untested surface (see Corrections — the brief asked about the opposite
-   gap, which is now empty).
+1. **§19 is UNMEASURED for a fourth session.** Dendren's real daily cast cap is
+   spent: `GET /fishing/state`'s `dayDocs` reports `UINT256_CID: 20` for pond 2
+   against the 20/day cap confirmed in session 21. The bot's own guard agrees
+   (20/20 casts, 240/240 energy). Real energy was 100/420 — **energy was never
+   the constraint, the cast cap is**, and no config change reaches it.
+2. **§23's −1 energy drift is still unexplained**, 3/3 juiced runs. The probe
+   that would split it is armed but has not fired.
+3. **Three tracked handoff documents still name the account in plaintext** —
+   `handoff/log/session-02.md`, `handoff/log/session-07.md` (which also carries
+   the username and a partial address), `handoff/scratch-session-02.md`. Never
+   passed through any `redact()`; the redaction effort has always been scoped
+   to `fixtures/`. **Left for the user**, recorded in `fixtures/README.md`.
+4. **The git HISTORY still holds the noob token** from session 08 onward. The
+   backfill rewrote the working tree, not history.
+5. Carried, unchanged: Enemy Room 71 (room 9) is captured UNCLEAN and cannot be
+   modelled; 36 boon types offered with no `BOON_MODELS` entry.
 
 ## Corrections to SPEC.md
-- **SPEC §2's session-52 correction is itself SUPERSEDED and the block is
-  rewritten.** "This is a server-side change" is **refuted by the same logs
-  session 52 cited**. Counting `post_attempt_failed` on `reason` — a field
-  populated on BOTH sides of session 47/51's `serverErrorDetail` fix — the
-  2026-08-18 logs hold **40 rejections in 40 decisions**, the identical 100%.
-  Session 52 grepped for `"Invalid action token"`, a string that could not
-  exist before 2026-08-19, and read *newly visible* as *new*.
-  `actionToken: ""` is CONFIRMED and correct; it was only being sent too soon.
-- **CLAUDE.md gains rule 10** for the general trap: a logging fix creates a
-  false discontinuity in your own history. Date an effect on a field that
-  predates the instrumentation change, or say plainly that you cannot.
-- **The brief's §0c number was on the WRONG CLOCK.** It measured the split as
-  gap-since-RESPONSE, then proposed it as `minGapMs`, which `RateLimiter`
-  applies REQUEST-to-request (`lastCallAt` is stamped before dispatch). The two
-  differ by one response latency (0.72–1.78s, median 1.45, n=296), so 3600ms
-  would have left ~1.8s since the response in the worst case — inside the
-  reject band — and would very likely have failed the brief's own gate. Caught
-  before the runs, from the brief's own data.
-- **The brief's §6 list is EMPTY, and the gap runs the other way.** ZERO of 17
-  modelled boons remain unoffered in room 1; session 52's own `AddMaxHealth`
-  capture closed the last wall-1 hole. That mechanism cannot recur until
-  something new is added to `BOON_MODELS`.
-- **§22 was FIVE aliases, not one pair.** Session 52 saw only the pair that
-  cleared the promotion threshold. `bounce(-2,0)==bounce(2,0)`,
-  `bounce(0,-2)==bounce(0,2)`, and all three of `bounce(2,-2)`/`bounce(-2,2)`/
-  `bounce(-2,-2)` `==bounce(2,2)`.
-- **`rejectionAudit`'s gap is measured at LOG-WRITE time, not dispatch.**
-  `liveRun.ts` writes `post` before calling the client and the limiter sleeps
-  inside it. Historically the sleep was ~0–0.2s so the bands are near the
-  dispatch truth; AFTER this session's fix they are not. Use `post → outcome`
-  to see pacing.
-- **The action token cannot be used as an absolute clock.** It is a ms epoch,
-  but `token_epoch − dispatch_ts` runs 0.70–2.68s (median 1.93) — larger than
-  the full round trip. The server clock is ~1.5–2s ahead of this machine. All
-  timing conclusions here are anchored on LOCAL response timestamps only.
+- **None this session** — no live response contradicted SPEC.md. The two
+  corrections below are to the BRIEF, not the spec.
+- **The brief's §4 was STALE: the default claim order was ALREADY descending**,
+  and has been since session 52 (`opts.order ?? "descending"` in
+  `ensureEnergyFor`, `claimOrderRaw ?? "descending"` in `liveRun.ts`). Sessions
+  52 and 53 ran ascending by passing `--claim-order=ascending` explicitly, and
+  the brief read those runs as the default. No code change was needed; the
+  change is to stop passing the flag. The WARN half was real and is built.
+- **The brief's §5 rooms-1–3 question expected a small leverage subset. It is
+  30 of 36**, led by TieWeak (11 offers of 135, room 1), AddBurnShield (8,
+  room 1), AddLifestealShield (5, room 1), Regen (4, room 1), VulnerableBlock
+  (4, room 1). That materially weakens "a boon offered once every forty runs
+  costs more than it returns" for the top of the list.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
-- Move charges: **PRESENT** — `currentCharges`/`maxCharges` on every move of
-  both combatants across both runs, including the new rooms 9 and 10.
+- Move charges: PRESENT — unchanged, no new capture this session.
 
 ## Dead ends
-- **Do not gate a de-aliasing change without a raw BEFORE arm.** Loading the
-  pre-dedup library through the new `resolvePatternsByName` collapses the
-  duplicate and turns the comparison into 3-vs-3, scoring ΔlogLoss exactly
-  0.0000 — a clean-looking "no change" that measured nothing. The gate needs
-  `--before-raw`.
-- **Do not re-run the numeric-token experiment §21 proposed.** It would change
-  a confirmed envelope to fix a problem that was never in the envelope, and it
-  costs a 60-energy entry. The logs answered it for free.
-- **`npx tsx -e` cannot resolve this project's relative imports.** Write a temp
-  file under `scripts/` instead.
-- Standing, unchanged: do not rebuild the expected-coverage focus objective
-  (50); do not tune focus spend quantity again (48, 49, 50); replay for
-  DIFFERENCES never absolutes (48); do not take the bare log-loss argmin on a
-  smoothing sweep (51); never pipe a live run to a truncating reader (52).
+- **Do not redact only `NOOB_TOKEN_CID`.** The first backfill did exactly that
+  and the same id remained fully readable in the same 2,725 files as the suffix
+  of an `EntityEquipment` docId, plus once more as the account doc's own
+  `docId`. Three shape-keyed rules are needed, and rule 2 must replace the
+  WHOLE docId — the leading instance id is also stable and account-scoped.
+- **Do not write real identifiers into a test as literal data.** The first
+  draft of `tests/api/redact.test.ts` used the real token and instance id,
+  re-committing the exact identifier the module removes. Caught by the recap's
+  secret scan, not by review. The rules are shape-keyed, so synthetic ids
+  exercise them identically.
+- **Do not phrase the potion invariant as "no `potionPolicy` without
+  `juicedStartRun`".** That is FALSE of a legitimate path:
+  `liveRun.ts --potions=N --resume-existing` deliberately builds one without
+  `--juiced`, because those consumables were committed server-side by whoever
+  started the run. The real invariant is about AUTO-DERIVING from the config
+  allowlist.
+- **Do not "fix" `dungeonBudgetSnapshot`'s `costPerAction` to 60 and keep the
+  arm.** Rule 11 needs per-run human approval, which an autonomous loop cannot
+  give at any cost figure.
+- Standing, unchanged: do not re-run the numeric-token experiment (§21); do not
+  gate a de-aliasing change without `--before-raw`; `npx tsx -e` cannot resolve
+  this project's relative imports; do not rebuild the expected-coverage focus
+  objective (50); do not tune focus spend quantity again (48, 49, 50); replay
+  for DIFFERENCES never absolutes (48); never pipe a live run to a truncating
+  reader (52).
 
 ## Metrics
-- **Live dungeon: 2 juiced Tier-3 runs, 120 energy, 0 clears.**
-  | run | death | score | loot (846) | juices | decisions | 1st-attempt rejections | rooms w/ no Safe |
-  |---|---|---|---|---|---|---|---|
-  | 1 | room 4 | 2976 | 84 | 3/3 | 6 | **0** | 2 of 3 |
-  | 2 | **room 10** | **8112** | **687** | 3/3 | 18 | **0** | 3 of 9 |
-- **§0c gate, pooled: 24 empty-token decisions, 0 rejected. Historical 66/66
-  (100%) over ten pre-fix logs.**
-- **Rejection audit, ten pre-fix logs:** empty-token rejected n=66 gap
-  0.90–1.54s (med 1.28); empty-token accepted n=66 gap 3.40–4.92s (med 4.07);
-  numeric n=224, 0 failures, 0.90–1.79s (med 1.36); `start_run` 4/4 accepted.
-  Zero overlap → threshold in (1.54, 3.40) s since the response.
-- **§4 replay gate, 88 clean traces, 292 paired turns, cluster bootstrap over
-  casts:** ΔlogLoss **−0.0017, 95% CI [−0.0063, +0.0033]**, caught 27 → 24.
-  INERT, shipped as a correctness fix to the prior, not a prediction gain.
-- **Mined library at 89 casts: 3 patterns** — perimeterWalk(cw) 4,
-  perimeterWalk(ccw) 4, bounce(2,0) 3 → **11 distinct supporting casts of 89,
-  π₀ ≈ 0.133 (unchanged)**; candidate mass on the oscillation hypothesis
-  2/4 → 1/3.
-- **ROM claims:** run 1, 4 claims ascending, snapshot 54, measured +54, drift 0.
-- **Guard: 240/240 energy, 12/12 runs — both caps exactly exhausted** for the
-  day ending 11:00 PT 2026-08-20.
-- **Live fishing this session: 0 casts** (cap was 20/20 for the same day).
-- Corpus: dungeon 53 → **55 attempts**; fishing unchanged at 89 traces.
-- Suite 806 → **862**.
+- **Live dungeon: 0 runs.** Rule 11 requires per-run approval and none was
+  given; the caps were exhausted anyway (240/240 energy, 12/12 run-units).
+- **Live fishing: 0 casts.** Cap 20/20 for the guard-day `2026-08-19`.
+- **Live reads only, zero energy spent this session:** `getMe`, `getEnergy`
+  (100→105/420 across the session, regen 18/hr), `getDungeonToday`,
+  `getFishingState`, and one `orchestrator.ts --dry-run`.
+- **Boon coverage: 17 modelled, 135 captured offers (49 in room 1). Modelled
+  but never offered in room 1: 0. Offered but unmodelled: 36, of which 30 are
+  first offered in rooms 1–3.**
+- **Redaction backfill: 3,239 tracked json/har/jsonl files scanned, 2,726
+  rewritten.** Raw token occurrences outside handoff prose: 2,730 → **0**.
+- Suite 862 → **886**. Corpus unchanged (dungeon 55 attempts, fishing 89
+  traces) — nothing was captured this session.
 
 ## Open questions for Claude
-1. **§23 — the −1 energy drift, 3/3 in the same direction.** The cheap
-   resolution needs no extra entry: read `GET /offchain/player/energy`
-   immediately before and after a juiced `start_run` with nothing else in
-   flight, and compare against the same pair around a PLAIN 20-energy run. If
-   plain drifts 0 and juiced drifts −1 it is the multiplier; if both drift −1
-   it is the read. Should the next run carry this?
-2. **§19 is finally unblocked and needs a fishing batch, not an argument.**
-   Session 51's decision rule stands; the library it runs against is now the
-   3-pattern de-aliased one recorded above. Record support counts at batch time.
-3. **Should the default claim order switch to descending now?** §3's blocker is
-   gone: `maxSnapshot` 315 < `headroom` 394 means no single claim can reach the
-   cap, so descending cannot trip the untested overflow comment by accident.
-   Ascending has now been exercised twice with drift 0.
-4. **Room 9 needs a Safe capture to become modellable.** Its only capture is a
-   forced Risky (tiers `[1,1,1]`). Worth targeting, or leave it unscorable?
-5. **36 boon types are offered but unmodelled.** Is any subset worth modelling
-   deliberately, or does this stay opportunistic? A known list now exists
-   (`scripts/boonCoverage.ts`).
-6. **Pre-existing, not introduced this session:** tracked fixtures redact
-   `PLAYER_CID` to `0xUSER` but keep `NOOB_TOKEN_CID` as its real value, on a
-   public repo, and have since session 08. Deliberate?
+1. **§19 needs a session that STARTS after 11:00 PT on an unspent day.** This
+   is now a scheduling constraint on the brief, not a research question, and it
+   has cost §19 four sessions. State it in the brief rather than letting the
+   session discover it at minute five.
+2. **Do the three handoff documents naming the account get redacted?** The
+   username is plausibly a public game handle, so this is the user's call about
+   linkability, same as the fixture question they just answered. Not decided
+   unilaterally.
+3. **The rooms-1–3 unmodelled subset is 30 of 36, not a handful.** Does
+   "opportunistic" still stand for the top five (TieWeak 11, AddBurnShield 8,
+   AddLifestealShield 5, Regen 4, VulnerableBlock 4 — all room 1)? Modelling
+   any needs a pickup PAIR, which is capture, not code.
+4. **Room 9 still needs a Safe capture** to become modellable — leave it, per
+   the session-54 brief's own reasoning (rule 8 means you cannot choose it).
+5. **§23 stays open until the armed probe fires.** Do not fix the drift before
+   the probe says whether the tight pair reads −59 or −60.
 
 ## Files changed
 ```
- 2 commits, 26 files changed, ~1340 insertions, ~90 deletions (+ 194 new fixtures)
+ 6 commits.  Code/docs: 19 files, +790 / −169.
+ Fixtures:   2,727 files, +5,511 / −5,451 (the redaction backfill).
 
-     QUESTIONS.md                               | 135  (§21/§22 resolutions, §23 new)
-     src/sim/fishing/patterns.ts                | 141  (§4 de-aliasing + resolver)
-     scripts/rejectionAudit.ts                  | 288  (§0d, new)
-     src/orchestrator/attemptTelemetry.ts       | 104  (§1, new)
-     scripts/liveRun.ts                         | 118  (§0c pacing, §1/§3 wiring)
-     src/api/client.ts                          |  75  (RequestPacing, response clock)
-     src/orchestrator/energyPreflight.ts        |  60  (§3 maxSnapshot/headroom)
-     SPEC.md                                    |  65  (§2 correction superseded)
-     tests/*                                    | 300+ (rejectionAudit, attemptTelemetry,
-                                                        patternDedup, client pacing,
-                                                        preflight headroom, corpus pins)
-     scripts/boonCoverage.ts                    | 100  (§6, new)
-     src/sim/enemies.ts                         |  47  (rooms 9, 10)
-     src/sim/boons.ts                           |  64  (12 offers, rooms 1-9)
-     CLAUDE.md                                  |  16  (rule 10)
+     scripts/orchestrator.ts                     | 235  (§1 dungeon arm closed)
+     tests/orchestrator/dungeonArmClosed.test.ts | 140  (§1, new)
+     src/api/redact.ts                           |  78  (new, extracted from 6 copies)
+     tests/api/redact.test.ts                    |  76  (new)
+     scripts/liveRun.ts                          |  71  (§3 probe, §4 wiring)
+     tests/liveRun.test.ts                       |  66  (§3)
+     scripts/boonCoverage.ts                     |  54  (§5 ranking)
+     QUESTIONS.md                                |  51  (§19 block, §23 armed)
+     src/orchestrator/energyPreflight.ts         |  46  (§4 overflowReachable)
+     tests/orchestrator/energyPreflight.test.ts  |  46  (§4)
+     tests/boons.test.ts                         |  43  (§5)
+     TASKS.md                                    |  20  (Task 4.5, the 5→4 note)
+     config/bot.json                             |   6  (§1 potions permanent)
+     scripts/{battleWatch,liveFishing,parseHar,probe,probeRomsPlayer,watch}.ts
+                                                 |  27  (route through redact.ts)
+     fixtures/README.md                          |  new
 ```
