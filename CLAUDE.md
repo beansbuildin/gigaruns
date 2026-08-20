@@ -106,6 +106,47 @@ question using a field that predates it, or say plainly that the logs cannot
 date this. The same trap applies to any before/after comparison that straddles
 a capture improvement.
 
+**11. Every live dungeon run is a 60-energy juiced Tier-3 entry, with 3 Big
+Heal Juices, and it stops for approval when it finishes.**
+User directive, 2026-08-20, standing until the user says otherwise. There is no
+such thing as a plain dungeon run any more. Four conditions, all of them:
+
+- **60 energy, juiced** — `--juiced` with `JUICED_COST_MULTIPLIER` 3 against
+  the 20-energy base. Charges 3 of the daily 12 run-units.
+- **`--juiced-index=3`**, the Tier-3 gold-rings offering. This is the ENTRY
+  tier only; rule 8 still governs every in-room decision, so
+  `pickLowestTier()` picks the lowest `enemyPathOptions` tier offered and
+  routinely takes tier 1 or 2 inside a Tier-3 entry. Do not "reconcile" these
+  — they are different choices about different things, and 5 of 12 rooms last
+  session offered no Safe tier at all.
+- **3x Big Heal Juice** (itemId 131), loaded from
+  `config/bot.json`'s `forbiddenWoods.potions`.
+- **One run, then stop and hand back.** Never chain. The user allocates skill
+  points between runs (rule: never allocate them yourself) and says when to
+  resume. `--runs=1`, every time.
+
+The daily ceiling follows from the existing budget and does not need
+re-deriving: 240 energy / 60 and 12 run-units / 3 both give **4 juiced runs per
+day**, resetting 11:00 Pacific. If those two numbers ever disagree, stop —
+something has been edited without the other.
+
+**The consequence that is easy to miss.** A rule requiring per-run human
+approval cannot be satisfied by an autonomous loop, so **`scripts/orchestrator.ts`
+does not start dungeon runs.** Its dungeon arm is disabled and fails closed with
+a pointer to `liveRun.ts --juiced`; its fishing arm is unaffected and still runs
+autonomously within budget. Anything that reintroduces a bot-initiated dungeon
+run without an explicit human go-ahead violates this rule, however well-gated it
+looks.
+
+This rule is also what makes the potions block safe to leave in
+`config/bot.json` permanently. Sessions 24, 42, 43 and 52 added it before a run
+and removed it after, and that convention was never bookkeeping — it was a latch
+standing in for a gate the orchestrator never had (`resolvePotionLoadout` checks
+`config.potions` and nothing else, despite a comment claiming it mirrors
+`main()`'s gate, which is two conditions). With the dungeon arm closed, the
+latch is redundant and the block stays put. **If the dungeon arm is ever
+reopened, the remove-after-use convention comes back with it.**
+
 ---
 
 ## Working style
@@ -154,8 +195,13 @@ transaction that would spend ETH, or anything in the "Ask first" list below.
 - Spend energy above the configured daily budget in `config/bot.json`.
 - Level up / allocate skill points (this is irreversible without Hourglasses).
 
-Reading, playing dungeon runs, playing fishing casts, and looting are all fine
-to do autonomously within the configured budget.
+- **Start any dungeon run.** [2026-08-20, rule 11] Every dungeon run is a
+  60-energy juiced entry and needs an explicit human go-ahead for that run.
+  Approval for one run is never approval for the next.
+
+Reading, playing fishing casts, and looting are all fine to do autonomously
+within the configured budget. Dungeon runs are not, and no longer were as of
+rule 11 — the earlier wording here said they were.
 
 ## Filesystem scope
 
