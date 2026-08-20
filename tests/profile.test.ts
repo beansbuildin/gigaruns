@@ -99,6 +99,31 @@ describe("resolveProfile — a named profile is fully separated", () => {
   });
 });
 
+describe("a named profile's state is gitignored", () => {
+  it("every root a named profile writes is ignored by git", async () => {
+    // The gap this closes: `data/` and `logs/` in .gitignore match at any
+    // depth, so profiles/<name>/data and .../logs were covered by accident —
+    // but profiles/<name>/fixtures and .../config were NOT, and a second
+    // account's captured game states would have been committed to a PUBLIC
+    // repo. Asserted against real `git check-ignore` rather than by reading
+    // .gitignore, because the pattern semantics are the thing being tested.
+    const { execSync } = await import("node:child_process");
+    const p = resolveProfile("someone-else");
+    for (const root of [p.dataRoot, p.logRoot, p.fixtureRoot, p.configRoot]) {
+      const probe = join(root, "anything.json");
+      const ignored = execSync(`git check-ignore -q ${JSON.stringify(probe)} && echo yes || echo no`, {
+        encoding: "utf8",
+      }).trim();
+      expect(ignored, `${probe} would be committed`).toBe("yes");
+    }
+  });
+
+  it("the DEFAULT profile's roots are ignored too — unchanged, but worth stating", () => {
+    expect(resolveProfile().dataRoot).toBe("data");
+    expect(resolveProfile().logRoot).toBe("logs");
+  });
+});
+
 describe("assertValidProfileName — rejects rather than sanitises", () => {
   it("accepts ordinary names", () => {
     for (const n of ["alice", "bob-2", "a_b", "X9"]) {

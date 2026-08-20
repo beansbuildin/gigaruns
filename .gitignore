@@ -7,6 +7,12 @@ dist/
 config/discovered.json
 data/
 logs/
+# [session 59] Everything a named --profile writes: another account's ledgers,
+# logs, captures and budgets. `data/` and `logs/` above already match at any
+# depth, but `profiles/<name>/fixtures/` and `.../config/` did not — a second
+# account's captured game states would have been committed to this public repo.
+# Pinned by tests/profile.test.ts.
+profiles/
 fixtures/**/*.har
 fixtures/**/*.harx
 # Raw dumps carry the real wallet address. The redacted copies one level up are
