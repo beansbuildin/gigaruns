@@ -1,4 +1,4 @@
-# STATE — session 52 — 2026-08-19 — commit <SHA>
+# SESSION 52 — 2026-08-19 — dungeon live: the energy claim, then two juiced runs
 
 ## Status
 Session-52 brief: **all six items delivered.** The two things this session
@@ -176,3 +176,182 @@ first attempt, and it is invisible unless you read the log by hand.**
      config/bot.json                            |   2  (potions re-added, removed)
      SPEC.md                                    |  +26 (§2 token correction)
 ```
+
+---
+
+# Appendix — full dumps
+
+## A1. The path-selection token rejection, verbatim
+
+Run 1, `logs/run-2026-08-20-00-30-48.jsonl`, rooms 1→2 boundary:
+
+```
+00:31:08.580 POST start_run      dungeonId=5 token='' idx=3
+00:31:10.007 RESP ok actionToken='1787185870449'
+00:31:11.138 POST rock           dungeonId=5 token=1787185870449 idx=0
+00:31:12.535 RESP ok actionToken='1787185873239'
+00:31:13.950 POST scissor        dungeonId=5 token=1787185873239 idx=0
+00:31:15.123 RESP ok actionToken='1787185876034'
+00:31:16.448 POST rock           dungeonId=5 token=1787185876034 idx=0
+00:31:17.774 RESP ok actionToken='1787185878470'
+00:31:18.995 POST reward_two     dungeonId=0 token='' idx=1
+00:31:20.241 FAIL "Invalid action token  != 1787185878470"
+00:31:21.773 POST reward_two     dungeonId=0 token='' idx=1     <- byte-identical
+00:31:23.304 RESP ok actionToken='1787185883981'
+00:31:24.656 POST path_one       dungeonId=0 token='' idx=0
+00:31:25.886 FAIL "Invalid action token  != 1787185883981"
+00:31:27.348 POST path_one       dungeonId=0 token='' idx=0     <- byte-identical
+00:31:28.846 RESP ok actionToken='1787185889016'
+```
+
+Full body: `{"success":false,"message":"Error tracking action","error":"Invalid
+action token  != 1787185878470","actionToken":""}`
+
+Pacing is identical between the classes that fail and the class that doesn't —
+1.13s after the previous response for `rock`, 1.22s for `reward_two`. So this
+is not "too fast". The retry lands 1.53s after the rejection, i.e. 4.0s after
+the token was issued — inside any plausible ~5s window. So it is not "the token
+went stale" either. The only difference between the succeeding and failing
+classes is which token the envelope carries.
+
+Rejection rates by run log (path-selection decisions = tier_choice + boon_choice):
+
+| run log | decisions | rejections |
+|---|---|---|
+| run-2026-08-18-19-50-13 | 12 | 0 |
+| run-2026-08-18-21-15-24 | 10 | 0 |
+| run-2026-08-18-22-00-26 | 10 | 0 |
+| run-2026-08-18-22-07-12 | 8 | 0 |
+| run-2026-08-20-00-30-48 (run 1) | 14 | **14** |
+| run-2026-08-20-00-45-19 + -00-46-46 (run 2) | 12 | **12** |
+
+## A2. The claim audit, both runs
+
+Run 1 (`event: claim_audit`):
+```json
+{ "measuredDelta": 69, "snapshotTotal": 69, "drift": 0,
+  "perRom": [ { "docId": "3777", "snapshot": 13, "postClaimCollectable": 0 },
+              { "docId": "7959", "snapshot": 26, "postClaimCollectable": 0 },
+              { "docId": "2114", "snapshot": 30, "postClaimCollectable": 0 } ] }
+```
+
+Run 2: one claim, `2097` snapshot 50, measured delta +50, drift 0, post-claim 0.
+
+Session 20's observed +1 accrual drift (romId 689 crediting +12 against a
+snapshot of 11) did **not** reproduce at either scale. Drift was exactly 0 on
+all four claims.
+
+The full ascending bank at run 1, for reference — this is the ordering the
+`order` option controls:
+```
+3777:13  7959:26  2114:30  7210:50  2097:50  3754:57  5345:67  689:67
+4586:75  2768:75  4720:78  4950:79  5996:79  8156:79  3196:79  2201:79
+2671:79  6541:79  2493:84  2696:85  741:92   2894:104 7246:120 7033:185
+6096:185 5446:185 4543:315
+```
+Descending would have claimed `4543` alone — one claim, 315 energy against a
+53-energy deficit, and the account's largest single accrual pointed at a code
+path that had never executed.
+
+## A3. §1b — the overflow test was NOT performed
+
+The brief made this discretionary and said to ask first. It was not needed for
+either run (headroom was 413 and 398; nothing came near the 420 cap) and it is
+the one action in the brief that can destroy value, so it was skipped rather
+than run without an answer. The claim that overflow past 420 is non-wasting
+still rests on two ~12-energy verification claims from sessions 21/22 and
+remains untested at magnitude.
+
+## A4. §4 — why the gate needed new machinery
+
+`src/sim/fishing/offPolicyReplay.ts:407` under `matcherTier: "loo"` called
+`promotedSupport(otherCasts)` — it re-mines the library from the held-out casts
+on every fold. It has never read `data/minedFishPatterns.json`. So:
+
+- The brief's ask ("pair the re-mined library against the current 2-pattern
+  library on the same 88 traces") had no arm to pair against.
+- More importantly: **every session-50 and session-51 replay figure involving
+  the matcher describes a LOO-mined library, not the one `liveFishing.ts`
+  loads.** That is a live-vs-replay divergence nobody had noticed, and it is
+  independent of whether the file was stale.
+
+`ReplayOptions.matcherLibrary` holds the patterns fixed (as live holds them
+fixed between re-mines) and re-derives only the PRIOR per fold via
+`supportingCastCount`, which already took an explicit library.
+`scripts/minedLibraryGate.ts` pairs two libraries per turn with a cluster
+bootstrap over casts.
+
+## A5. §4 — the alias proof
+
+```
+12944936  start (3,1) grid 4   bounce(2,0): (3,1) (1,1) (3,1) (1,1)   bounce(-2,0): identical
+12991310  start (3,2) grid 4   bounce(2,0): (3,2) (1,2) (3,2) (1,2)   bounce(-2,0): identical
+12992271  start (2,4) grid 4   bounce(2,0): (2,4) (4,4) (2,4) (4,4)   bounce(-2,0): identical
+```
+
+Mining output at 89 casts:
+```
+perimeterWalk(cw)   support=4  casts=[12923267,12925773,12942030,12945319]
+perimeterWalk(ccw)  support=4  casts=[12945306,12956727,12957096,12975736]
+bounce(2,0)         support=3  casts=[12944936,12991310,12992271]
+bounce(-2,0)        support=3  casts=[12944936,12991310,12992271]   <- same three
+```
+Union = 11 distinct casts of 89. `supportingCastCount` breaks on first match, so
+the prior (0.133) is correct despite the aliasing; only the candidate-set mass
+is affected.
+
+Sim cross-check from `mineFishPatterns.ts` (500 synthetic casts):
+matcher blind 34/500 = 6.8%; matcher with the 4-pattern library 148/500 = 29.6%.
+
+## A6. Corpus growth, both runs
+
+New in `OBSERVED_OFFERS` — 13 offers total, and the first room-7 offer this
+corpus has ever held:
+
+```
+run 1 (died room 8):
+  1: AddBlock(2) | AddMaxHealth(14) | AddTenacity(2)        <- Wall 1's fifth hole
+  2: AddBurnMagic(5) | UpgradeScissor(0,4) | AddLuck(1)
+  3: AddIntuition(1) | AddBurnShield(3) | VulnerableBlock(4)
+  4: UpgradeRock(4) | AddBlock(2) | UpgradePaper(0,8)
+  5: UpgradeRock(0,8) | BurningCrit(3) | AddBlock(2)
+  6: AddBlock(2) | AddTenacity(2) | AddLuck(5)
+  7: LossIntuitionUp(5) | AddLuck(1) | AddEvasion(1)        <- first-ever room 7
+run 2 (died room 7):
+  1: AddBurnSword(5) | UpgradeRock(8) | AddLuck(1)
+  2: AddEvasion(1) | TieVulnerable(1) | UpgradeRock(4)
+  3: UpgradeScissor(0,6) | UpgradePaper(4) | TieWeak(1)
+  4: AddLuck(1) | UpgradeRock(4) | TieWeak(1)
+  5: Thorns(5) | AddTenacity(2) | AddEvasion(1)
+  6: WeakeningTenacity(4) | UpgradeRock(12) | AddMaxHealth(24)   <- largest roll yet
+```
+
+New unmodelled types (no before/after pair, failing closed per SPEC §4d):
+`AddBurnMagic`, `VulnerableBlock`, `BurningCrit`, `LossIntuitionUp`, `Thorns`,
+`WeakeningTenacity`.
+
+New in `ROOM_ENEMIES` — room 8, Safe tier, first-ever:
+```
+Enemy Room 70: hp 52/52, armor 20/20,
+  rock 22/4, paper 12/12, scissor 18/4, rolled all zero, enemyBuff null
+```
+Opening state only — the run entered room 8 at 11/54 HP and died on the first
+exchange. No post-exchange sample and no Risky/Dangerous capture for room 8.
+
+New loadout: `54/17` = the 40/17 starting loadout + run 1's room-1
+`AddMaxHealth(14)`. Starting loadout itself unchanged at 40/17.
+
+## A7. My error, in full
+
+I invoked run 2 as `npx tsx scripts/liveRun.ts ... 2>&1 | head -30`. Once the
+process wrote past `head`'s buffer, SIGPIPE killed it — mid-battle in room 2,
+with the 60-energy `start_run` already committed and 3 heal juices loaded.
+
+Recovery: the run was still active server-side. `--resume-existing --potions=3
+--potions-used=0 --runs=1` picked it up and played it to death in room 7. All 3
+juices were used by the resumed process, so nothing was lost but the
+interruption. The guard ledger accounted correctly throughout (`energy spent
+120, runs 6`), because the commit happened at `start_run`, not at completion.
+
+Rule going forward: redirect a live run to a file and read the file. Never pipe
+it to `head`, `grep -m`, or anything else that closes the pipe early.

@@ -246,6 +246,32 @@ at all** — the real client sends `actionToken: ""` (empty string) for these,
 confirmed live for both `reward_one` and `path_two`. See "Dungeon action
 envelope" above.
 
+> **[CORRECTION, session 52, LIVE 2026-08-19] The empty string is now REJECTED
+> on first attempt, deterministically.** Every `reward_*`/`path_*` POST across
+> two juiced runs — **26 of 26** — came back
+> `HTTP 500 {"success":false,"message":"Error tracking action","error":"Invalid
+> action token  != <the outstanding numeric token>","actionToken":""}`, and the
+> **byte-identical retry ~1.5s later succeeded every time**. Combat moves,
+> which send the numeric token, succeeded first time in every case.
+>
+> Note the doubled space in `token  != N`: the server is comparing our empty
+> string against the numeric token the previous response issued. The first
+> blank POST appears to clear/consume that outstanding token; the second then
+> passes.
+>
+> **This is a server-side change, not a regression here.** The four run logs
+> from 2026-08-18 contain 40 path-selection decisions and **zero** such
+> rejections, and no envelope code changed in between (sessions 44-51 were
+> fishing-only). The retry loop absorbs it, so runs still complete — but it
+> costs a wasted request per decision and eats into
+> `maxConsecutiveActionFailures` (3), which a reward→path boundary already
+> consumes 2 of.
+>
+> The envelope is deliberately NOT changed on this evidence: it is a
+> DevTools-confirmed shape and CLAUDE.md §2 forbids guessing at a replacement.
+> The cheap resolution is a fresh DevTools capture of the browser making a
+> reward pick — a user action costing no energy. See QUESTIONS.md §21.
+
 Model this as a single owned mutable in the client with a mutex — concurrent
 actions against one account will corrupt the token sequence. **One in-flight
 action at a time, always.**
