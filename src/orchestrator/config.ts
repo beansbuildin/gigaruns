@@ -39,6 +39,17 @@ const BotJsonSchema = z.object({
         rooms: z.array(z.number().int().positive()).nonempty().optional(),
       })
       .optional(),
+    // [session 56] The user's boon directive (`src/strategy/boonPriority.ts`).
+    // NOT a gate — unlike `boonCapture` above, the directive is ON in live
+    // play whether or not this block exists, because it is the user's
+    // instruction about how to play rather than a measurement that costs run
+    // quality. This block only lets the one number in it be read without a
+    // code change. Absent means the shipped default (rooms 1..8).
+    boonPriority: z
+      .object({
+        earlyGameMaxRoom: z.number().int().positive(),
+      })
+      .optional(),
   }),
   dendren: z
     .object({
@@ -89,6 +100,12 @@ export interface BotConfig {
    * `boonCapture.ts`'s measured defaults when omitted.
    */
   boonCapture?: { enabled: boolean; targets?: string[]; rooms?: number[] };
+  /**
+   * [session 56] The lifesteal demotion window. Absent means
+   * `boonPriority.ts`'s shipped `EARLY_GAME_MAX_ROOM` (8, user-confirmed).
+   * Not a gate — see the schema comment.
+   */
+  boonPriority?: { earlyGameMaxRoom: number };
   dendren?: {
     nodeId: string;
     tierId: number;
@@ -153,6 +170,7 @@ export function loadBotConfig(
     maxConsecutiveActionFailures: bot.guards.maxConsecutiveActionFailures,
     potions: bot.forbiddenWoods.potions,
     boonCapture: bot.forbiddenWoods.boonCapture,
+    boonPriority: bot.forbiddenWoods.boonPriority,
     dendren,
   };
 }

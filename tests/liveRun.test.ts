@@ -1866,6 +1866,125 @@ describe("parseArgs — --juiced / --juiced-index (session 42, Task 14)", () => 
   });
 });
 
+describe("runOnce — boon-priority directive (session 56, brief §2)", () => {
+  let fixtureRoot: string;
+
+  beforeEach(() => {
+    fixtureRoot = mkdtempSync(join(tmpdir(), "gigaruns-liverun-boonpriority-test-"));
+  });
+  afterEach(() => {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  });
+
+  const boon = (type: string, val1: number, val2 = 0): WireBoon => ({
+    boonTypeString: type,
+    selectedVal1: val1,
+    selectedVal2: val2,
+  });
+
+  /**
+   * A room-1 offer pitting a Heal the player badly needs (10/30 HP — the
+   * largest bonus the ranker has) against `VulnerableBlock`, an UNMODELLED
+   * priority-5 type that scores 10, the floor. The ranker takes Heal; the
+   * directive takes VulnerableBlock. That contrast is the whole assertion, and
+   * it is also the by-product-capture claim in miniature: the directive
+   * reaches a boon the scorer provably never could.
+   */
+  function priorityScenario(boonPriority: LiveRunDeps["boonPriority"]) {
+    const offering = fakeRun({
+      DUNGEON_ID_CID: 7,
+      rewardPathPhase: true,
+      rewardPathOptions: [
+        { index: 0, boon: boon("Heal", 8) },
+        { index: 1, boon: boon("VulnerableBlock", 2) },
+      ],
+      players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63", 30, 30)],
+    });
+    const posts: unknown[] = [];
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        if ((init?.method ?? "GET") === "GET") {
+          getCount++;
+          if (getCount <= 2) {
+            return { status: 200, body: { success: true, actionToken: 1, data: { run: offering, entity: { ROOM_NUM_CID: 1 } } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        }
+        posts.push(JSON.parse(String(init?.body ?? "{}")));
+        return { status: 200, body: { success: true, actionToken: 2, data: { run: fakeRun({ DUNGEON_ID_CID: 7 }) } } };
+      }),
+    );
+    const deps: LiveRunDeps = {
+      ...makeDeps(false),
+      fixtures: new FixtureWriter("0xTestAddress", (t) => t, fixtureRoot),
+      boonPriority,
+    };
+    return { deps, posts };
+  }
+
+  it("is ON by default and takes the directive's pick over the ranker's", async () => {
+    // `undefined` — i.e. an ordinary caller that says nothing about it.
+    const { deps, posts } = priorityScenario(undefined);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect(posts).toHaveLength(1);
+    // position 1 — VulnerableBlock, not the Heal at 0.
+    expect((posts[0] as { action: string }).action).toBe("reward_two");
+  });
+
+  it("passing null restores the unmodified rankBoons path", async () => {
+    const { deps, posts } = priorityScenario(null);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect(posts).toHaveLength(1);
+    // Heal, which the ranker takes at 10/30 HP.
+    expect((posts[0] as { action: string }).action).toBe("reward_one");
+  });
+
+  it("honours a moved early-game window", async () => {
+    // Room 1 with the window shut: `AddLifestealSword` is an ordinary
+    // priority-4 sword boon and outranks the priority-5 Vulnerable option.
+    const offering = fakeRun({
+      DUNGEON_ID_CID: 7,
+      rewardPathPhase: true,
+      rewardPathOptions: [
+        { index: 0, boon: boon("VulnerableBlock", 2) },
+        { index: 1, boon: boon("AddLifestealSword", 2) },
+      ],
+      players: [fakeSide("player", 30, 30), fakeSide("Enemy Room 63", 30, 30)],
+    });
+    const posts: unknown[] = [];
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        if ((init?.method ?? "GET") === "GET") {
+          getCount++;
+          if (getCount <= 2) {
+            return { status: 200, body: { success: true, actionToken: 1, data: { run: offering, entity: { ROOM_NUM_CID: 1 } } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        }
+        posts.push(JSON.parse(String(init?.body ?? "{}")));
+        return { status: 200, body: { success: true, actionToken: 2, data: { run: fakeRun({ DUNGEON_ID_CID: 7 }) } } };
+      }),
+    );
+    const deps: LiveRunDeps = {
+      ...makeDeps(false),
+      fixtures: new FixtureWriter("0xTestAddress", (t) => t, fixtureRoot),
+      boonPriority: { earlyGameMaxRoom: 0 },
+    };
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect((posts[0] as { action: string }).action).toBe("reward_two");
+  });
+});
+
 describe("parseArgs — --boon-capture (session 55, brief §3)", () => {
   it("defaults to false", () => {
     expect(parseArgs([]).boonCaptureFlag).toBe(false);

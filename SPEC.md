@@ -864,6 +864,51 @@ because of `dropMultiplier`, not despite it; Dendren Root doesn't respond to
 
 ---
 
+### 3g. Move names — the Rosetta stone **[CONFIRMED, user-stated 2026-08-20]**
+
+**Rock = Sword. Paper = Shield. Scissor = Spell.**
+
+The API's *action* names are `rock` / `paper` / `scissor`. The game's
+human-facing names for the same three moves are Sword / Shield / Spell. They
+are one set of three things under two vocabularies, and nothing in the wire
+format says so — which is why this sat unwritten for 55 sessions while both
+vocabularies were in daily use in this repo.
+
+The split runs straight through the boon table, because **boon type strings use
+a THIRD label for the scissor arm: `Magic`, not Spell.** So the full mapping a
+reader needs is:
+
+| action (`rock`/`paper`/`scissor`) | human name | boon-type suffix |
+|---|---|---|
+| `rock`    | Sword  | `Sword`  |
+| `paper`   | Shield | `Shield` |
+| `scissor` | Spell  | `Magic`  |
+
+Read that way, boon families become mechanically identifiable rather than
+guessable:
+
+- `AddBurnSword`, `AddWeakSword`, `AddVulnerableSword`, `AddLifestealSword`,
+  `CorrosiveSword` and `UpgradeRock` are all **Sword (rock)** boons. This is
+  what makes the user's "anything on sword win" a *family matched on a suffix*
+  rather than a hand-listed set — see `src/strategy/boonPriority.ts`.
+- `CorrosiveShield`, `AddBurnShield`, `AddLifestealShield`, `AddWeakShield`,
+  `AddVulnerableShield` and `UpgradePaper` are **Shield (paper)** boons.
+- `CorrosiveMagic`, `AddLifestealMagic`, `AddWeakMagic`, `AddVulnerableMagic`,
+  `AddBurnMagic` and `UpgradeScissor` are **Spell (scissor)** boons.
+
+The same three-way split appears on `enemyBuff.effects[].moveType`, which uses
+the *action* vocabulary (`rock`/`paper`/`scissor`) while its own `description`
+string uses the *human* one ("Applies 1 Weak on Sword wins" for
+`moveType: "rock"`). That correspondence is a live cross-check on this table
+and it holds on all 46 buff ids in the corpus — see §3h.
+
+Note this does NOT relax DECISIONS 2026-08-15's rule against inferring a boon's
+EFFECT from its name. It fixes which MOVE a name refers to, which is a
+vocabulary fact the user has stated. What the boon does to that move still
+needs a pickup pair.
+
+---
+
 ## 4. Dungeon strategy
 
 ### The core mistake to avoid

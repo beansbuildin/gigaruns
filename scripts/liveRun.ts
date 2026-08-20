@@ -86,6 +86,12 @@ import {
   DEFAULT_CAPTURE_TARGETS,
   type BoonCaptureConfig,
 } from "../src/strategy/boonCapture.js";
+import {
+  choosePriorityBoon,
+  DEFAULT_BOON_PRIORITY,
+  lifestealSightings,
+  type BoonPriorityConfig,
+} from "../src/strategy/boonPriority.js";
 import { shouldUsePotion, DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
 import { createShutdownSignal, installProcessSigintHandler, type ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { redactNoobToken } from "../src/api/redact.js";
@@ -616,6 +622,23 @@ export interface LiveRunDeps {
     config: BoonCaptureConfig;
     captures: Array<{ type: string; room: number; beforeTag: string; afterTag: string }>;
   };
+  /**
+   * [session 56] The user's boon-selection directive as a total order above
+   * the scorer — `src/strategy/boonPriority.ts`.
+   *
+   * **Unlike `boonCapture`, this is ON by default in live play and needs no
+   * gate.** The two are not comparable: `boonCapture` knowingly costs run
+   * quality to buy a measurement, which is why it needs two conditions before
+   * it may fire. This is the user's own instruction about how they want their
+   * account played, it spends nothing, and it is reversible by editing a list.
+   * A gate here would only mean the directive silently not applying on the run
+   * the user asked for it on.
+   *
+   * `undefined` resolves to `DEFAULT_BOON_PRIORITY` (the shipped rooms-1..8
+   * window). Pass `null` to run the unmodified `rankBoons` path — the sim's
+   * default arm, and what a test measuring the old behaviour wants.
+   */
+  boonPriority?: BoonPriorityConfig | null;
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -1238,6 +1261,21 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         roomNum,
         { playCounts },
       );
+      // [session 56, brief §2] The user's directive, layered ABOVE the scorer
+      // rather than weighted into it: most of what the directive names is
+      // unmodelled, and `rankBoons` has no model to weight (see
+      // boonPriority.ts's header). `null` means the offer held nothing on the
+      // list and the ranked pick stands unchanged.
+      const priorityConfig = deps.boonPriority === null ? null : (deps.boonPriority ?? DEFAULT_BOON_PRIORITY);
+      const priority = priorityConfig
+        ? choosePriorityBoon({
+            player,
+            offered: mapped.map((m) => m.option),
+            room: roomNum,
+            config: priorityConfig,
+            rankOptions: { playCounts },
+          })
+        : null;
       // [session 55, brief §3] The capture override, if one is armed and this
       // offer holds an unmodelled target. `null` on every ordinary run and on
       // ~82% of room-1 offers even when armed — see boonCapture.ts's measured
@@ -1253,13 +1291,29 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
             isModelled: (type) => Boolean(BOON_MODELS[type]),
           })
         : null;
-      const chosenOption = capture ? capture.option : rankedOption;
+      // Precedence: capture > priority > ranked. `boonCapture` is OFF by
+      // default and requires an explicit `--boon-capture`, so arming it IS the
+      // choice to pay run quality for a measurement on that run; it therefore
+      // wins. The overlap between the two layers is small and MEASURED — 1 of
+      // boonCapture's 5 targets (`VulnerableBlock`) is a priority family
+      // member — which is why both layers exist rather than one replacing the
+      // other. See boonPriority.ts's precedence section.
+      const chosenOption = capture ? capture.option : (priority ? priority.option : rankedOption);
       const chosenEntry = mapped.find((m) => m.option === chosenOption)!;
       const chosenIndex = chosenEntry.wireIndex;
       if (capture) {
         console.log(
           `  ▸ reward: BOON-CAPTURE override — taking "${chosenOption.type}" (index ${chosenIndex}) ` +
             `instead of ranked "${rankedOption.type}". ${capture.reason}`,
+        );
+      } else if (priority) {
+        const note =
+          priority.option.type === rankedOption.type
+            ? "(the ranker agreed)"
+            : `instead of ranked "${rankedOption.type}"`;
+        console.log(
+          `  ▸ reward: BOON-PRIORITY ${priority.priority} (${priority.label}) — taking ` +
+            `"${chosenOption.type}" (index ${chosenIndex}) ${note}.`,
         );
       } else {
         console.log(`  ▸ reward: picking "${chosenOption.type}" (index ${chosenIndex})`);
@@ -1270,7 +1324,42 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         chosenIndex,
         options,
         ...(capture ? { capture: { overrodeRanked: rankedOption.type, reason: capture.reason } } : {}),
+        ...(priority
+          ? {
+              priority: {
+                rank: priority.priority,
+                label: priority.label,
+                overrodeRanked: priority.option.type === rankedOption.type ? null : rankedOption.type,
+                reason: priority.reason,
+              },
+            }
+          : {}),
       });
+      // A directive whose whole point is "take it if you ever see it" deserves
+      // a record of every time it was seen — BurnMastery appears once in the
+      // entire 135-offer corpus, so this line firing at all is news.
+      if (priority?.burnMastery) {
+        log.write({ event: "boon_priority_burnmastery", room: roomNum, chosen: chosenOption, options });
+        console.log(`  ▸ BurnMastery was on offer at room ${roomNum} and was taken (priority 1).`);
+      }
+      // The `AddLifestealSword` edge — logged whether the demotion applied or
+      // not, so the room-8 boundary has a record either way. Computed from the
+      // OFFER, not from `priority.conflictedTypes`, because the interesting
+      // case includes the one where no priority match fired at all (an offer
+      // of lifesteal plus two unlisted types returns null, and a sighting
+      // recorded only on the matched path would silently miss it).
+      const sightings = priorityConfig
+        ? lifestealSightings(mapped.map((m) => m.option), roomNum, priorityConfig)
+        : [];
+      if (sightings.length > 0) {
+        log.write({
+          event: "boon_priority_conflict",
+          room: roomNum,
+          earlyGameMaxRoom: priorityConfig?.earlyGameMaxRoom ?? null,
+          sightings,
+          chosen: chosenOption,
+        });
+      }
 
       if (dryRun) {
         console.log(`  [dry-run] would POST ${selectRewardByIndex(chosenIndex)} (index ${chosenIndex})`);
@@ -1675,6 +1764,18 @@ async function main() {
   // this override does is announced here and again in the run summary,
   // because a deliberately suboptimal pick that happens silently is
   // indistinguishable from a bug.
+  // [session 56] The directive's one knob. No gate — see boonPriority.ts and
+  // config/bot.json's `_boonPriorityComment` for why this differs from the
+  // two-condition boon-capture gate right below it.
+  const boonPriority: BoonPriorityConfig = {
+    ...DEFAULT_BOON_PRIORITY,
+    ...(config.boonPriority ?? {}),
+  };
+  console.log(
+    `  · boon-priority: ON (user directive 2026-08-20) — BurnMastery > AddMaxArmor > AddMaxHealth > ` +
+      `Sword family > Vulnerable family; lifesteal demoted in rooms 1..${boonPriority.earlyGameMaxRoom}.`,
+  );
+
   const captureCfg = config.boonCapture;
   let boonCapture: LiveRunDeps["boonCapture"];
   if (args.boonCaptureFlag && !captureCfg?.enabled) {
@@ -1861,6 +1962,7 @@ async function main() {
                 : undefined,
           juicedStartRun: args.juiced ? { index: args.juicedIndex! } : undefined,
           boonCapture,
+          boonPriority,
           // [session 54, brief §3] QUESTIONS.md §23 — two GETs, zero energy,
           // armed on every real run. Skipped on a dry run, which never POSTs
           // start_run and so has nothing to bracket.

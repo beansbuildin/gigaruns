@@ -22,6 +22,11 @@ import { MOVES, type BattleState, type Combatant, type MoveKey } from "../sim/ty
 import { DEFAULT_CONFIG, type StrategyConfig } from "./config.js";
 import { decide, type Decision } from "./decide.js";
 import { pickBoon as rankAndPick } from "./loot.js";
+import {
+  DEFAULT_BOON_PRIORITY,
+  pickBoonWithPriority,
+  type BoonPriorityConfig,
+} from "./boonPriority.js";
 import { OpponentModel } from "./opponentModel.js";
 
 export interface StrategyPolicyOptions {
@@ -35,6 +40,16 @@ export interface StrategyPolicyOptions {
    */
   learn?: boolean;
   name?: string;
+  /**
+   * [session 56] The user's boon directive (`boonPriority.ts`) layered above
+   * the scorer. **Off by default HERE and on by default in live play**, which
+   * is deliberate and not an inconsistency: the sim is a measurement
+   * instrument, so its default arm must stay the unmodified EV path that every
+   * historical number in this repo was produced against. `scripts/sim.ts
+   * --boon-priority` runs the other arm, and `--boon-priority-headtohead`
+   * runs both. Live play follows the directive; see `scripts/liveRun.ts`.
+   */
+  boonPriority?: BoonPriorityConfig | null;
 }
 
 export interface StrategyPolicy extends Policy {
@@ -51,6 +66,11 @@ export function strategyPolicy(opts: StrategyPolicyOptions = {}): StrategyPolicy
   const model = opts.model ?? new OpponentModel();
   const learn = opts.learn ?? true;
   const playCounts: Record<MoveKey, number> = { rock: 0, paper: 0, scissor: 0 };
+  // `undefined` means "not asked for" and resolves to off; an explicit config
+  // turns the layer on. `null` is accepted as an explicit off so a caller can
+  // pass a computed value without a conditional.
+  const boonPriority: BoonPriorityConfig | null =
+    opts.boonPriority === undefined || opts.boonPriority === null ? null : { ...DEFAULT_BOON_PRIORITY, ...opts.boonPriority };
 
   // The enemy's previous move IN THE CURRENT BATTLE. Reset at every battle
   // start: a fresh entity's first move has no predecessor, and carrying one
@@ -91,6 +111,7 @@ export function strategyPolicy(opts: StrategyPolicyOptions = {}): StrategyPolicy
     pickBoon(player: Combatant, offered: BoonOption[], room: number, _rng: Rng): BoonOption {
       // `roomsRemaining` defaults to the real dungeon's 16 rooms, not the
       // shorter stretch the sim can play — the ranking is about the game.
+      if (boonPriority) return pickBoonWithPriority(player, offered, room, boonPriority, { playCounts });
       return rankAndPick(player, offered, room, { playCounts });
     },
   };
