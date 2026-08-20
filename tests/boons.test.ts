@@ -199,6 +199,7 @@ describe("fail-closed on unmodelled types", () => {
       "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
       "Regen",
       "SecondWind", // session 16: first sighting, live room-3 offer, not picked
+      "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
       "TieDamageReduction",
       "TieVulnerable", // session 12: first sighting, live room-3 offer, not picked
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
@@ -207,6 +208,7 @@ describe("fail-closed on unmodelled types", () => {
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
       "WeakeningCrit", // session 25: first sighting, live room-3 offer (Task 10 gate run), not picked
       "WeakeningMastery", // session 08: same offer, not picked
+      "WeakeningTenacity", // session 52: first sighting, live room-6 offer (juiced run 2), not picked
     ]);
   });
 });
@@ -295,9 +297,10 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // clean-or-not types), so the retroactive UpgradePaper effect above is
     // the only thing moving the clean set.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    // [session 52] +3: this session's single run contributed one room-1 offer
-    // of three options (AddBlock / AddMaxHealth(14) / AddTenacity).
-    expect(roomOne.length).toBe(138);
+    // [session 52] +6: this session's TWO juiced runs contributed one room-1
+    // offer each (AddBlock / AddMaxHealth(14) / AddTenacity, and
+    // AddBurnSword / UpgradeRock(8) / AddLuck).
+    expect(roomOne.length).toBe(141);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -326,6 +329,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
+      "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",

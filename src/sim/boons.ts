@@ -1189,6 +1189,43 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-20-00-30-50/state-095",
     options: [opt("LossIntuitionUp", 5), opt("AddLuck", 1), opt("AddEvasion", 1)],
   },
+  // [session 52] Six more offers from the SECOND juiced Tier-3 run of the
+  // session (started after the user's manual level-up; died room 7). Four
+  // more unmodelled types with no pair — `TieVulnerable`, `TieWeak`,
+  // `Thorns`, `WeakeningTenacity` — which stay unmodelled per SPEC §4d.
+  // Note room 6's `AddMaxHealth(24)`: 24 is now the largest max-HP roll in
+  // the corpus, beating the 14 seen at room 1 eight hours earlier. Both were
+  // offered; the room-1 one was taken.
+  {
+    room: 1,
+    source: "run-2026-08-20-00-45-21/state-005",
+    options: [opt("AddBurnSword", 5), opt("UpgradeRock", 8), opt("AddLuck", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-00-46-48/state-016",
+    options: [opt("AddEvasion", 1), opt("TieVulnerable", 1), opt("UpgradeRock", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-00-46-48/state-042",
+    options: [opt("UpgradeScissor", 0, 6), opt("UpgradePaper", 4), opt("TieWeak", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-20-00-46-48/state-052",
+    options: [opt("AddLuck", 1), opt("UpgradeRock", 4), opt("TieWeak", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-20-00-46-48/state-070",
+    options: [opt("Thorns", 5), opt("AddTenacity", 2), opt("AddEvasion", 1)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-20-00-46-48/state-086",
+    options: [opt("WeakeningTenacity", 4), opt("UpgradeRock", 12), opt("AddMaxHealth", 24)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>
