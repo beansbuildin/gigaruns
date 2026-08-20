@@ -99,6 +99,24 @@ export interface EnergyPreflightResult {
   maxSnapshot: number | null;
   /** [session 53, brief §3] `maxEnergy - poolBefore` — how much the pool can absorb before capping. Null when the cap is unknown. */
   headroom: number | null;
+  /**
+   * [session 54, brief §4] `maxSnapshot >= headroom` — is the untested
+   * "overflow past the cap is non-wasting" path reachable at all right now?
+   * Null when either input is unknown (the bank was never read, or the cap is
+   * not reported).
+   *
+   * This is the condition that makes DESCENDING safe as the default claim
+   * order: descending claims the largest ROM first, so if the largest ROM
+   * cannot reach the cap, nothing this function does can. Measured false on
+   * both session-53 live runs (315 < 394).
+   *
+   * Derived rather than left to each call site to recompute — session 51's
+   * `serverErrorDetail` lesson is that a rule applied in one place and not
+   * its sibling is this repo's most recurrent defect shape. It is computed
+   * on EVERY return path, including the two that claim nothing, so "we did
+   * not claim" never silently means "we did not check".
+   */
+  overflowReachable: boolean | null;
 }
 
 /** [session 52 §1a] Which end of the bank `ensureEnergyFor` claims from. */
@@ -187,6 +205,8 @@ export async function ensureEnergyFor(
   // rather than a guessed 420.
   const maxEnergy = deps.getMaxEnergy?.() ?? null;
   const headroom = maxEnergy === null ? null : maxEnergy - poolBefore;
+  /** Null until the bank is read — with no bank there is no largest ROM to compare. */
+  const overflowReachableFor = (max: number | null): boolean | null => (max === null || headroom === null ? null : max >= headroom);
   if (poolBefore >= requiredEnergy) {
     log(`  ▸ energy preflight: pool ${poolBefore} covers the planned ${requiredEnergy} — no ROM claim needed.`);
     return {
@@ -202,6 +222,7 @@ export async function ensureEnergyFor(
       claims: [],
       maxSnapshot: null,
       headroom,
+      overflowReachable: overflowReachableFor(null),
     };
   }
 
@@ -216,12 +237,23 @@ export async function ensureEnergyFor(
   const bankTotal = claimable.reduce((s, r) => s + r.energyCollectable, 0);
   const maxSnapshot = claimable.reduce((m, r) => Math.max(m, r.energyCollectable), 0);
   if (headroom !== null) {
-    log(
-      `  ▸ cap headroom: largest single ROM snapshot ${maxSnapshot}, pool headroom ${headroom} ` +
-        (maxSnapshot < headroom
-          ? `— no single claim can reach the cap (overflow unreachable from this path).`
-          : `— ⚠ a single claim CAN reach the cap; the "overflow is non-wasting" comment is reachable and still untested.`),
-    );
+    log(`  ▸ cap headroom: largest single ROM snapshot ${maxSnapshot}, pool headroom ${headroom}.`);
+    // [session 54, brief §4] The condition that makes a decision safe should
+    // announce when it stops holding — the same reasoning as session 53's
+    // first-attempt telemetry. `descending` became the default claim order
+    // BECAUSE `maxSnapshot < headroom` held on every measured run; if the
+    // bank ever grows a ROM larger than the headroom, that default silently
+    // starts being able to reach the untested overflow path, and it should
+    // say so out loud rather than becoming reachable again in silence.
+    if (overflowReachableFor(maxSnapshot)) {
+      log(
+        `  ⚠ WARN overflow reachable: the largest single ROM (${maxSnapshot}) is >= the pool headroom (${headroom}), ` +
+          `so one claim can now reach the energy cap. The "overflow past the cap is non-wasting" path is UNTESTED — ` +
+          `this is the condition that made "descending" safe as the default claim order, and it no longer holds.`,
+      );
+    } else {
+      log(`    no single claim can reach the cap — overflow unreachable from this path.`);
+    }
   }
   log(
     `  ▸ ROM bank: ${bank.length} ROMs, ${claimable.length} with energyCollectable > 0, ${bankTotal} energy claimable` +
@@ -268,6 +300,7 @@ export async function ensureEnergyFor(
       claims: [],
       maxSnapshot,
       headroom,
+      overflowReachable: overflowReachableFor(maxSnapshot),
     };
   }
 
@@ -345,6 +378,7 @@ export async function ensureEnergyFor(
     claims,
     maxSnapshot,
     headroom,
+    overflowReachable: overflowReachableFor(maxSnapshot),
   };
 }
 

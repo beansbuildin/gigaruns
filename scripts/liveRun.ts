@@ -1566,6 +1566,14 @@ async function main() {
       },
     );
     log.write({ event: "energy_preflight", dryRun: args.dryRun, ...preflight });
+    // [session 54, brief §4] `claim_audit` only fires when something was
+    // claimed, so the overflow condition was invisible on every run whose
+    // pool already covered the batch — which is most of them. The WARN
+    // itself is emitted by `ensureEnergyFor`; this makes it greppable in the
+    // run log independently of whether a claim happened.
+    if (preflight.overflowReachable === true) {
+      log.write({ event: "overflow_reachable", maxSnapshot: preflight.maxSnapshot, headroom: preflight.headroom });
+    }
     // [session 52 §1c] The claim path's whole value is that it is now
     // measurable. A snapshot is a read-time estimate; `poolAfter - poolBefore`
     // is the measured truth, and the gap between them is the signal. Small
@@ -1610,8 +1618,9 @@ async function main() {
         // so switching the default to descending cannot trip it by accident.
         maxSnapshot: preflight.maxSnapshot,
         headroom: preflight.headroom,
-        overflowReachable:
-          preflight.maxSnapshot !== null && preflight.headroom !== null ? preflight.maxSnapshot >= preflight.headroom : null,
+        // [session 54, brief §4] Read off the preflight result rather than
+        // recomputed here — see `EnsureEnergyResult.overflowReachable`.
+        overflowReachable: preflight.overflowReachable,
         perRom: preflight.claims.map((c) => ({ ...c, postClaimCollectable: post.get(c.docId) ?? null })),
       });
     }

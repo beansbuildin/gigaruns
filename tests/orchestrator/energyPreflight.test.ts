@@ -308,6 +308,52 @@ describe("cap headroom reporting (session 53 §3)", () => {
     expect(res.headroom).toBe(120); // still knowable — the pool was read
   });
 
+  it("derives overflowReachable on every path, including the ones that claim nothing", async () => {
+    // Bank read, cannot reach the cap.
+    const safe = await ensureEnergyFor(120, fakeAccount(20, [{ docId: "a", energyCollectable: 120 }]).deps, { sleep: noSleep } as never);
+    expect(safe.overflowReachable).toBe(false);
+
+    // Bank read (read-only, nothing claimed), CAN reach the cap.
+    const hot = await ensureEnergyFor(600, fakeAccount(400, [{ docId: "big", energyCollectable: 300 }]).deps, { readOnly: true } as never);
+    expect(hot.overflowReachable).toBe(true);
+
+    // Pool already sufficient — the bank was never read, so the question is
+    // unanswered rather than answered "no". "We did not claim" must never
+    // silently mean "we did not check".
+    const untouched = await ensureEnergyFor(60, fakeAccount(300, [{ docId: "a", energyCollectable: 30 }]).deps);
+    expect(untouched.alreadySufficient).toBe(true);
+    expect(untouched.overflowReachable).toBeNull();
+
+    // Cap unknown — also null, never a guess.
+    const capless = await ensureEnergyFor(60, {
+      getEnergy: async () => 300,
+      getRomBank: async () => [],
+      claimRom: async () => {},
+      sleep: noSleep,
+    });
+    expect(capless.overflowReachable).toBeNull();
+  });
+
+  it("WARNs out loud when overflow becomes reachable, and stays quiet when it isn't", async () => {
+    // [session 54, brief §4] `maxSnapshot < headroom` is the condition that
+    // made "descending" safe as the default claim order. If it stops holding,
+    // the default silently starts being able to reach the untested overflow
+    // path — so it has to announce itself.
+    const hotLines: string[] = [];
+    const hot = fakeAccount(400, [{ docId: "big", energyCollectable: 300 }]);
+    await ensureEnergyFor(600, { ...hot.deps, log: (l) => hotLines.push(l) }, { readOnly: true } as never);
+    const warn = hotLines.find((l) => l.includes("WARN overflow reachable"));
+    expect(warn).toBeDefined();
+    expect(warn).toContain("300");
+    expect(warn).toContain("20");
+
+    const safeLines: string[] = [];
+    const safe = fakeAccount(20, [{ docId: "a", energyCollectable: 120 }]);
+    await ensureEnergyFor(120, { ...safe.deps, log: (l) => safeLines.push(l) }, { sleep: noSleep } as never);
+    expect(safeLines.some((l) => l.includes("WARN overflow reachable"))).toBe(false);
+    expect(safeLines.some((l) => l.includes("no single claim can reach the cap"))).toBe(true);
+  });
+
   it("degrades to null headroom rather than guessing a cap when getMaxEnergy is absent", async () => {
     const res = await ensureEnergyFor(60, {
       getEnergy: async () => 300,
