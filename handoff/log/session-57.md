@@ -174,3 +174,163 @@ on a day whose 20 casts are unspent.**
      src/sim/enemies.ts           |   3
      tests/enemies.test.ts        |   3
 ```
+
+---
+
+# APPENDIX — session 57 verbose
+
+## A. The two free GETs, in full
+
+### A1. `npx tsx scripts/checkFishingCaps.ts` — the first action of the session
+```
+guard day (11:00 PT rollover): 2026-08-19   [file records: 2026-08-19]
+hours until next reset:        11.77
+
+GAME ledger  (dayDocs pond 2):  20 / 20
+REPO ledger  (data/guard-budget-fishing.json): 20 casts, 240 energy
+
+  dayDocs[pondId 1] = 0
+  dayDocs[pondId 2] = 20
+
+Ledgers agree.
+VERDICT: BLOCKED — cap spent. Next window opens at 11:00 PT (11.77h).
+```
+
+Session start was 23:13 PT on 2026-08-19. The session-57 brief predicted this
+exactly and it happened anyway, because the constraint is not knowledge — it is
+that a session has to BEGIN in the right window. Seven sessions now.
+
+### A2. `npx tsx scripts/checkMaxRoom.ts` — new, committed, read-only
+```
+LIVE dungeonDataEntities — ID_CID / NAME_CID / maxRoom:
+    1  Dungetron 5000           maxRoom=16
+    3  Underhaul                maxRoom=16
+    4  Void Dungeon             maxRoom=17
+    5  Forbidden Woods          maxRoom=16
+
+Forbidden Woods (id 5):  live=16  discovered.json=16
+VERDICT: OK — live value matches config/discovered.json.
+```
+
+The brief asked for `maxRoom` to be verified against a live response before it
+governed anything, and this is that. Two things beyond the headline: **`maxRoom`
+is published on every dungeon, not just the two known ones**, and **Void Dungeon
+at 17 is the only outlier of four** — which re-confirms per-dungeon and is why
+`pickTierForRoom` takes it as a parameter. The script exits non-zero on drift or
+on the field disappearing, so it is a check and not just a dump.
+
+## B. §2 — the full three-policy report
+
+`npx tsx scripts/orbTieBreakReport.ts`:
+
+```
+ORB TIE-BREAK — 138 distinct offers, 552 decisions
+
+  offers with a payout on EVERY option:  138 of 138  (100.0%)
+  of those, payouts DIFFER across options: 136  (98.6%)
+  mean spread (max - min) where they differ: 6.22 orbs
+
+1. THE TIE RATE — how often two options share the winning priority rank
+
+  decisions swept:                                  552
+  no option matches any priority family:            312  (56.5%)
+  a priority matched, but only ONE option:          224  (40.6%)
+  TWO OR MORE tied at the winning rank:              16  (2.9%)
+    ...and those tied options pay DIFFERENT orbs:    16  (2.9%)
+
+2. WHAT IT IS WORTH — total Hard Core orbs taken, three policies
+
+  decisions with a payout on every option (scored): 552 of 552
+
+  A  BASELINE (priority -> rankBoons)          total 10256 orbs   mean 18.580/decision
+  B  SHIPPED  (priority -> ORBS -> rankBoons)  total 10272 orbs   mean 18.609/decision
+  C  WIDE     (NOT SHIPPED)                    total 11256 orbs   mean 20.391/decision
+
+  B vs A:  +16 orbs over 552 decisions  (0.029/decision), pick CHANGED on 4 (0.7%)
+  C vs A:  +1000 orbs over 552 decisions  (1.812/decision), pick CHANGED on 196 (35.5%)
+```
+
+**The detail that explains the shape.** All 16 tied decisions have differing
+payouts — so the tie-break gets its chance every single time the rank ties. It
+still only changes 4 picks, because on the other 12 `rankBoons` was already
+choosing the richest option. The narrow rule is not being blocked by anything;
+there is simply almost nothing for it to do.
+
+**Why C is 62x and not 2x.** C's surface is the 312 decisions (56.5%) where no
+priority family matches at all — nineteen times larger than B's 16. That is the
+whole story: the field is valuable, the *gate on reading it* is what is narrow.
+
+## C. Surprises, in the order they were hit
+
+1. **CLAUDE.md rule 8 and DECISIONS (session 56) disagreed about fail-open vs
+   fail-closed on an all-Perpetual offer.** Rule 8 says fail closed; the
+   session-56 DECISIONS line says "Fails OPEN if one ever is: a preference
+   among equals must not strand a 60-energy run." Both were right when written
+   — session 56's clause could not change a tier, so it genuinely was a
+   preference among equals. Under the flip it decides the tier. Resolved for
+   CLAUDE.md (non-negotiable, and newer), and the reversal is appended to
+   DECISIONS with the reason rather than silently overriding it. The final-room
+   path keeps session 56's fail-open, so the repo now holds BOTH behaviours on
+   purpose, in two functions, each documented against the other.
+
+2. **The existing `runOnce` enemy-path tests were serving state with no
+   `data.entity`.** `roomNum` therefore read 0. Post-flip, 0 is
+   `final-room-unreadable`, so those tests were exercising the conservative
+   branch — and since they only asserted that the promise resolved, **they
+   would have passed while the live loop took the LOWEST tier in every room.**
+   This is the near-miss of the session: the flip could have shipped green and
+   inert. The new tests serve `entity: { ROOM_NUM_CID: n }` and assert the
+   `tier_choice` log event's `rule`, `chosen.tier`, `position`,
+   `topTierOffered` and `perpetualCostATier`.
+
+3. **`locateLowestTierOption` was a second, independent copy of the tier rule**
+   living on the retry path since session 09. It was equivalent to the rule for
+   48 sessions and stopped being equivalent the moment the rule gained a filter.
+   Retries happen on the action-token path where nobody is watching, so an
+   inline max-tier scan could have taken a Perpetual card the decision path had
+   just refused, once per token expiry, invisibly.
+
+4. **`MAX_ROOM = 16` was a hard-coded literal** in `src/sim/enemies.ts` with a
+   comment reading "from config/discovered.json" — true as provenance, false as
+   mechanism. `liveRun` now prefers `config.maxRoom` (which really is read from
+   `discovered.json`) and falls back to the literal only for a caller that built
+   a config without one.
+
+5. **`gigusOrbAmount` is present on 138/138 offers and on every option of each.**
+   The partial-capture guard in the tie-break is therefore inert today. It was
+   still written, because reading an absent field as 0 would hand the pick to
+   whichever option happened to be recorded — the same shape as CLAUDE.md rule
+   10's back-compat-default trap.
+
+## D. What the first live run under the flip should report
+
+Nothing here is gated on it and no run was authorised. But the corpus contains
+**zero** observations of a deliberately-chosen hard win, so the first run is the
+entire evidence base, and it is worth knowing in advance what to read off it:
+
+- `tier_choice.rule` per room — if it is `final-room-unreadable` in rooms 1-15,
+  the flip is not firing and `ROOM_NUM_CID` has moved. Stop and investigate.
+- `tier_choice.chosen.tier` vs `topTierOffered` per room — how often they differ
+  is exactly how often the Perpetual clause cost a tier. Expected ~35%.
+- `perpetualCostATier` vs `perpetualAvoided` — the first is the tier-lowering
+  case, the second the within-tier case. Both are logged separately.
+- `boon_choice.priority.orbTieBreak` — expected to fire on roughly 3% of reward
+  decisions, i.e. probably not at all in a single run. Its absence is not a bug.
+- `gameItemBalanceChanges` item 845 totals — the actual Hard Core payout, which
+  is the thing the whole reversal is for and which no corpus run can supply.
+- The `start_run_energy_probe` event's `tightDelta` — §23 has been armed and
+  unfired for four sessions; the first run answers it for free.
+
+## E. Verification, at commit 9080355
+
+```
+npx vitest run      ->  Test Files  56 passed (56)
+                        Tests  1014 passed (1014)      [was 988 at session 56]
+npx tsc --noEmit    ->  clean
+git diff --check    ->  clean
+git status --short  ->  clean (no data/ or logs/ writes)
+secret scan over `git diff HEAD~1` for
+  0x[a-fA-F0-9]{4,} | noobId \d+ | eyJ | PRIVATE   ->  zero matches
+.gitignore still covers .env, *.key, config/discovered.json, data/, logs/,
+  fixtures/**/raw/, fixtures/**/*.har
+```
