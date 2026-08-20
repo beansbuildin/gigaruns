@@ -1,4 +1,4 @@
-# STATE — session 61 — 2026-08-20 (PT) — code at commit 8329e0e
+# SESSION 61 — 2026-08-20 (PT) — commit 8329e0e
 
 ## Status
 **BOTH GATE HALVES PASS.** Suite **1139/1139** at the final commit, `tsc
@@ -198,3 +198,225 @@ before believing one.
      handoff/DISTRIBUTION.md                 |  45  (the romId decision)
      CLAUDE.md / config/bot.json             |  40  (oils permitted + budget)
 ```
+
+---
+---
+
+# APPENDIX — verbose material
+
+## A. Gate 1's demonstration, verbatim
+
+With `assertTierChoiceOk(tierAudit);` removed from `scripts/liveRun.ts`:
+
+```
+##### WITH THE ASSERTION REMOVED FROM liveRun.ts #####
+     × THROWS TierRuleViolationError when ROOM_NUM_CID is missing, because the flip is then silently inert
+     × names the inert flip in the error, so the halt is diagnosable from the log alone
+     × records the violation to the JSONL BEFORE throwing — the run exits non-zero but the log survives
+     × LABELS an unreadable ROOM_NUM_CID and now HALTS on it, instead of quietly playing the run out
+ Test Files  1 failed (1)
+      Tests  4 failed | 101 passed (105)
+```
+
+Restored: `Tests 105 passed (105)`.
+
+The error the gate raises:
+
+```
+TierRuleViolationError: Hard rule violated (CLAUDE.md rule 8) at room 0: room (0)
+or maxRoom (16) is UNREADABLE, so rule 8's highest-tier clause is INERT and this
+room silently took the conservative lowest-tier path. Room 16 has never been
+reached (deepest ever: room 10), so this is ROOM_NUM_CID having moved, not a real
+final room.
+```
+
+**Why that fault and not a tampered picker.** `pickTierForRoom` cannot be made
+to return the wrong tier without reaching into it, and a test that reaches into
+the thing it tests proves nothing. But rule 8 has a documented, already-observed
+way of going inert with nobody touching the picker: session 56 found
+`ROOM_NUM_CID` lives on `data.entity`, not `data.entity.data`, and
+`liveRun.ts:1078` defaults an unreadable room to 0. The fixture is a real board
+with the field where it isn't — no seams — and the loop picks tier 0 out of an
+offer topping at 2.
+
+**One pre-existing test changed contract** and was rewritten, not renumbered:
+"falls back to no-modifiers, LABELLED, when ROOM_NUM_CID is unreadable" used to
+end `await p` (fail-open). It now asserts the halt AND still asserts the label,
+which was its original purpose.
+
+## B. N's derivation, in full
+
+Replay reference (session 50/51): median π 0.135, P(π ≤ 0.15) = 0.705.
+z for the 0.705 quantile = 0.5388.
+
+```
+logit-normal     mu=-1.8575 sigma=0.2280  ->  P(pi>0.5) = 2.220e-16
+lognormal        mu=-2.0025 sigma=0.1955  ->  P(pi>0.5) = 1.069e-11
+```
+
+N for a base rate p at 80% / 90% power, N = ln(1-power)/ln(1-p):
+
+```
+  p=0.150  N80=  10  N90=  15
+  p=0.100  N80=  16  N90=  22
+  p=0.075  N80=  21  N90=  30
+  p=0.050  N80=  32  N90=  45
+  p=0.030  N80=  53  N90=  76
+  p=0.020  N80=  80  N90= 114
+  p=0.010  N80= 161  N90= 230
+```
+
+What a given N rules out at 80% power:
+
+```
+  N= 25  detects p >= 0.0623      N= 32  detects p >= 0.0491
+  N= 30  detects p >= 0.0522      N= 50  detects p >= 0.0317
+```
+
+**Chosen: N = 32 at p = 5%.** 5% is not invented for this rule — it is this
+repo's own floor of measurability (SPEC §4e puts rolled-stat procs at 1–5% and
+concludes they need hundreds of observations). The brief offered 25 as a sanity
+check; 25 corresponds to p ≥ 6.2%, coarser than the repo's own floor, so 32
+lands just the conservative side of it.
+
+## C. The oil sweep, full output at n=8000/arm
+
+```
+── costsTurn=false   effect amount=2   n=8000/arm (the payload's own value) ──
+  policy                    catch  Δ vs never             95% CI   oils  pp/oil  escMana  escMeter  stall
+  never                    68.71%     +0.00pp [+0.00pp, +0.00pp]      0       —     2003       499      1
+  start                    74.38%     +5.66pp [+5.66pp, +5.67pp]  16000   0.028     1739       310      1
+  on-demand                88.11%    +19.40pp [+19.39pp, +19.41pp]   5578   0.278      568       382      1
+  lethal-relaxing-only     73.19%     +4.47pp [+4.47pp, +4.48pp]   1821   0.197     1647       497      1
+  focus-when-empty-only    86.45%    +17.74pp [+17.73pp, +17.75pp]   3515   0.404      701       382      1
+  heuristic-c              73.22%     +4.51pp [+4.51pp, +4.52pp]   2630   0.137     1644       497      1
+
+  costsTurn=false amount=2     -> on-demand (+19.40pp)
+  costsTurn=false amount=1     -> on-demand (+13.89pp)
+  costsTurn=false amount=3     -> on-demand (+21.99pp)
+  costsTurn=true  amount=2     -> start (+23.88pp)   [ARTIFACT BRANCH]
+  costsTurn=true  amount=1     -> start (+22.60pp)   [ARTIFACT BRANCH]
+  costsTurn=true  amount=3     -> start (+24.99pp)   [ARTIFACT BRANCH]
+
+  ROBUST WITHIN THE MODELLED BRANCH: on-demand wins at every effect amount.
+```
+
+The artifact diagnosis, from the sweep's own decomposition:
+
+```
+never              catch=68.33%  escMeter=259  escMana=1007  stalled=1  meanTurns=2.95
+start/free         catch=74.15%  escMeter=165  escMana= 868  stalled=1  meanTurns=2.74
+start/costsTurn    catch=93.00%  escMeter= 10  escMana= 270  stalled=0  meanTurns=2.97
+```
+
+`stalled` ≈ 0 proves `maxTurns` (40) never binds at mean 2.95 turns, so a turn
+is not a scarce resource and a "turn cost" cannot register as one. The consume
+turn plays no card → no mana spent, no miss taken, free matcher observation.
+
+## D. The live run, room by room
+
+Run **24945829**, juiced Tier-3, died room 5. `dayProgressEntities` 3 → 6.
+
+```
+  rule=highest offered=[1,2,0] taken=2 topOffered=2 perpCostATier=False perpAvoided=False audit=yes
+  rule=highest offered=[1,2,2] taken=2 topOffered=2 perpCostATier=False perpAvoided=True  audit=yes
+  rule=highest offered=[1,0,1] taken=1 topOffered=1 perpCostATier=False perpAvoided=False audit=yes
+  rule=highest offered=[2,1,0] taken=2 topOffered=2 perpCostATier=False perpAvoided=False audit=yes
+```
+
+Buffs on the paths TAKEN — this is where the corrode finding comes from:
+
+```
+  tier 2  corrosiveSword  "Miasmablade"  "Reduces 3 max armor on Sword wins"
+          effects [{kind: onEnemyWinExchange_corrode, amount: 3, moveType: rock}]  minTier 2
+          rolled {evasion:2, block:1, lck:1, tenacity:2}
+  tier 2  corrosiveSword  (same)         rolled {evasion:2, block:3, lck:2, tenacity:1}
+  tier 1  hardy           "+3 max HP and +2 armor"  [{flatHP:3},{flatShield:2}]
+  tier 2  corrosiveMagic  "Miasmagem"    "Reduces 3 max armor on Magic wins"  minTier 2
+          rolled {evasion:1, block:5, lck:4, tenacity:1}
+```
+
+`shield.currentMax` trace across the run:
+
+```
+state-032: shield 9/17 -> 0/14   hp 39->38
+state-036: shield 0/14 -> 0/11   hp 23->13
+state-046: shield 0/11 -> 0/17   hp 28->28      <- restored at the room boundary
+state-082: shield 0/17 -> 0/14   hp  4->0
+```
+
+Depletion alone does NOT cause it — the corpus has ~30 states sitting at 0/17
+with no drop. It is the corrode buff firing on a Sword/Magic win, and it is a
+WITHIN-ROOM shred that resets at the boundary.
+
+Boon offers and choices, with orbs:
+
+```
+  UpgradePaper(20)      AddIntuition(19)      AddEvasion(21)   -> AddEvasion    orb rule, max
+  AddLifestealShield(16) AddLuck(23)          WeakeningCrit(18)-> AddLuck       orb rule, max
+  UpgradeRock(20)       WeakeningMastery(18)  AddBurnMagic(22) -> UpgradeRock   PRIORITY beat 22
+  TieVulnerable(16)     AddIntuition(14)      UpgradePaper(25) -> TieVulnerable PRIORITY beat 25
+```
+
+Run orb sum 80. `boon_priority_conflict` logged once, room 3: `AddLifestealShield`
+demoted by the early-game window (rooms 1..8).
+
+Energy (§2b):
+
+```
+start_run_energy_probe  20:04:50.627  energyBefore 230  energyAfter 170  tightDelta -60  matchesCommitted true
+energy_accounting       20:07:10.306  before 230  after 170  observedDelta 60  committedDelta 60  drifted false
+elapsed 2m20s = 2.33 min   regen predicts floor(2.33/3.33) = 0   observed drift 0
+```
+
+## E. The TieVulnerable pair
+
+`run-2026-08-20-20-04-37 state-063 → state-064`. Player diff is **empty** —
+health, shield, all three moves and every rolled stat byte-identical. The only
+change is the boon appearing in `pickedBoons`:
+
+```json
+{"BoonType":"TieVulnerable","Rarity":"Uncommon","val1Min":1,"val1Max":1,
+ "TokenId":104,"UINT256_CID":39,"RARITY_CID":1,"selectedVal1":1,"selectedVal2":0,
+ "MinRoom":1,"MaxRoom":17,"RestrictedToDungeons":["5"]}
+```
+
+Modelled `latent` with `contaminates: ["STATUS_EFFECT"]`. Per DECISIONS
+2026-08-15 the effect is NOT inferred from the name — "Vulnerable applied on a
+tie" is a plausible reading and it stays a reading.
+
+**Credited to the boon-PRIORITY rule, not the orb rule.** Room 5 offered
+TieVulnerable at 16 against UpgradePaper at 25; the orb rule would have taken
+the 25. This matters because session 60's two new types DID come from the orb
+rule, and it would be easy to write a tidy story in which the orb rule is
+steadily clearing `UNMODELLED_TYPES`.
+
+## F. Test-count reconciliation, 1072 → 1139
+
+```
+  +8   tests/enemyTier.test.ts        auditTierChoice, the pure half
+  +4   tests/liveRun.test.ts          the gate, incl. 1 pre-existing rewritten
+ +10   tests/fishing/matcherVerdict.test.ts   the session-61 rule
+ +13   tests/fishing/oilPolicy.test.ts        mayConsumeOil + call-site pin
+  +5   tests/fishing/oilPolicy.test.ts        zeroStreak
+ +17   tests/fishing/oilTiming.test.ts        new file
+  +3   tests/sim/fishingCorpus.test.ts        the derived oil flag
+  +5   tests/boons.test.ts                    summarizeBoonRunCoverage
+  +2   tests/boons.test.ts                    TieVulnerable recounts (net)
+ ────
+  +67
+```
+
+## G. What was NOT done, and why
+
+- **Heuristic (c) was not replaced in `liveFishing.ts`.** The sweep dominates
+  it, but swapping a live trigger is a policy change and §4d says the user
+  approves the policy first.
+- **`onEnemyWinExchange_corrode` was not modelled in the sim.** Captured and
+  documented only. It is now reachable on every run under rule 8 and it is
+  plain arithmetic, so it is a strong candidate — but modelling it was not in
+  the brief and it would change sim numbers mid-session.
+- **No replacement fishing target was derived.** §4e reserves that for the
+  user, after oil casts exist.
+- **No fishing casts, and 6 run-units left unspent.** §8's instruction.
+- **The distribution repo was not created.** Steps 3–6 are the user's.
