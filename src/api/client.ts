@@ -71,14 +71,57 @@ class Mutex {
   }
 }
 
+/**
+ * Per-request pacing overrides. Pure timing mechanics — WHICH actions need a
+ * longer gap is game knowledge and stays in `src/orchestrator`/`scripts`
+ * (CLAUDE.md working style: the client knows HTTP, not strategy).
+ */
+export interface RequestPacing {
+  /**
+   * Minimum ms between the last RESPONSE we received and this request going
+   * out. Distinct from `MIN_GAP_MS`, which is measured request-to-request.
+   *
+   * [session 53] The distinction is the whole point and it is easy to get
+   * wrong. The server holds exactly one outstanding action token and rejects
+   * any POST carrying `actionToken: ""` while it is still outstanding
+   * (`Invalid action token  != <N>`). Measured across all ten run logs
+   * (`scripts/rejectionAudit.ts`), on LOCAL response timestamps:
+   *
+   *   empty-token POST rejected  n=66  gap-since-last-response 0.90 - 1.54 s
+   *   empty-token POST accepted  n=66  gap-since-last-response 3.40 - 4.92 s
+   *   numeric-token POST         n=224 always accepted, 0.90 - 1.79 s
+   *
+   * Zero overlap: the threshold is somewhere in (1.54, 3.40) SINCE THE
+   * RESPONSE. A request-to-request gap cannot express that, because it
+   * differs from the response gap by one response latency (0.72 - 1.78 s,
+   * median 1.45) — a `MIN_GAP_MS` of 3600 would leave only ~1.8 s since the
+   * response in the worst case, i.e. inside the reject band.
+   */
+  minGapSinceResponseMs?: number;
+}
+
 class RateLimiter {
   private lastCallAt = 0;
+  private lastResponseAt = 0;
 
-  async wait(): Promise<void> {
+  async wait(pacing?: RequestPacing): Promise<void> {
     const gap = MIN_GAP_MS + Math.random() * JITTER_MS;
-    const elapsed = Date.now() - this.lastCallAt;
-    if (elapsed < gap) await sleep(gap - elapsed);
+    const now = Date.now();
+
+    let sleepMs = Math.max(0, gap - (now - this.lastCallAt));
+
+    const sinceResponseGap = pacing?.minGapSinceResponseMs ?? 0;
+    if (sinceResponseGap > 0 && this.lastResponseAt > 0) {
+      sleepMs = Math.max(sleepMs, sinceResponseGap - (now - this.lastResponseAt));
+    }
+
+    if (sleepMs > 0) await sleep(sleepMs);
     this.lastCallAt = Date.now();
+  }
+
+  /** Stamped when a response comes back, whatever its status — see `RequestPacing`. */
+  noteResponse(): void {
+    this.lastResponseAt = Date.now();
   }
 }
 
@@ -144,11 +187,15 @@ export class GigaverseClient {
    * One HTTP call, disciplined. Not exported — every endpoint below goes
    * through this so no caller can accidentally skip the mutex or the limiter.
    */
-  private async raw(path: string, init?: RequestInit): Promise<{ status: number; text: string }> {
+  private async raw(
+    path: string,
+    init?: RequestInit,
+    pacing?: RequestPacing,
+  ): Promise<{ status: number; text: string }> {
     return this.mutex.run(async () => {
       let attempt = 0;
       for (;;) {
-        await this.limiter.wait();
+        await this.limiter.wait(pacing);
         const res = await fetch(`${this.base}${path}`, {
           ...init,
           headers: {
@@ -157,6 +204,7 @@ export class GigaverseClient {
           },
         });
         const text = await res.text();
+        this.limiter.noteResponse();
 
         if (res.status === 429) {
           attempt++;
@@ -206,12 +254,21 @@ export class GigaverseClient {
    * this is the first POST path in the client, and CLAUDE.md §4 makes every
    * live send high-stakes, so it gets no less scrutiny than a GET.
    */
-  private async post<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S): Promise<z.infer<S>> {
-    const { status, text } = await this.raw(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+  private async post<S extends z.ZodTypeAny>(
+    path: string,
+    body: unknown,
+    schema: S,
+    pacing?: RequestPacing,
+  ): Promise<z.infer<S>> {
+    const { status, text } = await this.raw(
+      path,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      pacing,
+    );
 
     if (status === 401 || status === 403) throw new TokenExpiredError(status, text);
     if (status < 200 || status >= 300) throw new UnexpectedResponseError(status, path, text);
@@ -244,8 +301,11 @@ export class GigaverseClient {
    * it, so the caller's log of "what did I send" always matches what went
    * over the wire.
    */
-  async postDungeonAction(body: DungeonActionRequest): Promise<DungeonActionResponse> {
-    return this.post("/game/dungeon/action", body, DungeonActionResponseSchema);
+  async postDungeonAction(
+    body: DungeonActionRequest,
+    pacing?: RequestPacing,
+  ): Promise<DungeonActionResponse> {
+    return this.post("/game/dungeon/action", body, DungeonActionResponseSchema, pacing);
   }
 
   async getMe(): Promise<UserMe> {

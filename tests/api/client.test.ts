@@ -232,6 +232,95 @@ describe("GigaverseClient", () => {
     expect(calledAt[1]! - calledAt[0]!).toBeGreaterThanOrEqual(1200);
   });
 
+  /**
+   * [session 53, brief §0c] `minGapSinceResponseMs` is measured from the last
+   * RESPONSE, not the last request. The distinction is the entire point: the
+   * server's outstanding-token window runs from when it answered, and the two
+   * clocks differ by one response latency (0.72-1.78 s live). A request-clock
+   * gap of 3600ms would have left only ~1.8 s since the response — inside the
+   * band where 66 of 66 live path-selection POSTs were rejected.
+   */
+  describe("minGapSinceResponseMs (session 53)", () => {
+    const actionBody = {
+      action: "reward_one" as const,
+      dungeonId: 5,
+      actionToken: "" as const,
+      data: { consumables: [], isJuiced: false, index: 0 },
+    };
+
+    it("measures the gap from the last RESPONSE, not the last request", async () => {
+      const requestAt: number[] = [];
+      const responseAt: number[] = [];
+      const latency = 1500;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          requestAt.push(Date.now());
+          vi.advanceTimersByTime(latency);
+          responseAt.push(Date.now());
+          return { status: 200, text: async () => JSON.stringify({ success: true, actionToken: 7, data: {} }) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+
+      const p1 = client.postDungeonAction(actionBody, { minGapSinceResponseMs: 4000 });
+      await vi.runAllTimersAsync();
+      await p1;
+      const p2 = client.postDungeonAction(actionBody, { minGapSinceResponseMs: 4000 });
+      await vi.runAllTimersAsync();
+      await p2;
+
+      expect(requestAt).toHaveLength(2);
+      // The guarantee that matters: >= 4000ms since the server answered.
+      expect(requestAt[1]! - responseAt[0]!).toBeGreaterThanOrEqual(4000);
+      // And therefore strictly more than 4000ms since the last REQUEST — the
+      // difference a request-clock setting could not have expressed.
+      expect(requestAt[1]! - requestAt[0]!).toBeGreaterThanOrEqual(4000 + latency);
+    });
+
+    it("leaves ordinary pacing alone when the override is absent", async () => {
+      const requestAt: number[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          requestAt.push(Date.now());
+          vi.advanceTimersByTime(1500);
+          return { status: 200, text: async () => JSON.stringify({ success: true, actionToken: 7, data: {} }) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p1 = client.postDungeonAction(actionBody);
+      await vi.runAllTimersAsync();
+      await p1;
+      const p2 = client.postDungeonAction(actionBody);
+      await vi.runAllTimersAsync();
+      await p2;
+
+      // MIN_GAP_MS + jitter only — the request clock, unchanged from before.
+      expect(requestAt[1]! - requestAt[0]!).toBeGreaterThanOrEqual(1200);
+      expect(requestAt[1]! - requestAt[0]!).toBeLessThan(4000);
+    });
+
+    it("never SHORTENS the ordinary gap when the override is smaller", async () => {
+      const requestAt: number[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          requestAt.push(Date.now());
+          return { status: 200, text: async () => JSON.stringify({ success: true, actionToken: 7, data: {} }) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p1 = client.postDungeonAction(actionBody, { minGapSinceResponseMs: 10 });
+      await vi.runAllTimersAsync();
+      await p1;
+      const p2 = client.postDungeonAction(actionBody, { minGapSinceResponseMs: 10 });
+      await vi.runAllTimersAsync();
+      await p2;
+      expect(requestAt[1]! - requestAt[0]!).toBeGreaterThanOrEqual(1200);
+    });
+  });
+
   it("serializes concurrent calls through the mutex — never two in flight", async () => {
     let inFlight = 0;
     let maxInFlight = 0;

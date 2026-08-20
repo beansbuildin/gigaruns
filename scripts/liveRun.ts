@@ -50,6 +50,7 @@ import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, Dungeo
 import { TokenExpiredError, UnexpectedResponseError, serverErrorDetail } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
+import { AttemptTelemetry } from "../src/orchestrator/attemptTelemetry.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError, type ClaimOrder } from "../src/orchestrator/energyPreflight.js";
@@ -173,6 +174,54 @@ export function unknownSideKeys(side: Record<string, unknown>): string[] {
 
 const REWARD_ACTIONS: readonly DungeonAction[] = ["reward_one", "reward_two", "reward_three", "reward_four"];
 const PATH_ACTIONS: readonly DungeonAction[] = ["path_one", "path_two", "path_three"];
+
+/**
+ * [session 53, brief §0c] Minimum ms since the LAST RESPONSE before a
+ * path-selection POST goes out.
+ *
+ * `reward_*`/`path_*` send `actionToken: ""` (the DevTools-confirmed
+ * session-08 shape). The server holds exactly one outstanding action token
+ * and rejects any POST whose token does not equal it — hence the doubled
+ * space in `Invalid action token  != N`, which is `""` interpolated into
+ * `Invalid action token {sent} != {outstanding}`. Combat moves carry the
+ * matching numeric token and pass immediately; `start_run` also sends `""`
+ * and always succeeds because no token is outstanding yet (the control case).
+ *
+ * Measured by `scripts/rejectionAudit.ts` over all ten run logs, on LOCAL
+ * timestamps, gap since the preceding SUCCESSFUL response:
+ *
+ *   empty-token, rejected   n= 66   0.90 - 1.54 s   (median 1.28)
+ *   empty-token, accepted   n= 66   3.40 - 4.92 s   (median 4.07)
+ *   numeric-token           n=224   0.90 - 1.79 s   (median 1.36, 0 failures)
+ *
+ * Zero overlap — the threshold sits in (1.54, 3.40). 4000ms lands inside the
+ * band every one of those 66 successes came from.
+ *
+ * NOTE FOR THE NEXT READER, because this is the easy mistake: the session-53
+ * brief proposed 3600ms as a `minGapMs`, i.e. a REQUEST-to-REQUEST gap. That
+ * is a different clock. `RateLimiter` stamps `lastCallAt` before dispatch, so
+ * request-gap minus one response latency (0.72 - 1.78 s, median 1.45) is the
+ * response gap — 3600ms request-to-request leaves only ~1.8 s since the
+ * response in the worst case, i.e. INSIDE the reject band. The override is
+ * deliberately expressed on the response clock, which is the clock the
+ * measurement and the mechanism both live on.
+ *
+ * CLAUDE.md §2 is not in play: nothing about the envelope changes. The
+ * confirmed shape is sent exactly as captured, just later.
+ */
+export const EMPTY_TOKEN_MIN_GAP_SINCE_RESPONSE_MS = 4000;
+
+/**
+ * Actions that send `actionToken: ""` and therefore need the longer gap
+ * above. `start_run` is deliberately EXCLUDED — it is the control case (no
+ * token is ever outstanding at that moment, 4/4 accepted first try), and
+ * delaying it would slow every entry for nothing.
+ */
+export function pacingForAction(action: DungeonAction): { minGapSinceResponseMs?: number } | undefined {
+  const emptyToken =
+    (REWARD_ACTIONS as readonly string[]).includes(action) || (PATH_ACTIONS as readonly string[]).includes(action);
+  return emptyToken ? { minGapSinceResponseMs: EMPTY_TOKEN_MIN_GAP_SINCE_RESPONSE_MS } : undefined;
+}
 
 /**
  * `reward_<n>` for a reward-path pick — CONFIRMED live 2026-08-14 (session
@@ -413,6 +462,13 @@ export class RunLog {
 // ---------------------------------------------------------------------------
 
 export interface LiveRunDeps {
+  /**
+   * [session 53, brief §1] Optional first-attempt failure counter, shared
+   * across every run in one invocation so the summary covers the whole
+   * session rather than the last run. Omitted in tests that do not assert
+   * on it — recording is always `telemetry?.record(...)`.
+   */
+  attemptTelemetry?: AttemptTelemetry;
   client: GigaverseClient;
   config: BotConfig;
   guards: GuardState;
@@ -551,23 +607,39 @@ export async function postWithVerifiedRetry(
   buildBody: (index: number) => DungeonActionRequest,
   isPending: (run: WireRun) => boolean,
   reason: string,
+  telemetry?: AttemptTelemetry,
 ): Promise<DungeonActionResponse | null> {
   let run = initialRun;
+  let attemptNumber = 0;
+  let firstAttemptFailed = false;
+  /**
+   * [session 53, brief §1] Recorded on EVERY exit path, including the ones
+   * that throw — a class whose failures all end the run would otherwise never
+   * appear in the summary at all.
+   */
+  const settle = (actionClass: string) => telemetry?.record(actionClass, firstAttemptFailed);
   for (;;) {
     const index = locate(run);
     if (index === null) {
       log.write({ event: "intended_option_missing", reason });
       throw new GuardTrip(`${reason}: intended option no longer present in live offer`, {});
     }
+
     const body = buildBody(index);
+    attemptNumber++;
     log.write({ event: "post", body });
     try {
-      const resp = await client.postDungeonAction(body);
+      const resp = await client.postDungeonAction(body, pacingForAction(body.action));
       guards.recordActionResult(true);
       log.write({ event: "post_response", resp });
+      settle(body.action);
       return resp;
     } catch (e) {
-      if (e instanceof TokenExpiredError) throw e;
+      if (attemptNumber === 1) firstAttemptFailed = true;
+      if (e instanceof TokenExpiredError) {
+        settle(body.action);
+        throw e;
+      }
       // [session 47, brief §1e] `.message` is only "Unexpected response from
       // <path>: HTTP <status>" — the server's own text lives in `.body`. See
       // `serverErrorDetail`'s doc comment for the fishing-side incident that
@@ -582,9 +654,15 @@ export async function postWithVerifiedRetry(
         // other reason) — never retry an action that already landed.
         log.write({ event: "action_applied_despite_error" });
         guards.recordActionResult(true);
+        settle(body.action);
         return null;
       }
-      guards.recordActionResult(false); // throws GuardTrip once the configured limit is hit
+      try {
+        guards.recordActionResult(false); // throws GuardTrip once the configured limit is hit
+      } catch (tripped) {
+        settle(body.action);
+        throw tripped;
+      }
       run = freshRun!; // re-derive `index` against this freshly-fetched offer next loop
     }
   }
@@ -958,8 +1036,13 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       log.write({ event: "post", body });
       let resp;
       try {
-        resp = await client.postDungeonAction(body);
+        resp = await client.postDungeonAction(body, pacingForAction(body.action));
+        deps.attemptTelemetry?.record(body.action, false);
       } catch (e) {
+        // [session 53, brief §1] Recorded BEFORE rethrowing: a combat move has
+        // no retry loop, so its only first attempt is also its last, and the
+        // class would otherwise be absent from the summary of a run it ended.
+        deps.attemptTelemetry?.record(body.action, true);
         if (e instanceof TokenExpiredError) throw e; // JWT rejected — never retry, SPEC §6.
         fail(guards, log, "dungeon action rejected", { action: d.move, ...serverErrorDetail(e) });
       }
@@ -1049,6 +1132,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         (index) => buildPathSelectionEnvelope(selectEnemyPathByIndex(index), 0),
         (freshRun) => classifyPhase(freshRun) === "enemyPath",
         "enemy path selection rejected",
+        deps.attemptTelemetry,
       );
       if (resp) fixtures.write(resp);
       continue;
@@ -1090,6 +1174,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         (index) => buildPathSelectionEnvelope(selectRewardByIndex(index), index),
         (freshRun) => classifyPhase(freshRun) === "rewardPath",
         "reward selection rejected",
+        deps.attemptTelemetry,
       );
       if (resp) fixtures.write(resp);
       continue;
@@ -1313,6 +1398,13 @@ async function main() {
   if (seed.energySpent > 0 || seed.runsStarted > 0) {
     console.log(`  · resuming today's budget: ${seed.energySpent} energy / ${seed.runsStarted} runs already spent`);
   }
+  /**
+   * [session 53, brief §1] One counter for the whole invocation — both runs
+   * of a `--runs=2` share it, so the summary reports the session's rate
+   * rather than the last run's.
+   */
+  const attemptTelemetry = new AttemptTelemetry();
+
   const guards = new GuardState(
     {
       dailyEnergyBudget: config.dailyEnergyBudget,
@@ -1512,6 +1604,14 @@ async function main() {
         measuredDelta: measured,
         snapshotTotal: preflight.claimedSnapshotTotal,
         drift,
+        // [session 53, brief §3] Closes the untested "overflow past the cap is
+        // non-wasting" comment BY CONSTRUCTION when `maxSnapshot < headroom`:
+        // no single claim this path can make is capable of reaching the cap,
+        // so switching the default to descending cannot trip it by accident.
+        maxSnapshot: preflight.maxSnapshot,
+        headroom: preflight.headroom,
+        overflowReachable:
+          preflight.maxSnapshot !== null && preflight.headroom !== null ? preflight.maxSnapshot >= preflight.headroom : null,
         perRom: preflight.claims.map((c) => ({ ...c, postClaimCollectable: post.get(c.docId) ?? null })),
       });
     }
@@ -1571,6 +1671,7 @@ async function main() {
           opponentModelPersistence,
           playCountsPersistence,
           shutdownSignal,
+          attemptTelemetry,
         },
         { stage2Only: args.stage2, requireResumeConfirmation: i === 0, resumeExisting: args.resumeExisting },
       );
@@ -1591,13 +1692,20 @@ async function main() {
       log.write({ event: "energy_accounting", ...report });
       console.log(describeEnergyAccounting(report));
     }
-    if (runError) throw runError;
+    if (runError) {
+      // [session 53, brief §1] The failure path is exactly where the
+      // first-attempt rates matter most, and it is the path that skips the
+      // end-of-invocation summary below.
+      console.log(attemptTelemetry.format());
+      throw runError;
+    }
     if (args.stage2) break;
   }
 
   uninstallSigint();
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, runs ${guards.runCount}`);
+  console.log(attemptTelemetry.format());
   console.log(`▸ log: ${log.filePath}`);
   console.log(`▸ fixtures: ${fixtures.dir}\n`);
 

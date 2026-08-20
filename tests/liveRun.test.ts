@@ -28,6 +28,8 @@ import {
   moveToAction,
   parseArgs,
   postWithVerifiedRetry,
+  pacingForAction,
+  EMPTY_TOKEN_MIN_GAP_SINCE_RESPONSE_MS,
   ResumeConfirmationRequired,
   RunLog,
   runOnce,
@@ -41,6 +43,7 @@ import { GigaverseClient } from "../src/api/client.js";
 import { UnexpectedResponseError } from "../src/api/errors.js";
 import type { BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
+import { AttemptTelemetry } from "../src/orchestrator/attemptTelemetry.js";
 import { bootstrapFromCorpus, loadOpponentModel } from "../src/orchestrator/opponentModelPersistence.js";
 import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
@@ -531,6 +534,122 @@ describe("postWithVerifiedRetry", () => {
     await vi.runAllTimersAsync();
     const resp = await p;
     expect(resp).not.toBeNull();
+  });
+
+  /**
+   * [session 53, brief §1] These are the tests that would have caught §21 in
+   * 2026-08-14. A retry that succeeds must still be recorded as a
+   * first-attempt FAILURE, or the class reports 100% healthy forever.
+   */
+  describe("first-attempt telemetry (session 53 §1)", () => {
+    it("records a clean first success as no failure", async () => {
+      vi.stubGlobal(
+        "fetch",
+        mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } })),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const telemetry = new AttemptTelemetry();
+      const p = postWithVerifiedRetry(
+        client,
+        new GuardState(TEST_CONFIG),
+        makeLog(),
+        initialRun,
+        locate,
+        buildBody,
+        stillInRewardPhase,
+        "reward selection rejected",
+        telemetry,
+      );
+      await vi.runAllTimersAsync();
+      await p;
+      expect(telemetry.totals()).toEqual({ attempts: 1, firstAttemptFailures: 0 });
+      expect(telemetry.report()[0]!.actionClass).toBe("reward_one");
+    });
+
+    it("records a first-attempt failure even though the RETRY succeeded — the whole blind spot", async () => {
+      let postCalls = 0;
+      vi.stubGlobal(
+        "fetch",
+        mockFetch((_url, init) => {
+          if ((init?.method ?? "GET") === "POST") {
+            postCalls++;
+            if (postCalls === 1) return { status: 500, body: { success: false, error: "Invalid action token  != 1787185878470" } };
+            return { status: 200, body: { success: true, actionToken: 2, data: { run: fakeRun() } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun({ rewardPathPhase: true }) } } };
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const telemetry = new AttemptTelemetry();
+      const p = postWithVerifiedRetry(
+        client,
+        new GuardState(TEST_CONFIG),
+        makeLog(),
+        initialRun,
+        locate,
+        buildBody,
+        stillInRewardPhase,
+        "reward selection rejected",
+        telemetry,
+      );
+      await vi.runAllTimersAsync();
+      await p;
+      expect(postCalls).toBe(2);
+      // One DECISION, one first-attempt failure — not "one success".
+      expect(telemetry.totals()).toEqual({ attempts: 1, firstAttemptFailures: 1 });
+      expect(telemetry.report()[0]!.rate).toBe(1);
+      expect(telemetry.report()[0]!.warn).toBe(true);
+    });
+
+    it("records the decision even when the action-applied-despite-error branch returns null", async () => {
+      vi.stubGlobal(
+        "fetch",
+        mockFetch((_url, init) =>
+          (init?.method ?? "GET") === "POST"
+            ? { status: 500, body: { success: false, message: "server error" } }
+            : { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun({ rewardPathPhase: false, enemyPathPhase: true }) } } },
+        ),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const telemetry = new AttemptTelemetry();
+      const p = postWithVerifiedRetry(
+        client,
+        new GuardState(TEST_CONFIG),
+        makeLog(),
+        initialRun,
+        locate,
+        buildBody,
+        stillInRewardPhase,
+        "reward selection rejected",
+        telemetry,
+      );
+      await vi.runAllTimersAsync();
+      await p;
+      expect(telemetry.totals()).toEqual({ attempts: 1, firstAttemptFailures: 1 });
+    });
+  });
+
+  describe("pacingForAction (session 53 §0c)", () => {
+    it("gives every reward_* and path_* action the longer response-clock gap", () => {
+      for (const a of ["reward_one", "reward_two", "reward_three", "reward_four", "path_one", "path_two", "path_three"] as const) {
+        expect(pacingForAction(a)).toEqual({ minGapSinceResponseMs: EMPTY_TOKEN_MIN_GAP_SINCE_RESPONSE_MS });
+      }
+    });
+
+    it("leaves combat moves and use_item on ordinary pacing — they carry a numeric token and 224/224 succeeded", () => {
+      for (const a of ["rock", "paper", "scissor", "use_item"] as const) {
+        expect(pacingForAction(a)).toBeUndefined();
+      }
+    });
+
+    it("does NOT delay start_run — the control case, 4/4 accepted with no token outstanding", () => {
+      expect(pacingForAction("start_run")).toBeUndefined();
+    });
+
+    it("sets the gap inside the empirically-proven acceptance band [3.40s, 4.92s]", () => {
+      expect(EMPTY_TOKEN_MIN_GAP_SINCE_RESPONSE_MS).toBeGreaterThanOrEqual(3400);
+      expect(EMPTY_TOKEN_MIN_GAP_SINCE_RESPONSE_MS).toBeLessThanOrEqual(4920);
+    });
   });
 
   it("does NOT retry if a re-check shows the action already applied despite the error", async () => {

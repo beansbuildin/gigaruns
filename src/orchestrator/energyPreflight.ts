@@ -46,6 +46,13 @@ export interface EnergyPreflightDeps {
   getRomBank: () => Promise<RomBankEntry[]>;
   /** `POST /roms/factory/claim`. Rejects on failure — this module fails closed on that. */
   claimRom: (docId: string) => Promise<void>;
+  /**
+   * [session 53, brief §3] The account's energy CAP, for the `headroom`
+   * figure below. Optional: omit it and `headroom`/`maxSnapshot` are reported
+   * as null rather than guessed. `clientEnergyPreflightDeps` serves it from
+   * the `getEnergy` response it already makes, so this costs no extra request.
+   */
+  getMaxEnergy?: () => number | null;
   /** CLAUDE.md §7 rate limiting. Injected so tests don't wait 1.2s per claim. */
   sleep?: (ms: number) => Promise<void>;
   log?: (line: string) => void;
@@ -77,6 +84,21 @@ export interface EnergyPreflightResult {
   fallbackClaimDocId: string | null;
   /** Per-claim snapshots, in claim order — §1c wants the running total attributable per ROM, not just the sum. */
   claims: { docId: string; snapshot: number; fallback: boolean }[];
+  /**
+   * [session 53, brief §3] Largest single `energyCollectable` in the bank at
+   * read time. Null when the bank was never read.
+   *
+   * Together with `headroom` this closes the standing "overflow past the 420
+   * cap is non-wasting" question BY CONSTRUCTION for this code path instead
+   * of by experiment: if `maxSnapshot < headroom`, no single claim this
+   * function can make is capable of reaching the cap, so the untested comment
+   * is unreachable from here and cannot be tripped by accident. If it is
+   * larger, the overflow case IS reachable and can be run deliberately, once,
+   * with the numbers recorded — and that still needs asking first.
+   */
+  maxSnapshot: number | null;
+  /** [session 53, brief §3] `maxEnergy - poolBefore` — how much the pool can absorb before capping. Null when the cap is unknown. */
+  headroom: number | null;
 }
 
 /** [session 52 §1a] Which end of the bank `ensureEnergyFor` claims from. */
@@ -160,6 +182,11 @@ export async function ensureEnergyFor(
   const readOnly = opts.readOnly ?? false;
 
   const poolBefore = await deps.getEnergy();
+  // [session 53, brief §3] `getMaxEnergy` reads a value the `getEnergy` call
+  // above already fetched — no extra request, and null when unavailable
+  // rather than a guessed 420.
+  const maxEnergy = deps.getMaxEnergy?.() ?? null;
+  const headroom = maxEnergy === null ? null : maxEnergy - poolBefore;
   if (poolBefore >= requiredEnergy) {
     log(`  ▸ energy preflight: pool ${poolBefore} covers the planned ${requiredEnergy} — no ROM claim needed.`);
     return {
@@ -173,6 +200,8 @@ export async function ensureEnergyFor(
       claimOrder: order,
       fallbackClaimDocId: null,
       claims: [],
+      maxSnapshot: null,
+      headroom,
     };
   }
 
@@ -185,6 +214,15 @@ export async function ensureEnergyFor(
     .filter((r) => r.energyCollectable > 0)
     .sort((a, b) => (order === "ascending" ? a.energyCollectable - b.energyCollectable : b.energyCollectable - a.energyCollectable));
   const bankTotal = claimable.reduce((s, r) => s + r.energyCollectable, 0);
+  const maxSnapshot = claimable.reduce((m, r) => Math.max(m, r.energyCollectable), 0);
+  if (headroom !== null) {
+    log(
+      `  ▸ cap headroom: largest single ROM snapshot ${maxSnapshot}, pool headroom ${headroom} ` +
+        (maxSnapshot < headroom
+          ? `— no single claim can reach the cap (overflow unreachable from this path).`
+          : `— ⚠ a single claim CAN reach the cap; the "overflow is non-wasting" comment is reachable and still untested.`),
+    );
+  }
   log(
     `  ▸ ROM bank: ${bank.length} ROMs, ${claimable.length} with energyCollectable > 0, ${bankTotal} energy claimable` +
       ` (claiming ${order}${Number.isFinite(maxClaims) ? `, max ${maxClaims} claims` : ""}).`,
@@ -228,6 +266,8 @@ export async function ensureEnergyFor(
       claimOrder: order,
       fallbackClaimDocId: null,
       claims: [],
+      maxSnapshot,
+      headroom,
     };
   }
 
@@ -303,6 +343,8 @@ export async function ensureEnergyFor(
     claimOrder: order,
     fallbackClaimDocId,
     claims,
+    maxSnapshot,
+    headroom,
   };
 }
 
@@ -327,7 +369,10 @@ function largestRemaining(claimable: RomBankEntry[], taken: Set<string>): RomBan
  * real client here.
  */
 export interface RomEnergyClient {
-  getEnergy(address: string): Promise<{ entities: { parsedData: { energyValue: number } }[] }>;
+  // [session 53] `maxEnergy` is OPTIONAL in this structural type even though
+  // the real `EnergySchema` requires it — tests build minimal energy stubs,
+  // and `headroom` degrades to null rather than failing when it is absent.
+  getEnergy(address: string): Promise<{ entities: { parsedData: { energyValue: number; maxEnergy?: number } }[] }>;
   getRomsPlayer(address: string): Promise<{ entities: { docId: string; factoryStats: { energyCollectable: number } }[] }>;
   claimRomEnergy(romId: string, amount?: number): Promise<{ success: boolean }>;
 }
@@ -339,6 +384,9 @@ export interface RomEnergyClient {
  * otherwise pass silently as a claim that moved nothing.
  */
 export function clientEnergyPreflightDeps(client: RomEnergyClient, address: string, log?: (line: string) => void): EnergyPreflightDeps {
+  // [session 53, brief §3] Captured from the `getEnergy` response so
+  // `headroom` costs no extra request. Null until the first read.
+  let lastMaxEnergy: number | null = null;
   return {
     getEnergy: async () => {
       const energy = await client.getEnergy(address);
@@ -346,8 +394,11 @@ export function clientEnergyPreflightDeps(client: RomEnergyClient, address: stri
       if (typeof value !== "number") {
         throw new Error("GET /offchain/player/energy — entities[0].parsedData.energyValue missing or not a number");
       }
+      const max = energy.entities[0]?.parsedData?.maxEnergy;
+      lastMaxEnergy = typeof max === "number" ? max : null;
       return value;
     },
+    getMaxEnergy: () => lastMaxEnergy,
     getRomBank: async () => {
       const roms = await client.getRomsPlayer(address);
       return roms.entities.map((e) => ({ docId: e.docId, energyCollectable: e.factoryStats.energyCollectable }));

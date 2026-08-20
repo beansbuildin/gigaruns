@@ -37,6 +37,7 @@ function fakeAccount(startEnergy: number, bank: RomBankEntry[], opts: { cap?: nu
       pool += moved;
       balances.set(docId, available - moved);
     },
+    getMaxEnergy: () => cap,
     sleep: noSleep,
   };
   return {
@@ -266,5 +267,55 @@ describe("ensureEnergyFor — claim order [session 52 §1a]", () => {
     expect(res.poolAfter).toBe(0);
     expect(lines.join("\n")).toContain("largest-remaining fallback big");
     expect(lines.join("\n")).toContain("would claim 3 ROM(s)");
+  });
+});
+
+/**
+ * [session 53, brief §3] `maxSnapshot` and `headroom` exist to close the
+ * standing "overflow past the 420 cap is non-wasting" question BY
+ * CONSTRUCTION rather than by running the experiment. When no single ROM in
+ * the bank is large enough to fill the pool's remaining headroom, the
+ * untested overflow path is unreachable from `ensureEnergyFor` — which is
+ * what makes it safe to switch the default claim order to descending.
+ */
+describe("cap headroom reporting (session 53 §3)", () => {
+  it("reports the largest single snapshot and the pool headroom when the bank is read", async () => {
+    const acct = fakeAccount(20, [
+      { docId: "a", energyCollectable: 30 },
+      { docId: "b", energyCollectable: 120 },
+      { docId: "c", energyCollectable: 55 },
+    ]);
+    const res = await ensureEnergyFor(120, acct.deps, { sleep: noSleep } as never);
+    expect(res.maxSnapshot).toBe(120);
+    expect(res.headroom).toBe(400); // 420 cap - 20 pool
+    // 120 < 400 — no single claim can reach the cap from here.
+    expect(res.maxSnapshot!).toBeLessThan(res.headroom!);
+  });
+
+  it("flags the case where a single claim COULD reach the cap", async () => {
+    const acct = fakeAccount(400, [{ docId: "big", energyCollectable: 300 }]);
+    const res = await ensureEnergyFor(600, acct.deps, { readOnly: true } as never);
+    expect(res.headroom).toBe(20);
+    expect(res.maxSnapshot).toBe(300);
+    expect(res.maxSnapshot!).toBeGreaterThanOrEqual(res.headroom!);
+  });
+
+  it("reports maxSnapshot as null when the bank was never read", async () => {
+    const acct = fakeAccount(300, [{ docId: "a", energyCollectable: 30 }]);
+    const res = await ensureEnergyFor(60, acct.deps);
+    expect(res.alreadySufficient).toBe(true);
+    expect(res.maxSnapshot).toBeNull();
+    expect(res.headroom).toBe(120); // still knowable — the pool was read
+  });
+
+  it("degrades to null headroom rather than guessing a cap when getMaxEnergy is absent", async () => {
+    const res = await ensureEnergyFor(60, {
+      getEnergy: async () => 300,
+      getRomBank: async () => [],
+      claimRom: async () => {},
+      sleep: noSleep,
+    });
+    expect(res.headroom).toBeNull();
+    expect(res.maxSnapshot).toBeNull();
   });
 });
