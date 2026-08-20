@@ -156,8 +156,29 @@ describe("player loadout matches the fixtures", () => {
     // PLAYER doc); 40/25 is 40/17 mid-run AFTER run 2's room-1 AddMaxArmor(8)
     // pickup (armorMax +8), not a fourth starting loadout — same shape as
     // 34/20 above.
+    // [session 61] TWO new combos, and they are the FIRST in this list that
+    // are DECREASES rather than increases: 40/14 and 40/11, from run 24945829.
+    // Every prior new combo was a starting-loadout change or an AddMaxArmor /
+    // AddMaxHealth pickup adding to a max. These subtract.
+    //
+    // Cause, read off the run's own `tier_choice` rows rather than inferred:
+    // the enemy buff **`corrosiveSword` ("Miasmablade")**, effect kind
+    // `onEnemyWinExchange_corrode`, **amount 3**, description "Reduces 3 max
+    // armor on Sword wins". Two of the four paths taken carried a corrode buff
+    // (the fourth was `corrosiveMagic`/"Miasmagem", the Magic analogue). The
+    // trace matches exactly: 17 -> 14 at state-032 and 14 -> 11 at state-036,
+    // then restored to 17 at the room boundary (state-046) — so it is a
+    // WITHIN-ROOM shred, not a permanent loss.
+    //
+    // **This is a direct and previously unobserved consequence of CLAUDE.md
+    // rule 8**, and worth naming as such: `corrosiveSword` carries
+    // `minTier: 2`, so it is STRUCTURALLY unreachable under the lowest-tier
+    // rule that stood from session 06 to session 56. The flip to highest-tier
+    // is what put this mechanic in front of the player for the first time. It
+    // is the first MECHANICAL cost of rule 8 anyone has observed, as opposed
+    // to a statistical one.
     expect([...seen].sort()).toEqual([
-      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/17", "40/25", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16", "54/17",
+      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/11", "40/14", "40/17", "40/25", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16", "54/17",
     ]);
   });
 });

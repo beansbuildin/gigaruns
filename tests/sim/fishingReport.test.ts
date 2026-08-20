@@ -8,9 +8,20 @@ import { describe, expect, it } from "vitest";
 import type { FishingCast } from "../../src/sim/fishingCorpus.js";
 import { buildFishingMarkdown, summarizeFishingCast, summarizeFishingRollup } from "../../src/sim/fishingReport.js";
 
-function cast(docId: string, opts: { caught: boolean; fishName?: string; rarity?: number }): FishingCast {
+function cast(
+  docId: string,
+  opts: { caught: boolean; fishName?: string; rarity?: number; consumablesUsed?: number },
+): FishingCast {
+  // [session 61 §4b] The oil flag defaults to the non-oil arm here because
+  // every cast in the real corpus IS non-oil (`consumablesUsed` 0 on all 94) —
+  // an oil-era default would make these fixtures unrepresentative of anything
+  // recorded. `consumablesUsed` is settable so a caller can build the oil arm.
+  const consumablesUsed = opts.consumablesUsed ?? 0;
   return {
     docId,
+    consumablesUsed,
+    oilEra: consumablesUsed > 0,
+    slotsUsed: [false, false, false],
     responses: [
       { file: "f1", kind: "start_run", completeCid: false, successCid: null, caughtFish: null },
       opts.caught

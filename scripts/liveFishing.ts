@@ -127,7 +127,12 @@ import {
   DEFAULT_RING_MODEL_OPTIONS,
   DEFAULT_SWITCH_PROBABILITY,
 } from "../src/strategy/fishing/stepClass.js";
-import { shouldConsiderRelaxingOil, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
+import {
+  mayConsumeOil,
+  shouldConsiderRelaxingOil,
+  MID_RELAXING_OIL_ITEM_ID,
+  type OilBudgetConfig,
+} from "../src/strategy/fishing/oilPolicy.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { supportingCastCount } from "../src/sim/fishing/patternMining.js";
 import {
@@ -631,6 +636,21 @@ export interface RingPredictionRecord {
   /** Points left on the meter BEFORE this turn's move. */
   focusRemainingBefore?: number;
 
+  // ---- [session 61 §4b] which oils this cast had spent by this turn --------
+  // The CAST-level oil flag is derived from the capture itself
+  // (`fishingCorpus.ts`'s `oilEra`, off the server's own `consumablesUsed`),
+  // which is why it cannot be forgotten. What the board state does NOT carry
+  // is item IDENTITY — it counts consumables and marks slots without naming
+  // them — and identity is what separates "+2 focus" from "+2 fish damage"
+  // when the two arms are eventually compared. Only the spend site knows it,
+  // so only the spend site can record it.
+  //
+  // Absent means no oil had been spent by this turn. Absent on every row
+  // written before session 61, which is correct rather than merely tolerated:
+  // no cast on record has ever spent one.
+  /** Item ids consumed in this cast up to and including this turn, in spend order. */
+  oilItemIdsUsed?: number[];
+
   // ---- [session 50, brief §3 / open question 2] the SHADOW ring tier -------
   // Session 49 found the turn-0 tier scoring WORSE than the plain baseline:
   // pooled n=15, shipped 2/15 at logLoss 3.410 against the baseline's 2.073,
@@ -1023,6 +1043,14 @@ export interface LiveFishingDeps {
   log: RunLog;
   address: string;
   dryRun: boolean;
+  /**
+   * [session 61 §4c] `config/bot.json`'s `dendren.oils`. **Absent means NO
+   * oil is ever spent** — silence is not authorization, the session-24
+   * lesson. Deliberately not a path field, so it is not in
+   * `LiveFishingIsolatedPaths`: omitting it writes nothing anywhere, it only
+   * makes the loop more conservative.
+   */
+  oilBudget?: OilBudgetConfig;
   transitionsPath?: string;
   guardStatePath?: string;
   /** [session 30] Validation-only recording of predicted vs. actual `nextPosition` — see this file's "nextPosition validation" section. */
@@ -1318,6 +1346,13 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // every remaining turn of the same cast — one rejection is informative
   // enough without spamming the same failing request.
   let relaxingOilUseFailedThisCast = false;
+  // [session 61 §4c] Consumables spent this cast, for `mayConsumeOil`'s
+  // per-cast budget, and the itemIds spent, for the per-turn record. The
+  // board state's own `consumablesUsed` counts them too and is what
+  // `fishingCorpus.ts` derives the oil-era flag from — this local count is the
+  // BUDGET's, checked before each spend rather than read back after one.
+  let oilsUsedThisCast = 0;
+  const oilItemIdsUsedThisCast: number[] = [];
 
   while (turn < MAX_TURNS) {
     if (doc.COMPLETE_CID) break;
@@ -1328,11 +1363,35 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       return { outcome: "shutdown", turns: turn };
     }
 
-    if (
-      !dryRun &&
-      !relaxingOilUseFailedThisCast &&
-      shouldConsiderRelaxingOil(doc.data.fishHp, doc.data.fishMaxHp, relaxingOilHeld)
-    ) {
+    // [session 61 §4c] TWO gates, and they are different questions. Heuristic
+    // (c) says whether this is a MOMENT worth an oil; `mayConsumeOil` says
+    // whether spending one is AUTHORIZED at all. The authorization gate is
+    // checked second and independently, and it is what keeps this call site —
+    // live since session 44 — from firing the instant the user finishes
+    // crafting: `dendren.oils.policyApproved` is false until they have seen and
+    // approved a derived timing policy (CLAUDE.md rule 4, brief §4d).
+    //
+    // Every condition the caller gates on is PASSED IN rather than re-checked
+    // inside, so the resolver and its call site cannot drift apart the way
+    // `resolvePotionLoadout` and `main()` did. `tests/fishing/oilPolicy.test.ts`
+    // pins that correspondence by construction.
+    const oilMoment = shouldConsiderRelaxingOil(doc.data.fishHp, doc.data.fishMaxHp, relaxingOilHeld);
+    const oilAuth = mayConsumeOil({
+      configured: deps.oilBudget,
+      itemId: MID_RELAXING_OIL_ITEM_ID,
+      heldBalance: relaxingOilHeld,
+      usedThisCast: oilsUsedThisCast,
+      dryRun,
+      spendFailedThisCast: relaxingOilUseFailedThisCast,
+    });
+    if (oilMoment && !oilAuth.allowed) {
+      // Logged, not silent: the heuristic wanted to fire and policy said no.
+      // A refusal nobody can see is indistinguishable from a heuristic that
+      // never triggered.
+      log.write({ event: "oil_spend_refused", turn, itemId: MID_RELAXING_OIL_ITEM_ID, reason: oilAuth.reason });
+      console.log(`  · heuristic (c) wanted a Mid Relaxing Oil here — NOT spending: ${oilAuth.reason}`);
+    }
+    if (oilMoment && oilAuth.allowed) {
       console.log(
         `  ★ heuristic (c): fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP (${relaxingOilHeld} Relaxing Oil held) — using one.`,
       );
@@ -1351,6 +1410,8 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         fixtures.write(oilResp);
         doc = oilResp.data.doc;
         relaxingOilHeld -= 1;
+        oilsUsedThisCast += 1;
+        oilItemIdsUsedThisCast.push(MID_RELAXING_OIL_ITEM_ID);
         console.log(`  ✓ use_fishing_item (Mid Relaxing Oil): fish now ${doc.data.fishHp}/${doc.data.fishMaxHp}`);
         const unknown = unknownDocKeys(doc as unknown as Record<string, unknown>);
         if (unknown.length > 0) {
@@ -1647,6 +1708,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         pHitPredicted: best.pHit + best.pCrit,
         realizedHit,
         zoneMapVersion: CURRENT_ZONE_MAP_VERSION,
+        // [session 61 §4b] Copied, not aliased — the array keeps mutating as
+        // the cast spends more, and a shared reference would retroactively
+        // rewrite every earlier turn's record to the cast's final loadout.
+        oilItemIdsUsed: oilItemIdsUsedThisCast.length > 0 ? [...oilItemIdsUsedThisCast] : undefined,
       };
       appendRingPrediction(rec, ringPredictionLogPath);
       log.write({ event: "ring_prediction", ...rec });

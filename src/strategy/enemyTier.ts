@@ -251,3 +251,147 @@ export function pickSafeTier<T extends TierOption>(options: readonly T[]): T {
   assertSafeTier(chosen.tier);
   return chosen;
 }
+
+// ───────────────────────────────────────────────────────────────────────────
+// [session 61] THE IN-LOOP TIER GATE — rule 8's flip, checked while the run
+// can still be stopped.
+//
+// Rule 8's failure mode is SILENT. A run in which the highest-tier flip never
+// fired comes back looking exactly like the fifty lowest-tier runs before it:
+// same shape, same fields, same depth distribution. Session 60 audited its
+// tier choices AFTER the run finished, which is a different thing wearing the
+// same name — a check that runs after the run is over cannot stop anything,
+// and by then 3 run-units are spent on a data point that looks like evidence
+// and isn't.
+//
+// So the check re-derives the answer from the RAW OFFER, independently of
+// whichever code path produced the choice, and halts the run when they
+// disagree (CLAUDE.md rule 5). `auditTierChoice` deliberately does NOT call
+// `pickTierForRoom` — a checker that calls the thing it is checking can only
+// ever agree with it.
+//
+// **The cost is real and accepted.** Halting mid-run can waste 3 of the day's
+// 12 run-units. That is the intended trade, stated in the session-61 brief: a
+// run that silently took the lowest tier is worth LESS than no run at all.
+//
+// **Why `final-room-unreadable` is a violation rather than a warning.** It is
+// the shape in which the flip goes inert: session 56 found `ROOM_NUM_CID`
+// lives on `data.entity`, not `data.entity.data`, and `scripts/liveRun.ts`
+// defaults an unreadable room to 0 — so every room would take the final-room
+// clause and quietly pick the LOWEST tier all run long, indistinguishable
+// from "the rule is on and the offers were all like that". `maxRoom` cannot
+// be the unreadable half (liveRun falls back to a literal), so an unreadable
+// rule always means the ROOM number moved. Against that, the legitimate
+// reading — "we genuinely reached the final room AND lost the room number in
+// the same instant" — needs room 16, and the deepest run ever recorded is
+// room 10. Halting is the right call on those odds.
+//
+// Note the asymmetry with `pickFinalRoomTier`, which fails OPEN on the same
+// label: the PICKER still degrades gracefully so that its own unit tests and
+// any non-live caller keep working. It is the LIVE LOOP that refuses to spend
+// a run on an unreadable board.
+
+/** An independent re-derivation of what rule 8 should have produced for one room. */
+export interface TierChoiceAudit {
+  room: number | null | undefined;
+  maxRoom: number | null | undefined;
+  rule: TierRule;
+  /** The tier actually taken by the caller. */
+  chosenTier: number;
+  /** Every tier in the offer, in offer order. */
+  tiersOffered: number[];
+  /** Highest tier among NON-Perpetual options — rule 8's clause 1 target. `null` if none survive. */
+  eligibleTop: number | null;
+  /** Highest tier on offer, ignoring the Perpetual clause. */
+  topTierOffered: number;
+  /** True when the Perpetual clause cost a tier: the top tier was entirely perpetual. */
+  perpetualFilteredTop: boolean;
+  /** Empty when the audit passes; one line per violation otherwise. */
+  violations: string[];
+}
+
+/**
+ * Re-derives rule 8's answer from the raw offer and compares it with what was
+ * taken. Pure, no throw — the caller decides whether to halt (`assertTierChoiceOk`)
+ * or merely log (`formatTierCheckLine`), which keeps the audit usable from a
+ * report script that must not blow up.
+ */
+export function auditTierChoice<T extends TierOption>(
+  options: readonly T[],
+  chosenTier: number,
+  room: number | null | undefined,
+  maxRoom: number | null | undefined,
+): TierChoiceAudit {
+  const rule = tierRuleFor(room, maxRoom);
+  const tiersOffered = options.map((o) => o.tier);
+  const eligible = options.filter((o) => !isPerpetualBuff(o.enemyBuff));
+  const eligibleTop = eligible.length > 0 ? Math.max(...eligible.map((o) => o.tier)) : null;
+  const topTierOffered = options.length > 0 ? Math.max(...tiersOffered) : Number.NaN;
+  const violations: string[] = [];
+
+  if (options.length === 0) {
+    violations.push("empty enemy path offer — nothing to choose from");
+  }
+  if (rule === "final-room-unreadable") {
+    violations.push(
+      `room (${room}) or maxRoom (${maxRoom}) is UNREADABLE, so rule 8's highest-tier clause is ` +
+        `INERT and this room silently took the conservative lowest-tier path. Room 16 has never been ` +
+        `reached (deepest ever: room 10), so this is ROOM_NUM_CID having moved, not a real final room. ` +
+        `See enemyTier.ts's session-61 note.`,
+    );
+  }
+  if (rule === "highest" && eligibleTop !== null && chosenTier !== eligibleTop) {
+    violations.push(
+      `rule 8 clause 1 violated: took tier ${chosenTier} but the highest NON-PERPETUAL tier on offer ` +
+        `is ${eligibleTop} (offered ${JSON.stringify(tiersOffered)}). The flip did not fire.`,
+    );
+  }
+  if (rule === "final-room" && typeof room === "number" && typeof maxRoom === "number" && room < maxRoom) {
+    violations.push(`final-room clause applied at room ${room}, which is below maxRoom ${maxRoom}`);
+  }
+
+  return {
+    room,
+    maxRoom,
+    rule,
+    chosenTier,
+    tiersOffered,
+    eligibleTop,
+    topTierOffered,
+    perpetualFilteredTop: eligibleTop !== null && eligibleTop < topTierOffered,
+    violations,
+  };
+}
+
+/**
+ * ONE greppable stdout line per room. Session 60's brief asked the agent to
+ * "check the first `tier_choice` before letting it continue" against a channel
+ * that carried the room index nowhere — the readable line that did print
+ * ("taking the HIGHEST offered tier 2 of 2") named neither the room nor the
+ * tiers on offer, so it could not answer the question being asked of it.
+ * Everything needed to adjudicate the decision is on this line.
+ */
+export function formatTierCheckLine(a: TierChoiceAudit): string {
+  return (
+    `TIER-CHECK room=${a.room}/${a.maxRoom} rule=${a.rule} offered=${JSON.stringify(a.tiersOffered)} ` +
+    `taken=${a.chosenTier} eligibleTop=${a.eligibleTop} perpetualFilteredTop=${a.perpetualFilteredTop} ` +
+    `${a.violations.length === 0 ? "OK" : `VIOLATION(${a.violations.length})`}`
+  );
+}
+
+/** Thrown by `assertTierChoiceOk` — halts a live run rather than spending it on an inert flip. */
+export class TierRuleViolationError extends Error {
+  constructor(public readonly audit: TierChoiceAudit) {
+    super(
+      `Hard rule violated (CLAUDE.md rule 8) at room ${audit.room}: ${audit.violations.join(" | ")} ` +
+        `Halting the run — see enemyTier.ts's session-61 in-loop tier gate note for why this stops ` +
+        `rather than warns.`,
+    );
+    this.name = "TierRuleViolationError";
+  }
+}
+
+/** Fails closed on any violation. The live loop's gate; see the section header. */
+export function assertTierChoiceOk(audit: TierChoiceAudit): void {
+  if (audit.violations.length > 0) throw new TierRuleViolationError(audit);
+}

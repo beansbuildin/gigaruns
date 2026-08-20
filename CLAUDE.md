@@ -280,6 +280,26 @@ transaction that would spend ETH, or anything in the "Ask first" list below.
   60-energy juiced entry and needs an explicit human go-ahead for that run.
   Approval for one run is never approval for the next.
 
+**Fishing oils are PERMITTED within the configured budget — do not block on
+them.** [2026-08-20, session 61 §4c] "Sell, burn, or list any item" above is
+about DISPOSING of items, and a careful agent could reasonably read consuming a
+hand-crafted Mid Focus Oil (942) or Mid Relaxing Oil (937) as falling under it.
+It does not. The user's decision is that oils are spent autonomously within
+`config/bot.json`'s `dendren.oils` block, exactly as `forbiddenWoods.potions`
+works — the user sets the count, the bot spends inside it and stops at the
+budget. Fishing does not become per-cast approval.
+
+Two limits on that permission, and they are not negotiable by an agent:
+
+- **`dendren.oils.policyApproved` must be true.** It ships FALSE. The
+  consumption-TIMING policy is derived in sim and approved by the user before
+  any oil is consumed live (rule 4). Authorising the budget is not authorising
+  the timing, and `mayConsumeOil` enforces the distinction in code.
+- **This is licence for exactly this, and nothing larger.** It does not extend
+  to crafting, buying, selling or burning oils, or to any other consumable.
+  Absence of the config block still means zero oils spent — silence is not
+  authorization.
+
 Reading, playing fishing casts, and looting are all fine to do autonomously
 within the configured budget. Dungeon runs are not, and no longer were as of
 rule 11 — the earlier wording here said they were.

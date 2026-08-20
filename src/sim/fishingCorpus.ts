@@ -78,6 +78,51 @@ export interface FishingCorpusResponse {
 export interface FishingCast {
   docId: string;
   responses: FishingCorpusResponse[];
+  /**
+   * ── [session 61 §4b] THE OIL FLAG ────────────────────────────────────────
+   *
+   * Highest `consumablesUsed` seen on any board state in this cast. Zero means
+   * the cast was played with no consumable of any kind; anything above zero
+   * means at least one was spent, which for this account means an oil.
+   *
+   * **Derived, not written.** The brief asked for "a flag on the cast record,
+   * not a deletion and not a separate file" — and the strongest version of
+   * that turns out not to be a new field the live loop has to remember to set.
+   * `consumablesUsed` and `fishingConsumableSlotUsed[3]` are already on EVERY
+   * captured board state, in every fixture, back to the first cast ever
+   * recorded. So the flag is read off the capture instead. Three consequences,
+   * all of them the point:
+   *
+   *   - It cannot be forgotten. A cast recorded by a future code path that
+   *     nobody remembered to instrument still carries it, because the SERVER
+   *     puts it there.
+   *   - It applies RETROACTIVELY. Every one of the 94 existing casts is
+   *     classified without re-capturing anything — and doing so immediately
+   *     found one the brief said could not exist (12975152, `consumablesUsed:
+   *     1` from before its first captured state). A written flag would have
+   *     started at zero and never found it.
+   *   - It is a flag, so an excluded cast can be reconsidered. Nothing is
+   *     deleted and no cast moves to another file.
+   *
+   * **What it does NOT tell you: WHICH oil.** The board state counts
+   * consumables and marks slots; it does not name the item. Item identity is
+   * recorded at spend time by `liveFishing.ts` on the per-turn record
+   * (`oilItemIdsUsed`), which is the only place that knows it. So this field
+   * answers "does this cast pool with the non-oil arm?" — the §4b question —
+   * and the per-turn record answers "which oil, and when".
+   *
+   * **How to use it, per §4b:** outcome metrics (catch rate, per-cast
+   * outcomes, oil comparisons, and the 1.667 opening focus-spend mean —
+   * denominated in a budget the Focus Oil makes bigger) split into separate
+   * arms on this field. Movement-model quantities (ring model, step classes,
+   * mined patterns, matcher prior pi_0) POOL across it, because both oils
+   * change what we spend and not what the fish does.
+   */
+  consumablesUsed: number;
+  /** True iff `consumablesUsed > 0` — the oil-arm predicate, named so call sites read as intent. */
+  oilEra: boolean;
+  /** Union of `fishingConsumableSlotUsed` across the cast's states. Three slots, per SPEC-fishing §4a. */
+  slotsUsed: boolean[];
 }
 
 /**
@@ -130,7 +175,12 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
     const body = parsed as {
       message?: string;
       data?: {
-        doc?: { docId?: string; COMPLETE_CID?: boolean; SUCCESS_CID?: boolean | null };
+        doc?: {
+          docId?: string;
+          COMPLETE_CID?: boolean;
+          SUCCESS_CID?: boolean | null;
+          data?: { consumablesUsed?: number; fishingConsumableSlotUsed?: boolean[] };
+        };
         events?: { type?: string; data?: { fish?: CaughtFish } }[];
       };
     };
@@ -142,7 +192,28 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
       ? { gameItemId: fishDied.data.fish.gameItemId, name: fishDied.data.fish.name, rarity: fishDied.data.fish.rarity }
       : null;
 
-    const cast = byDoc.get(docId) ?? { docId, responses: [] };
+    const cast = byDoc.get(docId) ?? {
+      docId,
+      responses: [],
+      consumablesUsed: 0,
+      oilEra: false,
+      slotsUsed: [false, false, false],
+    };
+    // [session 61 §4b] MAX, not last: `consumablesUsed` is a running count
+    // within a cast, and a cast's final captured state is not guaranteed to be
+    // its last state (a run can end on an error dump). Taking the max cannot
+    // under-count, which is the safe direction — an oil cast wrongly pooled
+    // into the non-oil arm is the failure that silently biases an outcome
+    // metric; a non-oil cast wrongly excluded merely costs a data point.
+    const used = body.data?.doc?.data?.consumablesUsed;
+    if (typeof used === "number" && used > cast.consumablesUsed) cast.consumablesUsed = used;
+    const slots = body.data?.doc?.data?.fishingConsumableSlotUsed;
+    if (Array.isArray(slots)) {
+      for (let i = 0; i < cast.slotsUsed.length && i < slots.length; i++) {
+        if (slots[i] === true) cast.slotsUsed[i] = true;
+      }
+    }
+    cast.oilEra = cast.consumablesUsed > 0 || cast.slotsUsed.some((v) => v);
     cast.responses.push({
       file,
       kind: classifyMessage(body.message),

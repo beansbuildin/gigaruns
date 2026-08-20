@@ -54,6 +54,12 @@ import { loadDendrenDeck } from "./deck.js";
 import { buildPatternPool, toCandidate, type Pattern } from "./patterns.js";
 import { sampleEmpiricalTrajectory, type EmpiricalFishOptions } from "./empiricalFish.js";
 import { makeRng, type Rng } from "../rng.js";
+import {
+  PAYLOAD_OIL_EFFECTS,
+  type OilEffects,
+  type OilKind,
+  type OilTimingPolicy,
+} from "../../strategy/fishing/oilTiming.js";
 
 export type CastOutcome = "caught" | "escaped_meter" | "escaped_mana" | "stalled";
 
@@ -74,6 +80,8 @@ export interface CastResult {
    */
   hits: number;
   shots: number;
+  /** [session 61 §4d] Oils consumed this cast, in spend order. Empty when the sim ran without oils. */
+  oilsUsed: OilKind[];
 }
 
 export interface FishPolicyContext {
@@ -278,6 +286,38 @@ export interface CastOptions {
     table: StepClassTable;
     options?: RingModelOptions;
   };
+  /**
+   * [session 61 §4d] Oils. **Opt-in and additive** — omitted, the sim is
+   * byte-for-byte the sim it has always been, and every historical number
+   * stays comparable.
+   *
+   * MODELLED, NOT OBSERVED. No cast in the corpus supplies an oil outcome (see
+   * `src/strategy/fishing/oilTiming.ts`'s header), so this encodes the item
+   * PAYLOADS — `FishingRestoreFocus` +2, `FishingDamageFish` +2 — and nothing
+   * measured. `effects` is a parameter rather than a constant precisely so the
+   * sensitivity of any conclusion to those amounts can be swept.
+   *
+   * `costsTurn` carries the mechanic the payload cannot answer, in both
+   * directions. When true, a consume advances the fish one step and burns a
+   * turn WITHOUT taking a shot; it still costs no mana, because nothing in the
+   * `use_fishing_item` envelope or the item payload suggests it would.
+   */
+  oils?: {
+    policy: OilTimingPolicy;
+    effects?: OilEffects;
+    /** How many of each the cast starts holding. */
+    focusOilHeld?: number;
+    relaxingOilHeld?: number;
+    /** The unresolved mechanic — see `oilPolicy.ts`. No default: the caller must state which branch it is scoring. */
+    costsTurn: boolean;
+    /**
+     * Does `FishingRestoreFocus` cap at `FOCUS_METER_MAX`? Unknown; nothing
+     * says either way. Defaults to TRUE (capped), the conservative reading —
+     * an uncapped restore would make the Focus Oil strictly better and is the
+     * assumption that flatters it.
+     */
+    capFocusRestore?: boolean;
+  };
 }
 
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
@@ -342,8 +382,14 @@ export function simulateCast(opts: CastOptions): CastResult {
   // [session 46, brief §3] Per-turn shot accounting — see `CastResult`.
   let hits = 0;
   let shots = 0;
+  // [session 61 §4d] Oils. All inert when `opts.oils` is absent.
+  const oilEffects: OilEffects = opts.oils?.effects ?? PAYLOAD_OIL_EFFECTS;
+  const capFocus = opts.oils?.capFocusRestore ?? true;
+  let focusOilHeld = opts.oils?.focusOilHeld ?? 0;
+  let relaxingOilHeld = opts.oils?.relaxingOilHeld ?? 0;
+  const oilsUsed: OilKind[] = [];
   while (turn < maxTurns) {
-    if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp, hits, shots };
+    if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
     if (hand.length === 0) ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
 
     const ringOpts: RingModelOptions = opts.ringModel?.options ?? DEFAULT_RING_MODEL_OPTIONS;
@@ -395,10 +441,58 @@ export function simulateCast(opts: CastOptions): CastResult {
     // `k=1`. The distribution now reaches the policy unmodified.
     const dist = rawDist;
 
+    // [session 61 §4d] OIL CONSUMPTION, before the card decision — the oils
+    // change the state the card decision is made against (focus reachability,
+    // and whether the fish is already dead), so consuming after would score a
+    // decision taken under the wrong state.
+    if (opts.oils) {
+      const decision = opts.oils.policy.decide(
+        {
+          turn,
+          fishHp,
+          fishMaxHp,
+          mana,
+          focusRemaining: focus.remaining,
+          focusMax: FOCUS_METER_MAX,
+          focusOilHeld,
+          relaxingOilHeld,
+          focusCell: focus.current,
+        },
+        oilEffects,
+      );
+      let consumedThisTurn = 0;
+      for (const kind of decision) {
+        if (kind === "focus" && focusOilHeld > 0) {
+          focusOilHeld--;
+          consumedThisTurn++;
+          oilsUsed.push("focus");
+          const restored = focus.remaining + oilEffects.focusRestore;
+          focus = { current: focus.current, remaining: capFocus ? Math.min(FOCUS_METER_MAX, restored) : restored };
+        } else if (kind === "relaxing" && relaxingOilHeld > 0) {
+          relaxingOilHeld--;
+          consumedThisTurn++;
+          oilsUsed.push("relaxing");
+          fishHp = Math.max(0, fishHp - oilEffects.fishDamage);
+        }
+      }
+      // A lethal Relaxing Oil ends the cast HERE, before any card is played —
+      // which is exactly why the lethal trigger is indifferent to `costsTurn`:
+      // there is no next turn to lose.
+      if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+      if (consumedThisTurn > 0 && opts.oils.costsTurn) {
+        // The turn-cost branch: the fish moves and the turn burns, but no shot
+        // is taken and NO MANA is spent — nothing in the payload or the
+        // `use_fishing_item` envelope suggests a consume costs mana.
+        matcher = observe(matcher, trueTrajectory[matcher.turn]!);
+        turn++;
+        continue;
+      }
+    }
+
     const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp, focusBudget: focus }, rng);
 
     if (action.type === "pass") {
-      return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots };
+      return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
     }
     if (action.type === "redraw") {
       mana -= hand.length;
@@ -434,10 +528,10 @@ export function simulateCast(opts: CastOptions): CastResult {
       fishHp = Math.min(fishMaxHp, fishHp - amount);
     }
 
-    if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots };
-    if (fishHp >= fishMaxHp) return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots };
+    if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+    if (fishHp >= fishMaxHp) return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
   }
-  return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots };
+  return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
 }
 
 function zoneToOffsets(

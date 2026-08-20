@@ -21,6 +21,7 @@ import { boonPickups, loadCorpus, toCombatant } from "../src/sim/corpus.js";
 import { boonCoverage } from "../scripts/boonCoverage.js";
 import { ROOM_ENEMIES } from "../src/sim/enemies.js";
 import { ROLLED } from "../src/sim/types.js";
+import { summarizeBoonRunCoverage } from "../src/sim/boonRunCoverage.js";
 
 const roomOf = (enemyId: string): number =>
   ROOM_ENEMIES.find((p) => p.enemy.id === enemyId)?.room ?? -1;
@@ -207,7 +208,6 @@ describe("fail-closed on unmodelled types", () => {
       "SecondWind", // session 16: first sighting, live room-3 offer, not picked
       "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
       "TieDamageReduction",
-      "TieVulnerable", // session 12: first sighting, live room-3 offer, not picked
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
       "Vengeance", // session 53: first sighting, live room-3 offer (juiced run 2), not picked
       "VulnerableBlock", // live [2026-08-16/17]: first sighting, the takeover run's room-1 offer, not picked
@@ -324,7 +324,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // clean list below grows by two. This is NOT a sixth wall-1 hole: no type
     // became clean at room 1 that was not already, and `scripts/boonCoverage.ts`
     // now reports that ZERO modelled boons remain unoffered in room 1.
-    expect(roomOne.length).toBe(150);
+    // [session 61] 150 -> 153: run 24945829 added three room-1 options
+    // (UpgradePaper/AddIntuition/AddEvasion). A count, deliberately, not an
+    // inequality — unlike the pre-registered rules in matcherVerdict.ts this
+    // is a corpus census, and a census that silently grows is how a fixture
+    // deletion goes unnoticed. It SHOULD need editing when the corpus grows.
+    expect(roomOne.length).toBe(153);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -343,6 +348,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // options in that offer were AddIntuition (never clean) and
     // WeakeningTenacity, which gained a model this session but a LATENT one,
     // so it cannot join this list.
+    // [session 61] +1 `UpgradePaper` (sixth), from run 24945829's room-1
+    // offer. Again an already-clean type recurring, NOT a new hole — the
+    // other two options were AddIntuition and AddEvasion, neither clean.
+    // `TieVulnerable` gained a model this session but a LATENT one, so like
+    // WeakeningTenacity it cannot join this list either.
     expect(clean.sort()).toEqual([
       "AddMaxArmor",
       "AddMaxArmor",
@@ -353,6 +363,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "Heal",
       "Heal",
       "Heal",
+      "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
@@ -452,5 +463,55 @@ describe("boonCoverage ranks the unmodelled gap by what it costs", () => {
     // The most-offered unmodelled type is a room-1 type — the reason "once
     // every forty runs" undersells this gap.
     expect(c.unmodelledDetail[0]!.shallowestRoom).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [session 61 §5] Per-run boon coverage — INSTRUMENTATION ONLY.
+//
+// The brief is explicit: make the "is coverage a reason for the wide orb rule
+// or a side effect of it" question answerable, and do NOT decide it. These
+// tests pin the recording, and deliberately assert nothing about whether the
+// orb rule is good.
+// ---------------------------------------------------------------------------
+
+describe("summarizeBoonRunCoverage", () => {
+  const UNMOD = ["TieWeak", "AddBurnShield", "Regen"];
+
+  it("counts a picked-but-unmodelled type as a first-ever candidate", () => {
+    const c = summarizeBoonRunCoverage(["AddMaxHealth", "TieWeak"], ["TieWeak"], UNMOD);
+    expect(c.unmodelledPicked).toEqual(["TieWeak"]);
+    expect(c.firstEverCandidates).toBe(1);
+  });
+
+  it("distinguishes OFFERED-unmodelled from PICKED-unmodelled — the pool from the draw", () => {
+    // Two unmodelled types on offer, neither taken: the run had the chance and
+    // did not convert it. Collapsing these two counts would make a run that
+    // never sees an unmodelled boon look the same as one that declines two.
+    const c = summarizeBoonRunCoverage(["TieWeak", "Regen", "AddMaxHealth"], ["AddMaxHealth"], UNMOD);
+    expect(c.unmodelledOffered).toEqual(["Regen", "TieWeak"]);
+    expect(c.firstEverCandidates).toBe(0);
+  });
+
+  it("collapses duplicates — a type offered in four rooms is one type", () => {
+    const c = summarizeBoonRunCoverage(["Regen", "Regen", "Regen"], ["Regen", "Regen"], UNMOD);
+    expect(c.typesOffered).toEqual(["Regen"]);
+    expect(c.typesPicked).toEqual(["Regen"]);
+    expect(c.firstEverCandidates).toBe(1);
+  });
+
+  it("records the UNMODELLED_TYPES size, which is the 'before' of the before/after pair", () => {
+    expect(summarizeBoonRunCoverage([], [], UNMOD).unmodelledTypesAtRunStart).toBe(3);
+    // Against the live list, asserted as a shape rather than a number: the
+    // count legitimately falls every time a boon is modelled, and pinning a
+    // literal would make ordinary progress fail the suite.
+    const live = summarizeBoonRunCoverage([], []);
+    expect(live.unmodelledTypesAtRunStart).toBe(UNMODELLED_TYPES.length);
+    expect(live.unmodelledTypesAtRunStart).toBeGreaterThan(0);
+  });
+
+  it("is empty and harmless on a run that reached no reward phase", () => {
+    const c = summarizeBoonRunCoverage([], [], UNMOD);
+    expect(c).toMatchObject({ typesOffered: [], typesPicked: [], firstEverCandidates: 0 });
   });
 });

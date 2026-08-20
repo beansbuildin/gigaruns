@@ -5,16 +5,25 @@
  * derived" status).
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
   aboveReserveFloor,
   LOW_FISH_HP_FRACTION,
+  MAX_CONSUMABLE_SLOTS,
+  mayConsumeOil,
   MID_FOCUS_OIL_ITEM_ID,
   MID_RELAXING_OIL_ITEM_ID,
   OIL_RESERVE_FLOOR,
   shouldConsiderRelaxingOil,
+  type OilBudgetConfig,
+  type OilSpendContext,
 } from "../../src/strategy/fishing/oilPolicy.js";
+import { evaluateZeroStreak, ZERO_STREAK_LIMIT } from "../../src/strategy/fishing/zeroStreak.js";
+import { loadFishingCorpus } from "../../src/sim/fishingCorpus.js";
 
 describe("item ids — resolved against fixtures/fishing-casts/item-metadata-sample.json, SPEC-fishing.md §4a", () => {
   it("are the real docIds, not placeholders", () => {
@@ -66,5 +75,175 @@ describe("aboveReserveFloor", () => {
 
   it("is false at zero", () => {
     expect(aboveReserveFloor(0)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [session 61 §4c] mayConsumeOil — the authorization gate.
+//
+// The brief's instruction was "do not copy `resolvePotionLoadout`'s bug": a
+// resolver gating on `config.potions` alone while its caller gated on two
+// conditions, with a comment claiming they matched. A comment cannot enforce
+// that, so the correspondence is pinned here two ways — every condition is
+// asserted to block independently, and the LIVE CALL SITE is read to check it
+// passes each one rather than re-deriving any of them.
+// ---------------------------------------------------------------------------
+
+const APPROVED: OilBudgetConfig = { allowedItemIds: [MID_RELAXING_OIL_ITEM_ID, 942], maxPerCast: 3, policyApproved: true };
+
+/** A context that is allowed, so each test can break exactly one thing. */
+const ok = (over: Partial<OilSpendContext> = {}): OilSpendContext => ({
+  configured: APPROVED,
+  itemId: MID_RELAXING_OIL_ITEM_ID,
+  heldBalance: 2,
+  usedThisCast: 0,
+  dryRun: false,
+  spendFailedThisCast: false,
+  ...over,
+});
+
+describe("mayConsumeOil — every condition blocks on its own", () => {
+  it("allows the baseline case, so the negative tests below mean something", () => {
+    const d = mayConsumeOil(ok());
+    expect(d.allowed).toBe(true);
+    expect(d.reason).toMatch(/within budget/);
+  });
+
+  it("REFUSES with no config block — silence is not authorization (the session-24 lesson)", () => {
+    const d = mayConsumeOil(ok({ configured: undefined }));
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toMatch(/silence is not authorization/);
+  });
+
+  it("REFUSES while policyApproved is false, which is the state shipped in config/bot.json", () => {
+    const d = mayConsumeOil(ok({ configured: { ...APPROVED, policyApproved: false } }));
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toMatch(/policyApproved/);
+    // The reason a budget alone is not enough, stated in the message itself.
+    expect(d.reason).toMatch(/budget is not authorising the timing/i);
+  });
+
+  it("REFUSES an item outside allowedItemIds however large the balance", () => {
+    expect(mayConsumeOil(ok({ itemId: 821, heldBalance: 99 })).allowed).toBe(false);
+  });
+
+  it("REFUSES a zero balance — never invents a positive one", () => {
+    expect(mayConsumeOil(ok({ heldBalance: 0 })).allowed).toBe(false);
+  });
+
+  it("REFUSES on a dry run: the decision stands, nothing is spent", () => {
+    const d = mayConsumeOil(ok({ dryRun: true }));
+    expect(d.allowed).toBe(false);
+    expect(d.reason).toMatch(/dry run/);
+  });
+
+  it("REFUSES after a failed spend this cast rather than retrying an unconfirmed slotIndex", () => {
+    expect(mayConsumeOil(ok({ spendFailedThisCast: true })).allowed).toBe(false);
+  });
+
+  it("stops AT the per-cast budget, and the 3-slot hard ceiling wins over a larger config", () => {
+    expect(mayConsumeOil(ok({ configured: { ...APPROVED, maxPerCast: 2 }, usedThisCast: 1 })).allowed).toBe(true);
+    expect(mayConsumeOil(ok({ configured: { ...APPROVED, maxPerCast: 2 }, usedThisCast: 2 })).allowed).toBe(false);
+    // The board state exposes exactly 3 consumable slots (SPEC-fishing §4a), so
+    // a config asking for more is clamped rather than honoured. Zod caps this
+    // at 3 too; the clamp is the second line of defence, not the only one.
+    expect(
+      mayConsumeOil(ok({ configured: { ...APPROVED, maxPerCast: 99 }, usedThisCast: MAX_CONSUMABLE_SLOTS })).allowed,
+    ).toBe(false);
+  });
+
+  it("names the REAL blocker when several conditions fail at once", () => {
+    // No config AND no balance AND a dry run. The message must lead with the
+    // config, because that is the one a reader can act on.
+    const d = mayConsumeOil(ok({ configured: undefined, heldBalance: 0, dryRun: true }));
+    expect(d.reason).toMatch(/dendren\.oils/);
+  });
+});
+
+describe("the live call site passes every condition the gate checks", () => {
+  // Pinned by READING the call site, not by re-deriving it. If someone adds a
+  // condition to `mayConsumeOil` and forgets to pass it from `liveFishing.ts`,
+  // TypeScript catches it (every field is required). This catches the reverse:
+  // the call site quietly hard-coding a value instead of passing the real one,
+  // which typechecks fine and is exactly how the potions resolver drifted.
+  const src = readFileSync(join(process.cwd(), "scripts", "liveFishing.ts"), "utf8");
+  const call = src.slice(src.indexOf("mayConsumeOil({"), src.indexOf("mayConsumeOil({") + 400);
+
+  it("passes the config block through rather than assuming one", () => {
+    expect(call).toMatch(/configured:\s*deps\.oilBudget/);
+  });
+
+  it("passes the REAL live balance, not a constant", () => {
+    expect(call).toMatch(/heldBalance:\s*relaxingOilHeld/);
+  });
+
+  it("passes the running per-cast count, so the budget can actually bind", () => {
+    expect(call).toMatch(/usedThisCast:\s*oilsUsedThisCast/);
+  });
+
+  it("passes the loop's own dryRun and failure flags rather than literals", () => {
+    expect(call).toMatch(/dryRun,/);
+    expect(call).toMatch(/spendFailedThisCast:\s*relaxingOilUseFailedThisCast/);
+    expect(call).not.toMatch(/dryRun:\s*false/);
+    expect(call).not.toMatch(/policyApproved/); // the call site must not re-decide approval
+  });
+
+  it("the shipped config has policyApproved FALSE — no oil can be consumed live yet (rule 4)", () => {
+    const bot = JSON.parse(readFileSync(join(process.cwd(), "config", "bot.json"), "utf8")) as {
+      dendren: { oils: OilBudgetConfig };
+    };
+    expect(bot.dendren.oils.policyApproved).toBe(false);
+    expect(bot.dendren.oils.allowedItemIds).toContain(MID_FOCUS_OIL_ITEM_ID);
+    expect(bot.dendren.oils.allowedItemIds).toContain(MID_RELAXING_OIL_ITEM_ID);
+    expect(mayConsumeOil(ok({ configured: bot.dendren.oils })).allowed).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [session 61 §4e] The zero-streak tripwire, which SURVIVES the 60% drop and
+// is now computed rather than remembered.
+// ---------------------------------------------------------------------------
+
+describe("the zero-catch tripwire — armed through the oil transition", () => {
+  it("keeps the user's standing limit of 15 across the 60% target's removal", () => {
+    expect(ZERO_STREAK_LIMIT).toBe(15);
+  });
+
+  it("counts backwards from the most recent cast and resets on a catch", () => {
+    expect(evaluateZeroStreak([false, false, true, false, false]).streak).toBe(2);
+    expect(evaluateZeroStreak([true]).streak).toBe(0);
+    expect(evaluateZeroStreak([]).streak).toBe(0);
+  });
+
+  it("trips AT the limit, not one past it", () => {
+    const at = evaluateZeroStreak(Array(ZERO_STREAK_LIMIT).fill(false));
+    expect(at.tripped).toBe(true);
+    expect(at.castsRemaining).toBe(0);
+    const below = evaluateZeroStreak(Array(ZERO_STREAK_LIMIT - 1).fill(false));
+    expect(below.tripped).toBe(false);
+    expect(below.castsRemaining).toBe(1);
+  });
+
+  it("does NOT reset because the spending policy changed — the point of spanning the oil boundary", () => {
+    // Eight pre-oil misses then seven oil-era misses is a streak of fifteen.
+    // A per-arm streak would read 7 and stay silent through exactly the
+    // transition the tripwire exists to cover.
+    expect(evaluateZeroStreak(Array(15).fill(false)).tripped).toBe(true);
+  });
+
+  it("the REAL corpus is well below the limit, and the streak is computed rather than quoted", () => {
+    // Terminal outcomes only: an incomplete cast is a process that died, not
+    // evidence about the fishery, and counting it as a miss would inflate the
+    // streak toward a false trip.
+    const outcomes = loadFishingCorpus()
+      .map((c) => c.responses.find((r) => r.completeCid))
+      .filter((t): t is NonNullable<typeof t> => t !== undefined)
+      .map((t) => t.successCid === true);
+    const v = evaluateZeroStreak(outcomes);
+    expect(v.tripped).toBe(false);
+    expect(v.streak).toBeLessThan(ZERO_STREAK_LIMIT);
+    // Pinned as an inequality, not a literal: the streak moves on every cast,
+    // and a literal here teaches the next reader to edit the number.
+    expect(v.castsRemaining).toBeGreaterThan(0);
   });
 });

@@ -238,3 +238,55 @@ describe("loadFishingCorpus — synthetic corpus regression (session 28, CODEXRE
     expect(summary).toMatchObject({ casts: 2, responseDocs: 4, playTurns: 2, caught: 0, escaped: 2, incomplete: 0 });
   });
 });
+
+// ---------------------------------------------------------------------------
+// [session 61 §4b] The oil-era flag, derived from the capture rather than
+// written by the live loop — see `FishingCast.consumablesUsed`'s doc comment
+// for why that is the stronger form of "a flag on the cast record".
+// ---------------------------------------------------------------------------
+
+describe("the oil flag — derived off the server's own consumablesUsed", () => {
+  const corpus = loadFishingCorpus();
+
+  it("classifies EVERY cast, with no cast left undefined", () => {
+    expect(corpus.length).toBeGreaterThan(0);
+    for (const c of corpus) {
+      expect(typeof c.consumablesUsed).toBe("number");
+      expect(typeof c.oilEra).toBe("boolean");
+      expect(c.slotsUsed).toHaveLength(3);
+    }
+  });
+
+  it("finds the ONE consumable cast already in the corpus — the brief's 'zero oil casts' is wrong", () => {
+    // [session 61] Written expecting an empty result, and it was not empty.
+    // The session-61 brief states "the corpus contains zero oil casts" and
+    // this agent repeated it in a doc comment before running the check.
+    // `12975152` (fixtures/fishing-casts/live/cast-2026-08-19-00-52-19)
+    // carries `consumablesUsed: 1` and `fishingConsumableSlotUsed[0] === true`
+    // on its FIRST captured state — so the consumable was spent at or before
+    // cast start, not mid-cast by this bot. No `use_fishing_item` appears in
+    // that cast's log, and the bot's own balance read has never returned a
+    // positive count, so the spend was not ours.
+    //
+    // WHICH consumable is not recoverable: the board state counts consumables
+    // and marks slots without naming one, and both
+    // `fintuitionOilBoostPercent` and `dualYieldOilBoostPercent` read 0 on
+    // this cast, which only rules out those two families. That gap is exactly
+    // what `RingPredictionRecord.oilItemIdsUsed` exists to close going forward.
+    //
+    // Pinned as a COUNT with the id named, deliberately not as "expect
+    // exactly this docId forever": a second consumable cast appearing is real
+    // news and should fail this test rather than slip through.
+    const oilCasts = corpus.filter((c) => c.oilEra);
+    expect(oilCasts.map((c) => c.docId)).toEqual(["12975152"]);
+    expect(oilCasts[0]!.consumablesUsed).toBe(1);
+    expect(oilCasts[0]!.slotsUsed).toEqual([true, false, false]);
+    // ...and everything else is genuinely clean, which is what §4b's pooling
+    // rules rest on.
+    expect(corpus.filter((c) => !c.oilEra).length).toBe(corpus.length - 1);
+  });
+
+  it("oilEra and consumablesUsed agree, so a call site may use either", () => {
+    for (const c of corpus) expect(c.oilEra).toBe(c.consumablesUsed > 0 || c.slotsUsed.some((v) => v));
+  });
+});

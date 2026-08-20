@@ -109,3 +109,45 @@ the advantage of being true.
    trimmed by accident, the sim tests fail there and pass at home.
 
 Step 5 is the one worth not skipping. Everything else is mechanical.
+
+---
+
+## The `romId` references in SPEC.md — DECIDED, they stay
+**User decision, 2026-08-20 (session 61 §6). Recorded here with its reasoning
+so nobody rediscovers it as a finding in six sessions and "fixes" it.**
+
+Session 60's recap flagged that `SPEC.md` carries ROM token ids on 19 lines and
+that `SPEC.md` ships — raised as an incomplete distribution safeguard, since
+`config/discovered.json` had just been split precisely to remove those ids.
+
+> The 19 `romId` references in SPEC.md are **ERC-721 token ids on a public
+> chain**, already enumerable by anyone holding the contract address, and they
+> anchor evidence whose value depends on being checkable (`romId 2097 claimed
+> with amount:57 credited ~1.0`). Scrubbing them would cost the spec's
+> evidentiary value to remove information that is not actually concealed.
+> **Accepted exposure, deliberate, 2026-08-20.**
+
+### What this decision does NOT change
+
+- **No wallet addresses, no JWTs, no private keys in any shipped doc, ever.**
+  That line is unmoved and is not what this decision is about.
+- **`config/discovered.json`'s split stays exactly as shipped**, and
+  `tests/discoveredShipsClean.test.ts` stays as its pin — including its
+  SHA-256-hashed id list and its sixth check that no scalar matches
+  `/romId\s*\d/i`. This decision is scoped to **`romId` references in SPEC.md
+  prose** and nothing else.
+- `SPEC-fishing.md` is already clean (its one apparent hit is `689` inside
+  `1.689`).
+
+### Why the two are treated differently, since that looks inconsistent
+
+`config/discovered.json` is a **generated config file** — its ids are there to
+be read by code, carry no argument, and cost nothing to remove. `SPEC.md`'s are
+**citations inside an evidentiary claim**; removing them leaves a sentence that
+asserts a measurement nobody can re-check. Same identifiers, different jobs,
+different answers.
+
+### Steps 3-6 remain the user's
+
+An agent must not create or push the distribution repo. Steps 1-2 are done in
+the tree.

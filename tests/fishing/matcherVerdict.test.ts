@@ -13,7 +13,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildMatcherWeightReport,
+  DETECTABLE_CROSSING_RATE,
+  MIN_INSTRUMENTED_TURNS,
   PI_DECISION_THRESHOLD,
+  REPLAY_REFERENCE,
+  SESSION_51_VERDICT,
   type MatcherWeightRow,
 } from "../../src/strategy/fishing/matcherVerdict.js";
 import { parseReportArgs, selectBatch } from "../../scripts/matcherWeightReport.js";
@@ -48,20 +52,37 @@ describe("buildMatcherWeightReport — CLAUDE.md rule 10, the trap this rule mus
   it("counts a measured row even when its weight is 0 — a refuted matcher is data, not absence", () => {
     const r = buildMatcherWeightReport([row({ castId: "a", turn: 0, matcherWeight: 0 })]);
     expect(r.activeTurns).toBe(1);
-    expect(r.verdict).toBe("DROP");
+    // [session 61] The point of this test is the COUNT — that pi = 0 is a
+    // measurement and not a missing field. The verdict at n=1 is now
+    // INSUFFICIENT_DATA rather than DROP (the minimum-n clause), which does not
+    // weaken the thing being asserted: `activeTurns` is 1, so the row was
+    // counted, and the rule 10 hazard it guards against is untouched.
+    expect(r.verdict).toBe("INSUFFICIENT_DATA");
+    expect(r.unmeasuredTurns).toBe(0);
   });
 });
 
 describe("buildMatcherWeightReport — the two verdicts session 51 named", () => {
-  it("DROP when pi never exceeds the threshold on any cast", () => {
+  it("DROP when pi never exceeds the threshold on any cast AND the minimum is reached", () => {
+    // [session 61] Padded to the minimum. Under session 51's rule these three
+    // rows alone returned DROP; under the rule now in force they return
+    // INSUFFICIENT_DATA, which is the test immediately below. Built from
+    // `MIN_INSTRUMENTED_TURNS` rather than from 32, so raising N never silently
+    // turns this into a test of a different branch.
     const rows = [
       row({ castId: "a", turn: 0, matcherWeight: 0.12, hit: true }),
       row({ castId: "a", turn: 1, matcherWeight: 0.49 }),
       row({ castId: "b", turn: 0, matcherWeight: 0.5 }), // exactly at the threshold is NOT above it
+      ...Array.from({ length: MIN_INSTRUMENTED_TURNS }, (_, i) =>
+        row({ castId: "pad", turn: i, matcherWeight: 0.1 }),
+      ),
     ];
     const r = buildMatcherWeightReport(rows);
+    expect(r.activeTurns).toBeGreaterThanOrEqual(MIN_INSTRUMENTED_TURNS);
     expect(r.verdict).toBe("DROP");
     expect(r.crossingCastIds).toEqual([]);
+    expect(r.verdictIsPowered).toBe(true);
+    expect(r.turnsRemaining).toBe(0);
   });
 
   it("KEEP when pi crosses AND that cast hits above the batch base rate", () => {
@@ -173,20 +194,20 @@ describe("batch selection", () => {
 });
 
 describe("against the real corpus — end to end, so the only untested thing on the day is the data", () => {
-  it("§19 is MEASURED: the live batch produced real matcherWeights and the verdict is DROP", () => {
-    // [session 60] The good news this test was waiting for arrived. It used to
-    // assert `activeTurns === 0` — "today's log is ENTIRELY pre-instrumentation"
-    // — with a note saying to update it only once a live batch existed. The
-    // first 5-cast batch played under instrumentation produced **7** matcher
-    // turns, so §19 is measurable after nine sessions of waiting.
+  it("§19 is UNDER-POWERED, not settled: the live batch is real but below the minimum, so the verdict is INSUFFICIENT_DATA", () => {
+    // [session 61] THE GATE. This test used to assert DROP — session 51's rule,
+    // applied to the 7 instrumented turns session 60 produced, returned exactly
+    // that. The user's decision of 2026-08-20 was to gather more turns first,
+    // encoded here as `MIN_INSTRUMENTED_TURNS`. Session 51's verdict is not
+    // erased; it is preserved in `SESSION_51_VERDICT` and asserted below, so
+    // the renegotiation is visible in the test suite rather than only in prose.
     //
-    // The pinned values below are DELIBERATELY inequalities, not literals.
-    // Every future live cast moves these counts, and the thing worth pinning is
-    // session 51's pre-registered RULE — pi never crossing 0.5 means DROP —
-    // which cannot be renegotiated now that the numbers are visible. Pinning
-    // `activeTurns === 7` would just be a tripwire that fires on the next batch
-    // and teaches whoever hits it to edit the number, which is how a rule
-    // erodes.
+    // **Pinned on `n < N`, never on the literal 7.** Session 60's own lesson
+    // from rewriting this file: `activeTurns === 7` fires on the very next batch
+    // and teaches whoever hits it to edit the number, which is how a
+    // pre-registered rule erodes. Every assertion below is an inequality or a
+    // reference to the constant. When the corpus finally crosses N this test
+    // starts asserting DROP-or-KEEP on its own, which is the rule working.
     const rows = loadRingPredictions().map((r) => ({
       castId: r.castId,
       turn: r.turn,
@@ -196,22 +217,109 @@ describe("against the real corpus — end to end, so the only untested thing on 
       focusMoveCost: r.focusMoveCost,
     }));
     const report = buildMatcherWeightReport(rows);
-    // Instrumented turns exist now, and the pre-instrumentation ones are still
+    // Instrumented turns exist, and the pre-instrumentation ones are still
     // excluded rather than backfilled with the old fixed 0.9 (CLAUDE.md rule 10
     // — a constant is not a measurement).
     expect(report.activeTurns).toBeGreaterThan(0);
     expect(report.unmeasuredTurns).toBeGreaterThan(0);
     expect(report.activeTurns + report.unmeasuredTurns).toBeLessThanOrEqual(rows.length);
-    // Session 51's rule, applied to real data for the first time: pi never
-    // exceeded 0.5 (max observed 0.255 over the first instrumented batch), so
-    // the tier is DROPped. If a future batch pushes pi past 0.5 this flips to
-    // KEEP on its own — that is the rule working, not this test breaking.
-    expect(report.distribution!.max).toBeLessThan(0.5);
+    // The state the corpus is actually in, expressed as the rule's condition
+    // and not as a count.
+    expect(report.activeTurns).toBeLessThan(MIN_INSTRUMENTED_TURNS);
+    expect(report.verdict).toBe("INSUFFICIENT_DATA");
+    expect(report.verdictIsPowered).toBe(false);
+    expect(report.turnsRemaining).toBe(MIN_INSTRUMENTED_TURNS - report.activeTurns);
+    expect(report.turnsRemaining).toBeGreaterThan(0);
+    // The measurement itself is unchanged and still points the way session 51's
+    // rule read it — this is a power problem, not a data problem.
+    expect(report.distribution!.max).toBeLessThan(PI_DECISION_THRESHOLD);
     expect(report.crossingCastIds).toEqual([]);
-    expect(report.verdict).toBe("DROP");
     // The parts that never depended on the field still work, which is what
     // makes this an end-to-end validation rather than a smoke test.
     expect(report.baseHitTurns).toBe(rows.length);
     expect(report.openingFocus!.n).toBeGreaterThan(0);
+  });
+});
+
+describe("the session-61 rule — the renegotiation, pinned so it cannot happen twice unnoticed", () => {
+  it("preserves session 51's DROP verdict verbatim rather than erasing it", () => {
+    expect(SESSION_51_VERDICT.verdict).toBe("DROP");
+    expect(SESSION_51_VERDICT.activeTurns).toBe(7);
+    expect(SESSION_51_VERDICT.maxPi).toBeLessThan(PI_DECISION_THRESHOLD);
+    expect(SESSION_51_VERDICT.fractionAboveDecisionThreshold).toBe(0);
+    expect(SESSION_51_VERDICT.supersededBy).toMatch(/renegotiation/i);
+  });
+
+  it("N is consistent with its own stated derivation: 80% power against the assumed crossing rate", () => {
+    // The derivation, re-run as arithmetic rather than trusted from the comment:
+    // N = ln(0.20)/ln(1 - p) at p = DETECTABLE_CROSSING_RATE, rounded up.
+    const required = Math.ceil(Math.log(0.2) / Math.log(1 - DETECTABLE_CROSSING_RATE));
+    expect(MIN_INSTRUMENTED_TURNS).toBeGreaterThanOrEqual(required);
+    // And the power N actually buys is at least the 80% claimed.
+    expect(1 - (1 - DETECTABLE_CROSSING_RATE) ** MIN_INSTRUMENTED_TURNS).toBeGreaterThanOrEqual(0.8);
+    // The rate is the repo's own floor of measurability (SPEC §4e's 1-5% procs),
+    // not a number invented for this rule.
+    expect(DETECTABLE_CROSSING_RATE).toBe(0.05);
+  });
+
+  it("the minimum gates the DROP arm ONLY — an existence verdict fires at any n", () => {
+    // Two turns. Session 51's rule and this one agree on KEEP here, and the
+    // minimum is deliberately not consulted: a crossing that happened is not
+    // made less real by a small sample.
+    const rows = [
+      row({ castId: "a", turn: 0, matcherWeight: 0.8, hit: true }),
+      row({ castId: "b", turn: 0, matcherWeight: 0.1 }),
+    ];
+    const r = buildMatcherWeightReport(rows);
+    expect(r.activeTurns).toBeLessThan(MIN_INSTRUMENTED_TURNS);
+    expect(r.verdict).toBe("KEEP");
+    // ...but it is reported UNPOWERED, because the payoff half is sampled.
+    expect(r.verdictIsPowered).toBe(false);
+    expect(r.rationale).toMatch(/UNPOWERED/);
+  });
+
+  it("EARNED_BUT_UNPAID is likewise an existence verdict and needs no minimum", () => {
+    const rows = [
+      row({ castId: "a", turn: 0, matcherWeight: 0.8 }),
+      row({ castId: "b", turn: 0, matcherWeight: 0.1, hit: true }),
+    ];
+    const r = buildMatcherWeightReport(rows);
+    expect(r.activeTurns).toBeLessThan(MIN_INSTRUMENTED_TURNS);
+    expect(r.verdict).toBe("EARNED_BUT_UNPAID");
+    expect(r.verdictIsPowered).toBe(false);
+  });
+
+  it("below the minimum with no crossing is INSUFFICIENT_DATA — the branch session 51 called DROP", () => {
+    const rows = Array.from({ length: MIN_INSTRUMENTED_TURNS - 1 }, (_, i) =>
+      row({ castId: `c${i}`, turn: 0, matcherWeight: 0.2 }),
+    );
+    const r = buildMatcherWeightReport(rows);
+    expect(r.verdict).toBe("INSUFFICIENT_DATA");
+    expect(r.turnsRemaining).toBe(1);
+    // One more instrumented turn flips it to a real verdict — the boundary is
+    // asserted from both sides so an off-by-one in the comparison cannot hide.
+    const r2 = buildMatcherWeightReport([...rows, row({ castId: "last", turn: 0, matcherWeight: 0.2 })]);
+    expect(r2.verdict).toBe("DROP");
+    expect(r2.verdictIsPowered).toBe(true);
+  });
+
+  it("progress is denominated in TURNS and never divided by a cast rate", () => {
+    // Ten turns spread over two casts and over five report the SAME remaining
+    // count: what accrues is turns. Oils shorten casts, so a cast-denominated
+    // count would drift the moment they land (session 61 §4b).
+    const twoCasts = Array.from({ length: 10 }, (_, i) =>
+      row({ castId: i < 5 ? "a" : "b", turn: i % 5, matcherWeight: 0.2 }),
+    );
+    const fiveCasts = Array.from({ length: 10 }, (_, i) =>
+      row({ castId: `c${i % 5}`, turn: Math.floor(i / 5), matcherWeight: 0.2 }),
+    );
+    expect(buildMatcherWeightReport(twoCasts).turnsRemaining).toBe(MIN_INSTRUMENTED_TURNS - 10);
+    expect(buildMatcherWeightReport(fiveCasts).turnsRemaining).toBe(MIN_INSTRUMENTED_TURNS - 10);
+  });
+
+  it("the replay reference the derivation rests on is unchanged, so N stays checkable", () => {
+    expect(REPLAY_REFERENCE.medianPi).toBe(0.135);
+    expect(REPLAY_REFERENCE.fractionBelow).toBe(0.705);
+    expect(REPLAY_REFERENCE.belowThreshold).toBe(0.15);
   });
 });

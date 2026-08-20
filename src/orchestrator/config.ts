@@ -61,6 +61,18 @@ const BotJsonSchema = z.object({
     .object({
       dailyEnergyBudget: z.number().positive(),
       maxCastsPerSession: z.number().int().positive(),
+      // [session 61 §4c] Oils, mirroring `forbiddenWoods.potions`: the user
+      // sets the budget, the bot spends within it autonomously and stops. The
+      // THIRD field has no potions analogue and is the important one —
+      // `policyApproved` is CLAUDE.md rule 4's gate, false until the user has
+      // approved a derived timing policy. Absent block = no oil ever spent.
+      oils: z
+        .object({
+          allowedItemIds: z.array(z.number().int().positive()).min(1),
+          maxPerCast: z.number().int().positive().max(3),
+          policyApproved: z.boolean(),
+        })
+        .optional(),
     })
     .optional(),
   guards: z.object({
@@ -119,6 +131,8 @@ export interface BotConfig {
     maxCastsPerDayGame: number;
     dailyEnergyBudget: number;
     maxCastsPerSession: number;
+    /** [session 61 §4c] User-authorized oils — absent means "no oils", not "work it out from inventory." */
+    oils?: { allowedItemIds: number[]; maxPerCast: number; policyApproved: boolean };
   };
 }
 
@@ -163,6 +177,7 @@ export function loadBotConfig(
       maxCastsPerDayGame: discovered.dendren.maxCastsPerDay,
       dailyEnergyBudget: bot.dendren.dailyEnergyBudget,
       maxCastsPerSession: bot.dendren.maxCastsPerSession,
+      oils: bot.dendren.oils,
     };
   }
 

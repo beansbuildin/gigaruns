@@ -312,6 +312,32 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-20-18-19-07 state-033→state-034",
     observed: "selectedVal1 8 → no change to any player field",
   },
+  TieVulnerable: {
+    // [session 61, LIVE] First pair, after being OFFERED and declined since
+    // session 12 — nine sessions as a sighting with no pickup.
+    //
+    // **And it was NOT the orb rule that got it**, which matters because the
+    // two entries above were, and it would be easy to write a tidy story in
+    // which the orb rule is steadily clearing `UNMODELLED_TYPES`. Room 5
+    // offered TieVulnerable at 16 orbs against UpgradePaper at 25; the orb
+    // rule would have taken the 25. The BOON-PRIORITY directive took this one
+    // instead, because `TieVulnerable` is in the Vulnerable family — the
+    // load-bearing case where the orb rule correctly declines to override a
+    // priority match. So this coverage gain belongs to the priority rule, and
+    // session 61's §5 instrumentation records the two mechanisms separately
+    // rather than crediting whichever rule is currently interesting.
+    //
+    // Same latent shape as the six above and the two beside it: the pair's
+    // ONLY difference is the boon appearing in `pickedBoons` — health, shield,
+    // all three moves and every rolled stat byte-identical. Per DECISIONS
+    // 2026-08-15 the effect is NOT inferred from the name; "Vulnerable applied
+    // on a tie" is a plausible reading and it stays a reading. `Uncommon`
+    // (RARITY_CID 1), unlike the two Rares above.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-20-04-37 state-063→state-064",
+    observed: "selectedVal1 1 → no change to any player field",
+  },
 };
 
 /**
@@ -1360,6 +1386,35 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 4,
     source: "run-2026-08-20-18-19-07/state-041",
     options: [opt("UpgradePaper", 0, 8), opt("AddLuck", 1), opt("AddIntuition", 2)],
+  },
+  // [session 61, LIVE] Four offers from the session's one juiced Tier-3 run
+  // (24945829, died room 5). Room 4's is the one that matters: `TieVulnerable`
+  // at 16 orbs was taken over `UpgradePaper` at 25, because the boon-priority
+  // directive's Vulnerable family outranks the orb rule — the load-bearing
+  // case where the wide orb rule correctly declines to override a priority
+  // match, and the pickup that finally gave `TieVulnerable` a pair after nine
+  // sessions as an offered-but-declined sighting. Room 2's `AddLifestealShield`
+  // was demoted by the early-game lifesteal window (rooms 1..8) and `AddLuck`
+  // took it on orbs, 23 over 16/18.
+  {
+    room: 1,
+    source: "run-2026-08-20-20-04-37/state-008",
+    options: [opt("UpgradePaper", 6), opt("AddIntuition", 1), opt("AddEvasion", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-20-04-37/state-024",
+    options: [opt("AddLifestealShield", 2), opt("AddLuck", 1), opt("WeakeningCrit", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-20-04-37/state-042",
+    options: [opt("UpgradeRock", 0, 8), opt("WeakeningMastery", 10), opt("AddBurnMagic", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-20-20-04-37/state-062",
+    options: [opt("TieVulnerable", 1), opt("AddIntuition", 1), opt("UpgradePaper", 0, 8)],
   },
 ];
 

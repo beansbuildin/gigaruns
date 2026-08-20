@@ -47,6 +47,7 @@ import { AttemptTelemetry } from "../src/orchestrator/attemptTelemetry.js";
 import { bootstrapFromCorpus, loadOpponentModel } from "../src/orchestrator/opponentModelPersistence.js";
 import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
+import { TierRuleViolationError } from "../src/strategy/enemyTier.js";
 import { DEFAULT_CAPTURE_ROOMS, DEFAULT_CAPTURE_TARGETS } from "../src/strategy/boonCapture.js";
 import { DEFAULT_BOON_PRIORITY } from "../src/strategy/boonPriority.js";
 import { loadCorpus, type WireBoon, type WireRun, type WireSide } from "../src/sim/corpus.js";
@@ -455,6 +456,101 @@ describe("runOnce — dry run", () => {
     // second start_run on top of an existing run), one to read it for the
     // decision.
     expect(getCalls).toBe(2);
+  });
+});
+
+/**
+ * [session 61 §1] THE IN-LOOP TIER GATE — the gate this session was set.
+ *
+ * The brief's terms: a test that FAILS when the room-tier assertion is removed
+ * from `scripts/liveRun.ts`, demonstrated failing rather than merely passing.
+ * Delete the `assertTierChoiceOk(tierAudit)` call from `liveRun.ts`'s
+ * `enemyPath` branch and the first test below stops rejecting — the dry run
+ * sails through to "would POST" and resolves. That is the whole point: a
+ * guard nobody has ever seen fire is not known to guard anything.
+ *
+ * **Why the fault injected here is the REAL one and not a tampered picker.**
+ * `pickTierForRoom` cannot be made to return the wrong tier without reaching
+ * into it, and a test that reaches into the thing it is testing proves
+ * nothing. But rule 8 has a documented, already-observed way of going inert
+ * WITHOUT anyone touching the picker: session 56 found `ROOM_NUM_CID` lives on
+ * `data.entity`, not `data.entity.data`, and `liveRun.ts:1078` defaults an
+ * unreadable room to 0. A board missing that field resolves every room to
+ * `final-room-unreadable`, which takes the LOWEST tier all run long and comes
+ * back looking exactly like the fifty lowest-tier runs before it. So the
+ * fixture is simply a real board with the field where it isn't — no seams, no
+ * injection — and the loop picks tier 0 out of an offer topping at 2.
+ *
+ * Runs in DRY-RUN: the assertion sits before the `if (dryRun)` early return,
+ * so the gate is exercised end-to-end without a single POST.
+ */
+describe("runOnce — the room-tier gate halts the run (session 61 §1)", () => {
+  const OFFER = [
+    { tier: 0, index: 0, enemyBuff: null, rolledEnemyStats: { evasion: 0, block: 0, lck: 0, tenacity: 0 } },
+    { tier: 1, index: 1, enemyBuff: { id: "armored" } },
+    { tier: 2, index: 2, enemyBuff: { id: "ferocious" } },
+  ];
+
+  function stubEnemyPath(entity: Record<string, unknown> | undefined) {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch(() => ({
+        status: 200,
+        body: {
+          success: true,
+          actionToken: 1,
+          data: { run: fakeRun({ enemyPathPhase: true, enemyPathOptions: OFFER }), entity },
+        },
+      })),
+    );
+  }
+
+  it("THROWS TierRuleViolationError when ROOM_NUM_CID is missing, because the flip is then silently inert", async () => {
+    stubEnemyPath(undefined); // the session-56 shape: no readable room number
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    // The rejection has to be attached before timers run, or vitest reports an
+    // unhandled rejection instead of the assertion under test.
+    const settled = expect(p).rejects.toBeInstanceOf(TierRuleViolationError);
+    await vi.runAllTimersAsync();
+    await settled;
+  });
+
+  it("names the inert flip in the error, so the halt is diagnosable from the log alone", async () => {
+    stubEnemyPath(undefined);
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    const settled = expect(p).rejects.toThrow(/UNREADABLE/);
+    await vi.runAllTimersAsync();
+    await settled;
+  });
+
+  it("does NOT throw on a readable room — the gate passes the ordinary case through untouched", async () => {
+    stubEnemyPath({ ROOM_NUM_CID: 3 });
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await p; // resolves: rule "highest", tier 2 taken, audit clean, dry-run returns
+    const written = (deps.log.write as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+    const choice = written.find((e: { event?: string }) => e?.event === "tier_choice") as
+      | { tierAudit?: { violations: string[]; chosenTier: number; eligibleTop: number; rule: string } }
+      | undefined;
+    expect(choice?.tierAudit?.violations).toEqual([]);
+    expect(choice?.tierAudit?.rule).toBe("highest");
+    expect(choice?.tierAudit?.chosenTier).toBe(2);
+    expect(choice?.tierAudit?.eligibleTop).toBe(2);
+    expect(written.some((e: { event?: string }) => e?.event === "tier_rule_violation")).toBe(false);
+  });
+
+  it("records the violation to the JSONL BEFORE throwing — the run exits non-zero but the log survives", async () => {
+    stubEnemyPath(undefined);
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    const settled = expect(p).rejects.toBeInstanceOf(TierRuleViolationError);
+    await vi.runAllTimersAsync();
+    await settled;
+    const written = (deps.log.write as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+    expect(written.some((e: { event?: string }) => e?.event === "tier_rule_violation")).toBe(true);
   });
 });
 
@@ -1341,11 +1437,15 @@ describe("runOnce — enemy path phase, under rule 8's HIGHEST-tier rule (sessio
     expect((ev.chosen as { tier: number }).tier).toBe(0);
   });
 
-  it("falls back to no-modifiers, LABELLED, when ROOM_NUM_CID is unreadable", async () => {
-    // The silent-inertness trap: `ROOM_NUM_CID` lives on `data.entity`, and
-    // liveRun defaults it to 0. If it ever moves again, every room would take
-    // the conservative branch — so the label must differ from a real final
-    // room, or the flip could be off with no error anywhere.
+  // [session 61 §1] CONTRACT CHANGED, deliberately, and the test is rewritten
+  // rather than deleted. It used to end `await p` — the loop LABELLED an
+  // unreadable room and carried on, fail-open. It now HALTS. The original
+  // purpose survives intact and is still asserted: the label must differ from
+  // a real final room, or the flip could be off with no error anywhere. What
+  // changed is what the loop does once it has that label. Session 60 proved
+  // the label alone was not enough — it was written to a JSONL nobody read
+  // until after the 3 run-units were spent.
+  it("LABELS an unreadable ROOM_NUM_CID and now HALTS on it, instead of quietly playing the run out", async () => {
     serveOffer(
       {
         enemyPathPhase: true,
@@ -1358,8 +1458,9 @@ describe("runOnce — enemy path phase, under rule 8's HIGHEST-tier rule (sessio
     );
     const deps = makeDeps(true);
     const p = runOnce(deps);
+    const settled = expect(p).rejects.toBeInstanceOf(TierRuleViolationError);
     await vi.runAllTimersAsync();
-    await p;
+    await settled;
 
     const ev = tierChoice(deps)!;
     expect(ev.rule).toBe("final-room-unreadable");

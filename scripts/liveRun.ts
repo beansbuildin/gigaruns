@@ -77,9 +77,17 @@ import {
 } from "../src/orchestrator/opponentModelPersistence.js";
 import { loadPlayCounts, savePlayCounts, deletePlayCounts } from "../src/orchestrator/playCountsPersistence.js";
 import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profile.js";
-import { PerpetualOnlyOfferError, pickTierForRoom, tierRuleFor } from "../src/strategy/enemyTier.js";
+import {
+  assertTierChoiceOk,
+  auditTierChoice,
+  formatTierCheckLine,
+  PerpetualOnlyOfferError,
+  pickTierForRoom,
+  tierRuleFor,
+} from "../src/strategy/enemyTier.js";
 import { isPerpetualBuff } from "../src/sim/enemyBuffs.js";
 import { MAX_ROOM, SAFE_TIER } from "../src/sim/enemies.js";
+import { summarizeBoonRunCoverage } from "../src/sim/boonRunCoverage.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import {
   chooseCaptureBoon,
@@ -1042,6 +1050,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     }
   }
 
+  // [session 61 §5] Boon-coverage accumulators for this run. Recorded at
+  // run end (`boon_run_coverage`) and acted on nowhere — see
+  // src/sim/boonRunCoverage.ts.
+  const boonTypesOffered: string[] = [];
+  const boonTypesPicked: string[] = [];
+
   for (;;) {
     let state: DungeonState | null;
     try {
@@ -1122,6 +1136,17 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     }
 
     if (phase === "over") {
+      // [session 61 §5] Coverage snapshot at run end — RECORDED, not acted
+      // on. See src/sim/boonRunCoverage.ts on why this is instrumentation and
+      // explicitly not an argument for the wide orb rule.
+      const coverage = summarizeBoonRunCoverage(boonTypesOffered, boonTypesPicked);
+      log.write({ event: "boon_run_coverage", room: roomNum, ...coverage });
+      console.log(
+        `  ▸ boon coverage this run: ${coverage.typesPicked.length} type(s) picked, ` +
+          `${coverage.firstEverCandidates} of them still UNMODELLED (first-ever candidates), ` +
+          `${coverage.unmodelledOffered.length} unmodelled type(s) offered, ` +
+          `UNMODELLED_TYPES size ${coverage.unmodelledTypesAtRunStart}.`,
+      );
       log.write({ event: "run_over", room: roomNum });
       console.log(`  ▸ run over at room ${roomNum}.`);
       // [session 35, CODEXIMPROVE #5] Win, death, or flee all land here —
@@ -1296,6 +1321,17 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
             `same tier ${chosen.tier} in favour of a clean one. Tier unchanged.`,
         );
       }
+      // [session 61 §1] THE IN-LOOP TIER GATE. Re-derives rule 8's answer from
+      // the raw offer — independently of `pickTierForRoom`, which produced the
+      // choice — prints ONE greppable line, and HALTS the run on disagreement.
+      // Runs on every room, not just the first: it is the same three
+      // comparisons either way, and the failure mode it catches
+      // (`final-room-unreadable` from a moved `ROOM_NUM_CID`) can start at any
+      // room, not only room 1. See enemyTier.ts's session-61 section for why
+      // an unreadable room is a violation rather than a warning, and why
+      // halting mid-run is worth up to 3 run-units.
+      const tierAudit = auditTierChoice(options, chosen.tier, roomNum, maxRoom);
+      console.log(`  ▸ ${formatTierCheckLine(tierAudit)}`);
       log.write({
         event: "tier_choice",
         rule,
@@ -1307,7 +1343,15 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         perpetualCostATier,
         perpetualAvoided,
         perpetualOffered: options.some((o) => isPerpetualBuff(o.enemyBuff)),
+        tierAudit,
       });
+      if (tierAudit.violations.length > 0) {
+        // Logged BEFORE throwing so the JSONL carries the violation even
+        // though the process is about to exit non-zero (rule 5).
+        log.write({ event: "tier_rule_violation", audit: tierAudit });
+        for (const v of tierAudit.violations) console.log(`  ✗ ${v}`);
+      }
+      assertTierChoiceOk(tierAudit);
 
       if (dryRun) {
         console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(posn)} (data.index 0 — see buildPathSelectionEnvelope)`);
@@ -1444,6 +1488,8 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       } else {
         console.log(`  ▸ reward: picking "${chosenOption.type}" (index ${chosenIndex})`);
       }
+      boonTypesOffered.push(...mapped.map((m) => m.option.type));
+      boonTypesPicked.push(chosenOption.type);
       log.write({
         event: "boon_choice",
         chosen: chosenOption,
