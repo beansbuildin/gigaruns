@@ -1,4 +1,10 @@
-# STATE — session 55 — 2026-08-19 (PT) — commit 39b8ef7
+# STATE — session 55 — 2026-08-19 (PT) — code at commit 39b8ef7
+
+> The four code commits end at **39b8ef7**; this recap sits on top of it, so
+> `git log` HEAD is one commit later. All verification below was run AT
+> 39b8ef7, which touches no source. (Session 54 had to patch this header after
+> the fact — stating the code SHA rather than a SHA that cannot exist yet
+> avoids the same correction.)
 
 ## Status
 Session-55 brief: **all four items (§1–§4) delivered.** No gate was set this
@@ -41,7 +47,7 @@ one command.
   git SHAs and contract addresses survive. `tests/api/redact.test.ts` asserts
   the three FILES are clean, not merely that the function can clean them.
 - Suite **931/931** (was 886), `tsc --noEmit` clean, `git diff --check` clean,
-  all at the final commit 39b8ef7. No test writes a real data path.
+  all at the final code commit 39b8ef7. No test writes a real data path.
 
 ## What's broken
 1. **§19 is UNMEASURED for a fifth session — and the near-miss matters more
