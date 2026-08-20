@@ -29,10 +29,14 @@ Private key and JWT live in `~/.secrets/`, loaded via env. Add `.env`,
 Never log a key, a signature, or a full JWT — log `jwt[0..8] + "..."` at most.
 If you ever print one by accident, stop and tell the user to rotate.
 
-**4. Energy is real money. Simulate first.**
+**4. Simulate first.**
 No strategy code gets tested against the live API until it passes against
 recorded fixtures in `fixtures/`. The sim harness is Task 4 and it is not
-optional. A bad move loop can burn a full day's energy in under a minute.
+optional. A bad move loop can burn a full day's RUN ALLOWANCE in under a
+minute, and that allowance — 12 run-units, server-enforced — is the scarce
+thing. [session 58] This rule used to open "Energy is real money"; it does not,
+see rule 12. What is real is the run cap, the items a run consumes, and the
+fact that a bad loop is unrecoverable until 11:00 Pacific.
 
 **5. Fail closed.**
 On any unexpected state — unknown enum, HTTP 5xx, three consecutive action
@@ -148,10 +152,16 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
   points between runs (rule: never allocate them yourself) and says when to
   resume. `--runs=1`, every time.
 
-The daily ceiling follows from the existing budget and does not need
-re-deriving: 240 energy / 60 and 12 run-units / 3 both give **4 juiced runs per
-day**, resetting 11:00 Pacific. If those two numbers ever disagree, stop —
-something has been edited without the other.
+The daily ceiling is **12 run-units / 3 = 4 juiced runs per day**, resetting
+11:00 Pacific, and the SERVER enforces it (`maxRunsPerDay: 12`,
+`dayProgressEntities`) — `npx tsx scripts/checkDungeonToday.ts` reads it.
+
+**[session 58] The energy half of this derivation is DELETED, by user
+directive.** It used to read "240 energy / 60 and 12 run-units / 3 both give 4,
+and if those two numbers ever disagree, stop." They now disagree permanently and
+correctly: the account generates **~1368 energy/day** once its ROMs NFTs are
+counted, so the energy arm gives 22.8 and the tripwire fired on good data. See
+CLAUDE.md's energy note below and DECISIONS 2026-08-20.
 
 **The consequence that is easy to miss.** A rule requiring per-run human
 approval cannot be satisfied by an autonomous loop, so **`scripts/orchestrator.ts`
@@ -169,6 +179,33 @@ standing in for a gate the orchestrator never had (`resolvePotionLoadout` checks
 `main()`'s gate, which is two conditions). With the dungeon arm closed, the
 latch is redundant and the block stays put. **If the dungeon arm is ever
 reopened, the remove-after-use convention comes back with it.**
+
+---
+
+**12. Energy is not a constraint. Do not plan around it or report it as a
+blocker.**
+User directive, 2026-08-20, given after it had to be said more than once. The
+account generates **~1368 energy/day** once the ROMs NFTs tied to this character
+are counted. `GET /offchain/player/energy` reports only the PASSIVE REGEN POOL
+(`energyValue`, `maxEnergy: 420`, `regenPerHour: 18`), so reading it as a
+ceiling understates the real supply by ~3x and invents blockers that do not
+exist. Session 58 read `energyValue: 11` and wrote off the whole session's live
+work as blocked for thirteen hours.
+
+**`scripts/liveRun.ts` already handles this and has for some time.** Its energy
+preflight reads the ROM bank and claims what a run needs — on 2026-08-20 that
+bank held 37 ROMs and **2251 claimable energy** against a 60-energy run. So the
+alarming number was one the loop resolves by itself.
+
+The real ceilings are the GAME's own daily ledgers and nothing else: fishing
+casts (`dayDocs[pondId]`, 20/day) and dungeon run-units
+(`dayProgressEntities`, 12/day), both rolling over at 11:00 Pacific, plus this
+repo's own policy budgets in `config/bot.json`.
+
+**The general lesson, which is the durable half: exercise the real gate before
+reporting a blocker.** `liveRun.ts --dry-run` runs every guard, spends nothing,
+and takes twenty seconds. It would have answered this correctly and instead the
+answer was reasoned out from a raw endpoint reading.
 
 ---
 

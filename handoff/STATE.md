@@ -1,176 +1,185 @@
-# STATE — session 57 — 2026-08-19 (PT) — code at commit 9080355
-
-> One code commit, `9080355`. This recap and the session log sit on top of it
-> and touch no source. All verification below was run AT `9080355`.
+# STATE — session 58 — 2026-08-20 (PT) — code at commit 43be799 (+ a CLAUDE.md commit)
 
 ## Status
-Session-57 brief: **all four items (§1, §2, §3, §4) delivered.**
-**NO GATE WAS SET by the brief**, and per CLAUDE.md rule 6 none is invented
-here — the bar was full suite + `tsc --noEmit` + `git diff --check`, all clean.
-Next per TASKS.md: nothing is blocked on code. The next real move is a live
-juiced run (needs a per-run human go-ahead, rule 11) or QUESTIONS.md §19.
+Session-58 brief: **§1 DELIVERED IN FULL. §2 and §19 NOT ATTEMPTED — server cap,
+not a choice. §0 and §4 delivered in this recap.**
 
-**Zero energy spent. Zero casts. Zero dungeon runs. Two free GETs total.**
+**No gate was set by the brief.** §1 carried its own pre-registered decision
+rule, which is the closest thing to a gate this session had, and it **PASSED
+decisively**: ship policy C. Standing bar also met — suite 1028/1028,
+`tsc --noEmit` clean, `git diff --check` clean, no test writes a real data path.
 
-**§19 is BLOCKED for a SEVENTH session** and was checked as the first action:
-session began 23:13 PT on 2026-08-19, and the caps reset at **11:00 PT on
-2026-08-20**. Game ledger 20/20, repo ledger 20, agreeing, 11.77h to reset.
-The precondition is unchanged and unmet: **a session that BEGINS after 11:00 PT
-on a day whose 20 casts are unspent.**
+**Zero energy spent. Zero casts. Zero dungeon runs.** Three free GETs
+(`checkFishingCaps`, `checkDungeonToday`, one `--dry-run`).
 
-**The two headline numbers:**
-1. **The rule-8 flip is live in code and has never run against the game.** The
-   first juiced run is its first exercise and is also the only measurement of
-   what winning a chosen hard fight yields — the corpus has none.
-2. **§2's orb tie-break, shipped exactly as directed, is worth +0.029 orbs per
-   decision.** The wider reading the directive does not authorise is worth
-   +1.81 — **62x** — and is written up as QUESTIONS.md §24 for the user.
+**THE TWO THINGS THE NEXT BRIEF MUST NOT GET WRONG:**
+
+1. **ENERGY IS NOT A CONSTRAINT. Never write it into a plan or report it as a
+   blocker.** User directive, delivered mid-session with visible frustration at
+   having to repeat it. The account makes **~1368 energy/day** once its ROMs
+   NFTs are counted; `GET /offchain/player/energy` reports only the passive
+   regen pool (`energyValue`, `maxEnergy 420`, `regenPerHour 18`). This session
+   read `energyValue: 11` and wrote off both live items for ~13 hours. That was
+   fabricated. **`liveRun.ts` has had an energy preflight all along** — the dry
+   run showed it reading a bank of 37 ROMs / **2251 claimable energy** and
+   offering to claim 1 to cover a 60-energy run. Now CLAUDE.md rule 12.
+2. **The real ceiling is the SERVER's run cap and it was already spent.**
+   `real server runs today: 12/12 — any start_run will be rejected server-side`
+   (`maxRunsPerDay: 12`). Fishing likewise 20/20. Both roll at 11:00 PT. The
+   session began 08:30 PT, so §2 and §19 were unreachable for ~2.5h; **the user
+   chose to recap and hand back rather than wait.** Not a failure to attempt —
+   a scheduling fact plus a decision.
 
 ## What works
-- **§1 the flip — `src/strategy/enemyTier.ts` rewritten.** `pickLowestTier` is
-  **deleted**, not renamed-and-kept; the live selector is `pickHighestTier`.
-  `chooseTier` -> `lowestTierOption`, plus a `highestTierOption` sibling.
-  Verified by 1014 tests including five new `runOnce`-level ones that assert
-  the `tier_choice` log event, not just that the loop resolved.
-- **Perpetual is applied as a FILTER BEFORE the max**, so the clause now
-  *lowers* the tier rather than breaking a within-tier tie. An all-Perpetual
-  offer throws `PerpetualOnlyOfferError` and halts.
-- **`maxRoom` verified against a LIVE response before it governs anything** —
-  `scripts/checkMaxRoom.ts`, one free GET, committed: Forbidden Woods **16**,
-  Void Dungeon **17**, Dungetron 16, Underhaul 16, matching
-  `config/discovered.json`. `liveRun` now reads `config.maxRoom`, not the
-  `MAX_ROOM` literal.
-- **Unreadable room/`maxRoom` -> conservative no-modifiers branch, LABELLED**
-  `final-room-unreadable` and printed with a `⚠` naming `ROOM_NUM_CID`.
-- **The retry re-locator delegates to the rule** — `locateChosenTierOption(run,
-  room, maxRoom)`. Its old inline lowest-tier scan would have skipped the
-  Perpetual filter and the final-room exception on a retry.
-- **§2 `gigusOrbAmount` as a within-rank tie-break** in `boonPriority.ts`,
-  wired live and logged (`orbTieBreak`, `orbsTaken`, `orbsOffered`). Refuses to
-  fire on a partial capture rather than read an absent payout as zero.
-- **`scripts/orbTieBreakReport.ts`** — three policies over 552 decisions.
-- **§3 `boonCapture` untouched and still OFF** behind its two-condition gate.
-- Suite **1014/1014** (was 988), `tsc --noEmit` clean, `git diff --check` clean.
-  No test writes a real data path.
+- **§1 SHIPPED: `orbRule: "wide"` is the live boon policy.** Where NO option
+  matches a priority family (56.5% of decisions), the richest `gigusOrbAmount`
+  wins and `rankBoons` breaks payout ties. It still cannot override a priority
+  family — it only runs where the priority layer returned null.
+- **Settled by a pre-registered rule, not judgement.** The brief fixed
+  "ship if depth loss < 0.15 rooms" before any number existed.
+  `scripts/orbDepthExperiment.ts`, n=8000/arm, identical seeds:
+  **-0.0020 rooms, paired 95% CI [-0.0175, +0.0135]**, for **+6.30 Hard Core
+  per run (+10.4%)**. The whole interval is ~11x inside the bar.
+- **The pairing is load-bearing**: 6311 of 8000 seeds (78.9%) produce an
+  IDENTICAL run in both arms. Unpaired half-width 0.0286 vs paired 0.0155.
+- **Stage 0 (construct validity) passes, and it had to.** `applyBoon` moves
+  player state for exactly SIX types — Heal, UpgradeRock/Paper/Scissor,
+  AddMaxArmor, AddMaxHealth. `rolled` writes a stat `combat.ts` never reads;
+  `latent` is `case "latent": break;`; unmodelled returns unchanged. So two arms
+  differing only on inert options are **bit-identical** and a 0.00 would be a
+  property of the instrument. Measured open: C differs on 34.4% of decisions,
+  **25.8% of those touch a state-moving option**, 21.1% of seeds diverged.
+- **`src/sim/orbOffers.ts`** joins recorded payouts onto the sim's offer table,
+  135/135, complete on every option, `assertDistributionPreserved()` proving the
+  offers are unchanged but for the added field.
+- **`orbRule` is a `config/bot.json` knob AND is in the zod schema.** Zod strips
+  unknown keys silently, so an unlisted knob would make `"tie-break"` (the
+  revert) a silent no-op.
+- **Wired live and proven at `runOnce` level**, not just unit level — three new
+  tests where the ranker's pick and the payout's pick differ, so "the rule fired"
+  and "the fixture happened to agree" cannot be confused. Session 57's tier flip
+  is why this was done at that level.
+- Suite **1028/1028** (was 1014), `tsc --noEmit` clean, `git diff --check` clean.
 
 ## What's broken
-1. **The flip has ZERO live exercise, and so does the final-room path.** Every
-   test is against a mock. The `maxRoom` VALUE is verified live; the code path
-   that consumes it has never seen room 16, the deepest run ever being room 10.
-2. **§2 is a near-no-op as shipped and that is a finding, not a defect.** The
-   winning priority rank ties on **16 of 552 decisions (2.9%)**, so the rule
-   changes the pick on **0.7%**. The field is not the problem — payouts differ
-   in 136 of 138 offers, mean spread 6.22 orbs. The narrow reading is.
-3. **The simulator now models a policy the bot does not play.** `dungeonSim`
-   still fights Safe tier by default, deliberately: raising it would only make
-   the sim refuse to score (617/622 non-Safe paths carry rolled stats). Every
-   number it prints is now a LOWER BOUND on difficulty. Documented in the
-   default's doc comment; **do not "fix" it.**
-4. **§19 UNMEASURED for a seventh session.** Purely scheduling. Unchanged.
-5. **§23's −1 energy drift still unexplained.** Probe armed, never fired — no
-   run happened. Unchanged from sessions 54, 55, 56.
-6. Carried, unchanged: git HISTORY still holds the noob token and the three
+1. **§2 NOT ATTEMPTED. The rule-8 flip STILL has zero live exercise**, and now
+   so does the wide orb rule. Both are fully tested against mocks and have never
+   met the game. Unchanged from session 57 and now compounded by a second
+   untested policy change.
+2. **§19 UNMEASURED for an EIGHTH session.** Purely scheduling. The precondition
+   is exactly one thing: **a session that BEGINS after 11:00 PT** on a day whose
+   20 casts are unspent. It is NOT an energy question — see rule 12.
+3. **§23's -1 energy drift still unexplained.** Probe armed, never fired, no run
+   happened. Unchanged from sessions 54-57. Note this is about a LEDGER
+   discrepancy, not about energy scarcity; rule 12 does not retire it.
+4. **The sim now models a policy the bot does not play, in TWO ways** — Safe
+   tier (session 57) and, for any historical arm, the un-enriched offer table.
+   Deliberate. Every depth number it prints is a LOWER BOUND on difficulty.
+   **Do not "fix" it.**
+5. Carried, unchanged: git HISTORY still holds the noob token and three
    documents' identifiers (deliberate, `fixtures/README.md`).
 
 ## Corrections to SPEC.md
-- **SPEC §3e's tier rule is REVERSED in the document, not merely annotated.**
-  The `lootTable`-identity evidence is left standing and marked still-true; the
-  new paragraph states why the two claims are orthogonal and names
-  `pickHighestTier`, `PerpetualOnlyOfferError`, and the two exceptions.
-- **SPEC's `gigusOrbAmount` bullet now carries the measured numbers** (136/138
-  differ, spread 6.22, shipped +0.029/decision, wide +1.81/decision).
-- **No live response contradicted SPEC this session.** The one live read
-  (`maxRoom`) CONFIRMED the recorded value. There was no live play.
+- **A corpus reward offer's room is `ROOM_NUM_CID - 1`.** The reward phase is
+  reached with the counter ALREADY ADVANCED past the room whose clear produced
+  the offer. Measured **135/135, no exceptions**. `scripts/orbTieBreakReport.ts`
+  shipped in session 57 reading the raw wire value and was one room deep on
+  every offer. **Corrected — and re-running gave A/B/C totals IDENTICAL to the
+  orb**, so session 57's §24 numbers stand and the defect was inert here. It
+  would not stay inert deeper: `room` feeds `priorityOf`'s rooms-1..8 lifesteal
+  window and `rankBoons`' `roomsRemaining`.
+- **17 of the 135 `OBSERVED_OFFERS` rows name a `source` file TWO STATES LATER
+  than the one holding the offer** (uniform -2, five runs) — and those 17 are
+  the corpus's DEEPEST offers (rooms 6-9). A source-keyed join drops exactly the
+  rows a depth experiment most wants. Join on room+content instead.
+- SPEC's `gigusOrbAmount` bullet now carries the wide rule and its numbers.
+- `WireRewardOption` gains `gigusOrbAmount?`; `BoonOption` gains `orbs?`.
+- **No live response contradicted SPEC this session.** There was no live play.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
-  `maxRoom` is per-dungeon and now confirmed on four dungeons, not one.
-- Move charges: PRESENT — unchanged, no new capture this session.
+- Move charges: PRESENT — unchanged, no new capture.
 
 ## Dead ends
-- **Do not leave a renamed `pickLowestTier` in place as an alias.** It was
-  deleted outright. Three prose references in `src/sim/enemies.ts`,
-  `tests/enemies.test.ts` and `boonCapture.ts` were annotated rather than
-  rewritten, because they describe things that happened under the old rule.
-- **Do not re-implement the tier rule anywhere but `enemyTier.ts`.** The retry
-  path had a second copy for 48 sessions and it was equivalent right up until
-  it wasn't.
-- **Do not read the old `runOnce` enemy-path tests as covering the flip.** They
-  served state with **no `data.entity`**, so `roomNum` was 0 — post-flip that
-  is the `final-room-unreadable` branch. They asserted only "resolves", so they
-  would have passed while the loop took the LOWEST tier. Fixed; the new tests
-  serve `entity: { ROOM_NUM_CID: n }` and assert the logged decision.
-- **Do not widen the orb rule to make it fire.** Measured, written up, left to
-  the user (QUESTIONS.md §24).
-- Standing, unchanged: do not apply a stat-only `enemyBuff` (double-counts, 56);
-  do not key the buff fail-closed line on the buff ID (56); do not join reward
-  offers per run DIRECTORY (56); `ROOM_NUM_CID` is on `data.entity` (56); do not
-  expect the priority list to subsume `boonCapture` (56); do not write a
-  liveRun `runOnce` test without `vi.runAllTimersAsync()` (56); do not read
-  `matcherWeight` through `matcherWeightOf()` for §19 (55); do not write a real
-  identifier into a test (54); `npx tsx -e` cannot resolve this project's
-  relative imports; never pipe a live run to a truncating reader (52).
+- **Do not read a raw endpoint and call it a blocker — exercise the real gate.**
+  `liveRun.ts --dry-run` runs every guard, spends nothing, takes 20 seconds, and
+  would have given the correct answer immediately. Reasoning from
+  `energyValue: 11` instead produced a fabricated 13-hour blocker.
+- **Do not join corpus payouts by `source`.** Silently drops the 17 deepest.
+- **Do not treat a sim null on a BOON policy as evidence without stage 0.** The
+  channel is closed for any comparison whose differing picks are all inert.
+- **Do not use `SimOptions.offers` to change WHICH offers a room gets and then
+  report the number.** Enriching every option with a recorded field is fine and
+  is now a documented second use; `assertDistributionPreserved()` is the line.
+- **Do not add a config knob without adding it to the zod schema.**
+- Standing, unchanged: do not revert rule 8 to lowest-tier without a directive;
+  do not re-implement the tier rule outside `enemyTier.ts`; do not apply a
+  stat-only `enemyBuff`; do not widen a rule merely to make it fire; do not
+  write a liveRun `runOnce` test without `vi.runAllTimersAsync()`; `npx tsx -e`
+  cannot resolve this project's relative imports; never pipe a live run to a
+  truncating reader.
 
 ## Metrics
-- **Live dungeon: 0 runs. Live fishing: 0 casts. Energy spent: 0.** Two free
-  GETs (`checkFishingCaps`, `checkMaxRoom`).
-- **Cap ledgers, verified live 23:13 PT and agreeing:** `dayDocs[pondId 2]` =
-  20 of 20; repo guard 20 casts. 11.77h to rollover.
-- **§1 live `maxRoom`:** Forbidden Woods 16, Void Dungeon 17, Dungetron 5000
-  16, Underhaul 16. Matches `config/discovered.json`.
-- **§2, 138 offers x 4 HP fractions = 552 decisions:**
-  - payouts present on every option 138/138; differ across options **136/138
-    (98.6%)**; mean spread where they differ **6.22 orbs**.
-  - no priority family matches: **312 (56.5%)**; matched but only one option:
-    **224 (40.6%)**; two or more tied at the winning rank: **16 (2.9%)**.
-  - A baseline 10256 orbs (18.580/dec) | **B shipped 10272 (18.609/dec,
-    +16 total, +0.029/dec, pick changed on 4 = 0.7%)** | C wide, NOT SHIPPED,
-    11256 (20.391/dec, +1000 total, **+1.81/dec, pick changed on 196 = 35.5%**).
-  - For scale: session 56 measured the whole enemy-TIER effect on mean orbs at
-    room 3 at **+4.21** (n=25/10/2), suggestive not established.
-- Suite 988 -> **1014**. Corpus unchanged (nothing captured this session).
+- **Live dungeon: 0 runs. Live fishing: 0 casts. Energy spent: 0.** Three free
+  GETs.
+- **Caps at session start (08:30 PT), both ledgers agreeing:** fishing 20/20
+  spent; dungeon `dayProgressEntities` Dungeon#5 = 12 of 12; server confirms
+  "cap already reached, any start_run will be rejected". Roll at 11:00 PT.
+- **§1, n=8000 per arm, identical seeds, `dungeonSim` Safe tier:**
+  - B shipped (tie-break) mean rooms **3.2776**, orbs/run **60.333**
+  - C wide                mean rooms **3.2796**, orbs/run **66.637**
+  - paired B-C **-0.0020**, 95% CI **[-0.0175, +0.0135]**; bar 0.15,
+    break-even 0.292; orb gain **+6.304/run (+10.4%)**
+  - identical runs in both arms **6311/8000 (78.9%)**
+- **§1 stage 0, 135 offers x 4 HP fractions = 540 decisions:** C differs from B
+  on **186 (34.4%)**; of those, both options inert **138 (74.2%)**, at least one
+  state-moving **48 (25.8%)**. orbs/decision B 18.670, C 20.437, **+1.767**.
+- **§24 report re-run with corrected rooms, 552 decisions:** A 10256 (18.580),
+  B 10272 (18.609), C 11256 (20.391) — **identical to session 57 to the orb.**
+- Suite 1014 -> **1028**. Corpus unchanged (nothing captured).
 
 ## Open questions for Claude
-1. **§24 is the live one and it needs one sentence from the user.** Should the
-   orb rule be widened to decide among options when NO priority family matches
-   (56.5% of decisions)? +1.81 orbs/decision vs the shipped +0.029. The cost is
-   real and stated: it overrides `rankBoons`' modelled combat value on 35.5% of
-   picks. **No offline experiment can settle it** — the sim cannot separate two
-   boon policies at n=2000. Full numbers in QUESTIONS.md §24.
-2. **The first juiced run under the flip is the most valuable thing available**
-   and needs a per-run go-ahead (rule 11). Report tier offered vs taken per
-   room, how often Perpetual filtered the top choice, whether `final-room` or
-   `final-room-unreadable` ever appeared, and orb totals. The bot took the
-   lowest tier on every unforced decision it ever made, so this is the ONLY
-   data that will exist on what a chosen hard win pays.
-3. **§19: put the precondition in the brief's FIRST paragraph.** Seventh
-   blocked session. `npx tsx scripts/checkFishingCaps.ts` first, then 20 casts,
-   then `npx tsx scripts/matcherWeightReport.ts --last-casts=20`.
-4. **Do not write a brief that gates a dungeon strategy change offline.** That
-   instrument is gone (DECISIONS 2026-08-20, session 57 §4). Fishing is the
-   only offline gate left with meaning.
-5. **§23 stays open until the armed probe fires.** Unchanged.
-6. **`boonCapture` stays OFF** per the session-57 brief; re-ask once the
-   directive's free by-product coverage has landed from ordinary play.
+1. **The next session's brief should open with the 11:00 PT clock, and nothing
+   else in the first paragraph.** Both remaining live items — §2 and §19 —
+   need only one thing: a session that BEGINS after 11:00 PT with the day's caps
+   unspent. Eight blocked sessions for §19. Do not add conditions; do not
+   mention energy.
+2. **§2's live run is now MORE valuable, and its report should cover two
+   untested policies, not one.** Tier offered vs taken per room, how often
+   Perpetual filtered the top choice (~35% expected), whether `final-room` or
+   `final-room-unreadable` appeared at all (**room 16 is unreachable — any
+   `final-room-unreadable` is a BUG**), plus the ORB rule: how often
+   `orbFallback` fired, `narrowed` true vs false, `orbsTaken` vs `orbsOffered`,
+   and the run's orb sum. Check the first `tier_choice` AND the first
+   `boon_choice` before letting the run continue.
+3. **§23's probe is still armed and still unfired.** Report whether the pair
+   around `start_run` reads -59 or -60.
+4. **CLAUDE.md rule 11's energy derivation was DELETED this session** (user
+   approved). The 4-runs/day ceiling now rests solely on 12 run-units / 3, which
+   the server enforces. Rule 4 was retitled "Simulate first" for the same
+   reason. Do not re-derive a ceiling from energy.
+5. **`boonCapture` stays OFF.** Re-ask once ordinary play has produced a few
+   runs' worth of free by-product coverage. Still zero such runs.
+6. **§24 is CLOSED — answered yes, shipped.** Do not reopen it as a question.
 
 ## Files changed
 ```
- 1 commit.  18 files, +1,212 / −303.  No fixtures written (zero live play).
+ 2 commits. 18 files, +1,043 / -33. No fixtures written (zero live play).
 
-     src/strategy/enemyTier.ts    | 334  (§1, rewritten — the flip)
-     scripts/orbTieBreakReport.ts | 233  (§2, new — the three-policy report)
-     tests/liveRun.test.ts        | 224  (§1 runOnce-level flip tests)
-     scripts/liveRun.ts           | 162  (§1/§2 wiring, telemetry)
-     tests/enemyBuffs.test.ts     | 115  (§1 selector tests)
-     src/strategy/boonPriority.ts |  71  (§2, the orb tie-break)
-     tests/boonPriority.test.ts   |  67  (§2)
-     scripts/checkMaxRoom.ts      |  56  (§1, new — live maxRoom check)
-     QUESTIONS.md                 |  47  (§24, new)
-     SPEC.md                      |  43  (tier rule reversed, orbs measured)
-     tests/rewardTier.test.ts     |  40  (§2 tie-rate pin)
-     tests/enemyTier.test.ts      |  39  (renamed accessors)
-     TASKS.md                     |  35  (Task 4.5 gate retired again, §4)
-     src/sim/dungeonSim.ts        |  26  (Safe-tier default documented)
-     src/strategy/boonCapture.ts  |  10  (rule-8 prose corrected)
-     handoff/DECISIONS.md         |   7
-     src/sim/enemies.ts           |   3
-     tests/enemies.test.ts        |   3
+     scripts/orbDepthExperiment.ts | 234  (§1, new — stage 0 + the paired test)
+     src/sim/orbOffers.ts          | 192  (§1, new — the 135/135 payout join)
+     tests/orbOffers.test.ts       | 106  (§1, new)
+     src/strategy/boonPriority.ts  | 102  (§1 — orbRule, chooseOrbFallback)
+     tests/liveRun.test.ts         |  92  (§1 runOnce-level wiring tests)
+     tests/boonPriority.test.ts    |  66  (§1)
+     scripts/liveRun.ts            |  63  (§1 wiring, telemetry, startup line)
+     CLAUDE.md                     |  49  (rule 12 new; rules 4 and 11 corrected)
+     QUESTIONS.md                  |  41  (§24 resolved)
+     SPEC.md                       |  32  (wide rule; the room off-by-one)
+     src/sim/dungeonSim.ts         |  30  (BoonRecord.orbs; offers-hook doc)
+     scripts/orbTieBreakReport.ts  |  20  (the room off-by-one fix)
+     src/sim/boons.ts              |  14  (BoonOption.orbs)
+     src/strategy/policy.ts        |  10  (orbs plumbed to pickBoon)
+     src/orchestrator/config.ts    |   8  (orbRule in the zod schema)
+     handoff/DECISIONS.md          |   6
+     src/sim/corpus.ts             |   6  (WireRewardOption.gigusOrbAmount)
+     config/bot.json               |   5  (orbRule knob)
 ```
