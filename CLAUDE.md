@@ -230,6 +230,47 @@ answer was reasoned out from a raw endpoint reading.
 
 ---
 
+**13. A permission denial is NOT evidence that nothing ran. Verify against the
+server ledger before believing it, and never retry on the strength of one.**
+Session 61, 2026-08-20. The authorized juiced run was issued, the harness
+returned *"Permission for this action was denied by the Claude Code auto mode
+classifier"*, and the agent reported it as blocked and moved on. **The run had
+already completed** — `dayProgressEntities` 3→6, 39 POSTs, run 24945829. It was
+found ~25 minutes later, by accident, when new fixtures appeared in the boons
+tests.
+
+This is a known Claude Code defect, not a quirk of this repo:
+`anthropics/claude-code#77185`, open, labelled `bug` / `area:permissions` /
+`has repro` — the classifier's denial can race the command and come back after
+the side effects have already landed. Anthropic's own documentation says the
+classifier check happens *before* execution, so the denial is supposed to
+guarantee non-execution. Sometimes it does not.
+
+**The obligation, and it is unconditional.** After ANY live command that reports
+as denied, blocked, or interrupted — before saying it did not run, and long
+before re-issuing it — read the server's own ledger:
+
+```
+npx tsx scripts/checkDungeonToday.ts     # dayProgressEntities
+npx tsx scripts/checkFishingCaps.ts      # dayDocs[pondId]
+```
+
+The ledger is the only authority on what was spent. A tool result is not.
+
+**Why this is a rule and not a note.** The dangerous case is not the one that
+happened — exactly one run was authorized and exactly one occurred, so nothing
+was overspent. It is the next one: an agent that believes a denied run did not
+happen will reasonably re-issue it, and that silently burns another 3 run-units
+against a 12-unit day. The same reasoning applies to any irreversible spend, so
+do not scope this rule to dungeon runs.
+
+**Report it, do not absorb it.** If the ledger contradicts the denial, say so
+plainly in the recap with both numbers. A denial that raced execution is
+information the user needs about their tooling, not a discrepancy to reconcile
+quietly.
+
+---
+
 ## Working style
 
 - **TypeScript, Node 20+, `viem` for signing.** Abstract tooling is TS-first.
