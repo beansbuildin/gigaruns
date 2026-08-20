@@ -1,253 +1,205 @@
-# BRIEF — session 54 (rule 11, then the fishing batch §19 has waited four sessions for)
+# BRIEF — session 55 (offline: no live play, and §19 reduced to something a session can't displace)
 
-Session 53 passed its gate cleanly — **24 path-selection decisions, 0
-first-attempt rejections**, against a historical rate of 66/66 = 100% — and
-closed §21 and §22. Room 10 / 8112 / 687 is the deepest and best-scoring run in
-the corpus by a wide margin. Two questions that had been carried for three
-sessions are done.
+Session 54 delivered four of five items and reported the fifth as blocked
+rather than working around it, which is the right call. It also caught three
+separate errors in my brief — one of them the premise of the item that failed.
+§0.
 
-It also caught a real error in my own brief before it cost anything, which is
-the single most valuable thing a session can do with a brief. §0.
+**This session spends no energy and makes no live play calls.** That is a
+decision, not a constraint discovered at minute five. §1.
 
 ---
 
 ## 0. Corrections to me
 
-- **My §0c number was on the wrong clock, and session 53 caught it from my own
-  data.** I measured the accept/reject split as gap-since-**response**
-  (1.54–3.40s), then proposed 3600ms as `minGapMs` — which `RateLimiter`
-  applies **request-to-request**, stamping `lastCallAt` before dispatch. The
-  two differ by one response latency (0.72–1.78s, median 1.45, n=296), so 3600ms
-  request-to-request would have left as little as ~1.8s since the response:
-  inside the reject band, and it would very likely have failed my own gate.
-  Session 53 built `RequestPacing.minGapSinceResponseMs` instead and set it to
-  4000. That is the correct fix and I had the data to see it.
-  **The general form, worth keeping:** a threshold measured against one clock
-  cannot be handed to a limiter that enforces a different one. State which
-  event a duration is measured *from*, every time.
-- **My §6 question was backwards.** I asked which modelled boons had never been
-  offered in room 1; the answer is zero, and session 52's own `AddMaxHealth`
-  capture closed the last hole. The real gap runs the other way — 36 boon types
-  offered with no `BOON_MODELS` entry.
-- **My §22 was one alias pair; it was five.** I read session 52's report of the
-  pair that cleared the promotion threshold and did not ask whether the pool
-  held others.
-- **My "40 decisions, 40 rejections" arithmetic needed session 53's correction
-  to be stated right.** The 132 historical empty-token POSTs are 66 decisions
-  each sent twice, so the rate is 66/66 = 100%, not 66/132 = 50%. My table
-  reported both halves correctly and then described them in a way that invited
-  the wrong denominator.
+- **My §2 premise was wrong, and it is the reason §19 failed for a fourth
+  time.** I wrote "the cap resets 11:00 PT and the library is finally the right
+  one… It is not blocked now." The reset is real; my assumption that the session
+  would *begin after it* was not. Session 54 began ~2 hours after session 53,
+  inside the same guard-day session 53 had already exhausted.
+  **The general form is worth a rule, and it is rule 6's shape exactly:** a
+  brief may not schedule live play without naming the cap ledger it assumes and
+  the wall-clock window it requires, because *when a session starts is not
+  something the session controls*. A task whose feasibility depends on the
+  start time is a **precondition**, and preconditions belong at the top of the
+  brief where they can be checked in one read — not inside item 2 where they
+  get discovered after the setup work is done. §1 is what that looks like.
+- **My §4 was stale.** The default claim order has been `"descending"` since
+  session 52 (`opts.order ?? "descending"`); sessions 52 and 53 ran ascending
+  by passing `--claim-order=ascending` explicitly, and I read those runs as the
+  default. No code change was needed — the change was to stop passing the flag.
+  The WARN half was real and shipped.
+- **My potion invariant was phrased as a falsehood.** "No `potionPolicy`
+  without `juicedStartRun`" is false of a legitimate path:
+  `liveRun.ts --potions=N --resume-existing` deliberately builds one, because
+  those consumables were committed server-side by whoever started the run.
+  Session 54 correctly restated it as being about **auto-deriving from the
+  config allowlist**, which is the thing that was actually unguarded.
+- **My §5 expected a small leverage subset; it is 30 of 36.** I guessed
+  "a handful" and reasoned from a made-up frequency ("offered once every forty
+  runs"). TieWeak alone is 11 offers of 135. The recommendation that followed
+  from the invented number was wrong, and §3 replaces it.
 
 ---
 
-## 1. Rule 11 — the standing dungeon protocol, and the ordering that makes it safe
+## 1. PRECONDITION — this session does not play
 
-**User directive, 2026-08-20:** every live dungeon run is a 60-energy juiced
-Tier-3 entry with 3 Big Heal Juices, one run at a time, stopping for approval
-before the next. This is now **CLAUDE.md rule 11** (already written; read it
-before starting). The user's stated motivation for the config half is right:
-with plain runs gone, potions are economically sound on every run that happens,
-so the add-before / remove-after churn has no reason to exist.
+At the time of writing it is **20:32 PT on 2026-08-19**. The guard-day that
+began at 11:00 PT today is **fully spent**: 20/20 casts, 240/240 energy, 12/12
+run-units. It resets at **11:00 PT on 2026-08-20**, 14.5 hours out.
 
-**But the churn was load-bearing, and this is the thing to get right.**
+So session 55 is **offline by construction**. Not "offline unless energy allows"
+— offline. Reads are fine (`getMe`, `getEnergy`, `getFishingState`,
+`getDungeonToday`); **zero casts, zero runs, zero claims.**
 
-`scripts/orchestrator.ts:127-141`'s `resolvePotionLoadout` gates on
-`config.potions` and nothing else. Its doc comment says it "Mirrors
-`liveRun.ts`'s `main()` allowlist gate exactly" — it does not.
-`liveRun.ts:1370-1385` has **two** gates: the config block must be present
-**and** `--juiced` must have been passed, because "plain runs must NEVER use
-potions" (session 24). The orchestrator implements the first and not the
-second. And it calls `runOnce` with **no `juicedStartRun`**
-(`orchestrator.ts:298-312`), so every run it starts is a plain 20-energy run.
+**Check it anyway, first thing, and record both numbers.** Two independent
+ledgers have to agree: the game's own `GET /fishing/state` → `dayDocs` →
+`UINT256_CID` for pond 2, and this repo's guard state. Session 54 verified both;
+do the same and put them in the recap. If they ever disagree, that is a finding
+worth more than anything else in this brief.
 
-Net: make the potions block permanent today, and the next `orchestrator.ts`
-invocation starts a plain run and loads 3 Big Heal Juices into it. That is
-session 24's incident verbatim. The remove-after-use convention has been the
-only thing preventing it for thirty sessions — a latch standing in for a
-missing gate, which nobody wrote down because the latch always got pulled in
-time.
-
-**So the order is not negotiable:**
-
-1. **Close the orchestrator's dungeon arm first.** User decision: disabled, not
-   flagged. `nextAction` never returns `{kind: "dungeon"}`; the dungeon branch
-   in `scripts/orchestrator.ts` fails closed with a message naming rule 11 and
-   pointing at `liveRun.ts --juiced --juiced-index=3 --runs=1`. Delete
-   `resolvePotionLoadout` and the `startConsumables`/`potionPolicy` wiring on
-   that path rather than leaving them unreachable — an unreachable potion
-   loader is exactly what gets re-reached later.
-   - `dungeonBudgetSnapshot`'s `costPerAction: config.energyCostPerRun` (20) is
-     also wrong under rule 11 and goes with it. Do not "fix" it to 60 and keep
-     the arm.
-   - The **fishing arm is untouched** and still runs autonomously within budget.
-     Make sure the disabled dungeon arm cannot make `nextAction` return `done`
-     while fishing still has budget — that would silently stop fishing sessions.
-     Test that case explicitly; it is the obvious way this change goes wrong.
-2. **Then** make `forbiddenWoods.potions` permanent:
-   `{"allowedItemId": 131, "maxPerRun": 3}`. Rewrite `_potionsComment` — it is
-   now ~1,900 characters of add/remove history for a convention that no longer
-   exists. Replace it with: the block is permanent as of rule 11; the safety
-   argument is that no code path starts a non-juiced run; and **if the
-   orchestrator's dungeon arm is ever reopened, remove-after-use comes back with
-   it.** Keep the session 24 incident in one sentence — it is the reason, and a
-   comment that keeps its reason survives being edited by someone in a hurry.
-3. **Then** a test that would have caught this: assert that no code path
-   constructs a `LiveRunDeps` with a `potionPolicy` and no `juicedStartRun`.
-   That is the invariant, stated once, in a place that fails loudly.
-
-Leave `liveRun.ts`'s own `--juiced` gate exactly as it is. With the orchestrator
-closed it is belt-and-braces, and it is the brace that has actually held.
-
-Do **not** change the daily ceiling. 240 energy / 60 and 12 run-units / 3 both
-give 4 juiced runs per day and they agree; that agreement is worth more than the
-tidiness of renaming the units. Rule 11 says to stop if they ever disagree.
+**One bounded exception.** If this session is still running after 11:00 PT on
+2026-08-20 *and* every item below is complete, you may start the §19 batch under
+full 5-cast checkpoint discipline. If both conditions are not met, stop and hand
+back — §19 has been displaced four times by work that felt more urgent at minute
+five, and doing it hurriedly at the end of a session is the fifth version of the
+same mistake. **Dungeon runs remain per-run-approval-only under rule 11** and no
+approval exists for this session.
 
 ---
 
-## 2. §19 — the fishing batch. This is the session's real measurement.
+## 2. Make §19 unable to consume a session
 
-The cap resets 11:00 PT and the library is finally the right one. §19 has been
-"needs a batch, not an argument" since session 51 and has been blocked three
-times by things that were genuinely more urgent. It is not blocked now.
+This is the highest-value item here, and it is entirely offline.
 
-**Session 51's decision rule, unchanged and not to be renegotiated after seeing
-the data:**
+§19 has been "needs a batch, not an argument" since session 51 and has lost four
+sessions. The reason is not scheduling alone — it is that §19 has been treated
+as *a session's project*, so it needs a session with room for a project.
+Shrink it until it fits in the gap after the reset:
 
-- If π never exceeds 0.5 on any cast in the batch → the matcher tier is buying
-  nothing live and gets dropped.
-- If π exceeds 0.5 on at least one cast **and** that cast's turns hit above the
-  batch's own base rate → it keeps its 0.030 nats.
+Build `scripts/matcherWeightReport.ts` **now**, against the existing corpus, so
+the live half of §19 is twenty casts and one script invocation. It should:
 
-Run the batch against the **3-pattern de-aliased library** (perimeterWalk cw 4,
-ccw 4, bounce(2,0) 3 → 11 distinct supporting casts of 89, π₀ ≈ 0.133). Record
-support counts at batch time so the number is pinned to what actually ran.
+- Read `matcherWeight` off `ringPrediction.jsonl` rows for a given batch.
+- Emit the **full π distribution** — not just whether it crossed 0.5. The replay
+  median was 0.135 with 70.5% of active turns below 0.15; whether live looks
+  like that is itself the finding.
+- Apply session 51's decision rule mechanically and print the verdict:
+  *drop* if π never exceeds 0.5 on any cast; *keep* if π exceeds 0.5 on at least
+  one cast **and** that cast's turns hit above the batch's own base rate.
+- Report the batch's **opening focus spend** alongside. Session 50 measured
+  0.71 replayed vs 1.80 live with the matcher off, so the tier is entangled
+  with spending, not only prediction. A batch where π never moves should still
+  say whether spending looked normal — that is the half the replay cannot see.
+- Record the loaded library's support counts at run time (currently 3 patterns,
+  11 distinct casts of 89, π₀ ≈ 0.133), so the verdict is pinned to what
+  actually ran.
 
-Read `matcherWeight` off the `ringPrediction.jsonl` rows. Report the full π
-distribution, not just whether it crossed — the median was 0.135 on the replay
-with 70.5% of active turns below 0.15, and whether live looks like that is
-itself the finding. The 5-cast checkpoint discipline is unchanged.
-
-One thing the replay cannot see and the batch can: session 50 measured that with
-the matcher OFF the replayed policy stops spending focus (0.71 vs live 1.80). If
-π stays at the floor all batch, note the live opening focus spend anyway — the
-entanglement is the reason "it's only 0.030 nats" was never a safe drop, and a
-batch that says π never moved should also say whether spending looked normal.
-
----
-
-## 3. §23 — the −1 energy drift, and yes, carry it
-
-3/3 juiced runs under-report by exactly 1 (`observedDelta` 59 vs
-`committedDelta` 60). Session 53's reasoning is right that regen cannot produce
-−1 three times: 18/hr over a ~2-minute run is ~0.6, and it would not land on
-exactly −1 every time.
-
-Your proposed test is the right one and it costs nothing extra, so **carry it on
-the next run**: read `GET /offchain/player/energy` immediately before and
-immediately after `start_run` with nothing else in flight. But rule 11 has
-removed the plain-run comparison arm you wanted — there are no 20-energy runs
-any more. So the discriminating comparison changes shape:
-
-- If the −1 appears in the tight before/after pair around `start_run` alone, it
-  is the charge, not the accounting, and the multiplier is the suspect (59 =
-  20×3 − 1 has an obvious shape: a rounding or an off-by-one in a 3× charge).
-- If the tight pair reads a clean −60 and the drift only appears across the
-  whole run, something inside the run credits 1 back — a loot effect, a boon, a
-  regen tick landing inside the window — and that is a different investigation.
-
-Either way it is diagnosis by read, not by spend. Nothing is at risk: the guard
-enforces off committed spend and the error is conservative. Do not fix it before
-you can say which of the two it is.
+Validate it end-to-end against the existing 89-trace corpus so the only untested
+thing on the day is the data. Write the decision rule into the script as code,
+not as a comment — the point is that it cannot be renegotiated after seeing the
+numbers.
 
 ---
 
-## 4. Claim order — switch the default to descending
+## 3. Boon capture — room 1 only, top five, and check the blind spot first
 
-Your open question 3, and the answer is yes, per my own stated stopping rule
-from session 52 ("these reasons stop applying once the path is proven, so do not
-make ascending the default"). Both blockers are now gone:
+User decision: yes, trade a room-1 boon pick for a capture, limited to the top
+five and to room 1. **Rule 8 is not in play** — it governs `enemyPathOptions`
+tier choice, not boon choice, and nothing about a boon pick touches the loot
+table. Say so in the code comment so this is not "optimised away" later by
+someone who reads a deliberate suboptimal pick as a bug.
 
-- The path is proven: 8 claims across three runs, **drift 0 every time**.
-- The overflow hazard is closed by construction: `maxSnapshot` 315 <
-  `headroom` 394 on both runs, so no single claim this path can make can reach
-  the 420 cap.
+**Check this before building anything, because it may change the whole item.**
+I believe — and this is a hypothesis, per rule 9 — that `chooseBoon` cannot pick
+an unmodelled boon, because an unmodelled type has no `BOON_MODELS` entry to
+score. If that is right, the 36 unmodelled types are a **self-sealing blind
+spot**: they stay unmodelled because they are never picked, and they are never
+picked because they are unmodelled. "Stay opportunistic" would then not be a
+strategy but a guarantee of never learning, and four sessions of
+`deepestScorableRoom` being capped by unmodelled types would have a single
+cause. Verify it against the code and the corpus, and report the answer either
+way — if unmodelled boons *have* been picked historically, my model is wrong and
+this item shrinks to a preference tweak.
 
-Switch the default to `"descending"` and stop passing `--claim-order`. Keep
-`overflowReachable` in `claim_audit` — it is what makes the switch safe, and if
-the bank ever grows a ROM larger than the headroom it should say so out loud
-rather than silently becoming reachable again. Consider a WARN when
-`overflowReachable` flips true, on the same reasoning as §1's telemetry: the
-condition that makes a decision safe should announce when it stops holding.
+Then build it:
 
----
-
-## 5. The remaining open questions
-
-**Room 9 (Enemy Room 71) needs a Safe capture — leave it, don't target it.**
-Its only capture is a forced Risky (`[1,1,1]`, no Safe offered), so it carries
-`bloodthirsty` and rolled stats and cannot be modelled. But rule 8 means you
-cannot *choose* to capture it clean — you take the lowest offered tier, and
-whether Safe is offered in room 9 is the server's call, not yours. Targeting it
-would mean either overriding rule 8 or re-entering repeatedly hoping for a
-different offer at 60 energy a try. Neither is worth it. It will capture clean
-the first time a run reaches room 9 and Safe is on the board; 5 of 12 rooms
-offered no Safe last session, so this is a waiting game with decent odds, not a
-task.
-
-**36 unmodelled boon types — stay opportunistic, but publish the list.**
-`scripts/boonCoverage.ts` exists now, so put its output in the recap each
-session and let the ranking come from offer frequency. Modelling a boon that
-gets offered once every forty runs costs more than it returns. What is worth
-doing once: check whether any of the 36 appear in **room 1–3** offers, since
-those are the ones the sim's `deepestScorableRoom` chokes on — session 53's own
-corpus growth dropped one arm from 5 to 4 because three new unmodelled types
-landed at rooms 3/4. That is the subset with leverage.
-
-**`deepestScorableRoom` 5 → 4 is not a regression, and Task 4.5's old gate sat
-at 4.** Worth one line in TASKS.md saying so explicitly, per rule 6: an honest
-capture lowering a coverage metric is exactly the case where a stale gate starts
-looking like a failure. Do not tune anything to get it back to 5.
-
-**Fixture redaction (your question 6) — this one deserves a decision, not a
-shrug.** Tracked fixtures redact `PLAYER_CID` to `0xUSER` but keep
-`NOOB_TOKEN_CID` at its real value, on a public repo, since session 08. The
-token id is not a credential and nothing is compromised — but it is a stable
-on-chain identifier for the same account the address redaction is hiding, so
-anyone who wants the address can read it off the token. **The redaction as it
-stands does not do the thing it looks like it does.** That is worse than not
-redacting, because it invites the assumption that the fixtures are anonymous.
-
-Pick one and write it down: redact both (and re-derive the existing fixtures, ~a
-mechanical pass), or redact neither and state in `fixtures/README` that these
-are account-identifying. CLAUDE.md §3 covers secrets, and this is not one — so
-this is the user's call about linkability, not a security incident. Ask; do not
-decide it unilaterally, and do not leave it as is.
+- A `boonCapturePolicy` module, pure, taking the offer and the room and
+  returning an override or null. **Room 1 only.** Target list, ranked by offer
+  frequency: TieWeak (11 of 135), AddBurnShield (8), AddLifestealShield (5),
+  Regen (4), VulnerableBlock (4) — all first offered in room 1.
+- **Off by default**, behind an explicit config flag. It costs run quality; it
+  should never be on by accident, and it should be visible in the run summary
+  when it is on.
+- The capture must record a genuine **pickup pair** — full state immediately
+  before the pick and immediately after — so `val1`/`val2` → stat delta is
+  derivable. A pick that does not produce a usable pair costs run quality and
+  buys nothing, which is the worst outcome available here.
+- One target per run maximum. Modelling five boons is five runs, and that is
+  fine; taking two picks in one run compounds the quality cost for no extra
+  information about either.
 
 ---
 
-## Your task (session 54)
+## 4. Redaction — the three handoff documents, and stop there
 
-1. **§1, in order** — orchestrator dungeon arm disabled (fishing arm verified
-   still live), *then* `forbiddenWoods.potions` permanent with a rewritten
-   comment, *then* the invariant test. Rule 11 is already in CLAUDE.md.
-2. **§4** — default claim order to descending; `overflowReachable` WARN.
-3. **§2** — the §19 fishing batch against the 3-pattern library, session 51's
-   decision rule applied as written, full π distribution reported.
-4. **§3** — the tight before/after energy read on whichever runs happen.
-5. **§5** — `boonCoverage.ts` output in the recap; the rooms 1–3 subset
-   identified; one line in TASKS.md about the 5 → 4 gate; the redaction
-   question put to the user with a recommendation.
-6. Dungeon runs only if the user gives an explicit go-ahead for each one
-   (rule 11). The cap allows 4/day; needing none of them is a fine outcome for
-   this session.
-7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
-   commit; no test writes to a real data path.
+User decision: redact the three files, leave the git history alone.
 
-**Honest expectation.** §1 is chores with one real trap in it, and the trap is
-the whole reason it is item 1 — the ordering is the work, not the edits. §2 is
-the only thing here that can change what the bot believes: four sessions of
-"needs a batch, not an argument" finally gets its batch, and it can legitimately
-end with the matcher tier being deleted. Say so plainly if π never leaves the
-floor; a tier that has cost two sessions of analysis and buys nothing live is a
-good thing to be rid of, and reporting that cleanly is worth more than finding a
-reason to keep it.
+`handoff/log/session-02.md`, `handoff/log/session-07.md` (which also carries the
+username and a partial address), `handoff/scratch-session-02.md`. Route them
+through `src/api/redact.ts`.
+
+**One thing to watch:** `redact.ts`'s rules are shape-keyed against JSON field
+shapes, and these three files are **prose**. A token appearing mid-sentence, or
+an address written with different casing or truncation, may not match. Check the
+output rather than trusting the exit code, and add a prose-mode pass or hand-edit
+the misses. Session 54's own dead end applies — **do not write the real
+identifiers into a test**; the rules are shape-keyed, so synthetic ids exercise
+them identically.
+
+Update `fixtures/README.md` to record the decision and its limit, plainly: the
+working tree is redacted, **the git history from session 08 onward is not**, and
+that is deliberate. Nothing here is a credential, and the repository owner is
+already public, so history rewriting buys little against a force push that
+breaks every clone and invalidates every commit SHA cited in past STATE.md
+files. Someone will ask again in three sessions; the README is the answer.
+
+---
+
+## 5. §23 — nothing to do
+
+The tight energy probe is armed on `LiveRunDeps.energyProbe` and fires on the
+next real run, which is not this session. Do not fix the −1 drift before the
+probe says whether the tight pair around `start_run` reads −59 or −60. The two
+answers point at different code and the guard is enforcing off committed spend
+either way, so nothing is at risk from waiting.
+
+---
+
+## Your task (session 55)
+
+1. **§1** — verify both cap ledgers, record them, confirm offline scope. First
+   thing, before any other work.
+2. **§2** — `scripts/matcherWeightReport.ts`, validated against the 89-trace
+   corpus, decision rule encoded as code.
+3. **§3** — verify the `chooseBoon` blind-spot hypothesis and report it; then
+   `boonCapturePolicy`, room 1, top five, off by default, pickup pair recorded,
+   one target per run.
+4. **§4** — redact the three handoff documents, verify the prose matches,
+   update `fixtures/README.md`.
+5. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
+   commit; no test writes to a real data path; secret scan before handoff.
+
+**Honest expectation.** Nothing here changes what the bot does today. §2 and §3
+are both about making a *later* session able to measure something it currently
+cannot, and that is the right use of a session with no caps available — better
+than inventing live work to fill it. The one item that could produce a real
+finding is §3's blind-spot check, and it is a twenty-minute read of existing
+code. If it comes back "yes, unmodelled boons can never be picked," say so
+prominently: it would explain a coverage ceiling this project has been treating
+as bad luck for several sessions.
+
+**And the scheduling note for whoever writes brief 56:** §19 needs a session
+that *starts* after 11:00 PT on a day whose 20 casts are unspent. That is a
+precondition on the session, not a task within it. Put it in the first
+paragraph.
