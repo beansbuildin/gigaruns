@@ -82,6 +82,7 @@ const SRC_ALLOWED = new Map<string, string>([
   ["src/orchestrator/guardPersistence.ts", "DEFAULT_GUARD_STATE_PATH"],
   ["src/orchestrator/opponentModelPersistence.ts", "DEFAULT_OPPONENT_MODEL_PATH"],
   ["src/orchestrator/playCountsPersistence.ts", "DEFAULT_PLAY_COUNTS_PATH"],
+  ["src/strategy/fishing/oilCastState.ts", "DEFAULT_OIL_CAST_STATE_PATH — the oil-policy-dry sidecar, same shape as the three above"],
   ["src/sim/corpus.ts", "CORPUS_DIR — the shared, game-global fixture tree"],
   ["src/sim/fishingCorpus.ts", "fishing corpus root, same reason"],
   ["src/sim/fishing/castTrace.ts", "fishing corpus root, same reason"],

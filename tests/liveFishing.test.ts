@@ -578,6 +578,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
+      oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
     });
@@ -607,6 +608,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       transitionsPath: join(dir, "fish-patterns.jsonl"),
       nextPositionLogPath,
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
+      oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
     });
@@ -641,6 +643,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       guardStatePath: join(dir, "guard-budget.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
+      oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
       logsDir: join(dir, "logs"),
     });
 
@@ -719,6 +722,7 @@ describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW 
       guardStatePath: join(dir, "guard-budget-fishing.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
+      oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
       logsDir: join(dir, "logs"),
     });
   }
@@ -865,6 +869,7 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
       guardStatePath: join(dir, "guard-budget.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
+      oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
       logsDir: join(dir, "logs"),
     });
 
@@ -901,6 +906,7 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
       guardStatePath: join(dir, "guard-budget.json"),
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
+      oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
       logsDir: join(dir, "logs"),
     });
 
@@ -1046,6 +1052,7 @@ describe("ringPrediction rows — paired baseline + shot calibration (session 46
       ringPredictionLogPath,
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
+      oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
     });
     await runOneCast(deps);
     const rows = loadRingPredictions(ringPredictionLogPath);

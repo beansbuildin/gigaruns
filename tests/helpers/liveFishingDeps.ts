@@ -28,7 +28,16 @@ import type { LiveFishingDeps } from "../../scripts/liveFishing.js";
 export type LiveFishingIsolatedPaths = Required<
   Pick<
     LiveFishingDeps,
-    "transitionsPath" | "guardStatePath" | "nextPositionLogPath" | "ringPredictionLogPath" | "logsDir"
+    | "transitionsPath"
+    | "guardStatePath"
+    | "nextPositionLogPath"
+    | "ringPredictionLogPath"
+    | "logsDir"
+    // [session 62 §1b] The oil-policy-dry sidecar. Added here the same day the
+    // field was added to `LiveFishingDeps`, deliberately: CLAUDE.md names this
+    // exact omission as a bug that has already shipped four times, and a new
+    // I/O-owning field that skips this list is the fifth.
+    | "oilCastStatePath"
   >
 >;
 
@@ -40,6 +49,7 @@ export function makeLiveFishingDeps(
     | "nextPositionLogPath"
     | "ringPredictionLogPath"
     | "logsDir"
+    | "oilCastStatePath"
     | "fixtures"
     | "log"
     | "address"

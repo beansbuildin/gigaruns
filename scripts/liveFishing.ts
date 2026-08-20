@@ -129,10 +129,19 @@ import {
 } from "../src/strategy/fishing/stepClass.js";
 import {
   mayConsumeOil,
-  shouldConsiderRelaxingOil,
   MID_RELAXING_OIL_ITEM_ID,
+  MID_FOCUS_OIL_ITEM_ID,
   type OilBudgetConfig,
 } from "../src/strategy/fishing/oilPolicy.js";
+import {
+  appendOilCastState,
+  DEFAULT_OIL_CAST_STATE_PATH,
+} from "../src/strategy/fishing/oilCastState.js";
+import {
+  onDemandTriggers,
+  PAYLOAD_OIL_EFFECTS,
+  type OilKind,
+} from "../src/strategy/fishing/oilTiming.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { supportingCastCount } from "../src/sim/fishing/patternMining.js";
 import {
@@ -1051,6 +1060,13 @@ export interface LiveFishingDeps {
    * makes the loop more conservative.
    */
   oilBudget?: OilBudgetConfig;
+  /**
+   * [session 62 §1b] Sidecar the THIRD cast state is recorded to — a cast in
+   * which an on-demand trigger fired and the account held none of that oil.
+   * Real data path, so tests MUST override it (CLAUDE.md working-style,
+   * "tests must never write to a real data path").
+   */
+  oilCastStatePath?: string;
   transitionsPath?: string;
   guardStatePath?: string;
   /** [session 30] Validation-only recording of predicted vs. actual `nextPosition` — see this file's "nextPosition validation" section. */
@@ -1094,6 +1110,31 @@ export type CastOutcome = "dry_run" | "caught" | "escaped" | "turn_cap" | "shutd
 export interface CastRunResult {
   outcome: CastOutcome;
   turns: number;
+  /**
+   * [session 62 §1b] Turns on which an on-demand trigger fired and the account
+   * held NONE of that oil. Non-empty makes this cast the THIRD state: it is
+   * not an oil cast (nothing was consumed) and it is not a clean non-oil cast
+   * either, because the policy that played it was the oil policy running dry.
+   * Kept out of BOTH outcome arms — see `classifyOilArm` in
+   * `src/sim/fishingCorpus.ts` and the dead era, which is the precedent for
+   * what an unflagged policy change does to a rate.
+   */
+  oilTriggerNoStock: OilTriggerNoStock[];
+}
+
+/** One turn on which an on-demand trigger fired against zero stock. */
+export interface OilTriggerNoStock {
+  turn: number;
+  kind: OilKind;
+  itemId: number;
+  /**
+   * WHY there was nothing to spend, kept distinct because the two are not the
+   * same fact. `"empty"` — the balance was read and the account holds none.
+   * `"balance_unknown"` — the balance read itself failed, so the count is a
+   * conservative 0 rather than an observed one. Both exclude the cast from
+   * both outcome arms; only `"empty"` is evidence about the user's stock.
+   */
+  reason: "empty" | "balance_unknown";
 }
 
 /** Safety cap only — SPEC.md §5 names no real max-turns figure; this exists solely to guard against an infinite-loop bug, not to model the game. */
@@ -1163,7 +1204,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     log.write({ event: "dry_run_start_run_intended", nodeId: dendren.nodeId, tierId: dendren.tierId });
     console.log(`  [dry-run] would POST start_run (nodeId ${dendren.nodeId}, tierId ${dendren.tierId})`);
     console.log(`  · no active cast — nothing further to decide against, stopping.`);
-    return { outcome: "dry_run", turns: 0 };
+    return { outcome: "dry_run", turns: 0, oilTriggerNoStock: [] };
   } else {
     guards.assertCanStartRun(dendren.energyCostPerCast);
     const body = buildFishingEnvelope("start_run", client.getFishingActionToken(), {
@@ -1320,22 +1361,34 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
   }
 
-  // [session 44] heuristic (c), QUESTIONS.md §16 now resolved by a live
-  // capture of `use_fishing_item`. Read once per cast (not per turn) — a
-  // second live call every turn just to check a count that only ever goes
-  // DOWN within this cast would be wasteful; `relaxingOilHeld` is decremented
-  // locally on each confirmed use instead. Best-effort: a failed balance
-  // read leaves the count at 0, which safely disables the heuristic for this
-  // cast rather than guessing a positive count.
-  let relaxingOilHeld = 0;
+  // [session 62 §1] BOTH oils' balances — `on-demand` spends the Focus Oil too,
+  // where session 43's heuristic (c) only ever considered the Relaxing Oil.
+  //
+  // Read once per cast (not per turn): a second live call every turn just to
+  // check counts that only ever go DOWN within a cast would be wasteful, so
+  // `oilHeld` is decremented locally on each confirmed use instead.
+  //
+  // Best-effort. A failed balance read leaves BOTH counts at 0, which disables
+  // spending for this cast rather than guessing a positive balance — and note
+  // what that now implies: a trigger firing against those zeros records the
+  // third state (§1b), so a read failure marks the cast rather than silently
+  // pooling it into the non-oil arm. `oilBalanceKnown` keeps the two apart on
+  // the record — "the account holds none" and "we never found out" exclude the
+  // cast identically but are not the same fact, and only the first is evidence
+  // about the user's remaining stock.
+  const oilHeld: Record<OilKind, number> = { relaxing: 0, focus: 0 };
+  /** False until a balance read succeeds — separates "holds none" from "we do not know". */
+  let oilBalanceKnown = false;
   if (!dryRun) {
     try {
       const balances = await client.getItemsBalances();
-      relaxingOilHeld = Number(
-        balances.entities.find((e) => e.ID_CID === String(MID_RELAXING_OIL_ITEM_ID))?.BALANCE_CID ?? 0,
-      );
-      if (relaxingOilHeld > 0) {
-        console.log(`  · Mid Relaxing Oil held: ${relaxingOilHeld} (heuristic (c) reserve floor applies)`);
+      const balanceOf = (id: number) =>
+        Number(balances.entities.find((e) => e.ID_CID === String(id))?.BALANCE_CID ?? 0);
+      oilHeld.relaxing = balanceOf(MID_RELAXING_OIL_ITEM_ID);
+      oilHeld.focus = balanceOf(MID_FOCUS_OIL_ITEM_ID);
+      oilBalanceKnown = true;
+      if (oilHeld.relaxing > 0 || oilHeld.focus > 0) {
+        console.log(`  · oils held: Relaxing ${oilHeld.relaxing}, Focus ${oilHeld.focus} (on-demand policy)`);
       }
     } catch (e) {
       log.write({ event: "oil_balance_read_failed", error: (e as Error).message });
@@ -1345,7 +1398,9 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // `slotIndex` guess (see the schema's doc comment) doesn't get retried
   // every remaining turn of the same cast — one rejection is informative
   // enough without spamming the same failing request.
-  let relaxingOilUseFailedThisCast = false;
+  const oilUseFailedThisCast: Record<OilKind, boolean> = { relaxing: false, focus: false };
+  // [session 62 §1b] The third cast state, accumulated across the cast.
+  const oilTriggerNoStock: OilTriggerNoStock[] = [];
   // [session 61 §4c] Consumables spent this cast, for `mayConsumeOil`'s
   // per-cast budget, and the itemIds spent, for the per-turn record. The
   // board state's own `consumablesUsed` counts them too and is what
@@ -1360,47 +1415,105 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     if (deps.shutdownSignal?.requested) {
       log.write({ event: "shutdown_requested", turn });
       console.log(`  ▸ SIGINT — stopping before the next card (turn boundary), cast left in progress at turn ${turn}.`);
-      return { outcome: "shutdown", turns: turn };
+      return { outcome: "shutdown", turns: turn, oilTriggerNoStock };
     }
 
-    // [session 61 §4c] TWO gates, and they are different questions. Heuristic
-    // (c) says whether this is a MOMENT worth an oil; `mayConsumeOil` says
-    // whether spending one is AUTHORIZED at all. The authorization gate is
-    // checked second and independently, and it is what keeps this call site —
-    // live since session 44 — from firing the instant the user finishes
-    // crafting: `dendren.oils.policyApproved` is false until they have seen and
-    // approved a derived timing policy (CLAUDE.md rule 4, brief §4d).
+    // ---- [session 62 §1] THE OIL DECISION -----------------------------------
     //
-    // Every condition the caller gates on is PASSED IN rather than re-checked
-    // inside, so the resolver and its call site cannot drift apart the way
-    // `resolvePotionLoadout` and `main()` did. `tests/fishing/oilPolicy.test.ts`
-    // pins that correspondence by construction.
-    const oilMoment = shouldConsiderRelaxingOil(doc.data.fishHp, doc.data.fishMaxHp, relaxingOilHeld);
-    const oilAuth = mayConsumeOil({
-      configured: deps.oilBudget,
-      itemId: MID_RELAXING_OIL_ITEM_ID,
-      heldBalance: relaxingOilHeld,
-      usedThisCast: oilsUsedThisCast,
-      dryRun,
-      spendFailedThisCast: relaxingOilUseFailedThisCast,
-    });
-    if (oilMoment && !oilAuth.allowed) {
-      // Logged, not silent: the heuristic wanted to fire and policy said no.
-      // A refusal nobody can see is indistinguishable from a heuristic that
-      // never triggered.
-      log.write({ event: "oil_spend_refused", turn, itemId: MID_RELAXING_OIL_ITEM_ID, reason: oilAuth.reason });
-      console.log(`  · heuristic (c) wanted a Mid Relaxing Oil here — NOT spending: ${oilAuth.reason}`);
-    }
-    if (oilMoment && oilAuth.allowed) {
+    // **USER-APPROVED 2026-08-20: `on-demand` replaces session 43's heuristic
+    // (c).** `handoff/OIL-POLICY.md` is the derivation; the short version is
+    // that (c) is dominated on this repo's own numbers — +4.51pp for 2630 oils
+    // against the lethal trigger's +4.47pp for 1821, i.e. statistically
+    // indistinguishable benefit for 44% more oil. The two rules differ only on
+    // fish where 15% of max exceeds 2 HP, and on exactly those fish (c) spends
+    // the oil WITHOUT securing the kill.
+    //
+    // THREE gates, and they answer three different questions:
+    //
+    //   1. `onDemandTriggers` — is now the MOMENT? Evaluated with no reference
+    //      to stock, deliberately (see its doc comment), so that a trigger
+    //      firing against an empty bag is observable rather than silent.
+    //   2. `mayConsumeOil`    — is spending AUTHORIZED at all? Budget,
+    //      approval, balance, per-cast cap. Every condition passed IN, so this
+    //      call site and the resolver cannot drift apart.
+    //   3. stock              — is there one to spend? An empty bag is an
+    //      EXPECTED state, not an unexpected one, so it degrades to ordinary
+    //      play (CLAUDE.md rule 5 governs the unexpected; this is not that).
+    //
+    // The user has a few oils, fewer than a batch needs, and the sweep spends
+    // ~0.70 oils per cast — so stock runs out MID-batch, not between batches.
+    // That path is the one that has to be right, and it is exercised in
+    // `tests/fishing/oilStockExhaustion.test.ts` rather than merely written.
+    //
+    // MANA: **RESOLVED, user-stated 2026-08-20** — `use_fishing_item` does NOT
+    // consume mana; only playing cards does. This was the load-bearing
+    // assumption under OIL-POLICY.md's +19.40pp, carried as an explicit
+    // assumption since session 61, and the account owner has now confirmed it
+    // directly. The sim modelled it as free and was right to.
+    const oilWanted = onDemandTriggers(
+      {
+        turn,
+        fishHp: doc.data.fishHp,
+        fishMaxHp: doc.data.fishMaxHp,
+        mana: doc.data.playerHp,
+        focusRemaining: doc.data.focusMeter,
+        focusMax: doc.data.focusMeterMax,
+        focusOilHeld: oilHeld.focus,
+        relaxingOilHeld: oilHeld.relaxing,
+      },
+      PAYLOAD_OIL_EFFECTS,
+    );
+    for (const kind of oilWanted) {
+      const itemId = kind === "focus" ? MID_FOCUS_OIL_ITEM_ID : MID_RELAXING_OIL_ITEM_ID;
+      const held = oilHeld[kind];
+      const auth = mayConsumeOil({
+        configured: deps.oilBudget,
+        itemId,
+        heldBalance: held,
+        usedThisCast: oilsUsedThisCast,
+        dryRun,
+        spendFailedThisCast: oilUseFailedThisCast[kind],
+      });
+      if (!auth.allowed) {
+        if (held <= 0) {
+          // ---- THE THIRD STATE (§1b) -------------------------------------
+          // The policy WANTED an oil and the bag was empty. This is not a
+          // failure and it does not stop the cast — it is recorded so this
+          // cast can be kept out of BOTH outcome arms. A cast the oil policy
+          // played while dry is not an oil cast, and it is not a clean non-oil
+          // cast either. The dead era is why: an unflagged policy change gets
+          // averaged into a rate that then means nothing, and it took 40 casts
+          // to notice.
+          const reason = oilBalanceKnown ? "empty" : "balance_unknown";
+          oilTriggerNoStock.push({ turn, kind, itemId, reason });
+          log.write({ event: "oil_trigger_no_stock", turn, kind, itemId, held, reason });
+          console.log(
+            `  · on-demand wanted the ${kind === "focus" ? "Mid Focus" : "Mid Relaxing"} Oil here ` +
+              `(turn ${turn}) — ${oilBalanceKnown ? "NONE HELD" : "BALANCE UNKNOWN (read failed)"}, ` +
+              `playing on without it. This cast is flagged out of both arms.`,
+          );
+        } else {
+          // Logged, not silent: the trigger fired and policy said no. A
+          // refusal nobody can see is indistinguishable from a trigger that
+          // never fired.
+          log.write({ event: "oil_spend_refused", turn, kind, itemId, reason: auth.reason });
+          console.log(`  · on-demand wanted a ${kind} oil here — NOT spending: ${auth.reason}`);
+        }
+        continue;
+      }
       console.log(
-        `  ★ heuristic (c): fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP (${relaxingOilHeld} Relaxing Oil held) — using one.`,
+        kind === "relaxing"
+          ? `  ★ on-demand LETHAL trigger: fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP (${held} Relaxing Oil held) — using one.`
+          : `  ★ on-demand METER trigger: focus meter at ${doc.data.focusMeter}/${doc.data.focusMeterMax} (${held} Focus Oil held) — using one.`,
       );
       const oilBody = buildFishingEnvelope("use_fishing_item", client.getFishingActionToken(), {
-        itemId: MID_RELAXING_OIL_ITEM_ID,
+        itemId,
         // [session 44] slotIndex:0 is confirmed for item 821 only (the one
-        // real capture) — unconfirmed for item 937. A wrong guess fails
-        // closed via the catch block below, not a GuardTrip: this action is
-        // an optional rescue, not a required step in playing the cast.
+        // real capture) — unconfirmed for 937 and 942 alike, and unconfirmed
+        // for a SECOND consume in the same cast, which on-demand can now want.
+        // A wrong guess fails closed via the catch block below, not a
+        // GuardTrip: this action is an optional rescue, not a required step in
+        // playing the cast.
         slotIndex: 0,
       });
       log.write({ event: "post", body: oilBody });
@@ -1408,11 +1521,25 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         const oilResp = await client.postFishingAction(oilBody);
         log.write({ event: "post_response", resp: oilResp });
         fixtures.write(oilResp);
+        const manaBefore = doc.data.playerHp;
         doc = oilResp.data.doc;
-        relaxingOilHeld -= 1;
+        oilHeld[kind] -= 1;
         oilsUsedThisCast += 1;
-        oilItemIdsUsedThisCast.push(MID_RELAXING_OIL_ITEM_ID);
-        console.log(`  ✓ use_fishing_item (Mid Relaxing Oil): fish now ${doc.data.fishHp}/${doc.data.fishMaxHp}`);
+        oilItemIdsUsedThisCast.push(itemId);
+        console.log(
+          `  ✓ use_fishing_item (${itemId}): fish now ${doc.data.fishHp}/${doc.data.fishMaxHp}, ` +
+            `focus ${doc.data.focusMeter}/${doc.data.focusMeterMax}, mana ${manaBefore} -> ${doc.data.playerHp}`,
+        );
+        // The mana question is user-RESOLVED (no cost), so this is a check on
+        // a settled answer rather than a measurement of an open one — cheap,
+        // and it is the one place a contradiction would show up first.
+        if (doc.data.playerHp !== manaBefore) {
+          log.write({ event: "oil_mana_changed", turn, itemId, before: manaBefore, after: doc.data.playerHp });
+          console.log(
+            `  ★★★ use_fishing_item CHANGED MANA ${manaBefore} -> ${doc.data.playerHp} — contradicts the ` +
+              `user-stated "oils do not consume mana". Worth reporting; OIL-POLICY.md's +19.40pp assumes free.`,
+          );
+        }
         const unknown = unknownDocKeys(doc as unknown as Record<string, unknown>);
         if (unknown.length > 0) {
           const path = dumpUnknownTerminal(oilResp, unknown, "midcast", logsDir);
@@ -1420,13 +1547,16 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           console.log(`  ★★★ UNKNOWN FIELD(S) on use_fishing_item's returned doc: ${unknown.join(", ")}`);
         }
       } catch (e) {
-        relaxingOilUseFailedThisCast = true;
+        oilUseFailedThisCast[kind] = true;
         if (e instanceof TokenExpiredError) throw e;
         const message = (e as Error).message;
-        log.write({ event: "action_failed", reason: "use_fishing_item rejected", error: message });
-        console.log(`  ✗ use_fishing_item rejected (${message}) — continuing cast without it (unconfirmed slotIndex hypothesis), not retrying this cast.`);
+        log.write({ event: "action_failed", reason: "use_fishing_item rejected", itemId, error: message });
+        console.log(`  ✗ use_fishing_item rejected (${message}) — continuing cast without it (unconfirmed slotIndex hypothesis), not retrying this kind this cast.`);
       }
     }
+    // A lethal Relaxing Oil ends the cast outright. Re-check before spending a
+    // turn on a fish that is already dead.
+    if (doc.COMPLETE_CID) continue;
 
     const hand = buildHand(doc);
     const mana = doc.data.playerHp;
@@ -1603,7 +1733,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
 
     if (dryRun) {
       console.log(`  [dry-run] would POST play_cards`);
-      return { outcome: "dry_run", turns: turn };
+      return { outcome: "dry_run", turns: turn, oilTriggerNoStock };
     }
 
     const body = buildFishingEnvelope("play_cards", client.getFishingActionToken(), {
@@ -1792,7 +1922,30 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
   }
 
-  return { outcome, turns: turn };
+  // [session 62 §1b] Record the THIRD state, if this cast hit it. Written only
+  // when a trigger actually fired dry — an empty file is the normal state and
+  // a row per cast would drown the signal. `oilsConsumed > 0` alongside
+  // `dryTriggers > 0` is the half-oiled cast the brief warned about: the bag
+  // ran dry PART-way through, which is neither arm and is the case partial
+  // stock makes likely rather than exotic.
+  if (oilTriggerNoStock.length > 0 && !dryRun) {
+    appendOilCastState(
+      {
+        castId,
+        at: new Date().toISOString(),
+        dryTriggers: oilTriggerNoStock.length,
+        reasons: [...new Set(oilTriggerNoStock.map((r) => r.reason))],
+        oilsConsumed: oilsUsedThisCast,
+      },
+      deps.oilCastStatePath ?? DEFAULT_OIL_CAST_STATE_PATH,
+    );
+    console.log(
+      `  ▸ cast ${castId} flagged OIL-POLICY-DRY (${oilTriggerNoStock.length} trigger(s) with no stock, ` +
+        `${oilsUsedThisCast} oil(s) actually spent) — excluded from BOTH outcome arms (§1b).`,
+    );
+  }
+
+  return { outcome, turns: turn, oilTriggerNoStock };
 }
 
 // ---------------------------------------------------------------------------

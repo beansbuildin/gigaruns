@@ -182,11 +182,18 @@ describe("fail-closed on unmodelled types", () => {
       // UpgradePaper moved OUT — session 43's second bot-initiated juiced
       // Tier-3 run gave it its first live pickup pair (moveDelta, the
       // ATK-variant roll), now modelled.
-      "AddBurnMagic", // session 12: first sighting, live room-1 offer, not picked
+      // [session 62] FIVE moved OUT at once, the largest single-session
+      // coverage gain this list has had: AddBurnMagic, AddVulnerableMagic,
+      // SecondWind, Vengeance and WeakeningCrit all got their first live
+      // pickup pairs from the session's two juiced runs (four via the orb
+      // fallback, AddVulnerableMagic via the priority rule). All five are
+      // LATENT — measured, not assumed; see `BOON_MODELS`.
+      // Note how long some of them waited: SecondWind was first SIGHTED in
+      // session 16 and AddBurnMagic in session 12, so a sighting is not a
+      // pair and the gap between them can be dozens of sessions.
       "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked
       "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
       "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked
-      "AddVulnerableMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddVulnerableShield", // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
       "AddVulnerableSword", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
@@ -205,15 +212,12 @@ describe("fail-closed on unmodelled types", () => {
       "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
       "Regen",
       "RegenMastery", // session 53: first sighting, live room-4 offer (juiced run 2), not picked
-      "SecondWind", // session 16: first sighting, live room-3 offer, not picked
       "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
       "TieDamageReduction",
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
-      "Vengeance", // session 53: first sighting, live room-3 offer (juiced run 2), not picked
       "VulnerableBlock", // live [2026-08-16/17]: first sighting, the takeover run's room-1 offer, not picked
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
-      "WeakeningCrit", // session 25: first sighting, live room-3 offer (Task 10 gate run), not picked
       "WeakeningMastery", // session 08: same offer, not picked
     ]);
   });
@@ -329,7 +333,16 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // inequality — unlike the pre-registered rules in matcherVerdict.ts this
     // is a corpus census, and a census that silently grows is how a fixture
     // deletion goes unnoticed. It SHOULD need editing when the corpus grows.
-    expect(roomOne.length).toBe(153);
+    // [session 62] 153 -> 159: TWO juiced runs this session, one room-1 offer
+    // each — WeakeningCrit/AddLuck/AddTenacity (24949925) and
+    // SecondWind/LossBlockUp/AddBlock (24949982). Both of the leading types
+    // got their FIRST pickup pairs here and are now modelled, but both are
+    // LATENT, so neither becomes clean and the clean list below is unchanged.
+    // That is the same pattern session 60 recorded for WeakeningTenacity: the
+    // orb rule keeps converting offered-only types into modelled ones without
+    // converting any of them into CLEAN ones, because what it reaches are
+    // status-effect boons.
+    expect(roomOne.length).toBe(159);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -420,7 +433,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 53] +1 room-1 Heal offer, val1 16 — run 2's own first reward
     // offer (AddLifestealMagic/Heal(16)/AddIntuition). Appended at the array's
     // end by insertion order, same as session 43's.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1]);
+    // [session 62] +1 room-2 Heal offer, val1 16 — run 24949982's room-2 reward
+    // (UpgradePaper(0,6)/AddIntuition(10)/Heal(16)), and Heal WAS the pick:
+    // the orb fallback took it at 25 Hard Core against [19, 19, 25]. Appended
+    // at the array's end by insertion order, same as sessions 43 and 53, so
+    // the new "2" lands last rather than beside the other twos.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2]);
   });
 });
 

@@ -177,6 +177,27 @@ describe("player loadout matches the fixtures", () => {
     // is what put this mechanic in front of the player for the first time. It
     // is the first MECHANICAL cost of rule 8 anyone has observed, as opposed
     // to a statistical one.
+    //
+    // [session 62] A THIRD variant and — more useful — the corpus's first
+    // NEGATIVE control for the mechanic. Run 24949982 met `corrosiveShield`
+    // ("Miasmaguard", `onEnemyWinExchange_corrode`, amount 3, **moveType
+    // "paper"**, minTier 2) at room 5. The trace:
+    //
+    //   state-056  currentMax 17 -> 14   enemy won the exchange with PAPER
+    //   state-062  currentMax 14 -> 14   enemy won the exchange with SCISSOR
+    //   state-068  currentMax back to 17 (room boundary)
+    //
+    // The second row is the new evidence. Sessions 61 and 62 between them have
+    // three corrode APPLICATIONS, but until this run there had never been an
+    // enemy win that should NOT have triggered one — so the `moveType` gate was
+    // declared in the payload and never tested against a case that could have
+    // falsified it. It now is. That is what makes the mechanic safe to model as
+    // "read the buff's own amount and moveType" rather than as a flat shred on
+    // any enemy win; see handoff/reports/session-62-comparison.md §2f.
+    //
+    // This adds no new hp/armor combo — 40/14 was already on the list from
+    // session 61, which is why the assertion below is unchanged. The evidence
+    // is in the SEQUENCE, not in a new pair of numbers.
     expect([...seen].sort()).toEqual([
       "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/11", "40/14", "40/17", "40/25", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16", "54/17",
     ]);

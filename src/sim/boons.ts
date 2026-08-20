@@ -338,6 +338,89 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-20-20-04-37 state-063→state-064",
     observed: "selectedVal1 1 → no change to any player field",
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // [session 62, LIVE] FIVE first pairs in one session, from two juiced runs.
+  //
+  // This is the largest single-session coverage gain this table has had, and
+  // the mechanism split matters more than the count — it is what §5 is
+  // instrumenting. FOUR came from the ORB FALLBACK rule (WeakeningCrit,
+  // AddBurnMagic, SecondWind, Vengeance: no priority family was on offer, so
+  // the richest Hard Core payout decided, and the payout happened to sit on an
+  // unmodelled type). ONE came from the BOON-PRIORITY rule
+  // (AddVulnerableMagic, Vulnerable family).
+  //
+  // Running total across sessions 60-62: orb 6, priority 2. **That is still
+  // not a coverage argument for the orb rule** — the brief's §2f and STATE's
+  // open question 6 both say so, and three sessions of data pointing one way
+  // is exactly when it becomes tempting to stop saying it. The orb rule fires
+  // where NO priority family matched, which is structurally the same place
+  // rare unmodelled types live, so the association is expected and does not
+  // make it a coverage instrument.
+  //
+  // ALL FIVE ARE LATENT, and that is measured rather than assumed: for each
+  // pair the ONLY difference between the before and after states is the boon
+  // appearing in `pickedBoons` — health, shield, all three moves, and every
+  // rolled stat are byte-identical. The same diff run against AddLuck,
+  // AddEvasion and Heal on the same corpus does show their changes, so the
+  // comparison is not silently broken.
+  //
+  // Per DECISIONS 2026-08-15 the effect is NOT inferred from the name. Every
+  // one of these names suggests a mechanic — "Vengeance", "SecondWind",
+  // "AddBurnMagic" as a sibling of the modelled `AddBurnSword` — and none of
+  // those readings is recorded here as anything but a reading.
+  //
+  // `contaminates: ["STATUS_EFFECT"]` on all five follows the convention every
+  // one of the nine existing latent models uses, and it is the conservative
+  // direction rather than a claim: a boon that provably does nothing AT PICKUP
+  // does something LATER, and marking it as contaminating says only that this
+  // project cannot score the exchanges after it. Claiming `[]` would assert
+  // the opposite — that it affects no combat — which no pair here shows.
+  WeakeningCrit: {
+    // Offered since session 61 (declined then); first pair here.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-22-41-47 state-005→state-006",
+    observed: "selectedVal1 1 → no change to any player field",
+  },
+  AddBurnMagic: {
+    // The Magic-move sibling of the already-modelled `AddBurnSword`, and it
+    // behaves identically at pickup: nothing. Worth naming explicitly because
+    // `AddBurnSword` is the one model a reader would be most tempted to copy a
+    // damage number from — it does not carry one either.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-22-41-47 state-047→state-048",
+    observed: "selectedVal1 3 → no change to any player field",
+  },
+  SecondWind: {
+    // val1 10 and a name that reads as a heal — and the pair shows `health`
+    // completely unchanged, current and max alike. If it heals, it heals on
+    // some later trigger, not on pickup. This is the clearest case in the five
+    // of a name that would have produced a wrong model.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-22-46-26 state-005→state-006",
+    observed: "selectedVal1 10 → no change to any player field (health identical, current and max)",
+  },
+  AddVulnerableMagic: {
+    // The one of the five taken by the PRIORITY rule rather than the orb rule
+    // — room 5 offered it at 2 against CorrosiveShield and AddLuck, and the
+    // Vulnerable family matched.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-22-46-26 state-065→state-066",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
+  Vengeance: {
+    // val1 15, the largest of the five, taken by the orb rule at 26 Hard Core
+    // against two AddTenacity options. A large val1 with a zero delta is a
+    // useful reminder that val1 is the OFFER's number, not an applied one.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-22-46-26 state-087→state-088",
+    observed: "selectedVal1 15 → no change to any player field",
+  },
 };
 
 /**
@@ -1415,6 +1498,75 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 4,
     source: "run-2026-08-20-20-04-37/state-062",
     options: [opt("TieVulnerable", 1), opt("AddIntuition", 1), opt("UpgradePaper", 0, 8)],
+  },
+  // ---- [session 62, LIVE] run 1 of 2, 24949925, died room 7 ---------------
+  // Six offers, rooms 1-6. Two of them (WeakeningCrit room 1, AddBurnMagic
+  // room 4) produced this corpus's FIRST pickup pairs for those types, both
+  // via the ORB FALLBACK rule.
+  {
+    room: 1,
+    source: "run-2026-08-20-22-41-47/state-005",
+    options: [opt("WeakeningCrit", 1), opt("AddLuck", 1), opt("AddTenacity", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-22-41-47/state-017",
+    options: [opt("AddBurnShield", 3), opt("WeakeningTenacity", 4), opt("UpgradeRock", 6)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-22-41-47/state-033",
+    options: [opt("AddMaxArmor", 8), opt("AddLuck", 1), opt("Regen", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-20-22-41-47/state-047",
+    options: [opt("AddBurnMagic", 3), opt("Regen", 1), opt("AddIntuition", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-20-22-41-47/state-069",
+    options: [opt("AddBurnSword", 3), opt("AddEvasion", 1), opt("AddLuck", 1)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-20-22-41-47/state-085",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddTenacity", 2), opt("UpgradePaper", 4)],
+  },
+  // ---- [session 62, LIVE] run 2 of 2, 24949982, died room 7 ---------------
+  // Six more, rooms 1-6. Three FIRST pairs: SecondWind and Vengeance via the
+  // ORB FALLBACK rule, AddVulnerableMagic via the BOON-PRIORITY rule (Vulnerable
+  // family) — the same split §5 is instrumenting, and it landed 4-orb/1-priority
+  // across the two runs.
+  {
+    room: 1,
+    source: "run-2026-08-20-22-46-26/state-005",
+    options: [opt("SecondWind", 10), opt("LossBlockUp", 5), opt("AddBlock", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-22-46-26/state-027",
+    options: [opt("UpgradePaper", 0, 6), opt("AddIntuition", 10), opt("Heal", 16)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-22-46-26/state-035",
+    options: [opt("AddTenacity", 2), opt("AddBurnSword", 3), opt("LossBlockUp", 5)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-20-22-46-26/state-051",
+    options: [opt("UpgradeRock", 4), opt("AddEvasion", 1), opt("AddIntuition", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-20-22-46-26/state-065",
+    options: [opt("CorrosiveShield", 2), opt("AddLuck", 1), opt("AddVulnerableMagic", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-20-22-46-26/state-087",
+    options: [opt("AddTenacity", 2), opt("AddTenacity", 7), opt("Vengeance", 15)],
   },
 ];
 

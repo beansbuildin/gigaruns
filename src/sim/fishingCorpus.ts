@@ -227,6 +227,40 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
   return [...byDoc.values()];
 }
 
+/**
+ * [session 62 §1b] The THREE arms, not two.
+ *
+ * `oilEra` answers "did this cast spend a consumable" and is derived from the
+ * server's own `consumablesUsed`, which is why it cannot be forgotten. It
+ * cannot see a third case that partial stock makes routine: a cast in which the
+ * `on-demand` policy WANTED an oil and the account held none.
+ *
+ *   - `"oil"`       — a consumable was spent. The oil arm.
+ *   - `"non-oil"`   — nothing spent, nothing wanted-and-missed. The clean
+ *                     control arm.
+ *   - `"policy-dry"` — a trigger fired against an empty bag at least once.
+ *                     **Belongs to NEITHER arm.** It is not an oil cast, and
+ *                     it is not a clean non-oil cast either, because the policy
+ *                     that played it was the oil policy running dry.
+ *
+ * `policy-dry` DELIBERATELY outranks `oil`. A cast that spent one oil and then
+ * wanted a second it did not have is still a cast the policy ran dry during,
+ * and pooling it into the oil arm would measure a policy nobody ran. Keeping it
+ * out of both is the conservative direction and costs only a data point; the
+ * failure in the other direction is a rate that silently means nothing, which
+ * is what the dead era cost and what took 40 casts to notice.
+ *
+ * `dryCastIds` comes from `loadDryCastIds` (`src/strategy/fishing/
+ * oilCastState.ts`). An empty set — the normal state today, since no cast has
+ * ever run the policy dry — makes this a two-way split, exactly as before.
+ */
+export type OilArm = "oil" | "non-oil" | "policy-dry";
+
+export function classifyOilArm(cast: FishingCast, dryCastIds: ReadonlySet<string>): OilArm {
+  if (dryCastIds.has(cast.docId)) return "policy-dry";
+  return cast.oilEra ? "oil" : "non-oil";
+}
+
 export interface FishingCorpusSummary {
   casts: number;
   responseDocs: number;

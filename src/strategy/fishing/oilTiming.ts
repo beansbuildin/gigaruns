@@ -87,6 +87,45 @@ export const consumeAtStart: OilTimingPolicy = {
 };
 
 /**
+ * **The on-demand TRIGGERS, evaluated independently of how many oils are held.**
+ *
+ * [session 62 §1b] Split out of `onDemand.decide` so the live loop can tell
+ * apart two states that `decide` deliberately collapses:
+ *
+ *   - the trigger did not fire, and
+ *   - the trigger fired and the account held none of that oil.
+ *
+ * `decide` returns `[]` for both, which is right for the SIM (a policy that
+ * cannot spend an oil plays on without one) and wrong for the LIVE record. The
+ * user has a few oils, fewer than a batch needs, so stock runs out MID-batch;
+ * a cast the oil policy played while dry is not an oil cast and is not a clean
+ * non-oil cast either, and folding it into either arm is how the dead era
+ * poisoned a rate for 40 casts before anyone noticed.
+ *
+ * This is also the shape `tests/fishing/oilTiming.test.ts` pins the shipped
+ * live policy against — the trigger, not a literal threshold, so reinstating
+ * session 43's fraction-of-max heuristic fails the test even if someone picks
+ * a fraction that happens to equal 2 HP on the fish in the fixture.
+ *
+ * `onDemand.decide` is defined in terms of this, so the two cannot drift.
+ */
+export function onDemandTriggers(s: OilTimingState, e: OilEffects): OilKind[] {
+  const out: OilKind[] = [];
+  // LETHAL, not "low": at `fishHp <= fishDamage` the oil ends the cast, which
+  // is what makes this trigger indifferent to the turn-cost mechanic.
+  if (s.fishHp > 0 && s.fishHp <= e.fishDamage) out.push("relaxing");
+  // ZERO, not "low": the meter never regenerates within a cast (CONFIRMED
+  // session 13), so zero is the only state where +2 changes a reachable cell.
+  if (s.focusRemaining <= 0) out.push("focus");
+  return out;
+}
+
+/** How many of `kind` the state says are held — the stock half of the decision, kept beside the trigger half. */
+export function heldOf(s: OilTimingState, kind: OilKind): number {
+  return kind === "focus" ? s.focusOilHeld : s.relaxingOilHeld;
+}
+
+/**
  * **The lethal trigger.** Spend the Relaxing Oil exactly when its damage is
  * enough to finish the fish, converting a probabilistic shot into a certain
  * catch. Focus Oil when the meter is exhausted, which is the only state in
@@ -97,6 +136,10 @@ export const consumeAtStart: OilTimingPolicy = {
  * whether consuming costs a turn is irrelevant — there is no next turn to
  * lose. It is the one trigger that is provably indifferent to the mechanic
  * this project cannot yet measure.
+ *
+ * **[session 62 §1, USER-APPROVED and SHIPPED LIVE.]** This is no longer a
+ * candidate among candidates: it is the policy `scripts/liveFishing.ts` plays,
+ * replacing session 43's heuristic (c). See `handoff/OIL-POLICY.md`.
  */
 export const onDemand: OilTimingPolicy = {
   name: "on-demand",
@@ -104,12 +147,7 @@ export const onDemand: OilTimingPolicy = {
     "spend the Relaxing Oil only when it is LETHAL (converting a probabilistic shot into a certain catch, " +
     "which also makes it indifferent to whether consuming costs a turn), and the Focus Oil only when the " +
     "meter is at zero, the only state where restoring it changes which cells are reachable.",
-  decide: (s, e) => {
-    const out: OilKind[] = [];
-    if (s.relaxingOilHeld > 0 && s.fishHp > 0 && s.fishHp <= e.fishDamage) out.push("relaxing");
-    if (s.focusOilHeld > 0 && s.focusRemaining <= 0) out.push("focus");
-    return out;
-  },
+  decide: (s, e) => onDemandTriggers(s, e).filter((k) => heldOf(s, k) > 0),
 };
 
 /** The lethal trigger alone — isolates how much of `on-demand` is the Relaxing Oil. */

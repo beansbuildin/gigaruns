@@ -174,7 +174,12 @@ describe("the live call site passes every condition the gate checks", () => {
   });
 
   it("passes the REAL live balance, not a constant", () => {
-    expect(call).toMatch(/heldBalance:\s*relaxingOilHeld/);
+    // [session 62 §1] `relaxingOilHeld` became `oilHeld[kind]` when `on-demand`
+    // replaced heuristic (c): the loop now spends BOTH oils, so the balance is
+    // per-kind. The point of the assertion is unchanged — it must be a live
+    // reading, not a literal.
+    expect(call).toMatch(/heldBalance:\s*held\b/);
+    expect(call).not.toMatch(/heldBalance:\s*\d/);
   });
 
   it("passes the running per-cast count, so the budget can actually bind", () => {
@@ -183,19 +188,32 @@ describe("the live call site passes every condition the gate checks", () => {
 
   it("passes the loop's own dryRun and failure flags rather than literals", () => {
     expect(call).toMatch(/dryRun,/);
-    expect(call).toMatch(/spendFailedThisCast:\s*relaxingOilUseFailedThisCast/);
+    expect(call).toMatch(/spendFailedThisCast:\s*oilUseFailedThisCast\[kind\]/);
     expect(call).not.toMatch(/dryRun:\s*false/);
     expect(call).not.toMatch(/policyApproved/); // the call site must not re-decide approval
   });
 
-  it("the shipped config has policyApproved FALSE — no oil can be consumed live yet (rule 4)", () => {
+  it("the shipped config has policyApproved TRUE — the user approved the on-demand policy (session 62 §1)", () => {
+    // **This assertion was INVERTED on 2026-08-20, and deliberately.** It read
+    // `toBe(false)` from session 61, where the flag was the thing standing
+    // between a derived recommendation and a live spend (CLAUDE.md rule 4).
+    // The user has now seen `handoff/OIL-POLICY.md` and approved it, so FALSE
+    // would no longer be the safe state — it would be a stale one that
+    // silently disables a policy the account owner asked for.
+    //
+    // What the test still guards is the part that is NOT the user's to flip by
+    // accident: that the gate is genuinely load-bearing, i.e. flipping the flag
+    // back to false really does refuse every spend.
     const bot = JSON.parse(readFileSync(join(process.cwd(), "config", "bot.json"), "utf8")) as {
       dendren: { oils: OilBudgetConfig };
     };
-    expect(bot.dendren.oils.policyApproved).toBe(false);
+    expect(bot.dendren.oils.policyApproved).toBe(true);
     expect(bot.dendren.oils.allowedItemIds).toContain(MID_FOCUS_OIL_ITEM_ID);
     expect(bot.dendren.oils.allowedItemIds).toContain(MID_RELAXING_OIL_ITEM_ID);
-    expect(mayConsumeOil(ok({ configured: bot.dendren.oils })).allowed).toBe(false);
+    // Approved and funded -> a spend is allowed...
+    expect(mayConsumeOil(ok({ configured: bot.dendren.oils })).allowed).toBe(true);
+    // ...and the approval flag is still the thing doing the work.
+    expect(mayConsumeOil(ok({ configured: { ...bot.dendren.oils, policyApproved: false } })).allowed).toBe(false);
   });
 });
 
