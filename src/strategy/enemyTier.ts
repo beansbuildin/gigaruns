@@ -48,6 +48,83 @@ export interface TierOption {
    * unchanged and behaves identically.
    */
   enemyBuff?: unknown;
+  /** [session 56] `{evasion, block, lck, tenacity}`. Read only by `isUnmodified`. */
+  rolledEnemyStats?: Record<string, number>;
+}
+
+/**
+ * "No modifiers": no `enemyBuff` and every rolled stat zero. This is what the
+ * user's final-room exception asks for, and it is a STRICTER condition than
+ * "lowest tier" — the corpus has tier-1 paths with a buff and zero rolled
+ * stats, and tier 0 is the only tier that is reliably both.
+ */
+export function isUnmodified(o: TierOption): boolean {
+  if ((o.enemyBuff ?? null) !== null) return false;
+  return Object.values(o.rolledEnemyStats ?? {}).every((v) => v === 0);
+}
+
+/**
+ * **[USER DIRECTIVE, 2026-08-20]** "At room 16 (floor 4, room 4) always take
+ * no-modifiers, because there are no upgrades after the final boss."
+ *
+ * ── THE INDEX SCHEME, CHECKED BEFORE ENCODING (brief §5 asked for this) ────
+ *
+ * The brief warned that "room 16 = floor 4 room 4" implies a flat index over
+ * four floors of four rooms and that the mapping was unverified. Checked:
+ *
+ *   - There is **no `floor` field anywhere in the corpus.** Nothing to cross-
+ *     check a two-part index against, and nothing that needs one.
+ *   - The server DOES publish the room count directly: `dungeon-today`'s
+ *     container carries **`maxRoom`**, and for Forbidden Woods (ID_CID 5) it
+ *     is **16** — the user's number exactly, from the server rather than
+ *     inferred. `config/discovered.json` already records it.
+ *   - It is PER DUNGEON, so 16 must never be hard-coded: Void Dungeon's
+ *     `maxRoom` is 17. The caller passes the configured value.
+ *   - Battle state carries a flat `ROOM_NUM_CID` (1..10 observed), consistent
+ *     with a flat 1..`maxRoom` index. 4 x 4 = 16 is consistent with it, but
+ *     nothing depends on the floor decomposition being true.
+ *
+ * ── FAILURE DIRECTION, DELIBERATELY ASYMMETRIC ─────────────────────────────
+ *
+ * Taking no-modifiers at the wrong room costs a little reward. Taking the
+ * hardest card at the ACTUAL final room costs the boss fight. So the test is
+ * `room >= maxRoom`, not `room === maxRoom`: if the index ever runs past the
+ * configured count, this stays on rather than silently switching off at the
+ * one room it exists to protect.
+ *
+ * ── THIS IS INERT TODAY, AND THAT IS CORRECT ───────────────────────────────
+ *
+ * Under CLAUDE.md rule 8 the bot already takes the lowest tier everywhere, so
+ * at the final room this can only differ from `pickLowestTier` by preferring an
+ * unmodified card among options that already share the lowest tier. It is
+ * encoded now as cheap insurance and as the hook a rule-8 reversal needs.
+ * **Nothing is gated on it** (CLAUDE.md rule 6): the corpus has never seen
+ * room 16 — the deepest run ever is room 10 (session 53) — so it cannot be
+ * tested live and will not fire for a long time.
+ */
+export function pickFinalRoomTier<T extends TierOption>(options: readonly T[]): T {
+  if (options.length === 0) throw new Error("pickFinalRoomTier() called with an empty offer");
+  const lowest = chooseTier(options).tier;
+  const clean = options.filter((o) => o.tier === lowest && isUnmodified(o));
+  if (clean.length > 0) return clean[0]!;
+  // No unmodified card at the lowest tier. Widen to an unmodified card at ANY
+  // tier ONLY if it is not higher than the lowest — which it cannot be — so in
+  // practice this falls through to the ordinary rule. Stated as a fallthrough
+  // rather than a search so it can never promote a tier to find a clean card.
+  return pickLowestTier(options);
+}
+
+/**
+ * The tier choice for a room, applying the final-room exception when the room
+ * is the dungeon's last. `maxRoom` comes from `config/discovered.json`'s
+ * `forbiddenWoods.maxRoom` (server-published), never a literal.
+ */
+export function pickTierForRoom<T extends TierOption>(
+  options: readonly T[],
+  room: number,
+  maxRoom: number,
+): T {
+  return room >= maxRoom ? pickFinalRoomTier(options) : pickLowestTier(options);
 }
 
 /** Picks the lowest `tier` in the offer. Throws on an empty offer — no recorded offer is empty. */

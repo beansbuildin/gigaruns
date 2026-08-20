@@ -25,7 +25,13 @@ import {
   type BuffableStats,
 } from "../src/sim/enemyBuffs.js";
 import { probeRun } from "../src/sim/coverage.js";
-import { pickLowestTier } from "../src/strategy/enemyTier.js";
+import {
+  isUnmodified,
+  pickFinalRoomTier,
+  pickLowestTier,
+  pickTierForRoom,
+} from "../src/strategy/enemyTier.js";
+import { MAX_ROOM } from "../src/sim/enemies.js";
 import { CORPUS_DIR } from "../src/sim/corpus.js";
 
 const base: BuffableStats = {
@@ -218,5 +224,62 @@ describe("the natural experiment, against the corpus", () => {
     // If this floor is ever not met the sweep found nothing and the assertion
     // above passed vacuously — the failure mode this test exists to avoid.
     expect(compared).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe("the final-room exception (user, 2026-08-20)", () => {
+  const opt = (tier: number, buffId?: string, rolled?: Record<string, number>) => ({
+    tier,
+    enemyBuff: buffId ? ENEMY_BUFFS[buffId] ?? { id: buffId } : null,
+    rolledEnemyStats: rolled ?? { evasion: 0, block: 0, lck: 0, tenacity: 0 },
+  });
+
+  it("MAX_ROOM is the server-published maxRoom for Forbidden Woods", () => {
+    // Verified live from `dungeon-today`'s container: Forbidden Woods (ID_CID
+    // 5) publishes maxRoom 16. Void Dungeon publishes 17, which is why the
+    // selector takes it as a parameter rather than hard-coding it.
+    expect(MAX_ROOM).toBe(16);
+  });
+
+  it("isUnmodified means no buff AND every rolled stat zero", () => {
+    expect(isUnmodified(opt(0))).toBe(true);
+    expect(isUnmodified(opt(0, "bloodthirsty"))).toBe(false);
+    expect(isUnmodified(opt(1, undefined, { evasion: 2, block: 0, lck: 0, tenacity: 0 }))).toBe(false);
+    // A stat-only buff is still a MODIFIER for this rule. The directive is
+    // about the card, not about whether the sim can score it.
+    expect(isUnmodified(opt(0, "hardy"))).toBe(false);
+  });
+
+  it("prefers an unmodified card among options at the lowest tier", () => {
+    const options = [opt(0, "bloodthirsty"), opt(0), opt(2)];
+    expect(pickFinalRoomTier(options)).toBe(options[1]);
+  });
+
+  it("NEVER raises a tier to find a clean card — that would be the expensive mistake", () => {
+    // The only unmodified option sits at tier 2. The rule must still fight
+    // tier 0, because taking the hardest card at the real final room is the
+    // failure the directive exists to prevent.
+    const options = [opt(0, "bloodthirsty"), opt(2)];
+    expect(pickFinalRoomTier(options).tier).toBe(0);
+  });
+
+  it("applies at the final room and not before, and stays on past it", () => {
+    const options = [opt(0, "bloodthirsty"), opt(0)];
+    // Before the final room: ordinary rule, which breaks the tie on order and
+    // on the perpetual directive — not on isUnmodified.
+    expect(pickTierForRoom(options, 15, MAX_ROOM)).toBe(options[0]);
+    expect(pickTierForRoom(options, MAX_ROOM, MAX_ROOM)).toBe(options[1]);
+    // `>=`, not `===`: if the index ever runs past the configured count this
+    // must not silently switch off at the one room it exists to protect.
+    expect(pickTierForRoom(options, MAX_ROOM + 1, MAX_ROOM)).toBe(options[1]);
+  });
+
+  it("falls through to the ordinary rule when nothing at the tier is clean", () => {
+    const options = [opt(1, "bloodthirsty"), opt(1, "shatterblade")];
+    expect(pickFinalRoomTier(options).tier).toBe(1);
+  });
+
+  it("throws on an empty offer, like every other selector here", () => {
+    expect(() => pickFinalRoomTier([])).toThrow(/empty offer/);
   });
 });

@@ -77,9 +77,9 @@ import {
   DEFAULT_OPPONENT_MODEL_PATH,
 } from "../src/orchestrator/opponentModelPersistence.js";
 import { loadPlayCounts, savePlayCounts, deletePlayCounts, DEFAULT_PLAY_COUNTS_PATH } from "../src/orchestrator/playCountsPersistence.js";
-import { pickLowestTier } from "../src/strategy/enemyTier.js";
+import { pickTierForRoom } from "../src/strategy/enemyTier.js";
 import { isPerpetualBuff } from "../src/sim/enemyBuffs.js";
-import { SAFE_TIER } from "../src/sim/enemies.js";
+import { MAX_ROOM, SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import {
   chooseCaptureBoon,
@@ -640,6 +640,14 @@ export interface LiveRunDeps {
    * default arm, and what a test measuring the old behaviour wants.
    */
   boonPriority?: BoonPriorityConfig | null;
+  /**
+   * [session 56] The dungeon's last room, for the user's final-room
+   * no-modifiers exception. Defaults to `MAX_ROOM` — Forbidden Woods'
+   * server-published `maxRoom` of 16, via `config/discovered.json`. It is a
+   * PER-DUNGEON field (Void Dungeon publishes 17), so it is a parameter rather
+   * than a literal even though this script only ever plays dungeon 5.
+   */
+  maxRoom?: number;
 }
 
 /** Records `false` on guards and re-throws — the shared shape of every failure path. */
@@ -1043,6 +1051,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
 
     const run = state.data.run as unknown as WireRun;
     const roomNum = (state.data.entity as { ROOM_NUM_CID?: number } | undefined)?.ROOM_NUM_CID ?? 0;
+    const maxRoom = deps.maxRoom ?? MAX_ROOM;
     const phase = classifyPhase(run);
 
     // [session 35, CODEXIMPROVE #5] First time this run's real identity is
@@ -1208,12 +1217,21 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       // 2026-08-20 perpetual tie-break among options that already share the
       // chosen tier. It cannot change which tier is fought — see enemyTier.ts.
       const r = run as WireRun & {
-        enemyPathOptions?: Array<{ tier: number; index: number; enemyBuff?: unknown }>;
+        enemyPathOptions?: Array<{
+          tier: number;
+          index: number;
+          enemyBuff?: unknown;
+          rolledEnemyStats?: Record<string, number>;
+        }>;
       };
       const options = r.enemyPathOptions ?? [];
-      let chosen: { tier: number; index: number; enemyBuff?: unknown };
+      let chosen: { tier: number; index: number; enemyBuff?: unknown; rolledEnemyStats?: Record<string, number> };
       try {
-        chosen = pickLowestTier(options);
+        // `pickTierForRoom` is `pickLowestTier` everywhere except the dungeon's
+        // final room, where the user's 2026-08-20 no-modifiers exception
+        // applies. Under rule 8 that exception can only prefer a cleaner card
+        // among options ALREADY at the lowest tier — it never raises a tier.
+        chosen = pickTierForRoom(options, roomNum, maxRoom);
       } catch (e) {
         // Only an empty offer throws here now (see enemyTier.ts) — a
         // genuinely new kind of surprise, unlike "no Safe tier" (session 09,
