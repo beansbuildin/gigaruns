@@ -94,7 +94,7 @@ import {
   predictDistribution,
   type MatcherState,
 } from "../../strategy/fishing/matcher.js";
-import { promotedSupport } from "./patternMining.js";
+import { promotedSupport, supportingCastCount } from "./patternMining.js";
 import {
   initMatcherPosterior,
   matcherPriorFromSupport,
@@ -105,7 +105,7 @@ import {
   type MatcherPosterior,
   type MatcherPosteriorOptions,
 } from "../../strategy/fishing/matcherPosterior.js";
-import { toCandidate } from "./patterns.js";
+import { toCandidate, type Pattern } from "./patterns.js";
 import type { Cast } from "./transitionCorpus.js";
 import type { CastTrace, TraceCard } from "./castTrace.js";
 import { cellKey, manhattan, reachableCells, zonesToCells, type Cell } from "./geometry.js";
@@ -289,6 +289,26 @@ export interface ReplayOptions {
    */
   matcherTier?: "off" | "loo";
   /**
+   * [session 52 §4] Run the matcher tier against a FIXED library instead of
+   * re-mining one per fold.
+   *
+   * This exists because the session-52 brief asked for a gate the replay could
+   * not run as specified. `matcherTier: "loo"` re-mines from `otherCasts`
+   * every fold and never reads `data/minedFishPatterns.json` — so every
+   * session-50/51 replay figure describes whatever LOO mining promotes at
+   * n-1, NOT the library `scripts/liveFishing.ts` actually loads. "Paired
+   * against the current 2-pattern library" had no arm to be paired against.
+   *
+   * With `matcherLibrary` set, the patterns are held fixed (exactly as live
+   * holds them fixed between re-mines) and only the PRIOR is re-derived per
+   * fold, via `supportingCastCount` on the held-out casts. That is the honest
+   * analogue of the live regime: live's library is stale-by-construction
+   * relative to any given cast; its support rate is not.
+   *
+   * Ignored unless `matcherTier` is `"loo"`.
+   */
+  matcherLibrary?: readonly Pattern[];
+  /**
    * [session 51 §2] Ring-model options for this arm. Defaults to what ships
    * (`DEFAULT_RING_MODEL_OPTIONS`, per-class shrinkage since session 51);
    * pass `SHARED_SHRINKAGE_BASELINE` for the pre-session-51 before-arm so the
@@ -405,7 +425,9 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
     ...DEFAULT_MATCHER_POSTERIOR_OPTIONS,
   };
   if ((opts.matcherTier ?? "off") === "loo") {
-    const { patterns, supportingCasts, totalCasts } = promotedSupport(otherCasts);
+    const { patterns, supportingCasts, totalCasts } = opts.matcherLibrary
+      ? { patterns: opts.matcherLibrary, ...supportingCastCount(otherCasts, opts.matcherLibrary) }
+      : promotedSupport(otherCasts);
     matcher = initMatcher(
       patterns.map((pat) => toCandidate(pat, t0.fishPosition, gridSize, target.turns.length + 1)),
       t0.fishPosition,

@@ -38,7 +38,12 @@ describe("determinism", () => {
 // pickup (this session's second bot-initiated juiced Tier-3 run), but the
 // corpus already had eight unpicked room-1 UpgradePaper offers, now
 // retroactively clean too (same mechanic as AddMaxArmor, session 11).
-const CLEAN_BOON_TYPES = new Set(["Heal", "UpgradeRock", "UpgradeScissor", "AddMaxArmor", "UpgradePaper"]);
+// [session 52] AddMaxHealth joined. It has been modelled since session 23 (a
+// room-3 pair) but no room-1 offer had ever CONTAINED it, so the sim could
+// never pick it at room 1 and this set never needed it. This session's run
+// produced the first room-1 AddMaxHealth offer (val1 14), and it comes back
+// clean — correctly. See tests/boons.test.ts's Wall 1 case.
+const CLEAN_BOON_TYPES = new Set(["Heal", "UpgradeRock", "UpgradeScissor", "AddMaxArmor", "UpgradePaper", "AddMaxHealth"]);
 
 describe("fail-closed accounting", () => {
   // [session 09, LIVE] Both tests below used to assert a blanket "any battle/

@@ -124,7 +124,7 @@ describe("recorded offers match the fixtures", () => {
     expect(fromTable).toEqual(fromCorpus);
   });
 
-  it("has no offer past room 6 — the deepest run cleared room 6 and reached room 7", () => {
+  it("has no offer past room 7 — the deepest run cleared room 7 and reached room 8", () => {
     // [session 20, LIVE] Was `toBe(3)` through session 19 — the potion-
     // orchestrator-wiring smoke test cleared room 4 for the first time,
     // producing this corpus's first room-4 offer (see ROOM_ENEMIES' new
@@ -135,7 +135,12 @@ describe("recorded offers match the fixtures", () => {
     // room-6/7 entries (this session added both, from the same run's real
     // captured battles), so the room-6 offer is no longer excluded by
     // `boonPickups`'s `room <= 0` guard the way it briefly was mid-session.
-    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(6);
+    // [session 52] The juiced Tier-3 run CLEARED room 7 (first-ever room-7
+    // offer) and died in room 8 — one room deeper than session 42's death.
+    // The test's own title is now one room stale in the same way it was
+    // before session 42; the invariant it encodes is "offers stop one room
+    // short of the deepest death", and that still holds at 7 vs 8.
+    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(7);
   });
 });
 
@@ -183,12 +188,14 @@ describe("fail-closed on unmodelled types", () => {
       "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
       "BurningBlock", // session 42: first sighting, live room-2 offer (second manually-started juiced run), not picked
+      "BurningCrit", // session 52: first sighting, live room-5 offer, not picked
       "BurningEvade", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
       "CorrosiveSword", // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
       "CritHeal", // session 43: first sighting, live room-2 offer (bot-initiated juiced run 2), not picked
       "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
       "LossBlockUp", // session 20: first sighting, live room-2 offer, not picked
+      "LossIntuitionUp", // session 52: first sighting, live room-7 offer (the corpus's first room-7 offer at all), not picked
       "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
       "Regen",
       "SecondWind", // session 16: first sighting, live room-3 offer, not picked
@@ -288,7 +295,9 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // clean-or-not types), so the retroactive UpgradePaper effect above is
     // the only thing moving the clean set.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
-    expect(roomOne.length).toBe(135);
+    // [session 52] +3: this session's single run contributed one room-1 offer
+    // of three options (AddBlock / AddMaxHealth(14) / AddTenacity).
+    expect(roomOne.length).toBe(138);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -296,10 +305,16 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       if (reasons.length === 0) clean.push(option.type);
       else expect(reasons.length, `${option.type} came back clean`).toBeGreaterThan(0);
     }
+    // [session 52] AddMaxHealth enters the room-1 clean list for the first
+    // time. It has been in `BOON_MODELS` since session 23 (a room-3 pair), so
+    // this is not a new model — it is the first time a room-1 offer has
+    // CONTAINED it. Wall 1 gains a fifth hole, same mechanic as session 11's
+    // AddMaxArmor and session 43's UpgradePaper.
     expect(clean.sort()).toEqual([
       "AddMaxArmor",
       "AddMaxArmor",
       "AddMaxArmor",
+      "AddMaxHealth",
       "Heal",
       "Heal",
       "Heal",

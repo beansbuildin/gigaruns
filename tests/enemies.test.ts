@@ -145,6 +145,11 @@ describe("player loadout matches the fixtures", () => {
     // starting loadout captured this session — hpMax dropped 43→38, armorMax
     // stayed at 17. User-confirmed armor re-spec between the two manual
     // starts, not a tier effect — see enemies.ts's PLAYER doc.
+    // [session 52] One new combo, from this session's single bot-initiated
+    // juiced Tier-3 run: 54/17 is 40/17 mid-run AFTER the room-1
+    // AddMaxHealth(14) pickup (hpMax +14, the largest max-HP roll in the
+    // corpus), not a new starting loadout — same shape as 34/20 above. The
+    // starting loadout is unchanged at 40/17.
     // [session 43] Two new combos, from this session's two bot-initiated
     // juiced Tier-3 runs: 40/17 is the new starting loadout (hpMax 38→40,
     // armorMax unchanged — the user's own manual level-up, see enemies.ts's
@@ -152,7 +157,7 @@ describe("player loadout matches the fixtures", () => {
     // pickup (armorMax +8), not a fourth starting loadout — same shape as
     // 34/20 above.
     expect([...seen].sort()).toEqual([
-      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/17", "40/25", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16",
+      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/17", "40/25", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16", "54/17",
     ]);
   });
 });

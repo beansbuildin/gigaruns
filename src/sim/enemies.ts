@@ -371,6 +371,29 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       rolled: rolled(),
     },
   },
+  {
+    room: 8,
+    tier: SAFE_TIER,
+    // [session 52, LIVE] First-ever room-8 capture, superseding room 7 above
+    // as the deepest this corpus has reached. Same shape as room 7's:
+    // `enemyPathOptions[0]` (Safe, taken per CLAUDE.md §8), rolledEnemyStats
+    // all zero, enemyBuff null. Clean.
+    //
+    // The run entered room 8 at 11/54 HP and died on the first exchange, so
+    // this is the enemy's OPENING state and nothing else — no post-exchange
+    // sample, and no Risky/Dangerous capture for this room at all.
+    // `lookupEnemy` fails closed on those, which is the correct answer.
+    unmodelled: [],
+    enemy: {
+      id: "Enemy Room 70",
+      hp: 52,
+      hpMax: 52,
+      armor: 20,
+      armorMax: 20,
+      moves: { rock: mv(22, 4), paper: mv(12, 12), scissor: mv(18, 4) },
+      rolled: rolled(),
+    },
+  },
 ];
 
 /**

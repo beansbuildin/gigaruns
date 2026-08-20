@@ -1147,6 +1147,48 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-18-22-07-14/state-060",
     options: [opt("UpgradePaper", 8), opt("AddBlock", 2), opt("AddBlock", 7)],
   },
+  // [session 52] Seven offers from a single juiced Tier-3 run that reached
+  // room 8 — the first corpus sighting of a room-5, room-6 or room-7 offer
+  // in one continuous run, and the first `AddMaxHealth` roll above 8.
+  // Six new boon TYPES appear here with no before/after pair between them
+  // (`AddBurnMagic`, `VulnerableBlock`, `BurningCrit`, `LossIntuitionUp`,
+  // `AddBurnShield`, `UpgradeScissor`); per SPEC §4d they stay unmodelled and
+  // fail closed rather than being inferred from their option text.
+  {
+    room: 1,
+    source: "run-2026-08-20-00-30-50/state-007",
+    options: [opt("AddBlock", 2), opt("AddMaxHealth", 14), opt("AddTenacity", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-00-30-50/state-019",
+    options: [opt("AddBurnMagic", 5), opt("UpgradeScissor", 0, 4), opt("AddLuck", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-00-30-50/state-031",
+    options: [opt("AddIntuition", 1), opt("AddBurnShield", 3), opt("VulnerableBlock", 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-20-00-30-50/state-043",
+    options: [opt("UpgradeRock", 4), opt("AddBlock", 2), opt("UpgradePaper", 0, 8)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-20-00-30-50/state-059",
+    options: [opt("UpgradeRock", 0, 8), opt("BurningCrit", 3), opt("AddBlock", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-20-00-30-50/state-079",
+    options: [opt("AddBlock", 2), opt("AddTenacity", 2), opt("AddLuck", 5)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-20-00-30-50/state-095",
+    options: [opt("LossIntuitionUp", 5), opt("AddLuck", 1), opt("AddEvasion", 1)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>
