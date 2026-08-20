@@ -191,3 +191,181 @@ brief 57:** modelling every enemy buff frees **ZERO** exchanges.
      src/orchestrator/config.ts    |  18  (boonPriority knob)
      config/bot.json               |  10  (boonPriority block)
 ```
+
+---
+
+# VERBOSE APPENDIX — session 56
+
+## Timeline
+- 22:31 PT — session start. First action: `npx tsx scripts/checkFishingCaps.ts`
+  (read-only, one GET, zero energy). VERDICT BLOCKED, 20/20, 12.48h to reset.
+  §19 not attempted. No other live call was made all session.
+
+## §2e — full sim head-to-head output (2000 runs each arm)
+```
+  ROOM-1 BATTLE WIN RATE, scored subset, 95% CI
+    rankBoons (control)   98.5% ± 0.5  (1970/2000 scored)
+    directive             98.5% ± 0.5  (1970/2000 scored)
+
+  mean rooms cleared      rankBoons 3.286 ± 0.057   directive 3.285 ± 0.058
+  battle coverage         rankBoons 32%   directive 35%
+  deepestScorableRoom     rankBoons 5   directive 5
+
+  Δ mean rooms cleared: -0.001  (combined 95% half-width 0.115)
+  → NOT SEPARATED: the sim cannot distinguish the two arms at this n.
+```
+The script prints, and this log repeats, the reason the number is weak: the
+directive deliberately picks types `src/sim/boons.ts` fails closed on, so those
+boons apply NOTHING in the sim and something real in the game. The comparison
+is biased AGAINST the directive. A null here is this instrument's ceiling, not
+a verdict, and explicitly not a reason to tune the ordering.
+
+## §3 — the natural experiment, in full
+Four enemies were captured BOTH clean (`enemyBuff: null`) and under buffs.
+Predicting the buffed stat block from the clean baseline plus the buff's own
+declared `effects[]`:
+
+```
+  distinct (enemy, buff, stats) triples with a clean baseline: 30
+  predicted == observed: 30
+  mismatches:            0
+  buffed sightings with no clean baseline for that enemy: 18
+```
+
+Worked examples:
+```
+  Enemy Room 64  base rock/paper/scissor ATK 14/10/8
+                 + bloodthirsty (+4 ATK all moves) -> 18/14/12   ✓
+  Enemy Room 65  base 10/15/12  + bloodthirsty     -> 14/19/16   ✓
+  Enemy Room 67  base 15/12/18  + bloodthirsty     -> 19/16/22   ✓
+  Enemy Room 64  base hp 35 / armor 14
+                 + hardy     (+3 max HP, +2 armor) -> 38 / 16    ✓
+                 + overgrown (+30% HP, +30% shield)-> 46 / 19    ✓
+```
+`overgrown` fixes the rounding: 35 × 1.3 = 45.5 → 46 and 14 × 1.3 = 18.2 → 19.
+Ceiling. Floor and round-half both give 18 for the second.
+
+### Effect kinds — the fail-closed line
+```
+  stat modifiers : flatAtk flatDef flatHP flatShield pctAtk pctDef pctHP pctShield
+  mechanics      : onEnemyWinExchange_applyStatus onEnemyWinExchange_lifesteal
+                   onEnemyWinExchange_corrode startBattleStatus
+```
+46 ids, 12 kinds, 23 base + 23 `perpetual_` twins with byte-identical effects.
+`classifyBuff` reads the LIVE `effects[]`, not the table's stored class, so a
+server-side redefinition of a familiar id is caught rather than trusted.
+
+### Tier composition — why this matters for the rule-8 flip
+```
+  tier    paths    with buff   rolled != 0
+  0       188      0           0
+  1       298      298         293
+  2       324      324         324
+
+  non-Safe paths offered: 622
+  ...still blocked by ROLLED_STATS after every buff is modelled: 617  (99.2%)
+  ...freed by this change alone:                                 5  (0.8%)
+```
+And measured end to end on the real replay, which is the number that settles it:
+`ENEMY_BUFF` 256 → 184 exchanges, `scored` **64/1107 before and after**.
+Zero exchanges freed.
+
+## §4 — reward tier audit, full quality table
+```
+  room  tier         n   meanOrb   unmodelled%   priority-target%
+  2     Safe         50    18.22           16%               42%
+  3     Safe         25    17.29           13%               44%
+  3     Risky        10    19.63           27%               50%
+  3     Dangerous     2    21.50           33%               50%
+  4     Safe         21    18.21           27%               38%
+  4     Risky         5    18.87           27%               60%
+  5     Safe          9    18.37           22%               44%
+  5     Risky         2    19.67            0%               50%
+  6     Safe          5    17.87           33%               60%
+  6     Risky         1    16.33           33%                0%
+  7     Safe          2    18.83           17%                0%
+  7     Risky         2    21.00           33%              100%
+  8     Safe          2    18.00           33%                0%
+  9     Risky         1    20.67           67%              100%
+  10    Risky         1    18.00            0%                0%
+```
+Within-room contrasts (the only comparisons that control for depth):
+```
+  room 3: Safe 17.3 (n=25)  Risky 19.6 (n=10)  Dangerous 21.5 (n=2)  Δ +4.21
+  room 4: Safe 18.2 (n=21)  Risky 18.9 (n=5)                         Δ +0.66
+  room 5: Safe 18.4 (n=9)   Risky 19.7 (n=2)                         Δ +1.30
+  room 6: Safe 17.9 (n=5)   Risky 16.3 (n=1)                         Δ -1.53
+  room 7: Safe 18.8 (n=2)   Risky 21.0 (n=2)                         Δ +2.17
+```
+Positive in 4 of 5, largest where n is largest. **Suggestive, not established.**
+
+Roll values on matched types cut BOTH ways and should not be over-read:
+```
+  AddMaxHealth    Safe={8,14}          Risky={24}
+  AddBurnMagic    Safe={3}             Risky={5}
+  AddMaxArmor     Safe={2,8}  Risky={10}  Dangerous={4}   <- against the trend
+  UpgradeRock     Safe={0/4,0/6,0/8,4,6,8,12}  Risky={4,8,12}
+```
+
+## §4 — the two corpus traps, verbatim
+1. A run DIRECTORY holds multiple attempts. `entity.ID_CID` is literally `5`,
+   the DUNGEON id, so it cannot separate them. Attempts are delimited by
+   `ROOM_NUM_CID` DECREASING. Example, `run-2026-08-15-15-38-09`: rooms go
+   2,2,3,3,4,4 … then state-077 is room 2 again — a new attempt. Joining
+   per-directory produced 5 bogus "reward tier != preceding fight tier"
+   exceptions, all cross-attempt.
+2. `ROOM_NUM_CID` is on `data.entity`, NOT `data.entity.data`. The inner object
+   holds `activePath`, `rewardPathOptions`, `enemyPathOptions`, `invader`,
+   `nerfCost`, `roomNerfCount`, `gearInstances`, `playerEquipment` — and no
+   room. Reading room off it returns `undefined` silently.
+
+The inheritance chain, read off one attempt, is unambiguous:
+```
+  room 2 reward tier 0 -> enemy offer [1,1,1], fought tier 1 -> room 3 reward tier 1
+  room 3 reward tier 1 -> enemy offer [1,1,2], fought tier 1 -> room 4 reward tier 1
+  room 2 reward tier 0 -> enemy offer [2,2,2], fought tier 2 -> room 3 reward tier 2
+```
+
+## The perpetual directive — measurement behind the implementation
+User, mid-session 2026-08-20: "if the red/hardest/highest risk enemy card
+contains the condition Perpetual do NOT select that, go with the next best
+option based on existing criteria."
+```
+  distinct enemy offers:                                    134
+  top tier carries a perpetual:                              47  (35%)
+  ...with a strictly lower tier available:                   43
+  ...all options at ONE tier (the only shape reachable
+     under rule 8):                                           4
+  offers where EVERY option is perpetual:                     0
+```
+All 4 of the reachable-today cases have a non-perpetual option at the same
+tier, e.g. room 2 `[(2,'overgrown'), (2,'perpetual_ferocious'),
+(2,'perpetual_mangleblade')]`. Implemented as a WITHIN-TIER tie-break in
+`preferNonPerpetual`, so `chooseTier`'s minimum is never disturbed. Fails OPEN
+if every option at the tier is perpetual — a preference among equals must not
+strand a 60-energy run, unlike the tier rule itself which still fails closed.
+
+## §5 — the index-scheme check, in full
+`fixtures/probe/dungeon-today.json`, container objects:
+```
+  ID_CID 1  Dungetron 5000   maxRoom 16   CHECKPOINT_CID -1
+  ID_CID 3  Underhaul        maxRoom 16   CHECKPOINT_CID  2
+  ID_CID 4  Void Dungeon     maxRoom 17   CHECKPOINT_CID -1
+  ID_CID 5  Forbidden Woods  maxRoom 16   CHECKPOINT_CID -1
+```
+So the user's "room 16" is a SERVER-published number for this dungeon, not an
+inference from "floor 4, room 4". There is no `floor` field anywhere in the
+corpus. `maxRoom` is per-dungeon, so it is passed as a parameter.
+
+## Test-suite note
+The three new `runOnce` tests initially timed out at 10s each. The liveRun
+suite runs on FAKE timers and the rate limiter sleeps inside the client; the
+pattern is `const p = runOnce(deps); await vi.runAllTimersAsync(); await
+expect(p).resolves.toBeUndefined();`. All three use `mkdtempSync` fixture roots
+per CLAUDE.md's isolated-path rule.
+
+`tests/rewardTier.test.ts`'s unjoined-offer guard failed during development on
+`run-2026-08-14-22-02-31/state-000.json`, which OPENS at room 4 — a capture
+that began mid-run. Legitimate corpus shape, so the assertion now names that
+reason (`firstCapturedState`) and caps it at 3 rather than being loosened to
+`room > 2` unconditionally.
