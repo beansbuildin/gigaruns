@@ -1217,7 +1217,37 @@ itself in five casts, which is the outcome its own design was betting on.
 
 ---
 
-## §19 — Should the matcher tier be DROPPED rather than mixed? [session 51 §3, OPEN — for the user]
+## §19 — Should the matcher tier be DROPPED rather than mixed? [session 51 §3, OPEN — STILL UNMEASURED, blocked a FOURTH time]
+
+**[session 54] Blocked again, and this time on the game's own daily cap, not on
+anything reprioritisable.** The session-54 brief said "the cap resets 11:00 PT
+and the library is finally the right one... It is not blocked now." That was
+right about the library and wrong about the timing: this session started ~2
+hours after session 53, inside the SAME guard-day session 53 exhausted.
+
+Measured, not assumed: `GET /fishing/state`'s `dayDocs` reports
+`UINT256_CID: 20` for pond 2 (Dendren) — 20 casts used, against the real
+20/day cap the user confirmed in session 21. The bot's own guard agrees
+(20/20 casts, 240/240 energy, `data/guard-budget-fishing.json` dated
+`2026-08-19`). Real energy was 100/420, so ENERGY was never the constraint —
+the cast cap is, and it is a server-side limit no config change reaches. The
+guard-day rolls at 11:00 PT.
+
+Nothing about the decision rule or the library has changed. When a batch can
+run, it runs against the 3-pattern de-aliased library (perimeterWalk cw 4,
+ccw 4, bounce(2,0) 3 — 11 distinct supporting casts of 89, pi_0 ~= 0.133) and
+session 51's rule below applies as written. Record support counts at batch
+time.
+
+**For the next brief:** a fishing batch is only schedulable in a session that
+begins AFTER 11:00 PT on a day the caps have not already been spent. Session
+53 spent this one. That is a scheduling fact about this repo, not a finding,
+and it has now cost §19 four sessions — it is worth stating in the brief
+rather than discovering at minute five.
+
+---
+
+### Original (session 51)
 
 **Not blocking.** Session 51 replaced the matcher tier's fixed 0.9 weight with a
 posterior mixture and shipped it, because it beats what was there by a wide
@@ -1501,3 +1531,22 @@ that happens for any other reason can carry this.
 **Not urgent.** The guard enforces off COMMITTED spend (CODEXREVIEW #8), so the
 error is conservative in the safe direction: the bot believes it has spent
 slightly more than it has and stops slightly early.
+
+**[session 54] The probe is BUILT and ARMED; it has not fired.** `LiveRunDeps.
+energyProbe` reads the pool immediately before and immediately after the
+`start_run` POST with nothing else in flight and logs
+`start_run_energy_probe` with `tightDelta`, `estimatedCost` and
+`matchesCommitted`. Two GETs, zero energy, on every real run.
+
+Rule 11 removed the plain-20-energy comparison arm this section originally
+proposed — there are no plain runs any more — so the discriminating read
+changed shape and no longer needs one:
+
+- **tight `-59`** -> the CHARGE is 59, not the accounting, and the 3x
+  multiplier is the suspect (59 = 20x3 - 1).
+- **tight `-60`** -> something INSIDE the run credits 1 back (a loot effect, a
+  boon, a regen tick landing in the window) — a different investigation.
+
+No run happened in session 54 (rule 11 needs per-run approval, and both daily
+caps were already spent), so this carries to the next run at no cost. Do not
+fix the drift before the probe says which of the two it is.

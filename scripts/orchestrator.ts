@@ -218,7 +218,11 @@ async function main() {
     );
 
     if (decision.kind === "done") {
+      // [session 54] `nextAction` is mode-agnostic and phrases this as "both
+      // modes", which now reads as though the dungeon arm had a budget that
+      // ran out. Say which one actually stopped.
       console.log(`\n▸ done for today: ${decision.reason}`);
+      console.log(`  (fishing is the only arm this loop runs — ${RULE_11_POINTER})`);
       break;
     }
 
