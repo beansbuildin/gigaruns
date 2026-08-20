@@ -10,11 +10,15 @@ told to. It runs on your machine, under your account, with your token.
 
 ## Read this part before anything else
 
-**Automating a game account may breach Gigaverse's terms of service, and the
-consequences land on your account and your assets — not on whoever wrote this.**
-Bans and asset loss are the realistic downside. Nobody here can tell you the
-risk is zero, and you should decide knowingly rather than find out later. That
-is the whole warning; it is not repeated below.
+**Automation is allowed here.** Gigaverse permits bots explicitly — the team
+publishes its own repo of agentic skills for running accounts autonomously — so
+this is not a tool that works by not being noticed, and there is no ban risk to
+weigh up. An earlier draft of this file carried a terms-of-service warning. It
+was wrong: it assumed the usual stance of the usual game rather than checking
+this one's, and it is deleted rather than softened.
+
+What is worth reading before anything else is the next two paragraphs, which are
+about what the bot can and cannot reach.
 
 **What this bot cannot do to your account.** It never sells, burns, lists,
 transfers, or sends an on-chain transaction. It has no code to do any of those
@@ -160,6 +164,7 @@ problem. It is right more often than guessing.
 | `src/strategy/` | pure decision functions. No network |
 | `src/sim/` | the simulator and the recorded corpus it replays |
 | `config/bot.json` | your budgets |
+| `config/discovered.json` | the game's own IDs and endpoints. Shared, not yours — you do not need to run `probe.ts` |
 | `fixtures/` | thousands of redacted real game states the sim learns from |
 | `SPEC.md` | what the API actually does, verified against live responses |
 | `CLAUDE.md` | the rules this project is built under, and why each exists |
@@ -175,3 +180,9 @@ scar tissue from a specific incident.
 No web UI, no hosted service, no dashboard, no one else holding your token.
 This is a program you run yourself. If it ever grows a server, the safety
 sentence at the top stops being true, and that sentence is the point.
+
+---
+
+## Licence
+
+MIT — see [`LICENSE`](LICENSE). Use it, change it, pass it on.

@@ -173,9 +173,20 @@ describe("batch selection", () => {
 });
 
 describe("against the real corpus — end to end, so the only untested thing on the day is the data", () => {
-  it("today's log is ENTIRELY pre-instrumentation, and the report says so instead of guessing", () => {
-    // If this ever fails it is GOOD NEWS: a live batch has been captured and
-    // §19 is finally measurable. Update the expectation then, not before.
+  it("§19 is MEASURED: the live batch produced real matcherWeights and the verdict is DROP", () => {
+    // [session 60] The good news this test was waiting for arrived. It used to
+    // assert `activeTurns === 0` — "today's log is ENTIRELY pre-instrumentation"
+    // — with a note saying to update it only once a live batch existed. The
+    // first 5-cast batch played under instrumentation produced **7** matcher
+    // turns, so §19 is measurable after nine sessions of waiting.
+    //
+    // The pinned values below are DELIBERATELY inequalities, not literals.
+    // Every future live cast moves these counts, and the thing worth pinning is
+    // session 51's pre-registered RULE — pi never crossing 0.5 means DROP —
+    // which cannot be renegotiated now that the numbers are visible. Pinning
+    // `activeTurns === 7` would just be a tripwire that fires on the next batch
+    // and teaches whoever hits it to edit the number, which is how a rule
+    // erodes.
     const rows = loadRingPredictions().map((r) => ({
       castId: r.castId,
       turn: r.turn,
@@ -185,11 +196,21 @@ describe("against the real corpus — end to end, so the only untested thing on 
       focusMoveCost: r.focusMoveCost,
     }));
     const report = buildMatcherWeightReport(rows);
-    expect(report.activeTurns).toBe(0);
+    // Instrumented turns exist now, and the pre-instrumentation ones are still
+    // excluded rather than backfilled with the old fixed 0.9 (CLAUDE.md rule 10
+    // — a constant is not a measurement).
+    expect(report.activeTurns).toBeGreaterThan(0);
     expect(report.unmeasuredTurns).toBeGreaterThan(0);
-    expect(report.verdict).toBe("INSUFFICIENT_DATA");
-    // The parts that do NOT depend on the missing field still work, which is
-    // what makes this an end-to-end validation rather than a smoke test.
+    expect(report.activeTurns + report.unmeasuredTurns).toBeLessThanOrEqual(rows.length);
+    // Session 51's rule, applied to real data for the first time: pi never
+    // exceeded 0.5 (max observed 0.255 over the first instrumented batch), so
+    // the tier is DROPped. If a future batch pushes pi past 0.5 this flips to
+    // KEEP on its own — that is the rule working, not this test breaking.
+    expect(report.distribution!.max).toBeLessThan(0.5);
+    expect(report.crossingCastIds).toEqual([]);
+    expect(report.verdict).toBe("DROP");
+    // The parts that never depended on the field still work, which is what
+    // makes this an end-to-end validation rather than a smoke test.
     expect(report.baseHitTurns).toBe(rows.length);
     expect(report.openingFocus!.n).toBeGreaterThan(0);
   });

@@ -193,7 +193,6 @@ describe("fail-closed on unmodelled types", () => {
       "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
       "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
-      "BurningBlock", // session 42: first sighting, live room-2 offer (second manually-started juiced run), not picked
       "BurningCrit", // session 52: first sighting, live room-5 offer, not picked
       "BurningEvade", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
@@ -216,7 +215,6 @@ describe("fail-closed on unmodelled types", () => {
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
       "WeakeningCrit", // session 25: first sighting, live room-3 offer (Task 10 gate run), not picked
       "WeakeningMastery", // session 08: same offer, not picked
-      "WeakeningTenacity", // session 52: first sighting, live room-6 offer (juiced run 2), not picked
     ]);
   });
 });
@@ -304,6 +302,17 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // AddTenacity and AddLuck/AddIntuition/AddMaxArmor — all already-known
     // clean-or-not types), so the retroactive UpgradePaper effect above is
     // the only thing moving the clean set.
+    // [session 60] +3: ONE room-1 offer, from the single juiced run this
+    // session — AddIntuition / UpgradeScissor(0,6) / WeakeningTenacity(4).
+    // One run rather than two because rule 11 now stops the loop after every
+    // run for human approval, so the per-session offer yield halved.
+    // Note what this one offer did: the wide orb rule PICKED WeakeningTenacity,
+    // which had been offered-and-passed since session 52. Two types
+    // (WeakeningTenacity, BurningBlock) therefore left UNMODELLED_TYPES above
+    // this session — the first time the offered-only list has SHRUNK by two at
+    // once, and a direct consequence of choosing boons by orb payout rather
+    // than by rank. It is not a wall-1 hole: both are latent, so neither
+    // became clean.
     const roomOne = OBSERVED_OFFERS.filter((o) => o.room === 1).flatMap((o) => o.options);
     // [session 52] +6: this session's TWO juiced runs contributed one room-1
     // offer each (AddBlock / AddMaxHealth(14) / AddTenacity, and
@@ -315,7 +324,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // clean list below grows by two. This is NOT a sixth wall-1 hole: no type
     // became clean at room 1 that was not already, and `scripts/boonCoverage.ts`
     // now reports that ZERO modelled boons remain unoffered in room 1.
-    expect(roomOne.length).toBe(147);
+    expect(roomOne.length).toBe(150);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -328,6 +337,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // this is not a new model — it is the first time a room-1 offer has
     // CONTAINED it. Wall 1 gains a fifth hole, same mechanic as session 11's
     // AddMaxArmor and session 43's UpgradePaper.
+    // [session 60] +1 `UpgradeScissor` (ninth), from this session's single
+    // room-1 offer. An already-clean type appearing again, like session 53's
+    // fourth AddMaxArmor and fourth Heal — NOT a sixth hole. The other two
+    // options in that offer were AddIntuition (never clean) and
+    // WeakeningTenacity, which gained a model this session but a LATENT one,
+    // so it cannot join this list.
     expect(clean.sort()).toEqual([
       "AddMaxArmor",
       "AddMaxArmor",
@@ -352,6 +367,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
+      "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",

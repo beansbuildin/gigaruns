@@ -45,11 +45,14 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // [session 50] Recount after this session's 5-cast batch: 5 more
     // completed casts, 1 caught (12992267, a Barnaboo). Previous entry was
     // session 49's.
-    expect(summary.casts).toBe(89);
-    expect(summary.responseDocs).toBe(492);
-    expect(summary.playTurns).toBe(392);
-    expect(summary.caught).toBe(13);
-    expect(summary.escaped).toBe(75);
+    // [session 60] Recount after this session's 5-cast batch: 5 more completed
+    // casts, 1 caught (13004295, a Finley). Old figures 89/492/392/13/75/1.
+    // `incomplete` stays 1 — still session 44's docId 12975755, untouched.
+    expect(summary.casts).toBe(94);
+    expect(summary.responseDocs).toBe(517);
+    expect(summary.playTurns).toBe(411);
+    expect(summary.caught).toBe(14);
+    expect(summary.escaped).toBe(79);
     expect(summary.incomplete).toBe(1);
   });
 

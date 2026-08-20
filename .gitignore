@@ -4,7 +4,12 @@ dist/
 .env.*
 *.key
 *.pem
-config/discovered.json
+# [session 60] `config/discovered.json` is NO LONGER ignored. It is game-global —
+# dungeon 5, maxRoom 16, endpoints and request shapes are the same for everyone,
+# so shipping it saves every new user a probe.ts run. The per-account half it
+# used to carry (ROM NFT token ids and the 37-ROM enumeration) moved to
+# data/roms.json, which `data/` below still ignores. Pinned by
+# tests/discoveredShipsClean.test.ts, which fails if an identifier returns.
 data/
 logs/
 # [session 59] Everything a named --profile writes: another account's ledgers,

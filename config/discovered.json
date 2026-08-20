@@ -1,0 +1,198 @@
+{
+  "probedAt": "2026-08-13T20:38:24.037Z",
+  "forbiddenWoods": {
+    "id": 5,
+    "source": "dungeon-today$.dungeonDataEntities[3].NAME_CID",
+    "container": {
+      "ID_CID": 5,
+      "enabled": true,
+      "devEnabled": true,
+      "NAME_CID": "Forbidden Woods",
+      "ENERGY_CID": 20,
+      "UINT256_CID": 12,
+      "CHECKPOINT_CID": -1,
+      "juicedMaxRunsPerDay": 12,
+      "entryData": [
+        {
+          "name": "Forbidden Woods Tier 2",
+          "tier": 2,
+          "inputItems": [
+            134,
+            137,
+            138,
+            135,
+            136,
+            139,
+            140
+          ],
+          "inputAmounts": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "dropItemIds": [],
+          "dropRateMultipliers": [],
+          "dropMultiplier": 2,
+          "inputsBasedOnFactionDay": true,
+          "startDay": 20675,
+          "endDay": 20731,
+          "jackpotPoolId": null,
+          "jackpotItemId": 0,
+          "prizePoolId": null,
+          "payoutStructure": null,
+          "feeStructure": [],
+          "jackpotChance": null
+        },
+        {
+          "name": "Forbidden Woods Tier 1",
+          "tier": 1,
+          "inputItems": [],
+          "inputAmounts": [],
+          "dropItemIds": [],
+          "dropRateMultipliers": [],
+          "dropMultiplier": 1,
+          "startDay": 20675,
+          "endDay": 20731,
+          "jackpotPoolId": null,
+          "jackpotItemId": 0,
+          "prizePoolId": null,
+          "payoutStructure": null,
+          "feeStructure": [],
+          "jackpotChance": null
+        },
+        {
+          "name": "Forbidden Woods Tier 3",
+          "tier": 3,
+          "inputItems": [
+            245,
+            244,
+            243,
+            246,
+            248,
+            247,
+            249
+          ],
+          "inputAmounts": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "dropItemIds": [],
+          "dropRateMultipliers": [],
+          "dropMultiplier": 4,
+          "inputsBasedOnFactionDay": true,
+          "startDay": 20675,
+          "endDay": 20735,
+          "jackpotPoolId": null,
+          "jackpotItemId": 0,
+          "prizePoolId": null,
+          "payoutStructure": null,
+          "feeStructure": [],
+          "jackpotChance": null
+        }
+      ],
+      "gearEnabled": true,
+      "consumablesEnabled": true,
+      "maxRoom": 16,
+      "dungeonDisabled": false,
+      "juicedMultiplier": 1,
+      "minLevelForInvader": 79,
+      "invaderPercentage": 10,
+      "juicedModeEnabled": true,
+      "basicBoonMultiplier": 2
+    },
+    "energyCost": 20,
+    "maxRoom": 16,
+    "juicedMaxRunsPerDay": 12,
+    "maxRunsPerDay": 12,
+    "tiers": [
+      {
+        "name": "Forbidden Woods Tier 2",
+        "tier": 2
+      },
+      {
+        "name": "Forbidden Woods Tier 1",
+        "tier": 1
+      },
+      {
+        "name": "Forbidden Woods Tier 3",
+        "tier": 3
+      }
+    ]
+  },
+  "dendren": {
+    "source": "scripts/parseHar.ts against fixtures/fishing-casts/fishing-cast.har (session 11) — NOT probe.ts, fishing has no probed endpoint yet",
+    "_caveat": "nodeId and pondId are recorded SEPARATELY, not collapsed into one field — they are not confirmed to be the same concept. See SPEC-fishing.md §3 before assuming they're interchangeable.",
+    "nodeId": "5",
+    "nodeIdConfidence": "CONFIRMED-BY-CAPTURE — the literal value sent on the one captured start_run that produced a Dendren cast; not confirmed by any response field naming it 'Dendren'",
+    "pondId": 2,
+    "pondIdConfidence": "CONFIRMED — GET /fishing/state's pondEntryTiers[] names pondId 2 entries \"dendrenpond-tier1/2/3\" explicitly",
+    "gridSize": 4,
+    "focusMechanicEnabled": true,
+    "tiers": {
+      "1": {
+        "name": "dendrenpond-tier1",
+        "inputItems": [],
+        "energyCost": 12,
+        "energyCostConfidence": "INFERRED from node0Energy, matches community-note figures"
+      },
+      "2": {
+        "name": "dendrenpond-tier2",
+        "inputItems": [
+          137,
+          138,
+          135,
+          139,
+          140,
+          134,
+          136
+        ],
+        "energyCost": 16,
+        "energyCostConfidence": "INFERRED from node1Energy"
+      },
+      "3": {
+        "name": "dendrenpond-tier3",
+        "inputItems": [
+          243,
+          246,
+          248,
+          247,
+          249,
+          245,
+          244
+        ],
+        "energyCost": 20,
+        "energyCostConfidence": "INFERRED from node2Energy"
+      }
+    },
+    "maxCastsPerDay": 10,
+    "maxCastsPerDayJuiced": 20
+  },
+  "roms": {
+    "_split": "Session 60: the per-account half of this block (knownRomIds and the 37-ROM enumeration — NFT token ids) moved to the profile's data/roms.json, which is gitignored. What remains is game-global: how the endpoint behaves, for anyone. Individual romIds in the prose below are written as <romId> for the same reason.",
+    "source": "user-captured DevTools request bodies (session 19 brief) + live-verified via scripts/probeRomsFactoryClaim.ts. See SPEC.md's ROM factory-claim section.",
+    "endpoint": "POST /api/roms/factory-claim",
+    "endpointConfidence": "CONFIRMED — user capture plus a live 200/success on a real romId (session 21).",
+    "requestShape": {
+      "romId": "<string>",
+      "claimId": "energy",
+      "amount": "<number, REQUIRED but does not control payout>"
+    },
+    "amountFieldBehavior": "IGNORED-OR-VALIDATED-NOT-HONORED — a live test sent amount:57 and the real credited delta (via GET /offchain/player/energy) was ~1.0 energy, not 57. Omitting amount entirely got HTTP 500. Do not read the captured request bodies' amount values as the real per-claim payout.",
+    "cooldown": "OBSERVED, NOT TIMED — a ROM re-claimed 34s after its own success returned the same empty-error HTTP 500 seen on an already-drained ROM. Lower bound >34s, upper bound unknown. HTTP 500 is the observed shape of 'nothing new accrued since last claim' (session 21: two ROMs claimed one session earlier both 500'd) — consistent with per-ROM accrual, not a broken ROM.",
+    "landsInSharedPool": true,
+    "landsInSharedPoolConfidence": "CONFIRMED — GET /offchain/player/energy read before/after a successful claim, the same endpoint the dungeon/fishing guards read.",
+    "playerEndpoint": "GET /roms/player?id=<address>",
+    "playerEndpointConfidence": "CONFIRMED session 22 — user-supplied URL from the ROMULATOR panel, live-verified (docIds cross-checked against the previously-known romIds).",
+    "perRomYieldField": "energyCollectable, from GET /roms/player, is the claimable amount per ROM and is honoured exactly: session 60's claim audit measured a snapshot total of 315 against a pool delta of +315, drift 0.",
+    "automationStatus": "AUTOMATED as of the energy preflight in scripts/liveRun.ts — it reads the ROM bank and claims descending only when a run would otherwise be short. Session 19's 'do not automate yet' caveat was conditional on the per-claim yield being unsized; energyCollectable sizes it, so that condition is met."
+  }
+}

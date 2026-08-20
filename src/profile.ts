@@ -42,6 +42,12 @@
  * everyone and `maxRoom` is 16 for everyone (confirmed on four dungeons,
  * session 57). It ships, rather than making each person re-run `probe.ts`.
  * `config/bot.json` is per-profile — budgets are personal.
+ *
+ * [session 60] "Game-global" had to be made true before it could ship. The file
+ * carried a `roms` block of NFT token ids belonging to one account; those moved
+ * to `romsPath` and the file came off `.gitignore`. The lesson generalises: a
+ * file is not shareable because it is *mostly* about the game. See
+ * `tests/discoveredShipsClean.test.ts`.
  */
 
 import { homedir } from "node:os";
@@ -82,6 +88,22 @@ export interface Profile {
    * personal. The split is the whole reason these are two files.
    */
   discoveredPath: string;
+  /**
+   * This profile's ROM snapshot — `data/roms.json` for the default.
+   *
+   * [session 60] The counterpart to `discoveredPath`, and the reason that file
+   * could come off `.gitignore`. `config/discovered.json` used to carry a
+   * `roms` block holding `knownRomIds` and a 37-ROM enumeration: NFT token ids
+   * owned by one account, the same identifier class session 54 stripped from
+   * 2,726 fixture files. Game-global ROM knowledge (endpoint, request shape,
+   * `amountFieldBehavior`, cooldown) stayed in the shipped file; the ids moved
+   * here, under `dataRoot`, which `.gitignore` covers at any depth.
+   *
+   * Nothing reads this at run time — the live bank comes from
+   * `GET /roms/player`. It is a record, and the path exists so that a second
+   * profile's record cannot land on the first one's.
+   */
+  romsPath: string;
   /** The JWT file this profile reads. Exposed for `doctor.ts`'s diagnostics. */
   jwtPath: string;
   /**
@@ -126,6 +148,7 @@ export function resolveProfile(name?: string): Profile {
       fixtureRoot: "fixtures",
       configRoot: "config",
       discoveredPath: join("config", "discovered.json"),
+      romsPath: join("data", "roms.json"),
       jwtPath: DEFAULT_JWT_PATH,
       getJwt: async () => loadJwt(DEFAULT_JWT_PATH),
     };
@@ -146,6 +169,8 @@ export function resolveProfile(name?: string): Profile {
     configRoot: join(root, "config"),
     // Shared, not under `root` — see `discoveredPath`'s doc comment.
     discoveredPath: join("config", "discovered.json"),
+    // Per-profile, unlike `discoveredPath` — these are one account's token ids.
+    romsPath: join(root, "data", "roms.json"),
     jwtPath,
     getJwt: async () => loadJwt(jwtPath),
   };

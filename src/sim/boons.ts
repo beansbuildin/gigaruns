@@ -280,6 +280,38 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-18-22-07-14 state-061→state-062",
     observed: "selectedVal1 8 / selectedVal2 0 → paper.currentATK 6 → 14, currentDEF unchanged (12)",
   },
+  WeakeningTenacity: {
+    // [session 60, LIVE] First pair — and the first two entries here that the
+    // WIDE ORB RULE produced rather than the ranked policy. Room 2 offered no
+    // priority family, so the rule took the richest Hard Core payout
+    // (WeakeningTenacity at 20 orbs over 14/14), which is a boon the ranked
+    // policy had never once picked in 134 corpus offers. Worth naming as a
+    // mechanism: taking boons for orb payout explores boon types the ranked
+    // policy structurally avoids, so the corpus grows sideways rather than
+    // deeper. Both this and `BurningBlock` are `Rare` (RARITY_CID 2).
+    //
+    // Same shape as the six latent boons above: the pair's ONLY difference is
+    // the boon appearing in `pickedBoons`, with health, shield, all three
+    // moves and every rolled stat byte-identical. Per DECISIONS 2026-08-15 the
+    // effect is NOT inferred from the name — "Weak applied on a
+    // tenacity-linked trigger" is a plausible reading and it stays a reading.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-18-19-07 state-005→state-006",
+    observed: "selectedVal1 4 → no change to any player field",
+  },
+  BurningBlock: {
+    // [session 60, LIVE] First pair — the wide orb rule again, room 4, taking
+    // BurningBlock at 24 orbs over 22/21. Same latent shape: zero change to
+    // any player field at pickup. The name suggests Burn armed on a
+    // Shield/paper win, which would make it the paper analogue of
+    // `AddBurnSword` — exactly the inference `CorrosiveShield` and
+    // `CorrosiveMagic` were both denied, so it is denied here too.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-20-18-19-07 state-033→state-034",
+    observed: "selectedVal1 8 → no change to any player field",
+  },
 };
 
 /**
@@ -1303,6 +1335,31 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 9,
     source: "run-2026-08-20-01-38-22/state-118",
     options: [opt("AddTenacity", 2), opt("AddEvasion", 1), opt("AddIntuition", 5)],
+  },
+  // [session 60, LIVE] The first run played under rule 8's highest-tier flip
+  // and the wide orb rule. Two of these four offers produced first-ever
+  // pickup pairs (`WeakeningTenacity`, `BurningBlock` — see BOON_MODELS), both
+  // because the orb rule took the richest Hard Core payout where no priority
+  // family was on offer. The ranked policy had passed over both for 134 offers.
+  {
+    room: 1,
+    source: "run-2026-08-20-18-19-07/state-005",
+    options: [opt("AddIntuition", 1), opt("UpgradeScissor", 0, 6), opt("WeakeningTenacity", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-18-19-07/state-013",
+    options: [opt("AddIntuition", 1), opt("CorrosiveMagic", 2), opt("AddBurnSword", 3)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-18-19-07/state-033",
+    options: [opt("AddEvasion", 5), opt("AddBlock", 7), opt("BurningBlock", 8)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-20-18-19-07/state-041",
+    options: [opt("UpgradePaper", 0, 8), opt("AddLuck", 1), opt("AddIntuition", 2)],
   },
 ];
 

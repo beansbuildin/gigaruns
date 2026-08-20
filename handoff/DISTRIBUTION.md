@@ -1,8 +1,12 @@
 # DISTRIBUTION — what ships, what does not, and the one thing only the user can do
 
-Drafted session 59 against the portability brief §3. **Nothing here has been
-executed.** Creating or pushing the distribution repo is the user's call and
-involves their GitHub account, so this is a checklist, not a script.
+Drafted session 59 against the portability brief §3.
+
+**[session 60] Steps 1 and 2 of the order of operations below are now DONE in
+the working tree** — the `config/discovered.json` split and the MIT `LICENSE`,
+plus the README's ToS correction. Steps 3–6, which create and push the
+distribution repo, remain **the user's**: they involve their GitHub account, and
+CLAUDE.md forbids an agent doing them.
 
 ---
 
@@ -29,7 +33,8 @@ reflog or a fork keeps what was removed.
 | `src/`, `scripts/`, `tests/` | the program and its 1057 tests |
 | `fixtures/` | **already redacted** (session 54: 2,726 files, 0 raw occurrences). The sim replays these; a friend starting with an empty corpus gets a bot that cannot simulate anything |
 | `config/bot.json` | the budget knobs, with the author's numbers as defaults |
-| `config/discovered.json` | **game-global, not per-account** — Forbidden Woods is dungeon 5 and `maxRoom` 16 for everyone (confirmed on four dungeons, session 57). Shipping it saves every friend a `probe.ts` run. **Currently gitignored** — see the open item below |
+| `config/discovered.json` | **game-global, not per-account** — Forbidden Woods is dungeon 5 and `maxRoom` 16 for everyone (confirmed on four dungeons, session 57). Shipping it saves every friend a `probe.ts` run. **[session 60] Split and un-ignored; ships.** Pinned by `tests/discoveredShipsClean.test.ts` |
+| `LICENSE` | **[session 60] added.** MIT. Without it nobody has permission to use the code, collaborator access notwithstanding |
 | `SPEC.md`, `SPEC-fishing.md` | what the API actually does, verified against live responses |
 | `CLAUDE.md` | explains *why* the odd rules exist; most are scar tissue from a specific incident |
 | `PROTOCOL.md` | how the project is worked on |
@@ -39,7 +44,7 @@ reflog or a fork keeps what was removed.
 
 | Path | Why |
 |---|---|
-| `data/` | the author's learned state and spend ledgers — opponent model, guard budgets, play counts, mined fishing patterns. Personal, and useless to anyone else |
+| `data/` | the author's learned state and spend ledgers — opponent model, guard budgets, play counts, mined fishing patterns. Personal, and useless to anyone else. **[session 60] now also holds `data/roms.json`**, the ROM token ids split out of `discovered.json` |
 | `logs/` | raw captures, unredacted by design |
 | `handoff/` | ~250KB of session notes naming the account, plus this file. Reads as an internal document because it is one |
 | `QUESTIONS.md`, `TASKS.md` | the author's working queue, not a user's concern |
@@ -47,7 +52,7 @@ reflog or a fork keeps what was removed.
 
 ---
 
-## Open items — ALL THREE RESOLVED by the user, 2026-08-20
+## Open items — ALL THREE RESOLVED by the user, 2026-08-20; items 1 and 3 IMPLEMENTED session 60
 
 1. **`config/discovered.json` — SPLIT, do not simply un-ignore it.** The file is
    *mostly* game-global, but its `roms` block is not: `knownRomIds`
