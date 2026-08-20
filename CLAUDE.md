@@ -57,26 +57,47 @@ Minimum 1200ms between actions, plus 0–400ms jitter. Exponential backoff on 42
 starting at 5s. The action-token window is ~5s — if you go too fast the server
 rejects the token, and if you go too slow it goes stale. Handle both.
 
-**8. Always choose the lowest tier actually offered.**
-`enemyPathOptions[]`'s `lootTable` is identical across all three tiers in every
-sample captured so far (SPEC §3e) — same table, same item, same weight, same
-amount. Higher tiers add `rolledEnemyStats` and `enemyBuff` with **zero loot
-upside**, and they are the sole source of the mechanics that make a battle
-unscorable. There is no risk/reward tradeoff to weigh here; it only looks like
-one from a distance.
+**8. Take the HIGHEST tier offered — except the final room, and never a
+Perpetual.**
+User directive, 2026-08-20, replacing the lowest-tier rule that stood from
+session 06 to session 56. Three clauses, all of them:
 
-This is a hard rule, not a preference scored against alternatives — it is
-exactly the kind of thing that gets "optimised away" later by someone reasoning
-about risk/reward in the abstract (session 06 brief §3). `src/strategy/
-enemyTier.ts`'s `pickLowestTier()` is the one call site that should ever
-choose a tier — the generalized form of the rule, not the STRICT
-`pickSafeTier()`/`UnsafeTierError` pair also defined there: session 09 found
-live samples where Safe (tier 0) isn't offered at all, and halting on that
-(rather than picking whatever lowest tier IS offered) would strand a run
-mid-combat for no loot benefit, since every offered tier still shares the same
-loot table. `pickLowestTier()` never asserts tier === Safe; it just picks the
-minimum of whatever's on offer. Route every live tier decision through it — do
-not re-implement the choice inline.
+- **Highest tier**, because reward offers inherit the tier of the fight just
+  won (measured 87/87 = 100%, session 56 §4) and a higher-tier win therefore
+  unlocks better upgrade cards and a larger Hard Core payout.
+- **Never a Perpetual card as the hardest option** (user directive, session 56).
+  Take the highest tier *among non-Perpetual options*. This was nearly inert
+  under the old rule — 4 offers of 134 — and fires on **35%** of offers under
+  this one, so it is load-bearing now, not a footnote. No corpus offer is
+  entirely Perpetual; **fail closed if one ever is** rather than taking it.
+- **At the final room, take no-modifiers** — the lowest tier offered. There are
+  no upgrades after the final boss, so the entire reason for the risk is gone.
+  Key on the server's per-dungeon `maxRoom` (Forbidden Woods 16, Void Dungeon
+  17), never a hard-coded number.
+
+**The old rule was not wrong, and this is not it being optimised away.** Its
+evidence — `lootTable` byte-identical across all offered tiers, 440/440 — is
+still true and still re-verified. But that measured the loot table *in the
+enemy offer*, while reward quality and orb payout are downstream of *winning*.
+The two claims are orthogonal; the old rule was never evidence against this one.
+It was reversed by the account owner on new evidence, not by someone reasoning
+about risk/reward in the abstract, and the original warning now applies in the
+other direction: **do not revert to lowest-tier without a new user directive.**
+
+**The accepted cost, recorded so nobody re-discovers it as a bug.** Higher tiers
+carry `rolledEnemyStats` on 617 of 622 non-Safe paths, and those are 1–5% proc
+chances needing hundreds of observations (SPEC §4e). So the simulator scores
+almost nothing from here on, and modelling `enemyBuff` does not help — session
+56 measured that at exactly zero freed exchanges. This was accepted knowingly:
+the sim was already scoring 64/1107 exchanges (5.8%), reaching depth 5 against
+live runs' room 10, and could not separate two boon policies at n=2000. A
+near-blind simulator got blinder; it did not stop being useful, because it had
+largely stopped being used. **Do not "fix" the falling coverage metrics** —
+they are the price of this rule, not a regression.
+
+`src/strategy/enemyTier.ts` remains the one call site that may choose a tier.
+Route every live tier decision through it; do not re-implement the choice
+inline.
 
 **9. A brief's claims about what the corpus contains are hypotheses to verify,
 not facts to implement.**
@@ -114,11 +135,13 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
 - **60 energy, juiced** — `--juiced` with `JUICED_COST_MULTIPLIER` 3 against
   the 20-energy base. Charges 3 of the daily 12 run-units.
 - **`--juiced-index=3`**, the Tier-3 gold-rings offering. This is the ENTRY
-  tier only; rule 8 still governs every in-room decision, so
-  `pickLowestTier()` picks the lowest `enemyPathOptions` tier offered and
-  routinely takes tier 1 or 2 inside a Tier-3 entry. Do not "reconcile" these
-  — they are different choices about different things, and 5 of 12 rooms last
-  session offered no Safe tier at all.
+  tier only and is a different choice from the in-room `enemyPathOptions` tier,
+  which rule 8 governs. They were worth distinguishing carefully while rule 8
+  said *lowest* and this said *tier 3*; since 2026-08-20 both point the same
+  way, which makes them easier to conflate, not less distinct. Do not collapse
+  them: the entry tier is chosen once at `start_run`, the room tier is chosen
+  in every room, and rule 8's final-room and Perpetual exceptions apply only to
+  the latter.
 - **3x Big Heal Juice** (itemId 131), loaded from
   `config/bot.json`'s `forbiddenWoods.potions`.
 - **One run, then stop and hand back.** Never chain. The user allocates skill
