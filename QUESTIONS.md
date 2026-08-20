@@ -1217,7 +1217,48 @@ itself in five casts, which is the outcome its own design was betting on.
 
 ---
 
-## §19 — Should the matcher tier be DROPPED rather than mixed? [session 51 §3, OPEN — STILL UNMEASURED, blocked a FOURTH time]
+## §19 — Should the matcher tier be DROPPED rather than mixed? [session 51 §3, OPEN — STILL UNMEASURED, blocked a FIFTH time; but the live half is now ONE COMMAND]
+
+**[session 55] Nothing measured — session 55 was offline by construction (caps
+spent; both ledgers verified agreeing at 20/20, see below). What changed is
+that everything EXCEPT the twenty casts is now built, so §19 can no longer
+consume a session:**
+
+    npx tsx scripts/matcherWeightReport.ts --last-casts=20
+
+**And a finding that would have made a naive version of that command WORSE than
+useless.** The brief said to "read `matcherWeight` off `ringPrediction.jsonl`
+rows". The field is real — `liveFishing.ts` has written it since session 51 —
+but **0 of the 129 rows on disk carry it.** Every row predates the
+instrumentation. That alone would only mean "no data"; the hazard is what
+`matcherWeightOf()` does with an absent field: it back-fills the fixed
+`1 - ringFloor = 0.9` that genuinely WAS in force before session 51. Correct
+for reading history. Catastrophic here — 0.9 on every turn reads as "pi is
+high on every turn", **which is exactly the conclusion §19 exists to test.**
+A report that pooled those rows would have answered KEEP, confidently, off a
+constant. **CLAUDE.md rule 10, in its purest form: a field that first appears
+at date D, counted as though it described the period before D.**
+
+`src/strategy/fishing/matcherVerdict.ts` therefore reads the raw field and
+treats absence as NOT MEASURED, never as 0.9. Run against today's log it
+returns `INSUFFICIENT_DATA` and says why, which is the right answer.
+
+Two other things the script pins, both offline:
+
+- **Session 51's decision rule is CODE, not prose**, so it cannot be
+  renegotiated once the numbers are visible — and the honest answer may well be
+  "drop the thing two sessions built". It also names the case session 51 left
+  unnamed: pi crosses 0.5 and NO crossing cast beats the base rate, reported as
+  `EARNED_BUT_UNPAID` rather than silently folded into DROP.
+- **The loaded library's support is recomputed at run time**, so the verdict is
+  pinned to what actually ran: 3 patterns (perimeterWalk cw/ccw, bounce(2,0)),
+  **11 of 88 CLEAN casts** (88, not 89 — 89 is the trace count,
+  `supportingCastCount`'s denominator is clean casts), pi_0 = 0.133.
+- Opening focus spend on today's log, for the record: **n=15, mean 1.667, 95%
+  CI [1.137, 2.196]** — brackets session 50's 1.80 live figure, far above its
+  0.71 replayed one.
+
+The scheduling precondition below is unchanged and still governs.
 
 **[session 54] Blocked again, and this time on the game's own daily cap, not on
 anything reprioritisable.** The session-54 brief said "the cap resets 11:00 PT
