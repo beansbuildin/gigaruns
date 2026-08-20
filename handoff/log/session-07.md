@@ -15,7 +15,7 @@ room 4 is actually clean at Safe tier; only room 3 has zero Safe captures.
 - `npx tsc --noEmit` — clean, exit 0.
 - `npx vitest run` — **155 tests, 10 files, all pass** (127 → 155).
 - `npm run check-auth` — **live gate, run against the real account**: prints
-  `address 0x4F03...`, `/game/account -> username "<PLAYER>" noobId 72946`;
+  `address 0xUSER...`, `/game/account -> username "<USER>" noobId <NOOB_TOKEN>`;
   corrupted JWT halts cleanly with `TokenExpiredError` (HTTP 401, confirmed
   live — not assumed) rather than crashing or retrying.
 - `src/api/` — `GigaverseClient`: 1200ms+jitter rate limiter, single-flight
@@ -153,7 +153,7 @@ $ npm run check-auth
 ▸ real JWT
   jwt eyJhbGci...(1728 chars)
   /user/me -> address 0xUSER  canEnterGame true
-  /game/account -> username "<PLAYER>"  noobId 72946
+  /game/account -> username "<USER>"  noobId <NOOB_TOKEN>
 
 ▸ corrupted JWT — expecting a clean halt, not a crash loop
   ✓ halted cleanly: Auth rejected (HTTP 401). The JWT is expired or invalid — refresh it. (status 401)

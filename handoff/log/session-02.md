@@ -100,7 +100,7 @@ All fixed in SPEC.md this session (§3 table, new §3c/§3d, §4, §4a, §4b, §
   ended in death.
 - Combat model: 14/14 side-updates predicted exactly.
 - Damage taken across the run: 51, of which armor absorbed 27.
-- Account: noobId 72946, energy 332/420, regen 18/hr, juiced.
+- Account: noobId <NOOB_TOKEN>, energy 332/420, regen 18/hr, juiced.
 
 ## Open questions for Claude
 1. **Can a move at ≤ 0 charges be played?** Blocks SPEC §4a pruning, which is

@@ -15,7 +15,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { redactNoobToken, NOOB_TOKEN_PLACEHOLDER } from "../../src/api/redact.js";
+import { readFileSync } from "node:fs";
+
+import {
+  ADDRESS_PLACEHOLDER,
+  NOOB_TOKEN_PLACEHOLDER,
+  USERNAME_PLACEHOLDER,
+  redactNoobToken,
+  redactProse,
+} from "../../src/api/redact.js";
 
 /**
  * SYNTHETIC ids, deliberately. The first draft of this file used the real
@@ -71,7 +79,6 @@ describe("the tracked corpus is actually redacted", () => {
     // The rule is only worth anything if it has been APPLIED. This asserts the
     // backfill, not just the function.
     const { execSync } = await import("node:child_process");
-    const { readFileSync } = await import("node:fs");
     const files = execSync("git ls-files -z", { maxBuffer: 1 << 28 })
       .toString("utf8")
       .split("\0")
@@ -82,5 +89,66 @@ describe("the tracked corpus is actually redacted", () => {
       if (text !== redactNoobToken(text)) offenders.push(f);
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("redactProse — [session 55] handoff documents, not JSON", () => {
+  // Synthetic ids throughout. The rules are keyed on the LABEL next to the
+  // value, never on the value itself, so a made-up id exercises them exactly
+  // as the real one would — and session 54's dead end is that writing the real
+  // identifier into a test re-commits the very thing the module removes.
+  it("redacts a noobId written in prose, with or without a colon", () => {
+    expect(redactProse("- Account: noobId 11111, energy 332/420")).toBe(
+      `- Account: noobId ${NOOB_TOKEN_PLACEHOLDER}, energy 332/420`,
+    );
+    expect(redactProse("noobId: 11111")).toBe(`noobId: ${NOOB_TOKEN_PLACEHOLDER}`);
+    expect(redactProse("noob id 11111")).toBe(`noob id ${NOOB_TOKEN_PLACEHOLDER}`);
+  });
+
+  it("redacts a quoted username in any of the three quote styles", () => {
+    expect(redactProse('username "someone"')).toBe(`username "${USERNAME_PLACEHOLDER}"`);
+    expect(redactProse("username `someone`")).toBe(`username \`${USERNAME_PLACEHOLDER}\``);
+    expect(redactProse("username: 'someone'")).toBe(`username: '${USERNAME_PLACEHOLDER}'`);
+  });
+
+  it("redacts a TRUNCATED address, which is the shape a session log actually carries", () => {
+    expect(redactProse("prints `address 0xAB12...`")).toBe(`prints \`address ${ADDRESS_PLACEHOLDER}...\``);
+  });
+
+  it("leaves git SHAs alone — the rule that would have eaten them is why every rule needs a label", () => {
+    // These are quoted in every STATE header; losing them destroys the one
+    // thing that makes a session log checkable.
+    const line = "# STATE — session 07 — commit ff36aa1 — `git diff 2f78c74..ff36aa1 --stat`";
+    expect(redactProse(line)).toBe(line);
+  });
+
+  it("leaves an unlabelled hex string and a bare number alone — a stated limit, not an oversight", () => {
+    expect(redactProse("the contract at 0xdeadbeefcafe holds 11111 items")).toBe(
+      "the contract at 0xdeadbeefcafe holds 11111 items",
+    );
+  });
+
+  it("leaves the word 'username' alone when no quoted value follows it", () => {
+    const line = "the username field is redacted by key, not by value";
+    expect(redactProse(line)).toBe(line);
+  });
+
+  it("is idempotent — re-running over an already-redacted document changes nothing", () => {
+    const once = redactProse('address 0xAB12... username "someone" noobId 11111');
+    expect(redactProse(once)).toBe(once);
+  });
+
+  it("the three tracked handoff documents are redacted — the corpus-level assertion, not just the function's", () => {
+    // Same shape as the fixture-corpus test above: asserting the FILES are
+    // clean, not merely that the function can clean them. A future edit that
+    // re-introduces an identifier fails here.
+    for (const file of [
+      "handoff/log/session-02.md",
+      "handoff/log/session-07.md",
+      "handoff/scratch-session-02.md",
+    ]) {
+      const text = readFileSync(file, "utf8");
+      expect(redactProse(text), `${file} is not prose-redacted`).toBe(text);
+    }
   });
 });

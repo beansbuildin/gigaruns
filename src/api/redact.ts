@@ -76,3 +76,60 @@ export function redactNoobToken(text: string): string {
       )
   );
 }
+
+/** Matches the convention the capture scripts already use for the address and username. */
+export const ADDRESS_PLACEHOLDER = "0xUSER";
+export const USERNAME_PLACEHOLDER = "<USER>";
+
+/**
+ * [session 55] Redact account identifiers out of PROSE — session logs and
+ * handoff notes, not captured JSON.
+ *
+ * ## Why this is a separate function and not the rules above
+ *
+ * Every rule in `redactNoobToken` is keyed on a JSON field shape
+ * (`"NOOB_TOKEN_CID": 12345`, `"docId": "Type#1-2"`). Handoff documents are
+ * hand-written English — `noobId <digits>`, `username "<name>"`, `address 0x…`
+ * with the address TRUNCATED mid-word.
+ * Not one JSON rule matches any of them, so "route the handoff docs through
+ * redact.ts" is not a thing that could have worked as written — the module had
+ * to grow a prose mode. Three tracked documents carried the account in
+ * plaintext for fifty-odd sessions precisely because the redaction effort was
+ * always scoped to `fixtures/`, and the JSON rules silently matching nothing
+ * would have looked exactly like success.
+ *
+ * ## Keyed on the LABEL, not on the value, and not on the shape alone
+ *
+ * Same discipline as the rules above — a hardcoded value list only redacts
+ * what we already knew to look for — but tightened one notch, because prose is
+ * far more dangerous to redact by shape than JSON is. A bare `0x` + hex rule
+ * would eat contract addresses and, in these very files, the git SHAs quoted
+ * in every STATE header (`commit ff36aa1`, `git diff 2f78c74..ff36aa1`).
+ * Losing a commit SHA out of a session log destroys the one thing that makes
+ * the log checkable.
+ *
+ * So each rule requires the identifier's own LABEL next to it. That is why
+ * this is safe to run over an entire document, and why running it over a
+ * document that mentions no account is a guaranteed no-op.
+ *
+ * ## What it does NOT do
+ *
+ * It does not touch git history (see `fixtures/README.md`), and it does not
+ * find an identifier written without its label — a bare id alone in a
+ * sentence would survive. Check the output; do not trust the exit code.
+ */
+export function redactProse(text: string): string {
+  return (
+    text
+      // `noobId <digits>`, `noobId: <digits>`, `noob id <digits>`.
+      .replace(/\b(noob\s*id\s*:?\s*)(\d+)/gi, `$1${NOOB_TOKEN_PLACEHOLDER}`)
+      // `username "x"`, `username `x``, `username: x` — the quoted forms only,
+      // so a sentence that merely uses the word "username" is untouched.
+      .replace(/\b(username\s*:?\s*)(["'`])([^"'`\n]*)\2/gi, `$1$2${USERNAME_PLACEHOLDER}$2`)
+      // `address 0x…` — full or truncated, trailing dots kept out of the
+      // replacement so the text still reads as the truncation it was. Requires
+      // the word `address`, which is what keeps git SHAs and contract
+      // addresses safe.
+      .replace(/\b(address\s*:?\s*)0x[0-9a-fA-F]{2,40}/gi, `$1${ADDRESS_PLACEHOLDER}`)
+  );
+}
