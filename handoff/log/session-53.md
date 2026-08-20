@@ -188,3 +188,194 @@ live fishing batch, which the 11:00 PT cap reset makes possible.
      src/sim/boons.ts                           |  64  (12 offers, rooms 1-9)
      CLAUDE.md                                  |  16  (rule 10)
 ```
+
+---
+
+# Appendix — session 53 verbose
+
+## A1. The §21 refutation, per-file
+
+`post_attempt_failed` rows with `reason: "reward selection rejected"`.
+Counted on `reason`, NOT on the error text — the text only exists after
+session 47/51's `serverErrorDetail` fix, which is the whole trap.
+
+```
+run-2026-08-18-19-50-13.jsonl               12
+run-2026-08-18-21-15-24.jsonl               10
+run-2026-08-18-22-00-26.jsonl               10
+run-2026-08-18-22-07-12.jsonl                8
+run-2026-08-20-00-30-48.jsonl               14
+run-2026-08-20-00-45-19.jsonl                2
+run-2026-08-20-00-46-46.jsonl               10
+```
+
+The two eras, side by side, showing what changed was the RECORDING:
+
+```
+2026-08-18 row: {"ts":...,"event":"post_attempt_failed",
+                 "reason":"reward selection rejected",
+                 "error":"Unexpected response from /game/dungeon/action: HTTP 500"}
+                 <- no `body` field at all
+
+2026-08-20 row: {..., "reason":"reward selection rejected",
+                 "body":"{\"success\":false,\"message\":\"Error tracking action\",
+                          \"error\":\"Invalid action token  != 1787185878470\",
+                          \"actionToken\":\"\"}"}
+```
+
+## A2. Full rejection audit, all 13 run logs
+```
+
+▸ rejection audit over 13 run log(s), 461 POSTs
+
+  class                POSTs  decisions    1st-fail  rejected gap                    accepted gap                    post->outcome (incl. pacing)
+  numeric token          299        299      0 (0%)  —                               0.90 – 1.79 s (med 1.36, n=296) 1.02 – 1.76 s (med 1.44, n=298)
+  empty token            156         90    66 (73%)  0.90 – 1.54 s (med 1.28, n=66)  1.06 – 4.92 s (med 3.95, n=90)  0.72 – 4.55 s (med 1.48, n=156)
+  start_run (empty)        6          6      0 (0%)  —                               —                               1.42 – 1.72 s (med 1.56, n=6)
+
+  per file:
+    logs/run-2026-08-18-19-50-13.jsonl         74 POSTs,  12 first-attempt failures
+    logs/run-2026-08-18-21-15-24.jsonl         57 POSTs,  10 first-attempt failures
+    logs/run-2026-08-18-21-59-34.jsonl          0 POSTs,   0 first-attempt failures
+    logs/run-2026-08-18-22-00-26.jsonl         53 POSTs,  10 first-attempt failures
+    logs/run-2026-08-18-22-07-12.jsonl         48 POSTs,   8 first-attempt failures
+    logs/run-2026-08-19-23-56-06.jsonl          0 POSTs,   0 first-attempt failures
+    logs/run-2026-08-20-00-30-09.jsonl          0 POSTs,   0 first-attempt failures
+    logs/run-2026-08-20-00-30-48.jsonl         65 POSTs,  14 first-attempt failures
+    logs/run-2026-08-20-00-45-19.jsonl          9 POSTs,   2 first-attempt failures
+    logs/run-2026-08-20-00-46-46.jsonl         57 POSTs,  10 first-attempt failures
+    logs/run-2026-08-20-01-33-13.jsonl          0 POSTs,   0 first-attempt failures
+    logs/run-2026-08-20-01-34-29.jsonl         35 POSTs,   0 first-attempt failures
+    logs/run-2026-08-20-01-38-20.jsonl         63 POSTs,   0 first-attempt failures
+
+```
+
+## A3. The two session-53 runs only — the gate
+```
+
+▸ rejection audit over 2 run log(s), 98 POSTs
+
+  class                POSTs  decisions    1st-fail  rejected gap                    accepted gap                    post->outcome (incl. pacing)
+  numeric token           72         72      0 (0%)  —                               1.14 – 1.59 s (med 1.38, n=72)  1.02 – 1.71 s (med 1.41, n=72)
+  empty token             24         24      0 (0%)  —                               1.06 – 1.52 s (med 1.30, n=24)  4.21 – 4.55 s (med 4.28, n=24)
+  start_run (empty)        2          2      0 (0%)  —                               —                               1.68 – 1.72 s (med 1.68, n=2)
+
+  per file:
+    logs/run-2026-08-20-01-34-29.jsonl         35 POSTs,   0 first-attempt failures
+    logs/run-2026-08-20-01-38-20.jsonl         63 POSTs,   0 first-attempt failures
+
+```
+
+## A4. Boon coverage, both directions
+```
+
+▸ boon coverage — 17 modelled, 49 room-1 offers of 135 total
+
+  MODELLED but never offered in ROOM 1 (0) — wall-1 holes waiting to happen:
+    (none — every modelled boon has appeared in a room-1 offer)
+
+  MODELLED but never offered ANYWHERE (0):
+    (none)
+
+  OFFERED but NOT modelled (36) — the opposite gap:
+    AddBurnMagic, AddBurnShield, AddLifestealShield, AddLifestealSword, AddVulnerableMagic, AddVulnerableShield, AddVulnerableSword, AddWeakMagic, AddWeakShield, AddWeakSword, ArmorDepletedVulnerable, BurnMastery, BurningBlock, BurningCrit, BurningEvade, BurningTenacity, CorrosiveSword, CritHeal, IntuitionArmor, LossBlockUp, LossIntuitionUp, LossLuckUp, Regen, RegenMastery, SecondWind, Thorns, TieDamageReduction, TieVulnerable, TieWeak, Vengeance, VulnerableBlock, VulnerableMastery, WeakeningBlock, WeakeningCrit, WeakeningMastery, WeakeningTenacity
+
+```
+
+## A5. §4 replay gate, the real arm
+
+The BEFORE arm must be loaded with `--before-raw`. Without it,
+`resolvePatternsByName` collapses the duplicate and the comparison becomes
+3-vs-3, scoring exactly 0.0000 — a clean-looking null result that measured
+nothing at all.
+
+```
+▸ minedLibraryGate — 88 clean traces
+  BEFORE: 4 pattern(s) — perimeterWalk(cw), perimeterWalk(ccw), bounce(2,0), bounce(-2,0)
+  AFTER : 3 pattern(s) — perimeterWalk(cw), perimeterWalk(ccw), bounce(2,0)
+
+  BEFORE  caught 27/88   hits 143/296   matcher-active turns 136 (median weight 0.135)
+  AFTER   caught 24/88   hits 139/302   matcher-active turns 138 (median weight 0.135)
+
+  paired ΔlogLoss (AFTER − BEFORE), 292 turns in 88 casts:
+    -0.0017  95% cluster-bootstrap CI [-0.0063, 0.0033]
+
+  VERDICT: CI includes zero — not measurably better OR worse on log loss.
+  caught: 27 -> 24
+```
+
+Shipped anyway, per the brief: it is a correctness fix to the matcher's PRIOR
+(the oscillation hypothesis held 2/4 of the candidate mass, now 1/3), not a
+prediction improvement, and must not be argued as one. The −3 catch move sits
+inside the same noise band session 52 measured across three indistinguishable
+libraries (24 / 26 / 27 at n=88).
+
+The full alias set at gridSize 4 — five of twenty-three primitives:
+
+```
+bounce(-2,0)   == bounce(2,0)
+bounce(0,-2)   == bounce(0,2)
+bounce(2,-2)   == bounce(2,2)
+bounce(-2,2)   == bounce(2,2)
+bounce(-2,-2)  == bounce(2,2)
+```
+
+## A6. Proof the pacing lands on the intended class only
+
+Measured `post` log-write → outcome, which INCLUDES the rate limiter's sleep.
+(The audit's `sinceLastResponseMs` is measured at log-write time and therefore
+does NOT show the sleep — see Corrections.)
+
+```
+BEFORE (session 52 run 1)   empty-token n=28  0.72 – 1.78 s (med 1.42)
+                            numeric     n=36  1.16 – 1.67 s (med 1.45)
+
+AFTER  (session 53 run 1)   empty-token n= 6  4.24 – 4.55 s (med 4.27)
+                            numeric     n=28  1.03 – 1.71 s (med 1.42)
+```
+
+## A7. Live tier decisions, run 2 (nine rooms)
+
+`pickLowestTier()` took the minimum offered tier in all nine. Three rooms
+offered no Safe at all; room 9 offered `[1,1,1]`, which is why Enemy Room 71's
+only capture is contaminated.
+
+```
+ 1  enemy 64  took 1 (Risky)  offered [2,2,1]  safeOffered=False  buff withering
+ 2  enemy 65  took 0 (Safe)   offered [2,0,1]  safeOffered=True
+ 3  enemy 66  took 0 (Safe)   offered [1,2,0]  safeOffered=True
+ 4  enemy 67  took 0 (Safe)   offered [0,1,2]  safeOffered=True
+ 5  enemy 68  took 0 (Safe)   offered [1,0,1]  safeOffered=True
+ 6  enemy 69  took 0 (Safe)   offered [0,1,2]  safeOffered=True
+ 7  enemy 70  took 1 (Risky)  offered [1,2,2]  safeOffered=False  buff regenerating
+ 8  enemy 71  took 1 (Risky)  offered [1,1,1]  safeOffered=False  buff bloodthirsty
+ 9  enemy 72  took 0 (Safe)   offered [0,1,2]  safeOffered=True
+```
+
+## A8. New enemy captures
+
+```
+Enemy Room 71 (room 9, RISKY — no Safe offered)   NOT CLEAN
+  hp 55/55  armor 25/25
+  rock 24/8   paper 22/7   scissor 21/10      <- INCLUDES bloodthirsty (+4 ATK)
+  rolled { evasion 3, block 1, lck 2, tenacity 2 }
+  unmodelled: ["ROLLED_STATS", "ENEMY_BUFF"]
+
+Enemy Room 72 (room 10, SAFE)                     CLEAN
+  hp 58/58  armor 28/28
+  rock 22/6   paper 20/10  scissor 16/12
+  rolled all zero, enemyBuff null
+```
+
+## A9. The −1 energy drift, three for three
+
+```
+session  run  before  after  observed  committed  drift
+   52     1      —      —       59         60      -1
+   53     1     80     21       59         60      -1
+   53     2     79     20       59         60      -1
+```
+
+Not regen: regen ADDS (which is the right sign) but at 18/hr over a ~2-minute
+run is ~0.6 energy, and would not land on exactly −1 three times running.
+See QUESTIONS.md §23 for the zero-energy resolution.
