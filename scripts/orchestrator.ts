@@ -1,6 +1,7 @@
 /**
- * scripts/orchestrator.ts — Task 10. Budget-aware loop across BOTH dungeon
- * and fishing, energy-regen sleeps, graceful SIGINT, a rollup at exit.
+ * scripts/orchestrator.ts — Task 10. Budget-aware autonomous loop, energy-
+ * regen sleeps, graceful SIGINT, a rollup at exit. FISHING ONLY as of
+ * session 54 — see the rule 11 note below for why the dungeon arm is closed.
  *
  * Pure composition, not new game logic — every action still goes through
  * exactly the same `runOnce`/`runOneCast` this project's own supervised
@@ -29,22 +30,33 @@
  * eight-hour run is the next thing to kick off and leave running,
  * separately — not something this session can also verify happened.
  *
- * Potion loading (session 20): reuses `liveRun.ts`'s exact policy
- * (`shouldUsePotion`/`DEFAULT_POTION_THRESHOLD`, `MAX_POTIONS_PER_RUN`,
- * `config/bot.json`'s `forbiddenWoods.potions` allowlist) rather than a
- * fresh design — same gate, same defaults, same "absent config -> 0
- * potions" fail-safe. One difference from `liveRun.ts`'s own `main()`,
- * required by this script's shape rather than a design choice:
- * `liveRun.ts` computes its potion loadout ONCE per process and reuses the
- * same mutable `potionPolicy` object across however many runs that one
- * invocation does (`remaining`/`used` intentionally NOT reset per run — see
- * `LiveRunDeps.potionPolicy`'s own doc comment). That's fine for
- * `liveRun.ts`, which in practice is one run per process. The orchestrator
- * starts many independent dungeon runs across one long-lived process, and
- * each genuinely new `start_run` commits its OWN fresh consumables loadout
- * server-side — so `resolvePotionLoadout()` below is called fresh before
- * every dungeon iteration, re-reading the live balance and building a new
- * `potionPolicy` object each time, rather than reusing one across runs.
+ * [session 54] THE DUNGEON ARM IS CLOSED — CLAUDE.md rule 11.
+ *
+ * Every dungeon run is now a 60-energy juiced Tier-3 entry that stops for
+ * human approval before the next one. An autonomous loop cannot satisfy a
+ * per-run approval requirement, so this script does not start dungeon runs
+ * at all: `nextAction` is called with a null dungeon budget, and the
+ * `dungeon` branch below fails closed. Dungeon runs go through
+ * `npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1`.
+ *
+ * What that deleted, deliberately, rather than leaving unreachable:
+ *  - `resolvePotionLoadout()` (session 20). It gated on `config.potions`
+ *    alone while `liveRun.ts`'s `main()` gates on the config block AND
+ *    `--juiced`, and this script called `runOnce` with no `juicedStartRun` —
+ *    so with `forbiddenWoods.potions` now permanent (rule 11), the next
+ *    invocation would have loaded 3 Big Heal Juices into a plain 20-energy
+ *    run. That is session 24's incident verbatim. An unreachable potion
+ *    loader is exactly the thing that gets re-reached later.
+ *  - `dungeonBudgetSnapshot()`, whose `costPerAction` was
+ *    `config.energyCostPerRun` (20) — wrong under rule 11, and not to be
+ *    "fixed" to 60 while keeping the arm.
+ *  - The dungeon-side guard/opponent-model/play-count LOCKS. They are held
+ *    for the life of the process and `liveRun.ts` needs all three, so an
+ *    8-hour orchestrator session would have refused every rule-11 dungeon
+ *    run the user approved during it. With the arm closed this process
+ *    never writes those files, so holding their locks is pure obstruction.
+ *
+ * The FISHING arm is untouched and still runs autonomously within budget.
  *
  * Usage:
  *   npx tsx scripts/orchestrator.ts --dry-run        # one real decision, no action sent
@@ -54,24 +66,33 @@ import { GigaverseClient } from "../src/api/client.js";
 import { UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
-import { acquireGuardLock, loadGuardBudget, DEFAULT_GUARD_STATE_PATH } from "../src/orchestrator/guardPersistence.js";
+import { acquireGuardLock, loadGuardBudget } from "../src/orchestrator/guardPersistence.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { nextAction, type EnergyState, type ModeBudget } from "../src/orchestrator/scheduler.js";
 import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
 import { runWithGuaranteedAccounting } from "../src/orchestrator/runWithAccounting.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
-import {
-  loadOpponentModel,
-  bootstrapFromCorpus,
-  saveOpponentModelAtomically,
-  DEFAULT_OPPONENT_MODEL_PATH,
-} from "../src/orchestrator/opponentModelPersistence.js";
-import { DEFAULT_PLAY_COUNTS_PATH } from "../src/orchestrator/playCountsPersistence.js";
-import { LIVE_CONFIG } from "../src/strategy/config.js";
-import { DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
-import { runOnce, printStatus, MAX_POTIONS_PER_RUN, FixtureWriter as DungeonFixtureWriter, RunLog as DungeonRunLog, type LiveRunDeps } from "./liveRun.js";
+import { printStatus } from "./liveRun.js";
 import { runOneCast, FixtureWriter as FishingFixtureWriter, RunLog as FishingRunLog, FISHING_GUARD_STATE_PATH, type LiveFishingDeps } from "./liveFishing.js";
 import { regenerateRunReports } from "./regenerateReports.js";
+
+/**
+ * [session 54, CLAUDE.md rule 11] The dungeon arm, expressed as a value.
+ *
+ * `nextAction` already documents a null mode budget as "isn't configured at
+ * all — treated as permanently unavailable, never as 'sleep and wait for
+ * it'", which is exactly the semantics rule 11 wants: this loop must not
+ * start a dungeon run, and must not stall waiting for energy it will never
+ * spend. Naming the null makes the intent legible at both call sites and
+ * makes the reason greppable from the branch that fails closed.
+ */
+const DUNGEON_ARM_DISABLED = null;
+
+/** The one message every closed-dungeon path prints, so there is a single place to fix if the pointer changes. */
+const RULE_11_POINTER =
+  "dungeon runs are disabled in the orchestrator (CLAUDE.md rule 11: every run is a 60-energy juiced Tier-3 entry " +
+  "needing explicit human approval, which an autonomous loop cannot give). " +
+  "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Cap on any one sleep chunk — keeps SIGINT response prompt during a long regen wait rather than blocking in one giant setTimeout. */
@@ -96,16 +117,6 @@ async function currentEnergyFull(client: GigaverseClient, address: string): Prom
   return { value: p.energyValue, max: p.maxEnergy, regenPerHour: p.regenPerHour };
 }
 
-function dungeonBudgetSnapshot(config: BotConfig, guards: GuardState): ModeBudget {
-  return {
-    costPerAction: config.energyCostPerRun,
-    dailyEnergyBudget: config.dailyEnergyBudget,
-    energySpentToday: guards.spentEnergy,
-    maxActionsPerSession: config.maxRunsPerSession,
-    actionsToday: guards.runCount,
-  };
-}
-
 function fishingBudgetSnapshot(config: BotConfig, guards: GuardState): ModeBudget {
   // Only called when config.dendren is present — see main()'s guard.
   const d = config.dendren!;
@@ -115,29 +126,6 @@ function fishingBudgetSnapshot(config: BotConfig, guards: GuardState): ModeBudge
     energySpentToday: guards.spentEnergy,
     maxActionsPerSession: d.maxCastsPerSession,
     actionsToday: guards.runCount,
-  };
-}
-
-/**
- * Fresh per dungeon iteration — see this file's header comment for why this
- * can't reuse liveRun.ts's once-per-process pattern. Mirrors `liveRun.ts`'s
- * `main()` allowlist gate exactly: absent `config.potions` -> 0 potions,
- * full stop (silence is not authorization, session 17). Config is the ONLY
- * gate on the ITEM; the live balance only ever caps the per-run COUNT.
- */
-async function resolvePotionLoadout(
-  client: GigaverseClient,
-  config: BotConfig,
-): Promise<{ startConsumables?: number[]; potionPolicy?: LiveRunDeps["potionPolicy"] }> {
-  if (!config.potions) return {};
-  const balances = await client.getItemsBalances();
-  const balance = balances.entities.find((e) => e.ID_CID === String(config.potions!.allowedItemId))?.BALANCE_CID ?? 0;
-  const potionCount = Math.min(config.potions.maxPerRun, MAX_POTIONS_PER_RUN, balance);
-  if (potionCount <= 0) return {};
-  const itemId = config.potions.allowedItemId;
-  return {
-    startConsumables: Array(potionCount).fill(itemId),
-    potionPolicy: { itemId, threshold: DEFAULT_POTION_THRESHOLD, remaining: potionCount, used: 0 },
   };
 }
 
@@ -164,49 +152,37 @@ async function main() {
   console.log(`  account <USER>`);
 
   // [session 28, CODEXREVIEW #2] One live writer per guard-state file, held
-  // for the whole process — the orchestrator manages BOTH files, so it takes
-  // both locks. A `liveRun.ts`/`liveFishing.ts` invocation started against
-  // the same account while this is running will refuse to start rather than
+  // for the whole process. A `liveFishing.ts` invocation started against the
+  // same account while this is running will refuse to start rather than
   // silently racing it.
-  process.once("exit", acquireGuardLock(DEFAULT_GUARD_STATE_PATH));
+  //
+  // [session 54, rule 11] This process takes the FISHING lock only. It used
+  // to take the dungeon guard-budget, opponent-model and play-counts locks
+  // as well — all three held for the life of the process, and all three
+  // needed by `liveRun.ts`. With the dungeon arm closed this process never
+  // writes any of them, so holding their locks would do nothing but refuse
+  // the user's approved rule-11 dungeon runs for the whole 8-hour window.
   if (config.dendren) process.once("exit", acquireGuardLock(FISHING_GUARD_STATE_PATH));
-  // [session 32, CODEXIMPROVE #1] Same reused lock, against the opponent-
-  // model file's own path — see opponentModelPersistence.ts's header.
-  process.once("exit", acquireGuardLock(DEFAULT_OPPONENT_MODEL_PATH));
-  // [session 36, CODEXAUDIT #3] Same reused lock, against the play-counts
-  // file's own path — see playCountsPersistence.ts's header. `liveRun.ts`'s
-  // `main()` already took this lock; the orchestrator (the primary
-  // unattended long-running entry point) never did, so an interrupted-and-
-  // resumed dungeon run forgot every move played before the restart —
-  // CODEXIMPROVE #5's resume requirement, unmet in the entry point that
-  // matters most for it until now.
-  process.once("exit", acquireGuardLock(DEFAULT_PLAY_COUNTS_PATH));
-  const playCountsPersistence = { path: DEFAULT_PLAY_COUNTS_PATH };
 
-  const dungeonSeed = loadGuardBudget(DEFAULT_GUARD_STATE_PATH);
-  const dungeonGuards = new GuardState(
-    { dailyEnergyBudget: config.dailyEnergyBudget, maxRunsPerSession: config.maxRunsPerSession, maxConsecutiveActionFailures: config.maxConsecutiveActionFailures },
-    dungeonSeed,
-  );
   const fishingGuards = config.dendren
     ? new GuardState(
         { dailyEnergyBudget: config.dendren.dailyEnergyBudget, maxRunsPerSession: config.dendren.maxCastsPerSession, maxConsecutiveActionFailures: config.maxConsecutiveActionFailures },
         loadGuardBudget(FISHING_GUARD_STATE_PATH),
       )
     : null;
+  // [session 54, rule 11] The dungeon arm is closed, so fishing is the ONLY
+  // thing this loop can do. Without a dendren block there is no work at all
+  // — say so plainly rather than letting `nextAction` report it as "both
+  // modes' budget exhausted", which it is not.
   if (!config.dendren) {
-    console.log(`  · fishing not configured (config/discovered.json or config/bot.json missing a dendren block) — dungeon-only session.`);
+    console.log(`  · fishing not configured (config/discovered.json or config/bot.json missing a dendren block).`);
+    console.log(`  · the dungeon arm is disabled (CLAUDE.md rule 11) — nothing for this loop to do.\n`);
   }
 
-  // [session 32, CODEXIMPROVE #1] Persist and bootstrap the opponent model
-  // across restarts — see opponentModelPersistence.ts's header.
-  const { model, bootstrapImportedIds } = loadOpponentModel(DEFAULT_OPPONENT_MODEL_PATH);
-  const { imported } = bootstrapFromCorpus(model, bootstrapImportedIds);
-  if (imported > 0) {
-    console.log(`  · opponent model: bootstrapped ${imported} new exchange(s) from the fixture corpus (${bootstrapImportedIds.size} total imported)`);
-    saveOpponentModelAtomically(model, bootstrapImportedIds, DEFAULT_OPPONENT_MODEL_PATH);
-  }
-  const opponentModelPersistence = { path: DEFAULT_OPPONENT_MODEL_PATH, bootstrapImportedIds };
+  // [session 54] The opponent-model bootstrap/save lived here to serve
+  // `runOnce`. With the dungeon arm closed nothing in this process reads or
+  // writes the model, and bootstrapping it would be a write to a real data
+  // path by a process that never uses it. `liveRun.ts` still does its own.
   const shutdownSignal = createShutdownSignal();
   const uninstall = installProcessSigintHandler(shutdownSignal);
 
@@ -214,7 +190,10 @@ async function main() {
     const energy = await currentEnergyFull(client, me.address);
     const decision = nextAction(
       energy,
-      dungeonBudgetSnapshot(config, dungeonGuards),
+      // [session 54, rule 11] null = the dungeon arm is not merely out of
+      // budget, it is permanently unavailable to this loop, so the scheduler
+      // never sleeps waiting for it and never returns `{kind: "dungeon"}`.
+      DUNGEON_ARM_DISABLED,
       fishingGuards ? fishingBudgetSnapshot(config, fishingGuards) : null,
     );
     console.log(`  real energy: ${energy.value}/${energy.max} (regen ${energy.regenPerHour}/hr)`);
@@ -231,7 +210,10 @@ async function main() {
     const energy = await currentEnergyFull(client, me.address);
     const decision = nextAction(
       energy,
-      dungeonBudgetSnapshot(config, dungeonGuards),
+      // [session 54, rule 11] null = the dungeon arm is not merely out of
+      // budget, it is permanently unavailable to this loop, so the scheduler
+      // never sleeps waiting for it and never returns `{kind: "dungeon"}`.
+      DUNGEON_ARM_DISABLED,
       fishingGuards ? fishingBudgetSnapshot(config, fishingGuards) : null,
     );
 
@@ -275,56 +257,13 @@ async function main() {
     }
 
     if (decision.kind === "dungeon") {
-      console.log(`\n▸ [${iterations}] dungeon run — real energy ${energy.value}/${energy.max}`);
-      const before = energy.value;
-      // [session 31, CODEXREVIEW #8] Isolates what THIS iteration commits —
-      // see src/orchestrator/energyAccounting.ts.
-      const committedBefore = dungeonGuards.spentEnergy;
-      const { startConsumables, potionPolicy } = await resolvePotionLoadout(client, config);
-      if (potionPolicy) {
-        console.log(
-          `  · potions: loading ${startConsumables!.length}x itemId ${potionPolicy.itemId}, used at own HP ≤${Math.round(potionPolicy.threshold * 100)}%.`,
-        );
-      }
-      // [session 28, CODEXREVIEW #3] This used to `throw e` for any
-      // non-budget error BEFORE the after-energy read/accounting below ever
-      // ran — so if `start_run` had already spent real energy and something
-      // failed afterward (an unexpected state, a schema mismatch, a genuine
-      // anomaly), the restart forgot that real spend ever happened.
-      // `runWithGuaranteedAccounting` enforces: accounting ALWAYS runs,
-      // whatever happened, and a genuine anomaly still propagates AFTER it.
-      await runWithGuaranteedAccounting({
-        action: () =>
-          runOnce({
-            client,
-            config,
-            guards: dungeonGuards,
-            model,
-            strategyConfig: LIVE_CONFIG,
-            fixtures: new DungeonFixtureWriter(me.address, (text) => client.redactSecrets(text)),
-            log: new DungeonRunLog(),
-            dryRun: false,
-            shutdownSignal,
-            guardStatePath: DEFAULT_GUARD_STATE_PATH,
-            startConsumables,
-            potionPolicy,
-            opponentModelPersistence,
-            playCountsPersistence,
-          } satisfies LiveRunDeps),
-        isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
-        onBudgetTrip: (e) => console.log(`  · dungeon budget exhausted for today (${(e as Error).message}) — switching to fishing/sleep for the rest of this session.`),
-        account: async () => {
-          // [session 31, CODEXREVIEW #8] Diagnostic only — the guard was
-          // already enforced off the COMMITTED spend inside `runOnce`
-          // (recorded and persisted the moment start_run succeeded). This
-          // before/after read is reconciled against it, not fed back in.
-          const after = await currentEnergyFull(client, me.address);
-          const committedDelta = dungeonGuards.spentEnergy - committedBefore;
-          const report = reconcileEnergyAccounting(before, after.value, committedDelta);
-          console.log(describeEnergyAccounting(report));
-        },
-      });
-      continue;
+      // [session 54, rule 11] Unreachable by construction — `nextAction` is
+      // called with a null dungeon budget above, so it cannot return this.
+      // Kept as a loud fail-closed rather than deleted: if someone
+      // reintroduces a dungeon budget at the call site, this stops the
+      // process instead of quietly starting a run nobody approved.
+      // CLAUDE.md §5 — a stopped bot costs nothing.
+      throw new Error(`scheduler returned {kind: "dungeon"} — ${RULE_11_POINTER}`);
     }
 
     if (decision.kind === "fishing") {
@@ -350,7 +289,7 @@ async function main() {
           } satisfies LiveFishingDeps);
         },
         isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),
-        onBudgetTrip: (e) => console.log(`  · fishing budget exhausted for today (${(e as Error).message}) — switching to dungeon/sleep for the rest of this session.`),
+        onBudgetTrip: (e) => console.log(`  · fishing budget exhausted for today (${(e as Error).message}) — sleeping/finishing out the session.`),
         account: async () => {
           // [session 31, CODEXREVIEW #8] Diagnostic only — the guard was
           // already enforced off the COMMITTED spend inside `runOneCast`.
