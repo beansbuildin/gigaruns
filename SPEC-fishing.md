@@ -1601,6 +1601,118 @@ Two consequences, and they are the durable ones:
    objective is rejected for the replay's regime AND is not the answer to the
    live one.
 
+### The override-vs-mixture principle **[session 51, §3/§4 — the unifying frame]**
+
+Every calibration defect this stack has had is the same bug: **a hard override
+where a mixture belongs.** Three instances, all now fixed, and the fix is the
+same shape each time — replace "assume the special case holds" with "weight the
+special case by how much you believe it".
+
+| where | the override | what replaced it | measured effect |
+|---|---|---|---|
+| the ring itself | `k` is constant per cast, so off-ring is IMPOSSIBLE | `stickyStepDistribution` — a two-state chain marginalising over both rings | zero-probability events 8 → 0 (session 49) |
+| the matcher tier | a mined candidate gets a FIXED 0.9 of the mass whenever it survives | posterior mixture on the perimeter-walk hypothesis, prior = the library's own support rate | paired ΔlogLoss −0.632 [−0.760, −0.504] on 88 casts (session 51) |
+| `nextPosition` | the server's pre-rolled cell gets p = 1 | floored 0.99 / 0.01 back to the ring | caps a wrong override near 9 nats instead of 20.7 (session 51) |
+
+The tell is always the same and it is worth learning to spot: **a constant
+standing in for a belief.** `k` is constant per cast, 0.9, p = 1 — three
+numbers, none of them estimated from anything, each asserting certainty about
+a proposition the corpus only ever supported as *usually true*. In every case
+the corpus contained the counterexample before anyone looked (CLAUDE.md §9),
+and in every case the mixture reduces to the old behaviour in the limit, so
+nothing was given up by making it one.
+
+**Two things this frame does NOT license**, both learned the hard way in
+session 51:
+
+1. **A mixture is not automatically better and still needs its gate.** The
+   session-51 brief argued the matcher mixture "cannot lose to either arm, so
+   the measurement stops being decision-relevant". Measured, it lost to the
+   drop-the-tier arm by +0.030 nats [+0.015, +0.044] — small, but the CI
+   excludes zero. Dominance holds for a mixture whose posterior is CORRECT;
+   a real posterior carries approximations (here: per-turn likelihoods treated
+   as independent given the hypothesis, and a point-estimate prior). Gate it.
+2. **"Mix it" is not a licence to keep a tier that is not paying.** The
+   posterior recovered nearly all of the fixed weight's loss precisely because
+   the correct weight for most fish is near the prior, which is near zero.
+   That is evidence about the TIER, not a vindication of the mixture: dropping
+   the matcher entirely scores better still. Recorded as an open question, not
+   quietly settled by shipping the mixture.
+
+### The per-cast reversal parameter — NOT rejected, and the numbers that rejected it do not replicate **[session 51, §0 — brief claim REFUTED]**
+
+The session-51 brief recorded an idea it had tested and killed: reversal
+frequency might vary fish to fish, so a pooled k=2 rate over-generalises and a
+per-cast adaptive reversal parameter would help. Its stated reason for killing
+it was that there is no between-cast heterogeneity to exploit.
+
+**Re-scored on the 88-cast corpus, every figure differs and the conclusion
+flips** (CLAUDE.md §9 — the brief's author has no fixture access; the corpus
+wins):
+
+| | brief, as written | measured, 88 clean casts |
+|---|---|---|
+| k=2 casts with ≥2 comparable hops | 15 | **24** |
+| pooled reversal | 32/69 = 46.4% | **43/124 = 34.7%** |
+| dispersion ratio (χ²/df) | 0.80 — at or below binomial | **1.452** (χ² = 33.39, df = 23, **p = 0.075**) |
+| casts that ALWAYS reverse | 1 | 2 |
+| casts that NEVER reverse | 0 | **3** |
+
+A dispersion ratio of 0.80 says "less variation than chance alone produces —
+nothing to model". 1.452 says the opposite direction: **there is more
+between-cast spread than binomial sampling accounts for**, and three casts
+never reverse at all where the brief reported none. At p = 0.075 this is
+**suggestive and not established** — it does not clear the bar to build on,
+but it is emphatically not the closed door the brief described.
+
+**Status: OPEN, not rejected.** Do not build the parameter yet, and do not
+cite "there is no heterogeneity" as the reason — cite p = 0.075 at n = 24
+casts. Re-run the dispersion test as the corpus grows; if the ratio holds
+above 1 and clears p < 0.05, a per-cast reversal parameter becomes a real
+candidate and this section should be rewritten again.
+
+Note also that the pooled k=2 reversal rate has **drifted down** — FACT 2
+recorded 41.7% (35/84) at 66 casts; the comparable figure here is 34.7%
+(43/124). Another constant that moves when counted again.
+
+The general rule the exercise still instantiates, unchanged: an
+adaptive-per-unit parameter is only worth building once the between-unit
+variance is shown to EXCEED the within-unit sampling variance. Measure the
+dispersion first — it is one line. Just measure it on the current corpus.
+
+### The two step classes want OPPOSITE smoothing **[session 51, §2 — shipped]**
+
+`RingModelOptions.shrinkageK` was a single value shared by both classes and it
+was near-optimal for neither. Swept per class under the shipped sticky path,
+leave-one-cast-out, 88 clean casts / 300 scored transitions (150 each):
+
+    k=1 turns:  K=0.1 -> logLoss 1.040   K=3 (shared) -> 1.072   K=inf -> 1.376
+    k=2 turns:  K=8   -> logLoss 1.649   K=3 (shared) -> 1.718   K=inf -> 1.591
+
+Shipped `shrinkageKByClass: {1: 0.1, 2: 8}`. The mechanism is ring SIZE: k=2's
+legal ring is bigger, so the same corpus spreads its (prevDelta → delta) keys
+thinner and its conditional needs more smoothing; k=1's conditional is
+near-deterministic (FACT 2: 0 reversals in 109) and wants almost none.
+
+Two cautions that generalise beyond this knob:
+
+- **k=2's log loss is FLAT from K=64 to K=∞** (spread 0.002 at n=150), and
+  K=∞ *is* the "conditional tier off" arm. Sweep grids should include the
+  degenerate endpoint, or an argmin on the plateau silently ships "drop the
+  tier" under the label "smooth it more".
+- **k=2's conditional buys top-1 and costs calibration** — top-1 is 34.0% at
+  every K ≤ 8 and falls to 25–29% out on that plateau. So the pick is the
+  log-loss argmin SUBJECT TO top-1 not falling below the shared value, not the
+  bare argmin. `{1: 0.1, 2: 16}` scores a better ΔlogLoss and loses top-1 at
+  the two largest corpus sizes; rejected for that reason.
+
+Gated on a FIXED pair at five corpus prefixes it was not chosen on, paired
+ΔlogLoss cluster-bootstrapped over casts: negative with the CI excluding zero
+at every size, top-1 never worse. **k=1's 0.1 is the argmin at all five sizes;
+k=2's argmin wanders (16, 16, 512, 512, 128) and is NOT identified by the
+data — only its direction is.** Re-run `perClassShrinkageSweep` as the corpus
+grows and expect the k=2 value to move.
+
 ### What is NOT claimed
 
 The catch-rate numbers from `scripts/fishingEmpiricalAblation.ts` are

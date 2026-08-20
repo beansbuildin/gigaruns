@@ -1214,3 +1214,53 @@ itself in five casts, which is the outcome its own design was betting on.
   (21.1% vs 26.3%). The override is a different mechanism from the ring model
   and this does not bear on its ledger — but it is the context the first
   armed batch will be read in.
+
+---
+
+## §19 — Should the matcher tier be DROPPED rather than mixed? [session 51 §3, OPEN — for the user]
+
+**Not blocking.** Session 51 replaced the matcher tier's fixed 0.9 weight with a
+posterior mixture and shipped it, because it beats what was there by a wide
+margin. But the third arm beats the mixture:
+
+| arm | ΔlogLoss vs shipped fixed 0.9 | caught / 88 |
+|---|---|---|
+| posterior mixture (SHIPPED) | −0.632 [−0.760, −0.504] | 26 |
+| matcher tier OFF entirely | −0.667 [−0.808, −0.527] | 25 |
+| *posterior vs OFF* | **+0.030 [+0.015, +0.044]** | +2 / −1 |
+
+Keeping the tier costs 0.030 nats across the corpus and buys the **4 of 88**
+casts the posterior actually identifies as perimeter walkers (the fixed weight
+treated all 88 as such). The CI on that cost excludes zero, so it is a real if
+small price, and the catch difference is noise (McNemar p ≈ 0.12).
+
+**Not decided here.** Dropping a whole tier is a larger design reversal than
+the session-51 brief authorised, and there is a live consideration the replay
+cannot see: session 50 measured that with the matcher OFF the replayed policy
+stops spending focus (0.71 opening spend against live's 1.80), so the tier is
+entangled with spending behaviour, not only with prediction. Dropping it live
+may change more than the log loss.
+
+**What would settle it:** run one live batch on the shipped mixture and read
+`matcherWeight` on the `ringPrediction.jsonl` rows. If π stays near the prior
+on every turn of every cast, the tier is buying nothing live and should go. If
+π climbs past 0.5 on a cast and that cast's turns hit, it is earning its 0.030.
+The instrumentation for this shipped in session 51; it needs a batch, not a
+decision.
+
+## §20 — `data/mined-patterns.json` is STALE [session 51 §3, OPEN — mechanical]
+
+The live matcher library is `perimeterWalk(cw)` + `perimeterWalk(ccw)`,
+explaining **8 of 88** clean casts. Re-mining at the current corpus promotes
+**four** patterns — adding `bounce(2,0)` and `bounce(-2,0)` — with **11 of 88**
+support.
+
+Not regenerated in session 51: it changes live matcher behaviour, and
+`scripts/mineFishPatterns.ts` is the thing that owns that decision. The
+posterior's prior is computed from the LOADED library (`supportingCastCount`),
+so it stays correct either way — a re-mine will simply raise the prior from
+0.100 to ~0.144 on its own.
+
+Worth doing, and worth doing BEFORE §19 is judged: a bigger library is a
+different tier, and the "is the matcher worth keeping" question should be asked
+of the library that would actually ship.
