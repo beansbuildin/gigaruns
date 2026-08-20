@@ -99,6 +99,26 @@ profiles are Dangerous-tier instances the user chose. The retirement stands on
 reasons 1 and 3, which hold. Reason 2 is retracted; see `src/sim/enemies.ts` and
 DECISIONS 2026-08-16.
 
+**`deepestScorableRoom` went 5 → 4 in session 53, and that is NOT a regression
+— it is the retired gate's exact value moving under it.** [2026-08-20, session
+53; recorded here session 54 per CLAUDE.md §6.] The 12 boon offers captured
+that session introduced three new UNMODELLED types (AddWeakShield,
+RegenMastery, Vengeance) at rooms 3/4, so more simulated runs go unscorable
+earlier. Verified by stashing, deterministic across three runs. More real
+offers lowering a coverage metric is the metric working correctly; nothing in
+the code got worse.
+
+Recorded because the retired gate above sat at exactly 4, so this number is
+one honest capture away from looking like a failure to a future reader who
+finds it at 3 and does not know why. **Do not tune anything to get it back to
+5.** The lever that actually moves it is modelling the unmodelled types, and
+`scripts/boonCoverage.ts` now ranks them by offer frequency and shallowest
+room: session 54 measured **30 of 36 unmodelled types first offered in rooms
+1–3**, led by TieWeak (11 offers, room 1), AddBurnShield (8, room 1) and
+AddLifestealShield (5, room 1). Modelling any of those needs a pickup PAIR,
+which is capture, not code — the same conclusion this task reached in 2026-08-15
+and the reason it is retired rather than open.
+
 ---
 
 ### 5 — Dungeon strategy

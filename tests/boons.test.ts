@@ -18,6 +18,7 @@ import {
   type BoonOption,
 } from "../src/sim/boons.js";
 import { boonPickups, loadCorpus, toCombatant } from "../src/sim/corpus.js";
+import { boonCoverage } from "../scripts/boonCoverage.js";
 import { ROOM_ENEMIES } from "../src/sim/enemies.js";
 import { ROLLED } from "../src/sim/types.js";
 
@@ -393,5 +394,47 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // offer (AddLifestealMagic/Heal(16)/AddIntuition). Appended at the array's
     // end by insertion order, same as session 43's.
     expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1]);
+  });
+});
+
+/**
+ * [session 54, brief §5] The room-1 gap is empty and the real untested
+ * surface is the opposite one. Modelling stays opportunistic, so what this
+ * pins is the RANKING the opportunism is supposed to run off — not a
+ * decision to model anything.
+ */
+describe("boonCoverage ranks the unmodelled gap by what it costs", () => {
+  it("detail covers exactly the unmodelled set, sorted by offer frequency", () => {
+    const c = boonCoverage();
+    expect(c.unmodelledDetail.map((u) => u.type).sort()).toEqual(c.offeredButUnmodelled);
+    for (const u of c.unmodelledDetail) {
+      expect(u.offers, u.type).toBeGreaterThanOrEqual(1);
+      expect(Number.isFinite(u.shallowestRoom), u.type).toBe(true);
+    }
+    const offers = c.unmodelledDetail.map((u) => u.offers);
+    expect(offers).toEqual([...offers].sort((a, b) => b - a));
+  });
+
+  it("counts a type once per OFFER, not once per option", () => {
+    // An offer holding the same type twice must not read as two offers —
+    // that would inflate exactly the number the ranking is built on.
+    const c = boonCoverage();
+    for (const u of c.unmodelledDetail) {
+      const containing = OBSERVED_OFFERS.filter((o) => o.options.some((x) => x.type === u.type)).length;
+      expect(u.offers, u.type).toBe(containing);
+    }
+  });
+
+  it("the shallow (rooms 1-3) subset dominates, which is why it has leverage", () => {
+    // [session 54] 30 of 36 today. Pinned as a DIRECTION, not a value — this
+    // grows with the corpus, and the claim worth failing on is that the
+    // unmodelled gap is concentrated where the sim's deepestScorableRoom
+    // actually chokes, not that it is exactly 30.
+    const c = boonCoverage();
+    const shallow = c.unmodelledDetail.filter((u) => u.shallowestRoom <= 3);
+    expect(shallow.length).toBeGreaterThan(c.unmodelledDetail.length / 2);
+    // The most-offered unmodelled type is a room-1 type — the reason "once
+    // every forty runs" undersells this gap.
+    expect(c.unmodelledDetail[0]!.shallowestRoom).toBe(1);
   });
 });
