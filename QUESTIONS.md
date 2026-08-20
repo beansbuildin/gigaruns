@@ -1264,3 +1264,109 @@ so it stays correct either way — a re-mine will simply raise the prior from
 Worth doing, and worth doing BEFORE §19 is judged: a bigger library is a
 different tier, and the "is the matcher worth keeping" question should be asked
 of the library that would actually ship.
+
+---
+
+## §21 — every path-selection POST is rejected on first attempt, and it is NEW [session 52, OPEN — needs one live experiment]
+
+**Status: reproduced 26/26 across two live runs. Not fixed — fixing it means
+changing a DevTools-confirmed envelope on a guess, which CLAUDE.md §2 forbids.**
+
+Every `reward_*` and `path_*` POST is rejected on its FIRST attempt with
+
+```
+HTTP 500 {"success":false,"message":"Error tracking action",
+          "error":"Invalid action token  != 1787185878470","actionToken":""}
+```
+
+and the **byte-identical retry ~1.5s later succeeds**. Combat moves, which
+send the numeric token, succeed first time every time. Timeline from
+`logs/run-2026-08-20-00-30-48.jsonl`:
+
+```
+00:31:17.774 RESP ok actionToken='1787185878470'
+00:31:18.995 POST reward_two dungeonId=0 token='' idx=1
+00:31:20.241 FAIL "Invalid action token  != 1787185878470"
+00:31:21.773 POST reward_two dungeonId=0 token='' idx=1   <- identical
+00:31:23.304 RESP ok actionToken='1787185883981'
+```
+
+Note the doubled space in `Invalid action token  != N`: our token is the empty
+string, so the server is comparing `""` against the outstanding numeric token.
+The blank is `buildPathSelectionEnvelope`'s deliberate, DevTools-confirmed
+shape (session 08) — and it worked as recently as **2026-08-18**.
+
+**This is new.** Rates per run log, path-selection decisions vs rejections:
+
+| run log | tier+boon decisions | rejections |
+|---|---|---|
+| 2026-08-18-19-50-13 | 12 | **0** |
+| 2026-08-18-21-15-24 | 10 | **0** |
+| 2026-08-18-22-00-26 | 10 | **0** |
+| 2026-08-18-22-07-12 | 8 | **0** |
+| 2026-08-20-00-30-48 (run 1) | 14 | **14** |
+| 2026-08-20-00-45-19 + -00-46-46 (run 2) | 12 | **12** |
+
+No envelope code changed between those dates (sessions 44–51 were fishing-only;
+session 51 touched only `liveRun.ts`'s preflight). So the server changed.
+
+**Cost today:** 26 wasted requests and ~40s across two runs, and it eats the
+failure budget — `maxConsecutiveActionFailures` is 3, and a reward→path
+boundary is already 2 rejections back to back. It has not tripped, but it is
+one server-side change away from halting every run.
+
+**Questions for the user / next session.**
+
+1. The obvious hypothesis is that path selections should now send the current
+   numeric `actionToken` (`client.getActionToken()`) like combat moves do,
+   rather than `""`. The experiment is one line and one run: send the numeric
+   token on `reward_*`/`path_*` and see whether the first attempt succeeds. It
+   is cheap but it costs a 60-energy juiced entry to observe, so it should ride
+   along with a run that was going to happen anyway rather than justify its own.
+2. Is there a cheaper read? A DevTools capture of the browser making a reward
+   pick TODAY would settle the envelope question with no energy at all, and
+   that is a user action, not a bot one. **This is the preferred route.**
+3. Should the retry-on-rejection path log a WARN and a running count, so that a
+   silent 100% first-attempt failure rate can never again be invisible in a run
+   that otherwise "succeeded"? It was only found by reading the log by hand.
+
+## §22 — the mined library's two new patterns are exact aliases [session 52 §4, OPEN — mechanical]
+
+`scripts/mineFishPatterns.ts` promoted `bounce(2,0)` AND `bounce(-2,0)` at 89
+casts. Both have the SAME three supporting casts, and on all three they
+produce **byte-identical trajectories** — on a 4-wide grid a ±2 step reflects
+immediately, so both collapse to the same period-2 horizontal oscillation:
+
+```
+12944936  start (3,1) grid 4   +2: (3,1) (1,1) (3,1) (1,1)   -2: identical
+12991310  start (3,2) grid 4   +2: (3,2) (1,2) (3,2) (1,2)   -2: identical
+12992271  start (2,4) grid 4   +2: (2,4) (4,4) (2,4) (4,4)   -2: identical
+```
+
+The library "doubled" 2 → 4 but added **one** distinguishable hypothesis. The
+matcher's candidate set now holds two identical candidates, so the oscillation
+hypothesis takes **2/4** of the initial mass instead of 1/3. That is a
+double-counting defect in the candidate prior, not a modelling gain.
+
+The prior itself is unaffected — `supportingCastCount` counts DISTINCT casts
+and breaks on first match, so 11/89 is right.
+
+**Measured, and this is why it is not simply "dedupe it":**
+
+| library | ΔlogLoss vs 2-pattern | 95% cluster CI | caught/88 |
+|---|---|---|---|
+| 4-pattern (SHIPPED) | −0.0041 | [−0.0355, +0.0177] | 27 |
+| 3-pattern, deduped | −0.0056 | [−0.0312, +0.0121] | 24 |
+| 2-pattern (before) | — | — | 26 |
+
+All three are indistinguishable on log loss, and the catch counts wander 24–27
+— a spread of 3 catches on 88 casts is noise, not signal. **Dedup was NOT
+applied**, because the evidence does not support it any more than it supports
+the alias. Both are defensible; neither is demonstrated.
+
+The right fix is probably upstream of the choice: `buildPatternPool()` should
+not offer two primitives that are provably the same map on the grid sizes this
+game uses, or `promotePatterns` should collapse primitives whose trajectories
+agree on every supporting cast. Either makes the aliasing impossible rather
+than arguing about it after the fact. Not attempted this session — it changes
+mining for every future corpus and deserves its own gate.
