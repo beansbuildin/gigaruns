@@ -140,7 +140,7 @@ import {
 } from "../src/strategy/fishing/matcherPosterior.js";
 import { cellKey, cellsEqual, inGrid, manhattan, type Cell } from "../src/sim/fishing/geometry.js";
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
-import { buildPatternPool, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
+import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 
 // ---------------------------------------------------------------------------
@@ -286,8 +286,15 @@ export function loadMinedPatterns(path: string = MINED_PATTERNS_PATH): Pattern[]
     return [];
   }
   const names = Array.isArray(parsed.patterns) ? parsed.patterns.filter((n): n is string => typeof n === "string") : [];
-  const byName = new Map(buildPatternPool().map((p) => [p.name, p]));
-  return names.map((n) => byName.get(n)).filter((p): p is Pattern => p !== undefined);
+  // [session 53 §4] Resolves through the de-aliasing map, so a library mined
+  // before the pool was deduped still loads — a retired name maps onto the
+  // primitive it is provably identical to, and the duplicate collapses rather
+  // than handing one hypothesis two shares of the matcher's prior mass.
+  const { patterns, unresolved } = resolvePatternsByName(names);
+  if (unresolved.length > 0) {
+    console.warn(`  ⚠ ${path}: ${unresolved.length} pattern name(s) match nothing in the pool and were dropped: ${unresolved.join(", ")}`);
+  }
+  return patterns;
 }
 
 /**

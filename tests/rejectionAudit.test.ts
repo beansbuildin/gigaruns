@@ -5,10 +5,9 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { auditRunLog, summarize, defaultLogFiles, classify } from "../scripts/rejectionAudit.js";
+import { auditRunLog, summarize, defaultLogFiles, classify, PRE_SESSION_53_LOGS } from "../scripts/rejectionAudit.js";
 
-function loadAll() {
-  const files = defaultLogFiles();
+function load(files: readonly string[]) {
   return files.flatMap((f) => auditRunLog(f, readFileSync(f, "utf8")));
 }
 
@@ -18,9 +17,9 @@ function loadAll() {
  * statements about the SHAPE (zero overlap, zero numeric failures) that must
  * hold at any corpus size.
  */
-describe("rejectionAudit — historical split", () => {
-  const all = loadAll();
-  const byLabel = new Map(summarize(all).map((s) => [s.label, s]));
+describe("rejectionAudit — the pre-session-53 regime", () => {
+  // Scoped to the ten pre-fix logs on purpose — see PRE_SESSION_53_LOGS.
+  const byLabel = new Map(summarize(load(PRE_SESSION_53_LOGS)).map((s) => [s.label, s]));
 
   it("classifies start_run separately from the other empty-token actions", () => {
     // start_run is the CONTROL case for the timing model: same empty token, no
@@ -31,27 +30,23 @@ describe("rejectionAudit — historical split", () => {
     expect(classify({ action: "rock", tokenClass: "numeric" } as never)).toBe("numeric token");
   });
 
-  it("pins the 66 / 66 / 224 split measured over the ten pre-session-53 run logs", () => {
+  it("pins the 66 / 66 / 224 split", () => {
     const empty = byLabel.get("empty token")!;
     const numeric = byLabel.get("numeric token")!;
-    expect(empty.decisions).toBeGreaterThanOrEqual(66);
-    // The 66 historical empty-token decisions were rejected 66/66. Any run
-    // logged AFTER the session-53 pacing fix adds decisions without adding
-    // failures, so this count must never grow.
-    expect(empty.firstAttemptFailures).toBe(66);
-    expect(numeric.decisions).toBeGreaterThanOrEqual(227);
-    expect(numeric.acceptedBand.n).toBeGreaterThanOrEqual(224);
+    expect(empty.decisions).toBe(66);
+    expect(empty.firstAttemptFailures).toBe(66); // 100%, every decision, every log
+    expect(numeric.decisions).toBe(227);
+    expect(numeric.acceptedBand.n).toBe(224);
   });
 
-  it("NEVER rejects a numeric-token POST or a start_run on its first attempt", () => {
+  it("NEVER rejected a numeric-token POST or a start_run on its first attempt", () => {
     expect(byLabel.get("numeric token")!.firstAttemptFailures).toBe(0);
     expect(byLabel.get("start_run (empty)")!.firstAttemptFailures).toBe(0);
   });
 
   it("shows zero overlap between the rejected and accepted empty-token gap bands", () => {
-    // This is the entire mechanism: the threshold sits in (1.54, 3.40) s
-    // measured since the last RESPONSE. If these bands ever overlap, the
-    // timing model is wrong and the 4000ms override is not justified.
+    // The mechanism: the threshold sits in (1.54, 3.40) s measured since the
+    // last RESPONSE. This is the evidence the 4000ms override rests on.
     const empty = byLabel.get("empty token")!;
     expect(empty.rejectedBand.maxMs!).toBeLessThan(empty.acceptedBand.minMs!);
     expect(empty.rejectedBand.maxMs!).toBeLessThanOrEqual(1540);
@@ -60,8 +55,33 @@ describe("rejectionAudit — historical split", () => {
 
   it("counts a retry as part of its decision, not as a second decision", () => {
     const empty = byLabel.get("empty token")!;
-    // 132 POSTs, 66 decisions — every historical decision was sent twice.
     expect(empty.n).toBe(empty.decisions + empty.firstAttemptFailures);
+  });
+});
+
+describe("rejectionAudit — after the session-53 pacing fix", () => {
+  const preFix = new Set(PRE_SESSION_53_LOGS);
+  const postFixFiles = defaultLogFiles().filter((f) => !preFix.has(f));
+  const records = load(postFixFiles).filter((r) => r.action !== "start_run");
+
+  it("has post-fix logs to read at all", () => {
+    expect(postFixFiles.length).toBeGreaterThan(0);
+    expect(records.length).toBeGreaterThan(0);
+  });
+
+  it("rejects ZERO empty-token first attempts — the session-53 gate", () => {
+    const empty = records.filter((r) => r.tokenClass === "empty" && r.isFirstAttempt);
+    expect(empty.length).toBeGreaterThan(0);
+    expect(empty.filter((r) => r.failed)).toEqual([]);
+  });
+
+  it("actually paces the empty-token POSTs, and ONLY those", () => {
+    // post -> outcome includes the rate limiter's sleep, so it is the measure
+    // that shows the override landing. Numeric POSTs must be untouched.
+    const empty = records.filter((r) => r.tokenClass === "empty" && r.postToOutcomeMs !== null);
+    const numeric = records.filter((r) => r.tokenClass === "numeric" && r.postToOutcomeMs !== null);
+    expect(Math.min(...empty.map((r) => r.postToOutcomeMs!))).toBeGreaterThanOrEqual(3600);
+    expect(Math.max(...numeric.map((r) => r.postToOutcomeMs!))).toBeLessThan(2500);
   });
 });
 

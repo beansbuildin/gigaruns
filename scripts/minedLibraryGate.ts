@@ -23,14 +23,38 @@ import { readFileSync } from "node:fs";
 
 import { loadCastTraces, isCleanTrace } from "../src/sim/fishing/castTrace.js";
 import { replayCorpus } from "../src/sim/fishing/offPolicyReplay.js";
-import { buildPatternPool, type Pattern } from "../src/sim/fishing/patterns.js";
+import { buildRawPatternPool, resolvePatternsByName, type Pattern } from "../src/sim/fishing/patterns.js";
+
+/**
+ * [session 53 §4] Resolves names against the RAW, pre-de-aliasing pool,
+ * duplicates and all.
+ *
+ * This exists for exactly one measurement: gating the de-aliasing change
+ * itself. The BEFORE arm has to be the library that was actually live —
+ * `bounce(2,0)` AND `bounce(-2,0)`, one hypothesis holding two shares of the
+ * matcher's prior mass. Loading it through `resolvePatternsByName` collapses
+ * the duplicate and silently turns the comparison into 3-vs-3, which scores a
+ * ΔlogLoss of exactly 0.0000 and looks like a clean "no change" result while
+ * having measured nothing at all. Do not use this for anything else: outside
+ * this one A/B, a duplicate candidate is the bug, not the baseline.
+ */
+function loadLibraryRaw(path: string): Pattern[] {
+  const names = (JSON.parse(readFileSync(path, "utf8")) as { patterns?: string[] }).patterns ?? [];
+  const byName = new Map(buildRawPatternPool().map((p) => [p.name, p]));
+  const out = names.map((n) => byName.get(n)).filter((p): p is Pattern => p !== undefined);
+  if (out.length !== names.length) throw new Error(`${path}: ${names.length - out.length} pattern name(s) did not resolve against the raw pool`);
+  return out;
+}
 
 function loadLibrary(path: string): Pattern[] {
   const names = (JSON.parse(readFileSync(path, "utf8")) as { patterns?: string[] }).patterns ?? [];
-  const byName = new Map(buildPatternPool().map((p) => [p.name, p]));
-  const out = names.map((n) => byName.get(n)).filter((p): p is Pattern => p !== undefined);
-  if (out.length !== names.length) throw new Error(`${path}: ${names.length - out.length} pattern name(s) did not resolve against the pool`);
-  return out;
+  // [session 53 §4] Resolves through de-aliasing (see `resolvePatternsByName`)
+  // so a pre-dedup library file still loads. Only a name matching NOTHING is
+  // an error; a name that collapses onto its alias is the expected case and is
+  // exactly what this change is for.
+  const { patterns, unresolved } = resolvePatternsByName(names);
+  if (unresolved.length > 0) throw new Error(`${path}: pattern name(s) did not resolve against the pool: ${unresolved.join(", ")}`);
+  return patterns;
 }
 
 /** Cluster bootstrap over casts: resample casts with replacement, pool their turns. */
@@ -55,10 +79,12 @@ function clusterBootstrap(perCast: number[][], iters = 5000): { mean: number; lo
 }
 
 function main() {
-  const [beforePath, afterPath] = process.argv.slice(2);
-  if (!beforePath || !afterPath) throw new Error("usage: minedLibraryGate.ts <before.json> <after.json>");
+  const args = process.argv.slice(2);
+  const beforeRaw = args.includes("--before-raw");
+  const [beforePath, afterPath] = args.filter((a) => !a.startsWith("--"));
+  if (!beforePath || !afterPath) throw new Error("usage: minedLibraryGate.ts [--before-raw] <before.json> <after.json>");
 
-  const before = loadLibrary(beforePath);
+  const before = beforeRaw ? loadLibraryRaw(beforePath) : loadLibrary(beforePath);
   const after = loadLibrary(afterPath);
   const traces = loadCastTraces().filter(isCleanTrace);
   console.log(`▸ minedLibraryGate — ${traces.length} clean traces`);

@@ -138,7 +138,95 @@ function perimeterWalk(clockwise: boolean): Pattern {
  * §5's "fixed delta cycles, mirrors, clockwise walks" but NOT the verified
  * real set — see the module header.
  */
-export function buildPatternPool(): Pattern[] {
+/**
+ * The grid sizes this game actually uses. Every one of the 531 `gridSize`
+ * values in the corpus is 4; `castSim.ts` defaults to 4 as well. Kept as a
+ * LIST rather than a constant so that if a larger pond ever appears, adding it
+ * here re-runs the equivalence check at that size instead of silently keeping
+ * a dedup decision that was only ever valid on a 4x4 board.
+ */
+export const GAME_GRID_SIZES: readonly number[] = [4];
+
+/** Long enough to exceed any real cast's turn count, so two patterns that agree here agree in play. */
+const EQUIVALENCE_HORIZON = 16;
+
+/**
+ * A pattern's complete observable behaviour: its trajectory from EVERY start
+ * cell, at every grid size the game uses. Two primitives with the same
+ * signature are the same map — not merely unseparated by the current corpus,
+ * but incapable of ever being separated by any observation this game can
+ * produce.
+ */
+export function behaviourSignature(pattern: Pattern, gridSizes: readonly number[] = GAME_GRID_SIZES): string {
+  const parts: string[] = [];
+  for (const g of gridSizes) {
+    for (let x = 1; x <= g; x++) {
+      for (let y = 1; y <= g; y++) {
+        const path = pattern.path({ x, y }, g, EQUIVALENCE_HORIZON);
+        parts.push(path.map((c) => `${c.x},${c.y}`).join(">"));
+      }
+    }
+  }
+  return parts.join("|");
+}
+
+/**
+ * [session 53, brief §4] Drops primitives that are provably the SAME MAP as
+ * one already in the pool, keeping the first in pool order.
+ *
+ * Why this is a correctness fix and not a tuning knob. The matcher's prior
+ * spreads its initial mass uniformly over the library's candidates. Session 52
+ * re-mined the library from 2 patterns to 4 and found that `bounce(2,0)` and
+ * `bounce(-2,0)` produce BYTE-IDENTICAL trajectories on all three supporting
+ * casts — on a 4-wide grid a +-2 step reflects immediately, so the two are
+ * indistinguishable everywhere, not just on the casts observed. The library
+ * doubled but added ONE hypothesis, and that hypothesis then held 2/4 of the
+ * initial mass instead of 1/3.
+ *
+ * `matcherPosterior.ts`'s pi is computed from that mass, and QUESTIONS.md §19's
+ * decision rule is "does pi climb past 0.5 on any cast". Measuring a posterior
+ * against a prior known to be double-counted answers a question nobody asked,
+ * which is why this lands BEFORE the §19 batch rather than after.
+ *
+ * Fixed HERE, in the pool, rather than in `promotePatterns` — aliasing is a
+ * property of the primitive SET at a given grid size, not of any one corpus,
+ * so a pool that cannot offer duplicates cannot regrow them when the corpus
+ * changes. Expect this to be INERT on the replay (session 52 measured the
+ * deduped variant at dLogLoss -0.0056 [-0.0312, +0.0121], catches 24 vs 27 vs
+ * 26 — all three indistinguishable at n=88); it ships as a correctness fix to
+ * the prior, not as a prediction improvement, and should be argued that way.
+ */
+export function dedupePatterns(patterns: readonly Pattern[], gridSizes: readonly number[] = GAME_GRID_SIZES): Pattern[] {
+  const seen = new Map<string, string>();
+  const out: Pattern[] = [];
+  for (const pattern of patterns) {
+    const sig = behaviourSignature(pattern, gridSizes);
+    const existing = seen.get(sig);
+    if (existing !== undefined) continue; // provably the same map as `existing`
+    seen.set(sig, pattern.name);
+    out.push(pattern);
+  }
+  return out;
+}
+
+/** Which primitives `dedupePatterns` collapses, and onto what — for reporting and tests. */
+export function patternAliases(
+  patterns: readonly Pattern[],
+  gridSizes: readonly number[] = GAME_GRID_SIZES,
+): Array<{ dropped: string; sameAs: string }> {
+  const seen = new Map<string, string>();
+  const aliases: Array<{ dropped: string; sameAs: string }> = [];
+  for (const pattern of patterns) {
+    const sig = behaviourSignature(pattern, gridSizes);
+    const existing = seen.get(sig);
+    if (existing !== undefined) aliases.push({ dropped: pattern.name, sameAs: existing });
+    else seen.set(sig, pattern.name);
+  }
+  return aliases;
+}
+
+/** The raw primitive set, BEFORE de-aliasing — exposed so tests can show what was collapsed. */
+export function buildRawPatternPool(): Pattern[] {
   const dirs: Array<[number, number]> = [
     [1, 0],
     [-1, 0],
@@ -164,6 +252,57 @@ export function buildPatternPool(): Pattern[] {
   pool.push(perimeterWalk(true));
   pool.push(perimeterWalk(false));
   return pool;
+}
+
+/**
+ * The primitive pool every caller should use: `buildRawPatternPool()` with
+ * provably-identical primitives collapsed. See `dedupePatterns`.
+ */
+export function buildPatternPool(): Pattern[] {
+  return dedupePatterns(buildRawPatternPool());
+}
+
+/**
+ * Resolves saved pattern NAMES (from `data/minedFishPatterns.json`, or any
+ * older library file) to pool entries, mapping a name that de-aliasing
+ * retired onto the survivor it is provably identical to, and dropping the
+ * resulting duplicates.
+ *
+ * [session 53, brief §4] Needed because a library mined BEFORE de-aliasing
+ * can name a primitive the deduped pool no longer contains — the live
+ * `data/minedFishPatterns.json` holds both `bounce(2,0)` and `bounce(-2,0)`
+ * today. Resolving the retired name to its survivor is exactly right (they
+ * are the same map), and collapsing the duplicate is the entire point: two
+ * entries for one hypothesis is the double-counted prior this change exists
+ * to remove. Without this, `liveFishing.ts`'s loader would silently drop the
+ * name and `minedLibraryGate.ts` would throw.
+ *
+ * `unresolved` names are returned rather than ignored — a name that matches
+ * nothing at all is a stale or corrupt file, not an alias, and the caller
+ * should say so.
+ */
+export function resolvePatternsByName(names: readonly string[]): { patterns: Pattern[]; unresolved: string[] } {
+  const raw = buildRawPatternPool();
+  const bySignature = new Map<string, Pattern>();
+  for (const p of dedupePatterns(raw)) bySignature.set(behaviourSignature(p), p);
+
+  const rawByName = new Map(raw.map((p) => [p.name, p]));
+  const patterns: Pattern[] = [];
+  const unresolved: string[] = [];
+  const taken = new Set<string>();
+
+  for (const name of names) {
+    const rawPattern = rawByName.get(name);
+    if (!rawPattern) {
+      unresolved.push(name);
+      continue;
+    }
+    const survivor = bySignature.get(behaviourSignature(rawPattern));
+    if (!survivor || taken.has(survivor.name)) continue; // duplicate of one already taken
+    taken.add(survivor.name);
+    patterns.push(survivor);
+  }
+  return { patterns, unresolved };
 }
 
 /** A minimal candidate shape, matching `strategy/fishing/matcher.ts`'s `Candidate`. */

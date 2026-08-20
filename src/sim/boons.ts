@@ -1226,6 +1226,70 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-20-00-46-48/state-086",
     options: [opt("WeakeningTenacity", 4), opt("UpgradeRock", 12), opt("AddMaxHealth", 24)],
   },
+  // [session 53, LIVE] Twelve new offers from the two juiced Tier-3 runs.
+  // Run 2 reached ROOM 10, the deepest this corpus has ever gone (prior best
+  // room 8, session 52), producing this project's FIRST offers at rooms 8 and
+  // 9. Rooms 8 and 9 are both entirely new depths for the boon corpus.
+  {
+    room: 1,
+    source: "run-2026-08-20-01-34-30/state-008",
+    options: [opt("AddLuck", 2), opt("AddMaxArmor", 2), opt("AddLifestealMagic", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-01-34-30/state-030",
+    options: [opt("AddBurnShield", 3), opt("AddLifestealMagic", 2), opt("AddTenacity", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-01-34-30/state-048",
+    options: [opt("AddBlock", 2), opt("AddWeakMagic", 2), opt("UpgradeRock", 6)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-20-01-38-22/state-006",
+    options: [opt("AddLifestealMagic", 2), opt("Heal", 16), opt("AddIntuition", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-20-01-38-22/state-014",
+    options: [opt("WeakeningMastery", 10), opt("UpgradeScissor", 0, 4), opt("UpgradeRock", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-20-01-38-22/state-030",
+    options: [opt("AddWeakShield", 2), opt("UpgradeRock", 6), opt("Vengeance", 15)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-20-01-38-22/state-040",
+    options: [opt("AddBurnShield", 5), opt("RegenMastery", 1), opt("AddEvasion", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-20-01-38-22/state-048",
+    options: [opt("AddBlock", 2), opt("AddTenacity", 2), opt("AddEvasion", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-20-01-38-22/state-060",
+    options: [opt("AddLifestealSword", 2), opt("AddLuck", 1), opt("CorrosiveMagic", 2)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-20-01-38-22/state-084",
+    options: [opt("AddLuck", 1), opt("CorrosiveMagic", 2), opt("AddLifestealSword", 2)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-20-01-38-22/state-096",
+    options: [opt("UpgradeScissor", 4), opt("TieWeak", 1), opt("TieVulnerable", 1)],
+  },
+  {
+    room: 9,
+    source: "run-2026-08-20-01-38-22/state-118",
+    options: [opt("AddTenacity", 2), opt("AddEvasion", 1), opt("AddIntuition", 5)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

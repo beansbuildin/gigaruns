@@ -246,31 +246,62 @@ at all** — the real client sends `actionToken: ""` (empty string) for these,
 confirmed live for both `reward_one` and `path_two`. See "Dungeon action
 envelope" above.
 
-> **[CORRECTION, session 52, LIVE 2026-08-19] The empty string is now REJECTED
-> on first attempt, deterministically.** Every `reward_*`/`path_*` POST across
-> two juiced runs — **26 of 26** — came back
+> **[CORRECTION, session 52, LIVE 2026-08-19] The empty string is REJECTED on
+> first attempt, deterministically.** Every `reward_*`/`path_*` POST across two
+> juiced runs — **26 of 26** — came back
 > `HTTP 500 {"success":false,"message":"Error tracking action","error":"Invalid
 > action token  != <the outstanding numeric token>","actionToken":""}`, and the
 > **byte-identical retry ~1.5s later succeeded every time**. Combat moves,
 > which send the numeric token, succeeded first time in every case.
 >
 > Note the doubled space in `token  != N`: the server is comparing our empty
-> string against the numeric token the previous response issued. The first
-> blank POST appears to clear/consume that outstanding token; the second then
-> passes.
+> string against the numeric token the previous response issued.
 >
-> **This is a server-side change, not a regression here.** The four run logs
-> from 2026-08-18 contain 40 path-selection decisions and **zero** such
-> rejections, and no envelope code changed in between (sessions 44-51 were
-> fishing-only). The retry loop absorbs it, so runs still complete — but it
-> costs a wasted request per decision and eats into
-> `maxConsecutiveActionFailures` (3), which a reward→path boundary already
-> consumes 2 of.
+> ~~This is a server-side change, not a regression here.~~
+> **[SUPERSEDED, session 53 — see below. It was never a change.]**
+
+> **[CORRECTION TO THE CORRECTION, session 53, 2026-08-20] The server did not
+> change. The behaviour was always there; a logging fix made it visible.**
 >
-> The envelope is deliberately NOT changed on this evidence: it is a
-> DevTools-confirmed shape and CLAUDE.md §2 forbids guessing at a replacement.
-> The cheap resolution is a fresh DevTools capture of the browser making a
-> reward pick — a user action costing no energy. See QUESTIONS.md §21.
+> Session 52 concluded "the 2026-08-18 logs contain 40 path-selection decisions
+> and ZERO such rejections" by grepping those logs for `"Invalid action token"`.
+> That string could not appear before 2026-08-19, because session 47/51's
+> `serverErrorDetail` fix is what started capturing the server's body at all.
+> Counting on `reason`, a field populated on BOTH sides of that fix, the
+> 2026-08-18 logs contain **40 rejections in 40 decisions** — the identical
+> 100% rate. **A logging fix creates a false discontinuity in your own history;
+> date an effect on a field that predates the instrumentation change, or say
+> plainly that you cannot.**
+>
+> The real mechanism is TIMING, not the envelope. The server holds exactly one
+> outstanding action token and rejects any POST carrying `actionToken: ""`
+> while it is still outstanding. Measured over all ten pre-fix run logs
+> (`scripts/rejectionAudit.ts`), on local response timestamps:
+>
+> | POST class | n | 1st-attempt failures | gap since last response |
+> |---|---|---|---|
+> | empty token, rejected | 66 | 66 | 0.90 – 1.54 s (med 1.28) |
+> | empty token, accepted | 66 | 0 | 3.40 – 4.92 s (med 4.07) |
+> | numeric token | 224 | 0 | 0.90 – 1.79 s (med 1.36) |
+> | `start_run` (empty) | 4 | 0 | control — no token outstanding |
+>
+> Zero overlap; the threshold sits in (1.54, 3.40) s **since the response**.
+> `start_run` sends the same empty string and has never been rejected, which is
+> the control case that fits. The retry was never what fixed it — the DELAY
+> was: `postWithVerifiedRetry` calls `getDungeonState()` before looping, adding
+> ~2.7 s. This also explains session 08's founding incident (2026-08-14).
+>
+> **The envelope is CONFIRMED and unchanged.** `actionToken: ""` is correct; it
+> was only ever being sent too soon. Fixed by pacing —
+> `RequestPacing.minGapSinceResponseMs = 4000` on `reward_*`/`path_*` only
+> (`liveRun.ts`'s `pacingForAction`). Note the clock: `RateLimiter`'s
+> `MIN_GAP_MS` is REQUEST-to-request and differs from the response clock by one
+> response latency (0.72–1.78 s), so a request-clock setting cannot express
+> this threshold.
+>
+> **VERIFIED LIVE, session 53:** two juiced Tier-3 runs, **24 path-selection
+> decisions, 0 first-attempt rejections**, against a historical rate of 100%
+> (66/66). See QUESTIONS.md §21.
 
 Model this as a single owned mutable in the client with a mutex — concurrent
 actions against one account will corrupt the token sequence. **One in-flight

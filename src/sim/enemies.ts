@@ -394,6 +394,53 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       rolled: rolled(),
     },
   },
+  {
+    room: 9,
+    tier: RISKY_TIER,
+    // [session 53, LIVE] First-ever room-9 capture. NOT clean, and the reason
+    // matters: room 9 offered tiers [1,1,1] — no Safe at all — so
+    // `pickLowestTier()` took a Risky with `bloodthirsty` (+4 ATK on all
+    // moves) and non-zero rolled stats (evasion 3, block 1, lck 2, tenacity
+    // 2). This is CLAUDE.md §8's generalized rule doing exactly what session
+    // 09 added it for; the STRICT `pickSafeTier()` would have halted a
+    // 60-energy entry here for zero loot benefit.
+    //
+    // The move numbers below therefore INCLUDE the buff and cannot be used as
+    // a clean baseline for this enemy — `unmodelled` says so and
+    // `src/sim/coverage.ts` makes any battle against this instance
+    // unscorable. A Safe room-9 capture would supersede it.
+    unmodelled: ["ROLLED_STATS", "ENEMY_BUFF"],
+    enemy: {
+      id: "Enemy Room 71",
+      hp: 55,
+      hpMax: 55,
+      armor: 25,
+      armorMax: 25,
+      moves: { rock: mv(24, 8), paper: mv(22, 7), scissor: mv(21, 10) },
+      rolled: rolled({ evasion: 3, block: 1, lck: 2, tenacity: 2 }),
+    },
+  },
+  {
+    room: 10,
+    tier: SAFE_TIER,
+    // [session 53, LIVE] First-ever room-10 capture, superseding room 8 as the
+    // deepest this corpus has reached. Clean: `enemyPathOptions` offered
+    // [0,1,2], the Safe was taken, rolledEnemyStats all zero, enemyBuff null.
+    //
+    // The run entered room 10 and died here, so this is the enemy's OPENING
+    // state only — no post-exchange sample, and no Risky/Dangerous capture for
+    // this room. `lookupEnemy` fails closed on those, which is correct.
+    unmodelled: [],
+    enemy: {
+      id: "Enemy Room 72",
+      hp: 58,
+      hpMax: 58,
+      armor: 28,
+      armorMax: 28,
+      moves: { rock: mv(22, 6), paper: mv(20, 10), scissor: mv(16, 12) },
+      rolled: rolled(),
+    },
+  },
 ];
 
 /**

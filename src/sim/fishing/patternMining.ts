@@ -155,7 +155,7 @@ export function promotedSupport(
  * explains exactly — the live prior for `matcherPosterior.ts`.
  *
  * Deliberately takes the patterns rather than re-mining: live loads its
- * library from `data/mined-patterns.json`, which can be older than the
+ * library from `data/minedFishPatterns.json`, which can be older than the
  * corpus, and the prior must describe the library actually in use. Mining a
  * fresh one here to count its support would give the right number for the
  * wrong library.

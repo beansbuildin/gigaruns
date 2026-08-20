@@ -140,7 +140,11 @@ describe("recorded offers match the fixtures", () => {
     // The test's own title is now one room stale in the same way it was
     // before session 42; the invariant it encodes is "offers stop one room
     // short of the deepest death", and that still holds at 7 vs 8.
-    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(7);
+    // [session 53] Run 2 reached ROOM 10 — the deepest this corpus has gone —
+    // clearing rooms 8 and 9 and producing the first-ever offers at both.
+    // The title is now two rooms stale; the invariant it encodes ("offers stop
+    // one room short of the deepest death") still holds at 9 vs 10.
+    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(9);
   });
 });
 
@@ -184,6 +188,7 @@ describe("fail-closed on unmodelled types", () => {
       "AddVulnerableShield", // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
       "AddVulnerableSword", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
+      "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked
       "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
       "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
@@ -198,11 +203,13 @@ describe("fail-closed on unmodelled types", () => {
       "LossIntuitionUp", // session 52: first sighting, live room-7 offer (the corpus's first room-7 offer at all), not picked
       "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
       "Regen",
+      "RegenMastery", // session 53: first sighting, live room-4 offer (juiced run 2), not picked
       "SecondWind", // session 16: first sighting, live room-3 offer, not picked
       "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
       "TieDamageReduction",
       "TieVulnerable", // session 12: first sighting, live room-3 offer, not picked
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
+      "Vengeance", // session 53: first sighting, live room-3 offer (juiced run 2), not picked
       "VulnerableBlock", // live [2026-08-16/17]: first sighting, the takeover run's room-1 offer, not picked
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
       "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
@@ -300,7 +307,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 52] +6: this session's TWO juiced runs contributed one room-1
     // offer each (AddBlock / AddMaxHealth(14) / AddTenacity, and
     // AddBurnSword / UpgradeRock(8) / AddLuck).
-    expect(roomOne.length).toBe(141);
+    // [session 53] +6, same shape: one room-1 offer per juiced run
+    // (AddLuck / AddMaxArmor / AddLifestealMagic, and
+    // AddLifestealMagic / Heal(16) / AddIntuition). Both DO contain an
+    // already-clean type — a fourth AddMaxArmor and a fourth Heal — so the
+    // clean list below grows by two. This is NOT a sixth wall-1 hole: no type
+    // became clean at room 1 that was not already, and `scripts/boonCoverage.ts`
+    // now reports that ZERO modelled boons remain unoffered in room 1.
+    expect(roomOne.length).toBe(147);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -317,7 +331,9 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "AddMaxArmor",
       "AddMaxArmor",
       "AddMaxArmor",
+      "AddMaxArmor",
       "AddMaxHealth",
+      "Heal",
       "Heal",
       "Heal",
       "Heal",
@@ -373,6 +389,9 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // AddTenacity, AddTenacity picked — see OBSERVED_OFFERS). Appended at
     // the array's end (insertion order, not sorted), so the new "1" lands
     // last, not with the other two room-1 sightings.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1]);
+    // [session 53] +1 room-1 Heal offer, val1 16 — run 2's own first reward
+    // offer (AddLifestealMagic/Heal(16)/AddIntuition). Appended at the array's
+    // end by insertion order, same as session 43's.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1]);
   });
 });

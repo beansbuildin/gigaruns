@@ -12,6 +12,16 @@
  *     measured against, and the only one on which the reject/accept bands
  *     separate cleanly. They differ by one response latency (0.72-1.78s).
  *
+ * ONE CAVEAT ON BOTH, stated because the numbers look more precise than they
+ * are: `liveRun.ts` writes its `post` event BEFORE calling the client, and the
+ * rate limiter sleeps INSIDE the client. Every gap here is therefore measured
+ * to the DECISION, not to the packet. Historically the sleep on a first
+ * attempt was ~0-0.2s, so the bands are close to the dispatch truth; after
+ * session 53's `minGapSinceResponseMs` they are NOT — an empty-token POST now
+ * logs at ~1.2s and dispatches at ~4.0s. To see the pacing itself, measure
+ * `post` -> `post_response` instead (4.24-4.55s after the fix, 0.72-1.78s
+ * before it, numeric-token POSTs unchanged at ~1.4s throughout).
+ *
  * A note on dating effects, because this is how session 52 got it wrong: the
  * 2026-08-18 logs record `post_attempt_failed` with an EMPTY body, because
  * `serverErrorDetail` did not capture the server's text until session 47/51.
@@ -45,6 +55,13 @@ export interface AttemptRecord {
   /** True when the very next log event was `post_attempt_failed`. */
   failed: boolean;
   /**
+   * `post` -> its `post_response`/`post_attempt_failed`, in ms. Unlike the two
+   * gap fields, this INCLUDES the rate limiter's sleep, so it is the measure
+   * that actually shows whether a pacing override is being applied. Null if
+   * the log ends before the outcome.
+   */
+  postToOutcomeMs: number | null;
+  /**
    * False when this POST is a RETRY of one that was just rejected. The gate
    * and the §1 telemetry are both about DECISIONS, not requests: 132 empty-
    * token POSTs are 66 decisions each sent twice, so the meaningful rate is
@@ -71,6 +88,8 @@ export interface ClassSummary {
   acceptedBand: ClassBand;
   /** Gap band over the REJECTED members of this class, on the response clock. */
   rejectedBand: ClassBand;
+  /** `post` -> outcome, including the rate limiter's sleep — the pacing-sensitive measure. */
+  outcomeBand: ClassBand;
 }
 
 const EMPTY_TOKEN_RE = /'actionToken':\s*''/;
@@ -117,7 +136,17 @@ export function auditRunLog(file: string, text: string): AttemptRecord[] {
     if (ev === "post" || ev === "use_item_post") {
       const { action, tokenClass } = tokenClassOf(e["body"]);
       const next = events[i + 1]?.["event"];
+      let outcomeAt: number | null = null;
+      for (let j = i + 1; j < events.length; j++) {
+        const ev2 = events[j]!["event"];
+        if (ev2 === "post_response" || ev2 === "use_item_response" || ev2 === "post_attempt_failed") {
+          const t = Date.parse(events[j]!["ts"] as string);
+          if (!Number.isNaN(t)) outcomeAt = t - at;
+          break;
+        }
+      }
       out.push({
+        postToOutcomeMs: outcomeAt,
         file,
         action,
         tokenClass,
@@ -166,6 +195,7 @@ export function summarize(records: AttemptRecord[]): ClassSummary[] {
       firstAttemptFailures: rs.filter((r) => r.isFirstAttempt && r.failed).length,
       acceptedBand: band(rs.filter((r) => !r.failed && r.sinceLastResponseMs !== null).map((r) => r.sinceLastResponseMs!)),
       rejectedBand: band(rs.filter((r) => r.failed && r.sinceLastResponseMs !== null).map((r) => r.sinceLastResponseMs!)),
+      outcomeBand: band(rs.filter((r) => r.postToOutcomeMs !== null).map((r) => r.postToOutcomeMs!)),
     }))
     .sort((a, b) => b.n - a.n);
 }
@@ -174,6 +204,31 @@ function fmtBand(b: ClassBand): string {
   if (b.n === 0) return "—";
   return `${(b.minMs! / 1000).toFixed(2)} – ${(b.maxMs! / 1000).toFixed(2)} s (med ${(b.medianMs! / 1000).toFixed(2)}, n=${b.n})`;
 }
+
+/**
+ * The ten run logs that existed BEFORE session 53's pacing fix landed.
+ *
+ * Named explicitly rather than derived from a date, because the properties
+ * pinned against them — the 66/66 rejection split and the zero-overlap gap
+ * bands — are facts about the pre-fix regime and are DELIBERATELY not true of
+ * the corpus as a whole any more. A post-fix log has empty-token POSTs
+ * accepted at ~1.2s of `sinceLastResponseMs`, because that gap is measured at
+ * log-write time and the new 4000ms sleep happens after it. Asserting
+ * zero-overlap over all logs would fail for the best possible reason, which
+ * is not a useful test.
+ */
+export const PRE_SESSION_53_LOGS: readonly string[] = [
+  "logs/run-2026-08-18-19-50-13.jsonl",
+  "logs/run-2026-08-18-21-15-24.jsonl",
+  "logs/run-2026-08-18-21-59-34.jsonl",
+  "logs/run-2026-08-18-22-00-26.jsonl",
+  "logs/run-2026-08-18-22-07-12.jsonl",
+  "logs/run-2026-08-19-23-56-06.jsonl",
+  "logs/run-2026-08-20-00-30-09.jsonl",
+  "logs/run-2026-08-20-00-30-48.jsonl",
+  "logs/run-2026-08-20-00-45-19.jsonl",
+  "logs/run-2026-08-20-00-46-46.jsonl",
+];
 
 export function defaultLogFiles(dir = "logs"): string[] {
   return readdirSync(dir)
@@ -199,14 +254,14 @@ function main(): void {
   console.log(`\n▸ rejection audit over ${targets.length} run log(s), ${all.length} POSTs\n`);
   console.log(
     `  ${"class".padEnd(20)}${"POSTs".padStart(6)}${"decisions".padStart(11)}${"1st-fail".padStart(12)}  ` +
-      `${"rejected gap (since response)".padEnd(34)}accepted gap (since response)`,
+      `${"rejected gap".padEnd(32)}${"accepted gap".padEnd(32)}post->outcome (incl. pacing)`,
   );
   for (const s of summarize(all)) {
     const rate = s.decisions === 0 ? 0 : (s.firstAttemptFailures / s.decisions) * 100;
     console.log(
       `  ${s.label.padEnd(20)}${String(s.n).padStart(6)}${String(s.decisions).padStart(11)}` +
         `${`${s.firstAttemptFailures} (${rate.toFixed(0)}%)`.padStart(12)}  ` +
-        `${fmtBand(s.rejectedBand).padEnd(34)}${fmtBand(s.acceptedBand)}`,
+        `${fmtBand(s.rejectedBand).padEnd(32)}${fmtBand(s.acceptedBand).padEnd(32)}${fmtBand(s.outcomeBand)}`,
     );
   }
 

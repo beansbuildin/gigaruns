@@ -90,6 +90,22 @@ doesn't repeat it. This has already happened twice (session 06's "label rows
 tier 2", session 07 found room 3 was tier 1 and room 4 was tier 0 and clean) —
 treat a third time as expected, not exceptional.
 
+**10. Date an effect on a field that predates the instrumentation change.**
+This repo improves its own logging constantly, and that creates false
+discontinuities in its own history. Session 52 concluded the SERVER had changed
+because `"Invalid action token"` appeared in the 2026-08-20 logs and in none of
+the 2026-08-18 ones — but that string could not have appeared earlier, because
+session 47/51's `serverErrorDetail` fix is what started capturing the server's
+body at all. Counting the same failures on `reason`, a field populated on both
+sides, the rate was 100% before and 100% after. Nothing had changed except what
+was being recorded.
+
+So: before concluding that behaviour changed at date D, check whether any log
+field you are counting on FIRST APPEARS at date D. If it does, re-ask the
+question using a field that predates it, or say plainly that the logs cannot
+date this. The same trap applies to any before/after comparison that straddles
+a capture improvement.
+
 ---
 
 ## Working style

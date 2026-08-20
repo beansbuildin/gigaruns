@@ -1267,7 +1267,7 @@ of the library that would actually ship.
 
 ---
 
-## §21 — every path-selection POST is rejected on first attempt, and it is NEW [session 52, OPEN — needs one live experiment]
+## §21 — every path-selection POST is rejected on first attempt [session 52, RESOLVED session 53 — it was never new, and it was a timing bug]
 
 **Status: reproduced 26/26 across two live runs. Not fixed — fixing it means
 changing a DevTools-confirmed envelope on a guess, which CLAUDE.md §2 forbids.**
@@ -1330,7 +1330,7 @@ one server-side change away from halting every run.
    silent 100% first-attempt failure rate can never again be invisible in a run
    that otherwise "succeeded"? It was only found by reading the log by hand.
 
-## §22 — the mined library's two new patterns are exact aliases [session 52 §4, OPEN — mechanical]
+## §22 — the mined library's two new patterns are exact aliases [session 52 §4, RESOLVED session 53 — fixed upstream in the pool]
 
 `scripts/mineFishPatterns.ts` promoted `bounce(2,0)` AND `bounce(-2,0)` at 89
 casts. Both have the SAME three supporting casts, and on all three they
@@ -1370,3 +1370,134 @@ game uses, or `promotePatterns` should collapse primitives whose trajectories
 agree on every supporting cast. Either makes the aliasing impossible rather
 than arguing about it after the fact. Not attempted this session — it changes
 mining for every future corpus and deserves its own gate.
+
+---
+
+## §21 RESOLUTION [session 53]
+
+**The server never changed, and no envelope change was needed.** Session 52's
+central claim — "the four 2026-08-18 run logs have 40 path-selection decisions
+and zero rejections" — is refuted by those same logs. Counting
+`post_attempt_failed` rows with `reason: "reward selection rejected"`:
+
+```
+run-2026-08-18-19-50-13   12      run-2026-08-20-00-30-48   14
+run-2026-08-18-21-15-24   10      run-2026-08-20-00-45-19    2
+run-2026-08-18-22-00-26   10      run-2026-08-20-00-46-46   10
+run-2026-08-18-22-07-12    8
+                        ----                              ----
+                          40 of 40                          26 of 26
+```
+
+100% on both sides of the supposed change. Session 52 searched the old logs for
+`"Invalid action token"` — a string that **could not exist** before session
+47/51's `serverErrorDetail` fix started capturing the server's body — and read
+*newly visible* as *new*. **A logging fix creates a false discontinuity in your
+own history.** The `reason` field was populated on both sides and answers the
+question correctly in one grep.
+
+**Mechanism.** The server holds exactly one outstanding action token and rejects
+any POST whose token does not equal it (hence the doubled space in
+`Invalid action token  != N` — `""` interpolated into `{sent} != {outstanding}`).
+Measured over all ten pre-fix run logs by `scripts/rejectionAudit.ts`, on local
+response timestamps:
+
+| POST class | n | first-attempt failures | gap since last response |
+|---|---|---|---|
+| empty token, rejected | 66 | 66 | 0.90 – 1.54 s (med 1.28) |
+| empty token, accepted | 66 | 0 | 3.40 – 4.92 s (med 4.07) |
+| numeric token | 224 | 0 | 0.90 – 1.79 s (med 1.36) |
+| `start_run` (empty) | 4 | 0 | — (no token outstanding: the control) |
+
+Zero overlap. The threshold sits in (1.54, 3.40) **since the response**.
+
+**Fix, and a correction to the session-53 brief.** The brief proposed 3600ms as
+a `minGapMs` — a REQUEST-to-request gap, since `RateLimiter` stamps
+`lastCallAt` before dispatch. That is the wrong clock: it differs from the
+response clock by one response latency (0.72–1.78 s, median 1.45, n=296), so
+3600ms would have left ~1.8 s since the response in the worst case, inside the
+reject band. Shipped instead as `RequestPacing.minGapSinceResponseMs = 4000`,
+inside the band all 66 historical successes came from.
+
+**GATE PASSED.** Two live juiced Tier-3 runs, **24 path-selection decisions, 0
+first-attempt rejections** (historical rate: 100%). `post -> outcome` for
+empty-token POSTs moved 0.72–1.78 s → 4.21–4.55 s while numeric-token POSTs
+stayed at 1.02–1.71 s, so the pacing landed on exactly the intended class.
+`postWithVerifiedRetry` untouched — the double-apply hazard it guards is real
+and independent of this.
+
+---
+
+## §22 RESOLUTION [session 53]
+
+Fixed upstream in `buildPatternPool()`, as the aliasing is a property of the
+primitive SET at a given grid size and not of any one corpus. `dedupePatterns`
+collapses primitives with identical behaviour signatures — full trajectories
+from every start cell at every grid size the game uses (`GAME_GRID_SIZES = [4]`;
+all 531 `gridSize` values in the corpus are 4).
+
+**It was bigger than the one pair session 52 found: 5 of 23 primitives are
+aliases, not 1.** Session 52 saw only the pair that happened to clear the
+promotion threshold.
+
+```
+bounce(-2,0)  == bounce(2,0)      bounce(0,-2)  == bounce(0,2)
+bounce(2,-2)  == bounce(2,2)      bounce(-2,2)  == bounce(2,2)
+bounce(-2,-2) == bounce(2,2)
+```
+
+Pool 23 → 18. Re-mined library 4 patterns → 3 (`perimeterWalk(cw)`,
+`perimeterWalk(ccw)`, `bounce(2,0)`); support counts unchanged at 4/4/3 = 11
+distinct casts of 89, so π₀ is unmoved at ~0.133 while the oscillation
+hypothesis drops from 2/4 of the candidate mass to 1/3 — which is the whole
+point, since QUESTIONS.md §19's decision rule reads that mass.
+
+**GATE: inert on the replay, as predicted, and shipped anyway.** 88 clean
+traces, paired per turn, cluster-bootstrapped over casts: ΔlogLoss **−0.0017,
+95% CI [−0.0063, +0.0033]**, caught 27 → 24. It is a correctness fix to the
+prior, not a prediction improvement, and should not be argued as one. The catch
+count moving −3 is within the same noise band session 52 measured (24/26/27
+across three indistinguishable libraries at n=88).
+
+`resolvePatternsByName` maps a retired alias name onto its surviving twin, so a
+library file mined before the dedup still loads and collapses rather than being
+silently dropped.
+
+---
+
+## §23 — juiced runs under-report energy spend by exactly 1, every time [session 53, OPEN — needs a cheap read, not a run]
+
+Three consecutive juiced Tier-3 runs have logged `energy_accounting` with
+`observedDelta` one LESS than `committedDelta`, always in the same direction:
+
+| session | run | before | after | observed | committed | drift |
+|---|---|---|---|---|---|---|
+| 52 | 1 | — | — | 59 | 60 | −1 |
+| 53 | 1 | 80 | 21 | 59 | 60 | −1 |
+| 53 | 2 | 79 | 20 | 59 | 60 | −1 |
+
+The session-53 brief pre-committed to the rule: same direction on both runs
+makes it systematic rather than incidental. It is now 3/3.
+
+**It is not regen.** Regen ADDS energy, which would make `observedDelta`
+smaller than committed — which is what we see — but regen at 18/hr over a
+~2-minute run is ~0.6 energy and would not land on exactly −1 three times.
+
+**Candidate explanations, none confirmed:**
+1. A juiced entry costs 59, not 60, and `energyCostPerRun × JUICED_COST_MULTIPLIER`
+   is off by one. This would mean the guard has been over-charging the budget
+   by 1 per juiced run all along — conservative, so it has never failed loudly.
+2. The pool read is floor/truncated somewhere and 60 spent from a pool with a
+   fractional regen component reads as 59.
+3. `start_run` refunds or rebates 1 under some condition.
+
+**Cheapest resolution, zero energy:** read `GET /offchain/player/energy`
+immediately before and immediately after a juiced `start_run` with nothing else
+in flight, and compare against the same pair around a PLAIN (20-energy) run.
+If plain runs drift 0 and juiced drift −1, it is the multiplier (1). If both
+drift −1, it is the read (2). No extra entry is needed — the next juiced run
+that happens for any other reason can carry this.
+
+**Not urgent.** The guard enforces off COMMITTED spend (CODEXREVIEW #8), so the
+error is conservative in the safe direction: the bot believes it has spent
+slightly more than it has and stops slightly early.
