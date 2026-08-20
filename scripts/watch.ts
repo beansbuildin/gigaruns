@@ -31,6 +31,7 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { redactNoobToken } from "../src/api/redact.js";
 
 const BASE = "https://gigaverse.io/api";
 const POLL_MS = 2500;
@@ -80,7 +81,9 @@ function redact(raw: string, address: string): string {
     if (form) s = s.split(form).join("0xUSER");
   }
   s = s.split(jwt).join("<JWT>");
-  return s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  s = s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  // [session 54] See src/api/redact.ts.
+  return redactNoobToken(s);
 }
 
 /** One line per side: HP, armor, and every move's ATK/DEF and charges. */

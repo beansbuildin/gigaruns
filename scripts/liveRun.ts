@@ -82,6 +82,7 @@ import { SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import { shouldUsePotion, DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
 import { createShutdownSignal, installProcessSigintHandler, type ShutdownSignal } from "../src/orchestrator/shutdown.js";
+import { redactNoobToken } from "../src/api/redact.js";
 
 /**
  * Hard cap, DECISIONS.md 2026-08-15 (session 11): potions are a
@@ -387,7 +388,10 @@ function redact(raw: string, address: string, redactSecrets: (text: string) => s
     if (form) s = s.split(form).join("0xUSER");
   }
   s = redactSecrets(s);
-  return s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  s = s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  // [session 54] See src/api/redact.ts — shared so this rule cannot hold in
+  // five of six writers.
+  return redactNoobToken(s);
 }
 
 function stamp(): string {

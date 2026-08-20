@@ -16,6 +16,7 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { privateKeyToAccount } from "viem/accounts";
+import { redactNoobToken } from "../src/api/redact.js";
 
 const BASE = "https://gigaverse.io/api";
 /** Redacted corpus — committed. Task 4's test fixtures come from here. */
@@ -119,7 +120,8 @@ function redact(json: unknown, address: string, username: string): string {
   if (jwt) s = s.split(jwt).join("<JWT>");
   // Username is identifying too — it appears in /game/account/{address}.
   if (username) s = s.split(`"${username}"`).join(`"<USER>"`);
-  return s;
+  // [session 54] See src/api/redact.ts.
+  return redactNoobToken(s);
 }
 
 function writeRedactedCorpus(address: string, username: string) {

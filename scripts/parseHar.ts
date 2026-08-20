@@ -30,6 +30,7 @@
 
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { redactNoobToken } from "../src/api/redact.js";
 
 const OUT_DIR = "fixtures/fishing-casts";
 
@@ -66,7 +67,9 @@ function redact(raw: string, address: string): string {
   for (const form of [address, address.toLowerCase(), address.toUpperCase()]) {
     if (form) s = s.split(form).join("0xUSER");
   }
-  return s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  s = s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  // [session 54] See src/api/redact.ts.
+  return redactNoobToken(s);
 }
 
 function pathOf(url: string): string {

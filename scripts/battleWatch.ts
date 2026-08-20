@@ -18,6 +18,7 @@
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { redactNoobToken } from "../src/api/redact.js";
 
 const BASE = "https://gigaverse.io/api";
 const OUT = "fixtures/dungeon-runs";
@@ -48,7 +49,8 @@ function redact(json: unknown, address: string): string {
   for (const f of [address, address.toLowerCase(), address.toUpperCase()]) {
     if (f) s = s.split(f).join("0xUSER");
   }
-  return s.split(jwt).join("<JWT>");
+  // [session 54] See src/api/redact.ts.
+  return redactNoobToken(s.split(jwt).join("<JWT>"));
 }
 
 /** One-line summary of a side: HP, armor, and each move's ATK/DEF/charges. */

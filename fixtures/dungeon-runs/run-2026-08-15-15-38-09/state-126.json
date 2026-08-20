@@ -331,7 +331,7 @@
         "v": 1,
         "playerEquipment": {
           "_id": "68386965b84ee266740ef37e",
-          "docId": "EntityEquipment#79966817350501100526447415351088260038671993089879876864314793285447998749147-72946",
+          "docId": "EntityEquipment#<NOOB_TOKEN>",
           "createdAt": "2025-05-29T14:04:21.753Z",
           "updatedAt": "2025-08-07T16:38:08.209Z",
           "EQUIPMENT_BODY_CID": 324,
@@ -495,7 +495,7 @@
       "GAME_ITEM_ID_CID_array": [],
       "ID_CID": "5",
       "PLAYER_CID": "0xUSER",
-      "NOOB_TOKEN_CID": 72946,
+      "NOOB_TOKEN_CID": "<NOOB_TOKEN>",
       "DUNGEON_ID_CID": 24804300,
       "FACTION_CID": 4,
       "COMPLETE_CID": false,

@@ -142,6 +142,7 @@ import { cellKey, cellsEqual, inGrid, manhattan, type Cell } from "../src/sim/fi
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
+import { redactNoobToken } from "../src/api/redact.js";
 
 // ---------------------------------------------------------------------------
 // Pure(ish) helpers — no network, unit-testable directly.
@@ -869,7 +870,9 @@ function redact(raw: string, address: string, redactSecrets: (text: string) => s
     if (form) s = s.split(form).join("0xUSER");
   }
   s = redactSecrets(s);
-  return s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  s = s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
+  // [session 54] See src/api/redact.ts.
+  return redactNoobToken(s);
 }
 
 function stamp(): string {

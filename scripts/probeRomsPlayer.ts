@@ -17,6 +17,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { GigaverseClient } from "../src/api/client.js";
 import { loadJwt } from "../src/api/auth.js";
+import { redactNoobToken } from "../src/api/redact.js";
 
 const BASE = "https://gigaverse.io/api";
 const RAW_DIR = "fixtures/probe/raw";
@@ -33,7 +34,8 @@ function redact(text: string, address: string): string {
   // account address. A tx hash resolves the transacting wallet on any block
   // explorer, so it gets the same treatment as the address itself (session
   // 22: found unredacted by the first pass alone before this was added).
-  return withAddr.replace(/0x[a-fA-F0-9]{20,}/g, "0x<REDACTED>");
+  // [session 54] See src/api/redact.ts.
+  return redactNoobToken(withAddr.replace(/0x[a-fA-F0-9]{20,}/g, "0x<REDACTED>"));
 }
 
 async function main() {
