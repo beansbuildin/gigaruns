@@ -28,8 +28,11 @@ import { probeRun } from "../src/sim/coverage.js";
 import {
   isUnmodified,
   pickFinalRoomTier,
-  pickLowestTier,
+  pickHighestTier,
+  pickLowestNonPerpetualTier,
   pickTierForRoom,
+  PerpetualOnlyOfferError,
+  tierRuleFor,
 } from "../src/strategy/enemyTier.js";
 import { MAX_ROOM } from "../src/sim/enemies.js";
 import { CORPUS_DIR } from "../src/sim/corpus.js";
@@ -138,7 +141,7 @@ describe("applyStatBuff — verification only", () => {
   });
 });
 
-describe("the perpetual directive (user, 2026-08-20)", () => {
+describe("the perpetual directive (user, 2026-08-20), under rule 8's HIGHEST-tier rule", () => {
   const opt = (tier: number, id?: string) => ({ tier, enemyBuff: id ? ENEMY_BUFFS[id] ?? { id } : null });
 
   it("recognises the prefix and nothing else", () => {
@@ -147,29 +150,64 @@ describe("the perpetual directive (user, 2026-08-20)", () => {
     expect(isPerpetualBuff(null)).toBe(false);
   });
 
-  it("skips a perpetual card in favour of another at the SAME tier", () => {
-    const options = [opt(2, "perpetual_ferocious"), opt(2, "overgrown"), opt(2, "perpetual_mangleblade")];
-    expect(pickLowestTier(options)).toBe(options[1]);
+  it("takes the highest tier when nothing on it is perpetual", () => {
+    const options = [opt(0), opt(1, "armored"), opt(2, "overgrown")];
+    expect(pickHighestTier(options)).toBe(options[2]);
   });
 
-  it("NEVER changes the tier — rule 8 is untouched", () => {
-    // The perpetual sits on the lowest tier and the alternatives are higher.
-    // The directive must not promote a higher tier to escape it.
-    const options = [opt(0, "perpetual_mangleblade"), opt(1, "armored"), opt(2, "overgrown")];
-    expect(pickLowestTier(options).tier).toBe(0);
+  it("FILTERS perpetuals first, then takes the max — so the clause now LOWERS the tier", () => {
+    // This is the shape session 56 measured at 47 of 134 offers (35%): a
+    // perpetual sitting on the top tier. Under the old lowest-tier rule the
+    // directive was a within-tier tie-break and could not move the tier; under
+    // rule 8 it drops the whole top tier when that tier is entirely perpetual.
+    const options = [opt(2, "perpetual_ferocious"), opt(1, "armored"), opt(0)];
+    expect(pickHighestTier(options)).toBe(options[1]);
   });
 
-  it("keeps the original pick when every option at the tier is perpetual", () => {
-    // Fail-OPEN, and only for the tie-break: there is no lower-risk option to
-    // take instead, and halting would strand a 60-energy run over a preference
-    // among equals. The corpus has never actually produced this shape.
-    const options = [opt(1, "perpetual_mangleblade"), opt(1, "perpetual_withering")];
-    expect(pickLowestTier(options)).toBe(options[0]);
+  it("prefers a clean card AT the top tier over dropping a tier", () => {
+    const options = [opt(2, "perpetual_ferocious"), opt(2, "overgrown"), opt(1)];
+    expect(pickHighestTier(options)).toBe(options[1]);
   });
 
-  it("leaves an offer with no buff information alone", () => {
+  it("resolves a tie at the chosen tier on offer order, so the decision is reproducible", () => {
+    const options = [opt(2, "overgrown"), opt(2, "armored")];
+    expect(pickHighestTier(options)).toBe(options[0]);
+  });
+
+  it("FAILS CLOSED when every option is perpetual — CLAUDE.md rule 8", () => {
+    // 0 of 134 corpus offers have this shape, which is exactly why it must
+    // halt loudly rather than quietly pick one. This REVERSES session 56's
+    // fail-open tie-break: that decision was made when the clause could not
+    // change a tier, and choosing the hardest card is a deliberate act of
+    // taking on risk the user has forbidden in this form.
+    const options = [opt(2, "perpetual_mangleblade"), opt(1, "perpetual_withering")];
+    expect(() => pickHighestTier(options)).toThrow(PerpetualOnlyOfferError);
+  });
+
+  it("leaves an offer with no buff information alone and still takes the highest", () => {
     const options = [{ tier: 1 }, { tier: 0 }, { tier: 2 }];
-    expect(pickLowestTier(options)).toBe(options[1]);
+    expect(pickHighestTier(options)).toBe(options[2]);
+  });
+
+  it("throws on an empty offer", () => {
+    expect(() => pickHighestTier([])).toThrow(/empty offer/);
+  });
+});
+
+describe("pickLowestNonPerpetualTier (the final-room fallback only)", () => {
+  const opt = (tier: number, id?: string) => ({ tier, enemyBuff: id ? ENEMY_BUFFS[id] ?? { id } : null });
+
+  it("takes the lowest tier and prefers a clean card among equals", () => {
+    const options = [opt(0, "perpetual_ferocious"), opt(0, "overgrown"), opt(2)];
+    expect(pickLowestNonPerpetualTier(options)).toBe(options[1]);
+  });
+
+  it("fails OPEN when every option at the lowest tier is perpetual", () => {
+    // Deliberately the opposite of pickHighestTier. At the final room the rule
+    // is already reaching for the least dangerous card; there is nothing safer
+    // to fall back to, and halting would strand the boss room.
+    const options = [opt(1, "perpetual_mangleblade"), opt(1, "perpetual_withering")];
+    expect(pickLowestNonPerpetualTier(options)).toBe(options[0]);
   });
 });
 
@@ -265,8 +303,9 @@ describe("the final-room exception (user, 2026-08-20)", () => {
 
   it("applies at the final room and not before, and stays on past it", () => {
     const options = [opt(0, "bloodthirsty"), opt(0)];
-    // Before the final room: ordinary rule, which breaks the tie on order and
-    // on the perpetual directive — not on isUnmodified.
+    // Before the final room: rule 8's highest-tier clause. Both options are
+    // tier 0 here, so it resolves on offer order — and NOT on isUnmodified,
+    // which is the distinction this test exists to pin.
     expect(pickTierForRoom(options, 15, MAX_ROOM)).toBe(options[0]);
     expect(pickTierForRoom(options, MAX_ROOM, MAX_ROOM)).toBe(options[1]);
     // `>=`, not `===`: if the index ever runs past the configured count this
@@ -281,5 +320,41 @@ describe("the final-room exception (user, 2026-08-20)", () => {
 
   it("throws on an empty offer, like every other selector here", () => {
     expect(() => pickFinalRoomTier([])).toThrow(/empty offer/);
+  });
+});
+
+describe("tierRuleFor — which clause of rule 8 governs, and what an unreadable field does", () => {
+  it("names the ordinary clause everywhere before the final room", () => {
+    expect(tierRuleFor(1, 16)).toBe("highest");
+    expect(tierRuleFor(15, 16)).toBe("highest");
+  });
+
+  it("names the final-room clause at maxRoom and past it", () => {
+    expect(tierRuleFor(16, 16)).toBe("final-room");
+    expect(tierRuleFor(17, 16)).toBe("final-room");
+  });
+
+  it("resolves an UNREADABLE room or maxRoom to the conservative clause, labelled separately", () => {
+    // Session 56 found `ROOM_NUM_CID` lives on `data.entity`, NOT
+    // `data.entity.data`, where it reads `undefined` silently; liveRun.ts
+    // defaults it to 0. If that field moves again every room would take the
+    // final-room clause and the flip would be silently inert — so the label is
+    // distinct from a genuine final room and liveRun.ts logs it loudly.
+    expect(tierRuleFor(0, 16)).toBe("final-room-unreadable");
+    expect(tierRuleFor(undefined, 16)).toBe("final-room-unreadable");
+    expect(tierRuleFor(null, 16)).toBe("final-room-unreadable");
+    expect(tierRuleFor(NaN, 16)).toBe("final-room-unreadable");
+    expect(tierRuleFor(4, undefined)).toBe("final-room-unreadable");
+    expect(tierRuleFor(4, 0)).toBe("final-room-unreadable");
+  });
+
+  it("pickTierForRoom takes NO MODIFIERS when the room is unreadable, not the hardest card", () => {
+    const options = [
+      { tier: 2, enemyBuff: null, rolledEnemyStats: { evasion: 0, block: 0, lck: 0, tenacity: 0 } },
+      { tier: 0, enemyBuff: null, rolledEnemyStats: { evasion: 0, block: 0, lck: 0, tenacity: 0 } },
+    ];
+    expect(pickTierForRoom(options, 4, 16)).toBe(options[0]); // readable: highest
+    expect(pickTierForRoom(options, 0, 16)).toBe(options[1]); // unreadable: no modifiers
+    expect(pickTierForRoom(options, 4, undefined)).toBe(options[1]);
   });
 });

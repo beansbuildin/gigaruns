@@ -183,6 +183,14 @@ export interface BoonPriorityDecision {
    * has a record either way.
    */
   conflictedTypes: readonly LifestealSighting[];
+  /**
+   * [session 57] True when two or more options tied at the winning priority
+   * rank AND the Hard Core payout narrowed that set. False when nothing tied,
+   * when no payout was supplied, or when the tied options all paid the same.
+   */
+  orbTieBreak: boolean;
+  /** The winner's Hard Core payout, when it was supplied; `null` otherwise. */
+  orbs: number | null;
 }
 
 export interface LifestealSighting {
@@ -225,6 +233,25 @@ export interface BoonPriorityInput {
   config?: BoonPriorityConfig;
   /** Passed through to `rankBoons` for the within-tier tie-break. */
   rankOptions?: RankOptions;
+  /**
+   * **[USER DIRECTIVE, 2026-08-20 — session 57]** Per-option Hard Core payout
+   * (`rewardPathOptions[].gigusOrbAmount`, itemId 845), PARALLEL TO `offered`
+   * BY INDEX. Omitted means "not captured", and the tie-break simply does not
+   * fire — never "zero orbs".
+   *
+   * The directive is strictly: **boon priority decides first; orbs break ties
+   * within the same priority rank; orbs never override a higher-priority
+   * boon.** So this is read ONLY among options that already tie at the best
+   * matching priority, and `rankBoons` still decides below it.
+   *
+   * It is NOT read when no option matches a priority family at all. Every such
+   * option shares an absent rank, so a wider reading is available and would
+   * fire far more often — but it would let orb count override `rankBoons`'
+   * modelled quality, which the directive does not authorise. The cost of the
+   * narrow reading is measured rather than assumed: see
+   * `scripts/orbTieBreakReport.ts`, which reports both.
+   */
+  orbs?: readonly (number | undefined)[];
 }
 
 /**
@@ -251,23 +278,43 @@ export function choosePriorityBoon(input: BoonPriorityInput): BoonPriorityDecisi
   const best = Math.min(...matches.map((m) => m.priority)) as BoonPriority;
   const tied = matches.filter((m) => m.priority === best);
 
-  let winner = tied[0]!;
-  if (tied.length > 1) {
+  // ── priority rank -> ORBS -> rankBoons ──────────────────────────────────
+  // [session 57, user directive] The Hard Core payout narrows the tied set
+  // before `rankBoons` sees it, and only ever within one priority rank.
+  //
+  // It fires ONLY when every tied option carries a payout. A partial capture
+  // would otherwise read an absent field as the worst payout and hand the pick
+  // to whichever option happened to be recorded — a silent wrong answer in
+  // exactly the direction the field was added to improve.
+  let candidates = tied;
+  let orbTieBreak = false;
+  const orbOf = (i: number) => input.orbs?.[i];
+  if (candidates.length > 1 && candidates.every((m) => typeof orbOf(m.index) === "number")) {
+    const bestOrbs = Math.max(...candidates.map((m) => orbOf(m.index)!));
+    const richest = candidates.filter((m) => orbOf(m.index) === bestOrbs);
+    if (richest.length < candidates.length) {
+      candidates = richest;
+      orbTieBreak = true;
+    }
+  }
+
+  let winner = candidates[0]!;
+  if (candidates.length > 1) {
     const ranked = rankBoons(
       player,
-      tied.map((m) => m.option),
+      candidates.map((m) => m.option),
       room,
       input.rankOptions ?? {},
     );
     const top = ranked[0]!.option;
-    winner = tied.find((m) => m.option === top) ?? winner;
+    winner = candidates.find((m) => m.option === top) ?? winner;
   }
 
   const conflictedTypes = lifestealSightings(offered, room, config);
-  const tieNote =
-    tied.length > 1
-      ? ` (${tied.length} options tied at this priority; rankBoons broke the tie)`
-      : "";
+  const steps: string[] = [];
+  if (orbTieBreak) steps.push(`Hard Core payout ${orbOf(winner.index)} narrowed it`);
+  if (candidates.length > 1 || !orbTieBreak) steps.push("rankBoons broke the tie");
+  const tieNote = tied.length > 1 ? ` (${tied.length} options tied at this priority; ${steps.join("; ")})` : "";
 
   return {
     option: winner.option,
@@ -276,6 +323,8 @@ export function choosePriorityBoon(input: BoonPriorityInput): BoonPriorityDecisi
     label: PRIORITY_LABEL[best],
     burnMastery: best === 1,
     conflictedTypes,
+    orbTieBreak,
+    orbs: orbOf(winner.index) ?? null,
     reason:
       `boon-priority ${best} (${PRIORITY_LABEL[best]}): taking "${winner.option.type}" at room ${room}` +
       tieNote +
@@ -293,10 +342,14 @@ export function pickBoonWithPriority(
   room: number,
   config: BoonPriorityConfig = DEFAULT_BOON_PRIORITY,
   rankOptions: RankOptions = {},
+  orbs?: readonly (number | undefined)[],
 ): BoonOption {
   if (offered.length === 0) throw new Error("pickBoonWithPriority() called with an empty offer");
-  const decision = choosePriorityBoon({ player, offered, room, config, rankOptions });
+  const decision = choosePriorityBoon({ player, offered, room, config, rankOptions, orbs });
   if (decision) return decision.option;
+  // No option matches a priority family, so there is no rank for orbs to break
+  // a tie WITHIN. Falls through to `rankBoons` untouched — see `orbs`' doc
+  // comment on the wider reading that was deliberately not taken.
   const ranked = rankBoons(player, offered, room, rankOptions);
   return ranked[0]!.option;
 }

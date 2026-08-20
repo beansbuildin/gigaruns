@@ -23,7 +23,7 @@ import {
   findRealRunsToday,
   FixtureWriter,
   KNOWN_SIDE_KEYS,
-  locateLowestTierOption,
+  locateChosenTierOption,
   locateRewardOption,
   moveToAction,
   parseArgs,
@@ -292,27 +292,52 @@ describe("locateRewardOption", () => {
   });
 });
 
-describe("locateLowestTierOption", () => {
-  it("finds whichever position currently holds tier 0, regardless of where it was before", () => {
+describe("locateChosenTierOption", () => {
+  const MAX = 16;
+
+  it("finds whichever position currently holds the HIGHEST tier, regardless of where it was before", () => {
     const runA = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 0, index: 0 }, { tier: 1, index: 1 }, { tier: 2, index: 2 }] });
     const runB = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 2, index: 0 }, { tier: 0, index: 1 }, { tier: 1, index: 2 }] });
-    expect(locateLowestTierOption(runA)).toBe(0);
-    expect(locateLowestTierOption(runB)).toBe(1);
+    expect(locateChosenTierOption(runA, 3, MAX)).toBe(2);
+    expect(locateChosenTierOption(runB, 3, MAX)).toBe(0);
   });
 
-  // [session 09, live] Room 2's first live encounter offered NO Safe tier at
-  // all — three options, tiers {2, 1, 1}. User-confirmed: expected game
-  // behavior, not a capture gap. The generalized rule takes the lowest
-  // offered tier regardless — no fallback to a "safer" option that isn't
-  // actually present.
-  it("falls back to the lowest NON-Safe tier when Safe isn't offered — session 09, live", () => {
-    const run = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 2, index: 0 }, { tier: 1, index: 1 }, { tier: 1, index: 2 }] });
-    expect(locateLowestTierOption(run)).toBe(1); // first of the two tier-1 options
+  // [session 57] The reason this delegates to `pickTierForRoom` instead of
+  // scanning inline: an inline max-tier scan would land the RETRY on a card
+  // the decision path deliberately refused.
+  it("applies the Perpetual filter on a retry, exactly as the decision path did", () => {
+    const run = fakeRun({
+      enemyPathPhase: true,
+      enemyPathOptions: [
+        { tier: 2, index: 0, enemyBuff: { id: "perpetual_ferocious" } },
+        { tier: 1, index: 1, enemyBuff: { id: "armored" } },
+        { tier: 0, index: 2, enemyBuff: null },
+      ],
+    });
+    expect(locateChosenTierOption(run, 3, MAX)).toBe(1);
+  });
+
+  it("applies the final-room exception on a retry too", () => {
+    const clean = { evasion: 0, block: 0, lck: 0, tenacity: 0 };
+    const run = fakeRun({
+      enemyPathPhase: true,
+      enemyPathOptions: [
+        { tier: 2, index: 0, enemyBuff: null, rolledEnemyStats: clean },
+        { tier: 0, index: 1, enemyBuff: null, rolledEnemyStats: clean },
+      ],
+    });
+    expect(locateChosenTierOption(run, 3, MAX)).toBe(0);
+    expect(locateChosenTierOption(run, MAX, MAX)).toBe(1);
+  });
+
+  it("resolves a tie at the chosen tier on offer order", () => {
+    const run = fakeRun({ enemyPathPhase: true, enemyPathOptions: [{ tier: 0, index: 0 }, { tier: 2, index: 1 }, { tier: 2, index: 2 }] });
+    expect(locateChosenTierOption(run, 3, MAX)).toBe(1);
   });
 
   it("returns null only on a genuinely empty offer", () => {
     const run = fakeRun({ enemyPathPhase: true, enemyPathOptions: [] });
-    expect(locateLowestTierOption(run)).toBeNull();
+    expect(locateChosenTierOption(run, 3, MAX)).toBeNull();
   });
 });
 
@@ -1210,57 +1235,160 @@ describe("runOnce — dungeon cap reconciliation against GET /game/dungeon/today
   });
 });
 
-describe("runOnce — enemy path phase", () => {
-  it("dry-run: picks the Safe tier and logs the intended selection, never POSTs", async () => {
-    const safeOffer = {
-      enemyPathPhase: true,
-      enemyPathOptions: [
-        { index: 0, tier: 0, tierName: "Safe" },
-        { index: 1, tier: 2, tierName: "Dangerous" },
-        { index: 2, tier: 2, tierName: "Dangerous" },
-      ],
-    };
+describe("runOnce — enemy path phase, under rule 8's HIGHEST-tier rule (session 57)", () => {
+  /** The `tier_choice` event runOnce writes for every enemy-path decision. */
+  const tierChoice = (deps: ReturnType<typeof makeDeps>) =>
+    (deps.log.write as unknown as { mock: { calls: [Record<string, unknown>][] } }).mock.calls
+      .map((c) => c[0])
+      .find((e) => e.event === "tier_choice");
+
+  const serveOffer = (offer: Record<string, unknown>, room: number) =>
     vi.stubGlobal(
       "fetch",
-      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(safeOffer) } } })),
+      mockFetch(() => ({
+        status: 200,
+        body: { success: true, actionToken: 1, data: { run: fakeRun(offer), entity: { ROOM_NUM_CID: room } } },
+      })),
+    );
+
+  it("dry-run: takes the HIGHEST tier offered, not the lowest — the flip, through the live loop", async () => {
+    serveOffer(
+      {
+        enemyPathPhase: true,
+        enemyPathOptions: [
+          { index: 0, tier: 0, tierName: "Safe" },
+          { index: 1, tier: 2, tierName: "Dangerous" },
+          { index: 2, tier: 1, tierName: "Risky" },
+        ],
+      },
+      3,
     );
     const deps = makeDeps(true);
     const p = runOnce(deps);
     await vi.runAllTimersAsync();
     await expect(p).resolves.toBeUndefined();
+
+    const ev = tierChoice(deps)!;
+    expect(ev.rule).toBe("highest");
+    expect((ev.chosen as { tier: number }).tier).toBe(2);
+    expect(ev.position).toBe(1);
+    expect(ev.perpetualCostATier).toBe(false);
+  });
+
+  it("drops a tier rather than take a Perpetual card — the clause at its measured 35% weight", async () => {
+    serveOffer(
+      {
+        enemyPathPhase: true,
+        enemyPathOptions: [
+          { index: 0, tier: 0, tierName: "Safe", enemyBuff: null },
+          { index: 1, tier: 2, tierName: "Dangerous", enemyBuff: { id: "perpetual_ferocious" } },
+          { index: 2, tier: 1, tierName: "Risky", enemyBuff: { id: "armored" } },
+        ],
+      },
+      3,
+    );
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await p;
+
+    const ev = tierChoice(deps)!;
+    expect((ev.chosen as { tier: number }).tier).toBe(1);
+    expect(ev.topTierOffered).toBe(2);
+    expect(ev.perpetualCostATier).toBe(true);
+  });
+
+  it("HALTS on an offer that is entirely Perpetual rather than taking one", async () => {
+    // 0 of 134 corpus offers have this shape. It fails closed precisely
+    // because it has never executed — see enemyTier.ts.
+    serveOffer(
+      {
+        enemyPathPhase: true,
+        enemyPathOptions: [
+          { index: 0, tier: 2, enemyBuff: { id: "perpetual_ferocious" } },
+          { index: 1, tier: 1, enemyBuff: { id: "perpetual_withering" } },
+        ],
+      },
+      3,
+    );
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    const assertion = expect(p).rejects.toThrow(/perpetual_/);
+    await vi.runAllTimersAsync();
+    await assertion;
+  });
+
+  it("takes NO MODIFIERS at the final room — the exception, live for the first time", async () => {
+    const clean = { evasion: 0, block: 0, lck: 0, tenacity: 0 };
+    serveOffer(
+      {
+        enemyPathPhase: true,
+        enemyPathOptions: [
+          { index: 0, tier: 2, enemyBuff: null, rolledEnemyStats: { evasion: 3, block: 0, lck: 0, tenacity: 0 } },
+          { index: 1, tier: 0, enemyBuff: null, rolledEnemyStats: clean },
+        ],
+      },
+      TEST_CONFIG.maxRoom,
+    );
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await p;
+
+    const ev = tierChoice(deps)!;
+    expect(ev.rule).toBe("final-room");
+    expect((ev.chosen as { tier: number }).tier).toBe(0);
+  });
+
+  it("falls back to no-modifiers, LABELLED, when ROOM_NUM_CID is unreadable", async () => {
+    // The silent-inertness trap: `ROOM_NUM_CID` lives on `data.entity`, and
+    // liveRun defaults it to 0. If it ever moves again, every room would take
+    // the conservative branch — so the label must differ from a real final
+    // room, or the flip could be off with no error anywhere.
+    serveOffer(
+      {
+        enemyPathPhase: true,
+        enemyPathOptions: [
+          { index: 0, tier: 2, enemyBuff: null, rolledEnemyStats: { evasion: 3, block: 0, lck: 0, tenacity: 0 } },
+          { index: 1, tier: 0, enemyBuff: null, rolledEnemyStats: { evasion: 0, block: 0, lck: 0, tenacity: 0 } },
+        ],
+      },
+      0,
+    );
+    const deps = makeDeps(true);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await p;
+
+    const ev = tierChoice(deps)!;
+    expect(ev.rule).toBe("final-room-unreadable");
+    expect((ev.chosen as { tier: number }).tier).toBe(0);
   });
 
   // [session 09, live] Room 2's first live encounter offered no Safe tier at
-  // all — refuted the original assumption that Safe is always present.
-  // User-confirmed expected behavior, not a bug: generalized to "lowest tier
-  // offered, Safe or not" rather than halting whenever Safe is absent.
-  it("picks the lowest NON-Safe tier when Safe isn't offered, rather than halting — CLAUDE.md §8, generalized session 09", async () => {
-    const noSafeOffered = {
-      enemyPathPhase: true,
-      enemyPathOptions: [
-        { index: 0, tier: 1, tierName: "Risky" },
-        { index: 1, tier: 2, tierName: "Dangerous" },
-      ],
-    };
-    vi.stubGlobal(
-      "fetch",
-      mockFetch(() => ({
-        status: 200,
-        body: { success: true, actionToken: 1, data: { run: fakeRun(noSafeOffered) } },
-      })),
+  // all — refuted the original assumption that Safe is always present. Under
+  // rule 8's flip this is no longer even a special case: the rule takes the
+  // highest offered tier whether or not tier 0 is among them.
+  it("does not halt when Safe isn't offered — session 09's finding, now moot", async () => {
+    serveOffer(
+      {
+        enemyPathPhase: true,
+        enemyPathOptions: [
+          { index: 0, tier: 1, tierName: "Risky" },
+          { index: 1, tier: 2, tierName: "Dangerous" },
+        ],
+      },
+      2,
     );
-    const deps = makeDeps(true); // dry-run — logs the pick, never POSTs
+    const deps = makeDeps(true);
     const p = runOnce(deps);
     await vi.runAllTimersAsync();
     await expect(p).resolves.toBeUndefined();
+    expect((tierChoice(deps)!.chosen as { tier: number }).tier).toBe(2);
   });
 
   it("still halts on a genuinely empty enemyPathOptions offer", async () => {
-    const emptyOffer = { enemyPathPhase: true, enemyPathOptions: [] };
-    vi.stubGlobal(
-      "fetch",
-      mockFetch(() => ({ status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun(emptyOffer) } } })),
-    );
+    serveOffer({ enemyPathPhase: true, enemyPathOptions: [] }, 3);
     const deps = makeDeps(true);
     const p = runOnce(deps);
     const assertion = expect(p).rejects.toThrow();

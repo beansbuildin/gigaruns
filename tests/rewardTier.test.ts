@@ -12,6 +12,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { priorityOf } from "../src/strategy/boonPriority.js";
 import { CORPUS_DIR } from "../src/sim/corpus.js";
 
 interface WireRewardOption {
@@ -101,10 +102,45 @@ describe("rewardPathOptions carries a tier, and it was discarded for 46 sessions
   });
 
   it("the orb payout is NOT uniform within an offer — picking a boon picks a payout", () => {
-    // The live strategy gap: `pickBoon` and `pickBoonWithPriority` are both
-    // blind to this. If it ever becomes uniform, that gap closes on its own.
+    // [session 57] No longer only a gap: `pickBoonWithPriority` now reads this
+    // as a within-rank tie-break. If it ever becomes uniform the tie-break
+    // becomes inert on its own, which is the correct failure.
     const differs = offers.filter((o) => new Set(o.options.map((x) => x.gigusOrbAmount)).size > 1);
     expect(differs.length).toBeGreaterThan(offers.length * 0.9);
+  });
+});
+
+describe("the orb tie-break's SURFACE — how rarely a priority rank actually ties", () => {
+  /**
+   * [session 57] The number that decides whether §2 was worth the session, and
+   * it is small: the shipped rule reaches only decisions where two options
+   * share the WINNING priority rank. Pinned here so a future session reading
+   * "orbs are wired in" does not assume the bot is chasing orbs — it mostly
+   * is not. `scripts/orbTieBreakReport.ts` prints the full three-policy
+   * comparison, including the wider reading that was NOT shipped (+1.81
+   * orbs/decision against the shipped +0.029, 62x, changing 35.5% of picks
+   * instead of 0.7%). Widening needs a user directive, not a code change.
+   */
+  const HP_FRACTIONS = [1, 0.75, 0.5, 0.25];
+
+  it("two options share the winning priority rank on well under a tenth of decisions", () => {
+    let decisions = 0;
+    let tied = 0;
+    for (const offer of offers) {
+      const ranks = offer.options.map((o) => priorityOf(o.boon.boonTypeString, offer.room));
+      const matched = ranks.filter((r): r is NonNullable<typeof r> => r !== null);
+      for (const _hp of HP_FRACTIONS) {
+        decisions++;
+        if (matched.length === 0) continue;
+        const best = Math.min(...matched);
+        if (ranks.filter((r) => r === best).length > 1) tied++;
+      }
+    }
+    expect(decisions).toBeGreaterThanOrEqual(552);
+    // Measured 16 of 552 (2.9%). The bound is loose on purpose — the corpus
+    // grows — but it must stay an order of magnitude below "usually".
+    expect(tied / decisions).toBeLessThan(0.1);
+    expect(tied).toBeGreaterThan(0); // if this hits zero the tie-break is fully dead
   });
 });
 

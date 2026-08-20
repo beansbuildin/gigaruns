@@ -36,11 +36,11 @@
  *
  * ── CLAUDE.md RULE 8 IS NOT IN PLAY HERE ───────────────────────────────────
  *
- * Rule 8 ("always choose the lowest tier actually offered") governs
- * `enemyPathOptions` tier choice and nothing else. Its whole argument is that
- * higher tiers share an identical `lootTable` and so carry zero loot upside —
- * an argument about the enemy path. A boon pick does not touch the loot table,
- * does not choose a tier, and is not routed through `pickLowestTier()`. A
+ * Rule 8 governs `enemyPathOptions` tier choice and nothing else — as of
+ * 2026-08-20 it reads "take the HIGHEST tier offered, except the final room,
+ * and never a Perpetual" (it said "lowest" when this module was written; the
+ * reversal changes nothing here). A boon pick does not touch the loot table,
+ * does not choose a tier, and is not routed through `pickHighestTier()`. A
  * future reader who reads this module as "someone optimised away rule 8"
  * should stop here: it is a different decision about a different thing, and
  * the cost it pays is run quality, knowingly, for a measurement.

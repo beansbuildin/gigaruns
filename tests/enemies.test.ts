@@ -223,7 +223,8 @@ describe("unmodelled annotations match what the corpus actually shows, PER TIER"
 
   it("[session 11, LIVE] room 4's RISKY-tier capture carries a real activeEnemyBuff — Withering", () => {
     // No Safe tier was offered for the room-3→4 transition this session
-    // (pickLowestTier() resolved to Risky, per CLAUDE.md §8's generalized
+    // (pickLowestTier() — deleted session 57 — resolved to Risky, per the
+    // then-current CLAUDE.md §8 generalized
     // rule) — the FIRST room-4 capture at a non-Safe tier, and the first
     // time `activeEnemyBuff` has ever been non-null in this corpus. Logged
     // only, per DECISIONS 2026-08-15's rule against acting on anything but a

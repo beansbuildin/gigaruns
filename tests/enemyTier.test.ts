@@ -1,20 +1,29 @@
 /**
- * tests/enemyTier.test.ts — the Safe-tier hard rule.
+ * tests/enemyTier.test.ts — the STRICT Safe-tier selector and the plain
+ * lowest/highest accessors. The live rule (CLAUDE.md rule 8, highest tier
+ * among non-Perpetual options) is exercised in tests/enemyBuffs.test.ts,
+ * where the buff fixtures it needs already live.
  */
 
 import { describe, expect, it } from "vitest";
 
 import { SAFE_TIER } from "../src/sim/enemies.js";
-import { assertSafeTier, chooseTier, pickSafeTier, UnsafeTierError } from "../src/strategy/enemyTier.js";
+import {
+  assertSafeTier,
+  highestTierOption,
+  lowestTierOption,
+  pickSafeTier,
+  UnsafeTierError,
+} from "../src/strategy/enemyTier.js";
 
-describe("chooseTier", () => {
+describe("lowestTierOption", () => {
   it("picks the lowest tier regardless of offer order", () => {
-    expect(chooseTier([{ tier: 2 }, { tier: 0 }, { tier: 1 }])).toEqual({ tier: 0 });
-    expect(chooseTier([{ tier: 1 }, { tier: 1 }, { tier: 0 }])).toEqual({ tier: 0 });
+    expect(lowestTierOption([{ tier: 2 }, { tier: 0 }, { tier: 1 }])).toEqual({ tier: 0 });
+    expect(lowestTierOption([{ tier: 1 }, { tier: 1 }, { tier: 0 }])).toEqual({ tier: 0 });
   });
 
   it("throws on an empty offer rather than returning undefined", () => {
-    expect(() => chooseTier([])).toThrow();
+    expect(() => lowestTierOption([])).toThrow();
   });
 
   it("preserves the whole option, not just the tier", () => {
@@ -22,7 +31,23 @@ describe("chooseTier", () => {
       { tier: 2, enemyId: 64, lootTable: "x" },
       { tier: 0, enemyId: 64, lootTable: "x" },
     ];
-    expect(chooseTier(options)).toBe(options[1]);
+    expect(lowestTierOption(options)).toBe(options[1]);
+  });
+});
+
+describe("highestTierOption", () => {
+  it("picks the highest tier regardless of offer order", () => {
+    expect(highestTierOption([{ tier: 2 }, { tier: 0 }, { tier: 1 }])).toEqual({ tier: 2 });
+    expect(highestTierOption([{ tier: 1 }, { tier: 1 }, { tier: 0 }])).toEqual({ tier: 1 });
+  });
+
+  it("resolves a tie on offer order, matching lowestTierOption's reduce", () => {
+    const options = [{ tier: 2, enemyId: 64 }, { tier: 2, enemyId: 65 }];
+    expect(highestTierOption(options)).toBe(options[0]);
+  });
+
+  it("throws on an empty offer rather than returning undefined", () => {
+    expect(() => highestTierOption([])).toThrow();
   });
 });
 

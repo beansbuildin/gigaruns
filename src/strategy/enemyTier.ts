@@ -1,39 +1,62 @@
 /**
- * src/strategy/enemyTier.ts — the lowest-tier hard rule (CLAUDE.md §8,
- * DECISIONS 2026-08-16, generalized session 09). Pure; no network calls.
+ * src/strategy/enemyTier.ts — the enemy-tier hard rule (CLAUDE.md rule 8).
+ * Pure; no network calls. This is the ONE call site that may choose a tier.
  *
- * `enemyPathOptions[]`'s `lootTable` is identical across every offered
- * option in every sample captured so far (SPEC §3e) — same table, same item,
- * same weight, same amount, confirmed again live session 09 on an offer with
- * NO Safe (tier 0) option at all. Higher tiers add `rolledEnemyStats` and
- * `enemyBuff` with zero loot upside, and they are the sole source of the
- * mechanics that make a battle unscorable. There is no risk/reward tradeoff
- * to weigh among whatever is actually offered: always take the lowest tier
- * present.
+ * ── THE RULE, AS OF 2026-08-20 ─────────────────────────────────────────────
  *
- * [session 09, live] The rule was originally written as "always pick Safe"
- * because every sample through session 08 offered exactly one option per
- * tier {0, 1, 2}. Room 2's first live encounter this session broke that
- * assumption: three options, tiers {2, 1, 1} (two DIFFERENT tier-1 variants,
- * different `enemyBuff`s), no tier 0 at all. `pickSafeTier` correctly halted
- * on it (fail-closed, CLAUDE.md §5) rather than picking a non-Safe tier — a
- * genuine unhandled case, not a bug. User-confirmed: this is expected game
- * behavior, not a capture gap, and the fix is to generalize the rule rather
- * than treat the absence of tier 0 as an error. `pickLowestTier` is the
- * result: same zero-tradeoff reasoning, just no longer assuming the minimum
- * is always 0. This DOES mean the live loop will now sometimes fight a
- * contaminated (ROLLED_STATS / ENEMY_BUFF) battle when Safe isn't on offer —
- * accepted, since there is no lower-risk option available to take instead.
+ * **Take the HIGHEST tier offered — except the final room, and never a
+ * Perpetual.** User directive, replacing the lowest-tier rule that stood from
+ * session 06 to session 56. Three clauses:
  *
- * `pickSafeTier`/`assertSafeTier`/`UnsafeTierError` are kept for any caller
- * that wants the stricter "must be tier 0" assertion; the live loop's
- * default path no longer uses them.
+ *   1. **Highest tier among NON-PERPETUAL options.** Reward offers inherit the
+ *      tier of the fight just won — measured 87/87 = 100% (session 56 §4) —
+ *      so a higher-tier win unlocks better upgrade cards and a larger Hard
+ *      Core payout. Filter perpetuals FIRST, then take the max; "max, then
+ *      check perpetual" would raise a fallback question on every offer whose
+ *      top tier is perpetual, which is 35% of them.
+ *   2. **Never a `Perpetual` card as the hardest option** (user directive,
+ *      session 56). Near-inert under the old rule (4 offers of 134); fires on
+ *      **47 of 134 (35%)** under this one. Load-bearing, not a footnote.
+ *   3. **At the final room, take no modifiers** — the lowest tier offered,
+ *      preferring a card with no buff and no rolled stats. There are no
+ *      upgrades after the final boss, so the entire reason for the risk is
+ *      gone. Keyed on the SERVER's per-dungeon `maxRoom` (Forbidden Woods 16,
+ *      Void Dungeon 17), never a literal.
  *
- * This is deliberately NOT a preference scored alongside other options the
- * way `src/strategy/loot.ts` ranks boons — it is a hard rule with a guard,
- * because it is exactly the kind of thing that gets "optimised away" later by
- * someone reasoning about risk/reward in the abstract (CLAUDE.md §3, session
- * 06 brief §3).
+ * ── WHY THE OLD RULE WAS NOT WRONG ─────────────────────────────────────────
+ *
+ * The lowest-tier rule rested on `lootTable` being byte-identical across every
+ * offered tier — 440/440, still true and re-verified. But that measured the
+ * loot table IN THE ENEMY OFFER, while reward quality and orb payout are
+ * downstream of WINNING. The two claims are orthogonal; the old evidence was
+ * never evidence against this rule. It was reversed by the account owner on
+ * new evidence, and the original warning now applies in the other direction:
+ * **do not revert to lowest-tier without a new user directive.**
+ *
+ * ── THE ACCEPTED COST ──────────────────────────────────────────────────────
+ *
+ * Higher tiers carry `rolledEnemyStats` on 617 of 622 non-Safe paths, and
+ * SPEC §4e establishes those are 1–5% proc chances needing hundreds of
+ * observations. So the simulator now scores almost nothing. That was accepted
+ * knowingly (CLAUDE.md rule 8) — do not "fix" the falling coverage metrics.
+ *
+ * ── FAIL-CLOSED vs FAIL-OPEN, AND WHY THEY DIFFER BY CLAUSE ────────────────
+ *
+ * `pickHighestTier` fails CLOSED on an all-Perpetual offer (CLAUDE.md rule 8
+ * and rule 5). `pickFinalRoomTier` fails OPEN on the same shape. This is a
+ * deliberate reversal of session 56's fail-open decision for the highest-tier
+ * path, and the asymmetry is the reason:
+ *
+ *   - Choosing the HARDEST card is an act of deliberately taking on risk. If
+ *     the only way to do that is to accept a run-long perpetual buff the user
+ *     has forbidden, there is no safe reading of the directive left, and the
+ *     branch has never once executed (0 of 134 corpus offers). A never-taken
+ *     branch that quietly does the wrong thing on a 60-energy run is the worst
+ *     available outcome; it must halt loudly.
+ *   - At the FINAL room the rule is already reaching for the least dangerous
+ *     card. There is nothing safer to fall back to, and stranding the boss
+ *     room over a preference among the only options offered costs the whole
+ *     run. It takes the lowest tier and moves on.
  */
 
 import { SAFE_TIER } from "../sim/enemies.js";
@@ -42,13 +65,14 @@ import { isPerpetualBuff } from "../sim/enemyBuffs.js";
 export interface TierOption {
   tier: number;
   /**
-   * [session 56] The path's own buff, when the caller has it. Read ONLY to
-   * break a tie between options that already share the chosen tier — see
-   * `pickLowestTier`. Optional so every existing caller and test compiles
-   * unchanged and behaves identically.
+   * The path's own buff, when the caller has it. Read to apply the Perpetual
+   * clause and by `isUnmodified`. Optional so a caller that has not captured
+   * it still compiles — but note that under rule 8 an offer supplied WITHOUT
+   * buffs cannot have the Perpetual clause applied to it, so the live loop
+   * must always pass it (`scripts/liveRun.ts` does).
    */
   enemyBuff?: unknown;
-  /** [session 56] `{evasion, block, lck, tenacity}`. Read only by `isUnmodified`. */
+  /** `{evasion, block, lck, tenacity}`. Read only by `isUnmodified`. */
   rolledEnemyStats?: Record<string, number>;
 }
 
@@ -63,153 +87,167 @@ export function isUnmodified(o: TierOption): boolean {
   return Object.values(o.rolledEnemyStats ?? {}).every((v) => v === 0);
 }
 
+/** The lowest `tier` in the offer. Throws on an empty offer — no recorded offer is empty. */
+export function lowestTierOption<T extends TierOption>(options: readonly T[]): T {
+  if (options.length === 0) throw new Error("lowestTierOption() called with an empty offer");
+  return options.reduce((best, o) => (o.tier < best.tier ? o : best));
+}
+
+/** The highest `tier` in the offer, ignoring the Perpetual clause. Throws on an empty offer. */
+export function highestTierOption<T extends TierOption>(options: readonly T[]): T {
+  if (options.length === 0) throw new Error("highestTierOption() called with an empty offer");
+  return options.reduce((best, o) => (o.tier > best.tier ? o : best));
+}
+
+/**
+ * Every option in the offer carries a `perpetual_` buff, so rule 8's
+ * "highest tier among non-Perpetual options" has nothing to select. Halts the
+ * run (CLAUDE.md rule 5) rather than taking a card the user forbade.
+ *
+ * **This branch has never executed.** 0 of 134 corpus offers are entirely
+ * perpetual. It exists because a branch that has never run and quietly does
+ * the wrong thing is worse than one that stops.
+ */
+export class PerpetualOnlyOfferError extends Error {
+  constructor(public readonly tiers: readonly number[]) {
+    super(
+      `Hard rule violated: every option in this enemy offer carries a "perpetual_" buff ` +
+        `(tiers ${JSON.stringify(tiers)}), so CLAUDE.md rule 8's "highest tier among non-Perpetual ` +
+        `options" has nothing to choose. 0 of 134 corpus offers had this shape. Halting rather than ` +
+        `taking a Perpetual card the user directive forbids.`,
+    );
+    this.name = "PerpetualOnlyOfferError";
+  }
+}
+
+/**
+ * **The live rule for every room but the last.** Filters Perpetual options
+ * out FIRST, then takes the maximum tier among what remains. Ties at that tier
+ * resolve on offer order, which keeps the decision reproducible.
+ *
+ * Throws `PerpetualOnlyOfferError` when nothing survives the filter, and a
+ * plain `Error` on an empty offer.
+ */
+export function pickHighestTier<T extends TierOption>(options: readonly T[]): T {
+  if (options.length === 0) throw new Error("pickHighestTier() called with an empty offer");
+  const eligible = options.filter((o) => !isPerpetualBuff(o.enemyBuff));
+  if (eligible.length === 0) throw new PerpetualOnlyOfferError(options.map((o) => o.tier));
+  const top = highestTierOption(eligible).tier;
+  return eligible.find((o) => o.tier === top)!;
+}
+
+/**
+ * The lowest tier on offer, preferring a non-Perpetual card among equals.
+ * Used only as `pickFinalRoomTier`'s fallback — see the header on why that
+ * path fails OPEN where `pickHighestTier` fails closed.
+ */
+export function pickLowestNonPerpetualTier<T extends TierOption>(options: readonly T[]): T {
+  const chosen = lowestTierOption(options);
+  if (!isPerpetualBuff(chosen.enemyBuff)) return chosen;
+  const alternative = options.find((o) => o.tier === chosen.tier && !isPerpetualBuff(o.enemyBuff));
+  return alternative ?? chosen;
+}
+
 /**
  * **[USER DIRECTIVE, 2026-08-20]** "At room 16 (floor 4, room 4) always take
  * no-modifiers, because there are no upgrades after the final boss."
  *
- * ── THE INDEX SCHEME, CHECKED BEFORE ENCODING (brief §5 asked for this) ────
+ * ── THE INDEX SCHEME, CHECKED BEFORE ENCODING ──────────────────────────────
  *
- * The brief warned that "room 16 = floor 4 room 4" implies a flat index over
- * four floors of four rooms and that the mapping was unverified. Checked:
- *
- *   - There is **no `floor` field anywhere in the corpus.** Nothing to cross-
- *     check a two-part index against, and nothing that needs one.
- *   - The server DOES publish the room count directly: `dungeon-today`'s
- *     container carries **`maxRoom`**, and for Forbidden Woods (ID_CID 5) it
- *     is **16** — the user's number exactly, from the server rather than
- *     inferred. `config/discovered.json` already records it.
- *   - It is PER DUNGEON, so 16 must never be hard-coded: Void Dungeon's
- *     `maxRoom` is 17. The caller passes the configured value.
- *   - Battle state carries a flat `ROOM_NUM_CID` (1..10 observed), consistent
- *     with a flat 1..`maxRoom` index. 4 x 4 = 16 is consistent with it, but
- *     nothing depends on the floor decomposition being true.
+ *   - There is **no `floor` field anywhere in the corpus**, so "floor 4 room
+ *     4" cannot be cross-checked — and does not need to be.
+ *   - The server publishes the room count directly: `dungeon-today`'s
+ *     container carries **`maxRoom`**, and Forbidden Woods (ID_CID 5)
+ *     publishes **16**, the user's number exactly.
+ *   - It is PER DUNGEON (Void Dungeon publishes 17), so the caller passes it.
+ *   - **[session 57] Verified against a live response**, not just the corpus:
+ *     `scripts/checkMaxRoom.ts` reads it from `dungeon-today` and diffs it
+ *     against `config/discovered.json`. Live on 2026-08-19 23:2x PT: Forbidden
+ *     Woods 16, Void Dungeon 17, Dungetron 16, Underhaul 16 — matching. Re-run
+ *     that script before trusting this path if anything looks off; the corpus
+ *     has never reached room 16, so it still has zero live exercise.
  *
  * ── FAILURE DIRECTION, DELIBERATELY ASYMMETRIC ─────────────────────────────
  *
  * Taking no-modifiers at the wrong room costs a little reward. Taking the
  * hardest card at the ACTUAL final room costs the boss fight. So the test is
- * `room >= maxRoom`, not `room === maxRoom`: if the index ever runs past the
- * configured count, this stays on rather than silently switching off at the
- * one room it exists to protect.
+ * `room >= maxRoom`, not `room === maxRoom` (see `pickTierForRoom`), and an
+ * UNREADABLE room or `maxRoom` resolves to this function rather than to
+ * `pickHighestTier`.
  *
- * ── THIS IS INERT TODAY, AND THAT IS CORRECT ───────────────────────────────
- *
- * Under CLAUDE.md rule 8 the bot already takes the lowest tier everywhere, so
- * at the final room this can only differ from `pickLowestTier` by preferring an
- * unmodified card among options that already share the lowest tier. It is
- * encoded now as cheap insurance and as the hook a rule-8 reversal needs.
- * **Nothing is gated on it** (CLAUDE.md rule 6): the corpus has never seen
- * room 16 — the deepest run ever is room 10 (session 53) — so it cannot be
- * tested live and will not fire for a long time.
+ * This never raises a tier to find a clean card: it starts from the lowest
+ * tier on offer and only chooses among cards already at it.
  */
 export function pickFinalRoomTier<T extends TierOption>(options: readonly T[]): T {
   if (options.length === 0) throw new Error("pickFinalRoomTier() called with an empty offer");
-  const lowest = chooseTier(options).tier;
+  const lowest = lowestTierOption(options).tier;
   const clean = options.filter((o) => o.tier === lowest && isUnmodified(o));
   if (clean.length > 0) return clean[0]!;
-  // No unmodified card at the lowest tier. Widen to an unmodified card at ANY
-  // tier ONLY if it is not higher than the lowest — which it cannot be — so in
-  // practice this falls through to the ordinary rule. Stated as a fallthrough
-  // rather than a search so it can never promote a tier to find a clean card.
-  return pickLowestTier(options);
+  // No unmodified card at the lowest tier. Stated as a fallthrough rather than
+  // a search so it can never promote a tier to find a clean one.
+  return pickLowestNonPerpetualTier(options);
+}
+
+/** Which clause of rule 8 governs this room. Exported so the caller can LOG the reason. */
+export type TierRule = "highest" | "final-room" | "final-room-unreadable";
+
+/**
+ * Resolves which clause applies. `room` or `maxRoom` being absent, non-finite,
+ * or non-positive resolves to the final-room clause — the conservative
+ * direction, per the asymmetry above.
+ *
+ * **`final-room-unreadable` is reported separately on purpose.** Session 56
+ * found `ROOM_NUM_CID` lives on `data.entity`, NOT `data.entity.data`, where
+ * it reads `undefined` silently; `scripts/liveRun.ts` defaults it to 0. If
+ * that field ever moves again, every room would take the final-room clause and
+ * the flip would be silently inert — indistinguishable from "the rule is on
+ * and the offers were all like that". The caller logs this label loudly.
+ */
+export function tierRuleFor(room: number | null | undefined, maxRoom: number | null | undefined): TierRule {
+  const roomOk = typeof room === "number" && Number.isFinite(room) && room >= 1;
+  const maxOk = typeof maxRoom === "number" && Number.isFinite(maxRoom) && maxRoom >= 1;
+  if (!roomOk || !maxOk) return "final-room-unreadable";
+  return room >= maxRoom ? "final-room" : "highest";
 }
 
 /**
- * The tier choice for a room, applying the final-room exception when the room
- * is the dungeon's last. `maxRoom` comes from `config/discovered.json`'s
- * `forbiddenWoods.maxRoom` (server-published), never a literal.
+ * The tier choice for a room. `maxRoom` comes from the server-published
+ * `config/discovered.json` `forbiddenWoods.maxRoom`, never a literal.
  */
 export function pickTierForRoom<T extends TierOption>(
   options: readonly T[],
-  room: number,
-  maxRoom: number,
+  room: number | null | undefined,
+  maxRoom: number | null | undefined,
 ): T {
-  return room >= maxRoom ? pickFinalRoomTier(options) : pickLowestTier(options);
-}
-
-/** Picks the lowest `tier` in the offer. Throws on an empty offer — no recorded offer is empty. */
-export function chooseTier<T extends TierOption>(options: readonly T[]): T {
-  if (options.length === 0) throw new Error("chooseTier() called with an empty offer");
-  return options.reduce((lowest, o) => (o.tier < lowest.tier ? o : lowest));
+  return tierRuleFor(room, maxRoom) === "highest" ? pickHighestTier(options) : pickFinalRoomTier(options);
 }
 
 export class UnsafeTierError extends Error {
   constructor(public readonly tier: number) {
     super(
-      `Hard rule violated: picked enemy tier ${tier}, expected Safe tier ${SAFE_TIER} ` +
-        `(CLAUDE.md, DECISIONS 2026-08-16). Halting rather than proceeding on a bad pick.`,
+      `Picked enemy tier ${tier}, expected Safe tier ${SAFE_TIER}. Halting rather than ` +
+        `proceeding on a bad pick.`,
     );
     this.name = "UnsafeTierError";
   }
 }
 
-/** Fails closed (CLAUDE.md §5) rather than proceeding on an unexpected tier. */
+/** Fails closed (CLAUDE.md rule 5) rather than proceeding on an unexpected tier. */
 export function assertSafeTier(tier: number): void {
   if (tier !== SAFE_TIER) throw new UnsafeTierError(tier);
 }
 
 /**
  * Chooses AND verifies the choice is exactly Safe (tier 0) — the STRICT
- * variant. Throws `UnsafeTierError` whenever tier 0 isn't offered, even
- * though that's now a known, expected shape of the offer rather than a
- * surprise (session 09). Kept for a caller that specifically wants "never
- * fight anything but Safe, halt otherwise"; the live loop uses
- * `pickLowestTier` instead.
+ * variant from session 07, kept for a caller that specifically wants "never
+ * fight anything but Safe, halt otherwise". **No live path uses it**, and
+ * under rule 8 as of 2026-08-20 none should: it is the exact opposite of the
+ * standing directive. Retained because it and `UnsafeTierError` are cited
+ * across SPEC.md, DECISIONS.md and the session logs, and deleting them would
+ * make that history unreadable.
  */
 export function pickSafeTier<T extends TierOption>(options: readonly T[]): T {
-  const chosen = chooseTier(options);
+  const chosen = lowestTierOption(options);
   assertSafeTier(chosen.tier);
   return chosen;
-}
-
-/**
- * Chooses the lowest tier actually on offer, Safe or not — the generalized
- * rule (session 09) and the one call site Task 6's orchestrator should use.
- * Never asserts tier === SAFE_TIER; a caller that needs to know whether Safe
- * was available can check `chosen.tier === SAFE_TIER` itself (liveRun.ts
- * logs this for visibility). Throws only on an empty offer, same as
- * `chooseTier` — that would be a genuinely new kind of surprise, not this
- * one.
- */
-export function pickLowestTier<T extends TierOption>(options: readonly T[]): T {
-  const chosen = chooseTier(options);
-  return preferNonPerpetual(options, chosen);
-}
-
-/**
- * **[USER DIRECTIVE, 2026-08-20]** "If the red/hardest/highest-risk enemy card
- * contains the condition `Perpetual`, do NOT select that — go with the next
- * best option based on existing criteria."
- *
- * Applied here as a strict TIE-BREAK: among the options that already share the
- * tier `chooseTier` selected, one without a `perpetual_` buff is preferred.
- *
- * **This cannot change which tier is fought, and that is the point.** CLAUDE.md
- * rule 8 is in force and untouched — `chooseTier` still returns the minimum
- * tier on offer, and this only reorders equals. A perpetual buff on a HIGHER
- * tier is already unreachable under rule 8, so today the directive can only
- * bite in the case where every option shares one tier, which `chooseTier`
- * previously resolved on array order alone.
- *
- * Measured on the corpus (134 distinct enemy offers, `scripts/enemyBuffAudit.ts`):
- *
- *   - 47 offers (35%) put a `perpetual_` buff on the highest tier — so after a
- *     rule-8 reversal this directive would fire on about a third of rooms. It
- *     is a substantial carve-out, not an edge case.
- *   - 4 offers have EVERY option at one tier with a perpetual among them —
- *     the only shape that reaches this code under rule 8 — and all 4 have a
- *     non-perpetual alternative at that same tier.
- *   - **0 offers are entirely perpetual**, so a fallback has always existed.
- *
- * If one ever is entirely perpetual, this keeps `chooseTier`'s pick rather
- * than halting. Fail-OPEN is right for a tie-break and only for a tie-break:
- * there is no lower-risk option to take instead, and stranding a 60-energy
- * run mid-combat for a preference among equals would cost far more than it
- * saves — the same reasoning session 09 used to generalize `pickSafeTier` into
- * `pickLowestTier`. The tier rule itself still fails closed.
- */
-function preferNonPerpetual<T extends TierOption>(options: readonly T[], chosen: T): T {
-  if (!isPerpetualBuff(chosen.enemyBuff)) return chosen;
-  const alternative = options.find((o) => o.tier === chosen.tier && !isPerpetualBuff(o.enemyBuff));
-  return alternative ?? chosen;
 }

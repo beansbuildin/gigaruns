@@ -749,6 +749,38 @@ is kept for a caller that wants it, but the live loop no longer uses it by
 default. User-confirmed live: this is expected game behavior, not a capture
 gap or a bug in the halt that caught it.
 
+**[2026-08-20, session 57] THE TIER RULE IS REVERSED — take the HIGHEST tier
+offered, not the lowest.** User directive; CLAUDE.md rule 8 carries the full
+text and the evidence. Everything above this paragraph remains factually true
+(`lootTable` IS byte-identical across offered tiers, 440/440, re-verified) and
+is no longer the rule, because the two claims are ORTHOGONAL: `lootTable`
+identity was measured IN THE ENEMY OFFER, while reward quality and Hard Core
+payout are downstream of WINNING — reward offers inherit the tier of the fight
+just won, measured 87/87 = 100% (session 56 §4).
+
+The live selector is `src/strategy/enemyTier.ts`'s **`pickHighestTier()`**;
+`pickLowestTier()` NO LONGER EXISTS (renamed away deliberately — a function
+called `pickLowestTier` that picks the highest is a trap for the next reader).
+`chooseTier()` is now `lowestTierOption()`, with a `highestTierOption()`
+sibling. Two exceptions, both in that module:
+
+  - **Never a `Perpetual` card.** Perpetual options are filtered out FIRST and
+    the max is taken among what remains, so the clause now LOWERS the tier
+    rather than breaking a within-tier tie — session 56 measured 47 of 134
+    offers (35%) with a perpetual on the top tier. An offer that is ENTIRELY
+    perpetual throws `PerpetualOnlyOfferError` and halts the run; 0 of 134
+    corpus offers have that shape.
+  - **The final room takes no modifiers** (`pickFinalRoomTier`), keyed on the
+    server's per-dungeon `maxRoom` — Forbidden Woods 16, Void Dungeon 17,
+    **verified live 2026-08-19 by `scripts/checkMaxRoom.ts`**. An unreadable
+    room or `maxRoom` resolves to this conservative branch, labelled
+    `final-room-unreadable` so it cannot make the flip silently inert.
+
+`pickSafeTier()`/`assertSafeTier()`/`UnsafeTierError` survive but no live path
+uses them, and under this rule none should — they are the exact opposite of
+the standing directive, kept because SPEC, DECISIONS and the session logs cite
+them by name.
+
 **[2026-08-15, session 09, LIVE] `rewardPathOptions[]` can also carry
 `tier`/`tierName`.** Observed once, immediately following the non-Safe pick
 above: all three of that room's reward options were tagged `"tier": 1,
@@ -825,7 +857,16 @@ run-2026-08-15-15-38-09/state-{054,079,110}.json`:
 - **Hard Core** (the leaderboard-scored currency, item **845**) is credited on
   a `"Reward chosen"` response — `state-054`: `[{"id": 845, "amount": 56, ...}]`.
   Confirms the session-08 `gigusOrbItemId`/`gigusOrbAmount` hypothesis
-  directly.
+  directly. **[session 57] `gigusOrbAmount` is carried PER REWARD OPTION and
+  differs across the three options in 136 of 138 recorded offers** (mean spread
+  6.22 orbs), so choosing a boon also chooses a Hard Core payout. Read since
+  session 57 by `src/strategy/boonPriority.ts` as a tie-break WITHIN one
+  priority rank and nowhere else, per the user's directive. Measured worth of
+  that narrow reading: **+16 orbs over 552 decisions (+0.029/decision), pick
+  changed on 0.7%** — the rank ties on only 2.9% of decisions. A wider reading
+  (orbs decide whenever no priority family matches) is worth +1000 orbs
+  (+1.81/decision, 35.5% of picks changed) and was deliberately NOT shipped;
+  `scripts/orbTieBreakReport.ts` prints all three policies.
 - The user's **"Dendren Root"** is wire item **846**, static-item `NAME_CID`
   **"Dendren Remnant"** (`GET /offchain/static`'s `gameItems[]`, `docId
   "846"`) — credited on a `"Move Used"` response landing a kill:

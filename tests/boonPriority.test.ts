@@ -199,6 +199,73 @@ describe("the decision object", () => {
   });
 });
 
+describe("the Hard Core orb tie-break (user directive, 2026-08-20 — session 57)", () => {
+  const sword = [opt("AddBurnSword"), opt("UpgradeRock")]; // both priority 4
+
+  it("takes the richer option when two tie at the same priority rank", () => {
+    const d = choosePriorityBoon({ player: player(), offered: sword, room: 2, orbs: [16, 23] })!;
+    expect(d.priority).toBe(4);
+    expect(d.index).toBe(1);
+    expect(d.orbTieBreak).toBe(true);
+    expect(d.orbs).toBe(23);
+    expect(d.reason).toContain("Hard Core payout 23 narrowed it");
+  });
+
+  it("NEVER overrides a higher-priority boon, however large the payout", () => {
+    // The whole directive in one assertion: priority 2 with 1 orb beats
+    // priority 4 with 99. Orbs are a tie-break and nothing else.
+    const offered = [opt("AddMaxArmor"), opt("AddBurnSword")];
+    const d = choosePriorityBoon({ player: player(), offered, room: 2, orbs: [1, 99] })!;
+    expect(d.priority).toBe(2);
+    expect(d.index).toBe(0);
+    expect(d.orbTieBreak).toBe(false);
+  });
+
+  it("does NOT fire when no option matches a priority family — the narrow reading, deliberately", () => {
+    // Every option here is unranked, so a WIDER reading would let orbs decide.
+    // Session 57 measured that wider reading at +1.81 orbs/decision against
+    // the shipped +0.029 — 62x — and did not ship it, because the directive
+    // authorises a tie-break WITHIN a rank and nothing more. If this test is
+    // ever changed, it should be because a new user directive widened the rule.
+    const offered = [opt("AddEvasion"), opt("AddTenacity")];
+    expect(choosePriorityBoon({ player: player(), offered, room: 2, orbs: [1, 99] })).toBeNull();
+    const picked = pickBoonWithPriority(player(), offered, 2, DEFAULT_BOON_PRIORITY, {}, [1, 99]);
+    const ranked = pickBoonWithPriority(player(), offered, 2);
+    expect(picked.type).toBe(ranked.type);
+  });
+
+  it("refuses to fire on a PARTIAL capture rather than read an absent payout as zero", () => {
+    // The failure this guards: option 0 has no recorded payout, option 1 pays
+    // 5. Treating the absence as 0 would hand the pick to option 1 on no
+    // evidence at all — a silent wrong answer in the direction the field was
+    // added to improve.
+    const d = choosePriorityBoon({ player: player(), offered: sword, room: 2, orbs: [undefined, 5] })!;
+    expect(d.orbTieBreak).toBe(false);
+    expect(d.reason).toContain("rankBoons broke the tie");
+  });
+
+  it("leaves rankBoons in charge when the tied options pay the SAME", () => {
+    const d = choosePriorityBoon({ player: player(), offered: sword, room: 2, orbs: [20, 20] })!;
+    expect(d.orbTieBreak).toBe(false);
+    expect(d.reason).toContain("rankBoons broke the tie");
+  });
+
+  it("is inert when no payouts are supplied at all — every historical caller", () => {
+    const withOut = choosePriorityBoon({ player: player(), offered: sword, room: 2 })!;
+    expect(withOut.orbTieBreak).toBe(false);
+    expect(withOut.orbs).toBeNull();
+  });
+
+  it("still hands three-way ties to rankBoons once orbs narrow them to two", () => {
+    const offered = [opt("AddBurnSword"), opt("UpgradeRock"), opt("AddWeakSword")];
+    const d = choosePriorityBoon({ player: player(), offered, room: 2, orbs: [23, 23, 9] })!;
+    expect(d.orbTieBreak).toBe(true);
+    expect(d.orbs).toBe(23);
+    expect(d.index).toBeLessThan(2);
+    expect(d.reason).toContain("rankBoons broke the tie");
+  });
+});
+
 describe("against the corpus", () => {
   it("never returns an option that was not in the offer, on any captured offer at any HP", () => {
     for (const offer of OBSERVED_OFFERS) {

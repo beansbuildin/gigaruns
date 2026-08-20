@@ -119,6 +119,36 @@ AddLifestealShield (5, room 1). Modelling any of those needs a pickup PAIR,
 which is capture, not code — the same conclusion this task reached in 2026-08-15
 and the reason it is retired rather than open.
 
+**[2026-08-20, session 57] The gate is now retired TWICE OVER, and the second
+reason is permanent: CLAUDE.md rule 8 flipped to the HIGHEST enemy tier, so
+`deepestScorableRoom` and battle coverage will FALL and STAY FALLEN.** Of the
+622 non-Safe paths ever offered, 617 (99.2%) carry `rolledEnemyStats`, and
+SPEC §4e establishes those are 1–5% proc chances needing hundreds of
+observations the corpus does not have. The simulator therefore scores almost
+nothing about the policy the bot now plays — this is the accepted cost recorded
+in rule 8 itself, not a regression and not a capture gap another session
+closes. Session 56 measured the ceiling directly: modelling every one of the 46
+enemy buffs freed **zero** exchanges, because `ROLLED_STATS` co-occurs on every
+one it cleared.
+
+Two consequences a future reader needs, stated here rather than re-derived:
+
+  1. **`src/sim/dungeonSim.ts` still fights SAFE tier by default and that is
+     deliberate.** Raising it would not close the gap — it would only make the
+     sim refuse to score. Every number the simulator now prints describes
+     Safe-tier play, which is a lower bound on difficulty and no longer the
+     policy. The default's doc comment says so.
+  2. **Offline gating of DUNGEON strategy is largely over** (session-57 brief
+     §4). The sim was already scoring 64/1107 exchanges (5.8%) and could not
+     separate two boon policies at n=2000. From here a dungeon strategy change
+     is justified by being a user directive or by being mechanically obviously
+     correct — reading a field the bot ignored, fixing a double-count — and
+     validated by live outcome over many runs, which at rule 11's four juiced
+     runs/day is weeks. **Anything claiming an offline gate must name the arm
+     that separated and at what n, or admit it did not.** Fishing is now the
+     only place in this project where an offline gate still means something:
+     88 clean traces, paired and bootstrapped, and it still separates arms.
+
 ---
 
 ### 5 — Dungeon strategy
@@ -242,8 +272,9 @@ zero clean-model failures — but "no guard trips" did NOT hold, and the trips
 were real findings, not noise.** Two genuine live surprises before the first
 run even finished: `enemyPathOptions[]` is not guaranteed to include a Safe
 (tier 0) option (user-confirmed expected behavior — `pickLowestTier()`
-replaces the old strict Safe-only rule, see DECISIONS 2026-08-15 and CLAUDE.md
-§8), and a stranded run at room 2 (HP 2/32) exposed a real ordering bug —
+replaced the old strict Safe-only rule, see DECISIONS 2026-08-15 and CLAUDE.md
+§8; **`pickLowestTier` no longer exists — rule 8 flipped on 2026-08-20 and the
+live selector is now `pickHighestTier`**, session 57), and a stranded run at room 2 (HP 2/32) exposed a real ordering bug —
 `assertCanStartRun` ran unconditionally before checking whether a run already
 existed, so resuming a run could be blocked by the session cap meant only for
 NEW starts. Both fixed with regression tests, not worked around live.

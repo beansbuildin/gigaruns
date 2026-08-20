@@ -399,7 +399,8 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
     tier: RISKY_TIER,
     // [session 53, LIVE] First-ever room-9 capture. NOT clean, and the reason
     // matters: room 9 offered tiers [1,1,1] — no Safe at all — so
-    // `pickLowestTier()` took a Risky with `bloodthirsty` (+4 ATK on all
+    // `pickLowestTier()` (deleted session 57; see enemyTier.ts) took a
+    // Risky with `bloodthirsty` (+4 ATK on all
     // moves) and non-zero rolled stats (evasion 3, block 1, lck 2, tenacity
     // 2). This is CLAUDE.md §8's generalized rule doing exactly what session
     // 09 added it for; the STRICT `pickSafeTier()` would have halted a

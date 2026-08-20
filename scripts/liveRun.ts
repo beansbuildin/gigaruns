@@ -77,7 +77,7 @@ import {
   DEFAULT_OPPONENT_MODEL_PATH,
 } from "../src/orchestrator/opponentModelPersistence.js";
 import { loadPlayCounts, savePlayCounts, deletePlayCounts, DEFAULT_PLAY_COUNTS_PATH } from "../src/orchestrator/playCountsPersistence.js";
-import { pickTierForRoom } from "../src/strategy/enemyTier.js";
+import { PerpetualOnlyOfferError, pickTierForRoom, tierRuleFor } from "../src/strategy/enemyTier.js";
 import { isPerpetualBuff } from "../src/sim/enemyBuffs.js";
 import { MAX_ROOM, SAFE_TIER } from "../src/sim/enemies.js";
 import { pickBoon } from "../src/strategy/loot.js";
@@ -293,25 +293,42 @@ export function locateRewardOption(run: WireRun, chosen: BoonOption): number | n
   return i === -1 ? null : i;
 }
 
+/** The shape `enemyPathOptions[]` is read at, live. `enemyBuff` is required by rule 8's Perpetual clause. */
+export interface EnemyPathOption {
+  tier: number;
+  index: number;
+  enemyBuff?: unknown;
+  rolledEnemyStats?: Record<string, number>;
+}
+
 /**
- * [session 09] Re-locates the intended tier option by identity — "whichever
- * position currently holds the LOWEST tier offered" — rather than trusting
- * the array position captured at decision time. Under the generalized
- * lowest-tier rule (CLAUDE.md §8, `pickLowestTier`) this is dynamic by
- * design: the rule doesn't target a specific tier number, it targets
- * "whatever's lowest right now," so re-deriving from fresh state on every
- * retry attempt is exactly correct, not an approximation. Returns `null`
- * only on a genuinely empty offer, which halts the run rather than guessing.
+ * [session 09; re-pointed at rule 8's new direction in session 57] Re-locates
+ * the intended tier option by identity — "whichever position the tier rule
+ * picks out of the offer as it stands RIGHT NOW" — rather than trusting the
+ * array position captured at decision time. The rule doesn't target a specific
+ * tier number, so re-deriving from fresh state on every retry attempt is
+ * exactly correct, not an approximation.
+ *
+ * **This must route through `pickTierForRoom`, not re-implement it.** Before
+ * session 57 it held its own inline "lowest tier" scan, which was equivalent
+ * to the rule at the time. Under rule 8 it would not be: an inline max-tier
+ * scan would skip the Perpetual filter and the final-room exception, so a
+ * retry could land on a card the decision path had deliberately refused.
+ * `room`/`maxRoom` are threaded through for the same reason.
+ *
+ * Returns `null` only on a genuinely empty offer, which halts the run rather
+ * than guessing. `PerpetualOnlyOfferError` propagates — an offer that turned
+ * all-perpetual between attempts is a new surprise and fails closed.
  */
-export function locateLowestTierOption(run: WireRun): number | null {
-  const r = run as WireRun & { enemyPathOptions?: Array<{ tier: number; index: number }> };
+export function locateChosenTierOption(
+  run: WireRun,
+  room: number | null | undefined,
+  maxRoom: number | null | undefined,
+): number | null {
+  const r = run as WireRun & { enemyPathOptions?: EnemyPathOption[] };
   const options = r.enemyPathOptions ?? [];
   if (options.length === 0) return null;
-  let bestIdx = 0;
-  for (let i = 1; i < options.length; i++) {
-    if (options[i]!.tier < options[bestIdx]!.tier) bestIdx = i;
-  }
-  return bestIdx;
+  return options.indexOf(pickTierForRoom(options, room, maxRoom));
 }
 
 export function buildEnvelope(
@@ -1051,7 +1068,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
 
     const run = state.data.run as unknown as WireRun;
     const roomNum = (state.data.entity as { ROOM_NUM_CID?: number } | undefined)?.ROOM_NUM_CID ?? 0;
-    const maxRoom = deps.maxRoom ?? MAX_ROOM;
+    // [session 57] Server-published, via config/discovered.json's
+    // `forbiddenWoods.maxRoom` — verified live by scripts/checkMaxRoom.ts.
+    // `MAX_ROOM` remains only as the last-resort literal for a caller that
+    // built a config without it; rule 8's final-room clause is keyed on the
+    // SERVER's number, and it is PER DUNGEON (Void Dungeon publishes 17).
+    const maxRoom = deps.maxRoom ?? config.maxRoom ?? MAX_ROOM;
     const phase = classifyPhase(run);
 
     // [session 35, CODEXIMPROVE #5] First time this run's real identity is
@@ -1213,56 +1235,75 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     }
 
     if (phase === "enemyPath") {
-      // `enemyBuff` is read here ONLY so `pickLowestTier` can apply the user's
-      // 2026-08-20 perpetual tie-break among options that already share the
-      // chosen tier. It cannot change which tier is fought — see enemyTier.ts.
-      const r = run as WireRun & {
-        enemyPathOptions?: Array<{
-          tier: number;
-          index: number;
-          enemyBuff?: unknown;
-          rolledEnemyStats?: Record<string, number>;
-        }>;
-      };
+      // `enemyBuff` is REQUIRED here, not decorative: rule 8 takes the highest
+      // tier among NON-PERPETUAL options, so an offer read without it would
+      // silently take a card the user directive forbids. See enemyTier.ts.
+      const r = run as WireRun & { enemyPathOptions?: EnemyPathOption[] };
       const options = r.enemyPathOptions ?? [];
-      let chosen: { tier: number; index: number; enemyBuff?: unknown; rolledEnemyStats?: Record<string, number> };
+      const rule = tierRuleFor(roomNum, maxRoom);
+      let chosen: EnemyPathOption;
       try {
-        // `pickTierForRoom` is `pickLowestTier` everywhere except the dungeon's
-        // final room, where the user's 2026-08-20 no-modifiers exception
-        // applies. Under rule 8 that exception can only prefer a cleaner card
-        // among options ALREADY at the lowest tier — it never raises a tier.
+        // [session 57] Rule 8 as of 2026-08-20: HIGHEST tier among
+        // non-Perpetual options, except at the dungeon's final room, where the
+        // no-modifiers exception takes the lowest instead. An empty offer, or
+        // an offer that is entirely perpetual, throws — both fail closed.
         chosen = pickTierForRoom(options, roomNum, maxRoom);
       } catch (e) {
-        // Only an empty offer throws here now (see enemyTier.ts) — a
-        // genuinely new kind of surprise, unlike "no Safe tier" (session 09,
-        // no longer treated as an error — see below).
-        log.write({ event: "empty_enemy_path_options", error: (e as Error).message, options });
+        const event =
+          e instanceof PerpetualOnlyOfferError ? "all_perpetual_enemy_path_options" : "empty_enemy_path_options";
+        log.write({ event, error: (e as Error).message, options });
         console.log(`  ✗ ${(e as Error).message}`);
         throw e;
       }
       const safeOffered = options.some((o) => o.tier === SAFE_TIER);
       const posn = options.indexOf(chosen); // array position — what selectEnemyPathByIndex needs, NOT the wire's own .index field
-      console.log(
-        `  ▸ enemy path: choosing lowest offered tier ${chosen.tier}${chosen.tier === SAFE_TIER ? " (Safe)" : " — NOT Safe, none was offered (session-09: expected, not a bug)"}`,
+      const topTierOffered = Math.max(...options.map((o) => o.tier));
+      if (rule === "highest") {
+        console.log(
+          `  ▸ enemy path: rule 8 — taking the HIGHEST offered tier ${chosen.tier} of ${topTierOffered}` +
+            `${chosen.tier === SAFE_TIER ? " (Safe — it was the only tier offered)" : ""}`,
+        );
+      } else if (rule === "final-room") {
+        console.log(
+          `  ▸ enemy path: FINAL ROOM (room ${roomNum} of maxRoom ${maxRoom}) — rule 8's no-modifiers ` +
+            `exception, taking tier ${chosen.tier} of ${topTierOffered}. No upgrades follow the boss.`,
+        );
+      } else {
+        // Loud on purpose: this is the shape in which the flip goes silently
+        // inert. See tierRuleFor's doc comment.
+        console.log(
+          `  ⚠ enemy path: room (${roomNum}) or maxRoom (${maxRoom}) UNREADABLE — falling back to the ` +
+            `conservative no-modifiers rule and taking tier ${chosen.tier} of ${topTierOffered}. ` +
+            `If this repeats every room, rule 8's highest-tier clause is NOT firing — check ROOM_NUM_CID.`,
+        );
+      }
+      // [session 57] The Perpetual clause now CHANGES THE TIER rather than
+      // breaking a within-tier tie, so it is reported against the tier it cost.
+      // Session 56 measured this shape at 47 of 134 offers (35%).
+      const perpetualCostATier = rule === "highest" && chosen.tier < topTierOffered;
+      const perpetualAvoided = options.some(
+        (o) => o.tier === chosen.tier && isPerpetualBuff(o.enemyBuff) && options.indexOf(o) < posn,
       );
-      // The user's perpetual directive fired iff the FIRST option at the chosen
-      // tier carried a perpetual buff and the one actually taken does not.
-      const firstAtTier = options.find((o) => o.tier === chosen.tier);
-      const perpetualAvoided = Boolean(
-        firstAtTier && isPerpetualBuff(firstAtTier.enemyBuff) && !isPerpetualBuff(chosen.enemyBuff),
-      );
-      if (perpetualAvoided) {
+      if (perpetualCostATier) {
+        console.log(
+          `  ▸ perpetual filtered (user directive 2026-08-20): every option at tier ${topTierOffered} ` +
+            `carried a "perpetual_" buff, so the highest ELIGIBLE tier is ${chosen.tier}.`,
+        );
+      } else if (perpetualAvoided) {
         console.log(
           `  ▸ perpetual avoided (user directive 2026-08-20): skipped a "perpetual_" card at the ` +
-            `same tier ${chosen.tier} in favour of the next option. Tier unchanged — rule 8 intact.`,
+            `same tier ${chosen.tier} in favour of a clean one. Tier unchanged.`,
         );
       }
       log.write({
         event: "tier_choice",
+        rule,
         chosen,
         position: posn,
         options,
         safeOffered,
+        topTierOffered,
+        perpetualCostATier,
         perpetualAvoided,
         perpetualOffered: options.some((o) => isPerpetualBuff(o.enemyBuff)),
       });
@@ -1271,9 +1312,9 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         console.log(`  [dry-run] would POST ${selectEnemyPathByIndex(posn)} (data.index 0 — see buildPathSelectionEnvelope)`);
         return;
       }
-      // Index is re-derived by identity — "whichever position currently
-      // holds the lowest tier" — on every attempt, including this first
-      // one, never resent from `posn` captured above, per
+      // Index is re-derived by identity — "whichever position the tier rule
+      // picks right now" — on every attempt, including this first one, never
+      // resent from `posn` captured above, per
       // postWithVerifiedRetry's doc comment (session-09 brief §1). data.index
       // in the POST body is 0 regardless of position — confirmed live, see
       // buildPathSelectionEnvelope.
@@ -1282,7 +1323,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         guards,
         log,
         run,
-        (freshRun) => locateLowestTierOption(freshRun),
+        (freshRun) => locateChosenTierOption(freshRun, roomNum, maxRoom),
         (index) => buildPathSelectionEnvelope(selectEnemyPathByIndex(index), 0),
         (freshRun) => classifyPhase(freshRun) === "enemyPath",
         "enemy path selection rejected",
@@ -1294,7 +1335,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
 
     if (phase === "rewardPath") {
       const r = run as WireRun & {
-        rewardPathOptions?: Array<{ index: number; boon: WireBoon }>;
+        rewardPathOptions?: Array<{ index: number; boon: WireBoon; gigusOrbAmount?: number }>;
       };
       const options = r.rewardPathOptions ?? [];
       const player = toCombatant(meWire);
@@ -1311,6 +1352,11 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       // boonPriority.ts's header). `null` means the offer held nothing on the
       // list and the ranked pick stands unchanged.
       const priorityConfig = deps.boonPriority === null ? null : (deps.boonPriority ?? DEFAULT_BOON_PRIORITY);
+      // [session 57, brief §2] The Hard Core payout, per option, parallel to
+      // `offered` by index. It differs across the three options in 136 of 138
+      // recorded offers, and the bot ignored it for 56 sessions. Read here and
+      // used ONLY to break a tie within one priority rank — see boonPriority.ts.
+      const orbs = options.map((o) => (o as { gigusOrbAmount?: number }).gigusOrbAmount);
       const priority = priorityConfig
         ? choosePriorityBoon({
             player,
@@ -1318,6 +1364,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
             room: roomNum,
             config: priorityConfig,
             rankOptions: { playCounts },
+            orbs,
           })
         : null;
       // [session 55, brief §3] The capture override, if one is armed and this
@@ -1375,6 +1422,11 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
                 label: priority.label,
                 overrodeRanked: priority.option.type === rankedOption.type ? null : rankedOption.type,
                 reason: priority.reason,
+                // [session 57] The orb tie-break's live record: what it took,
+                // what was on the table, and whether it actually decided.
+                orbTieBreak: priority.orbTieBreak,
+                orbsTaken: priority.orbs,
+                orbsOffered: orbs,
               },
             }
           : {}),
@@ -1382,6 +1434,12 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       // A directive whose whole point is "take it if you ever see it" deserves
       // a record of every time it was seen — BurnMastery appears once in the
       // entire 135-offer corpus, so this line firing at all is news.
+      if (priority?.orbTieBreak) {
+        console.log(
+          `  ▸ orb tie-break (user directive 2026-08-20): options tied at priority ${priority.priority}, ` +
+            `took the ${priority.orbs} Hard Core payout out of [${orbs.join(", ")}].`,
+        );
+      }
       if (priority?.burnMastery) {
         log.write({ event: "boon_priority_burnmastery", room: roomNum, chosen: chosenOption, options });
         console.log(`  ▸ BurnMastery was on offer at room ${roomNum} and was taken (priority 1).`);

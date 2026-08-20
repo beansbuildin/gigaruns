@@ -95,13 +95,25 @@ export interface SimOptions {
    */
   offers?: (room: number) => BoonOffer[];
   /**
-   * Enemy tier fought at every room. Defaults to SAFE_TIER — CLAUDE.md's hard
-   * rule (DECISIONS 2026-08-16): the loot table is identical across tiers, so
-   * anything else is pure added risk with zero reward. Exists as an override
-   * ONLY for diagnostics that need a specific captured instance regardless of
-   * tier (e.g. the §1 threshold check in scripts/sim.ts, which tests a
-   * tier-invariant DEF stat) — never for a reported win rate, which must
-   * describe what live play would actually fight.
+   * Enemy tier fought at every room. Still defaults to SAFE_TIER.
+   *
+   * **[session 57] This no longer describes what live play fights, and it
+   * cannot be made to.** CLAUDE.md rule 8 flipped to "highest tier offered"
+   * on 2026-08-20, so the live loop now fights tier 1-2 in most rooms. Raising
+   * this default would not fix the mismatch — it would only make the sim
+   * refuse to score, because 617 of the 622 non-Safe paths ever offered carry
+   * `rolledEnemyStats`, and SPEC §4e establishes those are 1-5% proc chances
+   * needing hundreds of observations the corpus does not have.
+   *
+   * So the honest reading of any number this simulator now produces is
+   * "Safe-tier play", which is a LOWER BOUND on difficulty and no longer the
+   * policy. That is the accepted cost recorded in rule 8 itself. Do not raise
+   * the default to close the gap, and do not treat the falling coverage
+   * metrics as a regression.
+   *
+   * Remains an override for diagnostics that need a specific captured instance
+   * regardless of tier (e.g. the §1 threshold check in scripts/sim.ts, which
+   * tests a tier-invariant DEF stat).
    */
   enemyTier?: number;
   /**

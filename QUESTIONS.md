@@ -1591,3 +1591,50 @@ changed shape and no longer needs one:
 No run happened in session 54 (rule 11 needs per-run approval, and both daily
 caps were already spent), so this carries to the next run at no cost. Do not
 fix the drift before the probe says which of the two it is.
+
+---
+
+## §24 — Should the Hard Core orb tie-break be widened? [session 57]
+
+**Status: BLOCKED on a user directive. Nothing is wrong; the shipped rule works
+exactly as directed and is worth almost nothing.**
+
+The directive implemented in session 57 was: *boon priority decides first;
+orbs break ties within the same priority rank; orbs never override a
+higher-priority boon.* That is what shipped, and it is pinned by tests.
+
+**Measured across all 138 recorded offers × 4 HP fractions = 552 decisions**
+(`npx tsx scripts/orbTieBreakReport.ts`):
+
+```
+  payouts differ across the three options:  136 of 138 offers (98.6%), mean spread 6.22 orbs
+
+  no option matches any priority family:    312 of 552 decisions (56.5%)
+  a priority matched, but only ONE option:  224 (40.6%)
+  TWO OR MORE tied at the winning rank:      16 (2.9%)   <- the shipped rule's entire surface
+
+  A  BASELINE (priority -> rankBoons)         10256 orbs   18.580/decision
+  B  SHIPPED  (priority -> ORBS -> rankBoons) 10272 orbs   18.609/decision   +16 total, pick changed on 0.7%
+  C  WIDE     (NOT SHIPPED)                   11256 orbs   20.391/decision   +1000 total, pick changed on 35.5%
+```
+
+**The question for the user.** Policy C is the same field read more widely:
+when NO option matches a priority family — 56.5% of decisions, where the pick
+today falls through to `rankBoons` alone — take the richest option, with
+`rankBoons` breaking payout ties. It never touches a decision where a priority
+family IS on offer, so it still cannot override a higher-priority boon. It is
+worth **+1.81 orbs per decision, 62x the shipped rule**, and for scale session
+56 measured the entire enemy-tier effect on mean orbs at room 3 as +4.21.
+
+**The cost, stated honestly.** In those 56.5% of decisions `rankBoons` is
+currently choosing on modelled combat value. Policy C would override that with
+orb count on 35.5% of all picks. `rankBoons` is a real scorer with a real
+model behind it, so this is not free — it trades some simulated combat quality
+for leaderboard currency. Whether that trade is good is a judgement about what
+the account is FOR, which is the user's call and not one the corpus can settle:
+the simulator can no longer separate two boon policies at n=2000 (session 56),
+so there is no offline experiment that would answer it.
+
+**Not widened unilaterally**, per the session-57 brief: *"If the tie rate turns
+out to be low, do not widen the rule to make it fire. The user's directive is
+tie-break only."* One sentence from the user either way closes this.
