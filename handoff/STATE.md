@@ -1,4 +1,4 @@
-# STATE — session 51 — 2026-08-19 — commit <SHA>
+# STATE — session 51 — 2026-08-19 — commit af2c587
 
 ## Status
 Session-51 brief: **all six items delivered.** Two gates PASS (§2, §3), one
