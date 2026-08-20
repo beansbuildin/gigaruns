@@ -24,52 +24,43 @@ what keeps this in the sanctioned lane.
 
 ## 1. Authentication
 
-### 1a. Which wallet? — DECIDE THIS FIRST
+### 1a. Which wallet? — ANSWERED, AND THERE IS ONLY ONE PATH
 
-This is the most common way to waste a day on this project.
+The user plays through **Abstract Global Wallet** (the normal browser
+onboarding), so their Noob, items, and energy belong to a *smart contract*
+account. **AGW does not expose a user-held EOA private key**, so there is no key
+to store, load, or sign with — and a raw EOA signature would authenticate a
+**different, empty account** anyway: the bot would log in successfully and find
+no character, with everything looking like it works and nothing there.
 
-If the user plays through **Abstract Global Wallet** (the normal browser
-onboarding), their Noob, items, and energy belong to a *smart contract* account.
-A raw EOA signature from a private key will authenticate a **different, empty
-account** — the bot will log in successfully and find no character. Everything
-will look like it works and nothing will be there.
+**The one path — borrow the browser session.** The user opens gigaverse.io
+logged in, opens DevTools → Network, plays one action, and copies the
+`Authorization: Bearer …` header into `~/.secrets/gigaverse-jwt.txt`. No signing
+code. The JWT expires, so the bot needs a clean "token expired, please refresh"
+halt — `TokenExpiredError` and `MissingJwtError` in `src/api/auth.ts`.
 
-Two paths:
+**[2026-08-20, user directive — CLAUDE.md rule 3] Path B ("bot-owned EOA",
+`AUTH_MODE=eoa`) is DELETED, not deferred.** It used to sit here as future work,
+along with a `POST /user/auth` EIP-191 signature flow marked CONFIRMED and a
+working implementation in `scripts/probe.ts`. All of it is gone, and so is the
+`viem` dependency that existed solely to serve it. Three reasons, in order of
+weight:
 
-- **Path A — borrow the browser session (recommended to start).** The user opens
-  gigaverse.io logged in, opens DevTools → Network, plays one action, and copies
-  the `Authorization: Bearer …` header. Paste into `~/.secrets/gigaverse-jwt.txt`.
-  No signing code needed. Downside: the JWT expires, so the bot needs a clean
-  "token expired, please refresh" halt. Build this first — it unblocks all
-  discovery work immediately.
-- **Path B — bot-owned EOA.** Generate a fresh wallet, fund it, mint its own Noob.
-  Fully autonomous and renewable. This is the right end state, but it is a
-  *separate account* from the user's, so it starts from zero progression.
+1. It describes a wallet model this account does not use. AGW has no EOA key to
+   sign with, so the path was unreachable, not unfinished.
+2. Left in the document as "future work", it is an invitation for a later
+   session to helpfully complete it.
+3. **It would falsify the only safety sentence this repo can offer someone
+   deciding whether to run it:** the bot asks for a *session token*, not custody
+   of a wallet. Nothing in `src/` signs anything, and the client's surface holds
+   no sell, burn, list, or transfer — pinned by `tests/clientSurface.test.ts`.
+   The moment anything here signs, that claim dies and the trust story changes
+   completely.
 
-Implement Path A first. Add Path B behind `AUTH_MODE=eoa` once the rest works.
-
-### 1b. Signature flow (Path B) **[CONFIRMED]**
-
-Message format is exact — any deviation fails:
-
-```
-Login to Gigaverse at <unixMillis>
-```
-
-`POST /user/auth` with:
-
-```json
-{
-  "signature": "0x...",
-  "address": "0x...",
-  "message": "Login to Gigaverse at 1730000000000",
-  "timestamp": 1730000000000,
-  "agent_metadata": { "type": "custom-bot", "model": "claude-opus-4-5" }
-}
-```
-
-The timestamp must be identical in `message` and `timestamp`. Sign with
-EIP-191 personal_sign (`account.signMessage({ message })` in viem).
+**Do not replace it with AGW session keys either.** Those are the right
+primitive for delegated *on-chain* signing, and this bot does no on-chain work
+at all. Adding a signer to solve a problem the program does not have would cost
+the safety story for nothing.
 
 Verify the session with `GET /user/me`. **[CONFIRMED]**
 

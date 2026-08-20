@@ -94,11 +94,23 @@ describe("rule 11 — the potion/juiced invariant, stated over the whole source 
     // run for its whole duration — and with the arm closed this process never
     // writes any of the three files.
     const src = read("scripts/orchestrator.ts");
+    expect(src).toContain("guard-budget-fishing.json");
     expect(src).not.toContain("acquireGuardLock(DEFAULT_GUARD_STATE_PATH)");
     expect(src).not.toContain("acquireGuardLock(DEFAULT_OPPONENT_MODEL_PATH)");
     expect(src).not.toContain("acquireGuardLock(DEFAULT_PLAY_COUNTS_PATH)");
+    expect(src).not.toContain("guard-budget.json");
+    expect(src).not.toContain("opponent-model.json");
+    expect(src).not.toContain("play-counts.json");
     // The FISHING lock is still taken — the arm that still runs.
-    expect(src).toContain("acquireGuardLock(FISHING_GUARD_STATE_PATH)");
+    //
+    // [session 59] Was pinned to the literal `FISHING_GUARD_STATE_PATH`. The
+    // profile seam renamed that call site to a profile-resolved
+    // `fishingGuardPath`, which broke the string match while the PROPERTY —
+    // fishing lock taken, dungeon locks not — was untouched. Re-pinned on the
+    // fishing FILE NAME instead of the identifier, so the next rename of a
+    // variable does not read as the arm reopening. The three `not.toContain`
+    // lines above now check file names too, for the same reason: an identifier
+    // is a spelling, a file name is the thing that actually gets locked.
   });
 });
 

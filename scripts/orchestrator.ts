@@ -67,13 +67,14 @@ import { UnexpectedResponseError } from "../src/api/errors.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget } from "../src/orchestrator/guardPersistence.js";
+import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profile.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { nextAction, type EnergyState, type ModeBudget } from "../src/orchestrator/scheduler.js";
 import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
 import { runWithGuaranteedAccounting } from "../src/orchestrator/runWithAccounting.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
 import { printStatus } from "./liveRun.js";
-import { runOneCast, FixtureWriter as FishingFixtureWriter, RunLog as FishingRunLog, FISHING_GUARD_STATE_PATH, type LiveFishingDeps } from "./liveFishing.js";
+import { runOneCast, FixtureWriter as FishingFixtureWriter, RunLog as FishingRunLog, type LiveFishingDeps } from "./liveFishing.js";
 import { regenerateRunReports } from "./regenerateReports.js";
 
 /**
@@ -146,8 +147,16 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   console.log(`\n▸ orchestrator.ts — ${args.dryRun ? "single dry-run decision" : `unattended for ${args.hours}h`}\n`);
 
+  // [session 59] Same seam as liveRun/liveFishing. With no --profile these
+  // are byte-for-byte the paths this loop has always used.
+  const profile = resolveProfile(profileArg(process.argv));
+  const fishingGuardPath = dataPath(profile, "guard-budget-fishing.json");
+  if (profile.name !== "default") {
+    console.log(`  · profile: ${profile.name} — data ${profile.dataRoot}, logs ${profile.logRoot}`);
+  }
+
   const config = loadBotConfig();
-  const client = new GigaverseClient();
+  const client = new GigaverseClient({ jwt: await profile.getJwt() });
   const me = await client.getMe();
   console.log(`  account <USER>`);
 
@@ -162,12 +171,12 @@ async function main() {
   // needed by `liveRun.ts`. With the dungeon arm closed this process never
   // writes any of them, so holding their locks would do nothing but refuse
   // the user's approved rule-11 dungeon runs for the whole 8-hour window.
-  if (config.dendren) process.once("exit", acquireGuardLock(FISHING_GUARD_STATE_PATH));
+  if (config.dendren) process.once("exit", acquireGuardLock(fishingGuardPath));
 
   const fishingGuards = config.dendren
     ? new GuardState(
         { dailyEnergyBudget: config.dendren.dailyEnergyBudget, maxRunsPerSession: config.dendren.maxCastsPerSession, maxConsecutiveActionFailures: config.maxConsecutiveActionFailures },
-        loadGuardBudget(FISHING_GUARD_STATE_PATH),
+        loadGuardBudget(fishingGuardPath),
       )
     : null;
   // [session 54, rule 11] The dungeon arm is closed, so fishing is the ONLY
@@ -284,12 +293,12 @@ async function main() {
             client,
             config,
             guards: fishingGuards!,
-            fixtures: new FishingFixtureWriter(me.address, (text) => client.redactSecrets(text)),
-            log: new FishingRunLog(),
+            fixtures: new FishingFixtureWriter(me.address, (text) => client.redactSecrets(text), fixturePath(profile, "fishing-casts", "live")),
+            log: new FishingRunLog(profile.logRoot),
             address: me.address,
             dryRun: false,
             shutdownSignal,
-            guardStatePath: FISHING_GUARD_STATE_PATH,
+            guardStatePath: fishingGuardPath,
           } satisfies LiveFishingDeps);
         },
         isBudgetTrip: (e) => e instanceof GuardTrip && isBudgetGuardTrip(e),

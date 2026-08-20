@@ -74,9 +74,9 @@ import {
   loadOpponentModel,
   bootstrapFromCorpus,
   saveOpponentModelAtomically,
-  DEFAULT_OPPONENT_MODEL_PATH,
 } from "../src/orchestrator/opponentModelPersistence.js";
-import { loadPlayCounts, savePlayCounts, deletePlayCounts, DEFAULT_PLAY_COUNTS_PATH } from "../src/orchestrator/playCountsPersistence.js";
+import { loadPlayCounts, savePlayCounts, deletePlayCounts } from "../src/orchestrator/playCountsPersistence.js";
+import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profile.js";
 import { PerpetualOnlyOfferError, pickTierForRoom, tierRuleFor } from "../src/strategy/enemyTier.js";
 import { isPerpetualBuff } from "../src/sim/enemyBuffs.js";
 import { MAX_ROOM, SAFE_TIER } from "../src/sim/enemies.js";
@@ -1671,15 +1671,19 @@ export function parseArgs(argv: string[]) {
  * was spent. `main()` exits immediately after this, before constructing a
  * `GigaverseClient` at all.
  */
-export function printStatus(config: BotConfig): void {
-  const seed = loadGuardBudget();
+export function printStatus(
+  config: BotConfig,
+  guardBudgetPath?: string,
+  fishingGuardPath: string = FISHING_GUARD_STATE_PATH,
+): void {
+  const seed = loadGuardBudget(guardBudgetPath);
   const runsRemaining = Math.max(0, config.maxRunsPerSession - seed.runsStarted);
   const energyRemaining = Math.max(0, config.dailyEnergyBudget - seed.energySpent);
   console.log(`\n▸ liveRun.ts --status (${todayKey()})\n`);
   console.log(`  dungeon runs:    ${seed.runsStarted}/${config.maxRunsPerSession} used  ->  ${runsRemaining} remaining`);
   console.log(`  dungeon energy:  ${seed.energySpent}/${config.dailyEnergyBudget} used  ->  ${energyRemaining} remaining`);
   if (config.dendren) {
-    const fseed = loadGuardBudget(FISHING_GUARD_STATE_PATH);
+    const fseed = loadGuardBudget(fishingGuardPath);
     const castsRemaining = Math.max(0, config.dendren.maxCastsPerSession - fseed.runsStarted);
     const fenergyRemaining = Math.max(0, config.dendren.dailyEnergyBudget - fseed.energySpent);
     console.log(`  fishing casts:   ${fseed.runsStarted}/${config.dendren.maxCastsPerSession} used  ->  ${castsRemaining} remaining`);
@@ -1756,32 +1760,48 @@ async function assertDungeonCapNotExhausted(
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
+  // [session 59] Every path in this function resolves off the profile. With no
+  // --profile the roots are "data"/"logs"/"fixtures" and the JWT is
+  // ~/.secrets/gigaverse-jwt.txt — byte-for-byte what this script has always
+  // used, pinned literally by tests/profile.test.ts so a refactor here cannot
+  // quietly redefine "unchanged". Resolved BEFORE the --status branch, or
+  // `--status --profile=x` would report the default profile's ledgers, which
+  // is the wrong answer delivered confidently.
+  const profile = resolveProfile(profileArg(process.argv));
+  const guardBudgetPath = dataPath(profile, "guard-budget.json");
+  const opponentModelPath = dataPath(profile, "opponent-model.json");
+  const playCountsPath = dataPath(profile, "play-counts.json");
+  const fishingGuardPath = dataPath(profile, "guard-budget-fishing.json");
+
   if (args.status) {
-    printStatus(loadBotConfig());
+    printStatus(loadBotConfig(), guardBudgetPath, fishingGuardPath);
     return;
   }
 
   console.log(`\n▸ liveRun.ts — ${args.dryRun ? "STAGE 1 dry-run" : args.stage2 ? "STAGE 2 single POST" : `${args.runs} run(s)`}\n`);
 
   const config = loadBotConfig();
-  const client = new GigaverseClient();
+  if (profile.name !== "default") {
+    console.log(`  · profile: ${profile.name} — data ${profile.dataRoot}, logs ${profile.logRoot}, jwt ${profile.jwtPath}`);
+  }
+  const client = new GigaverseClient({ jwt: await profile.getJwt() });
   // [session 28, CODEXREVIEW #2] One live writer per guard-state file for
   // the whole process lifetime — held until the process exits (see
   // guardPersistence.ts's acquireGuardLock doc comment for why a lock
   // scoped to a single transaction wouldn't actually close the race here).
-  process.once("exit", acquireGuardLock());
+  process.once("exit", acquireGuardLock(guardBudgetPath));
   // [session 32, CODEXIMPROVE #1] Same one-writer-per-file discipline,
   // reused rather than reinvented, against the opponent-model file's own
   // path — see opponentModelPersistence.ts's header.
-  process.once("exit", acquireGuardLock(DEFAULT_OPPONENT_MODEL_PATH));
+  process.once("exit", acquireGuardLock(opponentModelPath));
   // [session 35, CODEXIMPROVE #5] Same one-writer-per-file discipline against
   // the play-counts file's own path — see playCountsPersistence.ts's header.
-  process.once("exit", acquireGuardLock(DEFAULT_PLAY_COUNTS_PATH));
-  const playCountsPersistence = { path: DEFAULT_PLAY_COUNTS_PATH };
+  process.once("exit", acquireGuardLock(playCountsPath));
+  const playCountsPersistence = { path: playCountsPath };
   // [session 09] Seed from today's already-spent energy/runs so the budget
   // holds across separate process invocations, not just within one — see
   // guardPersistence.ts.
-  const seed = loadGuardBudget();
+  const seed = loadGuardBudget(guardBudgetPath);
   if (seed.energySpent > 0 || seed.runsStarted > 0) {
     console.log(`  · resuming today's budget: ${seed.energySpent} energy / ${seed.runsStarted} runs already spent`);
   }
@@ -1804,18 +1824,18 @@ async function main() {
   // across restarts — previously a blank model every launch, discarding
   // exactly the evidence that matters most in deeper, sparser rooms. See
   // opponentModelPersistence.ts's header.
-  const { model, bootstrapImportedIds } = loadOpponentModel(DEFAULT_OPPONENT_MODEL_PATH);
+  const { model, bootstrapImportedIds } = loadOpponentModel(opponentModelPath);
   const { imported } = bootstrapFromCorpus(model, bootstrapImportedIds);
   if (imported > 0) {
     console.log(`  · opponent model: bootstrapped ${imported} new exchange(s) from the fixture corpus (${bootstrapImportedIds.size} total imported)`);
-    saveOpponentModelAtomically(model, bootstrapImportedIds, DEFAULT_OPPONENT_MODEL_PATH);
+    saveOpponentModelAtomically(model, bootstrapImportedIds, opponentModelPath);
   }
-  const opponentModelPersistence = { path: DEFAULT_OPPONENT_MODEL_PATH, bootstrapImportedIds };
-  const log = new RunLog();
+  const opponentModelPersistence = { path: opponentModelPath, bootstrapImportedIds };
+  const log = new RunLog(profile.logRoot);
 
   const me = await client.getMe();
   const account = await client.getAccount(me.address);
-  const fixtures = new FixtureWriter(me.address, (text) => client.redactSecrets(text));
+  const fixtures = new FixtureWriter(me.address, (text) => client.redactSecrets(text), fixturePath(profile, "dungeon-runs"));
   console.log(`  account <USER> noobId ${account.noob?.docId ? "<NOOB>" : "(none)"}`);
 
   // [session 23] The local guard file only sees runs THIS bot started — a
@@ -2107,6 +2127,11 @@ async function main() {
           fixtures,
           log,
           dryRun: args.dryRun,
+          // [session 59] Was left undefined so guardPersistence's own default
+          // applied. Under the default profile this resolves to that same
+          // "data/guard-budget.json"; under --profile it is the only thing
+          // keeping two people's spend ledgers apart.
+          guardStatePath: guardBudgetPath,
           probeUseItem: probeUseItemState,
           // [session 42, Task 14] `args.juiced &&` is the structural
           // enforcement point for "never load potions into a plain run" —

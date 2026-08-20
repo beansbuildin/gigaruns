@@ -6,16 +6,22 @@
  *
  * This script NEVER starts a run, spends energy, or sends a transaction.
  *
- *   AUTH_MODE=jwt  npx tsx scripts/probe.ts     # borrow browser session
- *   AUTH_MODE=eoa  npx tsx scripts/probe.ts     # bot-owned wallet
+ *   npx tsx scripts/probe.ts     # borrow the browser session (the only path)
  *
- * Deps: npm i viem tsx
+ * [2026-08-20, CLAUDE.md rule 3] The `AUTH_MODE=eoa` branch is GONE, along with
+ * `viem` and every mention of a private key. The account is an Abstract Global
+ * Wallet, which exposes no user-held EOA key, so Path B authenticated a
+ * DIFFERENT, EMPTY account by construction — and a probe script that reads
+ * `~/.secrets/gigaverse-private-key.txt` is exactly what would falsify the one
+ * safety sentence this repo can offer a friend: it asks for a session token,
+ * not custody of a wallet. Do not reintroduce it.
+ *
+ * Deps: tsx
  */
 
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { privateKeyToAccount } from "viem/accounts";
 import { redactNoobToken } from "../src/api/redact.js";
 
 const BASE = "https://gigaverse.io/api";
@@ -38,8 +44,9 @@ function readSecret(name: string): string | null {
 const mask = (t: string) => `${t.slice(0, 8)}…(${t.length} chars)`;
 
 /**
- * Path A: reuse a JWT copied from the browser's Authorization header.
- * Start here — it requires no signing and works with Abstract Global Wallet.
+ * Reuse a JWT copied from the browser's Authorization header. This is the only
+ * auth path there is: it requires no signing and works with Abstract Global
+ * Wallet, which is what this account is.
  */
 function authFromJwt(): string {
   const jwt = readSecret("gigaverse-jwt.txt");
@@ -49,49 +56,6 @@ function authFromJwt(): string {
         "Log into gigaverse.io, DevTools > Network, play one action, copy the\n" +
         "Authorization: Bearer <token> value into that file.",
     );
-  }
-  return jwt;
-}
-
-/**
- * Path B: sign in with a bot-owned EOA.
- *
- * WARNING: this authenticates the EOA's OWN account. If the user plays via
- * Abstract Global Wallet, this is a DIFFERENT, EMPTY account — login will
- * succeed and the character will be missing. See SPEC 1a.
- */
-async function authFromEoa(): Promise<string> {
-  const pk = readSecret("gigaverse-private-key.txt");
-  if (!pk) throw new Error("No key at ~/.secrets/gigaverse-private-key.txt");
-
-  const account = privateKeyToAccount(pk as `0x${string}`);
-  const timestamp = Date.now();
-  const message = `Login to Gigaverse at ${timestamp}`; // exact format, do not alter
-  const signature = await account.signMessage({ message });
-
-  const res = await fetch(`${BASE}/user/auth`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      signature,
-      address: account.address,
-      message,
-      timestamp, // must match the value inside `message`
-      agent_metadata: {
-        type: "custom-bot",
-        model: process.env.GIGAVERSE_AGENT_MODEL ?? "unknown",
-      },
-    }),
-  });
-
-  if (!res.ok) throw new Error(`auth failed ${res.status}: ${await res.text()}`);
-
-  // Shape is unconfirmed — see the throw below, which reports the real keys.
-  const body = (await res.json()) as Record<string, any>;
-  const jwt = body.jwt ?? body.token ?? body.authToken ?? body.data?.jwt;
-  if (!jwt) {
-    // Field name is unconfirmed — show the shape rather than guessing further.
-    throw new Error(`No JWT found. Response keys: ${Object.keys(body).join(", ")}`);
   }
   return jwt;
 }
@@ -268,9 +232,8 @@ async function main() {
   mkdirSync(RAW, { recursive: true });
   mkdirSync("config", { recursive: true });
 
-  const mode = process.env.AUTH_MODE ?? "jwt";
-  console.log(`\n▸ auth (${mode})`);
-  jwt = mode === "eoa" ? await authFromEoa() : authFromJwt();
+  console.log(`\n▸ auth (browser JWT — the only supported path)`);
+  jwt = authFromJwt();
   console.log(`  jwt ${mask(jwt)}`);
 
   const me = (await get("/user/me", "user-me")) as Record<string, any> | null;

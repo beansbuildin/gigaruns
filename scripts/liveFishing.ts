@@ -91,6 +91,7 @@ import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
+import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profile.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
 import { regenerateRunReports } from "./regenerateReports.js";
@@ -1778,6 +1779,13 @@ export const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json"
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
+  // [session 59] See liveRun.ts's main() — same seam, same guarantee: with no
+  // --profile every path below is byte-for-byte what this script has always
+  // used. Resolved before the --status branch so `--status --profile=x` reports
+  // x's ledgers rather than the default's.
+  const profile = resolveProfile(profileArg(process.argv));
+  const fishingGuardPath = dataPath(profile, "guard-budget-fishing.json");
+
   if (args.status) {
     printStatus(loadBotConfig());
     return;
@@ -1790,13 +1798,16 @@ async function main() {
     console.error(`✗ config/bot.json or config/discovered.json has no dendren block — run Task 7's discovery first.`);
     process.exit(1);
   }
-  const client = new GigaverseClient();
+  const client = new GigaverseClient({ jwt: await profile.getJwt() });
+  if (profile.name !== "default") {
+    console.log(`  · profile: ${profile.name} — data ${profile.dataRoot}, logs ${profile.logRoot}, jwt ${profile.jwtPath}`);
+  }
 
   // [session 28, CODEXREVIEW #2] Same discipline as liveRun.ts — one live
   // writer per guard-state file for the whole process lifetime.
-  process.once("exit", acquireGuardLock(FISHING_GUARD_STATE_PATH));
+  process.once("exit", acquireGuardLock(fishingGuardPath));
 
-  const seed = loadGuardBudget(FISHING_GUARD_STATE_PATH);
+  const seed = loadGuardBudget(fishingGuardPath);
   if (seed.energySpent > 0 || seed.runsStarted > 0) {
     console.log(`  · resuming today's fishing budget: ${seed.energySpent} energy / ${seed.runsStarted} casts already spent`);
   }
@@ -1808,7 +1819,7 @@ async function main() {
     },
     seed,
   );
-  const log = new RunLog();
+  const log = new RunLog(profile.logRoot);
 
   const me = await client.getMe();
   console.log(`  account <USER>`);
@@ -1861,7 +1872,7 @@ async function main() {
     // [session 28, CODEXREVIEW #1] Fresh per cast, not once per invocation —
     // one directory must correspond to exactly one docId. See FixtureWriter's
     // own doc comment.
-    const fixtures = new FixtureWriter(me.address, (text) => client.redactSecrets(text));
+    const fixtures = new FixtureWriter(me.address, (text) => client.redactSecrets(text), fixturePath(profile, "fishing-casts", "live"));
     lastFixturesDir = fixtures.dir;
     const before = args.dryRun ? null : await currentEnergy(client, me.address);
     // [session 31, CODEXREVIEW #8] Captured before `runOneCast` so the diff
@@ -1879,7 +1890,7 @@ async function main() {
         log,
         address: me.address,
         dryRun: args.dryRun,
-        guardStatePath: FISHING_GUARD_STATE_PATH,
+        guardStatePath: fishingGuardPath,
         shutdownSignal,
       });
     } catch (e) {
