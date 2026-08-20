@@ -47,25 +47,52 @@ reflog or a fork keeps what was removed.
 
 ---
 
-## Open items — decisions only the user can make
+## Open items — ALL THREE RESOLVED by the user, 2026-08-20
 
-1. **`config/discovered.json` is in `.gitignore`** (CLAUDE.md rule 3, from day
-   one when nobody knew whether it held anything sensitive). It does not: it
-   holds dungeon IDs, energy costs and room counts, all game-global. To ship it,
-   it must come off the ignore list — **a deliberate change to a rule-3 line**,
-   which is why it is listed here rather than done. The alternative is telling
-   each friend to run `npx tsx scripts/probe.ts` first, which works and costs
-   them one command.
-2. **Where the distribution repo lives**, and whether it is public. The working
-   repo is public today (DECISIONS 2026-08-12).
-3. **A licence.** There is none. Absent one, nobody has permission to use it.
+1. **`config/discovered.json` — SPLIT, do not simply un-ignore it.** The file is
+   *mostly* game-global, but its `roms` block is not: `knownRomIds`
+   `["7959","2097","5345","689"]` plus the full 37-ROM enumeration are the
+   author's own NFT token ids — **the same identifier class session 54 spent
+   2,726 files removing.** Shipping the file whole would re-import that class
+   into the one file every friend is told to keep.
+   - `config/discovered.json` → game-global only (dungeon 5, `maxRoom` 16,
+     endpoints, request shapes, `amountFieldBehavior`, cooldown notes). Comes
+     off `.gitignore` and ships.
+   - The ROM enumeration → a per-profile account file that **stays gitignored**,
+     resolved through `src/profile.ts` like every other per-account path.
+   - The split is verifiable, so verify it: a test asserting the shipped file
+     contains no bare numeric id list and no 20+-char hex. The same grep that
+     found this (`0x[0-9a-fA-F]{20,}` and identity-ish keys) returns clean on the
+     rest of the file — 0 addresses, 0 long hex, the only identity-ish keys being
+     `playerEndpoint`/`playerEndpointConfidence`, which are endpoint paths.
+2. **Private repo.** Friends are added as collaborators. Public stays available
+   later; the reverse is not.
+3. **MIT licence.** Add `LICENSE` at the distribution root. Without it nobody has
+   permission to use the code at all, collaborator access notwithstanding.
+
+## And one correction to the portability brief, which invented a risk
+
+The portability brief's §5 told the README to carry a **ToS warning** —
+"automating a game account may breach its terms and the downside lands on their
+assets." **That is wrong for this game and must not ship.** Per the user:
+bots are *explicitly allowed* in Gigaverse, and the team has itself published a
+repo of agentic skills for running fully autonomous accounts. There is no ban
+risk to warn about.
+
+This was CLAUDE.md rule 1 being violated by the brief's author — a generic
+assumption about game bots, applied without checking this game's actual stance.
+Replace the paragraph with the accurate version: **automation is sanctioned
+here, and the bot only plays** (`tests/clientSurface.test.ts` is the proof of the
+second half). That is a better opening line for a friend than a hedge, and it has
+the advantage of being true.
 
 ---
 
 ## Order of operations, when the user decides to do it
 
-1. Take `config/discovered.json` off `.gitignore`, or decide friends run `probe.ts`.
-2. Add a licence.
+1. Split `config/discovered.json`; game-global half off `.gitignore`, ROM
+   enumeration into a gitignored per-profile file.
+2. Add the MIT `LICENSE`.
 3. `git checkout-index` (or a plain copy) of the ships-list into a clean directory
    — **not** a clone, so no `.git` comes with it.
 4. `git init`, one commit, push to the new repo.
