@@ -25,6 +25,20 @@ const BotJsonSchema = z.object({
         maxPerRun: z.number().int().positive(),
       })
       .optional(),
+    // [session 55] The deliberate suboptimal boon pick that buys a pickup
+    // pair for an unmodelled boon (`src/strategy/boonCapture.ts`). Absent
+    // means OFF, and `enabled: false` also means off — but note that this
+    // block being present and enabled is only HALF the gate: `liveRun.ts`
+    // additionally requires `--boon-capture` on the command line. Two
+    // conditions, deliberately, because the potion block next door taught
+    // this repo what a one-condition gate costs (session 24).
+    boonCapture: z
+      .object({
+        enabled: z.boolean(),
+        targets: z.array(z.string().min(1)).nonempty().optional(),
+        rooms: z.array(z.number().int().positive()).nonempty().optional(),
+      })
+      .optional(),
   }),
   dendren: z
     .object({
@@ -68,6 +82,13 @@ export interface BotConfig {
   maxConsecutiveActionFailures: number;
   /** User-authorized potion, session 17 — absent means "no potions," not "figure it out from inventory." */
   potions?: { allowedItemId: number; maxPerRun: number };
+  /**
+   * [session 55] Absent means the boon-capture override is off. Present and
+   * `enabled` is still not sufficient on its own — see the schema comment
+   * and `liveRun.ts`'s `main()`. `targets`/`rooms` fall back to
+   * `boonCapture.ts`'s measured defaults when omitted.
+   */
+  boonCapture?: { enabled: boolean; targets?: string[]; rooms?: number[] };
   dendren?: {
     nodeId: string;
     tierId: number;
@@ -131,6 +152,7 @@ export function loadBotConfig(
     maxRunsPerSession: bot.forbiddenWoods.maxRunsPerSession,
     maxConsecutiveActionFailures: bot.guards.maxConsecutiveActionFailures,
     potions: bot.forbiddenWoods.potions,
+    boonCapture: bot.forbiddenWoods.boonCapture,
     dendren,
   };
 }
