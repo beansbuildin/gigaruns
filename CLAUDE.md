@@ -23,11 +23,32 @@ Only call paths confirmed by `probe.ts` output or listed as CONFIRMED in
 `SPEC.md`. If you need an endpoint that doesn't exist yet, dump the full response
 of a related endpoint and look for it. Do not brute-force URLs.
 
-**3. Secrets never enter the repo.**
-Private key and JWT live in `~/.secrets/`, loaded via env. Add `.env`,
-`*.key`, `config/discovered.json` to `.gitignore` before writing any auth code.
-Never log a key, a signature, or a full JWT — log `jwt[0..8] + "..."` at most.
-If you ever print one by accident, stop and tell the user to rotate.
+**3. Secrets never enter the repo — and the only secret is a JWT.**
+The JWT lives in `~/.secrets/gigaverse-jwt.txt`. Add `.env`, `*.key`,
+`config/discovered.json` to `.gitignore` before writing any auth code. Never log
+a full JWT — `jwt[0..8] + "..."` at most. If you ever print one by accident,
+stop and tell the user to rotate.
+
+**[2026-08-20] There is no private key, and there is not going to be one.** This
+rule used to open "Private key and JWT live in `~/.secrets/`". That was wrong in
+a way that matters now the repo is being shared: the account is an **Abstract
+Global Wallet**, which does not expose a user-held EOA private key at all, so
+there is no key to store, load, or hand to anyone. `src/api/auth.ts` implements
+only SPEC Path A — a JWT the user copies from their own browser — and nothing in
+`src/` signs anything.
+
+Two consequences, both to be acted on rather than noted:
+
+- **SPEC's Path B ("bot-owned EOA", `AUTH_MODE=eoa`) is not deferred, it is
+  retired.** It describes a wallet model this chain's wallet does not use. Delete
+  it rather than leaving it as future work someone tries to finish.
+- **`viem` is a declared dependency imported nowhere.** It was added on day one
+  for Path B. Drop it.
+
+This is also the sentence to put in front of anyone deciding whether to run this
+on their own account: **the bot asks for a session token, not custody of a
+wallet.** Keep that true — the moment anything here signs, that claim dies and
+the trust story changes completely.
 
 **4. Simulate first.**
 No strategy code gets tested against the live API until it passes against

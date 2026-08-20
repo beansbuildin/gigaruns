@@ -16,12 +16,29 @@ a rewrite.
 
 ## 0. Two facts that make this much smaller than it looks
 
-**There is no private key.** `src/api/auth.ts` implements only SPEC's Path A — a
-JWT the user copies from their own browser's DevTools. Path B (bot-owned EOA) is
-deferred and unimplemented, and nothing in `src/` signs anything. So the trust
-ask on a friend is a **session token, not custody of a wallet**. Say this
-explicitly in the setup guide; it is the difference between "install my bot" and
-"give me your NFTs."
+**There is no private key, and [2026-08-20, user] there cannot be one.**
+`src/api/auth.ts` implements only SPEC's Path A — a JWT the user copies from
+their own browser's DevTools — and nothing in `src/` signs anything. The account
+is an **Abstract Global Wallet**, which does not expose a user-held EOA private
+key, so SPEC's Path B ("bot-owned EOA", `AUTH_MODE=eoa`) is not deferred work;
+it describes a wallet model that does not apply. The trust ask on a friend is a
+**session token, not custody of a wallet** — the difference between "install my
+bot" and "give me your NFTs."
+
+Three cleanups this makes non-optional before the repo goes anywhere:
+
+- **CLAUDE.md rule 3 has been corrected** (it said "Private key and JWT live in
+  `~/.secrets/`"). A friend reading the old text would reasonably conclude the
+  bot wanted their key.
+- **Delete Path B from SPEC** rather than leaving it as future work. Left in
+  place it is an invitation for a later session to "finish" it.
+- **Drop `viem`.** It is a declared dependency in `package.json` imported
+  nowhere in `src/`, added on day one for Path B.
+
+**Do not replace Path B with AGW session keys.** They are the right primitive for
+delegated *on-chain* signing, and this bot does no on-chain work at all — §2's
+allowlist is the whole surface. Adding a signer to solve a problem the program
+does not have would destroy the one-sentence safety story for nothing.
 
 **The multi-account plumbing mostly exists already, by accident.** Sessions 30
 and 31 forced every I/O-owning module to take an explicit path parameter,
