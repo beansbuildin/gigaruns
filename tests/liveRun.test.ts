@@ -995,6 +995,72 @@ describe("runOnce — juiced start_run (session 42, Task 14)", () => {
   });
 });
 
+describe("runOnce — §23 tight energy probe (session 54, brief §3)", () => {
+  /** Records the probe's log event, whatever the deps' `log` was given. */
+  function probeEvent(deps: LiveRunDeps): Record<string, unknown> | undefined {
+    const calls = (deps.log.write as unknown as { mock: { calls: [Record<string, unknown>][] } }).mock.calls;
+    return calls.map((c) => c[0]).find((e) => e.event === "start_run_energy_probe");
+  }
+
+  const startRunOnly = () =>
+    mockFetch((url, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+      if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+      return { status: 200, body: { success: true, actionToken: 1, data: { run: fakeRun() } } };
+    });
+
+  it("brackets start_run and reports a MATCH when the tight delta equals the committed cost", async () => {
+    vi.stubGlobal("fetch", startRunOnly());
+    // 60 committed (20 x 3 juiced), pool moves 200 -> 140.
+    const reads = [200, 140];
+    const deps = {
+      ...makeDeps(false),
+      juicedStartRun: { index: 3 },
+      energyProbe: async () => reads.shift()!,
+    };
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(probeEvent(deps)).toMatchObject({
+      energyBefore: 200,
+      energyAfter: 140,
+      tightDelta: -60,
+      estimatedCost: TEST_CONFIG.energyCostPerRun * 3,
+      matchesCommitted: true,
+    });
+  });
+
+  it("reports a MISMATCH at -59, the shape QUESTIONS.md §23 is actually chasing", async () => {
+    // Three consecutive live juiced runs logged observedDelta 59 against a
+    // committed 60. If the TIGHT pair also reads 59, the charge itself is 59
+    // and the multiplier is the suspect; if it reads 60, something inside the
+    // run credits 1 back. This asserts the probe can tell them apart at all.
+    vi.stubGlobal("fetch", startRunOnly());
+    const reads = [200, 141];
+    const deps = {
+      ...makeDeps(false),
+      juicedStartRun: { index: 3 },
+      energyProbe: async () => reads.shift()!,
+    };
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+
+    expect(probeEvent(deps)).toMatchObject({ tightDelta: -59, estimatedCost: 60, matchesCommitted: false });
+  });
+
+  it("is entirely absent when no energyProbe dep is given — every existing caller unchanged", async () => {
+    vi.stubGlobal("fetch", startRunOnly());
+    const deps = { ...makeDeps(false), juicedStartRun: { index: 3 } };
+    const p = runOnce(deps, { stage2Only: true });
+    await vi.runAllTimersAsync();
+    await p;
+    expect(probeEvent(deps)).toBeUndefined();
+  });
+});
+
 describe("reconcileEnergyAccounting / describeEnergyAccounting (session 31, CODEXREVIEW #8)", () => {
   it("reports no drift when the observed delta matches what was committed", async () => {
     const { reconcileEnergyAccounting } = await import("../src/orchestrator/energyAccounting.js");

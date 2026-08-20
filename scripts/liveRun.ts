@@ -535,6 +535,29 @@ export interface LiveRunDeps {
    */
   potionPolicy?: { itemId: number; threshold: number; remaining: number; used: number };
   /**
+   * [session 54, brief §3] QUESTIONS.md §23 — juiced runs under-report energy
+   * spend by exactly 1, three runs running (`observedDelta` 59 vs
+   * `committedDelta` 60, same direction every time). Regen has the right sign
+   * but is ~0.6 over a two-minute run and would not land on exactly -1 thrice.
+   *
+   * This reads the pool immediately BEFORE and immediately AFTER the
+   * `start_run` POST with nothing else in flight, which splits the two
+   * candidate explanations apart:
+   *
+   *  - a tight `-59` says the CHARGE is 59, not the accounting, and the 3x
+   *    multiplier is the suspect (59 = 20x3 - 1 has an obvious shape);
+   *  - a tight `-60` says something INSIDE the run credits 1 back — a loot
+   *    effect, a boon, a regen tick landing in the window — which is a
+   *    different investigation entirely.
+   *
+   * Two GETs, zero energy, so it is safe to leave armed on every run. Rule 11
+   * removed the plain-20-energy comparison arm the original test design
+   * wanted; this is the shape that still discriminates without one.
+   *
+   * `undefined` (every test, every existing caller) skips the probe entirely.
+   */
+  energyProbe?: () => Promise<number>;
+  /**
    * Task 10: graceful SIGINT. Checked once per turn, right after confirming
    * the run isn't already over and BEFORE deciding/sending the next action
    * — so a signal received mid-network-call never aborts an in-flight
@@ -875,6 +898,11 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     const body = deps.juicedStartRun
       ? buildJuicedStartRunEnvelope(config.dungeonId, deps.juicedStartRun.index, deps.startConsumables ?? [])
       : buildEnvelope("start_run", config.dungeonId, client.getActionToken(), 0, deps.startConsumables);
+    // [session 54, brief §3] See `LiveRunDeps.energyProbe`. Read as close to
+    // the POST as possible with nothing else in flight — a read placed before
+    // the guard/cap checks above would have those requests' latency inside the
+    // window and stop being tight.
+    const energyBefore = deps.energyProbe ? await deps.energyProbe() : null;
     log.write({ event: "post", body });
     let resp;
     try {
@@ -903,6 +931,26 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
     console.log(`  ✓ start_run sent — actionToken now ${client.getActionToken()}`);
+    if (deps.energyProbe && energyBefore !== null) {
+      const energyAfter = await deps.energyProbe();
+      const tightDelta = energyAfter - energyBefore;
+      // Reported against `estimatedCost` (the juiced-aware figure the guard
+      // committed), so the line reads as a verdict rather than two numbers.
+      log.write({
+        event: "start_run_energy_probe",
+        energyBefore,
+        energyAfter,
+        tightDelta,
+        estimatedCost,
+        matchesCommitted: tightDelta === -estimatedCost,
+      });
+      console.log(
+        `  ▸ §23 tight energy probe: ${energyBefore} -> ${energyAfter} (delta ${tightDelta}) against a committed ${estimatedCost}` +
+          (tightDelta === -estimatedCost
+            ? ` — MATCHES. The charge is right, so any run-level drift is credited back DURING the run.`
+            : ` — MISMATCH by ${tightDelta + estimatedCost}. The CHARGE itself differs from what the guard commits.`),
+      );
+    }
     if (opts.stage2Only) {
       console.log(`  ▸ stage 2: exactly one POST, halting unconditionally per session-08 brief §5.`);
       return;
@@ -1680,6 +1728,10 @@ async function main() {
                 ? Array(potionCount).fill(potionItemId)
                 : undefined,
           juicedStartRun: args.juiced ? { index: args.juicedIndex! } : undefined,
+          // [session 54, brief §3] QUESTIONS.md §23 — two GETs, zero energy,
+          // armed on every real run. Skipped on a dry run, which never POSTs
+          // start_run and so has nothing to bracket.
+          energyProbe: args.dryRun ? undefined : () => currentEnergy(client, me.address),
           potionPolicy: potionPolicyState,
           opponentModelPersistence,
           playCountsPersistence,
