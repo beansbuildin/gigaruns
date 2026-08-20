@@ -1,166 +1,169 @@
-# STATE — session 54 — 2026-08-19 (PT) — commit e19e08a
+# STATE — session 55 — 2026-08-19 (PT) — commit 39b8ef7
 
 ## Status
-Session-54 brief: **items §1, §3, §4, §5 delivered. §2 — the §19 fishing batch —
-COULD NOT RUN.**
+Session-55 brief: **all four items (§1–§4) delivered.** No gate was set this
+session; every item was offline by construction and none required live play.
 
-There was no gate this session; §19 was the only measurement and it is blocked.
-**Report it as: §19 unmeasured for a fourth session, blocked on the game's own
-daily cast cap, not on anything reprioritisable.**
+**Zero energy spent. Zero casts. Zero dungeon runs.** The brief declared the
+session offline in advance and that was verified live, not assumed, as the
+first action. Its one bounded exception (start the §19 batch if the session is
+still running after 11:00 PT 2026-08-20) **did not trigger** — the session ran
+20:52–21:15 PT, ~14 hours short of the reset.
 
-The brief's premise for §2 ("the cap resets 11:00 PT... it is not blocked now")
-assumed this session would begin after the reset. It began ~2 hours after
-session 53, **inside the same guard-day session 53 exhausted.** Verified live,
-not assumed. Everything else in the brief is done.
+**The single most important finding is §2's, and it is a near-miss:** the
+report the brief asked for, built naively, would have answered §19 **KEEP,
+confidently, off a constant.** See "What's broken" #1.
 
-Next: §19 still needs a batch. It is schedulable only in a session beginning
-after 11:00 PT on a day the caps have not already been spent.
+Next: §19 still needs a batch. Unchanged precondition — a session that
+**begins** after 11:00 PT on a day the caps are unspent. The live half is now
+one command.
 
 ## What works
-- **§1 the orchestrator's dungeon arm is CLOSED** (`scripts/orchestrator.ts`).
-  `nextAction` is called with `DUNGEON_ARM_DISABLED` (null); the `dungeon`
-  branch is a loud fail-closed naming rule 11. Deleted rather than left
-  unreachable: `resolvePotionLoadout`, the `startConsumables`/`potionPolicy`
-  wiring, `dungeonBudgetSnapshot`, the `runOnce` call, the opponent-model
-  bootstrap/save. Verified live: `orchestrator.ts --dry-run` returns a
-  fishing-only decision.
-- **§1 `config/bot.json`'s `forbiddenWoods.potions` is PERMANENT** —
-  `{allowedItemId: 131, maxPerRun: 3}`. `_potionsComment` rewritten from ~1,900
-  chars of add/remove history to the safety argument plus the reopening
-  condition.
-- **§1 `tests/orchestrator/dungeonArmClosed.test.ts`** — 9 tests, source-level
-  because the invariant is about which code paths EXIST.
-- **§4 `overflowReachable`** derived once in `EnsureEnergyResult` on every
-  return path, with a **WARN when it flips true**, plus an `overflow_reachable`
-  log event that fires independently of whether a claim happened.
-- **§3 the §23 tight energy probe is BUILT and ARMED** (`LiveRunDeps.
-  energyProbe`) — two GETs bracketing `start_run`, zero energy, on every real
-  run. **Not fired: no run happened.**
-- **§5 `scripts/boonCoverage.ts` now RANKS** the 36 unmodelled types by offer
-  frequency and shallowest room, and reports the rooms 1–3 subset separately.
-- **Fixture redaction: `NOOB_TOKEN_CID` and the two docId shapes carrying the
-  same id are redacted**, 2,726 tracked files backfilled, 0 raw occurrences
-  left outside three pre-existing handoff documents. `fixtures/README.md`
-  states what this does and does not achieve.
-- **`src/api/redact.ts`** — the redaction logic was SIX near-identical private
-  copies; all seven capture scripts now route through one module.
-- Suite **886/886** (was 862), `tsc --noEmit` clean, `git diff --check` clean,
-  all at the final commit. No test writes to a real data path.
+- **§1 `scripts/checkFishingCaps.ts`** — read-only, zero energy, one GET.
+  Prints the GAME's ledger (`GET /fishing/state` → `dayDocs`) and this repo's
+  guard ledger side by side, flags disagreement, and reports hours to the 11:00
+  PT rollover. Verified live: **both ledgers agree, 20/20 casts**; dungeon side
+  agrees too (server `Dungeon#5` = 12, guard = 12).
+- **§2 `scripts/matcherWeightReport.ts` + `src/strategy/fishing/matcherVerdict.ts`**
+  — §19's whole offline half. Session 51's decision rule is CODE (it cannot be
+  renegotiated once numbers are visible), the loaded library's support is
+  recomputed at run time, and the full π distribution and opening focus spend
+  are reported, not just the 0.5 crossing. Runs end to end on the real corpus.
+- **§3 `src/strategy/boonCapture.ts`** — pure. Room 1 only, five ranked
+  targets, one per run, and **a target retires itself once modelled** (not in
+  the brief; without it a stale config pays run quality forever). Wired into
+  `liveRun.ts` behind a **two-condition gate** (`config/bot.json`'s
+  `forbiddenWoods.boonCapture.enabled` AND `--boon-capture`; the flag alone is
+  a hard error). **Shipped OFF.** Logs `boon_capture_pair` only when both
+  fixture halves exist; run summary reports the zero case too.
+- **§4 `redactProse()` in `src/api/redact.ts`** — the three handoff documents
+  are redacted. Rules keyed on the identifier's **LABEL**, not its shape, so
+  git SHAs and contract addresses survive. `tests/api/redact.test.ts` asserts
+  the three FILES are clean, not merely that the function can clean them.
+- Suite **931/931** (was 886), `tsc --noEmit` clean, `git diff --check` clean,
+  all at the final commit 39b8ef7. No test writes a real data path.
 
 ## What's broken
-1. **§19 is UNMEASURED for a fourth session.** Dendren's real daily cast cap is
-   spent: `GET /fishing/state`'s `dayDocs` reports `UINT256_CID: 20` for pond 2
-   against the 20/day cap confirmed in session 21. The bot's own guard agrees
-   (20/20 casts, 240/240 energy). Real energy was 100/420 — **energy was never
-   the constraint, the cast cap is**, and no config change reaches it.
-2. **§23's −1 energy drift is still unexplained**, 3/3 juiced runs. The probe
-   that would split it is armed but has not fired.
-3. **Three tracked handoff documents still name the account in plaintext** —
-   `handoff/log/session-02.md`, `handoff/log/session-07.md` (which also carries
-   the username and a partial address), `handoff/scratch-session-02.md`. Never
-   passed through any `redact()`; the redaction effort has always been scoped
-   to `fixtures/`. **Left for the user**, recorded in `fixtures/README.md`.
-4. **The git HISTORY still holds the noob token** from session 08 onward. The
-   backfill rewrote the working tree, not history.
-5. Carried, unchanged: Enemy Room 71 (room 9) is captured UNCLEAN and cannot be
-   modelled; 36 boon types offered with no `BOON_MODELS` entry.
+1. **§19 is UNMEASURED for a fifth session — and the near-miss matters more
+   than the block.** `matcherWeight` is a real field (written since session 51)
+   but **0 of 129 `ringPrediction.jsonl` rows carry it**; every row predates the
+   instrumentation. The hazard is not the absence, it is
+   `matcherWeightOf()`, which back-fills an absent field with the fixed
+   `1 - ringFloor = 0.9` that genuinely WAS in force pre-session-51 — correct
+   for reading history, and here it reads as "π is high on every turn", which
+   is **exactly the conclusion §19 exists to test.** CLAUDE.md rule 10 in its
+   purest form. `matcherVerdict.ts` reads the raw field and treats absence as
+   NOT MEASURED, never as 0.9; today it correctly returns `INSUFFICIENT_DATA`.
+2. **The boon blind spot is CONFIRMED and self-sealing.** 36 of 36 unmodelled
+   types fall to `loot.ts`'s `unknown` category (score 10, lowest of five);
+   across 135 offers × 4 HP fractions = 540 decisions, `pickBoon` top-ranked an
+   unmodelled type **0 times**, and **0 of 135** offers are entirely unmodelled.
+   The override exists but is OFF and has never fired.
+3. **§23's −1 energy drift is still unexplained.** The probe is armed and has
+   still not fired — no run happened. Unchanged from session 54.
+4. **The git HISTORY still holds the noob token and now also the three
+   documents' identifiers.** Deliberate; see `fixtures/README.md`'s new
+   history section. Not a defect, but it is the standing limit.
+5. Carried, unchanged: Enemy Room 71 (room 9) captured UNCLEAN, unmodellable.
 
 ## Corrections to SPEC.md
-- **None this session** — no live response contradicted SPEC.md. The two
-  corrections below are to the BRIEF, not the spec.
-- **The brief's §4 was STALE: the default claim order was ALREADY descending**,
-  and has been since session 52 (`opts.order ?? "descending"` in
-  `ensureEnergyFor`, `claimOrderRaw ?? "descending"` in `liveRun.ts`). Sessions
-  52 and 53 ran ascending by passing `--claim-order=ascending` explicitly, and
-  the brief read those runs as the default. No code change was needed; the
-  change is to stop passing the flag. The WARN half was real and is built.
-- **The brief's §5 rooms-1–3 question expected a small leverage subset. It is
-  30 of 36**, led by TieWeak (11 offers of 135, room 1), AddBurnShield (8,
-  room 1), AddLifestealShield (5, room 1), Regen (4, room 1), VulnerableBlock
-  (4, room 1). That materially weakens "a boon offered once every forty runs
-  costs more than it returns" for the top of the list.
+- **None this session** — no live response contradicted SPEC.md. Two live shape
+  surprises did contradict a reasonable assumption, and are recorded in
+  `scripts/checkFishingCaps.ts` rather than in SPEC (the field is not in SPEC):
+  - **`dayDocs` is NOT keyed like the dungeon side.** Shape is
+    `[{pondId, doc:{UINT256_CID, docId, …}}]` — `pondId` is an explicit sibling
+    field. `docId` reads `DayCount#<addr>#player-day-data-pond-2`, so the
+    dungeon's `DayCount#<addr>#Dungeon#<id>` convention does not carry over.
+  - **The response also carries a SINGULAR `dayDoc`, and it is POND 1's.** It
+    read `0` while pond 2 sat at 20/20. Any reader reaching for `state.dayDoc`
+    gets a confident wrong answer about Dendren.
+- Corrections to the BRIEF (not the spec) are listed under "Open questions".
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: PRESENT — unchanged, no new capture this session.
 
 ## Dead ends
-- **Do not redact only `NOOB_TOKEN_CID`.** The first backfill did exactly that
-  and the same id remained fully readable in the same 2,725 files as the suffix
-  of an `EntityEquipment` docId, plus once more as the account doc's own
-  `docId`. Three shape-keyed rules are needed, and rule 2 must replace the
-  WHOLE docId — the leading instance id is also stable and account-scoped.
-- **Do not write real identifiers into a test as literal data.** The first
-  draft of `tests/api/redact.test.ts` used the real token and instance id,
-  re-committing the exact identifier the module removes. Caught by the recap's
-  secret scan, not by review. The rules are shape-keyed, so synthetic ids
-  exercise them identically.
-- **Do not phrase the potion invariant as "no `potionPolicy` without
-  `juicedStartRun`".** That is FALSE of a legitimate path:
-  `liveRun.ts --potions=N --resume-existing` deliberately builds one without
-  `--juiced`, because those consumables were committed server-side by whoever
-  started the run. The real invariant is about AUTO-DERIVING from the config
-  allowlist.
-- **Do not "fix" `dungeonBudgetSnapshot`'s `costPerAction` to 60 and keep the
-  arm.** Rule 11 needs per-run human approval, which an autonomous loop cannot
-  give at any cost figure.
-- Standing, unchanged: do not re-run the numeric-token experiment (§21); do not
-  gate a de-aliasing change without `--before-raw`; `npx tsx -e` cannot resolve
-  this project's relative imports; do not rebuild the expected-coverage focus
-  objective (50); do not tune focus spend quantity again (48, 49, 50); replay
-  for DIFFERENCES never absolutes (48); never pipe a live run to a truncating
-  reader (52).
+- **Do not read `matcherWeight` through `matcherWeightOf()` for §19.** It is the
+  right reader for history and the wrong one for this question — see above. Any
+  §19 analysis must read the raw field and count absence as unmeasured.
+- **Do not expect `redactNoobToken`'s rules to touch prose.** Every rule is
+  keyed on a JSON field shape; the three handoff documents matched none of
+  them, and a rule silently matching nothing looks exactly like success. That
+  is why the effort stayed scoped to `fixtures/` for fifty-odd sessions.
+- **Do not redact prose by shape alone.** A bare `0x` + hex rule eats contract
+  addresses and, in these very files, the git SHAs quoted in every STATE header
+  (`commit ff36aa1`, `git diff 2f78c74..ff36aa1`). Losing a SHA out of a
+  session log destroys the one thing that makes the log checkable. Every
+  `redactProse` rule requires the identifier's own label.
+- **Do not test the boon override with a repeated identical state.** The first
+  draft of the once-per-run test fed the same reward state twice; the stall
+  guard ended the run before the second decision, so the test passed for the
+  wrong reason (and leaked an unhandled rejection). Two DISTINCT offers.
+- Standing, unchanged: do not write a real identifier into a test (54); do not
+  re-run the numeric-token experiment (§21); do not gate a de-aliasing change
+  without `--before-raw` (53); `npx tsx -e` cannot resolve this project's
+  relative imports; do not rebuild the expected-coverage focus objective (50);
+  do not tune focus spend quantity again (48–50); replay for DIFFERENCES never
+  absolutes (48); never pipe a live run to a truncating reader (52).
 
 ## Metrics
-- **Live dungeon: 0 runs.** Rule 11 requires per-run approval and none was
-  given; the caps were exhausted anyway (240/240 energy, 12/12 run-units).
-- **Live fishing: 0 casts.** Cap 20/20 for the guard-day `2026-08-19`.
-- **Live reads only, zero energy spent this session:** `getMe`, `getEnergy`
-  (100→105/420 across the session, regen 18/hr), `getDungeonToday`,
-  `getFishingState`, and one `orchestrator.ts --dry-run`.
-- **Boon coverage: 17 modelled, 135 captured offers (49 in room 1). Modelled
-  but never offered in room 1: 0. Offered but unmodelled: 36, of which 30 are
-  first offered in rooms 1–3.**
-- **Redaction backfill: 3,239 tracked json/har/jsonl files scanned, 2,726
-  rewritten.** Raw token occurrences outside handoff prose: 2,730 → **0**.
-- Suite 862 → **886**. Corpus unchanged (dungeon 55 attempts, fishing 89
+- **Live dungeon: 0 runs. Live fishing: 0 casts. Energy spent: 0.**
+- **Cap ledgers, verified live 20:55 PT and agreeing:** game
+  `dayDocs[pondId 2] = 20` of 20; repo guard 20 casts / 240 energy, dated
+  `2026-08-19`. Dungeon: server `Dungeon#5` = 12, guard 12 runs / 240 energy.
+- **Boon blind spot: 540 decisions swept (135 offers × 4 HP fractions), 0
+  unmodelled top-ranked. 36/36 unmodelled types categorise `unknown`. 0/135
+  offers entirely unmodelled.**
+- **Boon capture firing rate: 9 of 49 room-1 offers (18.4%) hold a target; 8 of
+  43 corpus runs had one.** → ~27 runs to model five boons, ~7 days at rule
+  11's 4 juiced runs/day. (The brief said five runs — optimistic by ~5x.)
+  Rooms 1–3 raise the rate only to 23.6% while tripling exposure.
+- **Matcher library at run time: 3 patterns (perimeterWalk cw/ccw,
+  bounce(2,0)), support 11 of 88 CLEAN casts, π₀ = 0.133.** (88, not 89 — 89 is
+  the trace count; `supportingCastCount`'s denominator is clean casts.)
+- **Opening focus spend, today's log: n=15, mean 1.667, 95% CI [1.137, 2.196]**
+  — brackets session 50's 1.80 live figure, far above its 0.71 replayed one.
+- Suite 886 → **931**. Corpus unchanged (dungeon 55 attempts, fishing 89
   traces) — nothing was captured this session.
 
 ## Open questions for Claude
-1. **§19 needs a session that STARTS after 11:00 PT on an unspent day.** This
-   is now a scheduling constraint on the brief, not a research question, and it
-   has cost §19 four sessions. State it in the brief rather than letting the
-   session discover it at minute five.
-2. **Do the three handoff documents naming the account get redacted?** The
-   username is plausibly a public game handle, so this is the user's call about
-   linkability, same as the fixture question they just answered. Not decided
-   unilaterally.
-3. **The rooms-1–3 unmodelled subset is 30 of 36, not a handful.** Does
-   "opportunistic" still stand for the top five (TieWeak 11, AddBurnShield 8,
-   AddLifestealShield 5, Regen 4, VulnerableBlock 4 — all room 1)? Modelling
-   any needs a pickup PAIR, which is capture, not code.
-4. **Room 9 still needs a Safe capture** to become modellable — leave it, per
-   the session-54 brief's own reasoning (rule 8 means you cannot choose it).
-5. **§23 stays open until the armed probe fires.** Do not fix the drift before
-   the probe says whether the tight pair reads −59 or −60.
+1. **§19 needs a session that STARTS after 11:00 PT on an unspent day.**
+   Unchanged and still the whole blocker. It is now cheap: run
+   `npx tsx scripts/checkFishingCaps.ts` first (one GET), then 20 casts, then
+   `npx tsx scripts/matcherWeightReport.ts --last-casts=20`. **Put the
+   precondition in the brief's first paragraph.**
+2. **Do you want `boonCapture` ARMED on the next dungeon run?** It is off and
+   needs both the config flag and `--boon-capture`. Arming it costs run quality
+   on ~18% of runs and buys one pickup pair when it fires. Rule 11 means the
+   run needs the user's go-ahead anyway, so this rides along with that ask.
+   **Say the expected cost honestly in the brief: ~27 runs for five boons, not
+   five.**
+3. **Three brief errors to not repeat.** (a) There is no `chooseBoon`; it is
+   `pickBoon`/`rankBoons`. (b) `pickBoon` never reads `BOON_MODELS` — the blind
+   spot is a score FLOOR, not an exclusion (right conclusion, wrong mechanism).
+   (c) `matcherWeight` exists in code but on zero rows on disk.
+4. **§23 stays open until the armed probe fires.** Unchanged — do not fix the
+   −1 drift before the probe says whether the tight pair reads −59 or −60.
+5. **Room 9 still needs a Safe capture** to become modellable. Leave it; rule 8
+   means you cannot choose it.
 
 ## Files changed
 ```
- 6 commits.  Code/docs: 19 files, +790 / −169.
- Fixtures:   2,727 files, +5,511 / −5,451 (the redaction backfill).
+ 4 commits.  17 files, +1,685 / −21.  No fixtures written (zero live play).
 
-     scripts/orchestrator.ts                     | 235  (§1 dungeon arm closed)
-     tests/orchestrator/dungeonArmClosed.test.ts | 140  (§1, new)
-     src/api/redact.ts                           |  78  (new, extracted from 6 copies)
-     tests/api/redact.test.ts                    |  76  (new)
-     scripts/liveRun.ts                          |  71  (§3 probe, §4 wiring)
-     tests/liveRun.test.ts                       |  66  (§3)
-     scripts/boonCoverage.ts                     |  54  (§5 ranking)
-     QUESTIONS.md                                |  51  (§19 block, §23 armed)
-     src/orchestrator/energyPreflight.ts         |  46  (§4 overflowReachable)
-     tests/orchestrator/energyPreflight.test.ts  |  46  (§4)
-     tests/boons.test.ts                         |  43  (§5)
-     TASKS.md                                    |  20  (Task 4.5, the 5→4 note)
-     config/bot.json                             |   6  (§1 potions permanent)
-     scripts/{battleWatch,liveFishing,parseHar,probe,probeRomsPlayer,watch}.ts
-                                                 |  27  (route through redact.ts)
-     fixtures/README.md                          |  new
+     src/strategy/fishing/matcherVerdict.ts | 248  (§2, new — the rule as code)
+     scripts/matcherWeightReport.ts         | 215  (§2, new)
+     tests/fishing/matcherVerdict.test.ts   | 196  (§2, new)
+     tests/boonCapture.test.ts              | 167  (§3, new)
+     src/strategy/boonCapture.ts            | 165  (§3, new)
+     tests/liveRun.test.ts                  | 165  (§3)
+     scripts/liveRun.ts                     | 157  (§3 wiring, gate, summary)
+     scripts/checkFishingCaps.ts            | 136  (§1, new)
+     tests/api/redact.test.ts               |  72  (§4)
+     src/api/redact.ts                      |  57  (§4 redactProse)
+     QUESTIONS.md                           |  43  (§19 rewritten)
+     fixtures/README.md                     |  41  (§4 decision + history §)
+     src/orchestrator/config.ts             |  22  (§3 schema)
+     config/bot.json                        |  14  (§3 block, disabled)
+     handoff/{log/session-02,log/session-07,scratch-session-02}.md
+                                            |   8  (§4, 4 lines redacted)
 ```
