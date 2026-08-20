@@ -1,186 +1,175 @@
-# BRIEF — session 57 (the rule-8 flip lands; orbs become a tie-break)
+# BRIEF — session 58 (settle the orb rule with a number, then the flip's first live run)
 
-## PRECONDITION — read this before anything else
+## PRECONDITION — §19, and the clock
 
-**§19 needs a session that BEGINS after 11:00 PT on a day whose 20 casts are
-unspent.** At the time of writing it is **23:04 PT on 2026-08-19** and the
-rollover is **11:00 PT on 2026-08-20, 11.9 hours out**. A session started before
-then is blocked for a **seventh** time — session 56 began at 22:31 PT, after a
-rollover but inside the day session 55 had already exhausted, which is the exact
-shape of this trap.
+At the time of writing it is **23:48 PT on 2026-08-19**; the caps reset at
+**11:00 PT on 2026-08-20, 11.2 hours out**. A session beginning before then is
+blocked for an **eighth** time.
 
-Run `npx tsx scripts/checkFishingCaps.ts` as the first action, free, one GET. If
-it says the caps are spent, **do not plan around fishing at all** — the rest of
-this brief is offline plus one optional dungeon run and stands on its own. If it
-says unspent: 20 casts, then
-`npx tsx scripts/matcherWeightReport.ts --last-casts=20`. That is the whole of
-§19 now, and it takes minutes.
+`npx tsx scripts/checkFishingCaps.ts` first, free, one GET. Unspent → 20 casts,
+then `npx tsx scripts/matcherWeightReport.ts --last-casts=20`, and §19 is done.
+Spent → skip fishing entirely; everything below stands on its own.
+
+**The dungeon caps are on the same 11:00 PT boundary.** §2's run needs 60 energy
+and 3 of 12 run-units, so check `checkDungeonToday` too before planning it.
 
 ---
 
-## 0. Corrections to me — four, and one of them would have corrupted the model
+## 0. §24 can be settled offline, and the reason the recap thought otherwise is worth keeping
 
-- **My §3 said to APPLY `rolledEnemyStats` and a known `enemyBuff`. That
-  double-counts.** A stat buff is already inside the wire's
-  `startingATK`/`startingDEF`/`health.starting`/`shield.starting`, verified
-  30/30 against clean baselines. Had session 56 implemented the instruction as
-  written, every buffed enemy in the model would have carried its buff twice and
-  the error would have been invisible until some later session wondered why
-  simulated enemies hit harder than real ones. It was caught by checking the
-  claim against the corpus instead of implementing it — rule 9 working exactly
-  as intended.
-- **"At least one buff is legible" understated it by 45.** All 46 carry
-  structured `effects[]`.
-- **My fail-closed line was drawn on the wrong key.** I said fail closed on an
-  unknown buff *id*; session 56 correctly keyed it on the effect **KIND** —
-  46 ids against 12 kinds, and the game adds ids far faster than mechanics.
-  Keying on id would have failed closed on every new id that was mechanically
-  familiar, which is a rule that trips constantly and gets disabled.
-- **I predicted the priority list would subsume `boonCapture`. The overlap is
-  1 of 5**, and 7 of the 9 capture-room offers where it fires take a target no
-  priority family reaches. I recommended retiring a module on a guess about
-  overlap I had not computed.
+Session 57 wrote that "no offline experiment can settle it — the sim cannot
+separate two boon policies at n=2000," citing §2e's null. **That inference does
+not hold, and the distinction generalises past this question.**
 
----
+§2e failed to *detect a difference*. §24 does not need one detected — it needs
+one **bounded against a threshold**, and the threshold is computable from
+numbers already in the recap:
 
-## 1. The rule-8 flip
+```
+A (baseline)      18.580 orbs/decision
+C (wide, unshipped) 20.391 orbs/decision
+break-even ratio  A/C = 0.911  →  C wins unless it costs >8.9% of depth
+at the sim's mean 3.286 rooms  →  break-even DROP = 0.292 rooms
+sim 95% half-width at n=2000   =  0.115 rooms
+                                  0.292 / 0.115 = 2.5x the noise floor
+```
 
-**CLAUDE.md rule 8 is already rewritten — read it before writing code.** It now
-reads "take the HIGHEST tier offered, except the final room, and never a
-Perpetual," with the reversal's evidence, its accepted cost, and a note that
-the original rule was not wrong but orthogonal. Rule 11's second bullet was also
-edited, because it referenced `pickLowestTier()` by name and would otherwise
-have contradicted rule 8 from inside the same file.
-
-Implement it in `src/strategy/enemyTier.ts`, which stays the only call site that
-may choose a tier:
-
-- **Highest tier among non-Perpetual options.** Not "highest tier, then check
-  Perpetual" — that ordering produces a fallback question every time the top
-  tier is perpetual. Filter first, then take the max.
-- **The Perpetual clause is now load-bearing.** Session 56 measured it at 4 of
-  134 offers under the old rule and **47 of 134 (35%)** putting a perpetual on
-  the top tier. A directive that fired twice a month now fires on a third of all
-  decisions. Test it at that weight.
-- **Fail closed on an all-Perpetual offer.** Zero of 134 corpus offers are
-  entirely perpetual, so this should never fire — which is exactly why it needs
-  to halt loudly rather than silently pick one. A branch that has never executed
-  and quietly does the wrong thing is the worst available outcome.
-- **Wire up `pickTierForRoom`/`pickFinalRoomTier`.** Session 56 built them keyed
-  on the server's per-dungeon `maxRoom` (Forbidden Woods 16) and they have been
-  inert under rule 8. They go live here. **Verify the `maxRoom` read against a
-  live state response** before trusting it — it has never governed a real
-  decision, and the corpus has never reached room 16, so this path has zero live
-  exercise. Prefer no-modifiers if the field is missing or unreadable: the
-  failure directions are asymmetric, and taking hardest at the real final room
-  costs the boss fight.
-- **Rename or re-document `pickLowestTier`.** It is referenced by name across
-  SPEC.md, DECISIONS.md and several test files. Leaving a function called
-  `pickLowestTier` as the thing that picks the highest tier is how a future
-  session misreads the code in thirty seconds.
-
-**Do not chase the coverage metrics afterward.** `deepestScorableRoom`, battle
-coverage, and scored-exchange counts will fall and stay fallen — that is the
-price of this rule, recorded in rule 8 itself. Mark Task 4.5's old gate retired
-in TASKS.md with a pointer to rule 8, so the next reader can tell a deliberate
-cost from a regression (rule 6's obligation, applied to a gate going obsolete
-rather than being unreachable).
+**A test whose precision exceeds the decision threshold is informative even when
+it comes back null.** An underpowered failure-to-reject tells you nothing; a
+null at ±0.115 against a 0.292 threshold tells you the harm is smaller than the
+gain. Those are different results and §2e's null was being read as the first
+when it is available as the second. Worth a line in the recap, because this
+project has several "cannot be measured" conclusions and at least one of them
+was really "was not measured against the right threshold."
 
 ---
 
-## 2. `gigusOrbAmount` as a tie-break — the free lever
+## 1. The orb depth experiment — do this before the run
 
-User directive: **boon priority decides first; orbs break ties within the same
-priority rank.** Never let orbs override a higher-priority boon.
+User decision: settle §24 with the experiment, then ship whichever wins.
 
-This is the cheapest live gain available and it is independent of the flip. Hard
-Core payout is carried per reward option and differs across the three options in
-**136 of 138 offers** — `[23, 16, 21]` is a recorded example, a spread of 7. For
-scale, §4's whole tier effect at room 3 was Δ+4.21 mean orbs. **The within-offer
-choice may be a larger orb lever than the tier choice, and it costs nothing** —
-no rolled stats, no sim cost, no risk. The bot has been blind to it for 56
-sessions.
+**Set the decision rule now, before any numbers exist** — same discipline as
+§19's, and for the same reason:
 
-Implementation:
+- Run C vs B (shipped) through `dungeonSim`, **mean rooms cleared, n = 8000 per
+  arm** (half-width ~0.058, giving 5x margin on the 0.292 threshold rather than
+  2.5x). Same seed policy for both arms; the only difference is the boon rule.
+- **Ship C if C's depth loss is < 0.15 rooms** — half the break-even, deliberately
+  conservative for the reason in the next paragraph.
+- **Do not ship, and report as unresolved, if the loss is between 0.15 and
+  0.292.** That is the band where the sim's caveat could plausibly flip the sign.
+- **Do not ship if the loss exceeds 0.292.** C is net-negative and §24 closes as
+  answered-no.
 
-- `pickBoonWithPriority` gains the orb comparison **only among options that tie
-  on priority rank**, and `rankBoons` remains the tie-break below that. Order:
-  priority rank → orbs → `rankBoons`.
-- **Report what the change is worth** across the 138 recorded offers: total orbs
-  under the current policy vs orbs-as-tie-break. If the two barely differ,
-  because priority rank rarely ties, say so plainly rather than shipping a
-  no-op described as a gain. That is the number that decides whether §2 was
-  worth the session.
-- If the tie rate turns out to be low, **do not widen the rule to make it fire**.
-  The user's directive is tie-break only. Report the tie rate and let them
-  decide whether to loosen it.
+**Why the margin, stated honestly:** `dungeonSim` still fights Safe tier by
+default (session 57 documented this deliberately — raising it would only make
+the sim refuse to score). The bot now fights the hardest tier. Boon quality
+plausibly matters *more* when fights are harder, so a null measured under Safe
+conditions may understate C's real cost. The margin is the price of that
+caveat. Say in the recap that the experiment was run under Safe-tier conditions
+and what that does and does not license.
 
----
-
-## 3. `boonCapture` stays OFF
-
-User decision. The directive already reaches 10 previously-unreachable types for
-free (VulnerableBlock 16, TieVulnerable 12, AddWeakSword 8, AddVulnerableMagic 8,
-BurnMastery 4, and five more) — types session 55 measured `rankBoons` reaching
-**0 times in 540 decisions**. Let those pairs accumulate from ordinary play
-first.
-
-Keep the module and its arming gate exactly as they are. Do not retire it — my
-last brief was wrong about the overlap and the remaining capture-only targets
-(TieWeak 11, AddBurnShield 8, AddLifestealShield 5, Regen 4) are real. Re-ask
-when the free coverage has landed.
+Also report **orbs per run**, not only per decision. The 552-decision report
+holds the run fixed and therefore cannot see the thing the whole question turns
+on: orbs compound with depth, so a policy that gains 1.81 per decision and
+costs a room can still lose. `orbs_per_run = mean_rooms × orbs_per_decision` is
+the quantity being maximised and it should appear in the output.
 
 ---
 
-## 4. What measures a strategy change now — say it out loud
+## 2. The first live run under the flip — AUTHORISED
 
-This is the item with no code in it and it matters most for briefs 58 onward.
+User go-ahead given for **one** run, rule 11 terms: 60-energy juiced,
+`--juiced-index=3`, 3x Big Heal Juice, `--runs=1`, stop and hand back. Run it
+**after** §1 resolves, so it exercises the final boon policy rather than an
+interim one.
 
-Post-flip the simulator scores ~nothing, and it was already scoring 5.8% and
-unable to separate two boon policies at n=2000. **So offline gating of strategy
-changes is largely over.** That should be stated in the recap rather than
-discovered gradually over five sessions of gates that quietly stop meaning
-anything.
+```
+npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1 > logs/run-58-1.log 2>&1
+```
 
-The honest consequence: from here, a strategy change is justified by being a
-**user directive** or by being **mechanically obviously correct** (reading a
-field the bot was ignoring, fixing a double-count), and it is validated by
-**live outcome over many runs** — at rule 11's four juiced runs per day, that is
-weeks, not sessions. Anything claiming to be gated offline needs to say what
-arm actually separated, at what n, or admit it did not.
+Redirect and `tail`; never pipe a live run to a truncating reader (session 52).
 
-What survives as real measurement: the fishing replay (untouched by any of
-this — 88 clean traces, paired, bootstrapped, and it still separates arms), the
-opponent model, and live per-run reporting. **Fishing is now the only place in
-this project where an offline gate means anything**, which is a further reason
-§19 has been worth six sessions of waiting.
+### 2a. The silent failure to watch for, in room 1
+
+`final-room-unreadable` falls back to conservative no-modifiers. If
+`ROOM_NUM_CID` reads wrong live, **every room takes the lowest tier and the run
+looks completely normal** — the flip silently does not happen and 60 energy buys
+a lowest-tier run indistinguishable from the last fifty. Session 57 found this
+exact shape in the old tests: they served state with no `data.entity`, `roomNum`
+came back 0, and post-flip that is the unreadable branch, so they would have
+passed while the loop took the lowest tier.
+
+**Room 16 is unreachable — the deepest run ever is room 10 — so any
+`final-room-unreadable` on this run is a bug, not a legitimate branch.** Check
+the first `tier_choice` log line as soon as it appears: tier taken should be the
+**highest** offered (minus any Perpetual filter). If it is the lowest, or if the
+`⚠ final-room-unreadable` label appears at all, **stop the run and investigate
+before spending the rest of the entry.**
+
+### 2b. Recovery paths, so nothing gets improvised at 60 energy committed
+
+- **`PerpetualOnlyOfferError` halts mid-run.** 0 of 134 corpus offers are
+  entirely Perpetual so it should never fire, but an unfired branch that halts
+  is exactly the kind that surprises. If it does: the run is **not lost** —
+  resume with `--resume-existing --potions=3 --potions-used=<n>`, and capture the
+  full offer first, because it would be the corpus's first all-Perpetual sighting
+  and worth more than the run.
+- **Expect to die shallower than room 10.** Every fight is now the hardest
+  offered. A shorter run is the *cost side of the flip*, not a regression, and
+  n=1 says almost nothing either way. Do not read a room-4 death as evidence
+  against rule 8, and do not read a room-10 run as evidence for it.
+
+### 2c. What to report
+
+- Tier **offered vs taken** in every room, with the full offered tier set.
+- How often **Perpetual filtered** the top choice — expected ~35% of offers.
+- Whether `final-room` or `final-room-unreadable` appeared at all.
+- **Orb totals**: `orbsOffered` vs `orbsTaken` per decision, and the run sum.
+  This is the first live orb data the project will have.
+- **§23's tight energy probe finally fires** — it has been armed and unfired
+  since session 54. Report whether the pair around `start_run` reads −59 or −60.
+  That single number splits "the 3x multiplier miscounts" from "something inside
+  the run credits 1 back", and it has been open for four sessions purely for
+  want of a run.
+- Loot, score, rooms, juice consumption and when.
+
+**This is the only data that will ever exist on what a chosen hard win pays.**
+The bot took the lowest tier on every unforced decision it ever made, so there
+is no historical comparison and there never will be. Capture it carefully.
 
 ---
 
-## Your task (session 57)
+## 3. Standing items, unchanged
 
-1. **Precondition** — `checkFishingCaps.ts` first. If unspent, §19 immediately:
-   20 casts and the report. It is minutes and it has waited six sessions.
-2. **§1** — the flip in `enemyTier.ts`; filter Perpetual then take the max; fail
-   closed on all-Perpetual; `maxRoom` verified live before it governs anything;
-   rename `pickLowestTier`; Task 4.5's gate marked retired.
-3. **§2** — orbs as a within-rank tie-break, with the "what it's worth across 138
-   offers" number reported, including if that number is ~0.
-4. **§4** — the measurement note in the recap.
+- **`boonCapture` stays OFF.** Let the directive's free by-product coverage
+  accumulate from ordinary play; re-ask after a few runs.
+- **Do not gate a dungeon strategy change offline** (session 57 §4) — with the
+  one exception §1 establishes: a *depth* comparison against a computed
+  threshold is still valid, because depth is the one thing the sim measures with
+  usable precision. Scored-exchange coverage is gone; mean rooms cleared is not.
+  Do not let §1 be read as a general reopening.
+- **Do not widen a rule to make it fire.** If §1 says don't ship C, §24 closes.
+
+---
+
+## Your task (session 58)
+
+1. **Precondition** — `checkFishingCaps.ts` and `checkDungeonToday`. §19 if
+   unspent; it is minutes and it has waited seven sessions.
+2. **§1** — the C-vs-B depth experiment at n=8000, decision rule applied as
+   written above, orbs-per-run reported alongside orbs-per-decision.
+3. **§2** — one juiced run under the final policy, with the room-1 flip check
+   before it is allowed to continue, and the full report including §23's probe.
+4. **§0** — the threshold-vs-detection note in the recap.
 5. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
    commit; no test writes a real data path; secret scan before handoff.
 
-**Dungeon runs:** none authorised. Rule 11 needs a per-run go-ahead and none has
-been given. If the user gives one, the flip's first live exercise is that run,
-and it should be reported carefully — tier offered vs taken in every room, how
-often Perpetual filtered the top choice, and the orb totals — because it is the
-first data that exists on what winning a hard fight actually yields. The corpus
-has none: the bot took the lowest tier on every unforced decision it ever made.
-
-**Honest expectation.** §1 is a small change with a large blast radius and its
-risk is naming, not logic — a function called `pickLowestTier` that picks the
-highest is a trap for the next reader, and the `maxRoom` path has never once
-executed against a live response. §2 is the one that might quietly be worth
-nothing; the tie rate decides it and should be reported before anyone calls it
-a win. §4 is not optional even though nothing depends on it — a project that
-keeps writing gates after its instrument went blind will keep passing them.
+**Honest expectation.** §1 is an hour of compute and it either ships a 9.7%
+orb gain or closes a question — both are good outcomes and neither needs a
+judgement call once the rule above is fixed in advance. §2 is the session's real
+event: a code path with 1014 passing tests and zero live exercise, driving the
+first fight this bot has ever deliberately chosen to make harder. The most
+likely failure is not a crash — it is `final-room-unreadable` firing silently
+and the run coming back looking exactly like every previous one. §2a is there so
+that gets caught in room 1 rather than in the recap.
