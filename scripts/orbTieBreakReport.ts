@@ -52,6 +52,17 @@ const player = (fraction: number): Combatant =>
 // The two traps session 56 documented apply here too: a run DIRECTORY holds
 // multiple attempts (delimited by ROOM_NUM_CID DECREASING), and ROOM_NUM_CID
 // lives on `data.entity`, NOT `data.entity.data`.
+//
+// **[session 58] And a third, which this script got WRONG when it shipped:
+// the offer's room is `ROOM_NUM_CID - 1`, not `ROOM_NUM_CID`.** The reward
+// phase is reached with the room counter already advanced past the room whose
+// clear produced the offer. Measured 135/135 with no exceptions against
+// `OBSERVED_OFFERS`, whose room labels have used the correct convention for
+// 50+ sessions (`src/sim/orbOffers.ts` documents the check). The session-57
+// §24 numbers were therefore computed one room deep, which matters because
+// `room` feeds `priorityOf`'s rooms-1..8 lifesteal window and `rankBoons`'
+// depth weighting. `attempt` detection still keys on the RAW wire value, since
+// what delimits an attempt is the counter decreasing, not the label.
 interface WireRewardOption {
   index: number;
   gigusOrbAmount?: number;
@@ -78,9 +89,12 @@ for (const dir of readdirSync(CORPUS_DIR).sort()) {
       data?: { entity?: { ROOM_NUM_CID?: number; data?: { rewardPathOptions?: WireRewardOption[] } } };
     };
     const entity = doc.data?.entity;
-    const room = entity?.ROOM_NUM_CID ?? 0;
-    if (room < lastRoom) attempt++;
-    if (room > 0) lastRoom = room;
+    const wireRoom = entity?.ROOM_NUM_CID ?? 0;
+    if (wireRoom < lastRoom) attempt++;
+    if (wireRoom > 0) lastRoom = wireRoom;
+    // The -1 that session 57 was missing. Clamped at 0 so a state with no
+    // ROOM_NUM_CID stays 0 rather than becoming -1.
+    const room = Math.max(0, wireRoom - 1);
 
     const rp = entity?.data?.rewardPathOptions;
     if (!rp || rp.length === 0) continue;

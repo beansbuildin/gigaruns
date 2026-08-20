@@ -48,6 +48,7 @@ import { bootstrapFromCorpus, loadOpponentModel } from "../src/orchestrator/oppo
 import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
 import { LIVE_CONFIG } from "../src/strategy/config.js";
 import { DEFAULT_CAPTURE_ROOMS, DEFAULT_CAPTURE_TARGETS } from "../src/strategy/boonCapture.js";
+import { DEFAULT_BOON_PRIORITY } from "../src/strategy/boonPriority.js";
 import { loadCorpus, type WireBoon, type WireRun, type WireSide } from "../src/sim/corpus.js";
 
 // ---------------------------------------------------------------------------
@@ -2126,5 +2127,96 @@ describe("parseArgs — --boon-capture (session 55, brief §3)", () => {
     const args = parseArgs(["--boon-capture", "--juiced", "--juiced-index=3"]);
     expect(args.boonCaptureFlag).toBe(true);
     expect(args.juiced).toBe(true);
+  });
+});
+
+describe("runOnce — the WIDE orb rule drives the live pick (session 58, brief §1)", () => {
+  let fixtureRoot: string;
+
+  beforeEach(() => {
+    fixtureRoot = mkdtempSync(join(tmpdir(), "gigaruns-liverun-orbwide-test-"));
+  });
+  afterEach(() => {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  });
+
+  const boon = (type: string, val1: number, val2 = 0): WireBoon => ({
+    boonTypeString: type,
+    selectedVal1: val1,
+    selectedVal2: val2,
+  });
+
+  /**
+   * A reward offer where NO option matches a priority family — so the priority
+   * layer returns null and the orb fallback is the only thing that can move the
+   * pick. `Heal` is what `rankBoons` takes at 10/30 HP by a wide margin, and it
+   * is the POORER option here, so "the ranker won" and "the payout won" cannot
+   * be confused for one another.
+   *
+   * This is a runOnce-level test on purpose. Session 57 found the enemy-tier
+   * flip's unit tests all passing while the live loop would have taken the
+   * wrong option, because the wiring — not the rule — was what was broken.
+   */
+  function orbScenario(boonPriority: LiveRunDeps["boonPriority"], orbsOnBoth = true) {
+    const offering = fakeRun({
+      DUNGEON_ID_CID: 7,
+      rewardPathPhase: true,
+      rewardPathOptions: [
+        { index: 0, boon: boon("Heal", 8), gigusOrbAmount: 5 },
+        { index: 1, boon: boon("AddLuck", 1), ...(orbsOnBoth ? { gigusOrbAmount: 99 } : {}) },
+      ],
+      players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63", 30, 30)],
+    });
+    const posts: unknown[] = [];
+    let getCount = 0;
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((_url, init) => {
+        if ((init?.method ?? "GET") === "GET") {
+          getCount++;
+          if (getCount <= 2) {
+            return { status: 200, body: { success: true, actionToken: 1, data: { run: offering, entity: { ROOM_NUM_CID: 1 } } } };
+          }
+          return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+        }
+        posts.push(JSON.parse(String(init?.body ?? "{}")));
+        return { status: 200, body: { success: true, actionToken: 2, data: { run: fakeRun({ DUNGEON_ID_CID: 7 }) } } };
+      }),
+    );
+    const deps: LiveRunDeps = {
+      ...makeDeps(false),
+      fixtures: new FixtureWriter("0xTestAddress", (t) => t, fixtureRoot),
+      boonPriority,
+    };
+    return { deps, posts };
+  }
+
+  it('takes the 99-orb option over the ranker\'s Heal under the default "wide" rule', async () => {
+    const { deps, posts } = orbScenario(DEFAULT_BOON_PRIORITY);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect(posts).toHaveLength(1);
+    expect((posts[0] as { action: string }).action).toBe("reward_two"); // AddLuck at index 1
+  });
+
+  it('the SAME offer goes to the ranker under "tie-break" — the contrast is the rule, not the fixture', async () => {
+    const { deps, posts } = orbScenario({ ...DEFAULT_BOON_PRIORITY, orbRule: "tie-break" });
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect((posts[0] as { action: string }).action).toBe("reward_one"); // the Heal at index 0
+  });
+
+  it("refuses to fire on a PARTIAL capture and leaves the ranker's pick standing", async () => {
+    // Option 1 carries no payout. Reading that absence as 0 would be harmless
+    // here by luck, but reading it as "poorest" is the failure the guard is for
+    // — so the assertion is that the payout decides NOTHING when it is
+    // incomplete, and the Heal wins on merit.
+    const { deps, posts } = orbScenario(DEFAULT_BOON_PRIORITY, false);
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await expect(p).resolves.toBeUndefined();
+    expect((posts[0] as { action: string }).action).toBe("reward_one");
   });
 });

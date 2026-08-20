@@ -111,7 +111,15 @@ export function strategyPolicy(opts: StrategyPolicyOptions = {}): StrategyPolicy
     pickBoon(player: Combatant, offered: BoonOption[], room: number, _rng: Rng): BoonOption {
       // `roomsRemaining` defaults to the real dungeon's 16 rooms, not the
       // shorter stretch the sim can play — the ranking is about the game.
-      if (boonPriority) return pickBoonWithPriority(player, offered, room, boonPriority, { playCounts });
+      if (boonPriority) {
+        // [session 58] The payouts ride on the options themselves, attached by
+        // `src/sim/orbOffers.ts`. `OBSERVED_OFFERS` carries none, so for every
+        // caller that has not opted into the enriched table this is an array of
+        // `undefined` and BOTH orb rules decline to fire — the historical arm
+        // is bit-identical, which is why this needed no new flag.
+        const orbs = offered.map((o) => o.orbs);
+        return pickBoonWithPriority(player, offered, room, boonPriority, { playCounts }, orbs);
+      }
       return rankAndPick(player, offered, room, { playCounts });
     },
   };

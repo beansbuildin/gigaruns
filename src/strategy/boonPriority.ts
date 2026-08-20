@@ -104,13 +104,47 @@ const LIFESTEAL_MARKER = "Lifesteal";
 /** 1 is the strongest. `null` means "no family — leave it to `rankBoons`". */
 export type BoonPriority = 1 | 2 | 3 | 4 | 5;
 
+/**
+ * **[session 58]** How widely `gigusOrbAmount` is allowed to decide.
+ *
+ * - `"tie-break"` — the session-57 directive as shipped: orbs separate options
+ *   that ALREADY tie at the best matching priority rank, and nothing else.
+ *   Fires on 2.9% of decisions; changes the pick on 0.7%.
+ * - `"wide"` — additionally, when NO option matches any priority family, the
+ *   richest option wins and `rankBoons` breaks payout ties. It still never
+ *   overrides a priority match, because it only runs where there is none.
+ *
+ * `"wide"` was measured and deliberately NOT shipped in session 57 (QUESTIONS
+ * §24): it is worth ~62x more per decision, but it overrides `rankBoons`'
+ * modelled combat value on ~35% of picks, and that trade was the user's call.
+ * It exists here as a real selectable rule so the depth cost can be measured
+ * rather than argued about.
+ */
+export type OrbRule = "tie-break" | "wide";
+
 export interface BoonPriorityConfig {
   /** Rooms `1..earlyGameMaxRoom` are the early game for the lifesteal rule. */
   earlyGameMaxRoom: number;
+  /** Defaults to `"tie-break"`, the shipped directive. */
+  orbRule?: OrbRule;
 }
 
+/**
+ * **`orbRule` is `"wide"` as of session 58**, replacing the `"tie-break"` that
+ * shipped in session 57. Not a unilateral loosening: the session-58 brief set
+ * the decision rule before any number existed ("ship C if C's depth loss <
+ * 0.15 rooms"), and `scripts/orbDepthExperiment.ts` measured the loss at
+ * **-0.002 rooms, paired 95% CI [-0.018, +0.014] at n=8000** — the entire
+ * interval an order of magnitude inside the bar — for **+6.3 Hard Core per
+ * run (+10.4%)**. See QUESTIONS §24 and handoff/DECISIONS.md.
+ *
+ * `"tie-break"` is kept as a selectable rule, not deleted: it is the control
+ * arm the experiment is re-run against, and it is what the account plays if
+ * the user ever reverses this.
+ */
 export const DEFAULT_BOON_PRIORITY: BoonPriorityConfig = {
   earlyGameMaxRoom: EARLY_GAME_MAX_ROOM,
+  orbRule: "wide",
 };
 
 /** `UpgradeRock` or any `*Sword` type. Suffix-matched — see the header. */
@@ -347,9 +381,73 @@ export function pickBoonWithPriority(
   if (offered.length === 0) throw new Error("pickBoonWithPriority() called with an empty offer");
   const decision = choosePriorityBoon({ player, offered, room, config, rankOptions, orbs });
   if (decision) return decision.option;
+
   // No option matches a priority family, so there is no rank for orbs to break
-  // a tie WITHIN. Falls through to `rankBoons` untouched — see `orbs`' doc
-  // comment on the wider reading that was deliberately not taken.
+  // a tie WITHIN. Under the shipped `"tie-break"` rule this falls through to
+  // `rankBoons` untouched; under `"wide"` the payout decides here instead.
+  const wide = chooseOrbFallback({ player, offered, room, config, rankOptions, orbs });
+  if (wide) return wide.option;
+
   const ranked = rankBoons(player, offered, room, rankOptions);
   return ranked[0]!.option;
+}
+
+export interface OrbFallbackDecision {
+  option: BoonOption;
+  index: number;
+  orbs: number;
+  /** True when the payout actually narrowed the field, not just tied it. */
+  narrowed: boolean;
+  reason: string;
+}
+
+/**
+ * **[session 58]** Policy C, the wide orb reading — the pick for an offer where
+ * NO option matches a priority family.
+ *
+ * Returns `null` unless `config.orbRule` is `"wide"`, so the shipped
+ * `"tie-break"` behaviour is unchanged by this function's existence.
+ *
+ * Like the within-rank tie-break it refuses to fire on a PARTIAL capture: every
+ * option must carry a numeric payout. Reading an absent `gigusOrbAmount` as
+ * zero would hand the pick to whichever option happened to be recorded, which
+ * is worse than not firing at all.
+ *
+ * When every option pays the same, this narrows nothing and `rankBoons` decides
+ * exactly as before — reported as `narrowed: false` rather than claimed as a
+ * decision the payout made.
+ */
+export function chooseOrbFallback(input: BoonPriorityInput): OrbFallbackDecision | null {
+  const config = input.config ?? DEFAULT_BOON_PRIORITY;
+  if ((config.orbRule ?? "tie-break") !== "wide") return null;
+
+  const { player, offered, room } = input;
+  if (offered.length === 0) return null;
+
+  const orbOf = (i: number) => input.orbs?.[i];
+  const all = offered.map((option, index) => ({ option, index }));
+  if (!all.every((m) => typeof orbOf(m.index) === "number")) return null;
+
+  const bestOrbs = Math.max(...all.map((m) => orbOf(m.index)!));
+  const richest = all.filter((m) => orbOf(m.index) === bestOrbs);
+  const narrowed = richest.length < all.length;
+
+  let winner = richest[0]!;
+  if (richest.length > 1) {
+    const ranked = rankBoons(player, richest.map((m) => m.option), room, input.rankOptions ?? {});
+    const top = ranked[0]!.option;
+    winner = richest.find((m) => m.option === top) ?? winner;
+  }
+
+  return {
+    option: winner.option,
+    index: winner.index,
+    orbs: bestOrbs,
+    narrowed,
+    reason:
+      `orb-fallback: no priority family on offer at room ${room}; taking "${winner.option.type}" ` +
+      `for ${bestOrbs} Hard Core` +
+      (richest.length > 1 ? ` (${richest.length} options tied on payout; rankBoons broke it)` : "") +
+      ` — orbRule "wide"`,
+  };
 }

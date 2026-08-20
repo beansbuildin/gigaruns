@@ -45,9 +45,15 @@ const BotJsonSchema = z.object({
     // instruction about how to play rather than a measurement that costs run
     // quality. This block only lets the one number in it be read without a
     // code change. Absent means the shipped default (rooms 1..8).
+    //
+    // [session 58] `orbRule` MUST be listed here even though it has a code
+    // default: zod strips unknown keys silently, so an unlisted knob would
+    // read as absent and setting it to "tie-break" to revert session 58's
+    // change would do nothing at all — a config that lies rather than fails.
     boonPriority: z
       .object({
         earlyGameMaxRoom: z.number().int().positive(),
+        orbRule: z.enum(["tie-break", "wide"]).optional(),
       })
       .optional(),
   }),
@@ -105,7 +111,7 @@ export interface BotConfig {
    * `boonPriority.ts`'s shipped `EARLY_GAME_MAX_ROOM` (8, user-confirmed).
    * Not a gate — see the schema comment.
    */
-  boonPriority?: { earlyGameMaxRoom: number };
+  boonPriority?: { earlyGameMaxRoom: number; orbRule?: "tie-break" | "wide" };
   dendren?: {
     nodeId: string;
     tierId: number;

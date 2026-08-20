@@ -57,6 +57,12 @@ export interface WireBoon {
 export interface WireRewardOption {
   index: number;
   boon: WireBoon;
+  /**
+   * [session 58] Per-option Hard Core (itemId 845) payout. Present on all 138
+   * recorded offers, on every option. Optional here because absence must stay
+   * distinguishable from a payout of zero — see `BoonOption.orbs`.
+   */
+  gigusOrbAmount?: number;
 }
 
 export interface WireRun {

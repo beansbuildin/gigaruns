@@ -863,10 +863,34 @@ run-2026-08-15-15-38-09/state-{054,079,110}.json`:
   session 57 by `src/strategy/boonPriority.ts` as a tie-break WITHIN one
   priority rank and nowhere else, per the user's directive. Measured worth of
   that narrow reading: **+16 orbs over 552 decisions (+0.029/decision), pick
-  changed on 0.7%** — the rank ties on only 2.9% of decisions. A wider reading
-  (orbs decide whenever no priority family matches) is worth +1000 orbs
-  (+1.81/decision, 35.5% of picks changed) and was deliberately NOT shipped;
-  `scripts/orbTieBreakReport.ts` prints all three policies.
+  changed on 0.7%** — the rank ties on only 2.9% of decisions.
+
+  **[session 58] The WIDER reading now ships**, as `orbRule: "wide"` (the
+  default in `boonPriority.ts` and a `config/bot.json` knob): where NO option
+  matches a priority family — 56.5% of decisions — the richest payout wins and
+  `rankBoons` breaks payout ties. Worth **+1000 orbs over the same 552
+  decisions (+1.81/decision, 35.5% of picks changed)**, ~62x the narrow rule.
+  It still cannot override a priority family, because it only runs where the
+  priority layer matched nothing. Shipped against a decision rule fixed BEFORE
+  the numbers existed (session-58 brief §1): `scripts/orbDepthExperiment.ts`
+  put its depth cost at **-0.002 rooms, paired 95% CI [-0.018, +0.014] at
+  n=8000 per arm**, against a 0.15-room ship bar and a 0.292-room break-even —
+  the whole interval an order of magnitude inside the bar — for **+6.3 Hard
+  Core per run (+10.4%)**. Measured under the sim's SAFE-tier default while
+  live play fights the hardest tier (rule 8), which is why the bar was half the
+  break-even rather than the break-even itself.
+  `scripts/orbTieBreakReport.ts` still prints all three policies.
+
+  **[session 58, CORRECTION] A corpus offer's room is `ROOM_NUM_CID - 1`.**
+  The reward phase is reached with the room counter already advanced past the
+  room whose clear produced the offer; measured 135/135 against
+  `OBSERVED_OFFERS`, whose labels have used the correct convention throughout.
+  `scripts/orbTieBreakReport.ts` shipped in session 57 reading the raw wire
+  value and was therefore one room deep on every offer. Corrected — and the
+  A/B/C totals came back **identical to the orb**, so session 57's §24 numbers
+  stand and the defect was inert on this corpus. It would not stay inert on a
+  deeper one: `room` feeds `priorityOf`'s rooms-1..8 lifesteal window and
+  `rankBoons`' `roomsRemaining` weighting.
 - The user's **"Dendren Root"** is wire item **846**, static-item `NAME_CID`
   **"Dendren Remnant"** (`GET /offchain/static`'s `gameItems[]`, `docId
   "846"`) — credited on a `"Move Used"` response landing a kill:

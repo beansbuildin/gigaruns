@@ -87,11 +87,23 @@ export interface SimOptions {
    * Override the reward offers for a room. Defaults to `offersForRoom`, i.e.
    * only what the corpus recorded.
    *
-   * This exists for ONE purpose: the counterfactual in `scripts/sim.ts` that
+   * This was built for ONE purpose: the counterfactual in `scripts/sim.ts` that
    * asks "if a clean boon were ever offered at room 1, how deep could the sim
    * then score?" — which separates "is the boon model correct" from "does the
-   * corpus offer a clean boon". Anything it produces is a HYPOTHETICAL and must
-   * be labelled as one. Never use it to generate a reported result.
+   * corpus offer a clean boon". Anything that INVENTS, ADDS, REMOVES OR
+   * REWEIGHTS an offer is a HYPOTHETICAL and must be labelled as one. Never use
+   * it to generate a reported result.
+   *
+   * **[session 58] There is now a second, non-hypothetical use, and the line
+   * between them is the offer DISTRIBUTION.** `src/sim/orbOffers.ts` passes
+   * back exactly `OBSERVED_OFFERS` — same rows, same order, same room, same
+   * `type`/`val1`/`val2` — with the recorded `gigusOrbAmount` joined onto each
+   * option, because that payout is a field the hand-transcribed table never
+   * carried and an orb policy is blind without it. Nothing is invented, so the
+   * result is a real measurement. What licenses that claim is
+   * `assertDistributionPreserved()`, which the caller must run before it
+   * reports anything; if it throws, the result is a hypothetical again. Enrich
+   * the offers, never change which ones a room gets.
    */
   offers?: (room: number) => BoonOffer[];
   /**
@@ -175,6 +187,16 @@ export interface BoonRecord {
   type: string;
   /** Empty means the boon is modelled AND drags nothing unmodelled in. */
   reasons: Reason[];
+  /**
+   * [session 58] The Hard Core payout of the option actually taken, when the
+   * offer carried one (`src/sim/orbOffers.ts`). `undefined` for every offer
+   * drawn from the plain `OBSERVED_OFFERS` table, which holds no payouts.
+   *
+   * Recorded rather than derived because orbs-per-RUN — not per-decision — is
+   * the quantity an orb policy is judged on: payouts compound with depth, so a
+   * rule that gains per decision and costs a room can still lose.
+   */
+  orbs?: number;
 }
 
 export interface RunResult {
@@ -348,7 +370,7 @@ export function simulateRun(opts: SimOptions): RunResult {
         : offer.options[0]!;
       const applied = applyBoon(player, chosen);
       player = applied.player;
-      boons.push({ room, type: chosen.type, reasons: applied.reasons });
+      boons.push({ room, type: chosen.type, reasons: applied.reasons, orbs: chosen.orbs });
       for (const r of applied.reasons) runReasons.add(r);
       // A boon that granted a rolled stat leaves the player permanently outside
       // the clean model, so assert it rather than trusting the reason list.

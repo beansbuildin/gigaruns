@@ -33,6 +33,20 @@ export interface BoonOption {
   type: string;
   val1: number;
   val2: number;
+  /**
+   * **[session 58]** This option's Hard Core payout
+   * (`rewardPathOptions[].gigusOrbAmount`, itemId 845), when it is known.
+   *
+   * `OBSERVED_OFFERS` below does NOT carry it — that table is hand-transcribed
+   * and holds only what the boon MODEL needs. It is attached by
+   * `src/sim/orbOffers.ts`, which joins the payouts on from the corpus by
+   * `source`, so a sim arm can exercise the live orb rule.
+   *
+   * `undefined` means **not captured**, never "zero orbs" — the same
+   * distinction `boonPriority.ts`'s partial-capture guard is built around.
+   * Nothing in `applyBoon` reads this: it is a payout, not an effect.
+   */
+  orbs?: number;
 }
 
 export type BoonEffect =

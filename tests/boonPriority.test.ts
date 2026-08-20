@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  chooseOrbFallback,
   BURN_MASTERY,
   choosePriorityBoon,
   DEFAULT_BOON_PRIORITY,
@@ -221,17 +222,64 @@ describe("the Hard Core orb tie-break (user directive, 2026-08-20 — session 57
     expect(d.orbTieBreak).toBe(false);
   });
 
-  it("does NOT fire when no option matches a priority family — the narrow reading, deliberately", () => {
-    // Every option here is unranked, so a WIDER reading would let orbs decide.
-    // Session 57 measured that wider reading at +1.81 orbs/decision against
-    // the shipped +0.029 — 62x — and did not ship it, because the directive
-    // authorises a tie-break WITHIN a rank and nothing more. If this test is
-    // ever changed, it should be because a new user directive widened the rule.
+  it('the PRIORITY LAYER itself still never fires without a family — both orb rules', () => {
+    // Unchanged by session 58 and worth keeping separate from what the FALLBACK
+    // does: `choosePriorityBoon` is the priority layer, and an offer with no
+    // family on it has no rank for orbs to break a tie within, under either
+    // rule. Policy C is a sibling of this function, not a loosening of it.
     const offered = [opt("AddEvasion"), opt("AddTenacity")];
-    expect(choosePriorityBoon({ player: player(), offered, room: 2, orbs: [1, 99] })).toBeNull();
-    const picked = pickBoonWithPriority(player(), offered, 2, DEFAULT_BOON_PRIORITY, {}, [1, 99]);
-    const ranked = pickBoonWithPriority(player(), offered, 2);
+    for (const orbRule of ["tie-break", "wide"] as const) {
+      const config = { ...DEFAULT_BOON_PRIORITY, orbRule };
+      expect(choosePriorityBoon({ player: player(), offered, room: 2, config, orbs: [1, 99] })).toBeNull();
+    }
+  });
+
+  it('orbRule "tie-break" leaves an unranked offer to rankBoons — the session-57 control arm', () => {
+    // This WAS the shipped rule and is now the control arm `scripts/
+    // orbDepthExperiment.ts` measures against, so it stays pinned. It is also
+    // what the account plays if the user reverses session 58's change.
+    const offered = [opt("AddEvasion"), opt("AddTenacity")];
+    const config = { ...DEFAULT_BOON_PRIORITY, orbRule: "tie-break" as const };
+    const picked = pickBoonWithPriority(player(), offered, 2, config, {}, [1, 99]);
+    const ranked = pickBoonWithPriority(player(), offered, 2, config);
     expect(picked.type).toBe(ranked.type);
+  });
+
+  it('orbRule "wide" (session 58, DEFAULT) takes the richest when no family is offered', () => {
+    // The change the depth experiment bought: -0.002 rooms, paired 95% CI
+    // [-0.018, +0.014] at n=8000, against a pre-registered 0.15-room bar, for
+    // +6.3 Hard Core per run. Do not narrow this back without a user directive
+    // — the same standing this rule replaced.
+    const offered = [opt("AddEvasion"), opt("AddTenacity")];
+    expect(DEFAULT_BOON_PRIORITY.orbRule).toBe("wide");
+    const picked = pickBoonWithPriority(player(), offered, 2, DEFAULT_BOON_PRIORITY, {}, [1, 99]);
+    expect(picked.type).toBe("AddTenacity");
+
+    const d = chooseOrbFallback({ player: player(), offered, room: 2, orbs: [1, 99] })!;
+    expect(d.index).toBe(1);
+    expect(d.orbs).toBe(99);
+    expect(d.narrowed).toBe(true);
+  });
+
+  it('orbRule "wide" still NEVER overrides a priority family', () => {
+    // The directive's one hard constraint, re-asserted against the wide rule:
+    // the fallback is only reachable when the priority layer returned null, so
+    // a 99-orb unranked option cannot beat a 1-orb AddMaxArmor.
+    const offered = [opt("AddMaxArmor"), opt("AddEvasion")];
+    const picked = pickBoonWithPriority(player(), offered, 2, DEFAULT_BOON_PRIORITY, {}, [1, 99]);
+    expect(picked.type).toBe("AddMaxArmor");
+  });
+
+  it('orbRule "wide" refuses a PARTIAL capture and reports a same-payout offer as not narrowed', () => {
+    // Same guard as the tie-break's, for the same reason: an absent payout is
+    // "not captured", never zero.
+    const offered = [opt("AddEvasion"), opt("AddTenacity")];
+    expect(chooseOrbFallback({ player: player(), offered, room: 2, orbs: [undefined, 99] })).toBeNull();
+    expect(chooseOrbFallback({ player: player(), offered, room: 2 })).toBeNull();
+
+    const flat = chooseOrbFallback({ player: player(), offered, room: 2, orbs: [7, 7] })!;
+    expect(flat.narrowed).toBe(false);
+    expect(flat.option.type).toBe(pickBoonWithPriority(player(), offered, 2, { ...DEFAULT_BOON_PRIORITY, orbRule: "tie-break" }).type);
   });
 
   it("refuses to fire on a PARTIAL capture rather than read an absent payout as zero", () => {

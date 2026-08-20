@@ -1596,6 +1596,47 @@ fix the drift before the probe says which of the two it is.
 
 ## §24 — Should the Hard Core orb tie-break be widened? [session 57]
 
+**Status: RESOLVED — YES, WIDENED AND SHIPPED (session 58).** `orbRule: "wide"`
+is the default in `src/strategy/boonPriority.ts` and a `config/bot.json` knob.
+The user's decision was to settle it with an experiment against a rule fixed in
+advance rather than by judgement, and the experiment came back decisive:
+
+```
+  scripts/orbDepthExperiment.ts, n=8000 per arm, identical seeds, paired
+
+  B shipped (tie-break)   mean rooms 3.2776   orbs/run 60.333
+  C wide                  mean rooms 3.2796   orbs/run 66.637
+
+  depth loss (B - C):  -0.0020 rooms,  paired 95% CI [-0.0175, +0.0135]
+  ship bar 0.15  |  break-even 0.292   -> the whole interval is ~11x inside the bar
+  orb gain:            +6.30 per run (+10.4%)
+  seeds where the arms produced an identical run: 6311 of 8000 (78.9%)
+```
+
+C is not merely no worse on depth — it is indistinguishable from B on depth
+while paying 10.4% more. **Do not narrow this back without a user directive**,
+the same standing the rule it replaced had.
+
+**The stage-0 check that had to pass first, and would have voided the result.**
+`applyBoon` changes player state for exactly six boon types (Heal, the three
+`Upgrade*`, AddMaxArmor, AddMaxHealth); the five `rolled` types move a stat
+`combat.ts` never reads, the six `latent` types hit `case "latent": break;`,
+and the 36 unmodelled types return the player unchanged. So two arms differing
+only on inert options are bit-identical and a null is guaranteed by
+construction rather than earned. Measured: C differs from B on 34.4% of
+decisions, and **25.8% of those differences touch an option that moves player
+state** — the channel is open, 21.1% of seeds diverged, and the null is a real
+null. The script reports this first and returns UNRESOLVED regardless of the
+depth number if the channel is ever closed.
+
+**What the result does NOT license.** The sim fights SAFE tier while live play
+fights the hardest offered (rule 8), and boon quality plausibly matters more
+when fights are harder. That is exactly why the ship bar was half the
+break-even. A null here is evidence that C's depth cost is small under
+Safe-tier conditions, not that it is zero under live ones.
+
+--- the original session-57 write-up follows, unchanged ---
+
 **Status: BLOCKED on a user directive. Nothing is wrong; the shipped rule works
 exactly as directed and is worth almost nothing.**
 

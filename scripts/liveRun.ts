@@ -89,6 +89,7 @@ import {
 } from "../src/strategy/boonCapture.js";
 import {
   choosePriorityBoon,
+  chooseOrbFallback,
   DEFAULT_BOON_PRIORITY,
   lifestealSightings,
   type BoonPriorityConfig,
@@ -1367,6 +1368,23 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
             orbs,
           })
         : null;
+      // [session 58, brief §1] Policy C, the WIDE orb reading — shipped after a
+      // pre-registered depth experiment (`scripts/orbDepthExperiment.ts`, n=8000
+      // paired) put C's cost at -0.002 rooms, 95% CI [-0.018, +0.014], against a
+      // 0.15-room ship bar; it buys +6.3 Hard Core per run for no measurable
+      // depth. It runs ONLY where `choosePriorityBoon` returned null, i.e. where
+      // no priority family was on offer at all, so it still cannot override a
+      // higher-priority boon — the session-57 directive's one hard constraint.
+      const orbFallback = priorityConfig && !priority
+        ? chooseOrbFallback({
+            player,
+            offered: mapped.map((m) => m.option),
+            room: roomNum,
+            config: priorityConfig,
+            rankOptions: { playCounts },
+            orbs,
+          })
+        : null;
       // [session 55, brief §3] The capture override, if one is armed and this
       // offer holds an unmodelled target. `null` on every ordinary run and on
       // ~82% of room-1 offers even when armed — see boonCapture.ts's measured
@@ -1389,7 +1407,14 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       // boonCapture's 5 targets (`VulnerableBlock`) is a priority family
       // member — which is why both layers exist rather than one replacing the
       // other. See boonPriority.ts's precedence section.
-      const chosenOption = capture ? capture.option : (priority ? priority.option : rankedOption);
+      // Precedence, widened at the tail only: capture > priority > ORB FALLBACK
+      // > ranked. The fallback slots in below priority by construction (it is
+      // only computed when priority is null), so nothing above it moved.
+      const chosenOption = capture
+        ? capture.option
+        : priority
+          ? priority.option
+          : (orbFallback?.option ?? rankedOption);
       const chosenEntry = mapped.find((m) => m.option === chosenOption)!;
       const chosenIndex = chosenEntry.wireIndex;
       if (capture) {
@@ -1405,6 +1430,16 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         console.log(
           `  ▸ reward: BOON-PRIORITY ${priority.priority} (${priority.label}) — taking ` +
             `"${chosenOption.type}" (index ${chosenIndex}) ${note}.`,
+        );
+      } else if (orbFallback) {
+        const note =
+          orbFallback.option.type === rankedOption.type
+            ? "(the ranker agreed)"
+            : `instead of ranked "${rankedOption.type}"`;
+        console.log(
+          `  ▸ reward: ORB FALLBACK — no priority family on offer; taking ` +
+            `"${chosenOption.type}" (index ${chosenIndex}) for ${orbFallback.orbs} Hard Core ` +
+            `out of [${orbs.join(", ")}] ${note}.`,
         );
       } else {
         console.log(`  ▸ reward: picking "${chosenOption.type}" (index ${chosenIndex})`);
@@ -1426,6 +1461,20 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
                 // what was on the table, and whether it actually decided.
                 orbTieBreak: priority.orbTieBreak,
                 orbsTaken: priority.orbs,
+                orbsOffered: orbs,
+              },
+            }
+          : {}),
+        ...(orbFallback
+          ? {
+              orbFallback: {
+                overrodeRanked: orbFallback.option.type === rankedOption.type ? null : rankedOption.type,
+                reason: orbFallback.reason,
+                // False means every option paid the same and `rankBoons` decided
+                // exactly as it always did — recorded so the log never claims a
+                // decision the payout did not make.
+                narrowed: orbFallback.narrowed,
+                orbsTaken: orbFallback.orbs,
                 orbsOffered: orbs,
               },
             }
@@ -1873,9 +1922,21 @@ async function main() {
     ...DEFAULT_BOON_PRIORITY,
     ...(config.boonPriority ?? {}),
   };
+  const orbRule = boonPriority.orbRule ?? "tie-break";
   console.log(
     `  · boon-priority: ON (user directive 2026-08-20) — BurnMastery > AddMaxArmor > AddMaxHealth > ` +
       `Sword family > Vulnerable family; lifesteal demoted in rooms 1..${boonPriority.earlyGameMaxRoom}.`,
+  );
+  // [session 58] Printed at startup because it is the one boon knob that can be
+  // flipped from config, and a run's boon log is unreadable without knowing
+  // which rule produced it.
+  console.log(
+    orbRule === "wide"
+      ? `  · orb rule: WIDE (session 58) — where NO priority family is offered, the richest Hard Core payout wins ` +
+        `and rankBoons breaks payout ties. Shipped on a pre-registered depth test: -0.002 rooms, 95% CI ` +
+        `[-0.018, +0.014] at n=8000, vs a 0.15-room bar; +6.3 orbs/run. Never overrides a priority family.`
+      : `  · orb rule: TIE-BREAK (session 57) — the payout only separates options already tied at the best ` +
+        `priority rank. This is the pre-session-58 rule; config/bot.json has it pinned.`,
   );
 
   const captureCfg = config.boonCapture;
