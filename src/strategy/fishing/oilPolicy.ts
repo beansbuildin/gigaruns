@@ -157,6 +157,28 @@ export interface OilBudgetConfig {
   /** Ceiling per cast. The game exposes 3 consumable slots (SPEC-fishing §4a); this may be lower, never higher. */
   maxPerCast: number;
   /**
+   * **[session 69 §4] Per-ITEM ceiling per cast, on top of `maxPerCast`.**
+   * User directive 2026-08-21: *"Continue using Focus oil until supply
+   * naturally depletes, then only use 2x Relaxing oil per fishing run."*
+   *
+   * Keyed by item id as a string, because this comes straight out of JSON.
+   * An id absent from the map has NO per-item cap and is bounded only by
+   * `maxPerCast` and the three slots — which is how "Focus: unconstrained" is
+   * expressed, by saying nothing rather than by writing a number that looks
+   * like a limit.
+   *
+   * **"per fishing run" means PER CAST.** The server's own action for starting
+   * one cast is `start_run` (SPEC-fishing §2), so the directive's word is the
+   * API's word for a cast, not for a session or a batch. Stated because a
+   * per-session reading would be far stricter and this is the reading that
+   * shipped.
+   *
+   * **A ceiling never causes a spend.** Reaching it can only refuse an oil the
+   * policy already wanted; it can never make one wanted. That is why applying
+   * it before the Focus supply runs out is safe rather than premature.
+   */
+  perItemMaxPerCast?: Record<string, number>;
+  /**
    * The user's approval of a derived consumption policy (CLAUDE.md rule 4,
    * session-61 brief §4d). FALSE until they have seen the policy and said yes.
    * Authorising the BUDGET is not authorising the TIMING.
@@ -178,8 +200,17 @@ export interface OilSpendContext {
   itemId: number;
   /** The account's REAL balance, read live. Never assumed positive. */
   heldBalance: number;
-  /** How many consumables this cast has already spent. */
+  /** How many consumables this cast has already spent, across ALL items. */
   usedThisCast: number;
+  /**
+   * [session 69 §4] How many of THIS item id this cast has already spent.
+   * Separate from `usedThisCast` because the two caps bind independently: a
+   * cast may hold three Focus Oils and still be refused a third Relaxing one.
+   * Required, not optional — an omitted count would silently read as 0 and
+   * disable the cap, which is the failure mode `OilSpendContext` is a shape
+   * rather than an argument list to prevent.
+   */
+  usedThisCastOfItem: number;
   /** True on a `--dry-run`: decide, report, spend nothing. */
   dryRun: boolean;
   /** Set by the caller when a previous `use_fishing_item` failed this cast — do not retry blind. */
@@ -233,5 +264,17 @@ export function mayConsumeOil(ctx: OilSpendContext): OilSpendDecision {
   if (ctx.usedThisCast >= cap) {
     return { allowed: false, reason: `per-cast budget reached (${ctx.usedThisCast}/${cap}).` };
   }
-  return { allowed: true, reason: `within budget (${ctx.usedThisCast + 1}/${cap}), ${ctx.heldBalance} held, policy approved.` };
+  // [session 69 §4] The per-item ceiling, checked AFTER the overall one so the
+  // message names the tighter of the two rather than whichever is written
+  // first. `itemCap` is also floored by the overall cap: a per-item number
+  // larger than `maxPerCast` must not read as permission to exceed it.
+  const itemCap = c.perItemMaxPerCast?.[String(ctx.itemId)];
+  if (itemCap !== undefined && ctx.usedThisCastOfItem >= Math.min(itemCap, cap)) {
+    return {
+      allowed: false,
+      reason: `per-cast cap for item ${ctx.itemId} reached (${ctx.usedThisCastOfItem}/${Math.min(itemCap, cap)}) — user directive, session 69 §4.`,
+    };
+  }
+  const itemNote = itemCap === undefined ? "" : `, item ${ctx.itemId} ${ctx.usedThisCastOfItem + 1}/${Math.min(itemCap, cap)}`;
+  return { allowed: true, reason: `within budget (${ctx.usedThisCast + 1}/${cap})${itemNote}, ${ctx.heldBalance} held, policy approved.` };
 }

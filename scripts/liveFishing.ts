@@ -1328,10 +1328,17 @@ export interface OilTriggerNoStock {
    * WHY there was nothing to spend, kept distinct because the two are not the
    * same fact. `"empty"` — the balance was read and the account holds none.
    * `"balance_unknown"` — the balance read itself failed, so the count is a
-   * conservative 0 rather than an observed one. Both exclude the cast from
-   * both outcome arms; only `"empty"` is evidence about the user's stock.
+   * conservative 0 rather than an observed one. `"per_cast_cap"` [session 69
+   * §4] — the account HELD one and a user ceiling withheld it, which is a fact
+   * about policy and not about stock.
+   *
+   * All three exclude the cast from both outcome arms, for the same reason: it
+   * was played by the oil policy running dry on that arm. Only `"empty"` is
+   * evidence about the user's stock, and `"per_cast_cap"` is specifically NOT
+   * — reading a cap as an empty bag would understate the account's holdings in
+   * exactly the reports that exist to track them.
    */
-  reason: "empty" | "balance_unknown";
+  reason: "empty" | "balance_unknown" | "per_cast_cap";
 }
 
 /** Safety cap only — SPEC.md §5 names no real max-turns figure; this exists solely to guard against an infinite-loop bug, not to model the game. */
@@ -1629,6 +1636,12 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // `fishingCorpus.ts` derives the oil-era flag from — this local count is the
   // BUDGET's, checked before each spend rather than read back after one.
   let oilsUsedThisCast = 0;
+  // [session 69 §4] Per-KIND tally, because the caps bind independently: the
+  // user's directive is a ceiling on Relaxing Oils specifically, not on
+  // consumables in general. Derived nowhere else — `oilItemIdsUsedThisCast`
+  // below records the same events for the fixture, but a count the gate reads
+  // must not be recovered by filtering a log.
+  const oilsUsedThisCastOf: Record<OilKind, number> = { relaxing: 0, focus: 0 };
   const oilItemIdsUsedThisCast: number[] = [];
 
   while (turn < MAX_TURNS) {
@@ -1917,10 +1930,33 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         itemId,
         heldBalance: held,
         usedThisCast: oilsUsedThisCast,
+        usedThisCastOfItem: oilsUsedThisCastOf[kind],
         dryRun,
         spendFailedThisCast: oilUseFailedThisCast[kind],
       });
       if (!auth.allowed) {
+        // [session 69 §4] **A per-item cap hit is the THIRD STATE too, not an
+        // ordinary refusal.** The policy wanted the oil, the account held one,
+        // and a user ceiling withheld it — so the cast was played by the oil
+        // policy running dry on that arm, exactly the shape session 62 §1b
+        // invented `oilTriggerNoStock` for. Folding it into the plain
+        // `oil_spend_refused` line would leave the cast averaged into the OIL
+        // arm while it was in fact partly unoiled, which is the mistake that
+        // poisoned a rate for 40 casts.
+        //
+        // The cast CONTINUES and the batch does NOT halt. A ceiling reached is
+        // an expected state, not a rule-5 unexpected one.
+        const capReached = held > 0 && auth.reason.includes(`per-cast cap for item ${itemId}`);
+        if (capReached) {
+          oilTriggerNoStock.push({ turn, kind, itemId, reason: "per_cast_cap" });
+          log.write({ event: "oil_trigger_no_stock", turn, kind, itemId, held, reason: "per_cast_cap", detail: auth.reason });
+          console.log(
+            `  · on-demand wanted the ${kind === "focus" ? "Mid Focus" : "Mid Relaxing"} Oil here ` +
+              `(turn ${turn}) — PER-CAST CAP REACHED (${held} held, so this is a user ceiling and not an empty bag), ` +
+              `playing on without it. This cast is flagged out of both arms.`,
+          );
+          continue;
+        }
         if (held <= 0) {
           // ---- THE THIRD STATE (§1b) -------------------------------------
           // The policy WANTED an oil and the bag was empty. This is not a
@@ -1980,6 +2016,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         doc = oilResp.data.doc;
         oilHeld[kind] -= 1;
         oilsUsedThisCast += 1;
+        oilsUsedThisCastOf[kind] += 1;
         oilItemIdsUsedThisCast.push(itemId);
         console.log(
           `  ✓ use_fishing_item (${itemId}): fish now ${doc.data.fishHp}/${doc.data.fishMaxHp}, ` +

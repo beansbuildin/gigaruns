@@ -70,6 +70,10 @@ const BotJsonSchema = z.object({
         .object({
           allowedItemIds: z.array(z.number().int().positive()).min(1),
           maxPerCast: z.number().int().positive().max(3),
+          // [session 69 §4] Per-item ceiling, keyed by item id as a string.
+          // Absent id = no per-item cap ("Focus: unconstrained"), which is
+          // deliberately expressed by silence rather than by a number.
+          perItemMaxPerCast: z.record(z.string(), z.number().int().nonnegative().max(3)).optional(),
           policyApproved: z.boolean(),
         })
         .optional(),
@@ -132,7 +136,13 @@ export interface BotConfig {
     dailyEnergyBudget: number;
     maxCastsPerSession: number;
     /** [session 61 §4c] User-authorized oils — absent means "no oils", not "work it out from inventory." */
-    oils?: { allowedItemIds: number[]; maxPerCast: number; policyApproved: boolean };
+    oils?: {
+      allowedItemIds: number[];
+      maxPerCast: number;
+      /** [session 69 §4] Per-item per-cast ceiling, keyed by item id as a string. Absent id = uncapped. */
+      perItemMaxPerCast?: Record<string, number>;
+      policyApproved: boolean;
+    };
   };
 }
 

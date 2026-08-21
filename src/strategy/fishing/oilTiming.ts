@@ -449,6 +449,107 @@ export interface OilNecessityThresholds {
  */
 export const RECOMMENDED_NECESSITY_THRESHOLDS: OilNecessityThresholds = { relaxing: 1, focus: 1 };
 
+// ---------------------------------------------------------------------------
+// [session 69 §3] THE EXCHANGE-RATE THRESHOLD — derived, PRE-REGISTERED, and
+// deliberately not fitted. NOT SHIPPED: `scripts/liveFishing.ts` still plays
+// `onDemandTriggers`, and this is evaluated in shadow beside it.
+// ---------------------------------------------------------------------------
+
+/**
+ * **The user's question, made arithmetic.** A lethal-band Relaxing Oil converts
+ * an uncertain catch into a certain one. If `p` is the chance of taking the
+ * fish without it, spending gains `(1 - p)` fish and costs one oil. So the oil
+ * is worth spending exactly when
+ *
+ *     (1 - p)  >  v          where `v` = what one oil is worth, IN FISH
+ *
+ * and holding is right when `p >= 1 - v`. That is the whole derivation: the
+ * hold threshold is one minus the value of an oil.
+ *
+ * **This is the reason the number is not tuned, and the distinction matters
+ * more than the value.** A swept threshold is chosen because it scores well on
+ * the simulator that swept it — and CLAUDE.md's standing guidance says not to,
+ * on a sim whose control arm catches 68.71% against a real fishery's 25.9%.
+ * This one is chosen because the user is trading oils for fish at a rate that
+ * was MEASURED, so the only way to argue with it is to argue with the
+ * measurement. If the exchange rate is re-measured, the threshold moves as a
+ * consequence rather than as a decision.
+ */
+export function holdThresholdFromExchangeRate(oilsPerExtraFish: number): number {
+  if (!(oilsPerExtraFish > 0)) {
+    throw new Error(`oilsPerExtraFish must be > 0, got ${oilsPerExtraFish} — an oil that buys no fish has no exchange rate`);
+  }
+  // An oil worth MORE than a whole fish would put the threshold below zero,
+  // i.e. never hold. Clamped rather than allowed to go negative, so the
+  // degenerate reading is the named `NEVER_FIRES_THRESHOLD` and not a silent
+  // sign flip.
+  return Math.max(NEVER_FIRES_THRESHOLD, 1 - 1 / oilsPerExtraFish);
+}
+
+/**
+ * **The measured rate, corpus-derived, session 66.** Holding zero Mid Relaxing
+ * Oil costs an expected +1.83pp of catch rate over the 109-cast corpus, 95%
+ * Wilson [0.5pp, 6.4pp] — about **six oils per extra fish**, with the interval
+ * spanning roughly 1.5 to 20. `handoff/reports/session-66-relaxing-cost.md`.
+ *
+ * **The interval is not decoration.** At 1.5 oils/fish the hold threshold is
+ * 0.33 and at 20 it is 0.95; the point estimate's 0.83 sits between two
+ * genuinely different policies. Any report of this threshold that omits the
+ * interval is overstating what was measured — the numerator behind the point
+ * estimate is TWO casts.
+ */
+export const MEASURED_RELAXING_OILS_PER_EXTRA_FISH = 6;
+export const MEASURED_RELAXING_OILS_PER_EXTRA_FISH_INTERVAL: readonly [number, number] = [1.5, 20];
+
+/**
+ * **PRE-REGISTERED, 2026-08-21, before the session-69 batch was cast.**
+ *
+ * `relaxing` = `holdThresholdFromExchangeRate(6)` = **0.8333…**, straight off
+ * the measured rate above. Nothing was swept to obtain it.
+ *
+ * **`focus` stays at 1, and that is a finding rather than an omission.** The
+ * derivation above is specific to the LETHAL band: it prices an oil that
+ * converts an uncertain catch into a certain one, so `(1 - p)` is a number of
+ * fish. A Mid Focus Oil does no such thing — it restores two points of meter,
+ * which changes which cells are reachable on later turns and buys no catch
+ * directly. `bestConnectProbabilityFromFrozenCell` is therefore not a `p` this
+ * arithmetic can use, and no corpus-measured oils-per-extra-fish exists for the
+ * Focus trigger to substitute. **Applying the Relaxing number to it would be
+ * the fitted parameter this whole construction exists to avoid**, wearing a
+ * derivation's clothes.
+ *
+ * Stock is a SECOND reason the two arms should differ and is deliberately not
+ * folded in here: live on 2026-08-21 the account held Relaxing 56 and Focus 19,
+ * so the scarce oil is the Focus one and its shadow price is higher — but
+ * scarcity is not efficacy, this repo has measured neither shadow price, and
+ * inventing one would be a third unmeasured constant. See
+ * `handoff/OIL-CONSERVE.md` and CLAUDE.md rule 4.
+ */
+export const PREREGISTERED_EXCHANGE_THRESHOLDS: OilNecessityThresholds = {
+  relaxing: holdThresholdFromExchangeRate(MEASURED_RELAXING_OILS_PER_EXTRA_FISH),
+  focus: 1,
+};
+
+/**
+ * The exchange-rate policy, for shadow evaluation beside the shipped one.
+ *
+ * **What `p` really is, and which way the proxy is wrong.** The derivation
+ * wants `P(catch EVENTUALLY without the oil)`. `bestKillProbability` is
+ * `P(kill THIS TURN with an affordable card)`, which is smaller — the cast can
+ * go on and land the fish two turns later. So the proxy UNDERSTATES `p`, the
+ * gate therefore holds LESS often than the exchange rate says it should, and
+ * every oil this policy saves is an oil the correctly-specified policy would
+ * also have saved. It errs toward SPENDING. Say that whenever the saving is
+ * quoted.
+ *
+ * The bias is not unbounded in the lethal band, which is the one place it can
+ * be reasoned about: a miss HEALS the fish by the card's miss amount (3 to 6 on
+ * the live deck), which lifts it clear of the oil's 2 damage, so the trigger
+ * does not simply recur next turn. The oil held here is held for a LATER CAST,
+ * not for later in this one — which is exactly what the directive asked for.
+ */
+export const conservingByExchangeRate: OilTimingPolicy = conservingOil(PREREGISTERED_EXCHANGE_THRESHOLDS);
+
 /**
  * **[session 68 §1] The comparison is epsilon-tolerant, and this is a
  * FLOATING-POINT FIX, not a tuned threshold. Read the distinction before

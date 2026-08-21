@@ -97,6 +97,7 @@ const ok = (over: Partial<OilSpendContext> = {}): OilSpendContext => ({
   itemId: MID_RELAXING_OIL_ITEM_ID,
   heldBalance: 2,
   usedThisCast: 0,
+  usedThisCastOfItem: 0,
   dryRun: false,
   spendFailedThisCast: false,
   ...over,
