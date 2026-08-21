@@ -60,13 +60,15 @@ describe("cast-trace corpus reconciliation", () => {
     // Old figures 89/88/388/13.
     // [session 63] Recount after this session's ONE cast (caught, 3 turns).
     // Old figures 94/93/407/14.
-    expect(traces.length).toBe(95);
-    expect(clean.length).toBe(94);
-    // 410 play turns across the clean traces — the same 410 as
+    // [session 64] Recount after the §2 oil batch — 6 casts, 3 caught.
+    // Old figures 95/94/410/15.
+    expect(traces.length).toBe(101);
+    expect(clean.length).toBe(100);
+    // 429 play turns across the clean traces — the same 429 as
     // auditStepClass.ts's off-ring denominator and auditStateFields.ts's, and
-    // the same 15 catches as the all-time 15/95.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(410);
-    expect(traces.filter((t) => t.caught).length).toBe(15);
+    // the same 18 catches as the all-time 18/101.
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(429);
+    expect(traces.filter((t) => t.caught).length).toBe(18);
   });
 
   it("the one non-clean trace is session 45's resumed cast, which has no start_run", () => {

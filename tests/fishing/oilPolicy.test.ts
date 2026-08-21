@@ -173,6 +173,34 @@ describe("the live call site passes every condition the gate checks", () => {
     expect(call).toMatch(/configured:\s*deps\.oilBudget/);
   });
 
+  /**
+   * ── [session 64] THE OUTER HOP, which nothing checked ────────────────────
+   *
+   * The assertion above passed for three sessions while no oil could be spent
+   * at all. It pins `runOneCast` -> `mayConsumeOil`, and that hop was always
+   * correct. The broken one was `main()` -> `runOneCast`: `oilBudget` is
+   * OPTIONAL on `LiveFishingDeps`, `main()` never set it, and so the gate saw
+   * `configured: undefined` on every live cast and refused with "no
+   * `dendren.oils` block in config/bot.json" — while the block sat in
+   * `config/bot.json` with `policyApproved: true`.
+   *
+   * A chain tested link-by-link is not tested unless every link is covered,
+   * and an OPTIONAL dependency is exactly where the gap hides: omitting it
+   * typechecks, and the field's doc comment describes omission as the
+   * conservative choice, so the dead state reads as the safe one.
+   *
+   * This is why the test is on the source text. There is no type error to
+   * catch and no return value to assert — the defect is an absent property in
+   * an object literal, and absence is what has to be asserted against.
+   */
+  it("main() actually POPULATES deps.oilBudget from the loaded config", () => {
+    const mainCall = src.slice(src.lastIndexOf("await runOneCast({"), src.length);
+    const literal = mainCall.slice(0, mainCall.indexOf("});") + 3);
+    expect(literal).toMatch(/oilBudget:\s*config\.dendren\?\.oils/);
+    // and not neutralised back to nothing by a later edit
+    expect(literal).not.toMatch(/oilBudget:\s*undefined/);
+  });
+
   it("passes the REAL live balance, not a constant", () => {
     // [session 62 §1] `relaxingOilHeld` became `oilHeld[kind]` when `on-demand`
     // replaced heuristic (c): the loop now spends BOTH oils, so the balance is

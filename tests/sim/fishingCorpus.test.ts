@@ -54,11 +54,15 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // UNCHANGED at 79. Old figures 94/517/411/14/79/1. The cast was
     // classified clean non-oil — the on-demand policy wanted no oil, so it is
     // an ordinary member of the non-oil arm, not a third-state exclusion.
-    expect(summary.casts).toBe(95);
-    expect(summary.responseDocs).toBe(522);
-    expect(summary.playTurns).toBe(414);
-    expect(summary.caught).toBe(15);
-    expect(summary.escaped).toBe(79);
+    // [session 64] The §2 oil batch: 6 casts, 3 caught / 3 escaped. Every
+    // delta reconciles with exactly those six — +6 casts, +28 responseDocs,
+    // +19 playTurns, +3 caught, +3 escaped, `incomplete` unchanged at 1.
+    // Old figures 95/522/414/15/79/1.
+    expect(summary.casts).toBe(101);
+    expect(summary.responseDocs).toBe(550);
+    expect(summary.playTurns).toBe(433);
+    expect(summary.caught).toBe(18);
+    expect(summary.escaped).toBe(82);
     expect(summary.incomplete).toBe(1);
   });
 

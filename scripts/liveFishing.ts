@@ -2147,6 +2147,27 @@ async function main() {
         dryRun: args.dryRun,
         guardStatePath: fishingGuardPath,
         shutdownSignal,
+        // ── [session 64] THE WIRE THAT WAS NEVER CONNECTED ──────────────────
+        //
+        // `oilBudget` is optional on `LiveFishingDeps` and `main()` never set
+        // it, so `mayConsumeOil` saw `configured: undefined` on every live
+        // cast and refused with "no `dendren.oils` block in config/bot.json".
+        // The block has been present and `policyApproved: true` since session
+        // 62; the loop simply never handed it over.
+        //
+        // That is why `on-demand` had "never consumed an oil live" across
+        // sessions 62, 63 and this one's first six casts. It was read as bad
+        // luck and then as a possible flaw in the trigger model. It was
+        // neither: the triggers fired (three times in cast 1 alone) and the
+        // policy was refused by a dependency nobody passed.
+        //
+        // The field's own doc comment is what hid it — "omitting it writes
+        // nothing anywhere, it only makes the loop more conservative" is true,
+        // and it makes the permanently-omitted case look like a safe default
+        // rather than a dead feature. `tests/fishing/oilPolicy.test.ts` pinned
+        // the INNER hop (`runOneCast` -> `mayConsumeOil`) and passed the whole
+        // time; nothing pinned this outer one. It is pinned now.
+        oilBudget: config.dendren?.oils,
       });
     } catch (e) {
       castError = e;

@@ -172,25 +172,32 @@ describe("the committed corpus", () => {
    * the trigger cannot move it silently. If a future session adds casts these
    * numbers MUST be updated, not reverted — same convention as the census in
    * `tests/sim/fishingCorpus.test.ts`.
+   *
+   * [session 64] Updated once already, by this session's own 6-cast batch:
+   * 95 -> 101 casts, Focus 56 -> 57 (58.9% -> 56.4%), Relaxing 9 -> 10. The
+   * headline conclusion is unmoved — the Focus trigger is reachable in most
+   * casts and the +17.74pp it carries is not a sim artifact.
    */
-  it("reports reachability over all 95 casts", () => {
+  it("reports reachability over all 101 casts", () => {
     const r = reachabilityReport(loadFishingCorpus());
-    expect(r.casts).toBe(95);
-    expect(r.totalDecisionPoints).toBe(413);
-    expect(r.relaxingReachable).toBe(9);
-    expect(r.focusReachable).toBe(56);
-    expect(r.eitherReachable).toBe(60);
-    expect(r.neitherReachable).toBe(35);
-    expect(r.totalRelaxingPoints).toBe(9);
-    expect(r.totalFocusPoints).toBe(184);
+    expect(r.casts).toBe(101);
+    expect(r.totalDecisionPoints).toBe(432);
+    expect(r.relaxingReachable).toBe(10);
+    expect(r.focusReachable).toBe(57);
+    expect(r.eitherReachable).toBe(61);
+    expect(r.neitherReachable).toBe(40);
+    expect(r.totalRelaxingPoints).toBe(10);
+    expect(r.totalFocusPoints).toBe(186);
   });
 
   it("shows the lax definition inflating Focus reachability on the real corpus", () => {
     const strict = reachabilityReport(loadFishingCorpus());
     const lax = reachabilityReport(loadFishingCorpus(), { requireTurnRemaining: false });
-    expect(lax.focusReachable).toBe(70);
+    expect(lax.focusReachable).toBe(71);
     // 14 real casts whose only meter-zero state is the one the policy could
     // never have acted on. The error is in the flattering direction.
+    // [session 64] Unchanged at 14 after the 6-cast batch: the batch added one
+    // cast to each side, so the GAP is the stable quantity, not the endpoints.
     expect(lax.focusReachable - strict.focusReachable).toBe(14);
     // The Relaxing trigger is unaffected: a lethal fish is never the last state.
     expect(lax.relaxingReachable).toBe(strict.relaxingReachable);

@@ -55,7 +55,11 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // `critZones`. The discrimination is now 391/391 with 10 crits for the
     // corrected table against 383/391 with 2 for the transposed one — the
     // inequalities below are what assert that gap rather than just the pass.
-    expect(corrected.crits).toBe(10);
+    // [session 64] 10 -> 12 across the §2 oil batch's 6 casts, same pattern:
+    // each new crit is `critEffects` at a cell inside the card's TRANSLATED
+    // `critZones`. The discriminating inequalities below are what carry the
+    // claim; the count is a census figure and moves with the corpus.
+    expect(corrected.crits).toBe(12);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });
