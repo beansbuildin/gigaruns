@@ -208,10 +208,31 @@ describe("the committed corpus", () => {
     // [session 64] Unchanged at 14 after the 6-cast batch: the batch added one
     // cast to each side, so the GAP is the stable quantity, not the endpoints.
     // [session 65] Still 14 after the seven-cast batch — 72 -> 74 lax against
-    // 58 -> 60 strict. Three independent batches now, and the gap has not
-    // moved once. That is worth more than any of the endpoints: it says the
-    // lax definition's error is a stable structural feature of how casts end,
-    // not sampling noise that might wash out with more data.
+    // 58 -> 60 strict.
+    //
+    // ── [session 66 §3] THE "STRUCTURAL, NOT SAMPLING NOISE" CLAIM IS
+    //    WITHDRAWN AS STATED. ──────────────────────────────────────────────
+    //
+    // This comment used to end: "Three independent batches now, and the gap
+    // has not moved once. That is worth more than any of the endpoints: it
+    // says the lax definition's error is a stable structural feature of how
+    // casts end, not sampling noise that might wash out with more data."
+    //
+    // The arithmetic does not support that. Between the last two readings the
+    // corpus grew by SEVEN casts. At the observed gap rate 14/102 = 13.7%,
+    // those seven were expected to add ~0.96 members, and adding ZERO has
+    // probability 0.863^7 = 0.36. A one-in-three outcome is the single most
+    // ordinary thing that could have happened; it is not evidence of anything.
+    //
+    // Worse, the "same 14 casts" reading is not evidence either — it is
+    // arithmetic. Gap membership is a PER-CAST property (`castReachability`
+    // reads one cast and nothing else) and the corpus only ever grows, so
+    // gap(109) is necessarily a superset of gap(102). Equal counts therefore
+    // FORCE equal membership. Nothing was learned by observing it.
+    //
+    // The membership check below is what actually settles the question, and
+    // the shared property it finds is real but is not a finding about the
+    // meter's dynamics: it is the definition of clause 2 restated.
     expect(lax.focusReachable - strict.focusReachable).toBe(14);
     // ── [session 64] THIS CLAIM WAS WRONG, AND LIVE PLAY FALSIFIED IT ──────
     //
@@ -234,5 +255,146 @@ describe("the committed corpus", () => {
     // flattering direction and therefore the dangerous one.
     expect(lax.relaxingReachable - strict.relaxingReachable).toBe(2);
     expect(strict.relaxingReachable).toBe(12);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [session 66 §2] THE EXPECTED COST OF ZERO RELAXING STOCK
+//
+// Pinned here so the report cannot drift from the corpus.
+// `handoff/reports/session-66-relaxing-cost.md`,
+// `npx tsx scripts/oilReachability.ts --relaxing-cost`.
+// ---------------------------------------------------------------------------
+
+describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", () => {
+  const rows = loadFishingCorpus().map((c) => castReachability(c, { requireTurnRemaining: true }));
+  const reachable = rows.filter((r) => r.relaxingReachable);
+
+  it("finds the lethal trigger reachable on 12 of 109 casts, over 14 decision points", () => {
+    expect(rows).toHaveLength(109);
+    expect(reachable).toHaveLength(12);
+    expect(rows.reduce((n, r) => n + r.relaxingPoints, 0)).toBe(14);
+  });
+
+  it("THE FINDING: ten of the twelve were caught anyway, so only two casts could have been converted", () => {
+    // This is the number that makes the estimate small, and it is the one a
+    // dry-trigger COUNT hides completely. The trigger fires at `fishHp <= 2`
+    // with a turn to play, and a fish that low usually dies to the next card,
+    // which deals far more than the oil's 2. The oil earns only in the residue
+    // where that card misses.
+    expect(reachable.filter((r) => r.caught)).toHaveLength(10);
+    expect(reachable.filter((r) => !r.caught).map((r) => r.docId).sort()).toEqual(["12975713", "12991353"]);
+  });
+
+  it("prices it per oil, which is where the corpus and the sim actually agree", () => {
+    const gained = reachable.filter((r) => !r.caught).length;
+    const oils = reachable.length; // on-demand spends at the FIRST lethal point
+    expect(gained / oils).toBeCloseTo(0.167, 3);
+    // The sim's `lethal-relaxing-only` arm: +4.47pp for 1821 oils over 8000
+    // casts = 0.196 extra catches per oil. Close. The HEADLINE pp is not close
+    // — 4.47 vs 1.83 — because the sim reaches the lethal band on 22.8% of
+    // casts against this corpus's 11.0%. Trigger RATE, not oil value, and it
+    // is why +4.47pp must not be quoted as the live cost of zero stock.
+    expect((100 * reachable.length) / rows.length).toBeCloseTo(11.0, 1);
+    expect((100 * 1821) / 8000).toBeCloseTo(22.8, 1);
+  });
+
+  it("and the numerator is two casts, so the interval is the thing to quote", () => {
+    // +1.83pp point estimate, 95% Wilson [0.5pp, 6.4pp] — 0.10 to 1.29 extra
+    // fish a day at the 20-cast cap. Reported as expected, never as observed:
+    // this corpus was played with zero Relaxing Oil in stock, and the single
+    // live consume on record (session 65, fishHp 1 -> 0, CAUGHT) confirms the
+    // mechanism and calibrates no rate.
+    const gained = reachable.filter((r) => !r.caught).length;
+    expect(gained).toBe(2);
+    expect((100 * gained) / rows.length).toBeCloseTo(1.83, 2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [session 66 §3] THE MEMBERSHIP CHECK — settled by cast id, not by count
+//
+// `npx tsx scripts/oilReachability.ts --gap` prints all of this.
+// ---------------------------------------------------------------------------
+
+describe("the 14-cast gap, answered by MEMBERSHIP", () => {
+  const corpus = loadFishingCorpus();
+  const gap = corpus.filter(
+    (c) =>
+      castReachability(c, { requireTurnRemaining: false }).focusReachable &&
+      !castReachability(c, { requireTurnRemaining: true }).focusReachable,
+  );
+
+  it("is these exact 14 casts, and NONE of them is one of the seven added in session 65", () => {
+    // The ids are the answer to "are they the same 14 at both corpus sizes?".
+    // They are — necessarily, see the withdrawn claim above — and every one of
+    // them predates the last batch.
+    expect(gap.map((c) => c.docId).sort()).toEqual([
+      "12923189",
+      "12942026",
+      "12942155",
+      "12944922",
+      "12945306",
+      "12945313",
+      "12956660",
+      "12956727",
+      "12957029",
+      "12957061",
+      "12957129",
+      "12975708",
+      "12975724",
+      "12991326",
+    ]);
+    const newest7 = new Set(
+      corpus
+        .map((c) => ({ docId: c.docId, first: orderedResponses(c)[0]?.updatedAt ?? "" }))
+        .sort((a, b) => a.first.localeCompare(b.first))
+        .slice(-7)
+        .map((c) => c.docId),
+    );
+    expect(gap.filter((c) => newest7.has(c.docId))).toHaveLength(0);
+  });
+
+  it("shares a property, and it is clause 2 restated rather than a fact about the meter", () => {
+    // Every member is a cast that ESCAPED with the fish alive, whose focus
+    // meter reached zero for the first and ONLY time on the state that ended
+    // the cast. Hence: exactly one extra decision point under the lax reading,
+    // and exactly one lax focus point.
+    for (const c of gap) {
+      const lax = castReachability(c, { requireTurnRemaining: false });
+      const strict = castReachability(c, { requireTurnRemaining: true });
+      expect(lax.caught).toBe(false);
+      expect(lax.decisionPoints).toBe(strict.decisionPoints + 1);
+      expect(lax.focusPoints).toBe(1);
+    }
+  });
+
+  it("a CAUGHT cast can never be in the gap, which is why all 14 escaped", () => {
+    // Not a property of the 14 — a property of the definition. A caught cast's
+    // terminal state has `fishHp: 0`, so it fails clause 1 (alive) and the lax
+    // reading adds nothing to it. 23 of the 109 casts are caught and all 23 are
+    // excluded structurally.
+    const caught = corpus.filter((c) => c.responses.some((r) => r.caughtFish !== null));
+    expect(caught).toHaveLength(23);
+    expect(caught.filter((c) => gap.some((g) => g.docId === c.docId))).toHaveLength(0);
+  });
+
+  it("and the gap is NOT simply 'escaped with an empty meter at the end' — that set is 66", () => {
+    // This is the measurement that stops the shared property from being
+    // overstated. 66 escaped casts end alive with the meter at zero; 52 of them
+    // had ALREADY hit zero with a turn still to play, so the strict reading
+    // calls them reachable too and they are not in the gap. The gap is the
+    // residue: 66 - 52 = 14.
+    const escaped = corpus.filter((c) => !c.responses.some((r) => r.caughtFish !== null));
+    expect(escaped).toHaveLength(86);
+    const terminalMeterZero = escaped.filter((c) => {
+      const ordered = orderedResponses(c);
+      const last = ordered[ordered.length - 1];
+      return !!last && last.board.fishHp > 0 && last.board.focusMeter <= 0;
+    });
+    expect(terminalMeterZero).toHaveLength(66);
+    const alreadyStrict = terminalMeterZero.filter((c) => castReachability(c, { requireTurnRemaining: true }).focusReachable);
+    expect(alreadyStrict).toHaveLength(52);
+    expect(terminalMeterZero.length - alreadyStrict.length).toBe(gap.length);
   });
 });
