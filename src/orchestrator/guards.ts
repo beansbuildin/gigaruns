@@ -118,6 +118,26 @@ export class GuardState {
   }
 
   /**
+   * [session 70 §4] Sets the tracked run count to what the SERVER's own daily
+   * ledger says — for fishing, `dayDocs[pondId].UINT256_CID`; see
+   * `src/orchestrator/fishingLedgerReconcile.ts` for why this is needed at all.
+   *
+   * **Deliberately NOT monotonic**, which is the whole difference between this
+   * and `recordServerCapReached` above. That method is a one-way backstop and
+   * must never lower a count. This one exists precisely because the local
+   * counter has drifted in BOTH directions against the server's on a single day
+   * (game 14 / repo 15, then game 16 / repo 15), and a `Math.max` would fix
+   * only the direction that plans a batch the server rejects while leaving the
+   * direction that refuses casts the account still has.
+   *
+   * The server is the authority on how many runs were started. This method is
+   * the only place that is allowed to say so.
+   */
+  adoptServerRunCount(serverRunCount: number): void {
+    this.runsStarted = serverRunCount;
+  }
+
+  /**
    * Call after a run ends with the OBSERVED energy delta (live energy
    * before minus after), never an assumed constant — CLAUDE.md §1,
    * "discover, don't assume."

@@ -91,6 +91,7 @@ import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
+import { reconcileFishingLedger } from "../src/orchestrator/fishingLedgerReconcile.js";
 import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profile.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
@@ -1371,6 +1372,48 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const dendren = config.dendren;
 
   const existing = await client.getFishingState(address);
+
+  // ── [session 70 §4] THE REPO LEDGER DEFERS TO THE GAME'S ─────────────────
+  //
+  // Reconciled HERE rather than in `main()` for the reason session 64's
+  // headline gave: `main()` is the outer wire nothing pins, and a
+  // reconciliation only `main()` performs is inert for every test in the suite
+  // and for `orchestrator.ts` besides. This is the one read every cast already
+  // makes before deciding to start, so putting the join here costs no extra
+  // request and puts it on the path `runOneCast`'s existing tests all drive.
+  //
+  // Runs BEFORE `assertCanStartRun` below, which is the point: the guard must
+  // be asked its question with the server's number, not the file's. It writes
+  // the corrected count straight back to disk so `--status` (which has no
+  // network) stops reporting a stale figure, and so the drift does not
+  // accumulate across invocations.
+  //
+  // This can never authorize a spend the server would not: it copies the
+  // server's own count. When the ledger is unreadable it changes nothing —
+  // see `reconcileFishingLedger`'s fail-closed branch.
+  const gameCastsSpent = ((): number | null => {
+    const remaining = dendrenCastsRemaining(existing as never);
+    if (remaining === null) return null;
+    const cap = (existing as { maxPerDayJuiced?: number }).maxPerDayJuiced;
+    return typeof cap === "number" ? cap - remaining : null;
+  })();
+  const reconciliation = reconcileFishingLedger(
+    { date: todayKey(), energySpent: guards.spentEnergy, runsStarted: guards.runCount },
+    gameCastsSpent,
+  );
+  if (reconciliation.adjusted) {
+    guards.adoptServerRunCount(reconciliation.seed.runsStarted);
+    if (!dryRun) saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
+    console.log(`  ★ ${reconciliation.note}`);
+  }
+  log.write({
+    event: "fishing_ledger_reconciled",
+    gameCasts: reconciliation.gameCasts,
+    repoCastsBefore: reconciliation.repoCastsBefore,
+    adjusted: reconciliation.adjusted,
+    direction: reconciliation.direction,
+  });
+
   let doc: FishingGameDoc;
 
   if (existing.gameState && existing.gameState.COMPLETE_CID) {

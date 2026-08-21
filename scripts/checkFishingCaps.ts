@@ -28,6 +28,7 @@ import { readFileSync } from "node:fs";
 
 import { GigaverseClient } from "../src/api/client.js";
 import { loadGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
+import { reconcileFishingLedger } from "../src/orchestrator/fishingLedgerReconcile.js";
 import { FISHING_GUARD_STATE_PATH } from "./liveFishing.js";
 // [session 64] `readDayDocs` moved to src/api/fishingLedger.ts so liveFishing.ts
 // can consult the same ledger between casts without importing this script (whose
@@ -81,14 +82,15 @@ async function main() {
     console.log("VERDICT: cannot tell — no dayDoc for this pond. Do NOT plan a batch off the repo ledger alone.");
     return;
   }
-  if (serverCasts !== guard.runsStarted) {
-    console.log(
-      `LEDGERS DISAGREE: game ${serverCasts} vs repo ${guard.runsStarted}. ` +
-        `The GAME is authoritative (session 23). A gap means casts this process did not send.`,
-    );
-  } else {
-    console.log("Ledgers agree.");
-  }
+  // [session 70 §4] This used to print "A gap means casts this process did not
+  // send" on ANY disagreement — a sentence that only describes the game-HIGH
+  // direction, and the repo has now drifted HIGH too (session 69: game 14 /
+  // repo 15). A summary line that contradicts half its own data is session 69's
+  // `oilReachability --gap` dead end in another costume. `reconcileFishingLedger`
+  // is the one place that knows what each direction means, and it is the same
+  // function the live loop reconciles with, so this report cannot describe a
+  // rule the loop does not follow.
+  console.log(reconcileFishingLedger(guard, serverCasts).note);
   const remaining = serverCap - serverCasts;
   console.log(
     remaining > 0
