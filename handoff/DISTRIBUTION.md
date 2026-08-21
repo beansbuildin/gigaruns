@@ -39,6 +39,8 @@ reflog or a fork keeps what was removed.
 | `CLAUDE.md` | explains *why* the odd rules exist; most are scar tissue from a specific incident |
 | `PROTOCOL.md` | how the project is worked on |
 | `package.json`, `tsconfig.json`, `.gitignore` | build |
+| `vitest.config.ts` | **[session 67] ADDED after the step-5 rehearsal found it missing.** Without it vitest falls back to a 5-second `testTimeout` instead of the configured 10 — the config's own comment says why 10 is deliberate — and to its default `include`. Nothing failed on timing in the rehearsal; a friend on a slower machine is one flake from concluding the bot is broken |
+| `package-lock.json` | **[session 67] ADDED after the step-5 rehearsal.** `npm install` from a bare `package.json` worked, but it resolves whatever is current, so two friends can land on different vitest majors and get different results from the same commit. With the lockfile, `npm ci` is possible and "it passes for me" means something |
 
 ## Does not ship
 
@@ -49,6 +51,7 @@ reflog or a fork keeps what was removed.
 | `handoff/` | ~250KB of session notes naming the account, plus this file. Reads as an internal document because it is one |
 | `QUESTIONS.md`, `TASKS.md` | the author's working queue, not a user's concern |
 | `~/.secrets/` | never in the repo; not even referenced except by path |
+| `CODEXAUDIT`, `CODEXIMPROVE`, `CODEXREVIEW`, `config/.gitkeep`, `.claude/` | **[session 67]** review scratch and editor config. They were on neither list, so the rehearsal had to decide; recorded here so the next export does not decide again |
 
 ---
 
@@ -109,6 +112,18 @@ the advantage of being true.
    trimmed by accident, the sim tests fail there and pass at home.
 
 Step 5 is the one worth not skipping. Everything else is mechanical.
+
+**[session 67] Steps 5 and 6 have now been REHEARSED LOCALLY**, against a
+gitignored `dist-preflight/` copy of this list — no repo, no push. Full report,
+including every `doctor.ts` line verbatim and a copy-pasteable checklist for
+steps 3–6: `handoff/reports/session-67-distribution-rehearsal.md`.
+
+The short version: **`doctor.ts` and both live entry points are portable** —
+one actionable failure, for the missing JWT, and nothing else. **The SUITE is
+not.** Four test files assert against `data/`, `logs/` and `handoff/`, all
+correctly on the does-not-ship list, so a friend's first `npx vitest run` is
+red and eleven tests silently never run at all. `fixtures/` was NOT trimmed,
+which is what step 6 was there to catch.
 
 ---
 
