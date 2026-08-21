@@ -1672,24 +1672,172 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // assumption under OIL-POLICY.md's +19.40pp, carried as an explicit
     // assumption since session 61, and the account owner has now confirmed it
     // directly. The sim modelled it as free and was right to.
-    // [session 68 §1] THE SHADOW SNAPSHOT, taken BEFORE the live oil block so
-    // it records the state the live decision was actually taken on — an oil
-    // consumed below replaces `doc`, and the pre-consume state is the one the
-    // gate must be asked about.
+    // ---- [session 69 §1] THE DISTRIBUTION PIPELINE, HOISTED -----------------
     //
-    // It is evaluated LATER in this same turn, once `dist` exists: the
-    // necessity gate needs the fish-position distribution and the card policy
-    // has not built one yet at this point in the loop. Deferring is correct
-    // rather than merely convenient, because `use_fishing_item` leaves
-    // `fishPosition`, `previousFishPosition`, `lastMovePath`, `hand`,
-    // `discard` and `nextCardIndex` byte-identical (measured session 64, cast
-    // 13019015) — so the distribution computed after the consume is the same
-    // distribution that applied before it. Everything the oil DOES change
-    // (`fishHp`, `focusMeter`) is carried in this snapshot, not re-read.
-    const oilShadowPending = shadowOilEnabled
-      ? {
-          docAtDecision: doc,
-          scalars: {
+    // This ran BELOW the oil block until session 69. It was moved above it so
+    // the oil shadow can be evaluated at the moment the oil decision is
+    // actually taken — see the shadow block below for why that placement is
+    // the whole point, and `tests/fishing/hoistInvariant.test.ts` for the
+    // byte-level capture that proves the move changed no live decision.
+    //
+    // **Nothing here reads the doc.** Every input (`matcher.history`,
+    // `pendingPrediction`, `switchEstimate`, and the mined tables built once
+    // before the loop) is untouched by the oil block, which writes only `doc`,
+    // `oilHeld` and its own tallies. `hand`, `mana` and `fishHp` deliberately
+    // did NOT move: those are read off the POST-consume doc and are the card
+    // policy's inputs, not this pipeline's.
+    // [session 30, gate rebuilt session 39 CODEXAUDIT #4] Override gated
+    // behind a Wilson-score confidence bound on hits/attempts, not a raw hit
+    // count (see this file's "nextPosition validation" section).
+    //
+    // **[session 65] IT ARMED, for the first time.** This comment used to end
+    // "this override has never armed live yet regardless of how many casts run
+    // this session", and that stopped being true during the seven-cast batch:
+    // 10/10 hits, Wilson lower bound 72.2%, and it fired on the turns where
+    // the server had volunteered a `nextPosition`. It then went on hitting —
+    // the validation log's every entry is a HIT.
+    //
+    // Two things follow, and neither is a change to make here. The override is
+    // now a LIVE input to card choice rather than a dormant safeguard, so it
+    // belongs in any account of why a cast played the way it did. And its
+    // gate has never yet been tested by a MISS, so the Wilson bound has only
+    // ever been observed climbing; do not read 72.2% as a measured accuracy
+    // ceiling.
+    //
+    // **[session 66 §1] AND IT NOW HAS A TRIPWIRE THAT CAN FIRE.** The Wilson
+    // bound cannot: computed from an unbroken streak it only ever climbs
+    // (12/12 ≈ 0.76, 20/20 ≈ 0.84, 50/50 ≈ 0.93), so it can never fire while
+    // the override behaves. `overrideStats.ready` now also requires that no
+    // validated miss has ever been recorded on a turn the override STEERED —
+    // see `src/strategy/fishing/nextPositionArm.ts`.
+    const overrideStats = nextPositionOverrideStats(nextPositionLogPath, nextPositionArmStatePath);
+    const nextPositionOverrideActive = pendingPrediction?.turn === turn && overrideStats.ready;
+    if (nextPositionOverrideActive) {
+      console.log(
+        `  · nextPosition override ACTIVE (${overrideStats.hits}/${overrideStats.attempts} hits, ` +
+          `Wilson lower bound ${(overrideStats.lowerBound * 100).toFixed(1)}%) — forcing focus toward predicted cell.`,
+      );
+    }
+    // [session 46, brief §2] Heuristic (d) `pruneReturnToPrevious` used to
+    // wrap the chosen distribution here. Retired as subsumed by
+    // SPEC-fishing.md §9's conditional table — see `heuristics.ts`'s
+    // tombstone. The tier pipeline below is now the whole story.
+    // [session 45, brief §1 design note 3] Tier order with the ring model on:
+    //   0. the mined-pattern matcher, while live candidates survive — but
+    //      INTERSECTED with the legal step-class ring, since FACT 1 (259/259,
+    //      `scripts/auditStepClass.ts`) makes an off-ring prediction provably
+    //      wrong, and `chooseCard` consumes the whole distribution, so that
+    //      mass would distort both the card pick and the focus placement. A
+    //      candidate set that survives nothing after intersection is fully
+    //      refuted and hands over to tier 1 for that turn.
+    //   1. the ring model itself (class-aware, prev-delta conditional).
+    //   2. `contextualFallback` — unchanged, now the tier-2 fallback.
+    //   3. uniform, inside `emptyFallback`, unchanged.
+    // With `ringModelEnabled: false` this collapses to exactly the
+    // pre-session-45 two-tier pipeline.
+    const currentCell = matcher.history[matcher.history.length - 1]!;
+    const prevDelta = previousDisplacement(matcher.history);
+    // [session 49, brief §2] The ring is no longer a HARD constraint. The
+    // step count is sticky, not constant (session 48 falsified the constant
+    // half of FACT 1), so the distribution marginalises over a two-state
+    // chain on the LAST observed count — see `stickyStepDistribution`. Cast
+    // `12988700` drew three probability-ZERO outcomes under the old reading;
+    // this construction cannot produce one. `lastStepClass` replaces
+    // `classifyStep`'s cast-wide mode for the same reason.
+    const stepClass = ringModelEnabled ? lastStepClass(matcher.history) : null;
+    const ringDist = ringModelEnabled
+      ? stickyStepDistribution(
+          currentCell,
+          stepClass,
+          prevDelta,
+          stepClassTable,
+          gridSize,
+          DEFAULT_RING_MODEL_OPTIONS,
+          switchEstimate.s,
+        )
+      : null;
+    // [session 45, live-batch finding] The matcher tier gets the ring FLOOR
+    // too, not just the ring intersection. Two turn-0 rows in this session's
+    // own live batch had a fully-converged mined candidate assign p=1 to a
+    // cell the fish did not reach and p=0 to the cell it did — an unbounded
+    // log-loss event (`-log(1e-9)`) that the ring model's own floor exists
+    // precisely to prevent, and which tier 0 was bypassing. Mixing the (
+    // possibly ring-intersected) matcher distribution with the ring model at
+    // `ringFloor` bounds it. Sim catch-rate effect is neutral within noise;
+    // the justification is calibration, and it is a live observation, not a
+    // sim one.
+    const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
+    // [session 51 §3] The matcher tier is a MIXTURE weighted by belief, not a
+    // fixed 0.9. Measured on the 88-cast replay, the old constant handed 90%
+    // of the mass to the perimeter-walk hypothesis on EVERY cast in the corpus
+    // (88/88 casts, 134 turns, weight 0.900 on all of them); the posterior
+    // exceeds 0.5 on 4 casts and sits at a median 0.135. Refutation is
+    // automatic — a dead candidate set drives the weight to 0 for the rest of
+    // the cast, which the constant had no way to express.
+    const matcherOnRing = matcherDist
+      ? ringModelEnabled
+        ? stepClass !== null
+          ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
+          : matcherDist
+        : matcherDist
+      : null;
+    const matcherMixWeight = matcherOnRing ? matcherWeight(matcherPosterior, matcherPosteriorOpts) : 0;
+    const rawDist = matcherOnRing
+      ? ringModelEnabled
+        ? mixDistributions(matcherOnRing, ringDist!, matcherMixWeight)
+        : matcherOnRing
+      : (ringDist ??
+        contextualFallback(
+          currentCell,
+          prevDelta,
+          contextMap,
+          transitionLog,
+          gridSize,
+          { shrinkageK: DEFAULT_SHRINKAGE_K },
+        ));
+    // [session 51 §4] The override is FLOORED, not absolute — see
+    // `NEXT_POSITION_OVERRIDE_WEIGHT`. `rawDist` is the fallback for the
+    // residual mass when the ring model is off, so the floor exists on every
+    // configuration rather than only the one that ships.
+    const dist = nextPositionOverrideActive
+      ? mixDistributions(certainDistribution(pendingPrediction!.cell), ringDist ?? rawDist, NEXT_POSITION_OVERRIDE_WEIGHT)
+      : rawDist;
+
+    // ---- [session 68 §1, RE-PLACED session 69 §1] THE OIL SHADOW ------------
+    //
+    // The conserving gate is asked what it WOULD have done at this turn's oil
+    // decision, on exactly the state that decision is about to be taken on.
+    //
+    // **It is evaluated HERE, above the oil block, and the placement is the
+    // deliverable.** Session 68 evaluated it in the card-choice phase below,
+    // because that is where `dist` first existed. The cost was measured rather
+    // than predicted: over five live casts the shadow produced 13 records,
+    // exactly ONE at a firing moment, and `bestKillProbability` was `null` on
+    // all thirteen. The reason is structural — the Relaxing trigger fires only
+    // on a lethal fish, a lethal Relaxing Oil ENDS the cast inside the oil
+    // block, and the `if (doc.COMPLETE_CID) continue;` below meant that the one
+    // turn the Relaxing arm was observable on was the one turn no record was
+    // written. The same gap swallowed any turn whose oil block threw, which is
+    // again precisely a turn on which a trigger had fired.
+    //
+    // Because it now runs BEFORE the block, no snapshot needs to be carried:
+    // `doc` here IS the pre-consume doc. `snapshotOilDecision` is still what
+    // builds the state, so the freezing and deep-copy guarantees are unchanged
+    // — it is simply called at the moment it describes.
+    //
+    // Inertness, unchanged and still the three properties the file's header
+    // sets out: the gate is handed a frozen DEEP COPY (the copy is what gets
+    // frozen — freezing the live `deckCardData` in place would itself be a side
+    // effect on the live path), `evaluateOilShadow` cannot throw, and
+    // `OilShadowRecord` has no field the live loop reads. Nothing between here
+    // and the `play_cards` POST reads `shadowRecord`.
+    // `tests/fishing/oilShadowInert.test.ts` is the proof, and
+    // `tests/fishing/oilShadowRelaxingArm.test.ts` proves the move actually
+    // bought the observation rather than merely relocating a line.
+    if (shadowOilEnabled) {
+      const shadowRecord = evaluateOilShadow(
+        snapshotOilDecision(
+          {
             turn,
             fishHp: doc.data.fishHp,
             fishMaxHp: doc.data.fishMaxHp,
@@ -1700,9 +1848,30 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
             focusOilHeld: oilHeld.focus,
             relaxingOilHeld: oilHeld.relaxing,
           },
-          held: { focus: oilHeld.focus, relaxing: oilHeld.relaxing },
-        }
-      : null;
+          { hand: buildHand(doc), dist, gridSize },
+        ),
+        PAYLOAD_OIL_EFFECTS,
+        { focus: oilHeld.focus, relaxing: oilHeld.relaxing },
+      );
+      oilShadowRecords.push(shadowRecord);
+      log.write({ event: "oil_shadow", ...shadowRecord });
+      if (shadowRecord.error) {
+        console.log(`  · oil shadow THREW (recorded, cast unaffected): ${shadowRecord.error}`);
+      } else if (shadowRecord.sanity.length > 0) {
+        console.log(`  ★★★ oil shadow SANITY VIOLATION on turn ${turn}: ${shadowRecord.sanity.join(", ")}`);
+      } else if (shadowRecord.liveWanted.length > 0) {
+        const p =
+          shadowRecord.bestKillProbability !== null
+            ? `bestKill ${shadowRecord.bestKillProbability.toFixed(3)}`
+            : `bestConnect ${(shadowRecord.bestConnectProbability ?? 0).toFixed(3)}`;
+        console.log(
+          `  · shadow(${shadowRecord.shadowPolicy}) on turn ${turn}: on-demand wanted ` +
+            `[${shadowRecord.liveWanted.join(",")}], shadow would take [${shadowRecord.shadowWanted.join(",") || "none"}]` +
+            `${shadowRecord.wouldSkip.length > 0 ? ` — WOULD SKIP ${shadowRecord.wouldSkip.join(",")}` : ""} (${p}). ` +
+            `Observational only; the live decision below is taken by \`on-demand\` regardless.`,
+        );
+      }
+    }
 
     const oilWanted = onDemandTriggers(
       {
@@ -1871,165 +2040,6 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     const hand = buildHand(doc);
     const mana = doc.data.playerHp;
     const fishHp = doc.data.fishHp;
-    // [session 30, gate rebuilt session 39 CODEXAUDIT #4] Override gated
-    // behind a Wilson-score confidence bound on hits/attempts, not a raw hit
-    // count (see this file's "nextPosition validation" section).
-    //
-    // **[session 65] IT ARMED, for the first time.** This comment used to end
-    // "this override has never armed live yet regardless of how many casts run
-    // this session", and that stopped being true during the seven-cast batch:
-    // 10/10 hits, Wilson lower bound 72.2%, and it fired on the turns where
-    // the server had volunteered a `nextPosition`. It then went on hitting —
-    // the validation log's every entry is a HIT.
-    //
-    // Two things follow, and neither is a change to make here. The override is
-    // now a LIVE input to card choice rather than a dormant safeguard, so it
-    // belongs in any account of why a cast played the way it did. And its
-    // gate has never yet been tested by a MISS, so the Wilson bound has only
-    // ever been observed climbing; do not read 72.2% as a measured accuracy
-    // ceiling.
-    //
-    // **[session 66 §1] AND IT NOW HAS A TRIPWIRE THAT CAN FIRE.** The Wilson
-    // bound cannot: computed from an unbroken streak it only ever climbs
-    // (12/12 ≈ 0.76, 20/20 ≈ 0.84, 50/50 ≈ 0.93), so it can never fire while
-    // the override behaves. `overrideStats.ready` now also requires that no
-    // validated miss has ever been recorded on a turn the override STEERED —
-    // see `src/strategy/fishing/nextPositionArm.ts`.
-    const overrideStats = nextPositionOverrideStats(nextPositionLogPath, nextPositionArmStatePath);
-    const nextPositionOverrideActive = pendingPrediction?.turn === turn && overrideStats.ready;
-    if (nextPositionOverrideActive) {
-      console.log(
-        `  · nextPosition override ACTIVE (${overrideStats.hits}/${overrideStats.attempts} hits, ` +
-          `Wilson lower bound ${(overrideStats.lowerBound * 100).toFixed(1)}%) — forcing focus toward predicted cell.`,
-      );
-    }
-    // [session 46, brief §2] Heuristic (d) `pruneReturnToPrevious` used to
-    // wrap the chosen distribution here. Retired as subsumed by
-    // SPEC-fishing.md §9's conditional table — see `heuristics.ts`'s
-    // tombstone. The tier pipeline below is now the whole story.
-    // [session 45, brief §1 design note 3] Tier order with the ring model on:
-    //   0. the mined-pattern matcher, while live candidates survive — but
-    //      INTERSECTED with the legal step-class ring, since FACT 1 (259/259,
-    //      `scripts/auditStepClass.ts`) makes an off-ring prediction provably
-    //      wrong, and `chooseCard` consumes the whole distribution, so that
-    //      mass would distort both the card pick and the focus placement. A
-    //      candidate set that survives nothing after intersection is fully
-    //      refuted and hands over to tier 1 for that turn.
-    //   1. the ring model itself (class-aware, prev-delta conditional).
-    //   2. `contextualFallback` — unchanged, now the tier-2 fallback.
-    //   3. uniform, inside `emptyFallback`, unchanged.
-    // With `ringModelEnabled: false` this collapses to exactly the
-    // pre-session-45 two-tier pipeline.
-    const currentCell = matcher.history[matcher.history.length - 1]!;
-    const prevDelta = previousDisplacement(matcher.history);
-    // [session 49, brief §2] The ring is no longer a HARD constraint. The
-    // step count is sticky, not constant (session 48 falsified the constant
-    // half of FACT 1), so the distribution marginalises over a two-state
-    // chain on the LAST observed count — see `stickyStepDistribution`. Cast
-    // `12988700` drew three probability-ZERO outcomes under the old reading;
-    // this construction cannot produce one. `lastStepClass` replaces
-    // `classifyStep`'s cast-wide mode for the same reason.
-    const stepClass = ringModelEnabled ? lastStepClass(matcher.history) : null;
-    const ringDist = ringModelEnabled
-      ? stickyStepDistribution(
-          currentCell,
-          stepClass,
-          prevDelta,
-          stepClassTable,
-          gridSize,
-          DEFAULT_RING_MODEL_OPTIONS,
-          switchEstimate.s,
-        )
-      : null;
-    // [session 45, live-batch finding] The matcher tier gets the ring FLOOR
-    // too, not just the ring intersection. Two turn-0 rows in this session's
-    // own live batch had a fully-converged mined candidate assign p=1 to a
-    // cell the fish did not reach and p=0 to the cell it did — an unbounded
-    // log-loss event (`-log(1e-9)`) that the ring model's own floor exists
-    // precisely to prevent, and which tier 0 was bypassing. Mixing the (
-    // possibly ring-intersected) matcher distribution with the ring model at
-    // `ringFloor` bounds it. Sim catch-rate effect is neutral within noise;
-    // the justification is calibration, and it is a live observation, not a
-    // sim one.
-    const matcherDist = matcher.candidates.length > 0 ? predictDistribution(matcher) : null;
-    // [session 51 §3] The matcher tier is a MIXTURE weighted by belief, not a
-    // fixed 0.9. Measured on the 88-cast replay, the old constant handed 90%
-    // of the mass to the perimeter-walk hypothesis on EVERY cast in the corpus
-    // (88/88 casts, 134 turns, weight 0.900 on all of them); the posterior
-    // exceeds 0.5 on 4 casts and sits at a median 0.135. Refutation is
-    // automatic — a dead candidate set drives the weight to 0 for the rest of
-    // the cast, which the constant had no way to express.
-    const matcherOnRing = matcherDist
-      ? ringModelEnabled
-        ? stepClass !== null
-          ? (intersectWithRing(matcherDist, currentCell, stepClass, gridSize) ?? ringDist!)
-          : matcherDist
-        : matcherDist
-      : null;
-    const matcherMixWeight = matcherOnRing ? matcherWeight(matcherPosterior, matcherPosteriorOpts) : 0;
-    const rawDist = matcherOnRing
-      ? ringModelEnabled
-        ? mixDistributions(matcherOnRing, ringDist!, matcherMixWeight)
-        : matcherOnRing
-      : (ringDist ??
-        contextualFallback(
-          currentCell,
-          prevDelta,
-          contextMap,
-          transitionLog,
-          gridSize,
-          { shrinkageK: DEFAULT_SHRINKAGE_K },
-        ));
-    // [session 51 §4] The override is FLOORED, not absolute — see
-    // `NEXT_POSITION_OVERRIDE_WEIGHT`. `rawDist` is the fallback for the
-    // residual mass when the ring model is off, so the floor exists on every
-    // configuration rather than only the one that ships.
-    const dist = nextPositionOverrideActive
-      ? mixDistributions(certainDistribution(pendingPrediction!.cell), ringDist ?? rawDist, NEXT_POSITION_OVERRIDE_WEIGHT)
-      : rawDist;
-
-    // ---- [session 68 §1] THE SHADOW EVALUATION -----------------------------
-    //
-    // The conserving gate is asked what it WOULD have done at this turn's oil
-    // decision. Nothing below this block reads `shadowRecord`, and nothing
-    // above it can: the snapshot is a frozen deep copy (`snapshotOilDecision`)
-    // built from the pre-oil doc, `evaluateOilShadow` cannot throw, and the
-    // record goes to the log and to a result field `main()` only prints.
-    //
-    // `dist` is BORROWED from the card policy rather than recomputed — see the
-    // snapshot's comment for why that is the same distribution — and is not
-    // modified here. `buildHand(docAtDecision)` is a pure read of the pre-oil
-    // doc, so the hand is the one the decision faced even if an oil landed.
-    if (oilShadowPending) {
-      const shadowRecord = evaluateOilShadow(
-        snapshotOilDecision(oilShadowPending.scalars, {
-          hand: buildHand(oilShadowPending.docAtDecision),
-          dist,
-          gridSize,
-        }),
-        PAYLOAD_OIL_EFFECTS,
-        oilShadowPending.held,
-      );
-      oilShadowRecords.push(shadowRecord);
-      log.write({ event: "oil_shadow", ...shadowRecord });
-      if (shadowRecord.error) {
-        console.log(`  · oil shadow THREW (recorded, cast unaffected): ${shadowRecord.error}`);
-      } else if (shadowRecord.sanity.length > 0) {
-        console.log(`  ★★★ oil shadow SANITY VIOLATION on turn ${turn}: ${shadowRecord.sanity.join(", ")}`);
-      } else if (shadowRecord.liveWanted.length > 0) {
-        const p =
-          shadowRecord.bestKillProbability !== null
-            ? `bestKill ${shadowRecord.bestKillProbability.toFixed(3)}`
-            : `bestConnect ${(shadowRecord.bestConnectProbability ?? 0).toFixed(3)}`;
-        console.log(
-          `  · shadow(${shadowRecord.shadowPolicy}) on turn ${turn}: on-demand wanted ` +
-            `[${shadowRecord.liveWanted.join(",")}], shadow would take [${shadowRecord.shadowWanted.join(",") || "none"}]` +
-            `${shadowRecord.wouldSkip.length > 0 ? ` — WOULD SKIP ${shadowRecord.wouldSkip.join(",")}` : ""} (${p}). ` +
-            `Observational only; the live decision above already stands.`,
-        );
-      }
-    }
-
     // [session 46, brief §1b] The paired baseline, computed on this same
     // turn but NEVER consumed by the policy — it exists only to be scored
     // against the live distribution above. This is deliberately the plain

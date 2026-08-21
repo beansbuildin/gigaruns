@@ -1,5 +1,6 @@
 /**
- * src/strategy/fishing/oilShadow.ts — [session 68 §1] SHADOW evaluation of the
+ * src/strategy/fishing/oilShadow.ts — [session 68 §1, re-placed session 69 §1]
+ * SHADOW evaluation of the
  * conserving oil gate. Pure: state in, record out, no I/O and no network.
  *
  * ## What this is for
@@ -42,33 +43,40 @@
  * unobservable. A cast where on-demand spent, shadow said skip, and the fish
  * was caught does NOT confirm the saving — the oil was in play the whole time.
  *
- * **AND THERE IS A SECOND LIMIT, FOUND BY RUNNING IT: the Relaxing arm cannot
- * be observed at its firing moment AT ALL under the current placement.**
+ * **AND THERE WAS A SECOND LIMIT, FOUND BY RUNNING IT — NOW FIXED (session
+ * 69). Read it anyway: it is the clearest example this repo has of a shadow
+ * that ran, recorded, and saw nothing.**
  *
- * Not for the reason the session-68 brief gave. That said the arm was
+ * Not for the reason the session-68 brief gave. That said the Relaxing arm was
  * unexercisable because stock was zero (Relaxing 0, Focus 18); live stock was
  * actually Relaxing 56, Focus 19, so the brief's reason was simply wrong. The
- * real reason is ORDERING, and it is structural:
+ * real reason was ORDERING, and it was structural:
  *
- *   - the shadow is evaluated after `dist` exists, i.e. in the card-choice
+ *   - the shadow was evaluated after `dist` existed, i.e. in the card-choice
  *     phase of the turn;
  *   - the Relaxing trigger fires only when the fish is lethal;
  *   - a lethal Relaxing Oil ENDS the cast inside the oil block, so the loop
- *     breaks before the card-choice phase is ever reached.
+ *     `continue`d before the card-choice phase was ever reached.
  *
- * Measured over the five-cast batch: 13 shadow records, 0 sanity violations, 0
- * throws, and exactly ONE at a firing moment — the Focus arm, `bestConnect`
+ * So the one turn the arm was observable on was the one turn no record was
+ * written. Measured over the five-cast batch: 13 records, 0 sanity violations,
+ * 0 throws, and exactly ONE at a firing moment — the Focus arm, `bestConnect`
  * 0.074, gate agreed with the live spend. `bestKillProbability` was `null` on
- * all 13. The same gap swallows any turn whose oil block throws.
+ * all 13. The same gap swallowed any turn whose oil block threw.
  *
- * **It is fixable**, and the fix is a design change rather than a tweak: hoist
- * the distribution pipeline above the oil block. `dist` depends only on
- * `matcher.history`, `pendingPrediction` and the mined tables, none of which a
- * consume changes, so computing it earlier yields the identical value. That
- * belongs in a brief, not in a late-session edit to the live loop.
+ * **Session 69 hoisted the distribution pipeline above the oil block and moved
+ * the evaluation up with it**, so `snapshotOilDecision` is now called at the
+ * moment it describes rather than being carried across the block. Two tests
+ * hold the fix in place, and they are separate on purpose: the observation was
+ * bought (`tests/fishing/oilShadowRelaxingArm.test.ts`, red on the pre-hoist
+ * placement) AND live play did not move (`tests/fishing/hoistInvariant.test.ts`,
+ * a byte-level capture taken before the hoist and committed with it).
  *
- * Until then: **do not report the gate as validated live.** Half of it has
- * never been observed firing.
+ * **The general lesson outlives the fix: a shadow evaluated in the wrong phase
+ * of a turn is blind to exactly the decisions that end the turn**, and it
+ * reports that blindness as an ordinary run of quiet records. Nothing about
+ * "13 records, 0 violations" says half the gate was never asked. Only counting
+ * FIRING MOMENTS did.
  *
  * What it genuinely validates is narrower and still worth having: the gate's
  * FIRING RATE against a real server, the shape of its two INPUT distributions
@@ -100,10 +108,18 @@ import {
  * stock as well as by necessity, so asking it against the user's REAL stock
  * would conflate two completely different reasons for a skip: "the gate judged
  * the oil unnecessary" (the thing being measured) and "the bag was empty" (the
- * thing session 62's third cast state already records). Live stock on
- * 2026-08-21 is Relaxing 0 / Focus 18, so without this every single lethal
- * trigger would be logged as a necessity skip and the Relaxing firing rate
- * would read 100% for reasons that have nothing to do with the gate.
+ * thing session 62's third cast state already records". Without it, every
+ * lethal trigger taken against an empty bag would be logged as a necessity
+ * skip and the arm's firing rate would read 100% for reasons that have nothing
+ * to do with the gate.
+ *
+ * **Do not restate the account's stock in this comment.** The session-68
+ * version did — "Live stock on 2026-08-21 is Relaxing 0 / Focus 18" — and it
+ * was wrong the day it was written; the real balances were Relaxing 56 / Focus
+ * 19. Stock is something the user changes between sessions, so a number frozen
+ * in a doc comment goes stale silently and reads as current forever.
+ * `heldAtDecision` carries the real counts per decision, which is the only
+ * place they belong.
  *
  * The real held counts are recorded on the record as `heldAtDecision`, and
  * `exercisable` says whether the arm could have been exercised for real.
@@ -182,12 +198,17 @@ function copyCard(c: FishingCardLike): FishingCardLike {
 /**
  * Build the shadow's own private, frozen copy of the decision state.
  *
- * Exported because the live loop takes this snapshot at the oil-decision
- * moment and evaluates it LATER in the same turn, once the distribution has
- * been computed — see `scripts/liveFishing.ts`. Holding a snapshot rather than
- * re-reading the doc is what makes the deferred evaluation correct: an oil may
- * have been consumed in between, and the pre-consume state is the one the
- * decision was taken on.
+ * Exported because the live loop builds it at the oil-decision moment — see
+ * `scripts/liveFishing.ts`.
+ *
+ * **[session 69] It is no longer CARRIED across the oil block.** Session 68
+ * took the snapshot above the block and evaluated it below, once `dist`
+ * existed, and holding a frozen copy is what made that deferral correct: an
+ * oil may have been consumed in between and the pre-consume state is the one
+ * the decision was taken on. The pipeline has since been hoisted, so snapshot
+ * and evaluation now happen at the same point and the doc being read IS the
+ * pre-consume doc. The freezing is unchanged and is still the inertness
+ * guarantee — it just no longer has a second job.
  */
 export function snapshotOilDecision(s: OilShadowScalars, board: OilShadowBoard): OilDecisionState {
   const dist = new Map<string, { cell: Cell; p: number }>();

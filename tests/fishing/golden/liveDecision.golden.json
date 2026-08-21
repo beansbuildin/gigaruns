@@ -1,0 +1,348 @@
+{
+  "no-authorization — the trigger fires and mayConsumeOil refuses": {
+    "posts": [
+      {
+        "action": "start_run",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "5",
+          "focusPoint": [],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 1
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      }
+    ],
+    "result": {
+      "outcome": "escaped",
+      "turns": 2,
+      "oilTriggerNoStock": [],
+      "oilsConsumed": 0
+    }
+  },
+  "focus oil spent on an empty meter, then play continues": {
+    "posts": [
+      {
+        "action": "start_run",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "5",
+          "focusPoint": [],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 1
+        }
+      },
+      {
+        "action": "use_fishing_item",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "",
+          "focusPoint": [],
+          "itemId": 942,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      }
+    ],
+    "result": {
+      "outcome": "escaped",
+      "turns": 2,
+      "oilTriggerNoStock": [],
+      "oilsConsumed": 1
+    }
+  },
+  "lethal relaxing oil ENDS the cast before any card is played": {
+    "posts": [
+      {
+        "action": "start_run",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "5",
+          "focusPoint": [],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 1
+        }
+      },
+      {
+        "action": "use_fishing_item",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "",
+          "focusPoint": [],
+          "itemId": 937,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      }
+    ],
+    "result": {
+      "outcome": "caught",
+      "turns": 0,
+      "oilTriggerNoStock": [],
+      "oilsConsumed": 1
+    }
+  },
+  "both triggers on one turn — only the lethal one may be sent": {
+    "posts": [
+      {
+        "action": "start_run",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "5",
+          "focusPoint": [],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 1
+        }
+      },
+      {
+        "action": "use_fishing_item",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "",
+          "focusPoint": [],
+          "itemId": 937,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      }
+    ],
+    "result": {
+      "outcome": "caught",
+      "turns": 0,
+      "oilTriggerNoStock": [],
+      "oilsConsumed": 1
+    }
+  },
+  "both triggers against an EMPTY bag — OIL-POLICY-DRY": {
+    "posts": [
+      {
+        "action": "start_run",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "5",
+          "focusPoint": [],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 1
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      }
+    ],
+    "result": {
+      "outcome": "escaped",
+      "turns": 2,
+      "oilTriggerNoStock": [
+        {
+          "turn": 0,
+          "kind": "relaxing",
+          "itemId": 937,
+          "reason": "empty"
+        },
+        {
+          "turn": 0,
+          "kind": "focus",
+          "itemId": 942,
+          "reason": "empty"
+        },
+        {
+          "turn": 1,
+          "kind": "relaxing",
+          "itemId": 937,
+          "reason": "empty"
+        },
+        {
+          "turn": 1,
+          "kind": "focus",
+          "itemId": 942,
+          "reason": "empty"
+        }
+      ],
+      "oilsConsumed": 0
+    }
+  },
+  "plain multi-turn cast — no trigger ever fires": {
+    "posts": [
+      {
+        "action": "start_run",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "5",
+          "focusPoint": [],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 1
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      }
+    ],
+    "result": {
+      "outcome": "escaped",
+      "turns": 3,
+      "oilTriggerNoStock": [],
+      "oilsConsumed": 0
+    }
+  }
+}
