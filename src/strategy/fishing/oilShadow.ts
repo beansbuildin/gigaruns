@@ -42,6 +42,34 @@
  * unobservable. A cast where on-demand spent, shadow said skip, and the fish
  * was caught does NOT confirm the saving — the oil was in play the whole time.
  *
+ * **AND THERE IS A SECOND LIMIT, FOUND BY RUNNING IT: the Relaxing arm cannot
+ * be observed at its firing moment AT ALL under the current placement.**
+ *
+ * Not for the reason the session-68 brief gave. That said the arm was
+ * unexercisable because stock was zero (Relaxing 0, Focus 18); live stock was
+ * actually Relaxing 56, Focus 19, so the brief's reason was simply wrong. The
+ * real reason is ORDERING, and it is structural:
+ *
+ *   - the shadow is evaluated after `dist` exists, i.e. in the card-choice
+ *     phase of the turn;
+ *   - the Relaxing trigger fires only when the fish is lethal;
+ *   - a lethal Relaxing Oil ENDS the cast inside the oil block, so the loop
+ *     breaks before the card-choice phase is ever reached.
+ *
+ * Measured over the five-cast batch: 13 shadow records, 0 sanity violations, 0
+ * throws, and exactly ONE at a firing moment — the Focus arm, `bestConnect`
+ * 0.074, gate agreed with the live spend. `bestKillProbability` was `null` on
+ * all 13. The same gap swallows any turn whose oil block throws.
+ *
+ * **It is fixable**, and the fix is a design change rather than a tweak: hoist
+ * the distribution pipeline above the oil block. `dist` depends only on
+ * `matcher.history`, `pendingPrediction` and the mined tables, none of which a
+ * consume changes, so computing it earlier yields the identical value. That
+ * belongs in a brief, not in a late-session edit to the live loop.
+ *
+ * Until then: **do not report the gate as validated live.** Half of it has
+ * never been observed firing.
+ *
  * What it genuinely validates is narrower and still worth having: the gate's
  * FIRING RATE against a real server, the shape of its two INPUT distributions
  * (the "no constant to defend" argument for threshold 1 rests on both being
