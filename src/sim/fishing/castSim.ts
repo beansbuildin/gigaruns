@@ -287,6 +287,22 @@ export interface CastOptions {
     options?: RingModelOptions;
   };
   /**
+   * [session 70 §2a] PER-TURN STATE OBSERVER. Purely observational: it is
+   * called with a copy of the state and its return value is discarded, so a
+   * sim run with it set is byte-for-byte a sim run without it. Omitted, nothing
+   * is called at all.
+   *
+   * It exists to answer one question the sim could not previously be asked —
+   * **does the simulator's focus-meter profile match the corpus's?** —
+   * because `CastResult` reports only end-of-cast aggregates, and a per-turn
+   * profile cannot be reconstructed from them. The states it emits mirror
+   * `castTrace.ts`'s: one per turn taken at the START of that turn (before the
+   * policy acts), plus the terminal state, which is exactly what
+   * `scripts/lossDecomposition.ts` averages over the real corpus. Anything
+   * else and the two profiles would not be the same measurement.
+   */
+  observeTurn?: (state: { turn: number; focusRemaining: number; mana: number; fishHp: number }) => void;
+  /**
    * [session 61 §4d] Oils. **Opt-in and additive** — omitted, the sim is
    * byte-for-byte the sim it has always been, and every historical number
    * stays comparable.
@@ -388,7 +404,28 @@ export function simulateCast(opts: CastOptions): CastResult {
   let focusOilHeld = opts.oils?.focusOilHeld ?? 0;
   let relaxingOilHeld = opts.oils?.relaxingOilHeld ?? 0;
   const oilsUsed: OilKind[] = [];
+  // [session 70 §2a] See `observeTurn`. Reads the live locals at the moment it
+  // is called and hands out a fresh object, so no caller can reach back in.
+  //
+  // ONE STATE PER TURN INDEX, which is not the same as one per loop iteration:
+  // a redraw and a turn-free oil consume both `continue` WITHOUT advancing
+  // `turn`, so a naive top-of-loop recorder emits `0 1 2 2 2 3` and every
+  // profile built from it is silently shifted from that point on. A corpus
+  // trace has exactly one doc state per turn, so this matches it by suppressing
+  // the repeats rather than by hoping they do not happen. Found by the test,
+  // not by reading — `tests/fishing/focusProfile.test.ts`.
+  let lastRecordedTurn = -1;
+  const record = opts.observeTurn
+    ? () => {
+        if (turn === lastRecordedTurn) return;
+        lastRecordedTurn = turn;
+        opts.observeTurn!({ turn, focusRemaining: focus.remaining, mana, fishHp });
+      }
+    : () => {};
   while (turn < maxTurns) {
+    // Before the mana check, so a mana-out cast records its terminal state the
+    // same way a corpus trace does.
+    record();
     if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
     if (hand.length === 0) ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
 
@@ -540,8 +577,16 @@ export function simulateCast(opts: CastOptions): CastResult {
       fishHp = Math.min(fishMaxHp, fishHp - amount);
     }
 
-    if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
-    if (fishHp >= fishMaxHp) return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+    // The cast ends ON a play, so the post-play state is terminal and the loop
+    // never comes back around to record it.
+    if (fishHp <= 0) {
+      record();
+      return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+    }
+    if (fishHp >= fishMaxHp) {
+      record();
+      return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+    }
   }
   return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
 }
