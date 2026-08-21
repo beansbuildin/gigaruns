@@ -1,281 +1,342 @@
-# BRIEF — session 69
+# BRIEF — session 70
 
 ## The clock and the ledger
 
-Written **2026-08-21, 14:00 PT**. *Source: session 68 live-measured.* Ledger
-`dayDocs[pond 2]` at **5 of 20 — 15 casts remain.** Dungeon untouched today.
+Written **2026-08-21**. *User-verified manually, 2026-08-21:* the game ledger
+reads **14 of 20 spent, 6 remaining**. The repo ledger read **15**. **The game is
+right and the repo over-counts by one** (§4).
 
-**`doctor.ts` is the standing first command of every session.** Session 67's
-expired JWT cost a stop-work order that turned out to be stale by the time it was
-read; session 68's `doctor.ts` answered it in one second.
+**The user spent TWO casts manually capturing the redraw action** (§1) — one for
+the response, a second for the request payload. So the ledger has moved by at
+least two since that count. **Read it; do not assume any number in this brief.**
 
-**This brief authorizes ZERO dungeon runs and a fishing batch gated on §1
-passing.** Do not cast until the hoist is proven.
+`doctor.ts` is the standing first command of every session.
 
-*Environment, sessions 66–68: `npx tsx` and `git` both fail under the command
-sandbox on this machine. Run unsandboxed. Not a repo problem.*
+**This brief authorizes ZERO casts and ZERO dungeon runs.** Everything in it is
+offline. The one live thing that matters this session is being done by the user,
+by hand, in a browser.
 
----
-
-## 1. Hoist `dist` above the oil block — the batch depends on it
-
-**User decision, 2026-08-21: hoist first, then a batch.**
-
-*Source: session 68.* The shadow produced **13 records and exactly ONE at a
-firing moment**, Focus arm, with `bestKillProbability` **null on all 13**. The
-cause is structural, not sampling: the shadow evaluates in the card-choice phase,
-the Relaxing trigger fires only on a lethal fish, and **a lethal Relaxing consume
-ends the cast inside the oil block — before that phase is reached.** The same gap
-swallows any turn whose oil block throws, which is exactly the turn a trigger
-fired on.
-
-`dist` depends only on `matcher.history`, `pendingPrediction` and the mined
-tables — **none of which a consume changes** — so it can be computed earlier.
-
-**Two things must both be true, and the second is the one that gets skipped:**
-
-- Shadow observes a **Relaxing** firing moment, with `bestKillProbability`
-  populated rather than null.
-- **The live decision is unchanged by the hoist.** Byte-identical play with the
-  hoist in and out. A restructure of the live loop that alters play while
-  "only moving a computation" is the session-64/65 failure in a new costume.
-
-**Demonstrate the observability test failing with the hoist reverted**, then
-restore. Session 68's own leak test is the model: byte-identity is easy to pass
-while proving nothing, so it needed three anti-vacuity tests alongside.
+*Environment, sessions 66–69: `npx tsx` and `git` both fail under the command
+sandbox. Run unsandboxed. Not a repo problem.*
 
 ---
 
-## 2. The user's cast — what the fixtures actually show, and what still needs checking
+## 1. Redraw — CAPTURED AND CONFIRMED. It is `play_cards` with an empty `cards` array.
 
-The user watched a cast where the bot played cards on turns 0–2 and then spent a
-**Relaxing Oil** on turn 3 to finish the fish, and read that as the bot taking
-the easy route with resources still in hand.
+*Source: `scripts/liveFishing.ts` header and line ~2128.* `shouldRedraw` is
+implemented, imported, and **evaluated every single turn** — and its firing is
+written to the log as `redraw_indicated_not_sent` and then discarded.
+`FishingActionSchema` is `["start_run", "play_cards", "loot",
+"use_fishing_item"]`. There is no redraw action, so the client has never been
+able to perform one.
 
-### 2a. Three corrections to the resource model, verified in the fixtures
+**User-stated mechanic, 2026-08-21:** redraw costs **1 mana per card currently
+held** (1/2/3) and **always returns 3 new cards** regardless of how many were
+held.
 
-*Source: `fixtures/fishing-casts/live/cast-2026-08-21-20-11-01/raw`, read
-directly.*
+### 1b. The response is captured. It says redraw is NOT a new action.
 
-- **There is no mana pool on the board.** The state carries no `mana` field, and
-  **every card in the deck has `manaCost: 1`.** The sim's `escaped_mana` is a
-  sim-side name; do not reason about a live mana budget that does not exist.
-- **The depleting per-cast resources are `playerHp` (max 10) and the draw pile**
-  (`cardInDrawPile`, `nextCardIndex`).
-- **A miss is not free — it costs BOTH.** In that cast: `fishHp` **9 → 12 → 14**
-  (back to full) while `playerHp` went **10 → 9 → 8**. Misses heal the fish
-  *and* damage the player. So "it had resources left, it could have kept
-  swinging" understates the cost: swinging can move the fish **away** from
-  lethal.
+*Source: user-supplied DevTools capture, 2026-08-21, doc `13025041`.* The
+response to the redraw call reads **`"message": "Cards played successfully."`**
+and its events are `FISH_MOVED` → `CARD_PLAYED` → `FISH_HP_DIFF` → **`NEW_HAND`
+with THREE cards** (`playerId: -1`).
 
-**This does not make the user's instinct wrong.** It sharpens it: the question is
-not "were resources left" but "was the oil buying anything a card would have
-bought anyway."
+Two things follow, and the second is why the request body still matters:
 
-### 2b. What still needs identifying, because I could not
+- **Redraw almost certainly runs through the existing `play_cards` action**,
+  which is why no fifth action was ever found and why SPEC-fishing §7 has called
+  it "genuinely uncaptured" for so long. The distinguishing signal is in the
+  request's `data`, **not** in the `action` string.
+- **`NEW_HAND` returning three cards is the discriminator.** In ordinary play the
+  hand shrinks turn over turn (*fixture `cast-2026-08-21-20-11-01`: `[1,78,6]` →
+  `[78,6]` → `[78]`*). A turn that ends with three fresh cards is the user's
+  described mechanic.
 
-The directory I read is one of session 68's five but is **not** the cast
-described — it shows three misses and no consume. **Identify the actual cast**
-(*session 68 live-measured: 2 Relaxing consumes, both lethal, both caught*) and
-report, for the turn the oil fired:
+**⚠ THE CAPTURE CONTAINS A WALLET ADDRESS.** The pasted doc carries
+`PLAYER_CID: "0x4f03…"`. *DISTRIBUTION.md:* **no wallet addresses, no JWTs, no
+private keys in any shipped doc, ever** — and this repo is being prepared for
+distribution. **Strip `PLAYER_CID` and any token before this capture touches
+`SPEC-fishing.md`, a fixture, a test, or a commit message.** `src/api/redact.ts`
+exists for exactly this; run the capture through it rather than hand-editing.
+Re-run the secret scan afterwards.
 
-- `fishHp`, `playerHp`, cards in hand and their `hitZones`/`hitEffects`,
-  remaining draw pile.
-- **Was there a card in hand that would have killed the fish with certainty?**
-  If yes, this is exactly the case the certainty gate already catches, and the
-  answer is "the shipped policy is the wrong one", not "the rule needs to be
-  stronger."
-- If no, what was `bestKillProbability` — and would the threshold in §3 have
-  held the oil?
+### 1c. THE REQUEST PAYLOAD — user-captured, 2026-08-21, from a manual cast
 
-**Report this to the user directly.** It is the concrete instance behind the
-directive and it decides how much of §3 is actually needed.
+```
+action:      "play_cards"
+actionToken: "1787351554996"
+data: { cards: [], nodeId: "", focusPoint: [2,3], itemId: 0, slotIndex: 0, tierId: 0 }
+```
 
----
+**`cards: []` on a `play_cards` action IS the redraw.** No fifth action, no new
+endpoint, the same six-field envelope every fishing action uses. `focusPoint` is
+still sent — the marker is supplied, not omitted. This is now CONFIRMED capture,
+not inference, and SPEC-fishing §7's "genuinely uncaptured" paragraph can be
+replaced with it.
 
-## 3. The probabilistic threshold — derive it from an exchange rate, do not tune it
+**⚠ AND THIS IS THE DANGEROUS PART.** A redraw is **indistinguishable on the wire
+from a play that failed to choose a card.** Any bug, any fallback path, any
+`chooseCard` returning nothing that still serialises the envelope **sends a
+redraw and burns mana** — silently, and looking exactly like a normal turn in the
+log.
 
-**User decision, 2026-08-21: add a probabilistic threshold on top of the
-certainty gate.**
+So the wiring must carry intent explicitly:
 
-This sits against standing guidance — *session 67: "do not tune the necessity
-thresholds; a tuned pair buys ~0.08pp on a sim whose control arm catches 68.71%
-against the real fishery's 25.9%."* **The resolution is that this threshold must
-not be fitted.** Do not sweep for the value that maximises catch rate. Derive it
-from what the user is trading, pre-register it, and report what it costs as well
-as what it saves.
+- Redraw is its own decision in the client, not the absence of a card. **A test
+  must assert that a `play_cards` with no chosen card never serialises as
+  `cards: []`** — it must throw, or fail closed, never fall through to the wire.
+- Log a redraw as a redraw. `redraw_indicated_not_sent` becomes
+  `redraw_sent`/`redraw_suppressed`, so the log distinguishes the two forever.
+- Session 65's precedent stands on why this matters: a rejected
+  `use_fishing_item` **advanced the server's action token** with no resync
+  available, and the failure surfaced a full turn from its cause.
 
-### 3a. The derivation to attempt
+### 1a. Capturing it does NOT mean turning it on
 
-A lethal-band oil converts an uncertain catch into a certain one. If
-`p = P(catch without the oil)`, spending gains `(1 − p)` fish. So **spend when
-`(1 − p)` exceeds the value of an oil measured in fish, and hold otherwise.**
+*Source: `cardChoice.ts` §5 comment.* The one time redraw was calibrated, it was
+a disaster: *"repeated redraws burning mana before a card was ever played"* —
+the loss mix flipped from **89% `escaped_meter` to 78% `escaped_mana` at a mean
+of 1.29 turns per cast.**
 
-*Source: session 66, corpus-measured —* the Relaxing trigger priced at
-**~6 oils per extra fish**, i.e. one oil ≈ **0.167 fish**, 95% interval roughly
-1.5–20 oils per fish. That gives a first-cut hold threshold near **p ≥ 0.83**,
-with an interval wide enough that the number must be reported with it.
-
-**Two things make this principled rather than arbitrary**, and both belong in the
-report:
-
-- The threshold comes from a **measured exchange rate**, not from a sweep.
-- **It should differ per oil, because stock differs.** *Live-measured, session
-  68: Relaxing 56, Focus 19.* A plentiful oil is worth less, so its hold
-  threshold should be higher. Say so explicitly if you implement one number for
-  both.
-
-### 3b. Scope check — this band is small
-
-*Source: session 67, corpus-measured.* The gate inputs are bimodal:
-`bestKillProbability` **34.3% exactly 0 / 55.8% exactly 1 / 9.9% between**;
-`bestConnectProbability` 59.8% / 27.8% / 12.5%.
-
-**So the certainty gate already covers 55.8% of firing moments, and the
-probabilistic threshold can only bite on the ~9.9% in between.** Report the
-threshold's effect against that denominator, not against all firings — a rule
-that changes one decision in ten should not be described as if it changed the
-policy.
-
-### 3c. Constraints
-
-- `p` in the derivation is **P(catch eventually without the oil)**, which is not
-  the same as `bestKillProbability` (this turn). If you use the per-turn value as
-  a proxy, **say so and say which direction it biases.**
-- Pin it with a test that fails at **both** degeneracies — always-hold and
-  never-hold — the way session 67 pinned the certainty gate.
-- **Report escapes, not just oils saved.** A threshold that saves oil by losing
-  fish is a worse policy the user did not ask for.
+So the order is: **capture → implement the action → recalibrate
+`REDRAW_THRESHOLD` in sim → shadow → then ask the user.** Wiring a mechanic whose
+only calibration attempt produced 1.29-turn casts is not a small change, and the
+threshold that produced it is still the shipped constant.
 
 ---
 
-## 4. Stock policy — Focus until depleted, Relaxing capped at 2 per cast
+## 2. The focus-meter policy — sweep the three families, but validate the sim first
 
-**User directive, 2026-08-21:**
+**User decision, 2026-08-21: sweep all three in sim, recommend, the user
+approves.**
 
-> Continue using Focus oil until supply naturally depletes, then only use 2×
-> Relaxing oil per fishing run.
+*Source: `src/strategy/fishing/focusBudget.ts`, session 49.* The module exists
+precisely for the behaviour the user is complaining about. Its own header:
+**"the first move alone spends 1.62 of 3 points"**, **"80.8% of casts escape by
+meter-out"**, observed profile **3.00 → 1.38 → 0.72 → 0.36 → 0.14 → 0.04 → 0.00**.
 
-*Live-measured, session 68: Relaxing **56**, Focus **19**.* Focus is now the
-scarce one.
+It offers `costCap`, `threshold` and `schedule`. **`liveFishing.ts` references
+none of them.** The shipped value is `{kind:"none"}`, labelled in the module's own
+`describePolicy` as **"none (shipped)"**. A module written to fix this problem has
+been switched off for twenty sessions.
 
-- **Focus: unconstrained** until stock reaches zero. When it does, stop and tell
-  the user rather than silently changing behaviour.
-- **Relaxing: hard cap of 2 per cast, effective immediately.** The cap is a
-  ceiling, not a quota — it never causes a spend. Applying it now satisfies both
-  readings of the directive and is non-binding in the common case; *session 65
-  recorded a cast that consumed three oils*, so it is not hypothetical.
-- A third Relaxing trigger in one cast records **OIL-POLICY-DRY**, the cast
-  continues, the batch does not halt — the partial-dry path from session 65.
+### 2a. Before trusting the sweep — check the sim reproduces the meter profile
+
+This is gate 1 and it is not a formality.
+
+*Source: session 69, live-measured.* **The sim's bimodality does not reproduce
+live.** All nine Relaxing `bestKillProbability` values on the entire live record
+(0.400 0.481 0.505 0.506 0.580 0.587 0.690 0.964 0.975) are **strictly between 0
+and 1**, where the sim says 34.3% exactly 0 and 55.8% exactly 1. That was the
+evidence session 67's whole "threshold 1 is zero-parameter" argument rested on.
+
+**The same simulator is now being asked to choose a focus-spend policy.** So
+before the sweep's recommendation counts for anything, check the one thing that
+makes it relevant: **does the sim's per-turn focus-spend profile match the
+corpus's?** The corpus profile is quoted above and the corpus is now 124 casts —
+recompute it rather than reusing session 49's number.
+
+- If the profiles agree, the sweep is measuring the right thing. Say so and
+  proceed.
+- **If they diverge, the sweep is choosing a policy for a fishery that does not
+  exist**, and the recommendation must be labelled that way — or the sweep should
+  be run against the corpus's real trajectories instead.
+
+### 2b. What to report
+
+Score `costCap`, `threshold`, `schedule` and `none` on catch rate **and** on
+meter-out rate — the failure mode the module was built for. Give the causal
+story, not a ranking: *why* does the winner win, in the way `OIL-CONSERVE.md`
+did. **Recommend; do not ship.**
+
+The module's two invariants are already asserted and must stay: a cost-0
+placement is always allowed, and a lethal placement is never blocked.
 
 ---
 
-## 5. The Steady Lure crit — now datable
+## 3. The oil threshold argument now rests on live, not on the sim
 
-**User-stated, 2026-08-21: the lure was equipped BEFORE today's casts.**
+*Source: session 69, live-measured.* **The certainty gate has never held a
+Relaxing Oil live — 0 of 9 firings on the whole record.** The exchange-rate
+threshold would have held **2 of 9**.
 
-That unblocks session 68's open question. *Source: session 68 —* do **not**
-compute a crit rate over the whole corpus; 1/484 plays spans ~60 sessions and is
-rule 10's trap. **Scope the denominator to plays on 2026-08-21 only** and report
-the rate against the user-stated **3%**.
+Combined with §2a's finding, the conclusion is uncomfortable and should be
+written down rather than left implied:
 
-The **damage rule stays open at n=1.** *Session 68: card 76, `critZones: []` and
-`critEffects: []`, took the fish 5 → 0 where its `hitEffects` amount is 3.*
-`hit + 2`, a flat 5, and "lethal, server reports remaining HP" all fit exactly.
-**Do not encode one.** If the scoped rate holds up, a handful more casts settles
-it.
+- **`conserve(r=1,f=1)` — the certainty gate — is a proven no-op live.** It was
+  chosen because the sim's inputs are bimodal at 0 and 1. Live inputs are not.
+- **The exchange-rate threshold is the only one of the two that does anything**,
+  and it was derived from a measured exchange rate rather than swept.
+- *Session 69:* the sim cannot distinguish the two — both give 3809 oils / 88.38%
+  at n=8000 — **because it has no `bestKillProbability` mass in [0.833, 1)**. An
+  aggregate over a distribution with a hole in it says nothing about the hole.
+
+**So shadow the exchange threshold, not the certainty gate** (session 69 open
+question 2). Today's shadow spends its records on the one rule now known to do
+nothing. Neither ships this session.
 
 ---
 
-## 6. The batch
+## 4. Reconcile the repo ledger — the game is authoritative
 
-After §1 passes: cast under the **unchanged** live policy (`onDemandTriggers`),
-with shadow recording both arms.
+*User-verified manually:* game **14**, repo **15**, after a batch of 10
+`start_run`s from a shared starting point of 5. The corpus also moved +10
+(114 → 124).
 
-- **Up to 10 casts**, leaving 5 in reserve on the day.
-- Halt on: the count; the ledger short; the 15-cast zero-streak tripwire; or
-  **§1's observability failing in practice** — if the hoist ships and shadow
-  still records `bestKillProbability: null` at a Relaxing firing, stop and report
-  rather than accumulating unobservable casts.
-- **Do not stop on an oil consume.** Do not force one.
-- Rule 13 after the batch: read the ledger, confirm it moved by exactly the casts
-  sent.
-- `conserve(r=1,f=1)` stays **unshipped**; `policyApproved` stays false.
+So the bot believes it spent ten casts and the game charged it nine. **Find the
+one that was free**, or establish that it cannot be found:
+
+- Check each of the ten `start_run`s against `dayDocs` movement individually.
+- *Session 65 precedent:* a cast resumed after a token desync costs **no ledger
+  entry** — no `start_run`, no energy. Session 69 reported no resumes; verify
+  that rather than accepting it.
+- **Whatever the cause, make the repo ledger defer to the game's.** The game's
+  count is the one the server enforces, and a repo counter that drifts high will
+  eventually stop a batch that had casts left — the safe direction today, the
+  wrong answer tomorrow.
+
+Do not spend casts investigating this.
+
+---
+
+## 5. Carried
+
+- **Relaxing cap stays at 2 per CAST** — user-confirmed 2026-08-21, as shipped.
+  No change.
+- **Focus: unconstrained until stock depletes**, then stop and tell the user.
+  *Live-measured session 68: Relaxing 56, Focus 19 — verify at session start, do
+  not carry these forward as current.*
+- **`strict.relaxingReachable` has stopped being a usable firing rate** — unmoved
+  at 12 while live fired 5 times in one batch. Use shadow records instead.
+- The `nextPosition` tripwire has still never met a real miss. **Do not budget
+  casts for it.**
+- The crit damage rule stays **OPEN at n=1**; the scoped rate (1/73 all plays,
+  1/39 connecting) contains the stated 3% on both denominators. **Do not choose a
+  denominator at n=1.**
+
+### 5a. The crit source is now in doubt — resolve the gear from data, not memory
+
+*Session 68 recorded, user-stated:* a **"Steady Lure"** is equipped, 3% crit, and
+the crit rate was scoped to all of 2026-08-21 on the strength of it.
+
+*User-stated 2026-08-21, on the two gear instances whose suffixes decode to
+**10:21 PT that same day**:* they are a **Shroom Rod** and a **Sticky Lure**.
+
+**Those two statements are in tension and the difference moves the denominator.**
+If the crit-bearing lure went on at 10:21 PT, every Aug-21 play before 10:21 had
+no lure and is diluting session 69's rate. And a **Shroom Rod** is a gear class
+nothing in the model accounts for at all.
+
+*Source: the same capture.* `GEAR_CID_array` entries carry equip timestamps in
+their suffixes — `#811_1787332895` and `#952_1787332903` both decode to
+2026-08-21 10:21 PT; `#951_1787254688` to 2026-08-20 12:38 PT; others back to
+2025.
+
+**So date the crit source from data:** resolve the gear ids against
+`/offchain/static` (which names each item), identify which instance is the
+crit-bearing lure, and **rescope the crit rate to plays after that equip
+timestamp.** Report the new denominator alongside session 69's so the change is
+visible rather than silent.
+
+Rule 9 applies to a user-stated claim exactly as it applies to a brief's — session
+63 already caught one user-stated inventory that the live read contradicted. This
+is not a challenge to the user; it is that gear ids and timestamps are sitting in
+the capture and are cheaper to read than to remember.
+- Standing: never report energy as a blocker; `--dry-run` before claiming a
+  blocker; do not revert rule 8; do not loosen the `fakeDoc` observability guard;
+  §19, rule 8 and corrode-in-`dungeonSim` are CLOSED; `boonCapture` settled OFF;
+  distribution steps 3/4/6 remain the user's.
+
+---
+
+## 6. Gate
+
+Both halves are offline and deterministic.
+
+1. **The sim's per-turn focus-spend profile is computed against the 124-cast
+   corpus's and the comparison is reported**, with the sweep's recommendation
+   explicitly labelled as trustworthy or not on the strength of it. A sweep
+   reported without this comparison does not meet the gate.
+2. **The repo ledger reconciles with the game's**, with either the cause of the
+   off-by-one identified or the repo made to defer — and a test that fails if the
+   repo counter can exceed the game's.
 
 ---
 
 ## 7. Do not
 
-- Do not cast before §1 passes, or run any dungeon run.
-- **Do not ship the conserving policy or the new threshold** — shadow and report.
-- Do not sweep the threshold for maximum catch rate (§3).
-- Do not describe the threshold as changing the policy when it touches ~10% of
-  firings (§3b).
-- Do not reason about a live mana pool; there is not one (§2a).
-- Do not encode a crit damage rule at n=1, or compute a crit rate over the whole
-  corpus (§5).
-- Do not let the hoist change live play (§1).
-- Do not read `ls fixtures/fishing-casts/live | wc -l` as a cast count — dirs are
-  per invocation, `--dry-run` makes empty ones, and 7 hold more than one cast.
-- Standing: never report energy as a blocker; exercise `--dry-run` before claiming
-  a blocker; do not revert rule 8; do not loosen the `fakeDoc` observability
-  guard; §19, rule 8 and corrode-in-`dungeonSim` are CLOSED; `boonCapture`
-  settled OFF; distribution steps 3/4/6 remain the user's.
+- **Do not cast, and do not run a dungeon run.**
+- **Do not enable redraw** — wire it, guard it, recalibrate first (§1a).
+- **Do not let a card-less play serialise as `cards: []`** — that is a redraw on
+  the wire and it spends mana (§1c).
+- **Do not commit `PLAYER_CID`, a JWT, or any address from the capture.** Run it
+  through `src/api/redact.ts` and re-run the secret scan.
+- Do not restate "Steady Lure" as the crit source until the gear ids resolve it
+  (§5a).
+- **Do not ship any focus policy, the certainty gate, or the exchange
+  threshold.** Recommend and shadow.
+- Do not report the sweep's winner without §2a's comparison.
+- Do not quote the sim's ±0.01pp CIs as decision intervals, and do not present a
+  sim aggregate as evidence about a region the sim has no mass in (§3).
+- Do not carry a stock or ledger number forward as current — read it.
+- Do not put identifiers in a test that guards against identifiers, and do not
+  give a new I/O-owning test construction a real data path.
 
 ---
 
-## 8. Gate
+## 8. Corrections to me — two errors, and they are the same error
 
-1. **The hoist is proven both ways** — shadow records a Relaxing firing moment
-   with `bestKillProbability` populated, **and** live play is byte-identical with
-   the hoist in and out. Demonstrate the observability test failing with the
-   hoist reverted.
-2. **The probabilistic threshold is derived from a stated exchange rate,
-   pre-registered before the batch, and pinned by a test that fails at both
-   degeneracies.** A report that presents a swept value does not meet this gate.
-
----
-
-## 9. Corrections to me
-
-- **I wrote that stock was "Relaxing 0, Focus 18". Live it was Relaxing 56,
-  Focus 19.** Rule 9, sixth occurrence. I carried session 65's balance read
-  forward as if it were current, tagged it *live-measured, session 65*, and the
-  tag was accurate while the use of it was not. **A provenance tag records where
-  a number came from; it does not certify that the number still holds.** For
-  anything the user can change between sessions — stock, equipment, crafting — the
-  brief should say "as of session N, verify at start", not state it as fact.
-- **Worse, that stale number produced a conclusion that was right for the wrong
-  reason.** I wrote that the Relaxing arm could not be exercised live because
-  stock was zero. The arm indeed could not be exercised — but because of the
-  structural ordering session 68 found, with 56 oils in the bag. **A correct
-  conclusion reached from a false premise is more dangerous than a wrong one**,
-  because the recap confirms it and nobody looks again. Session 68 looked anyway.
-- **I could not identify the cast the user described**, which is why §2b is a
-  task rather than an answer. I read one of session 68's directories, found it
-  showed three misses and no consume, and stopped rather than guessing at which
-  of the five it was.
+- **I told the user there is no mana pool. `mana` is `doc.data.playerHp`**
+  (`liveFishing.ts:1857`, `:1894`, `:2078`). Their original reading — "3–4 spent,
+  6–7 left" — was **exactly right**, and my correction was the mistake. I also
+  said misses cost `playerHp`; they do not. **Playing a card costs 1 mana**
+  (`manaCost: 1` on every card), which is why it fell 10 → 9 → 8 across three
+  plays. Missing separately heals the fish.
+- **How I got there matters more than the fact.** I searched the server's raw doc
+  for a field named `mana`, did not find one, and concluded the *concept* did not
+  exist — without searching the code that consumes the doc, where the mapping
+  lives one layer up. **An absent field name is not an absent mechanic.** And I
+  said it with confidence to the person who plays the game, who then had to
+  correct me from knowledge I could have read off line 1857.
+- **The second error is the same shape at a different layer.** Last brief I wrote
+  that the probabilistic band covers "~9.9% of firing moments", from the sim's
+  bimodality. Session 69 measured the live record: **every Relaxing firing sits
+  strictly between 0 and 1.** The band is not a tenth of firings live — it is all
+  of them.
+- **Both are trusting a representation over the thing it represents** — a schema
+  over the code that reads it, a simulator over the server it models. The repo's
+  rule 1 is "discover, don't assume", and its rule 9 says a brief's claims are
+  hypotheses. **I have been applying both to the agent's claims and not to my
+  own.** The check that would have caught each is the same and it is cheap: before
+  asserting a mechanic is absent, grep the consumer, not just the producer.
 
 ---
 
-## Your task (session 69)
+## Your task (session 70)
 
-1. `doctor.ts` first; read both ledgers; report the day.
-2. **§1 / gate 1** — hoist `dist` above the oil block, proven both ways.
-3. **§2b** — identify the user's cast and answer whether a card could have killed
-   that turn. **Report it to the user directly.**
-4. **§3 / gate 2** — derive the probabilistic threshold from an exchange rate,
-   pre-register it, pin both degeneracies. Do not ship it.
-5. **§4** — Focus unconstrained, Relaxing capped at 2 per cast.
-6. **§5** — crit rate scoped to 2026-08-21 plays; damage rule stays open.
-7. **§6** — up to 10 casts, shadow recording both arms.
-8. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+1. `doctor.ts` first; read both ledgers and report them. **No casts.**
+2. **§1** — wire redraw from the CONFIRMED payload (`play_cards`, `cards: []`),
+   with the intent guard and the never-serialise-empty test. **Scrub `PLAYER_CID`
+   from the capture before it touches the repo. Do not enable redraw** —
+   recalibrate `REDRAW_THRESHOLD` first (§1a).
+3. **§2 / gate 1** — recompute the corpus focus-spend profile, compare the sim's
+   to it, and report the comparison **before** the sweep's recommendation.
+4. **§2b** — sweep `costCap`, `threshold`, `schedule`, `none` on catch rate and
+   meter-out rate, with the causal story. Recommend; do not ship.
+5. **§3** — record that the certainty gate is a live no-op, and move the shadow
+   onto the exchange threshold.
+6. **§4 / gate 2** — reconcile the ledgers; make the repo defer to the game.
+7. **§5a** — resolve the gear ids against `/offchain/static`, identify the
+   crit-bearing lure, and rescope the crit rate to plays after its equip
+   timestamp. Report both denominators.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
    **final** commit, no test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** §1 is the whole session's dependency and §2b is the item
-the user most wants answered. **The likeliest outcome of §2b is that a card could
-NOT have killed that turn** — the certainty gate would have spent the oil too,
-and the user's concern lands on the probabilistic band instead, where §3 is aimed
-and where only one firing in ten lives. That is a smaller finding than it feels
-like, and saying so plainly is more useful than a rule that appears to fix
-something it does not touch.
+**Honest expectation.** This session's real finding may be gate 1 rather than the
+sweep it guards. Three separate times now — the oil gate's bimodality, the
+`conserve` no-op, and the meter profile about to be checked — **the simulator has
+described a fishery the server does not run.** If §2a shows the meter profile
+diverges too, then the honest conclusion is not "pick a different focus policy"
+but that **sim-selected policy is not currently a reliable instrument**, and the
+corpus's own trajectories should be scoring these decisions instead. That would
+be a larger and more useful result than a winner from a sweep nobody can trust.
