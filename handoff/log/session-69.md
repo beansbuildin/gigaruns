@@ -1,4 +1,4 @@
-# STATE — session 69 — 2026-08-21 (PT) — code at commit 17cb90e
+# SESSION 69 LOG — 2026-08-21 (PT) — commit 17cb90e
 
 ## Status
 **BOTH GATES PASS.** Suite **1328/1328** (1293 → 1328, +35), `tsc --noEmit`
@@ -145,3 +145,156 @@ which is a user directive and can only ever REFUSE a spend.
      SPEC-fishing.md                           |  40  (the scoped crit rate)
      tests/sim/fishingCorpus.test.ts           |  24  (census)
 ```
+
+---
+
+# Verbose appendix
+
+## The pre-hoist failure, in full (GATE 1a demonstrated failing)
+
+`npx vitest run tests/fishing/oilShadowRelaxingArm.test.ts` on the PRE-hoist
+placement:
+
+```
+ Tests  3 failed | 3 passed (6)
+
+ × records the firing moment — a record exists at all, which pre-hoist it did not
+   AssertionError: expected 0 to be greater than 0
+ × the record is at a RELAXING firing moment with the gate's own input populated
+   AssertionError: expected 0 to be greater than 0
+ × the record is taken on the PRE-consume state, not the corpse the oil left
+   TypeError: Cannot read properties of undefined (reading 'fishHp')
+```
+
+The two that PASSED are the anti-vacuity pair: the premise test (`start_run`,
+`use_fishing_item`, no `play_cards` — the cast really is ended by the oil) and
+the shadow-off test. So the cast shape was right and the record genuinely did
+not exist. Post-hoist: 6 passed.
+
+## The golden's six scenarios (GATE 1b)
+
+Each captured pre-hoist, unchanged post-hoist. The `play_cards` bodies carry
+the chosen card index and `focusPoint`, which is precisely what `dist` drives —
+a hoist that changed the distribution would surface here.
+
+```
+no-authorization — trigger fires, mayConsumeOil refuses
+    [start_run, play_cards, play_cards]                  escaped, 0 oils, 0 dry
+focus oil spent on an empty meter, then play continues
+    [start_run, use_fishing_item, play_cards, play_cards] escaped, 1 oil
+lethal relaxing oil ENDS the cast before any card
+    [start_run, use_fishing_item]                         caught, 1 oil
+both triggers on one turn — only the lethal one may be sent
+    [start_run, use_fishing_item]                         caught, 1 oil
+both triggers against an EMPTY bag — OIL-POLICY-DRY
+    [start_run, play_cards, play_cards]                  escaped, 0 oils, 4 dry
+plain multi-turn cast — no trigger ever fires
+    [start_run, play_cards, play_cards, play_cards]      escaped, 0 oils
+```
+
+## §2b — the user's cast, cast 13022748, turn by turn
+
+```
+turn action              fishHp  playerHp  meter   focus  fishPos hand        draw
+  -  start_run            11/18     10/10    3/3  [2,2]   [2,4]  [2,3,74]      7
+  0  play_cards  HIT       4/18      9/10    2/3  [2,3]   [3,4]  [2,3]         7
+  1  play_cards  MISS      7/18      8/10    2/3  [2,3]   [4,4]  [2]           7
+  2  play_cards  HIT       2/18      7/10    0/3  [4,3]   [4,3]  [6,75,4]      4
+  3  use_fishing_item 937  0/18      7/10    0/3  [4,3]   [4,3]     —          —
+```
+
+The board at the decision (`oilMomentAudit --cast=13022748`):
+
+```
+card   6  cost 1  hit 5 (LETHAL)  zones [3,6,9]    covers 2/16  p 0.0253
+card  75  cost 1  hit 6 (LETHAL)  zones [2,4,6,8]  covers 3/16  p 0.9752
+card   4  cost 1  hit 5 (LETHAL)  zones [1,4,7]    covers 2/16  p 0.6754
+bestKillProbability 0.975217  certain? no
+fish-move dist top: [4,2] 0.667  [3,3] 0.290  [4,4] 0.017  [3,2] 0.008
+```
+
+Answer: **no card could kill with certainty; one came within 2.5pp.** All three
+were lethal on DAMAGE — the constraint was connecting, with the meter at 0 and
+exactly one placement available. Miss effects on that deck heal 3–6, which
+lifts a 2-HP fish clear of the oil's 2 damage, so a miss would have destroyed
+the oil's lethality for the rest of the cast.
+
+## The full live consume census (`oilMomentAudit`, no filter)
+
+Nine real consumes plus one sent against an already-complete doc (session 68's
+fixed defect; flagged, not counted).
+
+```
+13019015 t7  focus     bestKill 0.032
+13019665 t4  RELAXING  bestKill 0.587
+13019677 t3  focus     bestKill 0.027
+13019682 t2  focus     bestKill 0.000
+13019682 t3  focus     bestKill 0.714
+13019682 t2  RELAXING  bestKill 0.400
+13022748 t3  RELAXING  bestKill 0.975   <- the user's cast
+13022748 t3  focus     ★ POST-TERMINAL, server rejected
+13022874 t2  focus     bestKill 0.000
+13022876 t2  RELAXING  bestKill 0.580
+```
+
+## The batch's shadow records (session 69)
+
+```
+RELAXING firings, bestKillProbability:  0.505  0.506  0.690  0.964  0.481
+FOCUS  firings, bestConnectProbability: 0.231  0.413  0.563  0.906  0.690  0.049  0.481
+records 42 | firing moments 10 | null 0 | sanity 0 | throws 0 | wouldSkip 0
+```
+
+Combined with the historical four, all NINE Relaxing values ever observed:
+`0.400 0.481 0.505 0.506 0.580 0.587 0.690 0.964 0.975`. Buckets: 0 zero,
+0 one, **9 between**. Focus: 0 / 0 / **7 between**.
+
+## §3 — the sim table the threshold does NOT move (n=8000/arm, paired on seed)
+
+```
+never                  oils     0   caught 68.71%
+on-demand              oils  5578   caught 88.11%
+conserve{1,1}          oils  3809   caught 88.38%
+exchange{0.833,1}      oils  3809   caught 88.38%   <-- IDENTICAL
+exchange-lo{0.333,1}   oils  3618   caught 88.33%
+exchange-hi{0.95,1}    oils  3809   caught 88.38%
+```
+
+## §6 — batch tail
+
+```
+· batch state: cast 10, oils consumed 10, clean 4, ledger 6 left, held Focus 13 / Relaxing 49
+▸ BATCH HALT (cast_cap) — 10 of 10 casts completed — the intended exit.
+▸ §2c clean-cast tripwire: 4 clean cast(s) of 10, 10 oil(s) consumed. Threshold 6 — not reached.
+▸ done. energy spent (guard-tracked) 180, casts 15
+```
+
+Rule 13 ledger read afterwards:
+
+```
+GAME ledger  (dayDocs pond 2):  14 / 20
+REPO ledger  (guard-budget-fishing): 15 casts, 180 energy
+LEDGERS DISAGREE: game 14 vs repo 15.
+VERDICT: 6 cast(s) available this guard-day.
+```
+
+Ten distinct docIds were started (`13024476 13024510 13024527 13024544
+13024550 13024562 13024567 13024574 13024579 13024581`), zero
+`resuming_existing_cast` events. Reported, not reconciled.
+
+## Census deltas, with the two that are findings rather than bookkeeping
+
+```
+traces           114 -> 124      clean            113 -> 123
+playTurns        484 -> 521      responseDocs     631 -> 696
+caught            26 ->  34      escaped           87 ->  89
+card crits        17 ->  22      focus oilSkipped    6 ->  11
+lax focusReach    76 ->  80      focus gap          15 ->  16
+strict relaxReach 12 ->  12      lax-strict relax    4 ->  10   <- FINDING
+caught casts in the gap  1 -> 2                                 <- FINDING
+```
+
+`strict.relaxingReachable` unmoved while live fired the trigger five times is
+the strict definition working correctly and the metric becoming useless as a
+firing rate. The second caught gap member turns session 68's falsification into
+a repeatable mechanism.
