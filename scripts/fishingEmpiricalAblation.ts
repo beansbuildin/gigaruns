@@ -44,22 +44,19 @@ import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fish
 import { buildCellOnlyMap, buildContextualMap } from "../src/strategy/fishing/contextualFallback.js";
 import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
 import { loadMinedPatterns } from "./liveFishing.js";
-
-/** The account's real held deck — `doc.data.fullDeck` from the live capture named in this file's header. */
+import { REAL_DECK } from "../src/sim/fishing/rodDeck.js";
 /**
- * **[session 70 §5a] THIS IS THE MAKESHIFT ROD'S DECK, AND IT IS STALE.** A rod
- * grants the starting card set via `gameItems[].CARD_CID_array`, and the
- * account swapped Makeshift Rod (922) for Shroom Rod (811) on 2026-08-21 at
- * 12:58 PT — `fullDeck` flips to `[1,2,3,4,5,6,74,75,76,78]` at cast 13022748,
- * on the same cast `GEAR_CID_array` swaps the rod. See SPEC-fishing.md.
+ * **[session 71 §2] REPOINTED TO THE SHROOM ROD** — one shared definition, in
+ * `src/sim/fishing/rodDeck.ts`, ratcheted by `tests/fishing/rodDeck.test.ts`
+ * so the next rod change fails the build instead of going unnoticed for 110
+ * traces the way this one did.
  *
- * Left pointing at the Makeshift deck ON PURPOSE: every historical number in
- * this repo was computed on it and 110 of the corpus's 123 clean traces were
- * played on it, so repointing the constant would make old and new numbers
- * incomparable without making either right. Any comparison against recent live
- * play must SAY which deck it used.
+ * ⚠ **THE MAKESHIFT/SHROOM BREAK.** Every figure this script printed before
+ * 2026-08-21 was computed on the Makeshift deck
+ * `[1,2,3,4,5,6,7,76,77,79]`, as were 110 of the corpus's 123 clean traces.
+ * A number from a pre-repoint run is a MAKESHIFT-ERA number: date it, do not
+ * restate it as current, and if a comparison spans the break, say so.
  */
-const REAL_DECK = [1, 2, 3, 4, 5, 6, 7, 76, 77, 79];
 
 /**
  * Comparison decks for the brief's §4 deck-shape claim. Diagnostic only —

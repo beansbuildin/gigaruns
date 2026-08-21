@@ -48,12 +48,14 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { profileArg, resolveProfile } from "../src/profile.js";
+import { MAKESHIFT_ROD, SHROOM_ROD, gearItemIds } from "../src/sim/fishing/rodDeck.js";
 
 /** Gear ids this script reasons about, resolved live against `/offchain/static` 2026-08-21. */
 const STEADY_LURE = 951;
 const STICKY_LURE = 952;
-const SHROOM_ROD = 811;
-const MAKESHIFT_ROD = 922;
+// [session 71 §2] The rod ids come from `rodDeck.ts` — one definition, so this
+// script and the sim's `REAL_DECK` can never disagree about which rod is which.
+
 
 interface CastRecord {
   docId: string;
@@ -64,14 +66,6 @@ interface CastRecord {
   crits: number;
 }
 
-/** `GearInstance#<itemId>_<mintStamp>[_<hash>]` — the id is the part that resolves against `gameItems`. */
-function gearItemIds(arr: unknown): number[] {
-  if (!Array.isArray(arr)) return [];
-  return arr.flatMap((e) => {
-    const m = /^GearInstance#(\d+)_/.exec(String(e));
-    return m ? [Number(m[1])] : [];
-  });
-}
 
 interface Doc {
   docId?: string;
