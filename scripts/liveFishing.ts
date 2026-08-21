@@ -1626,6 +1626,29 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       PAYLOAD_OIL_EFFECTS,
     );
     for (const kind of oilWanted) {
+      // ---- [session 68 §2] A LETHAL CONSUME ENDS THE CAST MID-LOOP --------
+      //
+      // **LIVE-FOUND, and it cost a cast.** `oilWanted` is evaluated ONCE for
+      // the turn, but a consume inside this loop replaces `doc`. The Relaxing
+      // Oil's whole thesis is that at `fishHp <= fishDamage` it ENDS the cast
+      // — so when both triggers fire on the same turn, the Focus consume that
+      // follows is sent against a cast the server already considers finished.
+      //
+      // Live, 2026-08-21, cast 13024xxx turn 3: fish 2/18, meter 0/3, both
+      // triggers fired. `use_fishing_item(937, slot 0)` took the fish to 0/18;
+      // `use_fishing_item(942, slot 1)` was then rejected HTTP 400, and per the
+      // session-65 finding a rejected consume still ADVANCES the server's
+      // action token — so the cast was unrecoverable and the batch stopped on
+      // its first cast with 4 unspent.
+      //
+      // The check has to be HERE and not after the loop (where it already was,
+      // and where it never saw this): the damage is done by the second
+      // iteration, not by the next turn.
+      if (doc.COMPLETE_CID) {
+        log.write({ event: "oil_skipped_cast_complete", turn, kind });
+        console.log(`  · cast already complete — not sending the ${kind} oil that this turn also triggered.`);
+        break;
+      }
       const itemId = kind === "focus" ? MID_FOCUS_OIL_ITEM_ID : MID_RELAXING_OIL_ITEM_ID;
       const held = oilHeld[kind];
       const auth = mayConsumeOil({
