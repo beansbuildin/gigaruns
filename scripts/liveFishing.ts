@@ -159,7 +159,7 @@ import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fis
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { redactNoobToken } from "../src/api/redact.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
-import { SESSION_64_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { SESSION_64_LIMITS, SESSION_65_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
@@ -2072,11 +2072,16 @@ async function main() {
   const shutdownSignal = createShutdownSignal();
   const uninstallSigint = installProcessSigintHandler(shutdownSignal);
 
-  // [session 64 §2b] The batch's ceiling is the CLEAN-CAST CAP, not a cast
-  // budget: the loop is expected to exit early on a consume, and reaching the
-  // cap is itself the finding (§2c). An explicit --casts= still wins, so the
-  // cap can be lowered for a probe but never silently raised past it.
-  const batchCeiling = Math.min(args.casts > 1 ? args.casts : SESSION_64_LIMITS.cleanCastCap, SESSION_64_LIMITS.cleanCastCap);
+  // [session 65 §1b] The batch's ceiling is now the CAST CAP and that cap is
+  // the INTENDED EXIT, which inverts session 64's arrangement: there the loop
+  // expected to exit early on a consume and the ceiling was the clean-cast
+  // tripwire; here every cast is wanted for its instrumented turns and a
+  // consume is a capture, so the batch runs the full seven. An explicit
+  // --casts= still wins downward only, so the cap can be lowered for a probe
+  // but never silently raised past the authorized batch size.
+  const batchLimits = SESSION_65_LIMITS;
+  const authorizedCasts = batchLimits.castCap ?? args.casts;
+  const batchCeiling = Math.min(args.casts > 1 ? args.casts : authorizedCasts, authorizedCasts);
   const targetCasts = args.dryRun ? 1 : args.oilBatch ? batchCeiling : args.casts;
 
   // [session 47, brief §1a] Energy preflight — reads the REAL pool and, if it
@@ -2239,7 +2244,7 @@ async function main() {
         focusOilHeld: focusHeld,
         relaxingOilHeld: relaxingHeld,
         zeroStreak: evaluateZeroStreak(batchOutcomes).streak,
-      });
+      }, batchLimits);
       console.log(
         `  · batch state: cast ${i + 1}, oils consumed ${batchOilsConsumed}, clean ${batchCleanCasts}, ` +
           `ledger ${ledgerRemaining} left, held Focus ${focusHeld} / Relaxing ${relaxingHeld}`,
@@ -2252,6 +2257,23 @@ async function main() {
     }
   }
   uninstallSigint();
+
+  // [session 65 §1b] §2c REPORTS EVEN THOUGH IT NO LONGER HALTS. Session 64's
+  // recap kept the six-clean-casts interpretation pre-registered for a batch
+  // against FIXED code, and this is that batch; setting `cleanCastCap` to null
+  // suppresses the halt, not the pre-registration. Printing it here is what
+  // makes "reports without halting" true rather than a claim in a comment.
+  if (args.oilBatch) {
+    const tripwire = SESSION_64_LIMITS.cleanCastCap ?? Infinity;
+    console.log(
+      `\n▸ §2c clean-cast tripwire: ${batchCleanCasts} clean cast(s) of ${targetCasts}, ` +
+        `${batchOilsConsumed} oil(s) consumed. Pre-registered threshold ${tripwire} — ` +
+        (batchCleanCasts >= tripwire
+          ? `REACHED. Under the sim's ~0.70 oils/cast this is a ~1-in-900 event: report it as evidence ` +
+            `the trigger model does not describe live play. The batch was NOT extended and NOT cut short.`
+          : `not reached.`),
+    );
+  }
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, casts ${guards.runCount}`);
   console.log(`▸ log: ${log.filePath}`);
