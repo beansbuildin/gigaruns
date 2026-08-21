@@ -53,6 +53,12 @@
  */
 
 import type { Cell } from "../../sim/fishing/geometry.js";
+import { reachableCells } from "../../sim/fishing/geometry.js";
+import {
+  evaluateCardAtFocus,
+  type Distribution,
+  type FishingCardLike,
+} from "./cardChoice.js";
 
 /** The two oils, and what the payloads say they do. Amounts are the MODEL's inputs, so a sweep can vary them. */
 export interface OilEffects {
@@ -111,7 +117,17 @@ export interface OilTimingPolicy {
   name: string;
   /** One-line statement of the causal claim the policy rests on — reported beside its score, so a winner has to have a reason. */
   thesis: string;
-  decide(s: OilTimingState, effects: OilEffects): OilTimingDecision;
+  /**
+   * [session 67 §1] Takes the WIDER `OilDecisionState`, not `OilTimingState`.
+   *
+   * Every policy written before the necessity gate declares its parameter as
+   * `OilTimingState` and reads none of the new fields, so all of them still
+   * satisfy this signature unchanged — a function accepting a supertype is
+   * assignable where one accepting a subtype is wanted. What DOES change is
+   * the obligation on callers: `castSim` must now supply `focusCell` and
+   * `board`, and it fails to compile if it does not.
+   */
+  decide(s: OilDecisionState, effects: OilEffects): OilTimingDecision;
 }
 
 /** Control arm. Never consumes. Every other policy is scored against this. */
@@ -234,6 +250,257 @@ export const heuristicC: OilTimingPolicy = {
   decide: (s) => (s.relaxingOilHeld > 0 && s.fishMaxHp > 0 && s.fishHp / s.fishMaxHp <= 0.15 ? ["relaxing"] : []),
 };
 
+
+
+// ───────────────────────────────────────────────────────────────────────────
+// [session 67 §1] THE NECESSITY GATE — "oils are a backup, not a routine spend"
+//
+// ## The directive
+//
+// User, 2026-08-21: *"use oils only on an as-needed basis. If the autofisher
+// believes it can catch the fish without oil, don't use the oil — conserve
+// inventory for future casts. The priority is to use mana to get the fish as
+// close as possible to caught, with the oils as a backup to guarantee a catch
+// if need be."*
+//
+// **DERIVED AND SCORED, NOT SHIPPED.** `scripts/liveFishing.ts` still plays
+// `onDemandTriggers`. Nothing below has a live call site, by instruction
+// (session-67 brief §1d) and by CLAUDE.md rule 4.
+//
+// ## Why "believes it can catch the fish" needs a NUMBER, not a sentence
+//
+// The obvious reading — *skip the oil when a card in hand can finish the
+// fish* — collapses on contact with the mechanics. A card only deals damage
+// if it CONNECTS, and whether it connects depends on where the fish moves,
+// which is exactly the thing this bot is uncertain about. Read strictly
+// ("can a card GUARANTEE the kill?") the answer is almost always no, and the
+// gate degenerates to always-fire — i.e. back to `on-demand`, the policy the
+// directive is asking to change. Read loosely ("could a card conceivably kill
+// it?") the answer is almost always yes and the gate degenerates to
+// never-fire, which throws the oils away rather than conserving them.
+//
+// **So the gate is a THRESHOLD on a probability, and the threshold is the
+// directive's conservatism dial made explicit.** Both degenerate readings are
+// still expressible — they are the endpoints of the same dial — which is what
+// makes the pin in `tests/fishing/oilNecessity.test.ts` meaningful rather
+// than decorative: it asserts that the shipped-candidate threshold is
+// strictly between two behaviours that the same code can produce.
+//
+// ## "Mana first" is true BY CONSTRUCTION here, and that is worth stating
+//
+// The directive ranks mana ahead of oils, and the brief asked for a check
+// that the gate does not make the bot hold mana back in anticipation of an
+// oil. It cannot: the oil decision is taken in `castSim.ts` BEFORE
+// `opts.policy.act`, and the context that reaches the card policy
+// (`FishPolicyContext`) carries no oil field of any kind — not the held
+// counts, not the trigger, not this gate's verdict. The card policy is
+// therefore a pure function of state that does not mention oils, so no oil
+// policy expressible in this file can change which card it plays or how much
+// mana it spends on the turn the oil is considered. Pinned by a test on the
+// context's own key set rather than by this paragraph.
+
+/**
+ * What the gate needs to see that `OilTimingState` does not carry: the hand,
+ * the fish's predicted position, and the grid it sits on. Exactly the fields
+ * `castSim`'s `FishPolicyContext` already has in scope at the moment the oil
+ * decision is taken, so nothing new is computed for the gate's benefit.
+ */
+export interface OilBoardView {
+  hand: readonly FishingCardLike[];
+  dist: Distribution;
+  gridSize: number;
+}
+
+/**
+ * `OilTimingState` plus what a necessity gate must see. Two narrowings, both
+ * REQUIRED rather than optional, and both on purpose:
+ *
+ *   - `focusCell` stops being optional. Reachability is meaningless without
+ *     it, and an undefined-means-fail-closed branch would be a silent
+ *     degeneration to one of the two endpoints this whole design exists to
+ *     avoid. Making it a compile error is the same trick as
+ *     `LiveFishingIsolatedPaths` and `OilSpendContext`.
+ *   - `board` is added.
+ *
+ * `OilTimingPolicy.decide` takes THIS type, so every existing policy (which
+ * declares its parameter as the wider `OilTimingState` and reads none of the
+ * new fields) still typechecks unmodified, while `castSim` is forced at
+ * compile time to supply the new fields. One call site had to change.
+ */
+export interface OilDecisionState extends OilTimingState {
+  focusCell: Cell;
+  board: OilBoardView;
+}
+
+const amountOf = (effects: readonly { amount: number }[]): number => effects[0]?.amount ?? 0;
+
+/**
+ * P(playing `card` at `focus` drives `fishHp` to <= 0 this turn).
+ *
+ * Crit and hit are disjoint outcomes with their own damage amounts, so each
+ * contributes only if ITS amount finishes the fish. `evaluateCardAtFocus`
+ * already computes both probabilities against the same distribution the card
+ * policy will use, which is the point of reusing it rather than re-deriving
+ * the geometry: the gate must be asking about the play the bot would actually
+ * make, not about a differently-modelled one. Its `missPenaltyMultiplier`
+ * argument only scales the `ev` field, which is discarded here.
+ */
+export function killProbabilityAt(
+  card: FishingCardLike,
+  focus: Cell,
+  fishHp: number,
+  board: OilBoardView,
+): number {
+  const { pHit, pCrit } = evaluateCardAtFocus(card, focus, board.dist, board.gridSize, 1);
+  const hitAmount = amountOf(card.hitEffects);
+  const critAmount = card.critZones.length > 0 ? amountOf(card.critEffects) : hitAmount;
+  return (hitAmount >= fishHp ? pHit : 0) + (critAmount >= fishHp ? pCrit : 0);
+}
+
+/**
+ * The best chance the bot has of finishing the fish THIS TURN with a card it
+ * can actually afford, maximised over every affordable card and every focus
+ * placement the remaining meter allows. This is the operational reading of
+ * *"the autofisher believes it can catch the fish without oil"*.
+ *
+ * Unaffordable cards are excluded rather than discounted: a card that cannot
+ * be played is not a reason to withhold the oil, and counting it would be the
+ * precise failure the directive is guarding against.
+ */
+export function bestKillProbability(s: OilDecisionState): number {
+  const cells = reachableCells(s.board.gridSize, s.focusCell, Math.max(0, s.focusRemaining));
+  let best = 0;
+  for (const card of s.board.hand) {
+    if (card.manaCost > s.mana) continue;
+    for (const f of cells) best = Math.max(best, killProbabilityAt(card, f, s.fishHp, s.board));
+  }
+  return best;
+}
+
+/**
+ * The best chance of CONNECTING at all from the cell the marker is frozen on.
+ *
+ * The Focus Oil's necessity case is different from the Relaxing Oil's and must
+ * not be modelled with the same function. At `focusRemaining <= 0` the policy
+ * cannot aim: `reachableCells(grid, cell, 0)` is exactly `[cell]`, so every
+ * remaining shot this cast is taken from one square. The question is therefore
+ * not "can a card kill the fish" but "can a card REACH it" — a meter with two
+ * points restored is worth nothing on a turn where the frozen cell already
+ * covers the fish's likely position, and worth a great deal on a turn where it
+ * covers none of it.
+ */
+export function bestConnectProbabilityFromFrozenCell(s: OilDecisionState): number {
+  let best = 0;
+  for (const card of s.board.hand) {
+    if (card.manaCost > s.mana) continue;
+    const { pHit, pCrit } = evaluateCardAtFocus(card, s.focusCell, s.board.dist, s.board.gridSize, 1);
+    best = Math.max(best, pHit + pCrit);
+  }
+  return best;
+}
+
+/**
+ * The conservatism dial, and the two values that make it degenerate.
+ *
+ * A gate fires when the bot's own best chance is BELOW its threshold. So:
+ *
+ *   - `0` — nothing can be below zero, the arm never fires, the policy is
+ *     `never` for that oil.
+ *   - anything `> 1` — every probability is below it, the arm always fires,
+ *     the policy is `on-demand`'s trigger for that oil.
+ *
+ * Both are real, reachable configurations of the same code, which is what
+ * lets `tests/fishing/oilNecessity.test.ts` pin the recommended value as
+ * strictly between two behaviours rather than merely asserting a number.
+ */
+export const NEVER_FIRES_THRESHOLD = 0;
+export const ALWAYS_FIRES_THRESHOLD = 2;
+
+export interface OilNecessityThresholds {
+  /** Spend the Relaxing Oil only when the best affordable card's kill chance is below this. */
+  relaxing: number;
+  /** Spend the Focus Oil only when the best affordable card's chance of connecting from the frozen cell is below this. */
+  focus: number;
+}
+
+/**
+ * **The recommended thresholds, and the reason they are 1 and not a tuned
+ * number — see `handoff/OIL-CONSERVE.md` for the sweep.** Not shipped:
+ * `scripts/liveFishing.ts` still plays `onDemandTriggers`.
+ *
+ * At `1`, a gate fires unless the bot's best chance is EXACTLY certain, so the
+ * policy reads back as the directive's own sentence with no free parameter in
+ * it: *if the bot can guarantee the outcome without the oil, don't spend the
+ * oil.*
+ *
+ * That is available because both quantities the gates read turn out to be
+ * strongly BIMODAL rather than spread — measured, `scripts/oilConserveSweep.ts`
+ * §2b, at the moments `onDemandTriggers` actually fires:
+ *
+ *   `bestKillProbability`      34.3% exactly 0, 55.8% exactly 1, 9.9% between
+ *   `bestConnectProbability`   59.8% exactly 0, 27.8% exactly 1, 12.5% between
+ *
+ * so every threshold from 0.25 to 1 lands on the same plateau (catch 88.29% to
+ * 88.46%, 2.18 to 2.42 oils per extra fish) and the tuned pair buys 0.08pp for
+ * a constant somebody would later have to defend. A fitted parameter that
+ * cannot be distinguished from 1 on the sim that fitted it is not worth
+ * shipping — especially in a simulator whose control arm catches 68.71%
+ * against a real fishery's 25.9%.
+ */
+export const RECOMMENDED_NECESSITY_THRESHOLDS: OilNecessityThresholds = { relaxing: 1, focus: 1 };
+
+/**
+ * `on-demand`'s two triggers, each with a necessity condition ANDed onto it.
+ *
+ * The triggers themselves are UNCHANGED and are deliberately reused from
+ * `onDemandTriggers` rather than restated: the directive is about spending
+ * fewer oils at the same moments, not about moving the moments. A gate that
+ * also redefined the trigger would confound the two changes and neither could
+ * be attributed.
+ */
+export function conservingOil(t: OilNecessityThresholds): OilTimingPolicy {
+  return {
+    name: `conserve(r=${t.relaxing},f=${t.focus})`,
+    thesis:
+      "as on-demand, but each trigger must also be NECESSARY: skip the Relaxing Oil when an affordable card " +
+      "already kills with probability >= the relaxing threshold, and skip the Focus Oil when an affordable " +
+      "card already connects from the frozen cell with probability >= the focus threshold. Mana first, oils " +
+      "as the backup that guarantees the catch.",
+    decide: (s, e) => {
+      const d = s as OilDecisionState;
+      const wanted = onDemandTriggers(s, e);
+      const out: OilKind[] = [];
+      for (const kind of wanted) {
+        if (kind === "relaxing") {
+          if (heldOf(s, "relaxing") <= 0) continue;
+          if (bestKillProbability(d) >= t.relaxing) continue;
+          out.push("relaxing");
+        } else {
+          if (heldOf(s, "focus") <= 0) continue;
+          if (bestConnectProbabilityFromFrozenCell(d) >= t.focus) continue;
+          out.push("focus");
+        }
+      }
+      return out;
+    },
+  };
+}
+
+/** The conserving arm at the recommended thresholds — the candidate the sweep scores. */
+export const conserving: OilTimingPolicy = conservingOil(RECOMMENDED_NECESSITY_THRESHOLDS);
+
+/** The Focus half of the conserving policy alone, so the decomposition matches `focus-when-empty-only`'s. */
+export function conservingFocusOnly(focusThreshold: number): OilTimingPolicy {
+  const inner = conservingOil({ relaxing: NEVER_FIRES_THRESHOLD, focus: focusThreshold });
+  return { ...inner, name: `conserve-focus-only(f=${focusThreshold})` };
+}
+
+/**
+ * The scored arms. `conserving` and `conserve-focus-only` are [session 67]
+ * additions; the six above them are unchanged and their historical numbers
+ * are still reproducible (verified this session against `handoff/OIL-POLICY.md`'s
+ * table, byte-for-byte at n=8000).
+ */
 export const OIL_TIMING_POLICIES: readonly OilTimingPolicy[] = [
   neverOil,
   consumeAtStart,
@@ -241,4 +508,6 @@ export const OIL_TIMING_POLICIES: readonly OilTimingPolicy[] = [
   lethalRelaxingOnly,
   focusWhenEmptyOnly,
   heuristicC,
+  conserving,
+  conservingFocusOnly(RECOMMENDED_NECESSITY_THRESHOLDS.focus),
 ];

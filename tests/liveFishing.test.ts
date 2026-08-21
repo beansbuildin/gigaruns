@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
+import { fakeDoc as sharedFakeDoc } from "./helpers/fishingDoc.js";
 
 import {
   appendNextPositionValidation,
@@ -486,73 +487,17 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
     dendren: { nodeId: "5", tierId: 1, energyCostPerCast: 12, maxCastsPerDayGame: 20, dailyEnergyBudget: 240, maxCastsPerSession: 20 },
   };
 
-  function fakeCard() {
-    return {
-      id: 1,
-      manaCost: 1,
-      hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-      critZones: [],
-      hitEffects: [{ type: "FISH_HP", amount: 5 }],
-      missEffects: [{ type: "FISH_HP", amount: -3 }],
-      critEffects: [],
-      earnable: false,
-      rarity: 0,
-      isDayCard: false,
-      foundInPonds: [1],
-    };
-  }
-
-  function fakeDoc(fishPosition: [number, number], completeCid: boolean, extraData: Record<string, unknown> = {}) {
-    return {
-      docId: "99999999",
-      docType: "FISHING_GAME",
-      data: {
-        deckCardData: [fakeCard()],
-        playerMaxHp: 10,
-        playerHp: 10,
-        fishHp: 10,
-        fishMaxHp: 10,
-        fishPosition,
-        // [session 64 §4] ON-GRID, and derived rather than picked. `[0,0]` is
-        // off a ONE-indexed 4x4 board — the same fabricated-input trap as the
-        // `focusPoint` one, and it appears in 0 of the 75 committed start_run
-        // states. Session 63 left it alone fearing it would shift
-        // matcher-derived expectations; it cannot, because NOTHING in the live
-        // decision path reads this field (only `castTrace.ts` and
-        // `movePathAudit.ts` do, both offline over fixtures).
-        //
-        // The brief said the live wire reports `[4,4]` here. The corpus says
-        // the server sends all 16 on-grid cells across 75 casts and `[4,4]` is
-        // 3 of them, so that was one observation generalised. Using
-        // `fishPosition` instead makes the mock on-grid BY CONSTRUCTION however
-        // the caller moves the fish, and it is a state the server really sends:
-        // the fish stays put in 94 of the 522 committed states.
-        previousFishPosition: fishPosition,
-        gridSize: 4,
-        // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
-        // so [0,0] is off the board — harmless at a full meter and FATAL at
-        // `focusMeter: 0`, where the reachable set is empty and
-        // `bestFocusForCard` throws "gridSize must be >= 1". The live wire
-        // reports [2,2] on a gridSize-4 board (cast-2026-08-21-14-46-13
-        // state-000), so this is what the server actually sends.
-        focusPoint: [2, 2],
-        focusMeter: 3,
-        focusMeterMax: 3,
-        focusMechanicEnabled: true,
-        patternIndex: 0,
-        fullDeck: [1],
-        nextCardIndex: 1,
-        cardInDrawPile: 0,
-        hand: [1],
-        discard: [],
-        ...extraData,
-      },
-      COMPLETE_CID: completeCid,
-      SUCCESS_CID: completeCid ? false : undefined,
-      IS_JUICED_CID: false,
-      MULTIPLIER_CID: 1,
-    };
-  }
+  /**
+   * [session 67 §2] **The ONE builder lives in `tests/helpers/fishingDoc.ts`.**
+   * This wrapper keeps only this block's docId and its positional signature.
+   *
+   * Two of the three copies it replaces OMITTED `fishingConsumableSlotUsed`
+   * and `consumablesUsed` — session 65's bug, still present in this file until
+   * now. They have them via the shared builder, and the guard
+   * (`tests/fishing/fishingDocGuard.test.ts`) is what stops that recurring.
+   */
+  const fakeDoc = (fishPosition: [number, number], complete: boolean, extraData: Record<string, unknown> = {}) =>
+    sharedFakeDoc({ docId: "99999999", fishPosition, complete, extraData });
 
   function makeClient(): { client: GigaverseClient; calls: string[] } {
     const calls: string[] = [];
@@ -811,72 +756,17 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
     dendren: { nodeId: "5", tierId: 1, energyCostPerCast: 12, maxCastsPerDayGame: 20, dailyEnergyBudget: 240, maxCastsPerSession: 20 },
   };
 
-  function fakeCard() {
-    return {
-      id: 1,
-      manaCost: 1,
-      hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-      critZones: [],
-      hitEffects: [{ type: "FISH_HP", amount: 5 }],
-      missEffects: [{ type: "FISH_HP", amount: -3 }],
-      critEffects: [],
-      earnable: false,
-      rarity: 0,
-      isDayCard: false,
-      foundInPonds: [1],
-    };
-  }
-
-  function fakeDoc(fishPosition: [number, number], completeCid: boolean) {
-    return {
-      docId: "88888888",
-      docType: "FISHING_GAME",
-      data: {
-        deckCardData: [fakeCard()],
-        playerMaxHp: 10,
-        playerHp: 10,
-        fishHp: 10,
-        fishMaxHp: 10,
-        fishPosition,
-        // [session 64 §4] ON-GRID, and derived rather than picked. `[0,0]` is
-        // off a ONE-indexed 4x4 board — the same fabricated-input trap as the
-        // `focusPoint` one, and it appears in 0 of the 75 committed start_run
-        // states. Session 63 left it alone fearing it would shift
-        // matcher-derived expectations; it cannot, because NOTHING in the live
-        // decision path reads this field (only `castTrace.ts` and
-        // `movePathAudit.ts` do, both offline over fixtures).
-        //
-        // The brief said the live wire reports `[4,4]` here. The corpus says
-        // the server sends all 16 on-grid cells across 75 casts and `[4,4]` is
-        // 3 of them, so that was one observation generalised. Using
-        // `fishPosition` instead makes the mock on-grid BY CONSTRUCTION however
-        // the caller moves the fish, and it is a state the server really sends:
-        // the fish stays put in 94 of the 522 committed states.
-        previousFishPosition: fishPosition,
-        gridSize: 4,
-        // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
-        // so [0,0] is off the board — harmless at a full meter and FATAL at
-        // `focusMeter: 0`, where the reachable set is empty and
-        // `bestFocusForCard` throws "gridSize must be >= 1". The live wire
-        // reports [2,2] on a gridSize-4 board (cast-2026-08-21-14-46-13
-        // state-000), so this is what the server actually sends.
-        focusPoint: [2, 2],
-        focusMeter: 3,
-        focusMeterMax: 3,
-        focusMechanicEnabled: true,
-        patternIndex: 0,
-        fullDeck: [1],
-        nextCardIndex: 1,
-        cardInDrawPile: 0,
-        hand: [1],
-        discard: [],
-      },
-      COMPLETE_CID: completeCid,
-      SUCCESS_CID: completeCid ? false : undefined,
-      IS_JUICED_CID: false,
-      MULTIPLIER_CID: 1,
-    };
-  }
+  /**
+   * [session 67 §2] **The ONE builder lives in `tests/helpers/fishingDoc.ts`.**
+   * This wrapper keeps only this block's docId and its positional signature.
+   *
+   * Two of the three copies it replaces OMITTED `fishingConsumableSlotUsed`
+   * and `consumablesUsed` — session 65's bug, still present in this file until
+   * now. They have them via the shared builder, and the guard
+   * (`tests/fishing/fishingDocGuard.test.ts`) is what stops that recurring.
+   */
+  const fakeDoc = (fishPosition: [number, number], complete: boolean) =>
+    sharedFakeDoc({ docId: "88888888", fishPosition, complete });
 
   function makeClient(): GigaverseClient {
     let playCount = 0;
@@ -1028,72 +918,17 @@ describe("ringPrediction rows — paired baseline + shot calibration (session 46
     dendren: { nodeId: "5", tierId: 1, energyCostPerCast: 12, maxCastsPerDayGame: 20, dailyEnergyBudget: 240, maxCastsPerSession: 20 },
   };
 
-  function fakeCard() {
-    return {
-      id: 1,
-      manaCost: 1,
-      hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-      critZones: [],
-      hitEffects: [{ type: "FISH_HP", amount: 5 }],
-      missEffects: [{ type: "FISH_HP", amount: -3 }],
-      critEffects: [],
-      earnable: false,
-      rarity: 0,
-      isDayCard: false,
-      foundInPonds: [1],
-    };
-  }
-
-  function fakeDoc(fishPosition: [number, number], completeCid: boolean, fishHp: number) {
-    return {
-      docId: "77777777",
-      docType: "FISHING_GAME",
-      data: {
-        deckCardData: [fakeCard()],
-        playerMaxHp: 10,
-        playerHp: 10,
-        fishHp,
-        fishMaxHp: 10,
-        fishPosition,
-        // [session 64 §4] ON-GRID, and derived rather than picked. `[0,0]` is
-        // off a ONE-indexed 4x4 board — the same fabricated-input trap as the
-        // `focusPoint` one, and it appears in 0 of the 75 committed start_run
-        // states. Session 63 left it alone fearing it would shift
-        // matcher-derived expectations; it cannot, because NOTHING in the live
-        // decision path reads this field (only `castTrace.ts` and
-        // `movePathAudit.ts` do, both offline over fixtures).
-        //
-        // The brief said the live wire reports `[4,4]` here. The corpus says
-        // the server sends all 16 on-grid cells across 75 casts and `[4,4]` is
-        // 3 of them, so that was one observation generalised. Using
-        // `fishPosition` instead makes the mock on-grid BY CONSTRUCTION however
-        // the caller moves the fish, and it is a state the server really sends:
-        // the fish stays put in 94 of the 522 committed states.
-        previousFishPosition: fishPosition,
-        gridSize: 4,
-        // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
-        // so [0,0] is off the board — harmless at a full meter and FATAL at
-        // `focusMeter: 0`, where the reachable set is empty and
-        // `bestFocusForCard` throws "gridSize must be >= 1". The live wire
-        // reports [2,2] on a gridSize-4 board (cast-2026-08-21-14-46-13
-        // state-000), so this is what the server actually sends.
-        focusPoint: [2, 2],
-        focusMeter: 3,
-        focusMeterMax: 3,
-        focusMechanicEnabled: true,
-        patternIndex: 0,
-        fullDeck: [1],
-        nextCardIndex: 1,
-        cardInDrawPile: 0,
-        hand: [1],
-        discard: [],
-      },
-      COMPLETE_CID: completeCid,
-      SUCCESS_CID: completeCid ? false : undefined,
-      IS_JUICED_CID: false,
-      MULTIPLIER_CID: 1,
-    };
-  }
+  /**
+   * [session 67 §2] **The ONE builder lives in `tests/helpers/fishingDoc.ts`.**
+   * This wrapper keeps only this block's docId and its positional signature.
+   *
+   * Two of the three copies it replaces OMITTED `fishingConsumableSlotUsed`
+   * and `consumablesUsed` — session 65's bug, still present in this file until
+   * now. They have them via the shared builder, and the guard
+   * (`tests/fishing/fishingDocGuard.test.ts`) is what stops that recurring.
+   */
+  const fakeDoc = (fishPosition: [number, number], complete: boolean, fishHp: number) =>
+    sharedFakeDoc({ docId: "77777777", fishPosition, complete, fishHp });
 
   /** `hpByTurn` drives whether each turn's shot "connects", so `realizedHit` is exercised in BOTH directions rather than pinned to one. */
   function makeClient(hpByTurn: readonly number[]): GigaverseClient {

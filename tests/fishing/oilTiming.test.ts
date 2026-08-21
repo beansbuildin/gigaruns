@@ -19,22 +19,16 @@ import {
   onDemand,
   PAYLOAD_OIL_EFFECTS,
   MEASURED_CONSUME_COSTS_TURN,
-  type OilTimingState,
+  type OilDecisionState,
 } from "../../src/strategy/fishing/oilTiming.js";
-import { matcherFishPolicy, simulateCast, FOCUS_METER_MAX } from "../../src/sim/fishing/castSim.js";
+import { oilState } from "../helpers/oilDecisionState.js";
+import { matcherFishPolicy, simulateCast } from "../../src/sim/fishing/castSim.js";
 
 const E = PAYLOAD_OIL_EFFECTS;
-const st = (o: Partial<OilTimingState> = {}): OilTimingState => ({
-  turn: 3,
-  fishHp: 10,
-  fishMaxHp: 20,
-  mana: 5,
-  focusRemaining: 2,
-  focusMax: FOCUS_METER_MAX,
-  focusOilHeld: 1,
-  relaxingOilHeld: 1,
-  ...o,
-});
+// [session 67 §1] `st` now delegates to the ONE shared builder — see
+// `tests/helpers/oilDecisionState.ts` for why a per-file literal was the wrong
+// shape once `OilDecisionState` gained a required `board`.
+const st = (o: Partial<OilDecisionState> = {}): OilDecisionState => oilState(o);
 
 describe("the payload amounts are the ones the item metadata actually carries", () => {
   it("matches fixtures/fishing-casts/item-metadata-sample.json — verified, not taken from the brief", () => {

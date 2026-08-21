@@ -36,6 +36,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
 
 import {
   appendNextPositionValidation,
@@ -257,63 +258,14 @@ const TEST_CONFIG: BotConfig = {
 };
 
 /**
- * A sixth copy of this mock in the suite, and deliberately a FULL one.
- * Session 65's lesson is that a mock omitting a field the loop reads is not a
- * simpler server, it is a DIFFERENT one — two mocks missing
- * `fishingConsumableSlotUsed` turned every "it consumes" assertion vacuous. So
- * every field the live decision path touches is present here, on-grid and
- * one-indexed (`focusPoint: [2,2]`, not the fabricated `[0,0]` session 63
- * removed).
+ * [session 67 §2] **The ONE builder lives in `tests/helpers/fishingDoc.ts`.**
+ * This local wrapper keeps only this file's docId and its positional call
+ * signature; it holds NO field list of its own, which is the whole point —
+ * there is one place a field can go missing now, and one guard watching it
+ * (`tests/fishing/fishingDocGuard.test.ts`).
  */
-function fakeCard() {
-  return {
-    id: 1,
-    manaCost: 1,
-    hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    critZones: [],
-    hitEffects: [{ type: "FISH_HP", amount: 5 }],
-    missEffects: [{ type: "FISH_HP", amount: -3 }],
-    critEffects: [],
-    earnable: false,
-    rarity: 0,
-    isDayCard: false,
-    foundInPonds: [1],
-  };
-}
-
-function fakeDoc(fishPosition: [number, number], completeCid: boolean, extraData: Record<string, unknown> = {}) {
-  return {
-    docId: "13066001",
-    docType: "FISHING_GAME",
-    data: {
-      deckCardData: [fakeCard()],
-      playerMaxHp: 10,
-      playerHp: 10,
-      fishHp: 10,
-      fishMaxHp: 10,
-      fishPosition,
-      previousFishPosition: fishPosition,
-      gridSize: 4,
-      focusPoint: [2, 2],
-      focusMeter: 3,
-      focusMeterMax: 3,
-      focusMechanicEnabled: true,
-      patternIndex: 0,
-      fullDeck: [1],
-      nextCardIndex: 1,
-      cardInDrawPile: 0,
-      hand: [1],
-      discard: [],
-      fishingConsumableSlotUsed: [false, false, false],
-      consumablesUsed: 0,
-      ...extraData,
-    },
-    COMPLETE_CID: completeCid,
-    SUCCESS_CID: completeCid ? false : undefined,
-    IS_JUICED_CID: false,
-    MULTIPLIER_CID: 1,
-  };
-}
+const fakeDoc = (fishPosition: [number, number], complete: boolean, extraData: Record<string, unknown> = {}) =>
+  sharedFakeDoc({ docId: "13066001", fishPosition, complete, extraData });
 
 /**
  * Turn 0 reveals `nextPosition: [2,2]` for turn 1. Turn 1 puts the fish at

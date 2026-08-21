@@ -28,3 +28,8 @@ fixtures/**/*.harx
 fixtures/**/raw/
 .DS_Store
 .claude/settings.local.json
+
+# [session 67] Distribution rehearsal export (DISTRIBUTION.md steps 3/5/6).
+# A copy of the ships list with no .git, used to run the friend's first-run
+# sequence locally. Never committed; regenerate it rather than keeping it.
+dist-preflight/

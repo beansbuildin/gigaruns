@@ -457,6 +457,18 @@ export function simulateCast(opts: CastOptions): CastResult {
           focusOilHeld,
           relaxingOilHeld,
           focusCell: focus.current,
+          // [session 67 §1] The board the NECESSITY GATE reads. Deliberately
+          // the SAME `hand`, `dist` and `gridSize` that are handed to
+          // `opts.policy.act` five lines below, so the gate's estimate of
+          // "could a card do this without the oil" is taken against the play
+          // the card policy would actually be choosing from — not against a
+          // separately-modelled board that could drift from it.
+          //
+          // Note the direction of the dependency: the gate reads the card
+          // policy's inputs, and the card policy never sees the gate's output
+          // or any oil state at all. That asymmetry is what makes "mana first"
+          // structural rather than aspirational — see `oilTiming.ts`.
+          board: { hand, dist, gridSize },
         },
         oilEffects,
       );

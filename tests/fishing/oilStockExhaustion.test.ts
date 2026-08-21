@@ -21,9 +21,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
 
 import { runOneCast, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
+import { oilState } from "../helpers/oilDecisionState.js";
 import { GuardState } from "../../src/orchestrator/guards.js";
 import type { BotConfig } from "../../src/orchestrator/config.js";
 import type { GigaverseClient } from "../../src/api/client.js";
@@ -31,7 +33,6 @@ import {
   heuristicC,
   onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
-  type OilTimingState,
 } from "../../src/strategy/fishing/oilTiming.js";
 import {
   MID_FOCUS_OIL_ITEM_ID,
@@ -57,67 +58,15 @@ const APPROVED_BUDGET: OilBudgetConfig = {
   policyApproved: true,
 };
 
-function fakeCard() {
-  return {
-    id: 1,
-    manaCost: 1,
-    hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    critZones: [],
-    hitEffects: [{ type: "FISH_HP", amount: 5 }],
-    missEffects: [{ type: "FISH_HP", amount: -3 }],
-    critEffects: [],
-    earnable: false,
-    rarity: 0,
-    isDayCard: false,
-    foundInPonds: [1],
-  };
-}
-
-function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) {
-  return {
-    docId: "88888888",
-    docType: "FISHING_GAME",
-    data: {
-      deckCardData: [fakeCard()],
-      playerMaxHp: 10,
-      playerHp: 10,
-      fishHp: opts.fishHp,
-      fishMaxHp: opts.fishMaxHp,
-      fishPosition: [1, 1],
-      previousFishPosition: [1, 2],
-      gridSize: 4,
-      // [1,1], NOT [0,0]. `geometry.ts`'s `allCells` is ONE-indexed (x,y from
-      // 1..gridSize), so [0,0] is off-grid. That is harmless at a full meter —
-      // `reachableCells` at distance 3 still reaches real cells — but at
-      // `focusMeter: 0` the reachable set is EMPTY and `bestFocusForCard`
-      // throws "gridSize must be >= 1". The meter-at-zero state is precisely
-      // what the Focus Oil trigger fires on, so an off-grid focus point makes
-      // this whole file untestable. `tests/liveFishing.test.ts`'s older mock
-      // still uses [0,0] and gets away with it only because nothing there
-      // drives the meter to zero.
-      focusPoint: [1, 1],
-      focusMeter: opts.focusMeter,
-      focusMeterMax: 3,
-      focusMechanicEnabled: true,
-      patternIndex: 0,
-      fullDeck: [1],
-      nextCardIndex: 1,
-      cardInDrawPile: 0,
-      hand: [1],
-      discard: [],
-      // [session 65] The consumable slot ledger is on EVERY live state, and
-      // `nextConsumableSlot` now READS it to pick a slot — a mock that omits
-      // it fails closed and sends no consume at all, which would turn the
-      // "DOES spend" test below into a vacuous pass.
-      consumablesUsed: opts.slotUsed.filter(Boolean).length,
-      fishingConsumableSlotUsed: [...opts.slotUsed],
-    },
-    COMPLETE_CID: opts.complete,
-    SUCCESS_CID: opts.complete ? false : undefined,
-    IS_JUICED_CID: false,
-    MULTIPLIER_CID: 1,
-  };
-}
+/**
+ * [session 67 §2] **The ONE builder lives in `tests/helpers/fishingDoc.ts`.**
+ * This wrapper keeps only this file's docId; it holds NO field list of its own.
+ * The `focusPoint`/`fishingConsumableSlotUsed` reasoning that used to live here
+ * moved there verbatim, because it is the reasoning that has to survive, not
+ * the copy of the literal it was attached to.
+ */
+const fakeDoc = (opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) =>
+  sharedFakeDoc({ docId: "88888888", ...opts });
 
 /**
  * `balances` is what `getItemsBalances` reports for the two oils. `null` makes
@@ -259,10 +208,7 @@ describe("GATE 2 — the shipped live trigger is on-demand's, not heuristic (c)'
    * policies, so it keeps discriminating if either threshold is ever retuned.
    */
   function discriminatingFishHp(fishMaxHp: number): number {
-    const base: OilTimingState = {
-      turn: 1, fishHp: 0, fishMaxHp, mana: 5,
-      focusRemaining: 3, focusMax: 3, focusOilHeld: 1, relaxingOilHeld: 1,
-    };
+    const base = oilState({ turn: 1, fishHp: 0, fishMaxHp, mana: 5, focusRemaining: 3, focusMax: 3 });
     for (let hp = 1; hp <= fishMaxHp; hp++) {
       const s = { ...base, fishHp: hp };
       const cFires = heuristicC.decide(s, PAYLOAD_OIL_EFFECTS).includes("relaxing");

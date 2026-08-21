@@ -40,6 +40,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
 
 import { runOneCast, nextConsumableSlot, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
@@ -80,64 +81,15 @@ const APPROVED_BUDGET: OilBudgetConfig = {
   policyApproved: true,
 };
 
-function fakeCard() {
-  return {
-    id: 1,
-    manaCost: 1,
-    hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9],
-    critZones: [],
-    hitEffects: [{ type: "FISH_HP", amount: 5 }],
-    missEffects: [{ type: "FISH_HP", amount: -3 }],
-    critEffects: [],
-    earnable: false,
-    rarity: 0,
-    isDayCard: false,
-    foundInPonds: [1],
-  };
-}
-
 /**
- * `focusPoint` is [1,1], NOT [0,0] — `geometry.ts` is one-indexed and this file
- * drives the meter to zero.
- *
- * `fishingConsumableSlotUsed` is on EVERY live state (all 5 states of cast
- * 13019682, and `fishingCorpus.ts` has read it since session 61), so a mock
- * that omits it is not a simpler mock — it is a different server. Omitting it
- * makes `nextConsumableSlot` fail closed and no consume is ever sent, which
- * silently turns every assertion about consuming into a vacuous one.
+ * [session 67 §2] **The ONE builder lives in `tests/helpers/fishingDoc.ts`.**
+ * This wrapper keeps only this file's docId; it holds NO field list of its own.
+ * The `focusPoint`/`fishingConsumableSlotUsed` reasoning that used to live here
+ * moved there verbatim, because it is the reasoning that has to survive, not
+ * the copy of the literal it was attached to.
  */
-function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) {
-  return {
-    docId: "77777777",
-    docType: "FISHING_GAME",
-    data: {
-      deckCardData: [fakeCard()],
-      playerMaxHp: 10,
-      playerHp: 10,
-      fishHp: opts.fishHp,
-      fishMaxHp: opts.fishMaxHp,
-      fishPosition: [1, 1],
-      previousFishPosition: [1, 2],
-      gridSize: 4,
-      focusPoint: [1, 1],
-      focusMeter: opts.focusMeter,
-      focusMeterMax: 3,
-      focusMechanicEnabled: true,
-      patternIndex: 0,
-      fullDeck: [1],
-      nextCardIndex: 1,
-      cardInDrawPile: 0,
-      hand: [1],
-      discard: [],
-      consumablesUsed: opts.slotUsed.filter(Boolean).length,
-      fishingConsumableSlotUsed: [...opts.slotUsed],
-    },
-    COMPLETE_CID: opts.complete,
-    SUCCESS_CID: opts.complete ? false : undefined,
-    IS_JUICED_CID: false,
-    MULTIPLIER_CID: 1,
-  };
-}
+const fakeDoc = (opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) =>
+  sharedFakeDoc({ docId: "77777777", ...opts });
 
 function makeClient(opts: {
   fishHp: number;
