@@ -147,7 +147,21 @@ export function classifyPhase(run: WireRun | null | undefined): Phase {
 
 export function buildBattleState(run: WireRun, roomNum: number): BattleState {
   const [me, foe] = run.players as [WireSide, WireSide];
-  return { me: toCombatant(me), foe: toCombatant(foe), room: roomNum };
+  // [session 63 §2] Carry the enemy's active buff so the lookahead in
+  // `decide.ts` sees `onEnemyWinExchange_corrode` — the one mechanic buff the
+  // combat model now handles. Everything else `corrodeOnEnemyWin` returns 0
+  // for, so attaching it changes NOTHING except on a corrode-buffed enemy.
+  //
+  // Why `activeEnemyBuff` alone and not also `perpetualBuffs`: across the whole
+  // corpus, corrode appears 76 times and is the SOLE `activeEnemyBuff` on every
+  // one of them — 0 states carry two corrode buffs, and 0 carry a corrode as a
+  // perpetual. `perpetual_corrosiveSword` does appear 24 times, but in
+  // `enemyPathOptions` OFFERS, never in force, which is rule 8's Perpetual
+  // filter doing its job. If a perpetual corrode ever does become active, this
+  // UNDER-models it (corrode simply does not fire) rather than mis-modelling
+  // it; that is the safe direction for a lookahead, but it is a real gap and
+  // worth a capture if a perpetual is ever fought.
+  return { me: toCombatant(me), foe: toCombatant(foe), room: roomNum, foeBuff: run.activeEnemyBuff };
 }
 
 export function moveToAction(m: MoveKey): DungeonAction {

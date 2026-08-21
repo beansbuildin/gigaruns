@@ -67,6 +67,17 @@ export interface BattleState {
   foe: Combatant;
   /** 1-based room number within the run. */
   room: number;
+  /**
+   * The enemy's active buff, as the wire reports it — `activeEnemyBuff`, or a
+   * `perpetualBuffs` entry still in force. OPTIONAL and undefined by default,
+   * so every state built before [session 63] behaves exactly as it did.
+   *
+   * Read by `resolveExchange` for `onEnemyWinExchange_corrode` and NOTHING
+   * else. In particular a STAT buff must not be applied from here: the wire
+   * already reports buffed stats and applying them again double-counts, which
+   * is the whole finding in `enemyBuffs.ts`'s header.
+   */
+  foeBuff?: unknown;
 }
 
 /** 1 = `a` beats `b`, -1 = `b` beats `a`, 0 = tie. */

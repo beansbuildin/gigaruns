@@ -503,7 +503,13 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
         fishPosition,
         previousFishPosition: [0, 0],
         gridSize: 4,
-        focusPoint: [0, 0],
+        // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
+        // so [0,0] is off the board — harmless at a full meter and FATAL at
+        // `focusMeter: 0`, where the reachable set is empty and
+        // `bestFocusForCard` throws "gridSize must be >= 1". The live wire
+        // reports [2,2] on a gridSize-4 board (cast-2026-08-21-14-46-13
+        // state-000), so this is what the server actually sends.
+        focusPoint: [2, 2],
         focusMeter: 3,
         focusMeterMax: 3,
         focusMechanicEnabled: true,
@@ -804,7 +810,13 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
         fishPosition,
         previousFishPosition: [0, 0],
         gridSize: 4,
-        focusPoint: [0, 0],
+        // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
+        // so [0,0] is off the board — harmless at a full meter and FATAL at
+        // `focusMeter: 0`, where the reachable set is empty and
+        // `bestFocusForCard` throws "gridSize must be >= 1". The live wire
+        // reports [2,2] on a gridSize-4 board (cast-2026-08-21-14-46-13
+        // state-000), so this is what the server actually sends.
+        focusPoint: [2, 2],
         focusMeter: 3,
         focusMeterMax: 3,
         focusMechanicEnabled: true,
@@ -999,7 +1011,13 @@ describe("ringPrediction rows — paired baseline + shot calibration (session 46
         fishPosition,
         previousFishPosition: [0, 0],
         gridSize: 4,
-        focusPoint: [0, 0],
+        // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
+        // so [0,0] is off the board — harmless at a full meter and FATAL at
+        // `focusMeter: 0`, where the reachable set is empty and
+        // `bestFocusForCard` throws "gridSize must be >= 1". The live wire
+        // reports [2,2] on a gridSize-4 board (cast-2026-08-21-14-46-13
+        // state-000), so this is what the server actually sends.
+        focusPoint: [2, 2],
         focusMeter: 3,
         focusMeterMax: 3,
         focusMechanicEnabled: true,

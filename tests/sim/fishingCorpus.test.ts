@@ -48,10 +48,16 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // [session 60] Recount after this session's 5-cast batch: 5 more completed
     // casts, 1 caught (13004295, a Finley). Old figures 89/492/392/13/75/1.
     // `incomplete` stays 1 — still session 44's docId 12975755, untouched.
-    expect(summary.casts).toBe(94);
-    expect(summary.responseDocs).toBe(517);
-    expect(summary.playTurns).toBe(411);
-    expect(summary.caught).toBe(14);
+    // [session 63] Recount after this session's ONE cast, and every delta
+    // reconciles with exactly that cast: +1 cast, +5 responseDocs (its 5 state
+    // files), +3 playTurns (it was a 3-turn catch), +1 caught, `escaped`
+    // UNCHANGED at 79. Old figures 94/517/411/14/79/1. The cast was
+    // classified clean non-oil — the on-demand policy wanted no oil, so it is
+    // an ordinary member of the non-oil arm, not a third-state exclusion.
+    expect(summary.casts).toBe(95);
+    expect(summary.responseDocs).toBe(522);
+    expect(summary.playTurns).toBe(414);
+    expect(summary.caught).toBe(15);
     expect(summary.escaped).toBe(79);
     expect(summary.incomplete).toBe(1);
   });

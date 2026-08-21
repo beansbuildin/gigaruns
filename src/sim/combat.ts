@@ -23,6 +23,7 @@ import {
   type MoveKey,
   type Outcome,
 } from "./types.js";
+import { corrodeOnEnemyWin } from "./enemyBuffs.js";
 
 /** rock > scissor > paper > rock. */
 const BEATS: Record<MoveKey, MoveKey> = {
@@ -172,15 +173,25 @@ export interface ExchangeResult {
   foeMove: MoveKey;
   damageDealt: number;
   damageTaken: number;
+  /**
+   * Max armor the enemy's corrode buff shredded off the PLAYER this exchange.
+   * `0` on every clean exchange, so existing readers see no change.
+   */
+  corroded: number;
 }
 
 /**
  * Resolve one exchange. Pure: returns a new BattleState, mutates nothing.
+ *
+ * `foeBuff` defaults to `state.foeBuff`, so the caller that already carries the
+ * buff on the state (the normal path) needs no change, and a test can override
+ * it per exchange. Undefined on both = the clean model, byte for byte.
  */
 export function resolveExchange(
   state: BattleState,
   myMove: MoveKey,
   foeMove: MoveKey,
+  foeBuff: unknown = state.foeBuff,
 ): ExchangeResult {
   const outcome = compare(myMove, foeMove);
 
@@ -198,13 +209,29 @@ export function resolveExchange(
   foe.hp = foePools.hp;
   foe.armor = foePools.armor;
 
+  // ---- [session 63] CORRODE ------------------------------------------------
+  //
+  // The enemy's max armor shred, applied AFTER the pools resolve. Ordering is
+  // observably free this exchange — corrode needs the enemy to WIN, and the
+  // loser regenerates nothing, so the lowered cap cannot bind until the next
+  // win or tie — but it is written after rather than before so the exchange's
+  // own arithmetic stays the clean model verified at 128/134.
+  //
+  // Deliberately NOT clamping `me.armor` to the new max: unobserved, see
+  // `corrodeOnEnemyWin`'s doc comment. The `Math.min` in `applyOutcome` makes
+  // an over-max pool converge down at the next regen rather than persist.
+  const corroded = corrodeOnEnemyWin(foeBuff, foeMove, outcome === -1);
+  if (corroded > 0) me.armorMax = Math.max(0, me.armorMax - corroded);
+
   return {
-    state: { me, foe, room: state.room },
+    state: { me, foe, room: state.room, foeBuff: state.foeBuff },
     outcome,
     myMove,
     foeMove,
     damageDealt,
     damageTaken,
+    /** Max armor shredded off the player this exchange. 0 on the clean model. */
+    corroded,
   };
 }
 
@@ -219,6 +246,16 @@ export function resolveExchange(
  * 009->010 — crossed at ARM 4/15 and stayed at 4/15. What refills is the
  * *enemy*, because a room transition swaps in a new entity at full pools.
  */
-export function enterRoom(player: Combatant, freshFoe: Combatant, room: number): BattleState {
-  return { me: cloneCombatant(player), foe: cloneCombatant(freshFoe), room };
+export function enterRoom(
+  player: Combatant,
+  freshFoe: Combatant,
+  room: number,
+  foeBuff?: unknown,
+): BattleState {
+  // [session 63] `foeBuff` is per-ROOM by default: a new room swaps in a new
+  // entity, so an omitted buff clears the previous room's. The exception the
+  // wire models separately is `perpetualBuffs`, which persist across rooms —
+  // a caller carrying one must pass it in again here rather than rely on it
+  // sticking, because nothing in this function knows the difference.
+  return { me: cloneCombatant(player), foe: cloneCombatant(freshFoe), room, foeBuff };
 }
