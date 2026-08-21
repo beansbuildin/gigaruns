@@ -29,8 +29,9 @@ caught). Consequently:
   **[CONFIRMED]**.
 - A **catch** (`SUCCESS_CID: true`) was never observed. Whatever changes on a
   catch — reward fields, a different terminal shape — is **[VERIFY]**.
-- A **redraw** action was never sent. Its request shape is **[VERIFY]** —
-  matches the community note's own "still uncaptured" list.
+- A **redraw** action was never sent by this bot, and its request shape was
+  **[VERIFY]** until session 70. It is now **[CONFIRMED]** — see §7a. It is not
+  a fifth action: it is `play_cards` with an empty `cards` array.
 - Only **one pond** (Dendren, `pondId: 2`) was observed. `pondEntryTiers`
   shows two more pond-1 tier defs and `node0/1/2Energy` fields suggesting a
   second/third pond or tier family exists, but nothing about them is
@@ -827,9 +828,88 @@ naive schema was wrong, corrected here rather than silently loosened.
   capture doesn't shortcut that.
 - **A second pond's `start_run`**, to settle whether `nodeId`/`pondId` are
   the same concept (§3).
-- **A catch** (`SUCCESS_CID: true`) and a **redraw** — both genuinely
-  uncaptured; their wire shapes stay `[VERIFY]` until a live cast produces
-  one.
+- **A catch** (`SUCCESS_CID: true`) — genuinely uncaptured at the time; its
+  wire shape stayed `[VERIFY]` until a live cast produced one.
+- **A redraw** — likewise, and now resolved. See §7a.
+
+---
+
+## 7a. Redraw — CONFIRMED [session 70, user-captured 2026-08-21]
+
+**It is `play_cards` with an empty `cards` array.** No fifth action, no new
+endpoint, the same six-field envelope every fishing action uses:
+
+```
+action:      "play_cards"
+actionToken: "1787351554996"
+data: { cards: [], nodeId: "", focusPoint: [2,3], itemId: 0, slotIndex: 0, tierId: 0 }
+```
+
+`focusPoint` **is** sent — the marker is supplied, not omitted.
+
+That is why this sat uncaptured for so long, and it is worth stating plainly:
+**the distinguishing signal was never in the `action` string**, so no amount of
+looking for a fifth action was going to find it. `FishingActionSchema` had the
+complete list all along.
+
+**The response says it is an ordinary play.** `"message": "Cards played
+successfully."`, with events `FISH_MOVED` → `CARD_PLAYED` → `FISH_HP_DIFF` →
+`NEW_HAND` carrying **three** cards. The three-card `NEW_HAND` is the
+discriminator: in ordinary play the hand SHRINKS turn over turn (fixture
+`cast-2026-08-21-20-11-01`: `[1,78,6]` → `[78,6]` → `[78]`). `FISH_MOVED` means
+**the server charges a redraw as a turn** and the fish moves.
+
+**Mechanic, user-stated 2026-08-21:** a redraw costs **1 mana per card
+currently held** (1, 2 or 3) and **always returns 3 new cards** regardless of
+how many were held.
+
+### ⚠ The hazard this creates, and the guard for it
+
+**A redraw is indistinguishable on the wire from a play that failed to choose a
+card.** `buildFishingEnvelope` defaulted `cards` to `[]`, so any bug, fallback,
+or `chooseCard` returning nothing that still reached the builder would have sent
+a redraw — spending mana, and looking like an ordinary turn in the log. Session
+65's precedent is why that is not survivable: a rejected `use_fishing_item`
+ADVANCED the server's action token with no resync available, and the failure
+surfaced a full turn after its cause.
+
+So intent is carried by **which builder is called**:
+
+- `buildFishingEnvelope` now **throws** on a `play_cards` with absent or empty
+  `cards`. `loot` and `use_fishing_item` are unaffected — an empty `cards` is
+  their ordinary shape.
+- `buildRedrawEnvelope(actionToken, focusPoint)` is the only thing in the repo
+  that may produce `cards: []` on a `play_cards`.
+- The log distinguishes `redraw_sent` from `redraw_suppressed` forever. The old
+  `redraw_indicated_not_sent` is gone; its stated reason ("redraw action
+  unconfirmed") is no longer true.
+
+### REDRAW IS WIRED AND OFF, and the reason has changed
+
+`LiveFishingDeps.redrawEnabled` ships **false** and `main()` never sets it.
+
+The reason is no longer "we do not know how". It is that `REDRAW_THRESHOLD` has
+never been calibrated against a redraw that could actually be sent. The one
+calibration in this repo's history (`cardChoice.ts` §5) produced **casts
+averaging 1.29 turns**, with the loss mix flipping from 89% `escaped_meter` to
+78% `escaped_mana` — repeated redraws burning mana before a card was ever
+played — and **that threshold is still the shipped constant**.
+
+Order before enabling: recalibrate `REDRAW_THRESHOLD` in sim → shadow → ask the
+user.
+
+**Two things are UNRESOLVED and block enabling, recorded so whoever flips the
+flag meets them rather than discovers them:**
+
+1. **The matcher observation.** A redraw carries `FISH_MOVED`, so the fish moves
+   — but the send path does not hand the new position to the matcher, because
+   `observe` is called on the play path alongside the placement it scores.
+   Skipping it makes the matcher's history skip a real step; feeding it in
+   without a placement changes how the predictor is fed, and nothing has
+   measured that.
+2. **A redraw does not advance `turn`**, so `MAX_TURNS` cannot bound it.
+   `MAX_REDRAWS_PER_CAST` is a fail-closed safety cap, not a policy — a real
+   per-cast redraw budget is part of the recalibration.
 
 ---
 

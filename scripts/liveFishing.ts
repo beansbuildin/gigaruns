@@ -348,7 +348,8 @@ export function focusBudget(doc: FishingGameDoc): FocusBudget {
   return { current: { x, y }, remaining: doc.data.focusMeter };
 }
 
-export function buildFishingEnvelope(
+/** The six-field envelope every fishing action uses. Private: the two exported builders below differ only in what they REFUSE. */
+function fishingEnvelope(
   action: "start_run" | "play_cards" | "loot" | "use_fishing_item",
   actionToken: string,
   data: Partial<FishingActionRequest["data"]>,
@@ -365,6 +366,77 @@ export function buildFishingEnvelope(
       tierId: data.tierId ?? 0,
     },
   };
+}
+
+/**
+ * [session 70 §1] **A CARD-LESS `play_cards` IS A REDRAW ON THE WIRE, AND IT
+ * SPENDS MANA.** This throws rather than serialising one.
+ *
+ * User-captured 2026-08-21, from a manual browser cast: the redraw action is
+ * `play_cards` with `cards: []` — no fifth action, no new endpoint, the same
+ * six-field envelope, `focusPoint` still supplied. That is why SPEC-fishing §7
+ * called redraw "genuinely uncaptured" for so long: the distinguishing signal
+ * was never in the `action` string.
+ *
+ * The consequence is the reason for this guard. **A redraw is indistinguishable
+ * on the wire from a play that failed to choose a card.** `cards` used to
+ * default to `[]` here, so any bug, fallback, or `chooseCard` returning nothing
+ * that still reached this builder would have sent a redraw — burning 1 mana per
+ * card held, and looking exactly like an ordinary turn in the log. Session 65's
+ * precedent is why that is not survivable: a rejected `use_fishing_item`
+ * ADVANCED the server's action token with no resync available, and the failure
+ * surfaced a full turn after its cause.
+ *
+ * So intent is carried explicitly by WHICH BUILDER IS CALLED.
+ * `buildRedrawEnvelope` is the only thing in this repo that may produce
+ * `cards: []` on a `play_cards`, and it says so in its name.
+ *
+ * `loot` and `use_fishing_item` are unaffected — an empty `cards` is their
+ * ordinary shape.
+ */
+export function buildFishingEnvelope(
+  action: "start_run" | "play_cards" | "loot" | "use_fishing_item",
+  actionToken: string,
+  data: Partial<FishingActionRequest["data"]>,
+): FishingActionRequest {
+  if (action === "play_cards" && (data.cards === undefined || data.cards.length === 0)) {
+    throw new Error(
+      "buildFishingEnvelope: refusing to serialise a play_cards with no card — on the wire that IS a redraw " +
+        "(session 70 §1, user-captured) and it spends 1 mana per card held. If a redraw is intended, call " +
+        "buildRedrawEnvelope; if it is not, this is a bug in card choice and the cast must fail closed.",
+    );
+  }
+  return fishingEnvelope(action, actionToken, data);
+}
+
+/**
+ * [session 70 §1] The redraw, from the CONFIRMED capture. The one deliberate
+ * `cards: []`.
+ *
+ * ```
+ * action:      "play_cards"
+ * actionToken: "1787351554996"
+ * data: { cards: [], nodeId: "", focusPoint: [2,3], itemId: 0, slotIndex: 0, tierId: 0 }
+ * ```
+ *
+ * `focusPoint` IS sent — the marker is supplied, not omitted — so it is a
+ * required parameter here rather than an optional one that could quietly
+ * default to `[]` and change the shape.
+ *
+ * **Mechanic, user-stated 2026-08-21:** a redraw costs **1 mana per card
+ * currently held** (so 1, 2 or 3) and **always returns 3 new cards** regardless
+ * of how many were held. The captured response reads
+ * `"message": "Cards played successfully."` with events `FISH_MOVED` →
+ * `CARD_PLAYED` → `FISH_HP_DIFF` → `NEW_HAND` carrying THREE cards — so the
+ * server charges it as a turn and the fish moves. `NEW_HAND` at three cards is
+ * the discriminator: in ordinary play the hand SHRINKS turn over turn
+ * (`[1,78,6]` → `[78,6]` → `[78]`).
+ *
+ * **This being callable is not the same as redraw being on.** See
+ * `LiveFishingDeps.redrawEnabled`, which ships false.
+ */
+export function buildRedrawEnvelope(actionToken: string, focusPoint: [number, number]): FishingActionRequest {
+  return fishingEnvelope("play_cards", actionToken, { cards: [], focusPoint });
 }
 
 /**
@@ -1283,6 +1355,30 @@ export interface LiveFishingDeps {
    * from and `scripts/focusReserveAblation.ts` for the sweep.
    */
   focusReserveWeight?: number;
+  /**
+   * [session 70 §1] **Send a redraw when `shouldRedraw` fires. SHIPS FALSE, and
+   * `main()` deliberately never sets it.**
+   *
+   * The ACTION is confirmed — `play_cards` with `cards: []`, user-captured
+   * 2026-08-21 — so the reason redraw stayed off is no longer "we do not know
+   * how". It is that `REDRAW_THRESHOLD` has never been calibrated against a
+   * redraw that could actually be sent. The one calibration attempt in this
+   * repo's history produced casts averaging **1.29 turns**, with the loss mix
+   * flipping from 89% `escaped_meter` to 78% `escaped_mana` (`cardChoice.ts`
+   * §5), and that threshold is still the shipped constant.
+   *
+   * The order, from the session-70 brief §1a, is: capture (done) → implement
+   * the action (done) → recalibrate `REDRAW_THRESHOLD` in sim → shadow → THEN
+   * ask the user. This flag is the seam that keeps step 2 from becoming step 5
+   * by accident.
+   *
+   * **This is a deliberately dead wire, and that is the one case where session
+   * 64's "an optional dep `main()` never sets is a dead feature" is the point
+   * rather than the bug.** So it is pinned from both ends:
+   * `tests/fishing/redraw.test.ts` drives `runOneCast` with it TRUE to prove
+   * the send path works, and asserts `main()`'s own default leaves it off.
+   */
+  redrawEnabled?: boolean;
 }
 
 export type CastOutcome = "dry_run" | "caught" | "escaped" | "turn_cap" | "shutdown";
@@ -1345,6 +1441,18 @@ export interface OilTriggerNoStock {
 /** Safety cap only — SPEC.md §5 names no real max-turns figure; this exists solely to guard against an infinite-loop bug, not to model the game. */
 const MAX_TURNS = 60;
 
+/**
+ * [session 70 §1] Safety cap on redraws within one cast, for the same reason
+ * `MAX_TURNS` exists — and it is load-bearing rather than theoretical, because
+ * a redraw does not advance `turn` and so `MAX_TURNS` cannot bound it.
+ *
+ * The number is a guard, not a policy: it is far above any sane redraw count
+ * (the hand is three cards) and exists to turn a runaway into a fail-closed
+ * GuardTrip instead of a mana-burning spin. A real per-cast redraw BUDGET is
+ * part of the recalibration `redrawEnabled` is waiting on.
+ */
+const MAX_REDRAWS_PER_CAST = 5;
+
 export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> {
   const { client, config, guards, fixtures, log, address, dryRun } = deps;
   const transitionsPath = deps.transitionsPath ?? DEFAULT_TRANSITIONS_PATH;
@@ -1357,6 +1465,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // [session 68 §1] Shadow defaults ON. It cannot change a decision — see
   // `oilShadow.ts` and `tests/fishing/oilShadowInert.test.ts`.
   const shadowOilEnabled = deps.shadowOil ?? true;
+  // [session 70 §1] Redraw. Defaults FALSE and `main()` never sets it — see
+  // `LiveFishingDeps.redrawEnabled`.
+  const redrawEnabled = deps.redrawEnabled ?? false;
+  let redrawsThisCast = 0;
   // [session 30] Set when the PRIOR turn's response revealed a non-null
   // `nextPosition` — validated against the NEXT turn's actual position, then
   // cleared. Reset per cast (not carried across a resume): attributing a
@@ -2167,8 +2279,87 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // been replaced by the response.
     const turnFocusBudget = focusBudget(doc);
     const best = chooseCard(hand, mana, dist, gridSize, 1, fishHp, turnFocusBudget, true, focusReserveWeight);
+    // ── [session 70 §1] REDRAW: WIRED, AND OFF ──────────────────────────────
+    //
+    // The action is confirmed (`buildRedrawEnvelope`), so the old
+    // `redraw_indicated_not_sent` reason — "redraw action unconfirmed" — is no
+    // longer true. What is true is that the ONE calibration this repo has ever
+    // done of `REDRAW_THRESHOLD` was a disaster: `cardChoice.ts` §5 records
+    // repeated redraws burning mana before a card was ever played, the loss mix
+    // flipping from 89% `escaped_meter` to 78% `escaped_mana`, at a mean of
+    // **1.29 turns per cast**. That threshold is still the shipped constant, so
+    // turning this on today would reproduce that batch.
+    //
+    // Two distinct events, so the log can never again be ambiguous about which
+    // happened: `redraw_sent` when one really went to the wire, and
+    // `redraw_suppressed` when the policy wanted one and this flag refused.
     if (best && shouldRedraw(best, hand.length, mana, REDRAW_THRESHOLD)) {
-      log.write({ event: "redraw_indicated_not_sent", turn, reason: "redraw action unconfirmed, SPEC-fishing.md §7" });
+      if (redrawEnabled && !dryRun) {
+        // ── THE LOOP GUARD, and it is not optional ────────────────────────
+        //
+        // A redraw does NOT increment `turn` — `turn++` happens only after a
+        // card is played — so `while (turn < MAX_TURNS)` cannot bound this
+        // branch, and a hand that keeps coming back redraw-worthy would spin
+        // forever POSTing redraws and burning mana. That is not a hypothetical
+        // failure: it is precisely the shape `cardChoice.ts` §5 recorded, where
+        // repeated redraws produced casts averaging 1.29 turns.
+        //
+        // `turn` is deliberately NOT incremented instead, because the matcher
+        // indexes its observations by turn and a redraw supplies no card
+        // placement to validate against — see the UNRESOLVED note below.
+        redrawsThisCast++;
+        if (redrawsThisCast > MAX_REDRAWS_PER_CAST) {
+          log.write({ event: "action_failed", reason: "redraw cap exceeded", turn, redrawsThisCast });
+          throw new GuardTrip("fishing: redraw cap exceeded for this cast", { turn, redrawsThisCast, cap: MAX_REDRAWS_PER_CAST });
+        }
+        const redrawBody = buildRedrawEnvelope(client.getFishingActionToken(), [turnFocusBudget.current.x, turnFocusBudget.current.y]);
+        log.write({ event: "post", body: redrawBody });
+        let redrawResp: FishingActionResponse;
+        try {
+          redrawResp = await client.postFishingAction(redrawBody);
+        } catch (e) {
+          if (e instanceof TokenExpiredError) throw e;
+          guards.recordActionResult(false);
+          const detail = serverErrorDetail(e);
+          log.write({ event: "action_failed", reason: "redraw rejected", error: detail.message, body: detail.body });
+          throw new GuardTrip("fishing redraw rejected", { error: detail.message, body: detail.body });
+        }
+        guards.recordActionResult(true);
+        // Logged with the mana it cost, because that is the number the
+        // recalibration will be judged on and it is not recoverable later:
+        // 1 per card HELD, so the hand size at the moment of the redraw.
+        log.write({ event: "redraw_sent", turn, handSize: hand.length, manaBefore: mana, ev: best.ev });
+        log.write({ event: "post_response", resp: redrawResp });
+        fixtures.write(redrawResp);
+        doc = redrawResp.data.doc;
+        console.log(`  ↻ turn ${turn}: REDRAW sent — ${hand.length} card(s) discarded, ${hand.length} mana spent.`);
+        // ── UNRESOLVED, AND IT BLOCKS ENABLING THIS ───────────────────────
+        //
+        // The captured redraw response carries `FISH_MOVED`, so the fish moves
+        // on a redraw exactly as it does on a play — but this branch does NOT
+        // hand the new position to the matcher, because `observe` is called on
+        // the play path below alongside the placement it is being scored
+        // against. Skipping the observation makes the matcher's history skip a
+        // real step; feeding it in without a placement is a change to how the
+        // predictor is fed that nothing has measured.
+        //
+        // Which of those is right is a question for the recalibration this flag
+        // is waiting on, NOT for whoever first flips it. It is written here
+        // rather than in a brief because this is the line that would have to
+        // change.
+        // The server charges a redraw as a turn (FISH_MOVED fires), so the
+        // loop restarts against the new doc rather than falling through to
+        // play the card it just decided against.
+        continue;
+      }
+      log.write({
+        event: "redraw_suppressed",
+        turn,
+        handSize: hand.length,
+        mana,
+        ev: best.ev,
+        reason: "redrawEnabled is false — REDRAW_THRESHOLD is uncalibrated for the confirmed action (cardChoice.ts §5)",
+      });
     }
     if (!best) {
       log.write({ event: "no_affordable_card", turn, hand, mana });
