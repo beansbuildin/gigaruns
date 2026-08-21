@@ -18,6 +18,7 @@ import {
   neverOil,
   onDemand,
   PAYLOAD_OIL_EFFECTS,
+  MEASURED_CONSUME_COSTS_TURN,
   type OilTimingState,
 } from "../../src/strategy/fishing/oilTiming.js";
 import { matcherFishPolicy, simulateCast, FOCUS_METER_MAX } from "../../src/sim/fishing/castSim.js";
@@ -187,4 +188,34 @@ describe("the sim's oil arithmetic", () => {
     expect(r.oilsUsed.filter((o) => o === "focus").length).toBeLessThanOrEqual(1);
     expect(r.oilsUsed.filter((o) => o === "relaxing").length).toBeLessThanOrEqual(1);
   });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// [session 65 §3, GATE 1] THE TURN COST IS RESOLVED — pinned so the sweep
+// cannot drift back to sweeping it.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("the measured turn cost", () => {
+  it("is FALSE — consuming an oil costs no turn", () => {
+    // *Live-measured, session 64 cast 13019015 (item 942); re-confirmed
+    // session 65 on item 937.* The response carries FOCUS_STAMINA_DIFF and no
+    // FISH_MOVED; position, hand, discard and nextCardIndex are identical
+    // across it; mana 3->3 and 6->6.
+    expect(MEASURED_CONSUME_COSTS_TURN).toBe(false);
+  });
+
+  it("makes the lethal trigger's indifference argument REDUNDANT rather than wrong", () => {
+    // The SHIPPED policy's own thesis leans on being "indifferent to whether
+    // consuming costs a turn". That was its distinguishing virtue while the
+    // mechanic was open. Now every trigger is indifferent, because there is no
+    // cost to be indifferent TO — so the argument is one the shipped policy no
+    // longer needs, not one it has lost. Pinned because the thesis string
+    // still says it, and a reader should find out here that it is now inert.
+    // The behavioural half is already exercised above by "the lethal trigger
+    // is INDIFFERENT to costsTurn"; that test is now a check on a SETTLED
+    // answer rather than a probe of an open one, and is worth keeping for
+    // exactly that reason.
+    expect(onDemand.thesis).toMatch(/indifferent/i);
+  });
+
 });

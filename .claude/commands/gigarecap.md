@@ -33,7 +33,17 @@ slipped through once), `noobId\s*\d+`, `eyJ` (JWT prefix), `PRIVATE`, and any
 file under `~/.secrets`. Accept the false positives from the wider address
 pattern; they're cheap. If anything matches, **stop, do not commit**, and tell
 the user which file and line. Confirm `.gitignore` still covers `.env`, `*.key`,
-`config/discovered.json`, `data/`, `logs/`.
+`data/`, `logs/`, `profiles/`, `fixtures/**/raw/` and `fixtures/**/*.har`.
+
+**`config/discovered.json` is deliberately NOT ignored — do not "restore" it.**
+[session 60, fixed here session 65 after being flagged stale in seven
+consecutive recaps.] It is game-global — dungeon 5, maxRoom 16, endpoints and
+request shapes are identical for every player — so shipping it saves each new
+user a `probe.ts` run. The per-account half it used to carry (ROM NFT token ids
+and the 37-ROM enumeration) moved to `data/roms.json`, which `data/` covers.
+The guarantee is enforced by `tests/discoveredShipsClean.test.ts`, which fails
+if an identifier ever returns to that file — so the check to run is the TEST,
+not a grep of `.gitignore`.
 
 **2. Redact and commit fixtures — and handoff prose, not just fixtures.**
 Copy any new API captures into `fixtures/`, replacing wallet addresses with

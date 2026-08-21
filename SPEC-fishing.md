@@ -288,11 +288,42 @@ Four things the response settles, all read off the board state either side
   `fishingConsumableSlotUsed` `[false,false,false]` -> `[true,false,false]`,
   which is `slotIndex: 0` reflected back.
 
-**Still NOT confirmed: `slotIndex` for Mid Relaxing Oil (937), and the index
-for a SECOND consume within one cast.** The account holds 1 Relaxing against
-23 Focus, and the Relaxing trigger is reachable in only ~10% of casts, so
-this is unlikely to clear incidentally. Do not report the risk surface as
-retired.
+**[session 65, 2026-08-21] BOTH REMAINING SLOT QUESTIONS ARE NOW CLOSED, and
+the answer to the second one is that `slotIndex` was never a constant.**
+
+**(a) `slotIndex: 0` CONFIRMED for Mid Relaxing Oil (937)** — cast 13019665,
+this bot's own consume, accepted at `fishHp: 1/23`: `fish now 0/23`, cast
+CAUGHT, mana `6 -> 6` (the second independent confirmation that consuming
+costs no mana, after 942's `3 -> 3`).
+
+**(b) A SECOND consume in one cast does NOT use slot 0 — it uses the next FREE
+slot, and aiming at a used one is rejected.** Measured the expensive way on
+cast 13019751:
+
+```
+state-003  consumablesUsed 1  fishingConsumableSlotUsed [T,F,F]   (942 accepted)
+state-004  consumablesUsed 1  fishingConsumableSlotUsed [T,F,F]
+→ second use_fishing_item at slotIndex 0 → HTTP 400
+```
+
+So `slotIndex` is a **cursor over the server's own three-slot ledger**, and
+that ledger is on every state as `fishingConsumableSlotUsed`. The hard-coded
+`0` shipped from session 44 to session 65 without ever being wrong, because no
+cast had ever wanted a second oil. Confirmed after the fix on cast 13019682,
+which consumed **three** oils in one cast walking slots 0, 1, 2 — including
+across a resume boundary.
+
+**(c) A REJECTED `use_fishing_item` STILL ADVANCES THE SERVER'S ACTION TOKEN.**
+The HTTP 400 above was not free. The next `play_cards` failed with
+`Invalid action token 1787330936730 != 1787330937735`: the client's
+`postFishingAction` throws before assigning the response's token, so it never
+learned the new value. **There is no resync — `GET /fishing/state` carries no
+`actionToken`** — so a rejected consume makes the rest of that cast unplayable
+and must fail closed at the cause rather than one turn later on a confusing
+token mismatch.
+
+The cast itself is NOT lost: it persists server-side and the next invocation
+resumes it (no `start_run`, no energy, no ledger entry).
 
 **Not modelled in the sim or the live loop** — this is a capture finding
 only, per this session's read-only-except-fishing-casts scope. `Rod`
