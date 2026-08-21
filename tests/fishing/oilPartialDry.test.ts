@@ -229,6 +229,7 @@ describe("GATE 2 (batch) — partial dry does not halt the batch under EITHER sh
     focusOilHeld: 22,
     relaxingOilHeld: 0, // the scarce oil is gone; the plentiful one is not
     zeroStreak: 0,
+    shadowBlindRelaxingFirings: 0,
   };
 
   it("keeps going under the session-65 shape — the Focus objective is unaffected", () => {
@@ -267,6 +268,7 @@ describe("§1b — the seven-cast batch does not stop on a consume", () => {
     focusOilHeld: 20,
     relaxingOilHeld: 0,
     zeroStreak: 0,
+    shadowBlindRelaxingFirings: 0,
   };
 
   it("a consume mid-batch is a CAPTURE, not an exit", () => {

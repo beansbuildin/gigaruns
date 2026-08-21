@@ -59,7 +59,8 @@ export type BatchStopReason =
   | "clean_cast_cap"
   | "ledger_exhausted"
   | "stock_dry"
-  | "zero_streak";
+  | "zero_streak"
+  | "shadow_blind";
 
 export interface BatchState {
   /** Casts COMPLETED so far in this batch. */
@@ -75,6 +76,18 @@ export interface BatchState {
   relaxingOilHeld: number;
   /** Consecutive casts with no catch, as tracked by `zeroStreak.ts`. */
   zeroStreak: number;
+  /**
+   * [session 69 §6] Shadow records taken at a moment the RELAXING trigger
+   * fired, on which `bestKillProbability` came back `null`.
+   *
+   * After the session-69 hoist this number must be **zero**: the whole point
+   * of moving the evaluation above the oil block was that the gate's own input
+   * gets computed at the firing moment rather than in a phase a lethal consume
+   * never reaches. A non-zero count means the hoist is not doing live what it
+   * does in test, and every further cast would accumulate unobservable data —
+   * which is exactly the state session 68 spent five casts in without knowing.
+   */
+  shadowBlindRelaxingFirings: number;
 }
 
 export interface BatchLimits {
@@ -93,6 +106,13 @@ export interface BatchLimits {
   /** The zero-streak tripwire, armed at 15. */
   zeroStreakCap: number;
   /**
+   * [session 69 §6] Halt if the shadow goes blind on a Relaxing firing.
+   * `false` for the historical shapes, which predate the hoist and could not
+   * have observed the arm at all — arming it there would make those constants
+   * describe a batch that never ran.
+   */
+  haltOnShadowBlind: boolean;
+  /**
    * [session 65] Whether the first consume ends the batch. TRUE is session
    * 64's success exit; FALSE is a batch whose objective is instrumented turns,
    * for which a consume is a capture and not an exit.
@@ -106,6 +126,7 @@ export const SESSION_64_LIMITS: BatchLimits = {
   cleanCastCap: 6,
   zeroStreakCap: 15,
   stopOnOilConsume: true,
+  haltOnShadowBlind: false,
 };
 
 /**
@@ -132,6 +153,41 @@ export const SESSION_65_LIMITS: BatchLimits = {
   cleanCastCap: null,
   zeroStreakCap: 15,
   stopOnOilConsume: false,
+  haltOnShadowBlind: false,
+};
+
+/**
+ * **[session 69 §6] The shape THIS batch runs, and what its ten casts are
+ * for.** Session 66 §4 settled that a batch shape is history rather than a
+ * standing authorization and that a session wanting N casts must say what they
+ * are for in its own brief. So, stated:
+ *
+ * **The casts are for OBSERVING THE RELAXING ARM OF THE NECESSITY GATE AT ITS
+ * FIRING MOMENT.** Session 68 shadowed the gate over five casts and got one
+ * observation, all on the Focus arm, with `bestKillProbability` null on every
+ * record — the arm's firing moment is a turn a lethal oil ends, and the shadow
+ * was evaluated after it. Session 69 §1 hoisted the pipeline; ten casts at the
+ * live Relaxing firing rate (4 firings over the ~24 casts on record) is the
+ * budget for finding out whether the fix produces observations against a real
+ * server rather than only against a mock.
+ *
+ * `castCap: 10` leaves five of the day's twenty in reserve. `cleanCastCap` is
+ * null because a clean cast is not the finding here. `stopOnOilConsume` is
+ * false because a consume is the CAPTURE — stopping on one would end the batch
+ * on the first thing it is looking for, which is session 64's shape and the
+ * wrong one for this objective.
+ *
+ * `haltOnShadowBlind` is the new one and is the reason this is a distinct
+ * shape rather than `SESSION_65_LIMITS` with a bigger number: if the hoist
+ * fails live, the remaining casts would accumulate exactly the unobservable
+ * data this batch exists to stop accumulating.
+ */
+export const SESSION_69_LIMITS: BatchLimits = {
+  castCap: 10,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
 };
 
 export interface BatchVerdict {
@@ -201,6 +257,21 @@ export function batchVerdict(s: BatchState, limits: BatchLimits = SESSION_64_LIM
       detail:
         `${s.cleanCasts} clean casts with no consume. Under the sim's ~0.70 oils/cast this is a ~1-in-900 ` +
         `event: report it as evidence the trigger model does not describe live play. DO NOT extend the batch.`,
+    };
+  }
+  // [session 69 §6] Ranked BELOW the ledger and the cast cap (running out of
+  // casts is not evidence about the shadow) and ABOVE the zero-streak, because
+  // a blind shadow means the batch's own objective is unreachable while a zero
+  // streak is a statement about the fishery.
+  if (limits.haltOnShadowBlind && s.shadowBlindRelaxingFirings > 0) {
+    return {
+      stop: true,
+      reason: "shadow_blind",
+      detail:
+        `${s.shadowBlindRelaxingFirings} shadow record(s) at a RELAXING firing came back with ` +
+        `bestKillProbability null after ${s.castsPlayed} cast(s). The session-69 hoist is not producing the ` +
+        `observation live that it produces in test — STOP AND REPORT rather than accumulating unobservable casts. ` +
+        `This is the exact state session 68 spent five casts in without knowing.`,
     };
   }
   if (s.zeroStreak >= limits.zeroStreakCap) {

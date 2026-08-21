@@ -173,7 +173,7 @@ import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fis
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { redactNoobToken } from "../src/api/redact.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
-import { SESSION_64_LIMITS, SESSION_65_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { SESSION_64_LIMITS, SESSION_69_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
@@ -2521,7 +2521,13 @@ async function main() {
   // that runs `--oil-batch` should be running it for a reason stated in its
   // own brief. Do not read this line as a standing authorization for seven
   // casts, and do not budget casts for §19.
-  const batchLimits = SESSION_65_LIMITS;
+  // **[session 69 §6] The shape is now SESSION_69_LIMITS**, and its ten casts
+  // are justified in that constant's own doc comment rather than here —
+  // session 66 §4's rule is that a batch says what its casts are for, and the
+  // place that survives is beside the number. `SESSION_65_LIMITS` stays
+  // exported and tested so its halts remain demonstrable, exactly as
+  // `SESSION_64_LIMITS` does.
+  const batchLimits = SESSION_69_LIMITS;
   const authorizedCasts = batchLimits.castCap ?? args.casts;
   const batchCeiling = Math.min(args.casts > 1 ? args.casts : authorizedCasts, authorizedCasts);
   const targetCasts = args.dryRun ? 1 : args.oilBatch ? batchCeiling : args.casts;
@@ -2553,6 +2559,11 @@ async function main() {
   // [session 64 §2b] Batch tallies. Only read when --oil-batch is set.
   let batchOilsConsumed = 0;
   let batchCleanCasts = 0;
+  // [session 69 §6] Records taken at a RELAXING firing whose
+  // `bestKillProbability` came back null — the post-hoist blindness check.
+  // Counted across the whole batch, because one blind firing is already the
+  // finding.
+  let batchShadowBlindRelaxing = 0;
   // The zero-streak tripwire, seeded from the committed corpus and extended by
   // this batch's own casts. Seeded rather than started at zero because the
   // streak spans sessions by design (`zeroStreak.ts`: it deliberately does not
@@ -2661,6 +2672,9 @@ async function main() {
     if (args.oilBatch) {
       batchOilsConsumed += result?.oilsConsumed ?? 0;
       if ((result?.oilsConsumed ?? 0) === 0) batchCleanCasts++;
+      batchShadowBlindRelaxing += (result?.oilShadowRecords ?? []).filter(
+        (r) => r.liveWanted.includes("relaxing") && r.bestKillProbability === null,
+      ).length;
       // `turn_cap` is not an outcome about the fishery any more than an
       // incomplete cast is, so only a real terminal result extends the streak.
       if (result?.outcome === "caught" || result?.outcome === "escaped") {
@@ -2696,6 +2710,7 @@ async function main() {
         focusOilHeld: focusHeld,
         relaxingOilHeld: relaxingHeld,
         zeroStreak: evaluateZeroStreak(batchOutcomes).streak,
+        shadowBlindRelaxingFirings: batchShadowBlindRelaxing,
       }, batchLimits);
       console.log(
         `  · batch state: cast ${i + 1}, oils consumed ${batchOilsConsumed}, clean ${batchCleanCasts}, ` +
