@@ -69,11 +69,17 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // [session 68] Five-cast batch: 109 -> 114, +25 responseDocs, +14
     // playTurns, +3 caught, +2 escaped, `incomplete` unchanged at 1. Three of
     // the five consumed an oil; two of those three were killed BY the oil.
-    expect(summary.casts).toBe(114);
-    expect(summary.responseDocs).toBe(631);
-    expect(summary.playTurns).toBe(484);
-    expect(summary.caught).toBe(26);
-    expect(summary.escaped).toBe(87);
+    // [session 69] Ten-cast batch: 114 -> 124, +65 responseDocs, +37
+    // playTurns, +8 caught, +2 escaped, `incomplete` unchanged at 1. Six of
+    // the ten consumed an oil and ten oils were spent in total, so
+    // `responseDocs` again outruns `playTurns` by more than the turn count —
+    // `use_fishing_item` responses are docs and are not turns (castTrace's
+    // ITEM_MESSAGE).
+    expect(summary.casts).toBe(124);
+    expect(summary.responseDocs).toBe(696);
+    expect(summary.playTurns).toBe(521);
+    expect(summary.caught).toBe(34);
+    expect(summary.escaped).toBe(89);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -377,9 +383,17 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
     // consumable, not two: its second `use_fishing_item` was rejected HTTP 400
     // and the server counted nothing — which is the corpus confirming that the
     // rejected consume really was rejected rather than half-applied.
+    // [session 69] +6 from the ten-cast batch: `13024476` (THREE consumables,
+    // all Focus — the second cast ever to walk all three slots, and the first
+    // to do it with one oil type), `13024510`, `13024550` (2), `13024562`,
+    // `13024574`, `13024581` (2). Ten oils across six casts; the prefix
+    // invariant below held on every one, which is the slot cursor from session
+    // 65 now tested across a much wider sample than the single cast that
+    // motivated it.
     expect(oilCasts.map((c) => c.docId)).toEqual([
       "12975152", "13019015", "13019665", "13019677", "13019682",
       "13022748", "13022874", "13022876",
+      "13024476", "13024510", "13024550", "13024562", "13024574", "13024581",
     ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

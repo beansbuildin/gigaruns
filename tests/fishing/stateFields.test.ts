@@ -49,7 +49,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // are VISIBLY excluded rather than silently averaged in. 464/464 agree with
     // regen 0 — every consumable transition accounted for and none of them
     // quietly counted as card play.
-    expect(r.oilSkipped).toBe(6); // [session 68] 5 -> 6: one Focus Oil consumed in the five-cast batch.
+    expect(r.oilSkipped).toBe(11); // [session 69] 6 -> 11: ten oils consumed in the ten-cast batch (one was the lethal Relaxing that ends the cast, so it contributes no skipped transition).
   });
 
   /**
@@ -116,7 +116,12 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // `critZones`. The discriminating inequalities below are what carry the
     // claim; the count is a census figure and moves with the corpus.
     // [session 65] 13 -> 17 across the seven-cast batch, same pattern again.
-    expect(corrected.crits).toBe(17);
+    // [session 69] 17 -> 22 across the ten-cast batch. **Note what this count
+    // does NOT include:** the lure crit (SPEC-fishing, `CRIT_HIT` with
+    // `critZones: []`) is invisible to a zone-geometry audit by construction,
+    // so `corrected.crits` counts CARD crits only and always will. The two
+    // crit sources need two instruments; do not read this as the crit rate.
+    expect(corrected.crits).toBe(22);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

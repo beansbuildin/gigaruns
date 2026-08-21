@@ -124,7 +124,23 @@ if (process.argv.includes("--gap")) {
     return !!last && last.board.fishHp > 0 && last.board.focusMeter <= 0;
   });
   console.log(`\n-- the shared property, measured --`);
-  console.log(`casts CAUGHT                                   ${casts.length - escaped.length}   (0 can be in the gap: the terminal state has fishHp 0, which fails clause 1)`);
+  // [session 69] **This line used to print "(0 can be in the gap...)" and that
+  // claim was FALSIFIED by session 68's cast 13022748 — while the very table
+  // above it listed the counterexample.** A summary line that contradicts its
+  // own data is worse than no summary. The derivation was sound and its
+  // premise dated: it assumed a cast ends on a `play_cards`, so the only state
+  // the lax reading adds is the terminal `fishHp: 0` one. A lethal Relaxing
+  // Oil ends a cast without a following play, and the added state is the
+  // PRE-oil one — fish alive, meter empty, no turn remaining. Two such casts
+  // now exist (13022748, 13024562), so this is the oil era's ordinary
+  // behaviour rather than a freak.
+  const caughtInGap = casts.filter(
+    (c) => gapIds.has(c.docId) && c.responses.some((r) => r.caughtFish !== null),
+  ).length;
+  console.log(
+    `casts CAUGHT                                   ${casts.length - escaped.length}   ` +
+      `(${caughtInGap} in the gap — only reachable via an OIL-ENDED cast; see session 69)`,
+  );
   console.log(`casts ESCAPED                                  ${escaped.length}`);
   console.log(`  of those, terminal state alive + meter <= 0  ${terminalMeterZero.length}`);
   console.log(`  of those, in the gap                         ${escapedInGap}`);
