@@ -1,248 +1,275 @@
-# BRIEF — session 66
+# BRIEF — session 67
 
 ## The clock and the ledger
 
-Written **2026-08-21, 10:25 PT**, ~35 minutes before the 11:00 rollover. Session
-65 ended with **0 casts and 0 run-units**, on the 2026-08-20 ledger day.
+Written **2026-08-21, 11:05 PT**, just after the rollover. Twenty casts and
+twelve run-units are now live.
 
 **This session is OFFLINE. User decision, 2026-08-21: no fishing, no dungeon
-runs.** Twenty casts and twelve run-units appear at 11:00 and **none of them are
-authorized.** A full ledger is not permission and rule 11 needs a per-run
-go-ahead regardless.
+runs.** A full ledger is not permission, and rule 11 needs a per-run go-ahead
+regardless. Read both ledgers once, report the day, spend nothing.
 
-Read both ledgers once, report which day you are in, and spend nothing.
-
-```
-npx tsx scripts/checkFishingCaps.ts
-npx tsx scripts/checkDungeonToday.ts
-```
+*Environment note, session 66: `npx tsx` fails under the command sandbox on this
+machine (`EPERM listen … tsx-501/*.pipe`). Run `tsx` unsandboxed. Not a repo
+problem — do not chase it as one.*
 
 ---
 
-## 1. The `nextPosition` override — keep it armed, give it a tripwire that can fire
+## 1. NEW USER DIRECTIVE — oils are a backup, not a routine spend
 
-*Source: session 65 live-measured.* The override armed for the first time this
-session: **12 validation entries, 12 hits, across 9 casts.** It fires on ~1–2% of
-turns and forces focus onto the predicted cell. It is now **a live input to card
-choice, not a dormant safeguard**, and it became one without a decision being
-taken.
+**User, 2026-08-21, verbatim intent:**
 
-**User decision, 2026-08-21: keep it armed, and add a first-miss tripwire.**
+> Keep crafting, but use oils only on an as-needed basis. If the autofisher
+> believes it can catch the fish without oil, don't use the oil — conserve
+> inventory for future casts. The priority is to use mana to get the fish as
+> close as possible to caught, with the oils as a backup to guarantee a catch if
+> need be.
 
-### 1a. Why the existing gate cannot protect anything
+This is a **policy change**, not a crafting preference. It does not ship this
+session (rule 4, and it is a live-policy change), but it gets designed and
+scored.
 
-A Wilson lower bound computed from an unbroken streak **only ever climbs.** At
-12/12 it sits around 0.76; at 20/20 it would be 0.84; at 50/50, 0.93. There is no
-value the streak can reach that lowers it, so the gate can never fire while the
-override is behaving, and the moment it stops behaving is the moment nobody is
-watching a number that has spent 12 observations going up.
+### 1a. The objective function changed, and that alone may re-rank the shipped policy
 
-**That is the whole problem: the safeguard is monotone in the wrong direction.**
-The fix is not a better threshold, it is an event that can actually occur.
+*Source: `OIL-POLICY.md`, sim-derived, `costsTurn=false, amount=2, n=8000`.*
 
-### 1b. What the tripwire must do
+The sweep ranked arms by **catch-rate delta**. The directive ranks them by
+something closer to **catches per oil**. The existing table already carries both
+columns, and they disagree:
 
-- **Fire on the first validated miss** — a prediction was present, was acted on,
-  and was wrong. Not on an absent prediction, not on a turn the override skipped.
-  **Those three cases must be distinguished in code and in the record**, because
-  conflating "no prediction" with "prediction correct" is how 12/12 becomes 12/12
-  forever.
-- **Disarm the override on that miss** and continue the cast without it. The
-  override is an optimisation; losing it costs a fraction of a percent of turns.
-- **Stay disarmed until a human re-arms it.** This is the part that matters. If
-  it re-arms itself next session, the tripwire records a blip and nothing
-  changes — and a safeguard that resets is a log line, not a guard.
-- **Surface it loudly in the recap**, with the turn, the predicted cell, the
-  actual cell, and the cast id.
+| arm | Δ catch | oils | **Δpp per oil** |
+|---|---|---|---|
+| on-demand (SHIPPED) | +19.40pp | 5578 | 0.278 |
+| **focus-when-empty-only** | +17.74pp | 3515 | **0.404** |
+| lethal-relaxing-only | +4.47pp | 1821 | 0.197 |
+| start | +5.66pp | 16000 | 0.028 |
 
-### 1c. Two implementation traps this repo has already paid for
+**Under a conserve objective, `focus-when-empty-only` already beats the shipped
+policy on the numbers this repo has had since session 61** — 91% of the benefit
+for 63% of the oil. **Re-rank the existing arms under the new objective before
+building anything new.** That costs nothing and may answer the whole question.
 
-- **The disarm has to persist somewhere, which means a new I/O-owning path.** Put
-  it in `LiveFishingIsolatedPaths` **in the same commit as the field**. Session
-  62 did exactly this for `oilCastStatePath` and it failed all 8 call sites at
-  compile time — that is the pattern working. The bug class has shipped four
-  times when it was not followed.
-- **Something must actually hand the loop its dependency.** Session 64's headline
-  was a config block that existed, was approved, was tested at the inner hop, and
-  was never populated by `main()` — so the feature was inert for three sessions
-  while looking shipped. **Test that something POPULATES the armed/disarmed
-  state, not merely that the loop reads it correctly.** A test of the inner hop
-  alone would pass on a permanently-disarmed override and on a permanently-armed
-  one equally.
+### 1b. The corpus already says the Relaxing trigger is the wasteful one
 
----
+*Source: session 66, corpus-measured over 109 casts.* The lethal trigger is
+reachable in 12 casts, and **10 of those 12 were CAUGHT ANYWAY.** Only 2 escaped
+(12975713, 12991353). So under the directive, roughly five of every six Relaxing
+spends are exactly the "would have caught it without the oil" case the user is
+asking to stop.
 
-## 2. Relaxing Oil — the user is crafting more; make the dry counts mean something
+That is corpus evidence for the directive, not a projection.
 
-**User decision, 2026-08-21: more Relaxing Oil is being crafted, and dry-trigger
-counts stay in the recaps.** Stock is currently **Relaxing 0, Focus 18**
-(*source: session 65 live balance read*).
+### 1c. Design the necessity gate — and state plainly what "believes it can catch" means
 
-A count of dry triggers is not by itself actionable. **Turn it into a cost
-estimate, offline, from the 109-cast corpus:**
+The directive needs an operational definition, and a vague one will silently
+become "always" or "never". Propose one, defend it, and pin it:
 
-- Of casts where the Relaxing trigger was reachable, how many **escaped**?
-- What is the lethal-trigger reachability rate, and what would spending an oil on
-  each have been worth under the sweep's own model?
+- **Relaxing Oil** — fires at `fishHp <= 2` today. The gate should add: **and the
+  bot cannot close this turn without it.** The natural test is whether an
+  affordable card in hand deals `>= fishHp` at the current focus. If one does,
+  play it; the oil buys nothing. If none does, the oil converts a probable escape
+  into a certain catch — which is exactly "guarantee a catch if need be."
+- **Focus Oil** — fires at meter zero today. At zero the policy is frozen on its
+  last cell and cannot aim, so the necessity case is stronger. **Do not assume it
+  is always necessary.** Score at least one gated variant, e.g. skip when the
+  fish is already within reach from the frozen cell.
+- **Mana first, explicitly.** The directive ranks mana ahead of oils. Whatever
+  gate you build, verify in sim that it does not cause the bot to hold mana back
+  in anticipation of an oil.
 
-*Source note for whatever you produce: the sweep's `lethal-relaxing-only` arm is
-**+4.47pp for 1821 oils across 8000 casts** — sim-derived, not live-measured.*
-Say plainly that this yields an **expected** cost of holding zero stock, not an
-observed one, and that n=1 live Relaxing consume cannot calibrate it.
+### 1d. Report it against the directive's own metric
 
-This is the whole point of keeping the counts: they should tell the user how much
-crafting time is worth spending, not just that something was missed.
+Headline **oils per extra fish**, not Δpp — that is what the user is optimising.
+Session 66 priced the Relaxing trigger at **~6 oils per extra fish, 95% CI
+roughly 1.5–20**; give the conserving arm the same treatment so the two are
+comparable.
 
----
-
-## 3. Correct the "structural gap" claim before it hardens into a fact
-
-*Source: session 65 recap, "Reachability, corpus-wide".* The recap states:
-
-> The lax-vs-strict Focus gap is **STILL exactly 14** across three independent
-> batches — **structural, not sampling noise.**
-
-**Check that claim, because the arithmetic does not support it.** The gap was 14
-at corpus n=102 and 14 at n=109 — **one increment of 7 casts.** At the observed
-gap rate of 14/102 = 13.7%, those 7 casts were expected to add **~0.96** members,
-and adding **zero** has probability **~0.36**.
-
-**A one-in-three outcome is not evidence of structure.** It is the single most
-ordinary thing that could have happened.
-
-The claim may still be true — a fixed, identifiable set of casts would be a real
-finding about the meter's dynamics. So **settle it rather than restating it**:
-
-- Are the 14 the *same* 14 casts at both corpus sizes, by cast id?
-- If they are, what property do they share? That is the finding.
-- If they are not, the gap holding at 14 is a coincidence of two sets of
-  different membership having equal size, and it should be reported as such.
-
-**Then correct the recap's language either way.** This is CLAUDE.md rule 10's
-neighbour: a number that has not moved across two readings is not thereby a
-constant, and "structural, not sampling noise" is a strong claim that needs the
-membership check, not the count.
+**Do not ship any of this.** Produce a recommendation with its causal story, the
+way `OIL-POLICY.md` did, and stop. Note explicitly whether the recommendation is
+simply "switch to focus-only" — if the free re-rank in §1a settles it, say so
+rather than building a gate nobody needs.
 
 ---
 
-## 4. §19 is CLOSED — carry it forward as closed, not as a budget line
+## 2. Consolidate the six `fakeDoc` copies
 
-*Source: session 65 live-measured.* **POWERED, verdict KEEP, n=35 of 32.** Two
-casts crossed `PI_DECISION_THRESHOLD`, both above the 28.5% base rate: 13019015
-(π 0.727) and 13019677 (π 0.502).
+**User decision, 2026-08-21: do it now.** Flagged for six sessions; session 65
+proved the risk is not theoretical — two copies omitting
+`fishingConsumableSlotUsed` made every "it consumes" assertion **vacuous** while
+staying green.
 
-**Stop budgeting casts for it. Stop reporting turn accrual.** It ran for roughly
-fourteen sessions, was renegotiated once by explicit user decision at n=7, and
-that renegotiation was vindicated — the crossing at 0.727 was not visible at n=7
-and dropping the matcher tier then would have removed something real.
+`tests/helpers/liveFishingDeps.ts` already exists for this reason, under its own
+stated rationale that *a guard that only covers one file is not a guard*. One
+shared builder, four test files, no behaviour change.
 
-If a future brief asks for §19 turns, this entry is the answer.
+**The consolidation is not the point — the guard is.** A single copy that omits a
+field is the same bug with better ergonomics. So the shared helper must carry
+**every field the live decision path reads**, and a test must prove it: remove a
+field the path depends on and the suite must go red.
 
 ---
 
-## 5. Carried
+## 3. Distribution — rehearse steps 5 and 6 locally, before anything is pushed
 
-- **The second-consume path is fixed and confirmed once** — slots 0→1→2 on cast
-  13019682. *Slot 2 has exactly one observation.* With Focus stock at 18 and the
-  Focus trigger reachable in 55% of casts, it should accumulate incidentally.
-  **No dedicated budget; say so explicitly rather than leaving it implied.**
-- **A rejected `use_fishing_item` advances the server's action token** and there
-  is no resync — `GET /fishing/state` carries no `actionToken`. The loop now
-  fails closed at the rejected consume. Not destructive: the cast persists
-  server-side and the next invocation resumes it with no `start_run`, no energy,
-  no ledger entry.
-- **Boon coverage is unchanged at orb 6 / priority 2.** Zero dungeon runs since
-  session 62. **Third brief saying not to re-report it as if it moved.**
-- Corrode in `dungeonSim` is a **CLOSED decision** (leave inert, DECISIONS
-  2026-08-21), not an open question. A perpetual corrode would be under-modelled;
-  corpus-justified, safe failure direction.
-- Rule 8's measurement programme is **CLOSED**. Do not re-run or propose one.
+**User decision, 2026-08-21: distribution is the direction from here.**
+
+*Source: `handoff/DISTRIBUTION.md`.* Steps 1–2 are done in the tree. Steps 3–6
+are the user's, and **an agent must not create or push the distribution repo.**
+
+But DISTRIBUTION.md says its own step 5 — *clone it fresh and run
+`scripts/doctor.ts` as a friend would* — is "the one worth not skipping", and
+**that step needs no GitHub at all.** It can be rehearsed here, offline, and the
+result is the thing the user most needs before inviting anyone: the actual
+first-run experience.
+
+### 3a. What to do
+
+- Export the **ships list** (DISTRIBUTION.md's table) into a clean directory
+  **inside the project and gitignored** — e.g. `dist-preflight/`. A copy, not a
+  clone: **no `.git` comes with it.** Keep it inside the project root; CLAUDE.md's
+  filesystem-scope rule is not suspended for convenience.
+- **Do not `git init` it, do not create a repo, do not push.** The export is a
+  rehearsal of step 3's output, not step 4.
+- In that directory, run the friend's first-run sequence: `npm install`, the full
+  suite, and `scripts/doctor.ts`.
+- **Simulate the friend's missing environment through the profile/env
+  indirection** — no `~/.secrets`, no `data/`. **Do not touch, move, or rename
+  anything under `~/.secrets` to achieve this.**
+
+### 3b. What to report
+
+- **Every failure `doctor.ts` prints, verbatim.** These are the friend's first
+  five minutes, and each one is either a README gap or a real portability bug.
+- Whether the suite passes in the clean tree. If `fixtures/` was trimmed by
+  accident it fails there and passes at home — that is precisely what step 6 is
+  for.
+- Anything in the ships list that turned out to be missing, and anything in the
+  does-not-ship list that the clean tree still needed. **A file the bot needs and
+  the list omits is the finding.**
+- A short **user checklist for steps 3–6**, written so the user can execute them
+  without re-reading this brief: the exact commands, in order, with the two
+  decisions already made (private repo, squashed single-commit history) stated
+  inline.
+
+### 3c. The one thing not to lose sight of
+
+*Source: DISTRIBUTION.md.* **Ship from a fresh repo with squashed history.** The
+working tree is clean — session 54 redacted 2,726 files to zero raw occurrences —
+but **the git history still carries the noob token and three handoff documents'
+identifiers.** That was fine for a repo nobody was invited to read. Pointing
+friends at it is an invitation. One commit, no ancestry, no `filter-repo`, no
+stale clones holding old objects.
+
+Re-run the secret scan **against the exported tree**, not against the working
+tree, and report it separately. They are not the same artifact.
+
+---
+
+## 4. Carried
+
+- **The tripwire has never met a real server**, and it should not be chased.
+  It fires on ~1–2% of turns, so a seven-cast batch produces perhaps one armed
+  turn and most likely none. **Do not budget casts to exercise it** — session
+  66's own recommendation, and this brief adopts it explicitly rather than
+  leaving it implied. It sits armed until it fires on its own.
+- **`SESSION_65_LIMITS` stays exported and unchanged, and is not an
+  authorization.** Its rationale is retired in both places a future session
+  reads it.
+- **Do not quote the sim's +4.47pp as the cost of zero Relaxing stock.** Per oil
+  the sim and corpus agree (0.196 vs 0.167); the headline differs 2.4x only
+  because the sim reaches the lethal band on 22.8% of casts against the corpus's
+  11.0%.
+- **`boonCapture` stays OFF** — third recap in a row saying so. **Settled unless
+  the user reopens it; stop listing it.**
+- Boon coverage unchanged at orb 6 / priority 2 since session 62. Zero runs since.
+- Corrode in `dungeonSim` is a **CLOSED decision**; rule 8's measurement
+  programme is **CLOSED**; §19 is **CLOSED**. Do not reopen any of the three.
 - Carried and deliberate: 25 analysis scripts hold hardcoded paths (ratcheted);
-  `boonCapture` stays **OFF**; distribution steps 3–6 remain the user's;
-  `LICENSE` resolved as `Copyright (c) 2026 Sabre`.
-- **The recap checklist's `.gitignore` line was FIXED in session 65** after seven
-  sessions of being flagged. Do not re-flag it.
+  distribution steps 3–6 remain the user's.
 
 ---
 
-## 6. Gate
+## 5. Gate
 
-Both halves are offline and deterministic, which suits an offline session.
+Both halves are offline and deterministic.
 
-1. **The first-miss tripwire fires on a synthetic miss**, disarms the override,
-   and the disarm persists across a simulated restart. **Demonstrate the test
-   failing with the tripwire removed**, and demonstrate that a test of the read
-   path alone would pass on a permanently-disarmed override — i.e. show the
-   populate-side assertion is doing work (§1c).
-2. **The §3 membership check is answered by cast id**, and the recap's
-   "structural, not sampling noise" wording is corrected to match whichever
-   answer the ids give.
+1. **The conserving oil policy is scored against `on-demand`, `never`, and
+   `focus-when-empty-only`**, headlined in **oils per extra fish**, with the
+   necessity gate's definition pinned by a test that fails if the gate degrades
+   to always-fire or never-fire.
+2. **The six `fakeDoc` copies are one shared builder**, and a test proves the
+   builder carries every field the live decision path reads — **demonstrate it
+   failing with one such field removed**, then restore.
 
 ---
 
-## 7. Do not
+## 6. Do not
 
-- **Do not fish and do not run a dungeon run**, including after the 11:00
-  rollover. Offline session by user decision.
-- Do not let the override re-arm itself after a miss (§1b).
-- Do not conflate "no prediction" with "prediction correct" (§1b).
-- Do not report the expected cost of zero Relaxing stock as an observed one (§2).
-- Do not restate the 14-cast gap as structural without the membership check (§3).
-- Do not budget casts for §19 (§4) or for the second-consume path (§5).
-- Do not re-report boon coverage as if it moved.
-- Do not re-open the corrode-in-`dungeonSim` or rule-8 decisions.
-- Do not read an `UNKNOWN FIELD` banner as a server change — `data.nextPosition`
-  has fired on ~1–2% of responses since session 30.
-- Do not assume a mock that omits a field is merely simpler; it is a different
-  server. Two mocks omitting `fishingConsumableSlotUsed` turned every "it
-  consumes" assertion vacuous.
+- **Do not fish and do not run a dungeon run.** Offline session by user decision.
+- **Do not ship the conserving policy** — derive, recommend, stop (§1d).
+- **Do not `git init` or push anything** (§3a). The export is a rehearsal.
+- **Do not touch, move, or rename anything under `~/.secrets`** to simulate a
+  friend's environment.
+- Do not run the export outside the project root.
+- Do not budget casts for the tripwire (§4).
+- Do not reopen §19, rule 8, or corrode-in-`dungeonSim`.
+- Do not let the consolidated `fakeDoc` omit a field the live path reads — that
+  is the original bug with fewer copies.
+- Do not read an `UNKNOWN FIELD` banner as a server change.
 - Do not put identifiers in a test that guards against identifiers, and do not
   give a new I/O-owning test construction a real data path.
 
 ---
 
-## 8. Corrections to me
+## 7. Corrections to me
 
-- **I said the +19.40pp headline "was computed across both arms." It was not.**
-  `OIL-POLICY.md`'s table is labelled `costsTurn=false, amount=2, n=8000`, and
-  `main()` has always judged robustness on those rows alone, printing "ARTIFACT
-  BRANCH" over the others. Rule 9, fifth occurrence — and the sweep re-run
-  reproduced the published table exactly, so §3 of the last brief corrected no
-  number. It was not wasted (the turn cost is now pinned so the sweep cannot
-  drift back to sweeping a resolved parameter), but the premise was wrong.
-- **The precise failure is worse than "I did not check," and worth naming
-  exactly.** I had read `OIL-POLICY.md` in full, including that label, before
-  writing the claim. I then asserted from a remembered gist rather than from the
-  record I had already seen. **A provenance tag written from memory is not a
-  provenance tag** — the format rule I introduced last session does not help if
-  the tag is filled in by recall. When a brief cites what a document says, the
-  document gets re-opened at the moment of writing.
-- **The seven-cast batch was priced at ~51% for the Relaxing trigger and it hit
-  on cast one.** That is the estimate working, not a correction — recorded so the
-  next projection is neither inflated nor discounted by this one lucky draw.
+- **The membership check I asked for in §3 last session was arithmetically
+  vacuous, and session 66 was right to say so.** Gap membership is a per-cast
+  property and the corpus only grows, so `gap(109) ⊇ gap(102)`; equal counts
+  therefore **force** equal membership. The check could only ever return one
+  answer, so it could not distinguish the hypothesis from its negation.
+- **What makes that worse than a wasted step is its shape.** The probability
+  argument in the same section was sound — 0.36 is not evidence — and I then
+  proposed, as the remedy, a test with no power at all. **A brief that correctly
+  identifies weak evidence and then prescribes no evidence has not improved
+  anything**; it has replaced a soft claim with a procedure that manufactures a
+  hard-looking one. Before asking for a check, ask what the failing case would
+  look like. If it cannot be described, the check is not a check.
+- **Session 66 found the real property anyway, and it is worth recording as the
+  answer**: the gap is exactly the casts whose meter emptied for the first and
+  only time on the state that ended the cast. 66 escaped-with-empty-terminal-meter
+  minus 52 that had already hit zero with a turn still to play = 14. A caught cast
+  can never be in the gap. That is the clause the definition was invented to
+  exclude, restated — a definition working as designed, not a discovery.
+- **Session 66's own note on source-text pins is the transferable lesson and I am
+  carrying it forward into §2 and §5**: source-text assertions prove a line
+  exists, not that it runs — the populate-side pins still passed with the
+  tripwire branch dead, because `disarmOverride(...)` remained textually present
+  in the dead branch. Behavioural tests caught it. Keep that division of labour.
 
 ---
 
-## Your task (session 66)
+## Your task (session 67)
 
 1. Read both ledgers, report the day, **spend nothing**.
-2. **§1 / gate 1** — the first-miss tripwire: distinguish the three prediction
-   cases, disarm on a validated miss, persist the disarm until a human re-arms,
-   isolated path in the same commit, and a populate-side test.
-3. **§2** — turn the Relaxing dry counts into an expected-cost estimate from the
-   109-cast corpus, labelled as expected rather than observed.
-4. **§3 / gate 2** — the membership check on the 14-cast gap, and correct the
-   recap's wording to match the answer.
-5. **§4** — record §19 as closed so it stops being carried as a budget line.
+2. **§1a** — re-rank the existing sweep arms under the conserve objective first.
+   If that settles it, say so and skip the gate design.
+3. **§1c–1d / gate 1** — otherwise design and score the necessity gate, headline
+   oils per extra fish, and **recommend without shipping.**
+4. **§2 / gate 2** — consolidate the six `fakeDoc` copies behind one builder that
+   carries every field the live path reads.
+5. **§3** — the distribution rehearsal: export the ships list to a gitignored
+   in-project directory, run the friend's first-run sequence, report every
+   `doctor.ts` failure verbatim, re-run the secret scan **against the export**,
+   and write the user's steps 3–6 checklist.
 6. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the **final**
    commit, no test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** An offline session with one real build in it. The tripwire
-is small but it is the first safeguard in this repo designed around the question
-*can this ever fire?* rather than *is the threshold right?* — and sessions 64 and
-65 were both bugs in things that looked shipped and had never executed the path
-that would break them. **§3 is the item most likely to be skipped**, because
-correcting a claim in a recap feels like bookkeeping next to writing code. It is
-not: "structural, not sampling noise" is exactly the kind of sentence that gets
-quoted forward as established, and the membership check that would settle it costs
-minutes and needs no server.
+**Honest expectation.** §3 is the session's most valuable item and the one with
+the highest chance of an unwelcome surprise, which is the point of doing it before
+anyone is invited. The bot has been developed for 67 sessions inside a directory
+that has always had `~/.secrets`, a populated `data/`, and a full `fixtures/`
+corpus; **nothing has ever verified that it starts without them.** Sessions 64,
+65 and 66 were each a component that looked shipped and had never executed the
+path that would break it — a fresh clone is that same question asked of the whole
+repo at once.
