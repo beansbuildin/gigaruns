@@ -997,9 +997,15 @@ and `run.perpetualBuffs[]` all carry the SAME object shape, and it is
   "effects": [ { "kind": "flatAtk", "amount": 4 } ] }
 ```
 
-**46 distinct ids** in the corpus: 23 base plus 23 `perpetual_` twins whose
-`effects` are byte-identical to their base (the prefix is a DELIVERY
-difference — the buff persists for the rest of the run — not an effect one).
+**46 distinct ids** in the corpus: **24 base and 22 `perpetual_` twins** —
+NOT a mirror. [CORRECTED 2026-08-21, session 63: this said "23 plus 23", which
+implied a symmetry the corpus does not have.] The twins that exist have
+`effects` byte-identical to their base (the prefix is a DELIVERY difference —
+the buff persists for the rest of the run — not an effect one). The two missing
+twins are `perpetual_corrosiveShield` and `perpetual_corrosiveMagic`, which
+appear ZERO times across `fixtures/` where `perpetual_corrosiveSword` appears
+24 times. They are absent because they were never observed; do not complete the
+table without a capture.
 
 Only **12 effect kinds** exist across all 46, in two groups:
 
@@ -1028,6 +1034,45 @@ So a stat-only buff changes no combat RULE and `src/sim/coverage.ts` no longer
 raises `ENEMY_BUFF` for one. A mechanic buff still does, as does an unknown id
 or an unrecognised effect KIND — the fail-closed line is drawn on the kind, not
 the id, because ids are added by the game far faster than mechanics are.
+
+#### `onEnemyWinExchange_corrode` — MODELLED **[CONFIRMED 2026-08-21, session 63]**
+
+The one mechanic kind the combat model now handles. It reduces the PLAYER's
+`shield.currentMax` when the enemy **wins** an exchange **with the buff's own
+declared `moveType`**. Three base ids, all `minTier: 2`, all `amount: 3`:
+
+```
+corrosiveSword   "Miasmablade"   moveType rock      (Sword wins)
+corrosiveShield  "Miasmaguard"   moveType paper     (Shield wins)
+corrosiveMagic   "Miasmagem"     moveType scissor   (Magic wins)
+```
+
+**Confirmed by a second natural experiment**, scanning every consecutive
+same-room state pair in `fixtures/dungeon-runs/` for a `currentMax` decrease:
+
+```
+foe won   move matches   exchanges   observed delta
+yes       yes            4           -3, -3, -3, -3
+yes       no             19          0
+no        yes            8           0
+no        no             25          0
+```
+
+Both gates are therefore MEASURED: the move gate by the 19 exchanges the enemy
+won on a non-matching move and corroded nothing, the win gate by the 8
+matching-move exchanges it did not win. All three ids fired at least once.
+
+Two things this does NOT establish. **The clamp:** no observed exchange leaves
+current armor above the corroded max, so whether the server clamps `current`
+down is unknown, and `resolveExchange` deliberately does not clamp. **The
+amount:** every live firing is 3, so the corpus alone cannot distinguish
+"reads `amount`" from "always 3" — the implementation reads the field and
+`tests/corrode.test.ts` supplies amount 5 to pin that.
+
+**Reading a delta needs exchange boundaries, not state boundaries.** A state
+that repeats its predecessor's `(myLastMove, foeLastMove)` pair is the same
+exchange re-reported; counting those naively puts five spurious zero-deltas in
+the firing cell. Dedupe on the move pair first.
 
 **What this does NOT fix.** `rolledEnemyStats` (always exactly
 `{evasion, block, lck, tenacity}`) is untouched and is the bigger blocker. Of

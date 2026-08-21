@@ -162,3 +162,183 @@ carried no rule-11 go-ahead and a full ledger would not have been one either.
      tests/sim/fishingCorpus.test.ts  |  14  (census 94 -> 95)
      tests/fishing/zoneTemplate.test.ts |  9  (census 94 -> 95)
 ```
+
+---
+
+# Verbose appendix — session 63
+
+## A. The live cast, in full
+
+```
+▸ liveFishing.ts — 1 cast(s)
+  · resuming today's fishing budget: 60 energy / 5 casts already spent
+  account <USER>
+  ▸ energy preflight: pool 420 covers the planned 12 — no ROM claim needed.
+
+▸ cast 1/1
+  ✓ start_run sent — fishing actionToken now <TOKEN>
+  · matcher seeded with 3 mined pattern(s): perimeterWalk(cw), perimeterWalk(ccw), bounce(2,0)
+  · matcher posterior: prior 13.7% (12/93 clean casts explained exactly by the loaded library, Laplace +1/+2)
+  · ring model ON: class prior k=1 47 / k=2 46 cast(s), 17 (class, prev-delta) key(s); focusReserveWeight 3
+  · sticky switch probability s = 4.46% (estimated: 14/314 consecutive hop pairs)
+  · contextual fallback: 102 (cell, previous-direction) key(s) from 93 clean logged cast(s)
+  · oils held: Relaxing 1, Focus 23 (on-demand policy)
+  ▸ turn 0: card 76 @ focus [3,3] (P_hit 0.79, ev 1.8)
+  · predictors: ring p(actual)=0.273 TOP1 | baseline p(actual)=0.222 | shot P_hit 0.79 → HIT | matcher π=0.137 (n=0)
+  ▸ turn 1: card 2 @ focus [3,3] (P_hit 0.47, ev 0.8)
+  · predictors: ring p(actual)=0.446 | baseline p(actual)=0.283 | shot P_hit 0.47 → HIT | matcher π=0.167 (n=1)
+  ▸ turn 2: card 1 @ focus [4,3] (P_hit 0.64, ev 2.2)
+  · predictors: ring p(actual)=0.358 TOP1 | baseline p(actual)=0.529 TOP1 | shot P_hit 0.64 → HIT
+  ▸ cast over: caught after 3 turns — CAUGHT!
+  ★ caught! resolving cardsToAdd offer (41, 38, 32) -> chose id 38
+  ✓ loot sent — fullDeck now 11 card(s), cardChosenId 38
+  ▸ energy: 420 -> 408  (observed delta 12; committed 12)
+```
+
+Three shots, three hits. Not a measurement of anything — n=1, and the brief
+said so.
+
+## B. Why the cast is provably clean non-oil, not merely unlogged
+
+Board states from `fixtures/fishing-casts/live/cast-2026-08-21-14-46-13/`:
+
+```
+state-000  fishHp 12/19  focusMeter 3/3  playerHp 10  consumablesUsed 0
+state-001  fishHp  9/19  focusMeter 1/3  playerHp  9  consumablesUsed 0
+state-002  fishHp  4/19  focusMeter 1/3  playerHp  8  consumablesUsed 0
+state-003  fishHp  0/19  focusMeter 0/3  playerHp  7  consumablesUsed 0
+state-004  fishHp  0/19  focusMeter 0/3  playerHp  7  consumablesUsed 0
+```
+
+`on-demand` fires Relaxing at `fishHp <= 2` and Focus at `focusMeter === 0`.
+The fish went 4 → 0 without ever sitting at ≤2 alive, and the meter reached 0
+only on the terminal state, after the catch. **Neither trigger had a moment.**
+`oilCastState` correctly wrote nothing — it records DRY casts only, and this was
+not one.
+
+`fishingConsumableSlotUsed` stayed `[false, false, false]` throughout.
+
+Mana (`playerHp`) fell 10 → 9 → 8 → 7, one per card played — consistent with
+the user-stated rule that only playing cards spends mana.
+
+**Instrumentation gap noticed, not fixed:** the console prints `oils held:
+Relaxing 1, Focus 23`, but `grep -c oil <log>` is **0**. A clean non-oil cast
+leaves no machine-readable record of the stock held at cast time. Small, and
+worth closing before a batch, because the DRY-vs-clean distinction is derived
+from stock.
+
+## C. Corrode — the scan that confirmed it
+
+The full 2×2, over 3066 states in `fixtures/dungeon-runs/`, pairing consecutive
+same-room states:
+
+```
+foeWon  moveMatches  n    deltas
+True    True         9    [-3, 0]     <-- see below
+True    False        19   [0]
+False   True         8    [0]
+False   False        25   [0]
+```
+
+The firing cell looked like 4-of-9 until the duplicate states were removed:
+
+```
+20-04-37/state-032  room3  corrosiveSword   foe rock    me scissor  cm 17->14  dupLastMove=False
+20-04-37/state-033  room3  corrosiveSword   foe rock    me scissor  cm 14->14  dupLastMove=True
+20-04-37/state-036  room3  corrosiveSword   foe rock    me scissor  cm 14->11  dupLastMove=False
+20-04-37/state-037  room3  corrosiveSword   foe rock    me scissor  cm 11->11  dupLastMove=True
+20-04-37/state-038  room3  corrosiveSword   foe rock    me scissor  cm 11->11  dupLastMove=True
+20-04-37/state-039  room3  corrosiveSword   foe rock    me scissor  cm 11->11  dupLastMove=True
+20-04-37/state-082  room5  corrosiveMagic   foe scissor me paper    cm 17->14  dupLastMove=False
+22-46-26/state-056  room5  corrosiveShield  foe paper   me rock     cm 17->14  dupLastMove=False
+22-46-26/state-057  room5  corrosiveShield  foe paper   me rock     cm 14->14  dupLastMove=True
+```
+
+**Every zero in the firing cell is `dupLastMove=True`.** Deduped: 4 exchanges,
+4 firings, exact. This is the single most important line in the section — the
+model looked wrong for as long as it took to notice that a state boundary is
+not an exchange boundary.
+
+One further decrease was found and correctly excluded:
+`run-2026-08-15-15-38-09/state-100`, room 3 → **1** with `cur 0 -> 16`. Room
+number DECREASING is session 56's cross-attempt delimiter — a different attempt,
+not a corrode.
+
+The live buff envelope, confirming `effects[]` is inlined on the wire
+(`run-2026-08-20-20-04-37/state-030`):
+
+```json
+{"id": "corrosiveSword", "name": "Miasmablade",
+ "description": "Reduces 3 max <color=#7DD3FC>armor</color> on Sword wins",
+ "minTier": 2,
+ "effects": [{"kind": "onEnemyWinExchange_corrode", "amount": 3, "moveType": "rock"}]}
+```
+
+This is why the table's completeness does not gate correctness: an unseen id
+arrives carrying its own effects and is handled on sight.
+
+## D. Gate demonstrations, verbatim
+
+**Gate 1a — `moveType` gate removed** (`if (e.moveType !== foeMove) continue;` deleted):
+
+```
+× fires on the enemy's MATCHING move only
+× leaves armorMax alone when the enemy wins on a NON-matching move
+Tests  2 failed | 37 passed (39)
+```
+
+**Gate 1b — `amount` hard-coded** (`total += e.amount ?? 0` → `total += 3`):
+
+```
+× reads `amount` off the buff rather than assuming the corpus's 3
+× sums multiple corrode effects on one buff
+× reads the amount from the buff in the combat core too
+Tests  3 failed | 36 passed (39)
+```
+
+Both restored; `tests/corrode.test.ts` + `tests/enemies.test.ts` = 39/39.
+
+**Gate 2** — `tests/fishing/meterZero.test.ts` asserts on-grid works at zero
+budget from all four corners and the centre, AND that `[0,0]` throws
+`"gridSize must be >= 1"`, AND that `[0,0]` does NOT throw at a full meter —
+which is the reason the bug survived since session 45.
+
+## E. Two failing census tests, and why they were updated rather than pinned
+
+The full suite went red after the cast on `tests/sim/fishingCorpus.test.ts` and
+`tests/fishing/zoneTemplate.test.ts`. Both are corpus censuses, and the first
+carries its own instruction for exactly this case: *"If this fails after a
+future live session added real casts, update the expected numbers — don't
+revert the loader."*
+
+Every delta reconciles with the one cast, which is the check that made updating
+them safe rather than lazy:
+
+```
+casts         94 -> 95   (+1, the cast)
+responseDocs 517 -> 522  (+5, its 5 state files)
+playTurns    411 -> 414  (+3, a 3-turn catch)
+caught        14 -> 15   (+1)
+escaped       79 -> 79   (UNCHANGED — the discriminating one)
+incomplete     1 ->  1   (still session 44's docId 12975755)
+
+traces        94 -> 95   clean 93 -> 94   trace playTurns 407 -> 410
+```
+
+Had `escaped` moved, or `playTurns` moved by anything other than 3, the numbers
+would have been hiding a second change.
+
+## F. Scope calls made deliberately
+
+- **`dungeonSim` was NOT wired.** Sim enemy profiles carry no buff id, so
+  choosing one would be inventing a scenario. Open question 2.
+- **Corrode was NOT made scorable.** It would move historical coverage metrics
+  for ~zero freed exchanges (session 56).
+- **`replay.ts` was NOT touched.** It re-reads the true `shield.currentMax` from
+  the wire on every exchange via `toCombatant`, so it was already correct
+  without modelling corrode, and passing the buff would change no result. Worth
+  stating explicitly: corrode only matters where state is carried FORWARD
+  (`dungeonSim`, `decide.ts`'s lookahead), never in single-exchange replay.
+- **`previousFishPosition: [0, 0]` was NOT changed.** Same trap class, but it
+  feeds matcher-derived expectations and the brief named only `focusPoint`.
+  Open question 4.
