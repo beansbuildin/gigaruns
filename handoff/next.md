@@ -1,260 +1,281 @@
-# BRIEF — session 68
+# BRIEF — session 69
 
-## STOP — the JWT is expired. Nothing live works until the user refreshes it.
+## The clock and the ledger
 
-*Source: session 67, decoded locally without printing the token.* `exp` =
-**2026-08-21 17:54:17 UTC = 10:54 PT**, six minutes before today's rollover.
-Session 67's ledger read returned **HTTP 401**, so **today's `dayDocs` and
-`dayProgressEntities` are UNKNOWN.**
+Written **2026-08-21, 14:00 PT**. *Source: session 68 live-measured.* Ledger
+`dayDocs[pond 2]` at **5 of 20 — 15 casts remain.** Dungeon untouched today.
 
-**First action, before anything else:**
+**`doctor.ts` is the standing first command of every session.** Session 67's
+expired JWT cost a stop-work order that turned out to be stale by the time it was
+read; session 68's `doctor.ts` answered it in one second.
 
-```
-npx tsx scripts/doctor.ts
-```
+**This brief authorizes ZERO dungeon runs and a fishing batch gated on §1
+passing.** Do not cast until the hoist is proven.
 
-It decodes `exp` locally and answers this in about a second. **If the token is
-still expired, stop and tell the user** — do not attempt a cast, do not retry,
-and do not treat a 401 as a transient error. Rule 13's converse applies: a
-credential failure is not a ledger reading, and an unknown ledger is not an
-empty one.
-
-**Make `doctor.ts` the standing first command of every session** (session 67
-open question 3). It would have caught this in one second instead of at the
-first live call.
-
-*Environment note, sessions 66–67: `npx tsx` and `git` both fail under the
-command sandbox on this machine (`EPERM …tsx-501/*.pipe`; `unable to access
-'~/.gitconfig'`). Run both unsandboxed. Not a repo problem.*
+*Environment, sessions 66–68: `npx tsx` and `git` both fail under the command
+sandbox on this machine. Run unsandboxed. Not a repo problem.*
 
 ---
 
-## 1. The conserving oil policy — SHADOW ONLY. Do not ship it.
+## 1. Hoist `dist` above the oil block — the batch depends on it
 
-**User decision, 2026-08-21:** hold `conserve(r=1,f=1)`. Keep `onDemandTriggers`
-live, run the conserving gate in **shadow**, log what it *would* have skipped,
-and switch only after seeing it against live casts.
+**User decision, 2026-08-21: hoist first, then a batch.**
 
-`policyApproved` stays **false**. `liveFishing.ts` keeps playing
-`onDemandTriggers`. The conserving code is written and tested (session 67) and
-stays unwired.
+*Source: session 68.* The shadow produced **13 records and exactly ONE at a
+firing moment**, Focus arm, with `bestKillProbability` **null on all 13**. The
+cause is structural, not sampling: the shadow evaluates in the card-choice phase,
+the Relaxing trigger fires only on a lethal fish, and **a lethal Relaxing consume
+ends the cast inside the oil block — before that phase is reached.** The same gap
+swallows any turn whose oil block throws, which is exactly the turn a trigger
+fired on.
 
-### 1a. Shadow must be provably inert, not intended to be inert
+`dist` depends only on `matcher.history`, `pendingPrediction` and the mined
+tables — **none of which a consume changes** — so it can be computed earlier.
 
-This is gate 1 and it is the whole risk. A shadow evaluator that touches the live
-decision is worse than no shadow at all, because it changes the thing it is
-measuring while looking like an observer.
+**Two things must both be true, and the second is the one that gets skipped:**
 
-- The live decision must be **byte-identical with shadow on and shadow off.**
-- **Demonstrate the test failing** when the shadow path is allowed to influence
-  the decision, then restore. Session 66's lesson stands: a source-text pin
-  proves a line exists, not that it runs.
-- Shadow evaluation must not consume, must not mutate stock, and must not write
-  anything the live path reads back.
+- Shadow observes a **Relaxing** firing moment, with `bestKillProbability`
+  populated rather than null.
+- **The live decision is unchanged by the hoist.** Byte-identical play with the
+  hoist in and out. A restructure of the live loop that alters play while
+  "only moving a computation" is the session-64/65 failure in a new costume.
 
-### 1b. What shadow can and cannot establish — state this in the recap, not after
-
-**It cannot tell you whether skipping would have cost a fish.** The oil is
-actually spent by the live policy, so the counterfactual outcome is
-unobservable. A cast where on-demand spent, shadow said skip, and the fish was
-caught does **not** confirm the saving — the oil was in play.
-
-What it genuinely validates, and these are the things that break on contact:
-
-- **Firing rate.** Does the necessity condition fire at the rate the sim
-  predicted — *sim-derived: 55.8% of lethal triggers occur when a card already
-  kills with probability exactly 1*?
-- **Input distribution.** Are `bestKillProbability` and `bestConnectProbability`
-  bimodal live as they are in the corpus (*corpus-measured: 34.3% at 0, 55.8% at
-  1, 9.9% between*)? If they are smooth live, the "no constant to defend"
-  argument for the threshold weakens and should be reported as weakened.
-- **Sanity.** Does the gate ever produce a nonsense decision — skip with no card
-  in hand, fire with a certain kill available, throw, or disagree with itself
-  across two evaluations of the same state?
-
-### 1c. Five casts is a smoke test, not a validation — say so up front
-
-*Corpus-measured:* the Focus trigger is reachable in ~55% of casts, so **five
-casts yields roughly two or three shadow decision points.** That is enough to
-catch a gross error and nowhere near enough to estimate a rate.
-
-*Live-measured, session 65:* stock is **Relaxing 0, Focus 18.** So the
-**Relaxing arm of the gate cannot be exercised live at all** this session — every
-lethal trigger goes OIL-POLICY-DRY. Only the Focus arm meets real inputs.
-**Do not report the gate as validated on the strength of the Focus arm alone.**
+**Demonstrate the observability test failing with the hoist reverted**, then
+restore. Session 68's own leak test is the model: byte-identity is easy to pass
+while proving nothing, so it needed three anti-vacuity tests alongside.
 
 ---
 
-## 2. Five live casts
+## 2. The user's cast — what the fixtures actually show, and what still needs checking
 
-**User decision, 2026-08-21: five casts to start**, after the JWT is refreshed.
+The user watched a cast where the bot played cards on turns 0–2 and then spent a
+**Relaxing Oil** on turn 3 to finish the fish, and read that as the bot taking
+the easy route with resources still in hand.
 
-- Policy is **unchanged** — `onDemandTriggers`, never force a consume.
-- Halt on: five casts done; the ledger short of five; or the 15-cast zero-streak
-  tripwire. **Do not stop on an oil consume** — the shape is session 65's, not
-  session 64's.
-- **If the ledger reads fewer than five casts remaining, cast what remains and
-  say so.** Do not wait for a rollover and do not exceed the count.
-- Per-cast instrumentation as established: `oilCastState` first, trigger
-  reachability by the pinned definitions, full `fishHp` and `focusMeter`
-  trajectories, turns, outcome, focus spend — plus §1's shadow record.
+### 2a. Three corrections to the resource model, verified in the fixtures
+
+*Source: `fixtures/fishing-casts/live/cast-2026-08-21-20-11-01/raw`, read
+directly.*
+
+- **There is no mana pool on the board.** The state carries no `mana` field, and
+  **every card in the deck has `manaCost: 1`.** The sim's `escaped_mana` is a
+  sim-side name; do not reason about a live mana budget that does not exist.
+- **The depleting per-cast resources are `playerHp` (max 10) and the draw pile**
+  (`cardInDrawPile`, `nextCardIndex`).
+- **A miss is not free — it costs BOTH.** In that cast: `fishHp` **9 → 12 → 14**
+  (back to full) while `playerHp` went **10 → 9 → 8**. Misses heal the fish
+  *and* damage the player. So "it had resources left, it could have kept
+  swinging" understates the cost: swinging can move the fish **away** from
+  lethal.
+
+**This does not make the user's instinct wrong.** It sharpens it: the question is
+not "were resources left" but "was the oil buying anything a card would have
+bought anyway."
+
+### 2b. What still needs identifying, because I could not
+
+The directory I read is one of session 68's five but is **not** the cast
+described — it shows three misses and no consume. **Identify the actual cast**
+(*session 68 live-measured: 2 Relaxing consumes, both lethal, both caught*) and
+report, for the turn the oil fired:
+
+- `fishHp`, `playerHp`, cards in hand and their `hitZones`/`hitEffects`,
+  remaining draw pile.
+- **Was there a card in hand that would have killed the fish with certainty?**
+  If yes, this is exactly the case the certainty gate already catches, and the
+  answer is "the shipped policy is the wrong one", not "the rule needs to be
+  stronger."
+- If no, what was `bestKillProbability` — and would the threshold in §3 have
+  held the oil?
+
+**Report this to the user directly.** It is the concrete instance behind the
+directive and it decides how much of §3 is actually needed.
+
+---
+
+## 3. The probabilistic threshold — derive it from an exchange rate, do not tune it
+
+**User decision, 2026-08-21: add a probabilistic threshold on top of the
+certainty gate.**
+
+This sits against standing guidance — *session 67: "do not tune the necessity
+thresholds; a tuned pair buys ~0.08pp on a sim whose control arm catches 68.71%
+against the real fishery's 25.9%."* **The resolution is that this threshold must
+not be fitted.** Do not sweep for the value that maximises catch rate. Derive it
+from what the user is trading, pre-register it, and report what it costs as well
+as what it saves.
+
+### 3a. The derivation to attempt
+
+A lethal-band oil converts an uncertain catch into a certain one. If
+`p = P(catch without the oil)`, spending gains `(1 − p)` fish. So **spend when
+`(1 − p)` exceeds the value of an oil measured in fish, and hold otherwise.**
+
+*Source: session 66, corpus-measured —* the Relaxing trigger priced at
+**~6 oils per extra fish**, i.e. one oil ≈ **0.167 fish**, 95% interval roughly
+1.5–20 oils per fish. That gives a first-cut hold threshold near **p ≥ 0.83**,
+with an interval wide enough that the number must be reported with it.
+
+**Two things make this principled rather than arbitrary**, and both belong in the
+report:
+
+- The threshold comes from a **measured exchange rate**, not from a sweep.
+- **It should differ per oil, because stock differs.** *Live-measured, session
+  68: Relaxing 56, Focus 19.* A plentiful oil is worth less, so its hold
+  threshold should be higher. Say so explicitly if you implement one number for
+  both.
+
+### 3b. Scope check — this band is small
+
+*Source: session 67, corpus-measured.* The gate inputs are bimodal:
+`bestKillProbability` **34.3% exactly 0 / 55.8% exactly 1 / 9.9% between**;
+`bestConnectProbability` 59.8% / 27.8% / 12.5%.
+
+**So the certainty gate already covers 55.8% of firing moments, and the
+probabilistic threshold can only bite on the ~9.9% in between.** Report the
+threshold's effect against that denominator, not against all firings — a rule
+that changes one decision in ten should not be described as if it changed the
+policy.
+
+### 3c. Constraints
+
+- `p` in the derivation is **P(catch eventually without the oil)**, which is not
+  the same as `bestKillProbability` (this turn). If you use the per-turn value as
+  a proxy, **say so and say which direction it biases.**
+- Pin it with a test that fails at **both** degeneracies — always-hold and
+  never-hold — the way session 67 pinned the certainty gate.
+- **Report escapes, not just oils saved.** A threshold that saves oil by losing
+  fish is a worse policy the user did not ask for.
+
+---
+
+## 4. Stock policy — Focus until depleted, Relaxing capped at 2 per cast
+
+**User directive, 2026-08-21:**
+
+> Continue using Focus oil until supply naturally depletes, then only use 2×
+> Relaxing oil per fishing run.
+
+*Live-measured, session 68: Relaxing **56**, Focus **19**.* Focus is now the
+scarce one.
+
+- **Focus: unconstrained** until stock reaches zero. When it does, stop and tell
+  the user rather than silently changing behaviour.
+- **Relaxing: hard cap of 2 per cast, effective immediately.** The cap is a
+  ceiling, not a quota — it never causes a spend. Applying it now satisfies both
+  readings of the directive and is non-binding in the common case; *session 65
+  recorded a cast that consumed three oils*, so it is not hypothetical.
+- A third Relaxing trigger in one cast records **OIL-POLICY-DRY**, the cast
+  continues, the batch does not halt — the partial-dry path from session 65.
+
+---
+
+## 5. The Steady Lure crit — now datable
+
+**User-stated, 2026-08-21: the lure was equipped BEFORE today's casts.**
+
+That unblocks session 68's open question. *Source: session 68 —* do **not**
+compute a crit rate over the whole corpus; 1/484 plays spans ~60 sessions and is
+rule 10's trap. **Scope the denominator to plays on 2026-08-21 only** and report
+the rate against the user-stated **3%**.
+
+The **damage rule stays open at n=1.** *Session 68: card 76, `critZones: []` and
+`critEffects: []`, took the fish 5 → 0 where its `hitEffects` amount is 3.*
+`hit + 2`, a flat 5, and "lethal, server reports remaining HP" all fit exactly.
+**Do not encode one.** If the scoped rate holds up, a handful more casts settles
+it.
+
+---
+
+## 6. The batch
+
+After §1 passes: cast under the **unchanged** live policy (`onDemandTriggers`),
+with shadow recording both arms.
+
+- **Up to 10 casts**, leaving 5 in reserve on the day.
+- Halt on: the count; the ledger short; the 15-cast zero-streak tripwire; or
+  **§1's observability failing in practice** — if the hoist ships and shadow
+  still records `bestKillProbability: null` at a Relaxing firing, stop and report
+  rather than accumulating unobservable casts.
+- **Do not stop on an oil consume.** Do not force one.
 - Rule 13 after the batch: read the ledger, confirm it moved by exactly the casts
   sent.
-
----
-
-## 3. Make the test suite portable — split by what each file is actually testing
-
-**User decision, 2026-08-21.** *Source: session 67 clean-export run —* **4 failed
-| 1264 passed, and 11 that never ran.**
-
-The four files are doing different jobs and one blanket policy would be wrong for
-at least one of them. Decide each on what it tests:
-
-| file | reads | what it is really testing |
-|---|---|---|
-| `matcherVerdict.test.ts` | `data/ringPrediction.jsonl` | **program logic** — it pins §19's closed rule |
-| `reversalDispersion.test.ts` | `data/fish-patterns.jsonl` | mined-pattern analysis over the author's corpus |
-| `rejectionAudit.test.ts` | `logs/` | the author's own captures |
-| `redact.test.ts` | `handoff/` | the redaction function, applied to the author's docs |
-
-- **Program logic ships with synthetic fixtures and always runs.**
-  `matcherVerdict.test.ts` guards a rule that is now closed and load-bearing; it
-  should not stop shipping with the code it guards, and it should not depend on
-  the author's accumulated predictions to assert a rule.
-- **`redact.test.ts` is probably two tests wearing one hat** — the redaction
-  *function* is program logic and deserves synthetic input; the sweep over
-  `handoff/` is an author-data check. Split it rather than skipping both halves.
-- **Author-data tests get a LOUD skip-guard**, or leave the ships list. A silent
-  skip is the same failure mode as a vacuous assertion: green, and testing
-  nothing. Whatever you choose, it must be visibly different at home from a pass.
-
-### 3a. Fix the collection-time throw regardless of the portability decision
-
-`rejectionAudit.test.ts` throws **at collection**, so it contributes **0 tests
-instead of 11**, and the drop is only findable by diffing JSON reporters. That is
-a suite-integrity bug independent of portability, and it is the same family this
-repo keeps catching — a green-looking suite asserting less than it appears to.
-
-**The fix is structural: move the data load inside `beforeAll` or the test body,
-never at module top level.** A file that cannot be collected cannot report that
-it was skipped.
-
----
-
-## 4. Two small things worth doing while offline work is open
-
-- **`scripts/preflight.ts`** (session 67 open question 4). The distribution
-  rehearsal currently lives as an eleven-command incantation inside a report.
-  Make it a script so step 5 is repeatable **before every invite**, not once.
-  `dist-preflight/` is already gitignored.
-- **`fixtures/fishing-casts/live/` holds 110 `cast-*` directories and the corpus
-  loads 109.** *Source: session 67, verified with `oilReachability.ts --gap`.*
-  One cast does not load. Find out which and why. It is probably nothing — a
-  partial capture, an aborted write — but a silently-dropped fixture is a corpus
-  statistic quietly computed on a different denominator than anyone thinks, and
-  `ls | wc -l` disagreeing with the loader is exactly the kind of gap this repo
-  has been punished for.
-
----
-
-## 5. Carried
-
-- **Do not ship `conserve(r=1,f=1)`** (§1). Do not set `policyApproved: true`.
-- **Do not budget casts for the `nextPosition` tripwire.** It fires on ~1–2% of
-  turns; five casts buys perhaps one armed turn and most likely none. It sits
-  armed until it fires on its own.
-- **Do not tune the necessity thresholds.** A tuned pair buys ~0.08pp on a sim
-  whose control arm catches 68.71% against the real fishery's 25.9%.
-- **Do not quote the sim's ±0.01pp CIs as decision intervals** — they are the
-  sim's repeatability, not uncertainty about the fishery. Session 66's corpus
-  interval for the Relaxing trigger is ~1.5–20 oils per extra fish.
-- **Do not read the per-cast sim tables as answering "conserve for future
-  casts."** `runArm` hands every cast a fresh oil; the finite-stock table is a
-  separate instrument.
-- **Do not loosen the `fakeDoc` observability guard** to a key-set assertion —
-  session 67 wrote and rejected exactly that, because it passes for a field
-  nothing reads. Widen the observable or drop the field deliberately.
-- Distribution steps 3–6 remain the user's; an agent must not create or push the
-  repo. §19, rule 8, and corrode-in-`dungeonSim` are **CLOSED** — do not reopen.
-- Carried and deliberate: 25 analysis scripts hold hardcoded paths (ratcheted).
-- `boonCapture` is settled OFF. **Stop listing it.**
-
----
-
-## 6. Gate
-
-Both halves are offline and deterministic; neither depends on the batch.
-
-1. **Shadow is provably inert** — the live decision is byte-identical with shadow
-   on and off, **demonstrated failing** when the shadow path is permitted to
-   influence the decision, then restored.
-2. **`rejectionAudit.test.ts` can no longer contribute zero tests silently** —
-   the data load moves out of module scope, and the file either runs its 11 or
-   reports a visible skip. **Demonstrate the old failure mode is gone** by making
-   the data source absent and showing the suite says so.
+- `conserve(r=1,f=1)` stays **unshipped**; `policyApproved` stays false.
 
 ---
 
 ## 7. Do not
 
-- **Do not cast, or run anything live, on an expired JWT.** Stop and report.
-- Do not treat a 401 as a transient error or an empty ledger.
-- Do not ship the conserving policy, or let shadow touch the live decision.
-- Do not claim shadow validated the gate's *outcome* (§1b), or that the gate is
-  validated when only the Focus arm was exercised (§1c).
-- Do not stop the batch on an oil consume; do not force a consume.
-- Do not exceed five casts, or wait for a rollover to reach five.
-- Do not fix the four test files by loosening their assertions — the point is a
-  stranger's suite asserting *correctly*, not asserting *less*.
-- Do not leave a skip silent.
-- Do not put identifiers in a test that guards against identifiers, and do not
-  give a new I/O-owning test construction a real data path.
+- Do not cast before §1 passes, or run any dungeon run.
+- **Do not ship the conserving policy or the new threshold** — shadow and report.
+- Do not sweep the threshold for maximum catch rate (§3).
+- Do not describe the threshold as changing the policy when it touches ~10% of
+  firings (§3b).
+- Do not reason about a live mana pool; there is not one (§2a).
+- Do not encode a crit damage rule at n=1, or compute a crit rate over the whole
+  corpus (§5).
+- Do not let the hoist change live play (§1).
+- Do not read `ls fixtures/fishing-casts/live | wc -l` as a cast count — dirs are
+  per invocation, `--dry-run` makes empty ones, and 7 hold more than one cast.
+- Standing: never report energy as a blocker; exercise `--dry-run` before claiming
+  a blocker; do not revert rule 8; do not loosen the `fakeDoc` observability
+  guard; §19, rule 8 and corrode-in-`dungeonSim` are CLOSED; `boonCapture`
+  settled OFF; distribution steps 3/4/6 remain the user's.
 
 ---
 
-## 8. Corrections to me
+## 8. Gate
 
-- **My §1a instruction to "re-rank first and skip the gate design if that settles
-  it" nearly cost the better policy.** The re-rank did reverse the ranking —
-  `focus-when-empty-only` at 2.48 oils/fish beats `on-demand` at 3.59 — and if
-  the session had stopped there, as I invited it to, it would have shipped a
-  policy that **discards 1.9pp of catch rate for nothing.** The conserving gate
-  gets 88.38% for 2.42.
-- **The error was treating a cheaper answer as a sufficient one.** Re-ranking
-  existing arms under a new objective was worth doing and I was right that it was
-  free. What was wrong was the sentence licensing the session to stop there:
-  **a re-ranking of options someone else chose cannot find an option nobody
-  scored.** The directive changed what counts as good, which means the option set
-  should have been reopened, not just re-sorted. "Check the cheap thing first" is
-  sound; "and stop if it answers" only holds when the cheap thing could have
-  produced the best answer.
-- **Session 67 was right to keep going**, and its decomposition is why the result
-  is trustworthy rather than lucky: Relaxing-gate-only is byte-identical to
-  on-demand for 1,182 fewer oils, because 55.8% of lethal triggers fire when a
-  card already kills with certainty. That is a mechanism, not a score.
+1. **The hoist is proven both ways** — shadow records a Relaxing firing moment
+   with `bestKillProbability` populated, **and** live play is byte-identical with
+   the hoist in and out. Demonstrate the observability test failing with the
+   hoist reverted.
+2. **The probabilistic threshold is derived from a stated exchange rate,
+   pre-registered before the batch, and pinned by a test that fails at both
+   degeneracies.** A report that presents a swept value does not meet this gate.
 
 ---
 
-## Your task (session 68)
+## 9. Corrections to me
 
-1. **`doctor.ts` first.** If the JWT is expired, stop and tell the user. Nothing
-   below §3 runs without it.
-2. **§1 / gate 1** — shadow evaluation of `conserve(r=1,f=1)`, provably inert.
-   **Do not ship it.**
-3. **§2** — five casts under the unchanged policy, with shadow recording.
-4. **§1b–1c** — report what shadow established and, explicitly, what it did not.
-5. **§3 / gate 2** — split the four test files by what each tests; fix the
-   collection-time throw structurally.
-6. **§4** — `scripts/preflight.ts`, and find the 110th cast.
-7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+- **I wrote that stock was "Relaxing 0, Focus 18". Live it was Relaxing 56,
+  Focus 19.** Rule 9, sixth occurrence. I carried session 65's balance read
+  forward as if it were current, tagged it *live-measured, session 65*, and the
+  tag was accurate while the use of it was not. **A provenance tag records where
+  a number came from; it does not certify that the number still holds.** For
+  anything the user can change between sessions — stock, equipment, crafting — the
+  brief should say "as of session N, verify at start", not state it as fact.
+- **Worse, that stale number produced a conclusion that was right for the wrong
+  reason.** I wrote that the Relaxing arm could not be exercised live because
+  stock was zero. The arm indeed could not be exercised — but because of the
+  structural ordering session 68 found, with 56 oils in the bag. **A correct
+  conclusion reached from a false premise is more dangerous than a wrong one**,
+  because the recap confirms it and nobody looks again. Session 68 looked anyway.
+- **I could not identify the cast the user described**, which is why §2b is a
+  task rather than an answer. I read one of session 68's directories, found it
+  showed three misses and no consume, and stopped rather than guessing at which
+  of the five it was.
+
+---
+
+## Your task (session 69)
+
+1. `doctor.ts` first; read both ledgers; report the day.
+2. **§1 / gate 1** — hoist `dist` above the oil block, proven both ways.
+3. **§2b** — identify the user's cast and answer whether a card could have killed
+   that turn. **Report it to the user directly.**
+4. **§3 / gate 2** — derive the probabilistic threshold from an exchange rate,
+   pre-register it, pin both degeneracies. Do not ship it.
+5. **§4** — Focus unconstrained, Relaxing capped at 2 per cast.
+6. **§5** — crit rate scoped to 2026-08-21 plays; damage rule stays open.
+7. **§6** — up to 10 casts, shadow recording both arms.
+8. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
    **final** commit, no test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** The session's outcome depends on something outside it: if
-the JWT is not refreshed, §1's shadow and §2's casts do not happen and the
-session is §3 and §4 alone — which is a fine session, and better than a rushed
-live one. **The item most likely to be over-claimed is §1.** Shadow mode feels
-like validation and is not; it can show the gate's inputs and firing rate survive
-contact with a real server, on two or three observations, with half the gate
-unexercisable for want of Relaxing stock. Say that plainly, and the next decision
-about shipping stays honest.
+**Honest expectation.** §1 is the whole session's dependency and §2b is the item
+the user most wants answered. **The likeliest outcome of §2b is that a card could
+NOT have killed that turn** — the certainty gate would have spent the oil too,
+and the user's concern lands on the probabilistic band instead, where §3 is aimed
+and where only one firing in ten lives. That is a smaller finding than it feels
+like, and saying so plainly is more useful than a rule that appears to fix
+something it does not touch.
