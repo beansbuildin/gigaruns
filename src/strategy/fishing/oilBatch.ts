@@ -112,6 +112,20 @@ export const SESSION_64_LIMITS: BatchLimits = {
  * [session 65 §1b] Seven casts, run to completion. A consume does NOT stop it
  * — not the first Focus consume, not a Relaxing consume, not a second consume
  * within one cast. The clean-cast tripwire reports without halting.
+ *
+ * ## [session 66 §4] ITS OBJECTIVE IS SPENT. §19 IS CLOSED.
+ *
+ * This shape existed to accumulate instrumented matcher turns for §19, and
+ * §19 finished: **POWERED KEEP at n=35 of 32** (session 65, DECISIONS
+ * 2026-08-21). There are no more turns to accrue and no verdict waiting on
+ * them, so **do not budget casts for §19 and do not report turn accrual.**
+ *
+ * The constant stays exported, tested and unchanged — session 64's is kept
+ * for exactly the same reason, and a shape is history, not a setting. What is
+ * retired is its RATIONALE, not its numbers. A future batch that wants seven
+ * casts must say what those seven casts are for in its own brief; inheriting
+ * this one's reasons would be carrying a closed programme forward out of
+ * habit, which is the specific failure §4 was written to prevent.
  */
 export const SESSION_65_LIMITS: BatchLimits = {
   castCap: 7,

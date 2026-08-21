@@ -2264,6 +2264,15 @@ async function main() {
   // consume is a capture, so the batch runs the full seven. An explicit
   // --casts= still wins downward only, so the cap can be lowered for a probe
   // but never silently raised past the authorized batch size.
+  //
+  // **[session 66 §4] THE OBJECTIVE THIS SHAPE WAS CHOSEN FOR IS CLOSED.**
+  // Session 65 ran seven casts to accumulate instrumented matcher turns for
+  // §19, and §19 landed a POWERED KEEP at n=35 of 32. The shape is left in
+  // place because it is a working, tested batch shape and nothing about it is
+  // wrong — but the seven is no longer justified by anything, so a session
+  // that runs `--oil-batch` should be running it for a reason stated in its
+  // own brief. Do not read this line as a standing authorization for seven
+  // casts, and do not budget casts for §19.
   const batchLimits = SESSION_65_LIMITS;
   const authorizedCasts = batchLimits.castCap ?? args.casts;
   const batchCeiling = Math.min(args.casts > 1 ? args.casts : authorizedCasts, authorizedCasts);
