@@ -266,13 +266,37 @@ At n=1 three readings fit equally well — `hit + 2`; a flat 5; or "the blow was
 lethal and the server reports the fish's remaining HP", which was also exactly
 5. Do not encode any of them.
 
-**Rate.** 1 `CRIT_HIT` in 484 recorded card plays across 114 casts is 0.2%,
-against the lure's stated 3%. That is not a contradiction to resolve by
-re-reading the lure — the corpus spans ~60 sessions and the lure's equip date
-is unknown, so almost all of those 484 plays are probably from before it was
-equipped. **Anyone computing a crit rate must first establish when the lure
-went on.** Counting it across the whole corpus is CLAUDE.md rule 10's trap in
-another costume: dating an effect on a corpus that predates its cause.
+**Rate — the whole-corpus figure was never the right one.** 1 `CRIT_HIT` in
+484 recorded card plays across 114 casts is 0.2% against the lure's stated 3%,
+and that is not a contradiction to resolve by re-reading the lure: the corpus
+spans ~60 sessions, so almost all of those 484 plays are from before the lure
+was equipped. Counting it across the whole corpus is CLAUDE.md rule 10's trap
+in another costume — dating an effect on a corpus that predates its cause.
+
+**[session 69] The denominator is now datable, and the rate is consistent with
+3%.** *User-stated 2026-08-21: the lure was equipped BEFORE that day's casts.*
+Scoped to plays on **2026-08-21 only** — every play the lure was certainly on
+for, and no play it certainly was not:
+
+| denominator | crits | rate | 95% Wilson | contains 3%? |
+|---|---|---|---|---|
+| all card plays | 1 / 73 | 1.37% | [0.24%, 7.36%] | yes |
+| plays that CONNECTED (`HIT` 38 + `CRIT_HIT` 1) | 1 / 39 | 2.56% | [0.45%, 13.18%] | yes |
+
+**Both denominators are reported because n=1 cannot choose between them.** A
+"3% crit chance" could mean 3% of plays or 3% of plays that connect, and those
+are different mechanics — the second reading makes a crit an upgrade of a hit,
+the first makes it an independent roll. Nothing here distinguishes them, and
+picking one would be an assumption dressed as a measurement.
+
+What the scoped count does establish is narrower and worth having: at 1.37%
+observed the stated 3% is **not contradicted**, so the anomaly needs no
+explanation beyond the lure. The intervals are far too wide to calibrate
+anything, and the **damage rule remains open at n=1** — a handful more casts at
+this rate is what would settle it. Note also that `CRIT_HIT` is emitted
+alongside neither `HIT` nor a miss: the day's events were `HIT` 38 +
+`CRIT_HIT` 1 + 34 misses = 73 plays, which is the disjointness
+`castTrace.ts`'s fix assumed, now confirmed on a full day.
 
 **Two audit bugs this exposed, both fixed** (`src/sim/fishing/castTrace.ts`):
 `CRIT_HIT` was not counted as a hit (only `type === "HIT"` was), so the crit
