@@ -58,6 +58,19 @@ import { profileArg, resolveProfile } from "../src/profile.js";
 
 /** The real board, as `fishingEmpiricalAblation.ts` fixes it. Same constants, so the two scripts describe one sim. */
 const REAL_PARAMS = { fishMaxHp: 21, startFishHpRatio: 13 / 21, startMana: 10, handSize: 3, gridSize: 4 } as const;
+/**
+ * **[session 70 §5a] THIS IS THE MAKESHIFT ROD'S DECK, AND IT IS STALE.** A rod
+ * grants the starting card set via `gameItems[].CARD_CID_array`, and the
+ * account swapped Makeshift Rod (922) for Shroom Rod (811) on 2026-08-21 at
+ * 12:58 PT — `fullDeck` flips to `[1,2,3,4,5,6,74,75,76,78]` at cast 13022748,
+ * on the same cast `GEAR_CID_array` swaps the rod. See SPEC-fishing.md.
+ *
+ * Left pointing at the Makeshift deck ON PURPOSE: every historical number in
+ * this repo was computed on it and 110 of the corpus's 123 clean traces were
+ * played on it, so repointing the constant would make old and new numbers
+ * incomparable without making either right. Any comparison against recent live
+ * play must SAY which deck it used.
+ */
 const REAL_DECK = [1, 2, 3, 4, 5, 6, 7, 76, 77, 79];
 
 const TURNS_SHOWN = 11;

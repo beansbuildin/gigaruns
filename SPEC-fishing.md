@@ -283,6 +283,51 @@ for, and no play it certainly was not:
 | all card plays | 1 / 73 | 1.37% | [0.24%, 7.36%] | yes |
 | plays that CONNECTED (`HIT` 38 + `CRIT_HIT` 1) | 1 / 39 | 2.56% | [0.45%, 13.18%] | yes |
 
+**[session 70 §5a] SUPERSEDED — the day was the wrong scope, and the gear is
+recorded per cast so no scope had to be guessed.** Every fishing document
+carries `GEAR_CID_array`, so each cast in `fixtures/` states what was equipped
+while it was played. The Steady Lure's FIRST APPEARANCE on a cast is
+2026-08-21T16:47:53Z (09:47 PT), not "before that day's casts": the eight casts
+played earlier that day carried no lure at all. `npx tsx scripts/critByGear.ts`
+recomputes this from the fixtures.
+
+Classification is exact rather than bounded — gear can only change between
+casts, and plays only happen during casts, so no play falls in an
+unclassifiable gap. The bucket totals reconcile to the corpus: 443 + 78 = 521
+plays, which is `fishingCorpus`'s own `playTurns`.
+
+| scope | casts | crits / plays | rate | 95% Wilson | crits / connecting | rate | 95% Wilson |
+|---|---|---|---|---|---|---|---|
+| **no lure — the control** | 102 | **0 / 443** | 0.00% | [0.00%, 0.86%] | 0 / 130 | 0.00% | [0.00%, 2.87%] |
+| Steady Lure equipped | 22 | 1 / 78 | 1.28% | [0.23%, 6.91%] | 1 / 44 | 2.27% | [0.40%, 11.81%] |
+| …Steady only | 7 | 0 / 27 | 0.00% | [0.00%, 12.46%] | 0 / 16 | 0.00% | [0.00%, 19.36%] |
+| …Steady **+ Sticky Lure** | 15 | 1 / 51 | 1.96% | [0.35%, 10.30%] | 1 / 28 | 3.57% | [0.63%, 17.71%] |
+
+**The control is the addition that matters.** 443 lure-free plays produced zero
+crits, upper bound 0.86% — below the stated 3%. That is the first positive
+evidence that the crit source is the GEAR rather than something the card model
+is missing; session 69 could only say the lure was "not contradicted".
+
+**A SECOND LURE was equipped and the attribution is now ambiguous.** From
+2026-08-21T19:58:29Z the account carries BOTH the Steady Lure (951) and a
+**Sticky Lure (952)**, and the single observed crit falls inside that window
+(cast 13022874, 2026-08-21T20:11:19Z). The 27 Steady-only plays contain no
+crit. **So the crit cannot be attributed to the Steady Lure specifically** —
+only to "at least one of the two lures". Do not restate the Steady Lure as the
+crit source.
+
+**`/offchain/static` does NOT carry the 3%.** Read live 2026-08-21: `gameItems`
+951 and 952 both carry `NAME_CID`, `RARITY_CID` 1, `TYPE_CID: "Gear"` and image
+URLs, and **no effect field of any kind**. The 3% is user-stated and
+unverifiable from the API — neither confirmed nor contradicted there.
+
+**The `GearInstance` suffix is a MINT stamp, not an equip stamp.** The
+session-70 brief read it as equip time. `#951_1787254688` decodes to 2026-08-20
+12:38 PT but first appears on a cast 21 hours later; `#811_1787332895` and
+`#952_1787332903` decode to 2026-08-21 10:21 PT and first appear 2h37m later.
+Dating a gear era from the suffix puts it too early by a variable margin; first
+appearance in a cast's own array is the observable.
+
 **Both denominators are reported because n=1 cannot choose between them.** A
 "3% crit chance" could mean 3% of plays or 3% of plays that connect, and those
 are different mechanics — the second reading makes a crit an upgrade of a hit,
@@ -438,6 +483,44 @@ comparison: dungeon head gear like id 12 carries real
 `IncreaseDamage_Shield` effects in the identical field shape). **Stays
 [VERIFY]** — checked and found nothing, not narrowed to "no effect," same
 epistemic status as session 08's `intuition` rare-field check
+
+### [session 70 §5a] CONFIRMED — a rod DOES grant the starting card set, and this account's rod changed mid-corpus
+
+`GET /offchain/static`'s `gameItems` carries a field `/gear/items` does not:
+**`CARD_CID_array`**, present on every rod and on no lure.
+
+| item | name | `CARD_CID_array` |
+|---|---|---|
+| 922 | Makeshift Rod | `[1,2,3,4,5,6,7,76,77,79]` |
+| 811 | Shroom Rod | `[1,2,3,4,5,6,74,75,76,78]` |
+| 50 | Stone Rod | `[5,7,8,9,10,32,35,2,34,37]` |
+
+**This is confirmed against play, not just read off a payload.** Every cast's
+`fullDeck` matched the Makeshift Rod's list until 2026-08-21T19:58:29Z; from
+that cast on, the base ten are the Shroom Rod's — 7, 77 and 79 out, 74, 75 and
+78 in — and `GEAR_CID_array` swaps 922 for 811 at exactly the same cast.
+(Cards beyond the base ten are day-cards looted within a session and
+accumulate; the base set is what the rod supplies.) Session 69's audited cast
+13022748 held card **75**, which exists only in the Shroom Rod's set.
+
+So the session-15 result stands as written — a rod's *`itemEffects`* really are
+empty — and the mechanic was simply encoded in a different field on a different
+endpoint. **`/gear/items` was the wrong place to look, not the wrong question.**
+
+**⚠ CONSEQUENCE FOR THE SIM: `REAL_DECK` IS NOW STALE.**
+`scripts/fishingEmpiricalAblation.ts`, `scripts/focusReserveAblation.ts` and
+`scripts/focusProfileCheck.ts` all hardcode
+`REAL_DECK = [1,2,3,4,5,6,7,76,77,79]`. **That is the Makeshift Rod's deck, and
+the account unequipped it on 2026-08-21 at 12:58 PT.** 13 casts have since been
+played on the Shroom Rod.
+
+It is deliberately NOT changed here. Every historical sim number in this file
+was computed on the Makeshift deck, and 110 of the corpus's 123 clean traces
+were played on it, so silently repointing the constant would make old and new
+numbers incomparable without making either one right. **Any future sim
+comparison against recent live play must state which deck it used**, and a deck
+sweep should re-run `fishingEmpiricalAblation.ts` §3 with the Shroom set before
+its verdict is quoted.
 (DECISIONS.md 2026-08-14).
 
 ---

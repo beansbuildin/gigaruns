@@ -46,6 +46,19 @@ import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
 import { loadMinedPatterns } from "./liveFishing.js";
 
 /** The account's real held deck — `doc.data.fullDeck` from the live capture named in this file's header. */
+/**
+ * **[session 70 §5a] THIS IS THE MAKESHIFT ROD'S DECK, AND IT IS STALE.** A rod
+ * grants the starting card set via `gameItems[].CARD_CID_array`, and the
+ * account swapped Makeshift Rod (922) for Shroom Rod (811) on 2026-08-21 at
+ * 12:58 PT — `fullDeck` flips to `[1,2,3,4,5,6,74,75,76,78]` at cast 13022748,
+ * on the same cast `GEAR_CID_array` swaps the rod. See SPEC-fishing.md.
+ *
+ * Left pointing at the Makeshift deck ON PURPOSE: every historical number in
+ * this repo was computed on it and 110 of the corpus's 123 clean traces were
+ * played on it, so repointing the constant would make old and new numbers
+ * incomparable without making either right. Any comparison against recent live
+ * play must SAY which deck it used.
+ */
 const REAL_DECK = [1, 2, 3, 4, 5, 6, 7, 76, 77, 79];
 
 /**
