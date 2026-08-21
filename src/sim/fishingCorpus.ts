@@ -73,6 +73,32 @@ export interface FishingCorpusResponse {
   successCid: boolean | null;
   /** `null` unless this response's `data.events[]` contains a `FISH_DIED` entry. */
   caughtFish: CaughtFish | null;
+  /**
+   * ── [session 64 §1] THE BOARD STATE THIS RESPONSE REPORTS ────────────────
+   *
+   * The four scalars an oil TRIGGER is a function of, carried on the response
+   * so a corpus analysis does not have to re-open and re-parse the same files
+   * this loader just read. Additive: nothing above changes, and every count
+   * `summarizeFishingCorpus` produces is untouched.
+   *
+   * `updatedAt` is here for ORDER, and that is not a convenience. A cast's
+   * responses arrive in filesystem-walk order, and a killed-and-resumed
+   * process writes later turns of the same `docId` into a different directory
+   * (this file's header, cast 12923189) — so file order is not turn order in
+   * general. Any question of the form "was there a turn AFTER this one" has to
+   * sort on something the SERVER stamped, which is this.
+   */
+  board: FishingBoardScalars;
+  /** Server-stamped `doc.updatedAt`. The only sound ordering key within a cast — see `board`. */
+  updatedAt: string;
+}
+
+/** The scalars an oil trigger reads. Named for what they are on the wire, not renamed to match `OilTimingState`. */
+export interface FishingBoardScalars {
+  fishHp: number;
+  fishMaxHp: number;
+  focusMeter: number;
+  focusMeterMax: number;
 }
 
 export interface FishingCast {
@@ -156,6 +182,18 @@ function walkResponseFiles(root: string): string[] {
 }
 
 /**
+ * [session 64] NaN, not 0, for a missing scalar. A board field this loader
+ * cannot find is UNKNOWN, and 0 is a meaningful value for both `fishHp` (dead
+ * fish) and `focusMeter` (the Focus trigger's exact condition) — defaulting to
+ * it would manufacture trigger firings out of parse failures. NaN fails every
+ * comparison instead, which is the safe direction. All 522 committed responses
+ * carry all four fields today; this is a guard, not a live code path.
+ */
+function numOr(v: unknown, fallback: number): number {
+  return typeof v === "number" ? v : fallback;
+}
+
+/**
  * Loads every committed fishing fixture under `root` (default
  * `fixtures/fishing-casts`) and groups response documents by
  * `data.doc.docId` — see this file's header comment for why that, and not
@@ -179,7 +217,15 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
           docId?: string;
           COMPLETE_CID?: boolean;
           SUCCESS_CID?: boolean | null;
-          data?: { consumablesUsed?: number; fishingConsumableSlotUsed?: boolean[] };
+          updatedAt?: string;
+          data?: {
+            consumablesUsed?: number;
+            fishingConsumableSlotUsed?: boolean[];
+            fishHp?: number;
+            fishMaxHp?: number;
+            focusMeter?: number;
+            focusMeterMax?: number;
+          };
         };
         events?: { type?: string; data?: { fish?: CaughtFish } }[];
       };
@@ -214,12 +260,20 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
       }
     }
     cast.oilEra = cast.consumablesUsed > 0 || cast.slotsUsed.some((v) => v);
+    const d = body.data?.doc?.data;
     cast.responses.push({
       file,
       kind: classifyMessage(body.message),
       completeCid: body.data!.doc!.COMPLETE_CID === true,
       successCid: body.data!.doc!.SUCCESS_CID ?? null,
       caughtFish,
+      board: {
+        fishHp: numOr(d?.fishHp, Number.NaN),
+        fishMaxHp: numOr(d?.fishMaxHp, Number.NaN),
+        focusMeter: numOr(d?.focusMeter, Number.NaN),
+        focusMeterMax: numOr(d?.focusMeterMax, Number.NaN),
+      },
+      updatedAt: typeof body.data?.doc?.updatedAt === "string" ? body.data.doc.updatedAt : "",
     });
     byDoc.set(docId, cast);
   }
@@ -292,4 +346,33 @@ export function summarizeFishingCorpus(casts: FishingCast[]): FishingCorpusSumma
   }
 
   return { casts: casts.length, responseDocs, playTurns, caught, escaped, incomplete };
+}
+
+/**
+ * [session 64] Completed casts' outcomes, OLDEST FIRST — the input
+ * `evaluateZeroStreak` has always documented and never been given.
+ *
+ * The tripwire's own header says a rule nobody computes is "not a safeguard;
+ * it is a sentence about one", and until this session that was still true of
+ * it: `evaluateZeroStreak` was called from tests and from nowhere else, so the
+ * live loop could not have tripped it. It needs cast outcomes in chronological
+ * order, and nothing produced them — `loadFishingCorpus` returns casts in
+ * filesystem-walk order, which is not time order.
+ *
+ * Ordering is by each cast's EARLIEST server-stamped `updatedAt`, which is the
+ * cast's start. A cast is dropped when it has no `COMPLETE_CID: true` response
+ * at all: `evaluateZeroStreak`'s contract is explicit that a process killed
+ * mid-cast is not evidence about the fishery and must not be counted as a miss.
+ */
+export function castOutcomesChronological(casts: readonly FishingCast[]): boolean[] {
+  return casts
+    .map((c) => {
+      const terminal = c.responses.find((r) => r.completeCid);
+      if (!terminal) return null;
+      const startedAt = c.responses.reduce((min, r) => (r.updatedAt !== "" && r.updatedAt < min ? r.updatedAt : min), "\uffff");
+      return { startedAt, caught: terminal.successCid === true };
+    })
+    .filter((x): x is { startedAt: string; caught: boolean } => x !== null)
+    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+    .map((x) => x.caught);
 }

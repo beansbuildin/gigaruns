@@ -158,6 +158,10 @@ import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { redactNoobToken } from "../src/api/redact.js";
+import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
+import { SESSION_64_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
+import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
 // ---------------------------------------------------------------------------
 // Pure(ish) helpers — no network, unit-testable directly.
@@ -1120,6 +1124,14 @@ export interface CastRunResult {
    * what an unflagged policy change does to a rate.
    */
   oilTriggerNoStock: OilTriggerNoStock[];
+  /**
+   * [session 64 §2b] Oils actually consumed on this cast. Already tracked
+   * internally (`oilsUsedThisCast`) for the OIL-POLICY-DRY record; surfaced
+   * here because the batch's INTENDED exit is "the first cast that uses an
+   * oil", and `main()` had no way to see that. Deliberately NOT derived from
+   * `oilTriggerNoStock`, which records the opposite event.
+   */
+  oilsConsumed: number;
 }
 
 /** One turn on which an on-demand trigger fired against zero stock. */
@@ -1204,7 +1216,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     log.write({ event: "dry_run_start_run_intended", nodeId: dendren.nodeId, tierId: dendren.tierId });
     console.log(`  [dry-run] would POST start_run (nodeId ${dendren.nodeId}, tierId ${dendren.tierId})`);
     console.log(`  · no active cast — nothing further to decide against, stopping.`);
-    return { outcome: "dry_run", turns: 0, oilTriggerNoStock: [] };
+    return { outcome: "dry_run", turns: 0, oilTriggerNoStock: [], oilsConsumed: 0 };
   } else {
     guards.assertCanStartRun(dendren.energyCostPerCast);
     const body = buildFishingEnvelope("start_run", client.getFishingActionToken(), {
@@ -1415,7 +1427,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     if (deps.shutdownSignal?.requested) {
       log.write({ event: "shutdown_requested", turn });
       console.log(`  ▸ SIGINT — stopping before the next card (turn boundary), cast left in progress at turn ${turn}.`);
-      return { outcome: "shutdown", turns: turn, oilTriggerNoStock };
+      return { outcome: "shutdown", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast };
     }
 
     // ---- [session 62 §1] THE OIL DECISION -----------------------------------
@@ -1733,7 +1745,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
 
     if (dryRun) {
       console.log(`  [dry-run] would POST play_cards`);
-      return { outcome: "dry_run", turns: turn, oilTriggerNoStock };
+      return { outcome: "dry_run", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast };
     }
 
     const body = buildFishingEnvelope("play_cards", client.getFishingActionToken(), {
@@ -1945,7 +1957,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     );
   }
 
-  return { outcome, turns: turn, oilTriggerNoStock };
+  return { outcome, turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast };
 }
 
 // ---------------------------------------------------------------------------
@@ -1962,7 +1974,12 @@ function parseArgs(argv: string[]) {
   // instruction; this flag exists for the case where the operator wants the
   // pool left exactly as it is (e.g. measuring regen).
   const noRomClaim = argv.includes("--no-rom-claim");
-  return { dryRun, status, casts, noRomClaim };
+  // [session 64 §2] The BATCH. Casts under the live on-demand policy until one
+  // of `oilBatch.ts`'s five halt conditions fires — the intended exit being the
+  // first cast that actually consumes an oil. Without this flag the loop is
+  // byte-for-byte what it has always been: `--casts=N` runs N casts and stops.
+  const oilBatch = argv.includes("--oil-batch");
+  return { dryRun, status, casts, noRomClaim, oilBatch };
 }
 
 /**
@@ -2055,7 +2072,12 @@ async function main() {
   const shutdownSignal = createShutdownSignal();
   const uninstallSigint = installProcessSigintHandler(shutdownSignal);
 
-  const targetCasts = args.dryRun ? 1 : args.casts;
+  // [session 64 §2b] The batch's ceiling is the CLEAN-CAST CAP, not a cast
+  // budget: the loop is expected to exit early on a consume, and reaching the
+  // cap is itself the finding (§2c). An explicit --casts= still wins, so the
+  // cap can be lowered for a probe but never silently raised past it.
+  const batchCeiling = Math.min(args.casts > 1 ? args.casts : SESSION_64_LIMITS.cleanCastCap, SESSION_64_LIMITS.cleanCastCap);
+  const targetCasts = args.dryRun ? 1 : args.oilBatch ? batchCeiling : args.casts;
 
   // [session 47, brief §1a] Energy preflight — reads the REAL pool and, if it
   // is short of what this batch costs, tops it up from the ROM bank before
@@ -2081,6 +2103,21 @@ async function main() {
   }
 
   let lastFixturesDir = "";
+  // [session 64 §2b] Batch tallies. Only read when --oil-batch is set.
+  let batchOilsConsumed = 0;
+  let batchCleanCasts = 0;
+  // The zero-streak tripwire, seeded from the committed corpus and extended by
+  // this batch's own casts. Seeded rather than started at zero because the
+  // streak spans sessions by design (`zeroStreak.ts`: it deliberately does not
+  // reset on a policy change), so a batch that starts counting from scratch
+  // could never trip it — the failure its header calls "a sentence about" a
+  // safeguard. `castOutcomesChronological` drops incomplete casts, per that
+  // function's contract.
+  const batchOutcomes: boolean[] = args.oilBatch ? [...castOutcomesChronological(loadFishingCorpus())] : [];
+  if (args.oilBatch) {
+    const seeded = evaluateZeroStreak(batchOutcomes);
+    console.log(`  · zero-streak at batch start: ${seeded.rationale}`);
+  }
   for (let i = 0; i < targetCasts; i++) {
     if (shutdownSignal.requested) {
       console.log(`\n▸ stopped by SIGINT before cast ${i + 1}/${targetCasts}.`);
@@ -2129,6 +2166,68 @@ async function main() {
     if (result?.outcome === "shutdown") {
       console.log(`\n▸ stopped by SIGINT mid-cast — the cast is left resumable, not force-completed.`);
       break;
+    }
+
+    // ── [session 64 §2b] THE BATCH'S HALT CHECK ──────────────────────────────
+    //
+    // Between casts only. Stop condition 1 is "a cast consumes an oil — finish
+    // that cast completely, then stop", so this deliberately runs AFTER
+    // `runOneCast` has returned rather than interrupting the cast a consume
+    // happened in.
+    //
+    // Both inputs are read LIVE rather than inferred. The ledger is the
+    // server's own `dayDocs`, per rule 13's principle that the ledger is the
+    // only authority on what was spent; the balances are re-read because a
+    // consume during the cast just changed them, and the pre-cast read is
+    // stale by exactly the amount that matters.
+    if (args.oilBatch) {
+      batchOilsConsumed += result?.oilsConsumed ?? 0;
+      if ((result?.oilsConsumed ?? 0) === 0) batchCleanCasts++;
+      // `turn_cap` is not an outcome about the fishery any more than an
+      // incomplete cast is, so only a real terminal result extends the streak.
+      if (result?.outcome === "caught" || result?.outcome === "escaped") {
+        batchOutcomes.push(result.outcome === "caught");
+      }
+
+      let ledgerRemaining: number | null = null;
+      let focusHeld = 0;
+      let relaxingHeld = 0;
+      try {
+        const fishingState = await client.getFishingState(me.address);
+        ledgerRemaining = dendrenCastsRemaining(fishingState as never);
+        const balances = await client.getItemsBalances();
+        const balanceOf = (id: number) => Number(balances.entities.find((e) => e.ID_CID === String(id))?.BALANCE_CID ?? 0);
+        focusHeld = balanceOf(MID_FOCUS_OIL_ITEM_ID);
+        relaxingHeld = balanceOf(MID_RELAXING_OIL_ITEM_ID);
+      } catch (e) {
+        // Rule 5, fail closed. A batch that cannot see the ledger or the bag
+        // must not keep spending casts on the assumption that both are fine.
+        throw new GuardTrip("batch halt check could not read the ledger or oil balances", {
+          error: (e as Error).message,
+        });
+      }
+      if (ledgerRemaining === null) {
+        throw new GuardTrip("batch halt check: dayDocs gave no Dendren entry — cannot tell casts remaining from zero", {});
+      }
+
+      const verdict = batchVerdict({
+        castsPlayed: i + 1,
+        oilsConsumed: batchOilsConsumed,
+        cleanCasts: batchCleanCasts,
+        ledgerCastsRemaining: ledgerRemaining,
+        focusOilHeld: focusHeld,
+        relaxingOilHeld: relaxingHeld,
+        zeroStreak: evaluateZeroStreak(batchOutcomes).streak,
+      });
+      console.log(
+        `  · batch state: cast ${i + 1}, oils consumed ${batchOilsConsumed}, clean ${batchCleanCasts}, ` +
+          `ledger ${ledgerRemaining} left, held Focus ${focusHeld} / Relaxing ${relaxingHeld}`,
+      );
+      log.write({ event: "batch_verdict", cast: i + 1, oilsConsumed: batchOilsConsumed, cleanCasts: batchCleanCasts, ledgerRemaining, focusHeld, relaxingHeld, verdict });
+      if (verdict.stop) {
+        console.log(`\n▸ BATCH HALT (${verdict.reason}) — ${verdict.detail}`);
+        break;
+      }
     }
   }
   uninstallSigint();

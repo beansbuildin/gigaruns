@@ -8,6 +8,16 @@ import { describe, expect, it } from "vitest";
 import type { FishingCast } from "../../src/sim/fishingCorpus.js";
 import { buildFishingMarkdown, summarizeFishingCast, summarizeFishingRollup } from "../../src/sim/fishingReport.js";
 
+/**
+ * [session 64] The board scalars `FishingCorpusResponse` now carries. This
+ * file's subject is REPORTING, not triggers, so the values are deliberately
+ * inert — a mid-cast board that fires neither oil trigger. Anything
+ * board-sensitive belongs in `tests/fishing/oilReachability.test.ts`.
+ */
+function board(updatedAt: string) {
+  return { board: { fishHp: 8, fishMaxHp: 15, focusMeter: 2, focusMeterMax: 3 }, updatedAt };
+}
+
 function cast(
   docId: string,
   opts: { caught: boolean; fishName?: string; rarity?: number; consumablesUsed?: number },
@@ -23,7 +33,7 @@ function cast(
     oilEra: consumablesUsed > 0,
     slotsUsed: [false, false, false],
     responses: [
-      { file: "f1", kind: "start_run", completeCid: false, successCid: null, caughtFish: null },
+      { file: "f1", kind: "start_run", completeCid: false, successCid: null, caughtFish: null, ...board("2026-08-15T20:00:00.000Z") },
       opts.caught
         ? {
             file: "f2",
@@ -31,8 +41,16 @@ function cast(
             completeCid: true,
             successCid: true,
             caughtFish: { gameItemId: 1, name: opts.fishName ?? "Zombo", rarity: opts.rarity ?? 2 },
+            ...board("2026-08-15T20:00:01.000Z"),
           }
-        : { file: "f2", kind: "play_cards", completeCid: true, successCid: false, caughtFish: null },
+        : {
+            file: "f2",
+            kind: "play_cards",
+            completeCid: true,
+            successCid: false,
+            caughtFish: null,
+            ...board("2026-08-15T20:00:01.000Z"),
+          },
     ],
   };
 }

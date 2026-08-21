@@ -29,43 +29,10 @@ import { readFileSync } from "node:fs";
 import { GigaverseClient } from "../src/api/client.js";
 import { loadGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { FISHING_GUARD_STATE_PATH } from "./liveFishing.js";
-
-/** Dendren. CLAUDE.md scopes this bot to one pond; the whole corpus is pond 2. */
-const DENDREN_POND_ID = 2;
-
-interface DayDoc {
-  pondId: number;
-  casts: number;
-}
-
-/**
- * `FishingStateSchema` is `.passthrough()`, so `dayDocs` arrives untyped — it
- * has never been part of the declared shape. Read it defensively rather than
- * widening the schema off one observation (CLAUDE.md §1).
- *
- * SHAPE, captured live 2026-08-19 (this session): `dayDocs` is
- * `[{pondId: number, doc: {UINT256_CID: number, docId: string, ...}}]` — the
- * pond is an EXPLICIT sibling field, not a suffix to be parsed off `docId`.
- * (`docId` reads `DayCount#<address>#player-day-data-pond-2`, so the dungeon
- * side's `DayCount#...#Dungeon#<id>` convention does NOT carry over.)
- *
- * TRAP, same capture: the response ALSO carries a SINGULAR `dayDoc`, and it is
- * pond 1's — it read `UINT256_CID: 0` while pond 2 sat at its 20/20 cap. Any
- * reader that reaches for `state.dayDoc` gets a confident wrong answer about
- * Dendren. Always go through `dayDocs` and match on `pondId`.
- */
-function readDayDocs(state: unknown): DayDoc[] {
-  const docs = (state as { dayDocs?: unknown }).dayDocs;
-  if (!Array.isArray(docs)) return [];
-  return docs.flatMap((entry) => {
-    if (typeof entry !== "object" || entry === null) return [];
-    const { pondId, doc } = entry as Record<string, unknown>;
-    if (typeof pondId !== "number" || typeof doc !== "object" || doc === null) return [];
-    const casts = (doc as Record<string, unknown>).UINT256_CID;
-    if (typeof casts !== "number") return [];
-    return [{ pondId, casts }];
-  });
-}
+// [session 64] `readDayDocs` moved to src/api/fishingLedger.ts so liveFishing.ts
+// can consult the same ledger between casts without importing this script (whose
+// `main()` runs at module scope). Same code, same behaviour, one owner.
+import { DENDREN_POND_ID, type DayDoc, readDayDocs } from "../src/api/fishingLedger.js";
 
 /** Hours until the next 11:00 Pacific rollover, the boundary `todayKey()` uses. */
 function hoursUntilReset(now: Date = new Date()): number {

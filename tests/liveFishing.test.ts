@@ -501,7 +501,21 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
         fishHp: 10,
         fishMaxHp: 10,
         fishPosition,
-        previousFishPosition: [0, 0],
+        // [session 64 §4] ON-GRID, and derived rather than picked. `[0,0]` is
+        // off a ONE-indexed 4x4 board — the same fabricated-input trap as the
+        // `focusPoint` one, and it appears in 0 of the 75 committed start_run
+        // states. Session 63 left it alone fearing it would shift
+        // matcher-derived expectations; it cannot, because NOTHING in the live
+        // decision path reads this field (only `castTrace.ts` and
+        // `movePathAudit.ts` do, both offline over fixtures).
+        //
+        // The brief said the live wire reports `[4,4]` here. The corpus says
+        // the server sends all 16 on-grid cells across 75 casts and `[4,4]` is
+        // 3 of them, so that was one observation generalised. Using
+        // `fishPosition` instead makes the mock on-grid BY CONSTRUCTION however
+        // the caller moves the fish, and it is a state the server really sends:
+        // the fish stays put in 94 of the 522 committed states.
+        previousFishPosition: fishPosition,
         gridSize: 4,
         // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
         // so [0,0] is off the board — harmless at a full meter and FATAL at
@@ -808,7 +822,21 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
         fishHp: 10,
         fishMaxHp: 10,
         fishPosition,
-        previousFishPosition: [0, 0],
+        // [session 64 §4] ON-GRID, and derived rather than picked. `[0,0]` is
+        // off a ONE-indexed 4x4 board — the same fabricated-input trap as the
+        // `focusPoint` one, and it appears in 0 of the 75 committed start_run
+        // states. Session 63 left it alone fearing it would shift
+        // matcher-derived expectations; it cannot, because NOTHING in the live
+        // decision path reads this field (only `castTrace.ts` and
+        // `movePathAudit.ts` do, both offline over fixtures).
+        //
+        // The brief said the live wire reports `[4,4]` here. The corpus says
+        // the server sends all 16 on-grid cells across 75 casts and `[4,4]` is
+        // 3 of them, so that was one observation generalised. Using
+        // `fishPosition` instead makes the mock on-grid BY CONSTRUCTION however
+        // the caller moves the fish, and it is a state the server really sends:
+        // the fish stays put in 94 of the 522 committed states.
+        previousFishPosition: fishPosition,
         gridSize: 4,
         // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
         // so [0,0] is off the board — harmless at a full meter and FATAL at
@@ -1009,7 +1037,21 @@ describe("ringPrediction rows — paired baseline + shot calibration (session 46
         fishHp,
         fishMaxHp: 10,
         fishPosition,
-        previousFishPosition: [0, 0],
+        // [session 64 §4] ON-GRID, and derived rather than picked. `[0,0]` is
+        // off a ONE-indexed 4x4 board — the same fabricated-input trap as the
+        // `focusPoint` one, and it appears in 0 of the 75 committed start_run
+        // states. Session 63 left it alone fearing it would shift
+        // matcher-derived expectations; it cannot, because NOTHING in the live
+        // decision path reads this field (only `castTrace.ts` and
+        // `movePathAudit.ts` do, both offline over fixtures).
+        //
+        // The brief said the live wire reports `[4,4]` here. The corpus says
+        // the server sends all 16 on-grid cells across 75 casts and `[4,4]` is
+        // 3 of them, so that was one observation generalised. Using
+        // `fishPosition` instead makes the mock on-grid BY CONSTRUCTION however
+        // the caller moves the fish, and it is a state the server really sends:
+        // the fish stays put in 94 of the 522 committed states.
+        previousFishPosition: fishPosition,
         gridSize: 4,
         // [session 63 §4] ON-GRID. `geometry.ts`'s `allCells` is ONE-indexed,
         // so [0,0] is off the board — harmless at a full meter and FATAL at
