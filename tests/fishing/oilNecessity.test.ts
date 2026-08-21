@@ -47,6 +47,8 @@ import {
   onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
   MEASURED_CONSUME_COSTS_TURN,
+  NECESSITY_EPSILON,
+  meetsThreshold,
   type OilTimingPolicy,
 } from "../../src/strategy/fishing/oilTiming.js";
 import { matcherFishPolicy, simulateCast, type FishPolicyContext } from "../../src/sim/fishing/castSim.js";
@@ -213,5 +215,74 @@ describe("the recommendation carries no fitted constant", () => {
     // is bimodal, so a value between the modes is buying ~0.1pp on the sim
     // that fitted it. See `RECOMMENDED_NECESSITY_THRESHOLDS`' doc comment.
     expect(RECOMMENDED_NECESSITY_THRESHOLDS).toEqual({ relaxing: 1, focus: 1 });
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// [session 68 §1] The float defect the live shadow harness found.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("a CERTAIN outcome that arrives as 0.9999999999999999 is still certain", () => {
+  /**
+   * **Found by running the gate against the live loop, not by reading it.**
+   *
+   * Session 68's shadow harness put a full-template card on a board it covers
+   * entirely, so a hit is certain by construction. `bestKillProbability`
+   * returned `0.9999999999999999` on one turn and exactly `1` on the next —
+   * same card, same certainty, different summation order over the
+   * distribution. Under a bare `>=` the gate FIRED on the first and skipped on
+   * the second, i.e. its behaviour on a certain kill was decided by float
+   * representation.
+   *
+   * This is a correctness pin, not a threshold tune: see `NECESSITY_EPSILON`.
+   */
+  it("meetsThreshold accepts the float that a bare >= rejects", () => {
+    const almost = 0.9999999999999999;
+    // The premise: this really is the value a certain outcome can arrive as,
+    // and a bare comparison really does reject it. If either stops holding the
+    // pin below is testing nothing.
+    expect(almost < 1).toBe(true);
+    expect(meetsThreshold(almost, 1)).toBe(true);
+  });
+
+  it("the conserving gate SKIPS on a certain kill that sums to 0.9999999999999999", () => {
+    // Built by summing mass that cannot be represented exactly, rather than by
+    // writing the literal — the defect is a property of summation, so the test
+    // reproduces the summation.
+    const parts = [0.7, 0.1, 0.1, 0.1];
+    const total = parts.reduce((a, b) => a + b, 0);
+    expect(total).not.toBe(1);
+    expect(meetsThreshold(total, 1)).toBe(true);
+
+    // A fish at exactly the oil's damage fires the lethal trigger, and a card
+    // that kills across the whole distribution makes the oil unnecessary.
+    const cells = [
+      { x: 1, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 1 }, { x: 2, y: 2 },
+    ];
+    const dist = new Map(
+      cells.map((c, i) => [`${c.x},${c.y}`, { cell: c, p: parts[i]! }]),
+    );
+    const s = oilState({
+      fishHp: E.fishDamage,
+      focusRemaining: 0,
+      focusCell: { x: 2, y: 2 },
+      board: board({
+        // A 3x3 template centred at [2,2] covers all four cells above.
+        hand: [card({ hitZones: [1, 2, 3, 4, 5, 6, 7, 8, 9], hitEffects: [{ amount: 9 }] })],
+        dist,
+        gridSize: GRID,
+      }),
+    });
+    expect(onDemandTriggers(s, E)).toContain("relaxing");
+    expect(bestKillProbability(s)).toBeCloseTo(1, 12);
+    expect(conserving.decide(s, E)).not.toContain("relaxing");
+  });
+
+  it("the epsilon cannot rescue the degenerate endpoints — they still degenerate", () => {
+    // `never` must stay never and `always` must stay always; an epsilon big
+    // enough to disturb either would be a tune wearing a fix's clothes.
+    expect(meetsThreshold(0, NEVER_FIRES_THRESHOLD)).toBe(true);
+    expect(meetsThreshold(1, ALWAYS_FIRES_THRESHOLD)).toBe(false);
+    expect(NECESSITY_EPSILON).toBeLessThan(1e-6);
   });
 });

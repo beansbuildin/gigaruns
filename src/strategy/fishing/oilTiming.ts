@@ -450,6 +450,44 @@ export interface OilNecessityThresholds {
 export const RECOMMENDED_NECESSITY_THRESHOLDS: OilNecessityThresholds = { relaxing: 1, focus: 1 };
 
 /**
+ * **[session 68 §1] The comparison is epsilon-tolerant, and this is a
+ * FLOATING-POINT FIX, not a tuned threshold. Read the distinction before
+ * touching it.**
+ *
+ * Both gate inputs are sums of probability mass over a distribution, so a
+ * genuinely certain outcome arrives as `0.9999999999999999` whenever the
+ * summation order happens not to cancel. At the recommended threshold of
+ * exactly `1` a bare `>=` then reads that as "not certain" and FIRES the gate
+ * — the precise decision the policy's own thesis says it must not take.
+ *
+ * This was not hypothetical and was not found by reading. Session 68's live
+ * shadow harness put a full-template card on a 3x3 board, where a hit is
+ * certain by construction, and `bestKillProbability` returned
+ * `0.9999999999999999` on one turn and exactly `1` on the next — same card,
+ * same certainty, different distribution. Without this tolerance the gate's
+ * behaviour on a certain kill depends on float summation order, which is a
+ * coin flip nobody chose.
+ *
+ * **Why it is not a tune.** A tuned threshold moves the decision boundary to
+ * buy score; `1e-9` moves it by less than any probability this model can
+ * meaningfully distinguish, and session 67 measured every threshold from 0.25
+ * to 1 landing on the same plateau — so a shift of 1e-9 cannot change a
+ * ranking. It restores the boundary the constant `1` was always meant to
+ * express. CLAUDE.md's "do not tune the necessity thresholds" is untouched:
+ * `RECOMMENDED_NECESSITY_THRESHOLDS` is still `{1, 1}`.
+ *
+ * The degenerate endpoints still work: `NEVER_FIRES_THRESHOLD` is `0` and no
+ * probability is below `0 - 1e-9`; `ALWAYS_FIRES_THRESHOLD` is `2` and every
+ * probability is below `2 - 1e-9`.
+ */
+export const NECESSITY_EPSILON = 1e-9;
+
+/** `p >= t`, tolerant of float summation error — see `NECESSITY_EPSILON`. */
+export function meetsThreshold(p: number, t: number): boolean {
+  return p >= t - NECESSITY_EPSILON;
+}
+
+/**
  * `on-demand`'s two triggers, each with a necessity condition ANDed onto it.
  *
  * The triggers themselves are UNCHANGED and are deliberately reused from
@@ -473,11 +511,11 @@ export function conservingOil(t: OilNecessityThresholds): OilTimingPolicy {
       for (const kind of wanted) {
         if (kind === "relaxing") {
           if (heldOf(s, "relaxing") <= 0) continue;
-          if (bestKillProbability(d) >= t.relaxing) continue;
+          if (meetsThreshold(bestKillProbability(d), t.relaxing)) continue;
           out.push("relaxing");
         } else {
           if (heldOf(s, "focus") <= 0) continue;
-          if (bestConnectProbabilityFromFrozenCell(d) >= t.focus) continue;
+          if (meetsThreshold(bestConnectProbabilityFromFrozenCell(d), t.focus)) continue;
           out.push("focus");
         }
       }

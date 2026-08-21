@@ -151,6 +151,11 @@ import {
   PAYLOAD_OIL_EFFECTS,
   type OilKind,
 } from "../src/strategy/fishing/oilTiming.js";
+import {
+  evaluateOilShadow,
+  snapshotOilDecision,
+  type OilShadowRecord,
+} from "../src/strategy/fishing/oilShadow.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { supportingCastCount } from "../src/sim/fishing/patternMining.js";
 import {
@@ -1183,6 +1188,19 @@ export interface LiveFishingDeps {
    */
   ringModelEnabled?: boolean;
   /**
+   * [session 68 §1] Evaluate the CONSERVING oil gate in shadow beside every
+   * live oil decision, and log what it would have skipped. **Purely
+   * observational** — see `src/strategy/fishing/oilShadow.ts`. Defaults ON so
+   * live casts accumulate the record; the flag exists so
+   * `tests/fishing/oilShadowInert.test.ts` can run the same cast with it on
+   * and off and require the POST sequence to be byte-identical.
+   *
+   * This is NOT the conserving policy being shipped. `config/bot.json`'s
+   * `dendren.oils.policyApproved` is still false and the live loop still plays
+   * `onDemandTriggers`; nothing below reads a shadow record back.
+   */
+  shadowOil?: boolean;
+  /**
    * [session 45, brief §3] Weight on `cardChoice.ts`'s focus-reserve
    * continuation term — the fix for SPEC-fishing.md §4c's focus-budget
    * exhaustion. See `DEFAULT_FOCUS_RESERVE_WEIGHT` for where the value comes
@@ -1206,6 +1224,16 @@ export interface CastRunResult {
    * what an unflagged policy change does to a rate.
    */
   oilTriggerNoStock: OilTriggerNoStock[];
+  /**
+   * [session 68 §1] What the CONSERVING gate would have done at each of this
+   * cast's oil decisions. **Observational.** Nothing in `runOneCast` reads
+   * this; `main()` only prints a summary of it. It is on the result rather
+   * than only in the log so a batch can report a firing rate without parsing
+   * its own log back — and `tests/fishing/oilShadowInert.test.ts` compares the
+   * two arms' results with this field stripped, because it is the one field
+   * that is SUPPOSED to differ between shadow-on and shadow-off.
+   */
+  oilShadowRecords: OilShadowRecord[];
   /**
    * [session 64 §2b] Oils actually consumed on this cast. Already tracked
    * internally (`oilsUsedThisCast`) for the OIL-POLICY-DRY record; surfaced
@@ -1243,6 +1271,9 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const logsDir = deps.logsDir ?? "logs";
   const ringModelEnabled = deps.ringModelEnabled ?? true;
   const focusReserveWeight = deps.focusReserveWeight ?? DEFAULT_FOCUS_RESERVE_WEIGHT;
+  // [session 68 §1] Shadow defaults ON. It cannot change a decision — see
+  // `oilShadow.ts` and `tests/fishing/oilShadowInert.test.ts`.
+  const shadowOilEnabled = deps.shadowOil ?? true;
   // [session 30] Set when the PRIOR turn's response revealed a non-null
   // `nextPosition` — validated against the NEXT turn's actual position, then
   // cleared. Reset per cast (not carried across a resume): attributing a
@@ -1299,7 +1330,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     log.write({ event: "dry_run_start_run_intended", nodeId: dendren.nodeId, tierId: dendren.tierId });
     console.log(`  [dry-run] would POST start_run (nodeId ${dendren.nodeId}, tierId ${dendren.tierId})`);
     console.log(`  · no active cast — nothing further to decide against, stopping.`);
-    return { outcome: "dry_run", turns: 0, oilTriggerNoStock: [], oilsConsumed: 0 };
+    return { outcome: "dry_run", turns: 0, oilTriggerNoStock: [], oilsConsumed: 0, oilShadowRecords: [] };
   } else {
     guards.assertCanStartRun(dendren.energyCostPerCast);
     const body = buildFishingEnvelope("start_run", client.getFishingActionToken(), {
@@ -1496,6 +1527,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const oilUseFailedThisCast: Record<OilKind, boolean> = { relaxing: false, focus: false };
   // [session 62 §1b] The third cast state, accumulated across the cast.
   const oilTriggerNoStock: OilTriggerNoStock[] = [];
+  // [session 68 §1] Shadow records, one per turn a shadow evaluation ran.
+  // Write-only from the loop's point of view — nothing in `runOneCast` reads
+  // this back, which is half of what makes the shadow inert.
+  const oilShadowRecords: OilShadowRecord[] = [];
   // [session 61 §4c] Consumables spent this cast, for `mayConsumeOil`'s
   // per-cast budget, and the itemIds spent, for the per-turn record. The
   // board state's own `consumablesUsed` counts them too and is what
@@ -1510,7 +1545,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     if (deps.shutdownSignal?.requested) {
       log.write({ event: "shutdown_requested", turn });
       console.log(`  ▸ SIGINT — stopping before the next card (turn boundary), cast left in progress at turn ${turn}.`);
-      return { outcome: "shutdown", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast };
+      return { outcome: "shutdown", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords };
     }
 
     // ---- [session 62 §1] THE OIL DECISION -----------------------------------
@@ -1545,6 +1580,38 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // assumption under OIL-POLICY.md's +19.40pp, carried as an explicit
     // assumption since session 61, and the account owner has now confirmed it
     // directly. The sim modelled it as free and was right to.
+    // [session 68 §1] THE SHADOW SNAPSHOT, taken BEFORE the live oil block so
+    // it records the state the live decision was actually taken on — an oil
+    // consumed below replaces `doc`, and the pre-consume state is the one the
+    // gate must be asked about.
+    //
+    // It is evaluated LATER in this same turn, once `dist` exists: the
+    // necessity gate needs the fish-position distribution and the card policy
+    // has not built one yet at this point in the loop. Deferring is correct
+    // rather than merely convenient, because `use_fishing_item` leaves
+    // `fishPosition`, `previousFishPosition`, `lastMovePath`, `hand`,
+    // `discard` and `nextCardIndex` byte-identical (measured session 64, cast
+    // 13019015) — so the distribution computed after the consume is the same
+    // distribution that applied before it. Everything the oil DOES change
+    // (`fishHp`, `focusMeter`) is carried in this snapshot, not re-read.
+    const oilShadowPending = shadowOilEnabled
+      ? {
+          docAtDecision: doc,
+          scalars: {
+            turn,
+            fishHp: doc.data.fishHp,
+            fishMaxHp: doc.data.fishMaxHp,
+            mana: doc.data.playerHp,
+            focusRemaining: doc.data.focusMeter,
+            focusMax: doc.data.focusMeterMax,
+            focusCell: { x: doc.data.focusPoint[0] ?? 1, y: doc.data.focusPoint[1] ?? 1 },
+            focusOilHeld: oilHeld.focus,
+            relaxingOilHeld: oilHeld.relaxing,
+          },
+          held: { focus: oilHeld.focus, relaxing: oilHeld.relaxing },
+        }
+      : null;
+
     const oilWanted = onDemandTriggers(
       {
         turn,
@@ -1806,6 +1873,48 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       ? mixDistributions(certainDistribution(pendingPrediction!.cell), ringDist ?? rawDist, NEXT_POSITION_OVERRIDE_WEIGHT)
       : rawDist;
 
+    // ---- [session 68 §1] THE SHADOW EVALUATION -----------------------------
+    //
+    // The conserving gate is asked what it WOULD have done at this turn's oil
+    // decision. Nothing below this block reads `shadowRecord`, and nothing
+    // above it can: the snapshot is a frozen deep copy (`snapshotOilDecision`)
+    // built from the pre-oil doc, `evaluateOilShadow` cannot throw, and the
+    // record goes to the log and to a result field `main()` only prints.
+    //
+    // `dist` is BORROWED from the card policy rather than recomputed — see the
+    // snapshot's comment for why that is the same distribution — and is not
+    // modified here. `buildHand(docAtDecision)` is a pure read of the pre-oil
+    // doc, so the hand is the one the decision faced even if an oil landed.
+    if (oilShadowPending) {
+      const shadowRecord = evaluateOilShadow(
+        snapshotOilDecision(oilShadowPending.scalars, {
+          hand: buildHand(oilShadowPending.docAtDecision),
+          dist,
+          gridSize,
+        }),
+        PAYLOAD_OIL_EFFECTS,
+        oilShadowPending.held,
+      );
+      oilShadowRecords.push(shadowRecord);
+      log.write({ event: "oil_shadow", ...shadowRecord });
+      if (shadowRecord.error) {
+        console.log(`  · oil shadow THREW (recorded, cast unaffected): ${shadowRecord.error}`);
+      } else if (shadowRecord.sanity.length > 0) {
+        console.log(`  ★★★ oil shadow SANITY VIOLATION on turn ${turn}: ${shadowRecord.sanity.join(", ")}`);
+      } else if (shadowRecord.liveWanted.length > 0) {
+        const p =
+          shadowRecord.bestKillProbability !== null
+            ? `bestKill ${shadowRecord.bestKillProbability.toFixed(3)}`
+            : `bestConnect ${(shadowRecord.bestConnectProbability ?? 0).toFixed(3)}`;
+        console.log(
+          `  · shadow(${shadowRecord.shadowPolicy}) on turn ${turn}: on-demand wanted ` +
+            `[${shadowRecord.liveWanted.join(",")}], shadow would take [${shadowRecord.shadowWanted.join(",") || "none"}]` +
+            `${shadowRecord.wouldSkip.length > 0 ? ` — WOULD SKIP ${shadowRecord.wouldSkip.join(",")}` : ""} (${p}). ` +
+            `Observational only; the live decision above already stands.`,
+        );
+      }
+    }
+
     // [session 46, brief §1b] The paired baseline, computed on this same
     // turn but NEVER consumed by the policy — it exists only to be scored
     // against the live distribution above. This is deliberately the plain
@@ -1880,7 +1989,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
 
     if (dryRun) {
       console.log(`  [dry-run] would POST play_cards`);
-      return { outcome: "dry_run", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast };
+      return { outcome: "dry_run", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords };
     }
 
     const body = buildFishingEnvelope("play_cards", client.getFishingActionToken(), {
@@ -2132,7 +2241,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     );
   }
 
-  return { outcome, turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast };
+  return { outcome, turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords };
 }
 
 // ---------------------------------------------------------------------------
