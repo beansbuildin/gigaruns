@@ -69,13 +69,23 @@ describe("cast-trace corpus reconciliation", () => {
     // incomplete cast: the four new OIL casts all stayed clean, which is the
     // ITEM_MESSAGE skip doing its job across a much bigger oil sample than the
     // single cast it was built on.
-    expect(traces.length).toBe(109);
-    expect(clean.length).toBe(108);
-    // 466 play turns across the clean traces — the same 466 as
-    // auditStepClass.ts's off-ring denominator and auditStateFields.ts's, and
-    // the same 22 catches as the all-time 22/109.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(466);
-    expect(traces.filter((t) => t.caught).length).toBe(22);
+    // [session 68] 109 -> 114 across the five-cast batch; clean still trails
+    // traces by exactly ONE, the same long-standing incomplete cast.
+    expect(traces.length).toBe(114);
+    expect(clean.length).toBe(113);
+    // 480 play turns across the clean traces.
+    //
+    // [session 68] **The catch count now RECONCILES with the corpus view, and
+    // did not before.** It read 22 here against the corpus's 23, and the
+    // one-cast difference was accepted as the known incomplete cast. That was
+    // a coincidence: `castTrace` dropped `use_fishing_item` responses before
+    // reading their events, so a fish killed by a lethal Relaxing Oil was
+    // never marked caught in a trace. The five-cast batch made the gap 23 vs
+    // 26 and thereby visible. With the ITEM_MESSAGE branch fixed both views
+    // say 26 — the reconciliation is the evidence, which is why it is asserted
+    // against the corpus figure rather than against a literal.
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(480);
+    expect(traces.filter((t) => t.caught).length).toBe(26);
   });
 
   /**

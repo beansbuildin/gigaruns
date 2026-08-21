@@ -1122,6 +1122,81 @@ function checkPossibleDualYield(raw: unknown, log: RunLog, turn: number, source:
   console.log(`  ★★★ full response dumped to ${path} — QUESTIONS.md, needs a human look before treating this as confirmed.`);
 }
 
+
+/**
+ * **[session 68 §2] Resolve a caught cast's pending `cardsToAdd` offer.**
+ *
+ * QUESTIONS.md §10 (CONFIRMED, session 17): a catch leaves three new-card
+ * offers unresolved until `loot` picks one by real card id, and until then the
+ * account rejects every future `start_run` with *"Player is already in a
+ * game"*. That stuck state blocked all of session 15/16's further fishing.
+ *
+ * ## Why this is a shared function and not the inline block it used to be
+ *
+ * **LIVE-FOUND, 2026-08-21, and it cost a second cast on top of the first.**
+ * The resolution used to live on `runOneCast`'s NORMAL exit path only, with a
+ * comment saying it meant "the bot's OWN catches never leave the account stuck
+ * for a human to notice". That was true only of casts that reach the end.
+ *
+ * Session 68's cast 13022748 caught the fish with a lethal Relaxing Oil and
+ * then tripped a guard on the very next action (see the `COMPLETE_CID` check
+ * in the oil loop). The GuardTrip unwound `runOneCast` before this block, so
+ * the catch was never resolved and the NEXT invocation died on
+ * *"Player is already in a game"* — a self-inflicted stuck account, which is
+ * the exact outcome the original comment claimed was impossible.
+ *
+ * So it is called from TWO places: the normal end of a cast, and — the new
+ * one — just before `start_run`, where a terminal successful doc with an
+ * unresolved offer is exactly the state to clear rather than to fail on.
+ * Calling it at start makes recovery automatic for EVERY abort path, not only
+ * for the one that was found.
+ *
+ * A no-op unless there is really something pending, so it is safe to call
+ * unconditionally.
+ */
+async function resolvePendingCardOffer(
+  doc: FishingGameDoc,
+  ctx: {
+    client: GigaverseClient;
+    guards: GuardState;
+    log: RunLog;
+    fixtures: FixtureWriter;
+    logsDir: string;
+    dryRun: boolean;
+    turn: number;
+    where: string;
+  },
+): Promise<boolean> {
+  if (!doc.SUCCESS_CID || !doc.data.cardsToAdd || doc.data.cardsToAdd.length === 0 || doc.data.cardChosenId != null) {
+    return false;
+  }
+  const chosen = chooseNewCard(doc.data.cardsToAdd);
+  console.log(
+    `  ★ caught! resolving cardsToAdd offer (${doc.data.cardsToAdd.map((c) => c.id).join(", ")}) -> chose id ${chosen.id}` +
+      `${ctx.where === "cast end" ? "" : ` [${ctx.where}]`}`,
+  );
+  const lootBody = buildFishingEnvelope("loot", ctx.client.getFishingActionToken(), { cards: [chosen.id] });
+  ctx.log.write({ event: "post", body: lootBody, where: ctx.where });
+  if (ctx.dryRun) return false;
+  try {
+    const lootResp = await ctx.client.postFishingAction(lootBody);
+    ctx.guards.recordActionResult(true);
+    ctx.log.write({ event: "post_response", resp: lootResp });
+    ctx.fixtures.write(lootResp);
+    checkPossibleDualYield(lootResp, ctx.log, ctx.turn, "loot", ctx.logsDir);
+    const resolvedDeck = lootResp.data.doc.data.fullDeck.length;
+    console.log(`  ✓ loot sent — fullDeck now ${resolvedDeck} card(s), cardChosenId ${lootResp.data.doc.data.cardChosenId ?? "still null?"}`);
+    return true;
+  } catch (e) {
+    if (e instanceof TokenExpiredError) throw e;
+    ctx.guards.recordActionResult(false);
+    const lootDetail = serverErrorDetail(e);
+    ctx.log.write({ event: "action_failed", reason: "loot rejected", error: lootDetail.message, body: lootDetail.body });
+    console.log(`  ✗ loot rejected — account may be left in the stuck-until-resolved state; see QUESTIONS.md §10.`);
+    throw new GuardTrip("fishing loot rejected", { error: lootDetail.message });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The live cast loop.
 // ---------------------------------------------------------------------------
@@ -1318,6 +1393,23 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       console.log(`      A terminal doc is present. This does NOT by itself predict a start_run rejection —`);
       console.log(`      if start_run does fail below, read the 400's BODY, which is logged (session 46).`);
       console.log(`      QUESTIONS.md §10's stuck shape is the CATCH one (pending cardsToAdd), resolved by \`loot\`.`);
+    }
+  }
+
+  // [session 68 §2] **Clear a stuck account before trying to start.** A
+  // terminal SUCCESSFUL doc with an unresolved `cardsToAdd` offer is precisely
+  // the state that makes `start_run` fail with "Player is already in a game",
+  // and it is resolvable rather than fatal. Doing it HERE — not only at the
+  // end of a cast — is what makes recovery automatic after ANY abort path,
+  // including a guard trip taken between the catch and the resolution. See
+  // `resolvePendingCardOffer`.
+  if (existing.gameState && existing.gameState.COMPLETE_CID) {
+    const cleared = await resolvePendingCardOffer(existing.gameState, {
+      client, guards, log, fixtures, logsDir, dryRun, turn: 0, where: "pre-start recovery",
+    });
+    if (cleared) {
+      console.log(`  · account was left stuck by an earlier cast's catch — offer resolved, starting normally.`);
+      log.write({ event: "pre_start_stuck_recovered", docId: existing.gameState.docId });
     }
   }
 
@@ -2216,30 +2308,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // already in a game"), the exact stuck state that blocked all of session
   // 15/16's further fishing. Resolving it immediately here means the bot's
   // OWN catches never leave the account stuck for a human to notice.
-  if (doc.SUCCESS_CID && doc.data.cardsToAdd && doc.data.cardsToAdd.length > 0 && doc.data.cardChosenId == null) {
-    const chosen = chooseNewCard(doc.data.cardsToAdd);
-    console.log(`  ★ caught! resolving cardsToAdd offer (${doc.data.cardsToAdd.map((c) => c.id).join(", ")}) -> chose id ${chosen.id}`);
-    const lootBody = buildFishingEnvelope("loot", client.getFishingActionToken(), { cards: [chosen.id] });
-    log.write({ event: "post", body: lootBody });
-    if (!dryRun) {
-      try {
-        const lootResp = await client.postFishingAction(lootBody);
-        guards.recordActionResult(true);
-        log.write({ event: "post_response", resp: lootResp });
-        fixtures.write(lootResp);
-        checkPossibleDualYield(lootResp, log, turn, "loot", logsDir);
-        const resolvedDeck = lootResp.data.doc.data.fullDeck.length;
-        console.log(`  ✓ loot sent — fullDeck now ${resolvedDeck} card(s), cardChosenId ${lootResp.data.doc.data.cardChosenId ?? "still null?"}`);
-      } catch (e) {
-        if (e instanceof TokenExpiredError) throw e;
-        guards.recordActionResult(false);
-        const lootDetail = serverErrorDetail(e);
-        log.write({ event: "action_failed", reason: "loot rejected", error: lootDetail.message, body: lootDetail.body });
-        console.log(`  ✗ loot rejected — account may be left in the stuck-until-resolved state; see QUESTIONS.md §10.`);
-        throw new GuardTrip("fishing loot rejected", { error: lootDetail.message });
-      }
-    }
-  }
+  await resolvePendingCardOffer(doc, { client, guards, log, fixtures, logsDir, dryRun, turn, where: "cast end" });
 
   // [session 62 §1b] Record the THIRD state, if this cast hit it. Written only
   // when a trigger actually fired dry — an empty file is the normal state and

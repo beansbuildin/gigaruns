@@ -6,10 +6,19 @@
  * values from a standard table rather than trusted.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { chiSquareUpperTail, reversalDispersion } from "../../scripts/reversalDispersion.js";
 import { loadTransitionRecords } from "../../src/sim/fishing/transitionCorpus.js";
+import { existsSync } from "node:fs";
+import { announceMissingAuthorData, probeAuthorData } from "../helpers/authorData.js";
+
+const CORPUS = join("data", "fish-patterns.jsonl");
+const corpusProbe = probeAuthorData(CORPUS, () => {
+  if (!existsSync(CORPUS)) throw new Error("absent (not shipped — it is the author's mined corpus)");
+  if (loadTransitionRecords(CORPUS).length === 0) throw new Error("present but empty");
+});
+announceMissingAuthorData("tests/fishing/reversalDispersion.test.ts", corpusProbe);
 import { join } from "node:path";
 
 describe("chiSquareUpperTail", () => {
@@ -34,9 +43,22 @@ describe("chiSquareUpperTail", () => {
   });
 });
 
-describe("reversalDispersion on the committed corpus", () => {
+/**
+ * **[session 68 §3] AUTHOR DATA.** `data/fish-patterns.jsonl` is the author's
+ * mined movement corpus and is correctly not shipped. `chiSquareUpperTail`
+ * above is program logic and always runs; this block is a finding ABOUT the
+ * corpus and can only mean something when the corpus is there.
+ *
+ * The load moved out of the describe body for the reason §3a gives: a describe
+ * body runs at COLLECTION, so a throw there deletes the tests rather than
+ * skipping them.
+ */
+describe.skipIf(!corpusProbe.ok)("reversalDispersion on the committed corpus", () => {
   // READ-only against `data/fish-patterns.jsonl`; nothing is written.
-  const r = reversalDispersion(loadTransitionRecords(join("data", "fish-patterns.jsonl")));
+  let r: ReturnType<typeof reversalDispersion>;
+  beforeAll(() => {
+    r = reversalDispersion(loadTransitionRecords(CORPUS));
+  });
 
   it("is internally consistent", () => {
     expect(r.pairs).toBeGreaterThan(0);

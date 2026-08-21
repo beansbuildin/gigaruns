@@ -228,6 +228,8 @@ function numberArray(v: unknown): number[] | null {
 export function loadCastTraces(root: string = join("fixtures", "fishing-casts")): CastTrace[] {
   const files = walkStateFiles(root).sort();
   const byDoc = new Map<string, { docId: string; entries: { file: string; body: Record<string, unknown> }[] }>();
+  /** [session 68] Terminal events that arrive on a `use_fishing_item` response — see the ITEM_MESSAGE branch. */
+  const terminalFromItems = new Map<string, { caught: boolean; escaped: boolean }>();
 
   for (const file of files) {
     let parsed: unknown;
@@ -241,7 +243,34 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
     if (typeof docId !== "string") continue;
     if (!body.data?.doc?.data) continue;
     if (body.message === LOOT_MESSAGE) continue; // repeats the final state verbatim
-    if (body.message === ITEM_MESSAGE) continue; // not a turn — repeats the previous turn's move fields; see ITEM_MESSAGE
+    if (body.message === ITEM_MESSAGE) {
+      // ---- [session 68 §2] AN ITEM RESPONSE IS NOT A TURN, BUT IT CAN END
+      //      THE CAST -------------------------------------------------------
+      //
+      // This was a bare `continue`, which dropped the response before its
+      // EVENTS were ever read. That was correct for everything the skip was
+      // built for — the item response repeats the previous turn's move fields
+      // and must not become a turn — and silently wrong for one thing: a
+      // lethal Mid Relaxing Oil kills the fish, so `FISH_DIED` arrives on an
+      // item response and nowhere else.
+      //
+      // Consequence, measured: `loadCastTraces()` reported 23 catches where
+      // the corpus reported 26. **Every fish killed by an oil was invisible to
+      // every trace-based statistic**, and the lethal trigger is the shipped
+      // policy, so the undercount was going to grow with each batch. Same root
+      // as the `CRIT_HIT` miss above: a rule derived from how casts used to
+      // end, dated by a new way for them to end.
+      //
+      // The terminal flag is taken; the turn is still not.
+      const evs = (body as { data?: { events?: { type?: string }[] } }).data?.events ?? [];
+      if (evs.some((e) => e.type === "FISH_DIED") || evs.some((e) => e.type === "FISH_ESCAPED")) {
+        const t = terminalFromItems.get(docId) ?? { caught: false, escaped: false };
+        if (evs.some((e) => e.type === "FISH_DIED")) t.caught = true;
+        if (evs.some((e) => e.type === "FISH_ESCAPED")) t.escaped = true;
+        terminalFromItems.set(docId, t);
+      }
+      continue;
+    }
     const bucket = byDoc.get(docId) ?? { docId, entries: [] };
     bucket.entries.push({ file, body: body as Record<string, unknown> });
     byDoc.set(docId, bucket);
@@ -280,7 +309,18 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
         cardPlayed && typeof cardPlayed.value === "number"
           ? {
               handIndex: cardPlayed.value,
-              hit: events.some((e) => e.type === "HIT"),
+              // [session 68 §2] **`CRIT_HIT` IS A HIT.** This read
+              // `e.type === "HIT"` alone, so the server's crit event was
+              // scored as a MISS by every offline audit built on this trace.
+              // It went unnoticed for as long as it did because `CRIT_HIT` had
+              // never appeared: 1 occurrence in 484 recorded card plays across
+              // 114 casts, and it arrived in session 68's own batch.
+              //
+              // The live path is unaffected and always was — `liveFishing.ts`
+              // derives its `realizedHit` from `newDoc.data.fishHp < fishHp`,
+              // an HP-delta test that counts a crit correctly. So
+              // `data/ringPrediction.jsonl` and §19's verdict never saw this.
+              hit: events.some((e) => e.type === "HIT" || e.type === "CRIT_HIT"),
               fishHpDiff: typeof hpDiff?.value === "number" ? hpDiff.value : 0,
             }
           : null;
@@ -319,7 +359,17 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
 
     if (bad || turns.length === 0) continue;
     const hasStart = (entries[0]!.body as { message?: string }).message === START_MESSAGE && turns[0]!.play === null;
-    traces.push({ docId, cards, turns, caught, escaped, hasStart, continuous });
+    // [session 68] Fold in a terminal event that arrived on an item response.
+    const fromItem = terminalFromItems.get(docId);
+    traces.push({
+      docId,
+      cards,
+      turns,
+      caught: caught || (fromItem?.caught ?? false),
+      escaped: escaped || (fromItem?.escaped ?? false),
+      hasStart,
+      continuous,
+    });
   }
 
   return traces;

@@ -10,6 +10,8 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import { announceMissingAuthorData, probeAuthorData } from "../helpers/authorData.js";
 
 import {
   buildMatcherWeightReport,
@@ -23,6 +25,21 @@ import {
 import { parseReportArgs, selectBatch } from "../../scripts/matcherWeightReport.js";
 import { loadRingPredictions } from "../../scripts/liveFishing.js";
 import type { RingPredictionRecord } from "../../scripts/liveFishing.js";
+
+/**
+ * **[session 68 §3] AUTHOR DATA, for the end-to-end block ONLY.**
+ *
+ * The §19 rule is program logic and is pinned synthetically below, so it ships
+ * and runs with the code it guards on any clone. What needs the author's
+ * `data/ringPrediction.jsonl` is the separate claim that the rule, applied to
+ * ~60 sessions of accumulated live predictions, still returns a powered KEEP —
+ * a fact about the corpus, not about the rule.
+ */
+const corpusProbe = probeAuthorData("data/ringPrediction.jsonl", () => {
+  if (!existsSync("data/ringPrediction.jsonl")) throw new Error("absent (not shipped — it is the author's own predictions)");
+  if (loadRingPredictions().length === 0) throw new Error("present but empty");
+});
+announceMissingAuthorData("tests/fishing/matcherVerdict.test.ts", corpusProbe);
 
 const row = (o: Partial<MatcherWeightRow> & { castId: string; turn: number }): MatcherWeightRow => ({
   tier: "matcher_ring",
@@ -193,7 +210,59 @@ describe("batch selection", () => {
   });
 });
 
-describe("against the real corpus — end to end, so the only untested thing on the day is the data", () => {
+// ───────────────────────────────────────────────────────────────────────────
+// [session 68 §3] §19's CLOSED verdict, pinned on SYNTHETIC rows.
+//
+// The brief's rule: program logic ships with synthetic fixtures and always
+// runs. §19 is closed and load-bearing, so the shape of the verdict that
+// closed it must not stop being guarded on a machine that lacks the author's
+// accumulated predictions — which was the case before this block existed, when
+// the only powered-KEEP assertion in the repo read `data/ringPrediction.jsonl`.
+//
+// This asserts the RULE reaches a powered KEEP on rows that have §19's closing
+// shape. The corpus block below asserts the author's real rows still HAVE that
+// shape. Two different claims; only the second needs the data.
+// ───────────────────────────────────────────────────────────────────────────
+describe("§19's closing verdict is a property of the RULE, pinned without the author's corpus", () => {
+  it("reaches a POWERED KEEP on synthetic rows with the closing shape", () => {
+    // Enough instrumented turns to pass the power gate, with a crossing cast
+    // that also hits above the batch base rate — the two conditions session 65
+    // met live. Built from the constants, never from the literal 35.
+    const rows: MatcherWeightRow[] = [];
+    for (let i = 0; i < MIN_INSTRUMENTED_TURNS; i++) {
+      // Below-threshold, mostly missing: these set a low base rate.
+      rows.push(row({ castId: `base-${i}`, turn: i, matcherWeight: 0.1, hit: i % 5 === 0 }));
+    }
+    // The crossing cast: pi above the decision threshold AND it hits.
+    rows.push(row({ castId: "crossing", turn: 0, matcherWeight: PI_DECISION_THRESHOLD + 0.1, hit: true }));
+
+    const report = buildMatcherWeightReport(rows);
+    expect(report.activeTurns).toBeGreaterThanOrEqual(MIN_INSTRUMENTED_TURNS);
+    expect(report.crossingCastIds).toContain("crossing");
+    expect(report.verdict).toBe("KEEP");
+    expect(report.verdictIsPowered).toBe(true);
+    expect(report.turnsRemaining).toBe(0);
+    expect(report.rationale).not.toMatch(/UNPOWERED/);
+  });
+
+  it("the same rows one turn short of the minimum are KEEP but UNPOWERED — so the power gate is real", () => {
+    // Without this, the test above would pass for a rule that ignores
+    // MIN_INSTRUMENTED_TURNS entirely.
+    const rows: MatcherWeightRow[] = [];
+    for (let i = 0; i < MIN_INSTRUMENTED_TURNS - 2; i++) {
+      rows.push(row({ castId: `base-${i}`, turn: i, matcherWeight: 0.1, hit: i % 5 === 0 }));
+    }
+    rows.push(row({ castId: "crossing", turn: 0, matcherWeight: PI_DECISION_THRESHOLD + 0.1, hit: true }));
+
+    const report = buildMatcherWeightReport(rows);
+    expect(report.activeTurns).toBeLessThan(MIN_INSTRUMENTED_TURNS);
+    expect(report.verdict).toBe("KEEP");
+    expect(report.verdictIsPowered).toBe(false);
+    expect(report.turnsRemaining).toBeGreaterThan(0);
+  });
+});
+
+describe.skipIf(!corpusProbe.ok)("against the real corpus — end to end, so the only untested thing on the day is the data", () => {
   it("§19 has CROSSED: the matcher exceeded the decision threshold, so the verdict is KEEP while the payoff half stays unpowered", () => {
     // ── [session 64] THE RULE FIRING, WHICH IS THE RULE WORKING ─────────────
     //

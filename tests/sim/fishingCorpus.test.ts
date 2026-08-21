@@ -66,11 +66,14 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // one of those consumed THREE, so `responseDocs` outruns `playTurns` by
     // more than usual here — `use_fishing_item` responses are docs and are not
     // turns (castTrace's ITEM_MESSAGE).
-    expect(summary.casts).toBe(109);
-    expect(summary.responseDocs).toBe(606);
-    expect(summary.playTurns).toBe(470);
-    expect(summary.caught).toBe(23);
-    expect(summary.escaped).toBe(85);
+    // [session 68] Five-cast batch: 109 -> 114, +25 responseDocs, +14
+    // playTurns, +3 caught, +2 escaped, `incomplete` unchanged at 1. Three of
+    // the five consumed an oil; two of those three were killed BY the oil.
+    expect(summary.casts).toBe(114);
+    expect(summary.responseDocs).toBe(631);
+    expect(summary.playTurns).toBe(484);
+    expect(summary.caught).toBe(26);
+    expect(summary.escaped).toBe(87);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -327,8 +330,13 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
     // slots marked used, and the used slots are a PREFIX — the cursor never
     // skips a free slot or reuses a spent one.
     const oilCasts = corpus.filter((c) => c.oilEra).sort((a, b) => a.docId.localeCompare(b.docId));
+    // [session 68] +3 from the five-cast batch. Note `13022748` records ONE
+    // consumable, not two: its second `use_fishing_item` was rejected HTTP 400
+    // and the server counted nothing — which is the corpus confirming that the
+    // rejected consume really was rejected rather than half-applied.
     expect(oilCasts.map((c) => c.docId)).toEqual([
       "12975152", "13019015", "13019665", "13019677", "13019682",
+      "13022748", "13022874", "13022876",
     ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

@@ -15,7 +15,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { announceMissingAuthorData, probeAuthorData } from "../helpers/authorData.js";
 
 import {
   ADDRESS_PLACEHOLDER,
@@ -74,8 +75,46 @@ describe("redactNoobToken", () => {
   });
 });
 
+/**
+ * **[session 68 §3] The split this file needed.**
+ *
+ * The brief's reading was right: this was two kinds of test wearing one hat.
+ * `redactNoobToken` and `redactProse` are PROGRAM LOGIC, they run on synthetic
+ * input, and they always run — a stranger's clone must keep guarding the
+ * redaction rules, because those rules are the code they were given.
+ *
+ * The two CORPUS SWEEPS below are different: they assert that the author's own
+ * tracked files have actually had the rule applied. That is a fact about this
+ * repository's contents, it cannot be reconstructed from a clean export, and
+ * it gets a loud skip rather than a loosened assertion.
+ *
+ * Two separate probes on purpose — they can fail independently, and folding
+ * them into one would skip a check that was perfectly runnable.
+ */
+const trackedJsonProbe = probeAuthorData("git-tracked JSON corpus", () => {
+  const { execSync } = require("node:child_process") as typeof import("node:child_process");
+  const out = execSync("git ls-files -z", { maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] })
+    .toString("utf8")
+    .split("\0")
+    .filter((f) => f.endsWith(".json") || f.endsWith(".jsonl"));
+  if (out.length === 0) throw new Error("no tracked .json/.jsonl files (not a git checkout of this repo?)");
+});
+announceMissingAuthorData("tests/api/redact.test.ts (tracked JSON sweep)", trackedJsonProbe);
+
+/** The three handoff documents session 55 backfilled. `handoff/` does not ship. */
+const HANDOFF_DOCS = [
+  "handoff/log/session-02.md",
+  "handoff/log/session-07.md",
+  "handoff/scratch-session-02.md",
+];
+const handoffProbe = probeAuthorData("handoff/ prose documents", () => {
+  const missing = HANDOFF_DOCS.filter((f) => !existsSync(f));
+  if (missing.length > 0) throw new Error(`${missing.length} of ${HANDOFF_DOCS.length} absent (first: ${missing[0]})`);
+});
+announceMissingAuthorData("tests/api/redact.test.ts (handoff prose sweep)", handoffProbe);
+
 describe("the tracked corpus is actually redacted", () => {
-  it("no tracked file carries a raw NOOB_TOKEN_CID or an unredacted entity docId", async () => {
+  it.skipIf(!trackedJsonProbe.ok)("no tracked file carries a raw NOOB_TOKEN_CID or an unredacted entity docId", async () => {
     // The rule is only worth anything if it has been APPLIED. This asserts the
     // backfill, not just the function.
     const { execSync } = await import("node:child_process");
@@ -138,15 +177,11 @@ describe("redactProse — [session 55] handoff documents, not JSON", () => {
     expect(redactProse(once)).toBe(once);
   });
 
-  it("the three tracked handoff documents are redacted — the corpus-level assertion, not just the function's", () => {
+  it.skipIf(!handoffProbe.ok)("the three tracked handoff documents are redacted — the corpus-level assertion, not just the function's", () => {
     // Same shape as the fixture-corpus test above: asserting the FILES are
     // clean, not merely that the function can clean them. A future edit that
     // re-introduces an identifier fails here.
-    for (const file of [
-      "handoff/log/session-02.md",
-      "handoff/log/session-07.md",
-      "handoff/scratch-session-02.md",
-    ]) {
+    for (const file of HANDOFF_DOCS) {
       const text = readFileSync(file, "utf8");
       expect(redactProse(text), `${file} is not prose-redacted`).toBe(text);
     }

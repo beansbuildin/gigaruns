@@ -49,14 +49,50 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // are VISIBLY excluded rather than silently averaged in. 464/464 agree with
     // regen 0 — every consumable transition accounted for and none of them
     // quietly counted as card play.
-    expect(r.oilSkipped).toBe(5);
+    expect(r.oilSkipped).toBe(6); // [session 68] 5 -> 6: one Focus Oil consumed in the five-cast batch.
   });
 
-  it("fishHp moves by exactly the played card's FISH_HP effect, exceptionless", () => {
+  /**
+   * **[session 68 §2] NO LONGER EXCEPTIONLESS. One documented exception, and
+   * it is a real refutation, not a bookkeeping artefact.**
+   *
+   * Live, 2026-08-21, cast 13022874 turn 4: the server emitted a **`CRIT_HIT`
+   * on a card with `critZones: []` AND `critEffects: []`** (card 76, hit
+   * amount 3) and took the fish from 5 HP to 0 — a delta of 5 where the card's
+   * only damage effect says 3.
+   *
+   * Two separate things were wrong and only ONE of them was a bug:
+   *
+   *   - `castTrace.ts` scored `CRIT_HIT` as a MISS, because it matched only
+   *     `type === "HIT"`. Fixed there. That fix alone made the ZONE_OFFSET
+   *     audit exceptionless again — the geometry was never in question.
+   *   - The damage itself is genuinely unexplained. With the hit correctly
+   *     classified the prediction is still Δ3 and the observation is still Δ5.
+   *
+   * **The SOURCE is now known and the DAMAGE RULE is not.** *User-stated,
+   * 2026-08-21:* a **"Steady Lure" is equipped, giving a 3% chance of a
+   * critical hit.* That explains a crit owing nothing to `critZones` — it did
+   * not come from the card — and means `cardChoice.ts`'s crit model covers
+   * only one of the two crit sources in play.
+   *
+   * **n = 1**, so the damage rule stays open: `hit + 2`, a flat 5, or "lethal,
+   * and the server reports the fish's remaining HP" (also exactly 5) all fit.
+   * **Do not pick one.** Nor should the 1-in-484 corpus rate be read against
+   * the lure's 3%: the corpus spans ~60 sessions and the lure's equip date is
+   * unknown, so most of those plays predate it. SPEC-fishing carries both.
+   *
+   * This is pinned as an EXACT expected list rather than relaxed to a count or
+   * a `toBeLessThan`, so a SECOND, different exception fails loudly instead of
+   * being absorbed into a tolerance. If that happens there will be n=2 and the
+   * mechanism may become separable — which is the point.
+   */
+  const KNOWN_CRIT_ANOMALY = "13022874 t4: card 76 hit=true crit=false predicted Δ-3, actual Δ-5 (5->0/19)";
+
+  it("fishHp moves by exactly the played card's FISH_HP effect — one documented exception", () => {
     const r = auditFishHp(traces);
     expect(r.scored).toBeGreaterThanOrEqual(308);
-    expect(r.violations).toEqual([]);
-    expect(r.agree).toBe(r.scored);
+    expect(r.violations).toEqual([KNOWN_CRIT_ANOMALY]);
+    expect(r.agree).toBe(r.scored - 1);
   });
 
   it("identifies crits by critZone geometry — and that test discriminates the zone table", () => {
@@ -67,7 +103,9 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // inequality is asserted, not just the pass.
     const corrected = auditFishHp(traces, correctedZoneOffset);
     const transposed = auditFishHp(traces, transposedZoneOffset);
-    expect(corrected.agree).toBe(corrected.scored);
+    // Same single exception as above — it is not a crit BY GEOMETRY (the card
+    // has no `critZones` at all), which is exactly what makes it interesting.
+    expect(corrected.agree).toBe(corrected.scored - 1);
     // [session 50] 8 → 10 across this session's live batch, every one again
     // exactly `critEffects` at a cell inside the card's TRANSLATED
     // `critZones`. The discrimination is now 391/391 with 10 crits for the

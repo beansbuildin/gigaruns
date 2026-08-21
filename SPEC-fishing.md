@@ -236,6 +236,52 @@ carries a complete, structured effect table for every oil, `triggerType:
 | **restore `focusMeter`** | `FishingRestoreFocus` | 1 / 2 / 3 |
 | boost Dual Yield chance | `FishingDualYieldBoost` | 20 (Lil) / 40 (Mid) / 60 (Big), no Big listed as of this capture |
 
+### CRIT_HIT — a card-independent crit source [session 68, LIVE, n=1]
+
+**The server can emit `CRIT_HIT` on a card that has no `critZones` and no
+`critEffects`, and the damage is not the card's `hitEffects` amount.**
+
+*Observed once, 2026-08-21, cast `13022874` turn 4.* Card 76
+(`hitZones [1,2,3,4,6,7,8,9]`, `critZones []`, `critEffects []`,
+`hitEffects [{FISH_HP, 3}]`) played at focus `(3,4)` against a fish at `(2,4)`:
+
+```
+{"type":"CARD_PLAYED","value":0,"data":{"result":1}}
+{"type":"CRIT_HIT",   "value":5,"data":{"result":5}}
+{"type":"FISH_HP_DIFF","value":5,"data":{"result":0}}
+{"type":"FISH_DIED",  "value":516, ...}
+```
+
+Fish HP 5 -> 0: a delta of **5** from a card whose only damage effect is **3**.
+
+**The source is the LURE, not the card.** *User-stated, 2026-08-21:* the
+account has a **"Steady Lure" equipped, giving a 3% chance of a critical hit.*
+That resolves the shape of the anomaly exactly — a crit that owes nothing to
+`critZones` is a crit that did not come from the card — and it means
+`cardChoice.ts`'s crit model (which is entirely `critZones`/`critEffects`
+geometry) is describing only ONE of the two crit sources in play.
+
+**What is still unresolved, and must not be guessed:** the crit's DAMAGE rule.
+At n=1 three readings fit equally well — `hit + 2`; a flat 5; or "the blow was
+lethal and the server reports the fish's remaining HP", which was also exactly
+5. Do not encode any of them.
+
+**Rate.** 1 `CRIT_HIT` in 484 recorded card plays across 114 casts is 0.2%,
+against the lure's stated 3%. That is not a contradiction to resolve by
+re-reading the lure — the corpus spans ~60 sessions and the lure's equip date
+is unknown, so almost all of those 484 plays are probably from before it was
+equipped. **Anyone computing a crit rate must first establish when the lure
+went on.** Counting it across the whole corpus is CLAUDE.md rule 10's trap in
+another costume: dating an effect on a corpus that predates its cause.
+
+**Two audit bugs this exposed, both fixed** (`src/sim/fishing/castTrace.ts`):
+`CRIT_HIT` was not counted as a hit (only `type === "HIT"` was), so the crit
+scored as a MISS in every offline audit; and terminal events arriving on a
+`use_fishing_item` response were dropped with the response, so a fish killed by
+a lethal Relaxing Oil was never marked caught in a trace (23 vs the corpus's
+26). The LIVE path was never affected — it derives `realizedHit` from the HP
+delta.
+
 **`FishingRestoreFocus` directly answers part of DECISIONS.md 2026-08-15
 (session 13)'s open `focusMeter` regeneration question**: the meter does NOT
 regenerate on its own within a cast (still true, unchanged), but a Focus Oil
