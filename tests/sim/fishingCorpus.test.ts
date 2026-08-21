@@ -17,7 +17,7 @@
  *     same code path a live `--casts=2` invocation does.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -75,6 +75,49 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     expect(summary.caught).toBe(26);
     expect(summary.escaped).toBe(87);
     expect(summary.incomplete).toBe(1);
+  });
+
+  /**
+   * **[session 68 §4] `ls fixtures/fishing-casts/live | wc -l` IS NOT THE CAST
+   * COUNT, and the session-67 brief asked this session to hunt a cast that was
+   * never missing.**
+   *
+   * The brief said: *"`fixtures/fishing-casts/live/` holds 110 `cast-*`
+   * directories and the corpus loads 109. One cast does not load. Find out
+   * which and why."* Nothing fails to load. The two numbers count different
+   * things and merely happened to be adjacent:
+   *
+   *   - A directory is created per **invocation** of `liveFishing.ts`, not per
+   *     cast. A five-cast batch writes ONE directory holding five casts; this
+   *     corpus has directories holding up to six.
+   *   - A run that starts no cast — every `--dry-run`, and any invocation that
+   *     halts before `start_run` — still creates a directory containing only
+   *     `raw`. There were 23 such directories when this was written.
+   *
+   * The near-equality was an artefact of a corpus mostly gathered one cast at
+   * a time, and it invited exactly the wrong hypothesis. This replaces the
+   * coincidence with the identity that actually holds, so the question cannot
+   * be asked a third time.
+   *
+   * Asserted as RELATIONS, not literals: the directory count grows with every
+   * invocation, including ones that record nothing, so pinning it would make
+   * this fail for reasons that mean nothing.
+   */
+  it("reconciles with the fixture tree: distinct docIds, NOT directories", () => {
+    const casts = loadFishingCorpus();
+    const root = join("fixtures", "fishing-casts", "live");
+    const dirs = readdirSync(root).filter((d) => d.startsWith("cast-"));
+    const withStates = dirs.filter(
+      (d) => existsSync(join(root, d)) && readdirSync(join(root, d)).some((f) => f.startsWith("state-")),
+    );
+    // The corpus counts casts by docId, and that is the only number any
+    // statistic in this repo is computed on.
+    expect(new Set(casts.map((c) => c.docId)).size).toBe(casts.length);
+    // Strictly MORE directories than directories-with-data, because empty ones
+    // exist; and strictly FEWER directories-with-data than casts, because a
+    // batch packs several casts into one. Both inequalities are the point.
+    expect(dirs.length).toBeGreaterThan(withStates.length);
+    expect(withStates.length).toBeLessThan(casts.length);
   });
 
   it("every cast has at least one start_run response, except a cast this project's own process only ever RESUMED", () => {

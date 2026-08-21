@@ -96,6 +96,28 @@ the advantage of being true.
 
 ---
 
+## Step 5 is now a script — run it before every invite
+
+`npx tsx scripts/preflight.ts` (add `--keep` to inspect the tree afterwards).
+
+It exports the ships list, runs `doctor.ts` under a HOME with no `~/.secrets`,
+runs the suite, and secret-scans **the export** rather than the working tree —
+the four things session 67 did by hand. `dist-preflight/` is gitignored and the
+script deletes it unless `--keep`.
+
+**It never creates a repo, adds a remote, or pushes.** Steps 3, 4 and 6 below
+are the user's by standing decision.
+
+*Session 68 result:* PASSED — one `✗` (the JWT), `73 files, 1279 passed | 13
+skipped (1292)`, secret scan clean. Session 67's four failures and eleven
+never-collected tests are gone; the 13 skips are author-data suites announcing
+themselves loudly, which is the designed outcome, not a regression.
+
+Two false alarms in the script's own first run, fixed and worth knowing about
+if it ever cries wolf again: counting `✗` anywhere matched doctor's summary
+sentence as a second failure, and the secret scanner flagged `src/api/redact.ts`
+for containing the field name it exists to redact.
+
 ## Order of operations, when the user decides to do it
 
 1. Split `config/discovered.json`; game-global half off `.gitignore`, ROM
