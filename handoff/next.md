@@ -1,275 +1,260 @@
-# BRIEF — session 67
+# BRIEF — session 68
 
-## The clock and the ledger
+## STOP — the JWT is expired. Nothing live works until the user refreshes it.
 
-Written **2026-08-21, 11:05 PT**, just after the rollover. Twenty casts and
-twelve run-units are now live.
+*Source: session 67, decoded locally without printing the token.* `exp` =
+**2026-08-21 17:54:17 UTC = 10:54 PT**, six minutes before today's rollover.
+Session 67's ledger read returned **HTTP 401**, so **today's `dayDocs` and
+`dayProgressEntities` are UNKNOWN.**
 
-**This session is OFFLINE. User decision, 2026-08-21: no fishing, no dungeon
-runs.** A full ledger is not permission, and rule 11 needs a per-run go-ahead
-regardless. Read both ledgers once, report the day, spend nothing.
+**First action, before anything else:**
 
-*Environment note, session 66: `npx tsx` fails under the command sandbox on this
-machine (`EPERM listen … tsx-501/*.pipe`). Run `tsx` unsandboxed. Not a repo
-problem — do not chase it as one.*
+```
+npx tsx scripts/doctor.ts
+```
 
----
+It decodes `exp` locally and answers this in about a second. **If the token is
+still expired, stop and tell the user** — do not attempt a cast, do not retry,
+and do not treat a 401 as a transient error. Rule 13's converse applies: a
+credential failure is not a ledger reading, and an unknown ledger is not an
+empty one.
 
-## 1. NEW USER DIRECTIVE — oils are a backup, not a routine spend
+**Make `doctor.ts` the standing first command of every session** (session 67
+open question 3). It would have caught this in one second instead of at the
+first live call.
 
-**User, 2026-08-21, verbatim intent:**
-
-> Keep crafting, but use oils only on an as-needed basis. If the autofisher
-> believes it can catch the fish without oil, don't use the oil — conserve
-> inventory for future casts. The priority is to use mana to get the fish as
-> close as possible to caught, with the oils as a backup to guarantee a catch if
-> need be.
-
-This is a **policy change**, not a crafting preference. It does not ship this
-session (rule 4, and it is a live-policy change), but it gets designed and
-scored.
-
-### 1a. The objective function changed, and that alone may re-rank the shipped policy
-
-*Source: `OIL-POLICY.md`, sim-derived, `costsTurn=false, amount=2, n=8000`.*
-
-The sweep ranked arms by **catch-rate delta**. The directive ranks them by
-something closer to **catches per oil**. The existing table already carries both
-columns, and they disagree:
-
-| arm | Δ catch | oils | **Δpp per oil** |
-|---|---|---|---|
-| on-demand (SHIPPED) | +19.40pp | 5578 | 0.278 |
-| **focus-when-empty-only** | +17.74pp | 3515 | **0.404** |
-| lethal-relaxing-only | +4.47pp | 1821 | 0.197 |
-| start | +5.66pp | 16000 | 0.028 |
-
-**Under a conserve objective, `focus-when-empty-only` already beats the shipped
-policy on the numbers this repo has had since session 61** — 91% of the benefit
-for 63% of the oil. **Re-rank the existing arms under the new objective before
-building anything new.** That costs nothing and may answer the whole question.
-
-### 1b. The corpus already says the Relaxing trigger is the wasteful one
-
-*Source: session 66, corpus-measured over 109 casts.* The lethal trigger is
-reachable in 12 casts, and **10 of those 12 were CAUGHT ANYWAY.** Only 2 escaped
-(12975713, 12991353). So under the directive, roughly five of every six Relaxing
-spends are exactly the "would have caught it without the oil" case the user is
-asking to stop.
-
-That is corpus evidence for the directive, not a projection.
-
-### 1c. Design the necessity gate — and state plainly what "believes it can catch" means
-
-The directive needs an operational definition, and a vague one will silently
-become "always" or "never". Propose one, defend it, and pin it:
-
-- **Relaxing Oil** — fires at `fishHp <= 2` today. The gate should add: **and the
-  bot cannot close this turn without it.** The natural test is whether an
-  affordable card in hand deals `>= fishHp` at the current focus. If one does,
-  play it; the oil buys nothing. If none does, the oil converts a probable escape
-  into a certain catch — which is exactly "guarantee a catch if need be."
-- **Focus Oil** — fires at meter zero today. At zero the policy is frozen on its
-  last cell and cannot aim, so the necessity case is stronger. **Do not assume it
-  is always necessary.** Score at least one gated variant, e.g. skip when the
-  fish is already within reach from the frozen cell.
-- **Mana first, explicitly.** The directive ranks mana ahead of oils. Whatever
-  gate you build, verify in sim that it does not cause the bot to hold mana back
-  in anticipation of an oil.
-
-### 1d. Report it against the directive's own metric
-
-Headline **oils per extra fish**, not Δpp — that is what the user is optimising.
-Session 66 priced the Relaxing trigger at **~6 oils per extra fish, 95% CI
-roughly 1.5–20**; give the conserving arm the same treatment so the two are
-comparable.
-
-**Do not ship any of this.** Produce a recommendation with its causal story, the
-way `OIL-POLICY.md` did, and stop. Note explicitly whether the recommendation is
-simply "switch to focus-only" — if the free re-rank in §1a settles it, say so
-rather than building a gate nobody needs.
+*Environment note, sessions 66–67: `npx tsx` and `git` both fail under the
+command sandbox on this machine (`EPERM …tsx-501/*.pipe`; `unable to access
+'~/.gitconfig'`). Run both unsandboxed. Not a repo problem.*
 
 ---
 
-## 2. Consolidate the six `fakeDoc` copies
+## 1. The conserving oil policy — SHADOW ONLY. Do not ship it.
 
-**User decision, 2026-08-21: do it now.** Flagged for six sessions; session 65
-proved the risk is not theoretical — two copies omitting
-`fishingConsumableSlotUsed` made every "it consumes" assertion **vacuous** while
-staying green.
+**User decision, 2026-08-21:** hold `conserve(r=1,f=1)`. Keep `onDemandTriggers`
+live, run the conserving gate in **shadow**, log what it *would* have skipped,
+and switch only after seeing it against live casts.
 
-`tests/helpers/liveFishingDeps.ts` already exists for this reason, under its own
-stated rationale that *a guard that only covers one file is not a guard*. One
-shared builder, four test files, no behaviour change.
+`policyApproved` stays **false**. `liveFishing.ts` keeps playing
+`onDemandTriggers`. The conserving code is written and tested (session 67) and
+stays unwired.
 
-**The consolidation is not the point — the guard is.** A single copy that omits a
-field is the same bug with better ergonomics. So the shared helper must carry
-**every field the live decision path reads**, and a test must prove it: remove a
-field the path depends on and the suite must go red.
+### 1a. Shadow must be provably inert, not intended to be inert
 
----
+This is gate 1 and it is the whole risk. A shadow evaluator that touches the live
+decision is worse than no shadow at all, because it changes the thing it is
+measuring while looking like an observer.
 
-## 3. Distribution — rehearse steps 5 and 6 locally, before anything is pushed
+- The live decision must be **byte-identical with shadow on and shadow off.**
+- **Demonstrate the test failing** when the shadow path is allowed to influence
+  the decision, then restore. Session 66's lesson stands: a source-text pin
+  proves a line exists, not that it runs.
+- Shadow evaluation must not consume, must not mutate stock, and must not write
+  anything the live path reads back.
 
-**User decision, 2026-08-21: distribution is the direction from here.**
+### 1b. What shadow can and cannot establish — state this in the recap, not after
 
-*Source: `handoff/DISTRIBUTION.md`.* Steps 1–2 are done in the tree. Steps 3–6
-are the user's, and **an agent must not create or push the distribution repo.**
+**It cannot tell you whether skipping would have cost a fish.** The oil is
+actually spent by the live policy, so the counterfactual outcome is
+unobservable. A cast where on-demand spent, shadow said skip, and the fish was
+caught does **not** confirm the saving — the oil was in play.
 
-But DISTRIBUTION.md says its own step 5 — *clone it fresh and run
-`scripts/doctor.ts` as a friend would* — is "the one worth not skipping", and
-**that step needs no GitHub at all.** It can be rehearsed here, offline, and the
-result is the thing the user most needs before inviting anyone: the actual
-first-run experience.
+What it genuinely validates, and these are the things that break on contact:
 
-### 3a. What to do
+- **Firing rate.** Does the necessity condition fire at the rate the sim
+  predicted — *sim-derived: 55.8% of lethal triggers occur when a card already
+  kills with probability exactly 1*?
+- **Input distribution.** Are `bestKillProbability` and `bestConnectProbability`
+  bimodal live as they are in the corpus (*corpus-measured: 34.3% at 0, 55.8% at
+  1, 9.9% between*)? If they are smooth live, the "no constant to defend"
+  argument for the threshold weakens and should be reported as weakened.
+- **Sanity.** Does the gate ever produce a nonsense decision — skip with no card
+  in hand, fire with a certain kill available, throw, or disagree with itself
+  across two evaluations of the same state?
 
-- Export the **ships list** (DISTRIBUTION.md's table) into a clean directory
-  **inside the project and gitignored** — e.g. `dist-preflight/`. A copy, not a
-  clone: **no `.git` comes with it.** Keep it inside the project root; CLAUDE.md's
-  filesystem-scope rule is not suspended for convenience.
-- **Do not `git init` it, do not create a repo, do not push.** The export is a
-  rehearsal of step 3's output, not step 4.
-- In that directory, run the friend's first-run sequence: `npm install`, the full
-  suite, and `scripts/doctor.ts`.
-- **Simulate the friend's missing environment through the profile/env
-  indirection** — no `~/.secrets`, no `data/`. **Do not touch, move, or rename
-  anything under `~/.secrets` to achieve this.**
+### 1c. Five casts is a smoke test, not a validation — say so up front
 
-### 3b. What to report
+*Corpus-measured:* the Focus trigger is reachable in ~55% of casts, so **five
+casts yields roughly two or three shadow decision points.** That is enough to
+catch a gross error and nowhere near enough to estimate a rate.
 
-- **Every failure `doctor.ts` prints, verbatim.** These are the friend's first
-  five minutes, and each one is either a README gap or a real portability bug.
-- Whether the suite passes in the clean tree. If `fixtures/` was trimmed by
-  accident it fails there and passes at home — that is precisely what step 6 is
-  for.
-- Anything in the ships list that turned out to be missing, and anything in the
-  does-not-ship list that the clean tree still needed. **A file the bot needs and
-  the list omits is the finding.**
-- A short **user checklist for steps 3–6**, written so the user can execute them
-  without re-reading this brief: the exact commands, in order, with the two
-  decisions already made (private repo, squashed single-commit history) stated
-  inline.
-
-### 3c. The one thing not to lose sight of
-
-*Source: DISTRIBUTION.md.* **Ship from a fresh repo with squashed history.** The
-working tree is clean — session 54 redacted 2,726 files to zero raw occurrences —
-but **the git history still carries the noob token and three handoff documents'
-identifiers.** That was fine for a repo nobody was invited to read. Pointing
-friends at it is an invitation. One commit, no ancestry, no `filter-repo`, no
-stale clones holding old objects.
-
-Re-run the secret scan **against the exported tree**, not against the working
-tree, and report it separately. They are not the same artifact.
+*Live-measured, session 65:* stock is **Relaxing 0, Focus 18.** So the
+**Relaxing arm of the gate cannot be exercised live at all** this session — every
+lethal trigger goes OIL-POLICY-DRY. Only the Focus arm meets real inputs.
+**Do not report the gate as validated on the strength of the Focus arm alone.**
 
 ---
 
-## 4. Carried
+## 2. Five live casts
 
-- **The tripwire has never met a real server**, and it should not be chased.
-  It fires on ~1–2% of turns, so a seven-cast batch produces perhaps one armed
-  turn and most likely none. **Do not budget casts to exercise it** — session
-  66's own recommendation, and this brief adopts it explicitly rather than
-  leaving it implied. It sits armed until it fires on its own.
-- **`SESSION_65_LIMITS` stays exported and unchanged, and is not an
-  authorization.** Its rationale is retired in both places a future session
-  reads it.
-- **Do not quote the sim's +4.47pp as the cost of zero Relaxing stock.** Per oil
-  the sim and corpus agree (0.196 vs 0.167); the headline differs 2.4x only
-  because the sim reaches the lethal band on 22.8% of casts against the corpus's
-  11.0%.
-- **`boonCapture` stays OFF** — third recap in a row saying so. **Settled unless
-  the user reopens it; stop listing it.**
-- Boon coverage unchanged at orb 6 / priority 2 since session 62. Zero runs since.
-- Corrode in `dungeonSim` is a **CLOSED decision**; rule 8's measurement
-  programme is **CLOSED**; §19 is **CLOSED**. Do not reopen any of the three.
-- Carried and deliberate: 25 analysis scripts hold hardcoded paths (ratcheted);
-  distribution steps 3–6 remain the user's.
+**User decision, 2026-08-21: five casts to start**, after the JWT is refreshed.
+
+- Policy is **unchanged** — `onDemandTriggers`, never force a consume.
+- Halt on: five casts done; the ledger short of five; or the 15-cast zero-streak
+  tripwire. **Do not stop on an oil consume** — the shape is session 65's, not
+  session 64's.
+- **If the ledger reads fewer than five casts remaining, cast what remains and
+  say so.** Do not wait for a rollover and do not exceed the count.
+- Per-cast instrumentation as established: `oilCastState` first, trigger
+  reachability by the pinned definitions, full `fishHp` and `focusMeter`
+  trajectories, turns, outcome, focus spend — plus §1's shadow record.
+- Rule 13 after the batch: read the ledger, confirm it moved by exactly the casts
+  sent.
 
 ---
 
-## 5. Gate
+## 3. Make the test suite portable — split by what each file is actually testing
 
-Both halves are offline and deterministic.
+**User decision, 2026-08-21.** *Source: session 67 clean-export run —* **4 failed
+| 1264 passed, and 11 that never ran.**
 
-1. **The conserving oil policy is scored against `on-demand`, `never`, and
-   `focus-when-empty-only`**, headlined in **oils per extra fish**, with the
-   necessity gate's definition pinned by a test that fails if the gate degrades
-   to always-fire or never-fire.
-2. **The six `fakeDoc` copies are one shared builder**, and a test proves the
-   builder carries every field the live decision path reads — **demonstrate it
-   failing with one such field removed**, then restore.
+The four files are doing different jobs and one blanket policy would be wrong for
+at least one of them. Decide each on what it tests:
+
+| file | reads | what it is really testing |
+|---|---|---|
+| `matcherVerdict.test.ts` | `data/ringPrediction.jsonl` | **program logic** — it pins §19's closed rule |
+| `reversalDispersion.test.ts` | `data/fish-patterns.jsonl` | mined-pattern analysis over the author's corpus |
+| `rejectionAudit.test.ts` | `logs/` | the author's own captures |
+| `redact.test.ts` | `handoff/` | the redaction function, applied to the author's docs |
+
+- **Program logic ships with synthetic fixtures and always runs.**
+  `matcherVerdict.test.ts` guards a rule that is now closed and load-bearing; it
+  should not stop shipping with the code it guards, and it should not depend on
+  the author's accumulated predictions to assert a rule.
+- **`redact.test.ts` is probably two tests wearing one hat** — the redaction
+  *function* is program logic and deserves synthetic input; the sweep over
+  `handoff/` is an author-data check. Split it rather than skipping both halves.
+- **Author-data tests get a LOUD skip-guard**, or leave the ships list. A silent
+  skip is the same failure mode as a vacuous assertion: green, and testing
+  nothing. Whatever you choose, it must be visibly different at home from a pass.
+
+### 3a. Fix the collection-time throw regardless of the portability decision
+
+`rejectionAudit.test.ts` throws **at collection**, so it contributes **0 tests
+instead of 11**, and the drop is only findable by diffing JSON reporters. That is
+a suite-integrity bug independent of portability, and it is the same family this
+repo keeps catching — a green-looking suite asserting less than it appears to.
+
+**The fix is structural: move the data load inside `beforeAll` or the test body,
+never at module top level.** A file that cannot be collected cannot report that
+it was skipped.
 
 ---
 
-## 6. Do not
+## 4. Two small things worth doing while offline work is open
 
-- **Do not fish and do not run a dungeon run.** Offline session by user decision.
-- **Do not ship the conserving policy** — derive, recommend, stop (§1d).
-- **Do not `git init` or push anything** (§3a). The export is a rehearsal.
-- **Do not touch, move, or rename anything under `~/.secrets`** to simulate a
-  friend's environment.
-- Do not run the export outside the project root.
-- Do not budget casts for the tripwire (§4).
-- Do not reopen §19, rule 8, or corrode-in-`dungeonSim`.
-- Do not let the consolidated `fakeDoc` omit a field the live path reads — that
-  is the original bug with fewer copies.
-- Do not read an `UNKNOWN FIELD` banner as a server change.
+- **`scripts/preflight.ts`** (session 67 open question 4). The distribution
+  rehearsal currently lives as an eleven-command incantation inside a report.
+  Make it a script so step 5 is repeatable **before every invite**, not once.
+  `dist-preflight/` is already gitignored.
+- **`fixtures/fishing-casts/live/` holds 110 `cast-*` directories and the corpus
+  loads 109.** *Source: session 67, verified with `oilReachability.ts --gap`.*
+  One cast does not load. Find out which and why. It is probably nothing — a
+  partial capture, an aborted write — but a silently-dropped fixture is a corpus
+  statistic quietly computed on a different denominator than anyone thinks, and
+  `ls | wc -l` disagreeing with the loader is exactly the kind of gap this repo
+  has been punished for.
+
+---
+
+## 5. Carried
+
+- **Do not ship `conserve(r=1,f=1)`** (§1). Do not set `policyApproved: true`.
+- **Do not budget casts for the `nextPosition` tripwire.** It fires on ~1–2% of
+  turns; five casts buys perhaps one armed turn and most likely none. It sits
+  armed until it fires on its own.
+- **Do not tune the necessity thresholds.** A tuned pair buys ~0.08pp on a sim
+  whose control arm catches 68.71% against the real fishery's 25.9%.
+- **Do not quote the sim's ±0.01pp CIs as decision intervals** — they are the
+  sim's repeatability, not uncertainty about the fishery. Session 66's corpus
+  interval for the Relaxing trigger is ~1.5–20 oils per extra fish.
+- **Do not read the per-cast sim tables as answering "conserve for future
+  casts."** `runArm` hands every cast a fresh oil; the finite-stock table is a
+  separate instrument.
+- **Do not loosen the `fakeDoc` observability guard** to a key-set assertion —
+  session 67 wrote and rejected exactly that, because it passes for a field
+  nothing reads. Widen the observable or drop the field deliberately.
+- Distribution steps 3–6 remain the user's; an agent must not create or push the
+  repo. §19, rule 8, and corrode-in-`dungeonSim` are **CLOSED** — do not reopen.
+- Carried and deliberate: 25 analysis scripts hold hardcoded paths (ratcheted).
+- `boonCapture` is settled OFF. **Stop listing it.**
+
+---
+
+## 6. Gate
+
+Both halves are offline and deterministic; neither depends on the batch.
+
+1. **Shadow is provably inert** — the live decision is byte-identical with shadow
+   on and off, **demonstrated failing** when the shadow path is permitted to
+   influence the decision, then restored.
+2. **`rejectionAudit.test.ts` can no longer contribute zero tests silently** —
+   the data load moves out of module scope, and the file either runs its 11 or
+   reports a visible skip. **Demonstrate the old failure mode is gone** by making
+   the data source absent and showing the suite says so.
+
+---
+
+## 7. Do not
+
+- **Do not cast, or run anything live, on an expired JWT.** Stop and report.
+- Do not treat a 401 as a transient error or an empty ledger.
+- Do not ship the conserving policy, or let shadow touch the live decision.
+- Do not claim shadow validated the gate's *outcome* (§1b), or that the gate is
+  validated when only the Focus arm was exercised (§1c).
+- Do not stop the batch on an oil consume; do not force a consume.
+- Do not exceed five casts, or wait for a rollover to reach five.
+- Do not fix the four test files by loosening their assertions — the point is a
+  stranger's suite asserting *correctly*, not asserting *less*.
+- Do not leave a skip silent.
 - Do not put identifiers in a test that guards against identifiers, and do not
   give a new I/O-owning test construction a real data path.
 
 ---
 
-## 7. Corrections to me
+## 8. Corrections to me
 
-- **The membership check I asked for in §3 last session was arithmetically
-  vacuous, and session 66 was right to say so.** Gap membership is a per-cast
-  property and the corpus only grows, so `gap(109) ⊇ gap(102)`; equal counts
-  therefore **force** equal membership. The check could only ever return one
-  answer, so it could not distinguish the hypothesis from its negation.
-- **What makes that worse than a wasted step is its shape.** The probability
-  argument in the same section was sound — 0.36 is not evidence — and I then
-  proposed, as the remedy, a test with no power at all. **A brief that correctly
-  identifies weak evidence and then prescribes no evidence has not improved
-  anything**; it has replaced a soft claim with a procedure that manufactures a
-  hard-looking one. Before asking for a check, ask what the failing case would
-  look like. If it cannot be described, the check is not a check.
-- **Session 66 found the real property anyway, and it is worth recording as the
-  answer**: the gap is exactly the casts whose meter emptied for the first and
-  only time on the state that ended the cast. 66 escaped-with-empty-terminal-meter
-  minus 52 that had already hit zero with a turn still to play = 14. A caught cast
-  can never be in the gap. That is the clause the definition was invented to
-  exclude, restated — a definition working as designed, not a discovery.
-- **Session 66's own note on source-text pins is the transferable lesson and I am
-  carrying it forward into §2 and §5**: source-text assertions prove a line
-  exists, not that it runs — the populate-side pins still passed with the
-  tripwire branch dead, because `disarmOverride(...)` remained textually present
-  in the dead branch. Behavioural tests caught it. Keep that division of labour.
+- **My §1a instruction to "re-rank first and skip the gate design if that settles
+  it" nearly cost the better policy.** The re-rank did reverse the ranking —
+  `focus-when-empty-only` at 2.48 oils/fish beats `on-demand` at 3.59 — and if
+  the session had stopped there, as I invited it to, it would have shipped a
+  policy that **discards 1.9pp of catch rate for nothing.** The conserving gate
+  gets 88.38% for 2.42.
+- **The error was treating a cheaper answer as a sufficient one.** Re-ranking
+  existing arms under a new objective was worth doing and I was right that it was
+  free. What was wrong was the sentence licensing the session to stop there:
+  **a re-ranking of options someone else chose cannot find an option nobody
+  scored.** The directive changed what counts as good, which means the option set
+  should have been reopened, not just re-sorted. "Check the cheap thing first" is
+  sound; "and stop if it answers" only holds when the cheap thing could have
+  produced the best answer.
+- **Session 67 was right to keep going**, and its decomposition is why the result
+  is trustworthy rather than lucky: Relaxing-gate-only is byte-identical to
+  on-demand for 1,182 fewer oils, because 55.8% of lethal triggers fire when a
+  card already kills with certainty. That is a mechanism, not a score.
 
 ---
 
-## Your task (session 67)
+## Your task (session 68)
 
-1. Read both ledgers, report the day, **spend nothing**.
-2. **§1a** — re-rank the existing sweep arms under the conserve objective first.
-   If that settles it, say so and skip the gate design.
-3. **§1c–1d / gate 1** — otherwise design and score the necessity gate, headline
-   oils per extra fish, and **recommend without shipping.**
-4. **§2 / gate 2** — consolidate the six `fakeDoc` copies behind one builder that
-   carries every field the live path reads.
-5. **§3** — the distribution rehearsal: export the ships list to a gitignored
-   in-project directory, run the friend's first-run sequence, report every
-   `doctor.ts` failure verbatim, re-run the secret scan **against the export**,
-   and write the user's steps 3–6 checklist.
-6. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the **final**
-   commit, no test writes a real data path, secret scan before handoff.
+1. **`doctor.ts` first.** If the JWT is expired, stop and tell the user. Nothing
+   below §3 runs without it.
+2. **§1 / gate 1** — shadow evaluation of `conserve(r=1,f=1)`, provably inert.
+   **Do not ship it.**
+3. **§2** — five casts under the unchanged policy, with shadow recording.
+4. **§1b–1c** — report what shadow established and, explicitly, what it did not.
+5. **§3 / gate 2** — split the four test files by what each tests; fix the
+   collection-time throw structurally.
+6. **§4** — `scripts/preflight.ts`, and find the 110th cast.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+   **final** commit, no test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** §3 is the session's most valuable item and the one with
-the highest chance of an unwelcome surprise, which is the point of doing it before
-anyone is invited. The bot has been developed for 67 sessions inside a directory
-that has always had `~/.secrets`, a populated `data/`, and a full `fixtures/`
-corpus; **nothing has ever verified that it starts without them.** Sessions 64,
-65 and 66 were each a component that looked shipped and had never executed the
-path that would break it — a fresh clone is that same question asked of the whole
-repo at once.
+**Honest expectation.** The session's outcome depends on something outside it: if
+the JWT is not refreshed, §1's shadow and §2's casts do not happen and the
+session is §3 and §4 alone — which is a fine session, and better than a rushed
+live one. **The item most likely to be over-claimed is §1.** Shadow mode feels
+like validation and is not; it can show the gate's inputs and firing rate survive
+contact with a real server, on two or three observations, with half the gate
+unexercisable for want of Relaxing stock. Say that plainly, and the next decision
+about shipping stays honest.
