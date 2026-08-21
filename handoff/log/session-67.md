@@ -182,3 +182,184 @@ blocked only the ledger report; everything else was offline.
      tests/fishing/oilTiming.test.ts                      |  17
      .gitignore                                           |   5  (dist-preflight/)
 ```
+
+---
+
+# APPENDIX — session 67 verbose material
+
+## A. The full conserve sweep, n=8000/arm, `costsTurn=false`, amount=2
+
+```
+── §1  THE EXISTING ARMS, RE-RANKED UNDER THE NEW OBJECTIVE ──
+  policy                            catch  Δ vs never   oils   OILS PER EXTRA FISH [95% CI]
+  focus-when-empty-only            86.45%    +17.74pp   3515              2.48 [2.48, 2.48]
+  on-demand                        88.11%    +19.40pp   5578              3.59 [3.59, 3.60]
+  lethal-relaxing-only             73.19%     +4.47pp   1821              5.09 [5.08, 5.09]
+  heuristic-c                      73.22%     +4.51pp   2630              7.29 [7.28, 7.29]
+  start                            74.38%     +5.66pp  16000           35.32 [35.28, 35.36]
+  never                            68.71%     +0.00pp      0                              —
+
+  THE MARGINAL STEP, which the average column hides:
+    on-demand over focus-when-empty-only costs 2063 extra oils for 133.0 extra fish
+    = 15.51 OILS PER EXTRA FISH at the margin, against 2.48 for the focus arm on average.
+
+── §2  THE NECESSITY GATE ──
+  policy                            catch  Δ vs never   oils   OILS PER EXTRA FISH [95% CI]
+  conserve(r=2,f=2)                88.11%    +19.40pp   5578              3.59 [3.59, 3.60]
+  conserve(r=0.9,f=0.9)            88.38%    +19.66pp   3809              2.42 [2.42, 2.42]
+  conserve(r=1,f=1)                88.38%    +19.66pp   3809              2.42 [2.42, 2.42]
+  conserve(r=0.75,f=0.5)           88.46%    +19.75pp   3675              2.33 [2.32, 2.33]
+  conserve(r=0.5,f=0.5)            88.42%    +19.71pp   3548              2.25 [2.25, 2.25]
+  conserve(r=0.25,f=0.25)          88.29%    +19.57pp   3420              2.18 [2.18, 2.19]
+  conserve(r=0,f=0)                68.71%     +0.00pp      0                              —
+  conserve(r=0,f=0.5)              86.96%    +18.25pp   2745              1.88 [1.88, 1.88]
+  conserve(r=2,f=0.5)              88.46%    +19.75pp   4853              3.07 [3.07, 3.07]
+  conserve(r=0.75,f=2)             88.11%    +19.40pp   4396              2.83 [2.83, 2.83]
+
+── §2b  IS THE THRESHOLD A FITTED PARAMETER? ──
+  bestKillProbability, at every turn the LETHAL trigger fired (n=2097)
+    exactly 0        719  34.3%
+    (0, 0.25)          0  0.0%
+    [0.25, 0.5)       46  2.2%
+    [0.5, 0.75)      148  7.1%
+    [0.75, 1)         13  0.6%
+    exactly 1       1171  55.8%
+  bestConnectProbabilityFromFrozenCell, at every turn the METER trigger fired (n=3481)
+    exactly 0       2081  59.8%
+    (0, 0.25)          0  0.0%
+    [0.25, 0.5)      230  6.6%
+    [0.5, 0.75)      201  5.8%
+    [0.75, 1)          3  0.1%
+    exactly 1        966  27.8%
+
+── §3  A REAL DAY: 20 casts (the server cap), ONE shared stock ──
+  stock (focus,relax)                    never            on-demand focus-when-empty-onl    conserve(r=1,f=1)
+  18 focus, 0 relaxing             13.74f/0.0o         18.12f/11.0o         18.12f/11.0o          18.14f/8.6o
+  8 focus, 8 relaxing              13.74f/0.0o         17.14f/12.8o          16.82f/7.8o          17.63f/9.5o
+  4 focus, 4 relaxing              13.74f/0.0o          15.71f/7.6o          15.35f/4.0o          16.29f/6.1o
+  2 focus, 2 relaxing              13.74f/0.0o          14.85f/4.0o          14.58f/2.0o          15.29f/3.6o
+  40 focus, 40 relaxing            13.74f/0.0o         18.19f/16.2o         18.13f/11.0o         18.20f/11.0o
+  (mean fish caught / mean oils spent per 20-cast day, 400 days per cell)
+```
+
+## B. Gate 1 demonstrated failing at BOTH degeneracies, each restored
+
+`conserving` forced to `{relaxing: ALWAYS_FIRES_THRESHOLD, focus: ALWAYS_FIRES_THRESHOLD}`:
+
+```
+ FAIL  oilNecessity > THE ANTI-DEGENERACY PIN > spends STRICTLY FEWER oils than on-demand
+AssertionError: expected 1396 to be less than 1396
+ FAIL  oilNecessity > THE ANTI-DEGENERACY PIN > the saving is material, not a rounding artifact
+AssertionError: expected 0 to be greater than 0.1
+      Tests  2 failed | 10 passed (12)
+```
+
+`conserving` forced to `{relaxing: NEVER_FIRES_THRESHOLD, focus: NEVER_FIRES_THRESHOLD}`:
+
+```
+ FAIL  oilNecessity > THE ANTI-DEGENERACY PIN > spends STRICTLY MORE than zero
+AssertionError: expected 0 to be greater than 0
+ FAIL  oilNecessity > THE ANTI-DEGENERACY PIN > does NOT pay for the saving in fish
+AssertionError: expected 1371 to be greater than or equal to 1759
+      Tests  2 failed | 10 passed (12)
+```
+
+Restored: 12 passed.
+
+## C. Gate 2 demonstrated failing — `fishingConsumableSlotUsed` deleted from the ONE builder
+
+This is session 65's exact bug, reproduced deliberately in the consolidated
+builder to prove the guard catches what six copies did not:
+
+```
+ FAIL  fishingDocGuard > the shared builder carries every field LIVE_PATH_FIELDS names
+AssertionError: builder is missing fishingConsumableSlotUsed: expected false to be true
+ FAIL  fishingDocGuard > GATE 2 > omitting `fishingConsumableSlotUsed` changes what the live path does
+AssertionError: removing `fishingConsumableSlotUsed` changed NOTHING about the cast. …
+ FAIL  oilPartialDry > GATE 2 (cast) — a DRY Relaxing trigger does not suppress a FUNDED Focus consume
+AssertionError: expected [ 'start_run', 'play_cards', …(1) ] to include 'use_fishing_item'
+ FAIL  oilPartialDry > [session 65] a SECOND consume in one cast targets the next free slot, live
+AssertionError: expected 0 to be greater than or equal to 2
+ FAIL  oilStockExhaustion > GATE 2 > the same loop DOES spend once the fish is genuinely lethal
+AssertionError: expected [ 'start_run', 'play_cards', …(1) ] to include 'use_fishing_item'
+
+ Test Files  3 failed | 68 passed (71)
+      Tests  5 failed | 1274 passed (1279)
+```
+
+Restored: 71 files, 1279 passed.
+
+Note the second message reads "changed NOTHING" rather than naming the missing
+field: with the builder itself broken, the control run and the omit run are
+both missing it, so they compare equal. The first assertion is the one that
+names the cause. Both are needed.
+
+## D. The expired-JWT diagnosis, in full
+
+```
+TokenExpiredError: Auth rejected (HTTP 401). The JWT is expired or invalid — refresh it.
+    at GigaverseClient.get (src/api/client.ts:228:49)
+    at async main (scripts/checkFishingCaps.ts:55:14) {
+  status: 401,
+  body: '{"error":"Unauthorized"}'
+}
+```
+
+Decoded locally from `~/.secrets/gigaverse-jwt.txt` without printing the token:
+
+```
+exp epoch: 1787334857
+exp utc  : 2026-08-21 17:54:17 UTC     (= 10:54 PT)
+now utc  : 2026-08-21 18:25:51 UTC
+expired  : True
+claims   : ['address', 'exp', 'gameAccount', 'login_type', 'user']
+```
+
+It expired six minutes before the 11:00 PT rollover, so no reading of today's
+ledgers was possible at any point in this session.
+
+**`doctor.ts` already decodes `exp` locally and would have reported this in one
+second, without a network call.** It was not run first because the brief asked
+for the ledgers directly. That is worth a line in the next brief.
+
+## E. The eleven tests that silently never run in a clean clone
+
+`tests/rejectionAudit.test.ts` throws at collection on `logs/run-*.jsonl`, so
+vitest reports the FILE as failed and the tests simply do not exist. Recovered
+by diffing the home and export JSON reporters:
+
+```
+rejectionAudit — the pre-session-53 regime
+  classifies start_run separately from the other empty-token actions
+  pins the 66 / 66 / 224 split
+  NEVER rejected a numeric-token POST or a start_run on its first attempt
+  shows zero overlap between the rejected and accepted empty-token gap bands
+  counts a retry as part of its decision, not as a second decision
+rejectionAudit — after the session-53 pacing fix
+  has post-fix logs to read at all
+  rejects ZERO empty-token first attempts — the session-53 gate
+  actually paces the empty-token POSTs, and ONLY those
+rejectionAudit — parsing
+  does not advance the response clock across a rejected attempt
+  survives a truncated final line rather than losing the whole log
+  reads the legacy stringified body shape the older logs use
+```
+
+## F. Secret scan of the EXPORT — every hit, adjudicated
+
+Run against `dist-preflight/`, `node_modules` excluded. Reported separately
+from the working-tree scan because they are different artifacts.
+
+| pattern | file | verdict |
+|---|---|---|
+| `0x[a-fA-F0-9]{4,}` | `src/sim/rng.ts` | mulberry32 constant `0x6d2b79f5` |
+| | `scripts/auditMovementIndependence.ts` | same constant |
+| | `fixtures/probe/roms/player-response-redacted.json` | `1280x1280 PNG` inside an IPFS image URL |
+| | `tests/api/redact.test.ts` | the redactor's own synthetic vectors |
+| noob-id pattern | `tests/api/redact.test.ts` | same synthetic vectors |
+| JWT prefix | `tests/api/client.test.ts` | synthetic `{"alg":"HS256"}` header + 300 `x`s |
+| `PRIVATE` | — | 0 hits |
+| `*.har`, `*.harx`, `**/raw/**` | — | 0 hits |
+
+Export is clean. This says nothing about the git history, which is the entire
+reason for the squashed-history plan.
