@@ -1,281 +1,278 @@
-# BRIEF — session 64
+# BRIEF — session 65
 
 ## The clock and the ledger
 
-Written **2026-08-21, 08:10 PT** — about **2h50m before the 11:00 rollover**.
-Session 63 ran before the roll, so the ledger day is still 2026-08-20: **14
-fishing casts remain, 0 dungeon run-units.**
+Written **2026-08-21, 08:55 PT**, about **two hours before the 11:00 rollover**.
+Session 64 ran before the roll, so as written the ledger day is still
+2026-08-20: **7 fishing casts left (13/20 spent), 0 dungeon run-units.**
 
-**Check the ledger first and let it tell you which day you are in.** If the
-session starts after 11:00 the counters reset to 20 casts and 12 run-units.
+**This brief authorizes a SEVEN-CAST fishing batch and ZERO dungeon runs.**
+
+**The batch is seven casts on whichever ledger day you find.** If you start
+before 11:00 that is the whole remainder of the old day; if you start after, it
+is seven of a fresh twenty. Unused casts do not carry over, so there is nothing
+to rescue and no reason to rush — **check the ledger, report which day you are
+in, and cast seven either way.**
 
 ```
 npx tsx scripts/checkFishingCaps.ts
 npx tsx scripts/checkDungeonToday.ts
 ```
 
-**This brief authorizes a FISHING BATCH (§2) and ZERO dungeon runs.** Twelve
-run-units appearing at 11:00 is not permission — rule 11 needs a per-run
-go-ahead and this brief carries none. Rule 13 applies to every live command.
+**Twelve run-units appear at 11:00 and are not authorized.** User decision,
+2026-08-21: no dungeon runs this session. Rule 11 needs a per-run go-ahead
+regardless, and a full ledger is not one. Rule 13 applies to every live command.
 
 ---
 
-## 1. FIRST, and offline: is either trigger actually reachable?
+## 1. The seven-cast batch — §19's turns are the goal, 937 is the lottery ticket
 
-**Do this before spending a single cast. It costs nothing and it may make the
-batch unnecessary.**
+**User decision, 2026-08-21:** spend the seven casts. Same `on-demand` policy,
+never force a consume.
 
-Session 63's one cast did not merely fail to fire a trigger — **both triggers
-were structurally unreachable**, and the recap verified that from the board
-states rather than inferring it from a missing log line:
+This batch is **not** the session-64 shape. It does **not** stop at the first
+oil consume — it runs the full seven, because the primary objective is
+instrumented turns and every cast supplies them whether or not an oil is spent.
 
-- `fishHp` **12 → 9 → 4 → 0.** Never `<= 2` while alive; the fish went from 4 to
-  dead in one hit. The Relaxing trigger had no window.
-- `focusMeter` **3 → 1 → 1 → 0.** Zero only on the *terminal* state, with the
-  fish already dead. The Focus trigger had no turn left to spend into.
+### 1a. What seven casts buys
 
-That is one cast and proves nothing on its own. But it is a **specific
-hypothesis with a free test**: that `on-demand`'s triggers fire often in the
-simulator and rarely or never in live play, because live fish skip the 1–2 HP
-band and the meter empties only as the cast ends.
+*Source: session 64 measured rates (corpus n=102 for reachability; 13 turns over
+7 casts for the turn rate). Projections are arithmetic on those, not measurements.*
 
-**Run it over the 95-cast corpus.** For every cast, independent of what was
-actually spent and independent of stock:
+| objective | mechanism | expected from 7 casts |
+|---|---|---|
+| **§19 instrumented turns** | every cast contributes | ~13 turns → **20 + 13 = 33 of 32**, powering the DROP arm |
+| **`slotIndex` for 937** | Relaxing trigger reachable 9.8% of casts | **~51%** chance of at least one firing |
 
-- **Relaxing reachable** — did any state show `fishHp <= 2` while the fish was
-  still alive, with a turn remaining?
-- **Focus reachable** — did any state show `focusMeter == 0` with a turn
-  remaining and the fish still alive?
+The turn rate is the load-bearing projection. **If casts run short and the batch
+ends below 32 turns, say so plainly and do not round up** — a rule that powers at
+32 does not power at 31.
 
-Report both as counts and percentages of the 95, and **state the exact
-definitions in the report**, because "with a turn remaining" is the whole
-question and a definition that quietly drops it will show reachability that does
-not exist.
+### 1b. Stop conditions
 
-**Why this matters more than the batch.** The sim chose `on-demand` over every
-alternative on the strength of the Focus trigger — `focus-when-empty-only` alone
-is +17.74pp of the +19.40pp total. **If the meter only reaches zero as a cast
-ends, that entire benefit is an artifact of the sim's cast model**, and the
-policy shipped in session 62 is a no-op wearing a recommendation. This analysis
-either retires that worry or turns it into the most important open item in the
-programme, and it needs no casts, no oils, and no server.
+Halt on the first of:
 
-**Report the finding to the user before starting the batch**, whichever way it
-lands.
+1. **Seven casts completed.** The intended exit.
+2. **The ledger is exhausted** or has fewer than the batch needs.
+3. **The zero-streak tripwire at 15.** Compute it from the corpus with
+   `zeroStreak.ts` rather than quoting a remembered value — session 64 wired it
+   for real and this is its first live batch.
 
----
+**Do NOT stop on an oil consume.** Not on the first Focus consume, not on a
+Relaxing consume, not on a second consume within a cast. Those are captures, not
+exits.
 
-## 2. The batch — cast until the first oil is consumed, then stop
+### 1c. Partial dry is now the expected state, and it is new
 
-**User directive, 2026-08-21:**
+*Source: session 64 live balance read.* Stock is **Relaxing 1, Focus 22**.
 
-> Play the same logic as before. Use oils if the policy calls for them, but do
-> not force a consume. Keep casting until the first cast that uses an oil, then
-> end the session and recap.
+The moment the Relaxing Oil is spent, the bot is in a state no previous batch has
+been in: **one oil exhausted while the other is plentiful.** Session 64's
+`oilBatch` halt covers stock reaching zero for *both*. Partial dry is different:
 
-### 2a. Stock is not what the last brief said
+- A Relaxing trigger with zero Relaxing stock records **OIL-POLICY-DRY** for that
+  trigger and the cast **continues**.
+- A Focus trigger in the same cast **still consumes normally**.
+- The batch **does not halt**, because the Focus objective is unaffected.
 
-The live read at the end of session 63 is **Relaxing 1, Focus 23** — not one of
-each. Focus is abundant; **Relaxing is a single item.** Two consequences:
+This is gate half 2. Get it right in code before the batch, not after.
 
-- The first consume will almost certainly be a **Focus Oil (item 942)**, so the
-  batch most likely clears `slotIndex` for 942 and **leaves 937 unconfirmed**.
-  Say so in the recap rather than reporting the risk surface as retired.
-- If both triggers fire in one cast, all three unknowns clear at once — 942, 937,
-  and the second-consume path. Unlikely. Do not engineer for it.
+### 1d. Per-cast instrumentation
 
-### 2b. Stop conditions, all of them
+Unchanged from session 64 and still the right list. `oilCastState` first, then
+trigger reachability by the pinned definitions, the full `fishHp` and
+`focusMeter` trajectories, turns, outcome, focus spend.
 
-Halt and hand back on the **first** of these:
+On any consume: `slotIndex`, the full `use_fishing_item` envelope, board deltas
+across the consume, and mana. **If 937 fires, that is the session's headline** —
+it is the last mechanical unknown on the oil path.
 
-1. **A cast consumes an oil.** Finish that cast completely, then stop. This is
-   the intended exit.
-2. **Six casts with no consume.** See §2c — this is a finding, not a budget.
-3. **The day's cast ledger is exhausted**, or fewer casts remain than the batch
-   needs.
-4. **OIL-POLICY-DRY on every remaining trigger** — if stock reaches zero for both
-   oils, the stop condition can never be met and continuing spends casts for
-   nothing.
-5. **The zero-streak tripwire at 15.** It reset to **0** on session 63's catch, so
-   it will not bind here, but it stays armed.
-
-### 2c. Pre-register the six-cast interpretation NOW, before any cast
-
-Under the sim's own consumption rate (~0.70 oils/cast, ~0.32 chance a cast
-consumes nothing):
-
-| casts with no consume | probability under the sim's model |
-|---|---|
-| 3 | 3.3% |
-| 4 | 1.1% |
-| 6 | **0.1%** |
-
-**So six clean casts is not bad luck — it is roughly a 1-in-900 event under the
-model, and the correct conclusion is that the model is wrong, not that the dice
-were.** If the batch reaches six with nothing consumed, do not extend it, do not
-call it inconclusive, and do not force a consume. Report it as **evidence the
-trigger model does not describe live play**, and pair it with §1's corpus
-numbers, which by then will say whether the corpus agreed.
-
-This is the whole reason the cap exists. It is a tripwire on the policy, not a
-budget on the ledger.
-
-### 2d. Per-cast instrumentation, every cast in the batch
-
-For each cast, record — and this applies to the clean ones too, which are the
-ones that carry the §1 signal:
-
-- **`oilCastState`**: oil cast / OIL-POLICY-DRY / clean non-oil. **First line of
-  every cast's report.**
-- **Trigger reachability, by §1's definitions**, whether or not stock existed.
-- The full `fishHp` and `focusMeter` trajectories, turn by turn.
-- Turns, outcome, focus spend.
-
-### 2e. On the consuming cast
-
-- **`slotIndex` for the item consumed**, and the full `use_fishing_item` request
-  and response envelope.
-- Board state immediately before and after: `focusMeter` or `fishHp` delta across
-  the consume, to confirm the +2 lands as the payload says.
-- Whether the fish advanced across the consume; whether a turn was spent.
-- Mana across the consume. Session 62 settled that it costs none; the loop shouts
-  if it moves. Record, do not re-litigate.
+**Do not report the risk surface as retired unless 937 actually fires.** A
+~51% shot that misses is a miss, and the second-consume-in-one-cast index stays
+unexercised either way unless both triggers happen to fire in one cast.
 
 ---
 
-## 3. What this batch can and cannot tell you about oils
+## 2. §19 — it powers at 32, and the verdict stands whatever it says
 
-The user's stated purpose is to see how oils affect the fisher and the sim. Two
-of those readings are available and one is not.
+*Source: session 64 measured.* §19 sits at **20 of 32 instrumented turns**.
+π crossed 0.5 for the first time in the programme's history (cast 13019015, max
+**0.727**), giving **KEEP** on the existence arm with `verdictIsPowered: false`.
 
-**Available — the sim's consumption rate against live.** The sim spends ~0.70
-oils per cast. The batch gives an empirical rate over its casts. A sharp
-divergence is a direct calibration failure on the exact quantity that produced
-the +19.40pp, and it is worth reporting even at n=1 or 2 consumes because the
-*denominator* is every cast in the batch, not just the consuming one.
+Seven casts should carry it past 32 and power the DROP arm for the first time.
 
-**Available — mechanical verification.** `slotIndex`, the +2's real effect on the
-board, turn and mana cost.
+**Pre-registered now, before the batch:**
 
-**NOT available — the oil's effect on catch rate, at any batch size this session
-can reach.** And not only because n is small. **The trigger fires because of the
-cast's own state**: a Focus consume happens in casts whose meter emptied — casts
-going badly — and a Relaxing consume in casts with the fish nearly dead — casts
-going well. Comparing consuming casts to clean ones inside the batch measures
-that selection, not the oil.
+- **Whatever the shipped rule returns at n ≥ 32 is the answer.** Do not add a
+  clause, do not raise N, do not gather more because the number is close.
+- **A powered KEEP closes §19.** Record it as closed in `DECISIONS.md`, stop
+  reporting turn accrual, and stop budgeting casts for it.
+- **A powered DROP means dropping the matcher tier**, which is a live-policy
+  change and needs the user's go-ahead — report it and stop, do not implement it
+  in-session.
+- If the batch lands **below 32**, the verdict stays unpowered and the honest
+  report is "still unpowered, n short by X."
 
-**Do not report an oil-vs-non-oil catch comparison from this batch**, however
-tempting the arithmetic looks. The §4b arms exist for accumulating across
-sessions; one batch does not populate them meaningfully, and a within-batch
-comparison is confounded by construction.
+**Why the pre-registration matters more here than anywhere else.** This rule has
+been renegotiated once already — at n=7 it read DROP, and the user chose to
+pre-register a replacement and gather rather than act on it. **That call has been
+vindicated**: the crossing at 0.727 could not have been seen at n=7, and dropping
+then would have removed something real. The way to spend that credit badly is to
+renegotiate a second time because the powered answer is unwelcome.
 
 ---
 
-## 4. Carried and small
+## 3. Re-run the oil timing sweep on the measured turn cost
 
-- **Corrode is modelled but inert in `dungeonSim`** — sim enemy profiles carry no
-  buff id, so nothing sets `foeBuff` there. Session 63's honest default is to
-  sample the buff from corpus offer frequency, which is a **scenario decision, not
-  a modelling one. Put it to the user; do not decide it in-session.**
-- **A perpetual corrode would be under-modelled.** `buildBattleState` attaches
-  `activeEnemyBuff` only. Corpus-justified (0 states carry a perpetual corrode)
-  and the failure direction is safe. Leave it; keep the note.
-- **`tests/liveFishing.test.ts`'s `previousFishPosition: [0, 0]`** is the same
-  fabricated-input trap as the `focusPoint` one, and the live wire reports
-  `[4,4]`. Session 63 left it alone deliberately because changing it could shift
-  matcher-derived expectations. **Look at it deliberately this session** — the
-  fix is probably small, and the reason to do it now is that §1 and §2 both walk
-  through meter-zero and low-HP states.
-- **Boon coverage is unchanged at orb 6 / priority 2** — zero dungeon runs since.
-  **Do not re-report it as if it moved.**
-- **Do not complete the corrode twin table to a neat 3×2.** `perpetual_corrosiveShield`
-  and `perpetual_corrosiveMagic` have zero appearances; they are absent because
-  unobserved.
+*Source: session 64 measured from the live `use_fishing_item` envelope.*
+`use_fishing_item` **costs no turn** — the response carries `FOCUS_STAMINA_DIFF`,
+no `FISH_MOVED`, and `fishPosition`, `previousFishPosition`, `lastMovePath`,
+`hand`, `discard` and `nextCardIndex` are all identical across it. No mana either.
+
+`oilTimingSweep.ts` scored every policy under **both** turn-cost assumptions
+because the payload never said. One arm is now known to be the real one, and
+**nobody has re-run the sweep since.** It is offline, cheap, and overdue.
+
+- Re-score on the free-consume arm only.
+- **Report the corrected headline.** The +19.40pp figure was computed across both
+  arms and should not be quoted again until it has been recomputed.
+- The free arm was the favourable one, so **no policy ranking is expected to
+  change** — `on-demand` should still win. Say so if it does, and say so loudly
+  if it does not.
+- Pin the measured turn cost so the sweep cannot silently drift back to sweeping
+  a resolved parameter.
+
+---
+
+## 4. Corrode in `dungeonSim` — DECIDED: leave it inert
+
+**User decision, 2026-08-21.** Corrode stays modelled and live-wired, and stays
+inert in `dungeonSim`. Sim enemy profiles carry no buff id and none will be added.
+
+**Write this into `DECISIONS.md` as a closed decision, with the reasoning**, so it
+stops surfacing as an open question every session — it has now appeared in two
+consecutive recaps:
+
+> The simulator is already near-blind (617 of 622 non-Safe paths carry
+> `rolledEnemyStats`; session 56 measured exactly zero freed exchanges from
+> modelling buffs) and is largely unused for policy decisions. Wiring corrode
+> into `dungeonSim` requires inventing which buff a simulated room's enemy
+> carries — a scenario assumption, not a measurement — and the return does not
+> justify it. Corrode remains modelled in the combat core and live-wired through
+> `buildBattleState`. Decided 2026-08-21.
+
+Keep the two standing notes: a perpetual corrode would be under-modelled
+(corpus-justified, safe failure direction), and the twin table is **not** to be
+completed to a neat 3×2 — `perpetual_corrosiveShield` and
+`perpetual_corrosiveMagic` have zero observed appearances.
+
+---
+
+## 5. Carried
+
+- **Boon coverage is unchanged at orb 6 / priority 2.** Zero dungeon runs since
+  session 62. **Do not re-report it as if it moved** — this is the second brief
+  saying so.
 - Rule 8's measurement programme is **CLOSED** (DECISIONS 2026-08-21). Do not
   re-run it or propose a new one.
-- Carried: 25 analysis scripts hold hardcoded paths (ratcheted); `boonCapture`
-  stays **OFF**; distribution steps 3–6 are the user's; the recap checklist's
-  `.gitignore` line is stale for the sixth session.
+- Carried and deliberate: 25 analysis scripts hold hardcoded paths (ratcheted);
+  `boonCapture` stays **OFF**; distribution steps 3–6 remain the user's;
+  `LICENSE` is resolved as `Copyright (c) 2026 Sabre`.
+- **The recap checklist's `.gitignore` line is stale for the seventh session.**
+  It says to confirm `config/discovered.json` is ignored; it deliberately is not.
+  **Fix the checklist this session** rather than noting it an eighth time.
 
 ---
 
-## 5. Gate
+## 6. Gate
 
 Both halves are offline and deterministic; neither depends on what the batch does.
 
-1. **The trigger-reachability analysis (§1) exists, reports both triggers as
-   counts and percentages over the 95-cast corpus, and its definitions are pinned
-   by a test** — including a case that would pass a definition omitting "with a
-   turn remaining" and fails the correct one.
-2. **The batch's stop logic is implemented and tested**: it halts after the first
-   consuming cast, at the six-cast cap, and on exhausted stock. Demonstrate the
-   test failing with each halt removed, then restore — the same discipline used
-   on the exhaustion branch and the corrode gates.
+1. **The oil timing sweep is re-scored on the measured free-consume arm**, the
+   corrected headline delta is reported, and a test pins the turn cost to the
+   measured value so the sweep cannot revert to sweeping it.
+2. **Partial dry is handled and tested**: a Relaxing trigger with zero Relaxing
+   stock records OIL-POLICY-DRY, the cast continues, a Focus trigger in the same
+   cast still consumes, and the batch does not halt. **Demonstrate the test
+   failing with the partial-dry branch removed**, then restore.
 
 ---
 
-## 6. Do not
+## 7. Do not
 
 - **Do not run a dungeon run**, including after the 11:00 rollover.
-- **Do not force an oil consume**, extend past six clean casts, or re-run a cast.
-- Do not report a clean cast as a failure — under §1's hypothesis it is the
-  finding.
-- Do not report an oil-vs-non-oil catch comparison from this batch (§3).
-- Do not report the risk surface as retired if only 942 was exercised (§2a).
-- Do not decide the `dungeonSim` corrode scenario in-session (§4).
-- Do not "fix" a fabricated `[0,0]` by clamping it onto the grid; the board never
-  sends it, and repairing fabricated input is how a suite stops testing the server.
-- Do not read a `shield.currentMax` delta across a state boundary without deduping
-  on the `(myLastMove, foeLastMove)` pair.
-- Do not make corrode scorable; it stays a `mechanic` kind.
-- Do not put identifiers in a test that guards against identifiers, and do not give
-  a new I/O-owning test construction a real data path.
+- **Do not stop the batch on an oil consume** (§1b).
+- **Do not force a consume** or re-run a cast.
+- **Do not renegotiate §19 at n ≥ 32** — no new clauses, no raised N (§2).
+- **Do not implement a DROP verdict in-session**; it is a live-policy change.
+- Do not quote the +19.40pp figure until §3 recomputes it.
+- Do not report the oil risk surface as retired unless 937 actually fires.
+- Do not re-report boon coverage as if it moved.
+- Do not count the `use_fishing_item` response as a turn — it repeats the
+  preceding turn's move fields, breaks continuity, and would drop the whole oil
+  cast out of the movement corpus.
+- Do not drop "with a turn remaining" from a reachability definition; it inflates
+  Focus reachability by 14 casts, in the flattering direction.
+- Do not clamp a fabricated `[0,0]` onto the grid.
+- Do not put identifiers in a test that guards against identifiers, and do not
+  give a new I/O-owning test construction a real data path.
 
 ---
 
-## 7. Corrections to me
+## 8. Corrections to me, and a format rule I am now applying rather than restating
 
-Session 63 corrected the brief twice, and both times the same way.
+- **`previousFishPosition: [4,4]` was a single observation generalised into a
+  claim.** The corpus sends all 16 on-grid cells across 75 `start_run` states and
+  `[4,4]` is 3 of them. Rule 9, fourth occurrence.
+- **Session 64's recap made the sharper point and it is the one that lands:** the
+  session-64 brief's own §7 diagnosed exactly this habit, asked for provenance in
+  table captions, and then **the very next table in the same brief lacked one.**
+  A diagnosis I do not act on is worse than no diagnosis, because it reads as
+  handled.
 
-- **The brief said the user holds one Mid Focus Oil and one Mid Relaxing Oil. The
-  live read is Relaxing 1, Focus 23.** I took a figure the user gave in
-  conversation and wrote it into the brief as fact. Rule 9 exists for exactly
-  this and its target is not only the corpus — **a stated inventory is a claim,
-  and the brief should have labelled it as one to be verified.** The agent
-  verified anyway, which is the system working, but it should not have had to.
-- **The brief's corrode table listed two variants. There are three** — it omitted
-  `corrosiveMagic` (scissor), which fires in the corpus. I built that table from
-  what the previous recap happened to mention rather than from the fixtures.
-- **These are one failure, not two, and it is now the third time.** Session 61's
-  brief already warned that its own oil-effects table "makes them look like
-  findings — they are not." I wrote that sentence and then twice more put
-  unverified claims into tables, which is the format that most strongly signals
-  measured data. **A table in a brief should carry its provenance in the caption**
-  — corpus-measured, user-stated, or assumed — or not be a table.
+**So, as a format rule from this brief onward — visible in §1a, §1c, §2 and §3
+above, not just asserted here:**
+
+> **Every table and every quoted figure in a brief carries its provenance
+> inline** — *corpus-measured*, *live-measured*, *user-stated*, *sim-derived*, or
+> *projected*. A number without a source tag does not go in a brief. If the tag
+> is awkward to write because the provenance is unclear, that is the signal the
+> claim needed checking before it was written down.
+
+- **My six-clean-casts tripwire fired on the wrong target and I should own the
+  shape of that error.** The pre-registration was sound and the arithmetic was
+  right, but it assumed the only explanations for silence were "unlucky" or
+  "trigger model wrong." The actual cause — **the policy was never wired to its
+  config and could not consume at all** — was a third branch I did not consider,
+  and it is the branch a pre-registered interpretation is least able to see,
+  because it looks exactly like the hypothesis being tested. Session 64 was right
+  to refuse to read §2c onto batch 1. **When a pre-registered test fires, check
+  that the mechanism under test was actually running before believing the
+  verdict.**
 
 ---
 
-## Your task (session 64)
+## Your task (session 65)
 
-1. Check both ledgers and report which ledger day you are in. **No dungeon runs.**
-2. **§1** — the corpus trigger-reachability analysis, offline, **before any cast**.
-   Report it to the user before starting the batch.
-3. **§2** — the batch: cast under the live `on-demand` policy until the first
-   consuming cast, then stop. Cap six. All five halt conditions live.
-4. **§2d–2e** — per-cast instrumentation on every cast; full capture on the
-   consuming one.
-5. **§3** — report the sim-vs-live consumption rate. Do not report a catch
-   comparison.
-6. **§4** — the `previousFishPosition` trap; put the `dungeonSim` corrode scenario
-   to the user without deciding it.
-7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the **final**
+1. Check both ledgers; report which ledger day you are in. **No dungeon runs.**
+2. **§1c / gate 2** — implement and test partial-dry handling **before** casting.
+3. **§1** — the seven-cast batch under the live `on-demand` policy. Full
+   instrumentation on every cast; full capture on any consume.
+4. **§2** — report §19's verdict as the shipped rule computes it. Close it if a
+   powered KEEP; stop and report if a powered DROP; say "still unpowered" if
+   short of 32.
+5. **§3 / gate 1** — re-run the oil timing sweep on the measured turn cost and
+   report the corrected headline.
+6. **§4** — write the corrode decision into `DECISIONS.md` as closed.
+7. **§5** — fix the recap checklist's stale `.gitignore` line.
+8. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the **final**
    commit, no test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** §1 is the session's most valuable item and it is free.
-There is a real possibility that the policy shipped in session 62 — chosen over
-five alternatives, gated, tested, and pinned — **cannot fire in live play at all**,
-and that one cast's board states are already consistent with it. If §1 comes back
-saying both triggers were reachable in most of the 95 casts, the batch proceeds as
-a straightforward capture and the worry is retired cheaply. If it comes back near
-zero, **stop and report rather than spending casts to confirm it** — the corpus
-will already have said it more clearly than six casts could.
+**Honest expectation.** The most likely outcome is a quiet, productive session:
+§19 powers and closes on a KEEP, the sweep's headline gets corrected downward or
+holds, 937 misses on a coin-flip, and the batch adds seven casts of ordinary data.
+**The thing worth watching for is the shape of session 64's bug repeating** — a
+component that is shipped, gated, tested and inert because nothing hands it its
+dependency. Session 64 found one because a live result contradicted a live
+expectation. §1c is the same risk in miniature: partial dry is a state no code
+path has ever executed, and the batch is the first thing that will run it.
