@@ -41,7 +41,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { runOneCast, type LiveFishingDeps } from "../../scripts/liveFishing.js";
+import { runOneCast, nextConsumableSlot, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
 import { GuardState } from "../../src/orchestrator/guards.js";
 import type { BotConfig } from "../../src/orchestrator/config.js";
@@ -96,8 +96,17 @@ function fakeCard() {
   };
 }
 
-/** `focusPoint` is [1,1], NOT [0,0] — `geometry.ts` is one-indexed and this file drives the meter to zero. */
-function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean }) {
+/**
+ * `focusPoint` is [1,1], NOT [0,0] — `geometry.ts` is one-indexed and this file
+ * drives the meter to zero.
+ *
+ * `fishingConsumableSlotUsed` is on EVERY live state (all 5 states of cast
+ * 13019751, and `fishingCorpus.ts` has read it since session 61), so a mock
+ * that omits it is not a simpler mock — it is a different server. Omitting it
+ * makes `nextConsumableSlot` fail closed and no consume is ever sent, which
+ * silently turns every assertion about consuming into a vacuous one.
+ */
+function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) {
   return {
     docId: "77777777",
     docType: "FISHING_GAME",
@@ -120,6 +129,8 @@ function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; 
       cardInDrawPile: 0,
       hand: [1],
       discard: [],
+      consumablesUsed: opts.slotUsed.filter(Boolean).length,
+      fishingConsumableSlotUsed: [...opts.slotUsed],
     },
     COMPLETE_CID: opts.complete,
     SUCCESS_CID: opts.complete ? false : undefined,
@@ -133,9 +144,13 @@ function makeClient(opts: {
   fishMaxHp: number;
   focusMeter: number;
   balances: { focus: number; relaxing: number };
-}): { client: GigaverseClient; calls: string[]; itemIds: number[] } {
+  /** Pre-spent slots, for the "no slot left" case. Defaults to a fresh ledger. */
+  slotUsed?: boolean[];
+}): { client: GigaverseClient; calls: string[]; itemIds: number[]; slots: number[]; slotUsed: boolean[] } {
   const calls: string[] = [];
   const itemIds: number[] = [];
+  const slots: number[] = [];
+  const slotUsed = opts.slotUsed ?? [false, false, false];
   const client = {
     getFishingState: async () => ({ gameState: null }),
     getFishingActionToken: () => "",
@@ -145,22 +160,32 @@ function makeClient(opts: {
         { ID_CID: String(MID_RELAXING_OIL_ITEM_ID), BALANCE_CID: opts.balances.relaxing },
       ],
     }),
-    postFishingAction: async (body: { action: string; data: { itemId: number } }) => {
+    postFishingAction: async (body: { action: string; data: { itemId: number; slotIndex: number } }) => {
       calls.push(body.action);
       // `itemId` lives under `data`, not at the top level — `buildFishingEnvelope`
       // nests it. A mock that reads `body.itemId` gets `undefined` and an
       // assertion on it passes vacuously against `not.toContain`.
-      if (body.action === "use_fishing_item") itemIds.push(body.data.itemId);
+      if (body.action === "use_fishing_item") {
+        // THE SERVER'S OWN RULE, reproduced from the live HTTP 400 on cast
+        // 13019751: a consume aimed at a slot already marked used is rejected.
+        // Without this the mock accepts slot 0 forever and the cursor could
+        // regress to a constant with every test still green.
+        if (slotUsed[body.data.slotIndex]) throw new Error("HTTP 400 — slot already used");
+        slotUsed[body.data.slotIndex] = true;
+        slots.push(body.data.slotIndex);
+        itemIds.push(body.data.itemId);
+      }
       const doc = fakeDoc({
         fishHp: opts.fishHp,
         fishMaxHp: opts.fishMaxHp,
         focusMeter: opts.focusMeter,
         complete: body.action === "play_cards" && calls.filter((a) => a === "play_cards").length >= 2,
+        slotUsed,
       });
       return { success: true, message: body.action === "start_run" ? "Game started successfully." : "ok", data: { doc, events: [] }, actionToken: 1 };
     },
   } as unknown as GigaverseClient;
-  return { client, calls, itemIds };
+  return { client, calls, itemIds, slots, slotUsed };
 }
 
 function depsFor(dir: string, client: GigaverseClient): LiveFishingDeps {
@@ -325,5 +350,95 @@ describe("§1b — the seven-cast batch does not stop on a consume", () => {
     // Session 64's shape halted here, and still does. This is an added shape,
     // not a retuned one.
     expect(batchVerdict(sixClean, SESSION_64_LIMITS)).toMatchObject({ stop: true, reason: "clean_cast_cap" });
+  });
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// [session 65, LIVE-MEASURED] The consumable slot is a CURSOR, not a constant.
+//
+// Cast 13019751 spent a Focus Oil at slot 0, hit `focusMeter: 0` again two
+// turns later, and sent a SECOND consume at slot 0 — the hard-coded value that
+// had stood at that call site since session 44. The server rejected it with
+// HTTP 400, having already marked `fishingConsumableSlotUsed [T,F,F]`.
+//
+// This is exactly the question session 64 recorded as open ("`slotIndex` for a
+// SECOND consume within one cast is UNCONFIRMED"). The answer is that there is
+// no single right index: it is a cursor over the server's own three-slot
+// ledger, and the ledger is on every state.
+// ───────────────────────────────────────────────────────────────────────────
+
+describe("nextConsumableSlot — the cursor over the server's own slot ledger", () => {
+  it("returns 0 on a fresh cast", () => {
+    expect(nextConsumableSlot([false, false, false])).toBe(0);
+  });
+
+  it("returns 1 once slot 0 is spent — THE BUG, stated as a test", () => {
+    // The live state that produced the HTTP 400. A hard-coded 0 here is what
+    // cost cast 13019751 its remaining turns.
+    expect(nextConsumableSlot([true, false, false])).toBe(1);
+  });
+
+  it("walks the whole ledger", () => {
+    expect(nextConsumableSlot([true, true, false])).toBe(2);
+  });
+
+  it("returns null when every slot is spent — no wrap-around onto a used slot", () => {
+    expect(nextConsumableSlot([true, true, true])).toBeNull();
+  });
+
+  it("returns null rather than guessing 0 when the server sends no ledger", () => {
+    // Fails CLOSED (rule 5). Guessing 0 on an absent field is the same class
+    // of mistake as the hard-code, just harder to see.
+    expect(nextConsumableSlot(undefined)).toBeNull();
+    expect(nextConsumableSlot([])).toBeNull();
+  });
+
+  it("skips a ledger that is out of order rather than assuming slots fill left to right", () => {
+    expect(nextConsumableSlot([false, true, false])).toBe(0);
+    expect(nextConsumableSlot([true, false, true])).toBe(1);
+  });
+});
+
+describe("[session 65] a SECOND consume in one cast targets the next free slot, live", () => {
+  it("sends slotIndex 0 then slotIndex 1 when the meter empties twice", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-oil-slot-"));
+    // Meter empty on every state, so the FOCUS trigger fires every turn —
+    // precisely the live shape that exposed the bug on cast 13019751.
+    const { client, slots, calls } = makeClient({
+      fishHp: 9, fishMaxHp: 20, focusMeter: 0, balances: { focus: 22, relaxing: 0 },
+    });
+
+    const result = await runOneCast(depsFor(dir, client));
+
+    // Distinct, ascending slots — never the same slot twice. The mock throws
+    // on a repeat, so a regression to a hard-coded 0 fails here loudly.
+    expect(slots.length).toBeGreaterThanOrEqual(2);
+    expect(slots.slice(0, 2)).toEqual([0, 1]);
+    expect(new Set(slots).size).toBe(slots.length);
+    // And the cast survived to a real outcome, which it does not if a consume
+    // is rejected — a rejection now fails the whole cast closed, by design.
+    expect(result.outcome).toBe("escaped");
+    expect(calls).toContain("play_cards");
+
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("stops sending consumes once all three slots are spent, and plays on", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "gigaruns-oil-slotfull-"));
+    const { client, calls } = makeClient({
+      fishHp: 9, fishMaxHp: 20, focusMeter: 0, balances: { focus: 22, relaxing: 0 },
+      slotUsed: [true, true, true],
+    });
+
+    const result = await runOneCast(depsFor(dir, client));
+
+    // MAX_CONSUMABLE_SLOTS is 3 and all three are gone, so nothing is sent —
+    // but this is ORDINARY PLAY, not a failure. Fail-closed here means "do not
+    // send", not "abort the cast".
+    expect(calls).not.toContain("use_fishing_item");
+    expect(calls).toContain("play_cards");
+    expect(result.outcome).toBe("escaped");
+
+    rmSync(dir, { recursive: true, force: true });
   });
 });

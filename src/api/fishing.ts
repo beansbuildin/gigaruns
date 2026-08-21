@@ -83,6 +83,15 @@ const FishingBoardDataSchema = z
     // account stops rejecting `start_run`.
     cardsToAdd: z.array(FishingCardSchema).optional(),
     cardChosenId: z.number().nullable().optional(),
+    // [session 65] THE CONSUMABLE SLOT LEDGER, promoted out of `passthrough()`
+    // because the live loop now has to READ it rather than merely record it.
+    // Present on every captured state across the whole corpus
+    // (`src/sim/fishingCorpus.ts` has read it since session 61); three slots,
+    // per SPEC-fishing §4a. Kept `.optional()` so older fixtures that predate
+    // the field still parse. A consume must target a slot that is still
+    // `false` — see `nextConsumableSlot` in `scripts/liveFishing.ts`.
+    consumablesUsed: z.number().optional(),
+    fishingConsumableSlotUsed: z.array(z.boolean()).optional(),
   })
   .passthrough();
 

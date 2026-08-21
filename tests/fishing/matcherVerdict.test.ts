@@ -215,6 +215,14 @@ describe("against the real corpus — end to end, so the only untested thing on 
     // it as the question being settled. It is not. Session 51's DROP is still
     // preserved verbatim below.
     //
+    // **[session 65] §19 IS NOW CLOSED — powered KEEP at n=35.** The paragraph
+    // above describes the state this test was written in (session 64, n=20,
+    // KEEP-but-unpowered) and is kept because it is the reasoning that got
+    // here, not because it still describes the verdict. Two casts have now
+    // crossed the threshold and both hit above the batch base rate
+    // (13019015 at 0.727 / 30.0%, 13019677 at 0.502 / 75.0% vs a 28.5% base).
+    // Do not budget further casts for §19; see handoff/DECISIONS.md.
+    //
     // Pinned on the rule's conditions and on inequalities, never on the literal
     // 20 — the same discipline session 60 imposed for the same reason.
     const rows = loadRingPredictions().map((r) => ({
@@ -236,13 +244,24 @@ describe("against the real corpus — end to end, so the only untested thing on 
     expect(report.distribution!.max).toBeGreaterThan(PI_DECISION_THRESHOLD);
     expect(report.crossingCastIds.length).toBeGreaterThan(0);
     expect(report.verdict).toBe("KEEP");
-    // And the half that is still not settled — a KEEP does not retire the
-    // minimum, it only bypasses it for the existence claim.
-    expect(report.activeTurns).toBeLessThan(MIN_INSTRUMENTED_TURNS);
-    expect(report.verdictIsPowered).toBe(false);
-    expect(report.turnsRemaining).toBe(MIN_INSTRUMENTED_TURNS - report.activeTurns);
-    expect(report.turnsRemaining).toBeGreaterThan(0);
-    expect(report.rationale).toMatch(/UNPOWERED/);
+    // [session 65 §2] **AND THE PAYOFF HALF IS NOW POWERED.** The seven-cast
+    // batch carried instrumented turns past MIN_INSTRUMENTED_TURNS for the
+    // first time in the programme's history, so `verdictIsPowered` is true and
+    // there are no turns remaining to gather.
+    //
+    // This is the PRE-REGISTERED outcome, recorded before the batch ran
+    // (session-65 brief §2): "Whatever the shipped rule returns at n >= 32 is
+    // the answer... A powered KEEP closes §19." The rule was not touched
+    // between the pre-registration and this result — the only thing that
+    // changed is the corpus. That is the whole point of pre-registering.
+    //
+    // Pinned on the inequality, never on the literal 35, so ordinary corpus
+    // growth does not break it — the same discipline session 60 imposed.
+    expect(report.activeTurns).toBeGreaterThanOrEqual(MIN_INSTRUMENTED_TURNS);
+    expect(report.verdictIsPowered).toBe(true);
+    expect(report.turnsRemaining).toBe(0);
+    expect(report.rationale).not.toMatch(/UNPOWERED/);
+    expect(report.rationale).toMatch(/powered/i);
     // The parts that never depended on the field still work, which is what
     // makes this an end-to-end validation rather than a smoke test.
     expect(report.baseHitTurns).toBe(rows.length);

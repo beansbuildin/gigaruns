@@ -63,13 +63,19 @@ describe("cast-trace corpus reconciliation", () => {
     // [session 64] Recount after the §2 oil batch — 6 casts, 3 caught — and
     // then the §2 re-run, 1 cast (escaped) which is the corpus's first real
     // OIL cast. Old figures 95/94/410/15.
-    expect(traces.length).toBe(102);
-    expect(clean.length).toBe(101);
-    // 439 play turns across the clean traces — the same 439 as
+    // [session 65] Recount after the seven-cast batch (5 caught, 2 escaped —
+    // four of the seven consumed an oil). Old figures 102/101/439/18. Note the
+    // clean count still trails traces by exactly ONE, the same long-standing
+    // incomplete cast: the four new OIL casts all stayed clean, which is the
+    // ITEM_MESSAGE skip doing its job across a much bigger oil sample than the
+    // single cast it was built on.
+    expect(traces.length).toBe(109);
+    expect(clean.length).toBe(108);
+    // 466 play turns across the clean traces — the same 466 as
     // auditStepClass.ts's off-ring denominator and auditStateFields.ts's, and
-    // the same 18 catches as the all-time 18/102.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(439);
-    expect(traces.filter((t) => t.caught).length).toBe(18);
+    // the same 22 catches as the all-time 22/109.
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(466);
+    expect(traces.filter((t) => t.caught).length).toBe(22);
   });
 
   /**

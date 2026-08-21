@@ -60,11 +60,17 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // +29 playTurns, +3 caught, +4 escaped, `incomplete` unchanged at 1.
     // `playTurns` counts the `Item used successfully.` response, which is not a
     // turn — see castTrace's ITEM_MESSAGE. Old figures 95/522/414/15/79/1.
-    expect(summary.casts).toBe(102);
-    expect(summary.responseDocs).toBe(562);
-    expect(summary.playTurns).toBe(443);
-    expect(summary.caught).toBe(18);
-    expect(summary.escaped).toBe(83);
+    // [session 65] The seven-cast batch: +7 casts, +44 responseDocs,
+    // +27 playTurns, +5 caught, +2 escaped, `incomplete` unchanged at 1.
+    // Old figures 102/562/443/18/83/1. Four of the seven consumed an oil and
+    // one of those consumed THREE, so `responseDocs` outruns `playTurns` by
+    // more than usual here — `use_fishing_item` responses are docs and are not
+    // turns (castTrace's ITEM_MESSAGE).
+    expect(summary.casts).toBe(109);
+    expect(summary.responseDocs).toBe(606);
+    expect(summary.playTurns).toBe(470);
+    expect(summary.caught).toBe(23);
+    expect(summary.escaped).toBe(85);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -302,15 +308,38 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
     // The two are kept in ONE assertion rather than split, because what the
     // test is really pinning is that the derived flag finds every consumable
     // cast whatever its provenance.
+    // ── [session 65] FIVE now, and the fifth broke the one-slot pattern ────
+    //
+    // The seven-cast batch added three: `13019665` (Mid Relaxing Oil 937 — the
+    // first 937 this bot has ever spent, confirming `slotIndex: 0` for it),
+    // `13019677`, and `13019682`.
+    //
+    // **`13019682` is the one that matters.** It carries `consumablesUsed: 3`
+    // and `[true, true, true]` — THREE consumes in a single cast, walking
+    // slots 0, 1 and 2. Every earlier oil cast used exactly slot 0, which is
+    // precisely why a hard-coded `slotIndex: 0` survived from session 44 to
+    // session 65 without ever being wrong. It became wrong the first time a
+    // cast wanted a second oil, and the server answered HTTP 400.
+    //
+    // So the per-cast assertion is no longer "one oil in slot 0". It is the
+    // invariant that actually holds: `consumablesUsed` equals the number of
+    // slots marked used, and the used slots are a PREFIX — the cursor never
+    // skips a free slot or reuses a spent one.
     const oilCasts = corpus.filter((c) => c.oilEra).sort((a, b) => a.docId.localeCompare(b.docId));
-    expect(oilCasts.map((c) => c.docId)).toEqual(["12975152", "13019015"]);
+    expect(oilCasts.map((c) => c.docId)).toEqual([
+      "12975152", "13019015", "13019665", "13019677", "13019682",
+    ]);
     for (const c of oilCasts) {
-      expect(c.consumablesUsed).toBe(1);
-      expect(c.slotsUsed).toEqual([true, false, false]);
+      const used = c.slotsUsed!.filter(Boolean).length;
+      expect(c.consumablesUsed).toBe(used);
+      expect(c.slotsUsed).toEqual([...Array(used).fill(true), ...Array(3 - used).fill(false)]);
     }
+    // And the multi-consume cast is named, so this stops being a vacuous
+    // prefix check if the corpus ever loses it.
+    expect(oilCasts.find((c) => c.docId === "13019682")!.consumablesUsed).toBe(3);
     // ...and everything else is genuinely clean, which is what §4b's pooling
     // rules rest on.
-    expect(corpus.filter((c) => !c.oilEra).length).toBe(corpus.length - 2);
+    expect(corpus.filter((c) => !c.oilEra).length).toBe(corpus.length - oilCasts.length);
   });
 
   it("oilEra and consumablesUsed agree, so a call site may use either", () => {

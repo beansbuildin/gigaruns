@@ -179,27 +179,39 @@ describe("the committed corpus", () => {
    * it carries is not a sim artifact. The session's oil cast is itself a
    * confirmation: its meter hit zero at turn 7 with three turns still to play,
    * the trigger fired, and the oil was consumed.
+   *
+   * [session 65] Updated by the seven-cast batch: 102 -> 109, Focus 58 -> 60
+   * (56.9% -> 55.0%), Relaxing 10 -> 12 (9.8% -> 11.0%). **The Relaxing rate
+   * is the one worth reading.** Session 64 measured it at ~10% and the
+   * session-65 brief priced a seven-cast batch as a ~51% shot at seeing it
+   * fire once. It fired on cast ONE, and the corpus rate then moved UP rather
+   * than down — the estimate was not optimistic, it was slightly low.
    */
-  it("reports reachability over all 102 casts", () => {
+  it("reports reachability over all 109 casts", () => {
     const r = reachabilityReport(loadFishingCorpus());
-    expect(r.casts).toBe(102);
-    expect(r.totalDecisionPoints).toBe(443);
-    expect(r.relaxingReachable).toBe(10);
-    expect(r.focusReachable).toBe(58);
-    expect(r.eitherReachable).toBe(62);
-    expect(r.neitherReachable).toBe(40);
-    expect(r.totalRelaxingPoints).toBe(10);
-    expect(r.totalFocusPoints).toBe(187);
+    expect(r.casts).toBe(109);
+    expect(r.totalDecisionPoints).toBe(474);
+    expect(r.relaxingReachable).toBe(12);
+    expect(r.focusReachable).toBe(60);
+    expect(r.eitherReachable).toBe(65);
+    expect(r.neitherReachable).toBe(44);
+    expect(r.totalRelaxingPoints).toBe(14);
+    expect(r.totalFocusPoints).toBe(191);
   });
 
   it("shows the lax definition inflating Focus reachability on the real corpus", () => {
     const strict = reachabilityReport(loadFishingCorpus());
     const lax = reachabilityReport(loadFishingCorpus(), { requireTurnRemaining: false });
-    expect(lax.focusReachable).toBe(72);
+    expect(lax.focusReachable).toBe(74);
     // 14 real casts whose only meter-zero state is the one the policy could
     // never have acted on. The error is in the flattering direction.
     // [session 64] Unchanged at 14 after the 6-cast batch: the batch added one
     // cast to each side, so the GAP is the stable quantity, not the endpoints.
+    // [session 65] Still 14 after the seven-cast batch — 72 -> 74 lax against
+    // 58 -> 60 strict. Three independent batches now, and the gap has not
+    // moved once. That is worth more than any of the endpoints: it says the
+    // lax definition's error is a stable structural feature of how casts end,
+    // not sampling noise that might wash out with more data.
     expect(lax.focusReachable - strict.focusReachable).toBe(14);
     // ── [session 64] THIS CLAIM WAS WRONG, AND LIVE PLAY FALSIFIED IT ──────
     //
@@ -210,9 +222,17 @@ describe("the committed corpus", () => {
     // into. The lax definition calls that reachable; it was not.
     //
     // So the clause now demonstrably defends BOTH triggers on real data, not
-    // just the Focus one. Asserted as an inequality with the gap named, so the
-    // next cast of this shape moves the number without erasing the point.
-    expect(lax.relaxingReachable - strict.relaxingReachable).toBe(1);
-    expect(strict.relaxingReachable).toBe(10);
+    // just the Focus one.
+    //
+    // [session 65] **IT HAPPENED AGAIN — the gap is 1 -> 2.** A second cast in
+    // the seven-cast batch ended with a live fish at lethal range and no turn
+    // left. One occurrence was a counter-example to a claim; two in
+    // consecutive batches make it an ordinary way for a cast to end, and the
+    // "with a turn remaining" clause is load-bearing for the Relaxing trigger
+    // rather than incidentally correct there. Note the direction: each such
+    // cast makes the LAX definition look better than reality, which is the
+    // flattering direction and therefore the dangerous one.
+    expect(lax.relaxingReachable - strict.relaxingReachable).toBe(2);
+    expect(strict.relaxingReachable).toBe(12);
   });
 });

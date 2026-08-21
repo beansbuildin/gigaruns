@@ -44,7 +44,12 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
   it("never regenerates the focus meter within a cast — across CARD PLAY", () => {
     const r = auditFocusMeter(traces);
     expect(r.regenObserved).toBe(0);
-    expect(r.oilSkipped).toBe(1);
+    // [session 65] 1 -> 5 across the seven-cast batch. The claim is unmoved and
+    // the mechanism is unchanged; what grew is the number of transitions that
+    // are VISIBLY excluded rather than silently averaged in. 464/464 agree with
+    // regen 0 — every consumable transition accounted for and none of them
+    // quietly counted as card play.
+    expect(r.oilSkipped).toBe(5);
   });
 
   it("fishHp moves by exactly the played card's FISH_HP effect, exceptionless", () => {
@@ -72,7 +77,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // each new crit is `critEffects` at a cell inside the card's TRANSLATED
     // `critZones`. The discriminating inequalities below are what carry the
     // claim; the count is a census figure and moves with the corpus.
-    expect(corrected.crits).toBe(13);
+    // [session 65] 13 -> 17 across the seven-cast batch, same pattern again.
+    expect(corrected.crits).toBe(17);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

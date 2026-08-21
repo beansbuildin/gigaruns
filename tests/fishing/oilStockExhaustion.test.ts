@@ -73,7 +73,7 @@ function fakeCard() {
   };
 }
 
-function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean }) {
+function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) {
   return {
     docId: "88888888",
     docType: "FISHING_GAME",
@@ -105,6 +105,12 @@ function fakeDoc(opts: { fishHp: number; fishMaxHp: number; focusMeter: number; 
       cardInDrawPile: 0,
       hand: [1],
       discard: [],
+      // [session 65] The consumable slot ledger is on EVERY live state, and
+      // `nextConsumableSlot` now READS it to pick a slot — a mock that omits
+      // it fails closed and sends no consume at all, which would turn the
+      // "DOES spend" test below into a vacuous pass.
+      consumablesUsed: opts.slotUsed.filter(Boolean).length,
+      fishingConsumableSlotUsed: [...opts.slotUsed],
     },
     COMPLETE_CID: opts.complete,
     SUCCESS_CID: opts.complete ? false : undefined,
@@ -124,6 +130,7 @@ function makeClient(opts: {
   balances: { focus: number; relaxing: number } | null;
 }): { client: GigaverseClient; calls: string[] } {
   const calls: string[] = [];
+  const slotUsed = [false, false, false];
   const client = {
     getFishingState: async () => ({ gameState: null }),
     getFishingActionToken: () => "",
@@ -136,8 +143,12 @@ function makeClient(opts: {
         ],
       };
     },
-    postFishingAction: async (body: { action: string }) => {
+    postFishingAction: async (body: { action: string; data: { slotIndex: number } }) => {
       calls.push(body.action);
+      if (body.action === "use_fishing_item") {
+        if (slotUsed[body.data.slotIndex]) throw new Error("HTTP 400 — slot already used");
+        slotUsed[body.data.slotIndex] = true;
+      }
       const doc = fakeDoc({
         fishHp: opts.fishHp,
         fishMaxHp: opts.fishMaxHp,
@@ -145,6 +156,7 @@ function makeClient(opts: {
         // start_run plus one play_cards, then the cast ends — enough turns for
         // a trigger to fire, few enough that the test is fast and total.
         complete: body.action === "play_cards" && calls.filter((a) => a === "play_cards").length >= 2,
+        slotUsed,
       });
       return { success: true, message: body.action === "start_run" ? "Game started successfully." : "Cards played successfully.", data: { doc, events: [] }, actionToken: 1 };
     },

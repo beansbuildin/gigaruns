@@ -15,11 +15,37 @@
  * `config/bot.json`'s `dendren.oils.policyApproved`, which ships false: the
  * user approves a policy before anything is spent.
  *
+ * ## [session 65 §3] THE TURN COST IS NO LONGER SWEPT — it was MEASURED
+ *
+ * `costsTurn` was swept over `[false, true]` because the payload never said.
+ * Session 64's first live consume measured it (`use_fishing_item` carries
+ * `FOCUS_STAMINA_DIFF` and no `FISH_MOVED`; position, hand, discard and
+ * `nextCardIndex` are identical across it; no mana), session 65 re-confirmed it
+ * on item 937, and the answer lives in `MEASURED_CONSUME_COSTS_TURN`.
+ *
+ * So the default report is now the ONE arm that describes the real game. A
+ * sweep that keeps sweeping a resolved parameter re-opens a settled question
+ * every time someone runs it, and reports a "both branches" caveat that is no
+ * longer true.
+ *
+ * **A CORRECTION TO THE SESSION-65 BRIEF, which asked for this work.** The
+ * brief said the +19.40pp headline "was computed across both arms and should
+ * not be quoted again until it has been recomputed." It was not. `handoff/
+ * OIL-POLICY.md`'s headline table is labelled `costsTurn=false, amount=2,
+ * n=8000`, and `main()` has always judged robustness on the
+ * `costsTurn=false` rows only, calling the other branch an artifact in its own
+ * output. **The recommendation never depended on the unresolved mechanic**, so
+ * measuring it invalidates nothing and corrects no published number. What was
+ * genuinely overdue is narrower and is what this change does: stop SWEEPING a
+ * question that has an answer, and pin the answer so it cannot drift back.
+ *
+ * The artifact branch is still runnable via `--include-artifact-branch`,
+ * because deleting it would destroy the evidence for WHY it is an artifact.
+ *
  * ## What is swept
  *
  *   - 6 timing policies (src/strategy/fishing/oilTiming.ts), including the
  *     never-oil control and the un-overfittable "consume both at start".
- *   - BOTH branches of the unresolved mechanic: `costsTurn` false and true.
  *   - Effect amounts 1 / 2 / 3 — the sensitivity check. The payload says 2;
  *     if the winner flips at 1 or 3 the recommendation is not robust and
  *     saying so is the useful result.
@@ -62,7 +88,12 @@ import {
   matcherFishPolicy,
   type CastOptions,
 } from "../src/sim/fishing/castSim.js";
-import { OIL_TIMING_POLICIES, PAYLOAD_OIL_EFFECTS, type OilTimingPolicy } from "../src/strategy/fishing/oilTiming.js";
+import {
+  OIL_TIMING_POLICIES,
+  PAYLOAD_OIL_EFFECTS,
+  MEASURED_CONSUME_COSTS_TURN,
+  type OilTimingPolicy,
+} from "../src/strategy/fishing/oilTiming.js";
 
 export interface ArmResult {
   policy: string;
@@ -218,8 +249,20 @@ function main(): void {
   console.log("  MODELLED, NOT OBSERVED: the corpus has no usable oil cast. See this file's header.");
   console.log("  No oil is consumed live on the strength of this (rule 4; dendren.oils.policyApproved ships false).");
 
+  // [session 65 §3] The measured arm is the default and the only one that
+  // feeds the recommendation. The artifact branch is opt-in.
+  const includeArtifact = process.argv.includes("--include-artifact-branch");
+  console.log(
+    `  TURN COST: MEASURED, not swept — costsTurn=${MEASURED_CONSUME_COSTS_TURN} ` +
+      `(session 64 cast 13019015 item 942, re-confirmed session 65 on item 937).` +
+      (includeArtifact
+        ? "\n  --include-artifact-branch: also scoring costsTurn=true, which this sim CANNOT model. See the header."
+        : "\n  The costsTurn=true artifact branch is available via --include-artifact-branch."),
+  );
+
   const winners: Record<string, string> = {};
-  for (const costsTurn of [false, true]) {
+  const branches = includeArtifact ? [MEASURED_CONSUME_COSTS_TURN, !MEASURED_CONSUME_COSTS_TURN] : [MEASURED_CONSUME_COSTS_TURN];
+  for (const costsTurn of branches) {
     for (const amount of [PAYLOAD_OIL_EFFECTS.fishDamage, 1, 3]) {
       const deltas = reportBranch(runs, costsTurn, amount);
       const best = deltas.filter((d) => d.policy !== "never").reduce((a, b) => (b.deltaCatchRate > a.deltaCatchRate ? b : a));
@@ -233,17 +276,19 @@ function main(): void {
   // Robustness is judged WITHIN the branch the sim can actually model. Mixing
   // in the artifact branch would report "not robust" for a reason that has
   // nothing to do with the policies.
-  const modelled = Object.entries(winners).filter(([k]) => k.startsWith("costsTurn=false"));
+  const modelled = Object.entries(winners).filter(([k]) => k.startsWith(`costsTurn=${MEASURED_CONSUME_COSTS_TURN}`));
   const names = new Set(modelled.map(([, v]) => v.split(" ")[0]));
   console.log(
     names.size === 1
-      ? `\n  ROBUST WITHIN THE MODELLED BRANCH: ${[...names][0]} wins at every effect amount (1, 2, 3) at costsTurn=false.`
-      : `\n  NOT ROBUST even at costsTurn=false: the winner changes with the effect amount (${[...names].join(", ")}).`,
+      ? `\n  ROBUST AT THE MEASURED TURN COST: ${[...names][0]} wins at every effect amount (1, 2, 3).`
+      : `\n  NOT ROBUST at the measured turn cost: the winner changes with the effect amount (${[...names].join(", ")}).`,
   );
-  console.log(
-    "  The costsTurn=true rows are NOT a second opinion on the same question — see the header. The honest\n" +
-      "  statement of the turn-cost branch is that this sim cannot score it, and the first live oil cast must.",
-  );
+  if (includeArtifact) {
+    console.log(
+      "  The costsTurn=true rows are NOT a second opinion on the same question — see the header. That branch is\n" +
+        "  retained as the evidence for why this sim cannot represent a turn cost, not as an alternative answer.",
+    );
+  }
 
   console.log("\n── the theses, so a winner has to have a reason ──");
   for (const p of OIL_TIMING_POLICIES) console.log(`  ${p.name.padEnd(22)} ${p.thesis}`);

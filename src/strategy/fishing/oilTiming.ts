@@ -64,6 +64,30 @@ export interface OilEffects {
 
 export const PAYLOAD_OIL_EFFECTS: OilEffects = { focusRestore: 2, fishDamage: 2 };
 
+/**
+ * **[session 65 §3] The turn cost, MEASURED — no longer a swept parameter.**
+ *
+ * *Live-measured, session 64, cast 13019015 (Mid Focus Oil 942 at
+ * `focusMeter: 0`); re-confirmed session 65 on item 937.* `use_fishing_item`
+ * costs **no turn**: the response carries `FOCUS_STAMINA_DIFF` and no
+ * `FISH_MOVED`, and `fishPosition`, `previousFishPosition`, `lastMovePath`,
+ * `hand`, `discard` and `nextCardIndex` are identical across it. No mana
+ * either (942: 3→3; 937: 6→6).
+ *
+ * This constant exists so the answer has ONE home. `scripts/oilTimingSweep.ts`
+ * swept `costsTurn` over `[false, true]` because the payload never said; that
+ * is now a resolved parameter, and a sweep that keeps sweeping a resolved
+ * parameter quietly re-opens a settled question every time it is run.
+ * `tests/fishing/oilTiming.test.ts` pins both this value and the fact that the
+ * sweep's recommendation is drawn from the arm it names.
+ *
+ * **Deliberately NOT deleting the `costsTurn` option from `castSim`.** The
+ * simulator should still be able to model a turn-costing consumable — the
+ * game has other consumables and may add more. What is fixed is which arm
+ * THESE oils are scored in, not what the simulator can express.
+ */
+export const MEASURED_CONSUME_COSTS_TURN = false;
+
 export interface OilTimingState {
   turn: number;
   fishHp: number;

@@ -352,6 +352,35 @@ export function buildFishingEnvelope(
   };
 }
 
+/**
+ * [session 65 §1] **The first UNUSED consumable slot, read off the server's own
+ * ledger.** `null` means there is no slot to use and no consume may be sent.
+ *
+ * ## Why this exists — MEASURED, live, session 65 cast 13019751
+ *
+ * `slotIndex` was hard-coded to 0 at this call site since session 44. That is
+ * correct for the FIRST consume of a cast and wrong for every one after it:
+ * the server marks the slot used and rejects a second consume aimed at it.
+ *
+ *   state-003  consumablesUsed 1  fishingConsumableSlotUsed [T,F,F]   (942 accepted)
+ *   state-004  consumablesUsed 1  fishingConsumableSlotUsed [T,F,F]
+ *   → second `use_fishing_item` at slotIndex 0 → **HTTP 400**
+ *
+ * This is the open question session 64 recorded as "`slotIndex` for a SECOND
+ * consume within one cast is UNCONFIRMED". It is now confirmed, and the answer
+ * is that the index is not a constant at all — it is a cursor over the
+ * server's own three-slot ledger.
+ *
+ * Fails CLOSED (rule 5) in both directions: an absent field returns `null`
+ * rather than guessing 0, and a full ledger returns `null` rather than
+ * wrapping around onto a used slot.
+ */
+export function nextConsumableSlot(slotUsed: boolean[] | undefined): number | null {
+  if (!Array.isArray(slotUsed) || slotUsed.length === 0) return null;
+  const idx = slotUsed.findIndex((used) => !used);
+  return idx === -1 ? null : idx;
+}
+
 // ---------------------------------------------------------------------------
 // data/fish-patterns.jsonl — the transition log SPEC.md §5 asks for "from
 // the very first cast", read back in as `emptyFallback`'s empirical source.
@@ -1518,15 +1547,24 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           ? `  ★ on-demand LETHAL trigger: fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP (${held} Relaxing Oil held) — using one.`
           : `  ★ on-demand METER trigger: focus meter at ${doc.data.focusMeter}/${doc.data.focusMeterMax} (${held} Focus Oil held) — using one.`,
       );
+      // [session 65] THE SLOT IS A CURSOR, NOT A CONSTANT. Read off the live
+      // doc's own `fishingConsumableSlotUsed`; `null` means every slot is
+      // spent (or the server stopped sending the field), and the correct
+      // response is to not send the consume at all rather than aim at a used
+      // slot. See `nextConsumableSlot` for the measurement that established
+      // this — a hard-coded 0 cost cast 13019751 its remaining turns.
+      const slotIndex = nextConsumableSlot(doc.data.fishingConsumableSlotUsed);
+      if (slotIndex === null) {
+        log.write({ event: "oil_no_free_slot", turn, kind, itemId, slotUsed: doc.data.fishingConsumableSlotUsed });
+        console.log(
+          `  · on-demand wanted a ${kind} oil here — NO FREE CONSUMABLE SLOT ` +
+            `(${JSON.stringify(doc.data.fishingConsumableSlotUsed ?? null)}), not sending.`,
+        );
+        continue;
+      }
       const oilBody = buildFishingEnvelope("use_fishing_item", client.getFishingActionToken(), {
         itemId,
-        // [session 44] slotIndex:0 is confirmed for item 821 only (the one
-        // real capture) — unconfirmed for 937 and 942 alike, and unconfirmed
-        // for a SECOND consume in the same cast, which on-demand can now want.
-        // A wrong guess fails closed via the catch block below, not a
-        // GuardTrip: this action is an optional rescue, not a required step in
-        // playing the cast.
-        slotIndex: 0,
+        slotIndex,
       });
       log.write({ event: "post", body: oilBody });
       try {
@@ -1562,8 +1600,32 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         oilUseFailedThisCast[kind] = true;
         if (e instanceof TokenExpiredError) throw e;
         const message = (e as Error).message;
-        log.write({ event: "action_failed", reason: "use_fishing_item rejected", itemId, error: message });
-        console.log(`  ✗ use_fishing_item rejected (${message}) — continuing cast without it (unconfirmed slotIndex hypothesis), not retrying this kind this cast.`);
+        log.write({ event: "action_failed", reason: "use_fishing_item rejected", itemId, slotIndex, error: message });
+        // [session 65] **A REJECTED CONSUME IS NOT FREE.** The comment that
+        // stood here said this "fails closed via the catch block, not a
+        // GuardTrip: this action is an optional rescue, not a required step in
+        // playing the cast." Live play falsified that on cast 13019751: the
+        // server ADVANCED ITS ACTION TOKEN on the rejected request
+        // (`Invalid action token 1787330936730 != 1787330937735`), the client
+        // never saw the new value because the error path throws before
+        // `postFishingAction` assigns it, and the NEXT `play_cards` died on a
+        // token mismatch — surfacing as a confusing guard trip one turn away
+        // from its real cause.
+        //
+        // There is no resync: `GET /fishing/state` carries no `actionToken`
+        // (see `client.ts`), so the chain cannot be recovered without
+        // inventing an endpoint. The cast is therefore unplayable from here,
+        // and the honest thing is to stop AT the cause with the cause named.
+        throw new GuardTrip("use_fishing_item was rejected — the action token is now desynced and the cast cannot continue", {
+          itemId,
+          slotIndex,
+          kind,
+          turn,
+          error: message,
+          note:
+            "the server advances its action token even on a rejected use_fishing_item, and GET /fishing/state " +
+            "carries no actionToken to resync from. Stopping here rather than one turn later on a token mismatch.",
+        });
       }
     }
     // A lethal Relaxing Oil ends the cast outright. Re-check before spending a
