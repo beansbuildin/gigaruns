@@ -175,6 +175,7 @@ function depsFor(dir: string, client: GigaverseClient, oilBudget?: OilBudgetConf
     nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
     ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
     oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+    nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
     logsDir: join(dir, "logs"),
   });
 }

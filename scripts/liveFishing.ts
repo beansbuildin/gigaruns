@@ -138,6 +138,15 @@ import {
   DEFAULT_OIL_CAST_STATE_PATH,
 } from "../src/strategy/fishing/oilCastState.js";
 import {
+  classifyPredictionOutcome,
+  describeArmState,
+  disarmOverride,
+  readArmState,
+  tripsWire,
+  DEFAULT_NEXT_POSITION_ARM_STATE_PATH,
+  type OverrideDisarmRecord,
+} from "../src/strategy/fishing/nextPositionArm.js";
+import {
   onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
   type OilKind,
@@ -534,6 +543,15 @@ export interface NextPositionValidation {
   backfilled?: boolean;
   /** Fixture path a `backfilled` record was recovered from. Absent on live rows. */
   source?: string;
+  /**
+   * [session 66 §1] Whether the override actually STEERED card choice on this
+   * turn, as opposed to the prediction merely being watched. Optional because
+   * the 12 rows written before this field existed cannot be re-attributed —
+   * and absence must be read as UNKNOWN, never as "acted on". Nothing gates on
+   * this field; the tripwire fires from the live classification at the moment
+   * of the miss, not from a replay of the ledger.
+   */
+  overrideActive?: boolean;
 }
 
 function inBoundsTuple([x, y]: [number, number], gridSize: number): boolean {
@@ -552,6 +570,7 @@ const NextPositionValidationSchema = z
     gridSize: z.number().int().positive(),
     backfilled: z.boolean().optional(),
     source: z.string().optional(),
+    overrideActive: z.boolean().optional(),
   })
   .refine((v) => inBoundsTuple(v.predicted, v.gridSize) && inBoundsTuple(v.actual, v.gridSize), {
     message: "predicted/actual must be within [1, gridSize]",
@@ -862,7 +881,15 @@ export interface NextPositionOverrideStats {
   hits: number;
   /** Wilson lower bound on hit rate at 95% confidence; 0 when `attempts` is 0. */
   lowerBound: number;
-  /** Whether the override should arm: enough attempts AND the lower bound clears the bar. */
+  /**
+   * [session 66 §1] The first-miss tripwire's verdict — true once a validated
+   * miss has been recorded on a turn the override actually steered. Kept
+   * SEPARATE from `ready` rather than folded into it so a reader can tell
+   * "the evidence is thin" from "the evidence was good and then it was
+   * wrong", which are opposite situations that a single boolean hides.
+   */
+  disarmed: boolean;
+  /** Whether the override should arm: enough attempts AND the lower bound clears the bar AND no miss has ever tripped the wire. */
   ready: boolean;
 }
 
@@ -876,13 +903,30 @@ export interface NextPositionOverrideStats {
  * header above for the "permanently disables the override" failure mode
  * this is built to avoid.
  */
-export function nextPositionOverrideStats(path: string = DEFAULT_NEXT_POSITION_LOG_PATH): NextPositionOverrideStats {
+export function nextPositionOverrideStats(
+  path: string = DEFAULT_NEXT_POSITION_LOG_PATH,
+  // [session 66 §1] REQUIRED, deliberately, where every other path in this
+  // file has a real default. Two defaulted real data paths on one function is
+  // how a caller silently reads production state from a test — and this
+  // particular caller decides whether the bot overrides its own model, so the
+  // one thing it must not do is consult a file nobody meant it to.
+  armStatePath: string,
+): NextPositionOverrideStats {
   const validations = loadNextPositionValidations(path);
   const attempts = validations.length;
   const hits = validations.filter((v) => v.hit).length;
   const lowerBound = wilsonLowerBound(hits, attempts);
-  const ready = attempts >= NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS && lowerBound >= NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND;
-  return { attempts, hits, lowerBound, ready };
+  // [session 66 §1] The tripwire is a VETO over the Wilson gate, not a term in
+  // it. A miss folded into hits/attempts would lower the bound by a few points
+  // and be swamped by the next handful of hits — the override would re-arm
+  // itself within a cast or two, which is precisely the "a safeguard that
+  // resets is a log line" failure this exists to avoid.
+  const disarmed = readArmState(armStatePath).disarmed;
+  const ready =
+    !disarmed &&
+    attempts >= NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS &&
+    lowerBound >= NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND;
+  return { attempts, hits, lowerBound, disarmed, ready };
 }
 
 /** A `Distribution` certain the fish is at `cell` — the override's effect on `chooseCard`, once `nextPositionOverrideStats` reports `ready`. Kept as a pure, directly testable function separate from the live wiring. */
@@ -1104,6 +1148,15 @@ export interface LiveFishingDeps {
   guardStatePath?: string;
   /** [session 30] Validation-only recording of predicted vs. actual `nextPosition` — see this file's "nextPosition validation" section. */
   nextPositionLogPath?: string;
+  /**
+   * [session 66 §1] Where the first-miss tripwire persists its DISARM (see
+   * `src/strategy/fishing/nextPositionArm.ts`). Real data path, so tests MUST
+   * override it — and it went into `LiveFishingIsolatedPaths` in the same
+   * commit as this field, which is the whole point of that list: session 62
+   * did exactly this for `oilCastStatePath` and it failed all 8 call sites at
+   * compile time. The bug class has shipped four times when it was skipped.
+   */
+  nextPositionArmStatePath?: string;
   /** [session 45] Path for the per-turn ring-prediction log (see `appendRingPrediction`). Tests MUST override this — CLAUDE.md working-style, "tests must never write to a real data path". */
   ringPredictionLogPath?: string;
   /** Directory `dumpUnknownTerminal`/`checkPossibleDualYield` write surprise-field dumps into. Defaults to the real `logs/` — tests must override this, same as every other I/O path here (CLAUDE.md working-style, "tests must never write to a real data path"). */
@@ -1185,6 +1238,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   const { client, config, guards, fixtures, log, address, dryRun } = deps;
   const transitionsPath = deps.transitionsPath ?? DEFAULT_TRANSITIONS_PATH;
   const nextPositionLogPath = deps.nextPositionLogPath ?? DEFAULT_NEXT_POSITION_LOG_PATH;
+  const nextPositionArmStatePath = deps.nextPositionArmStatePath ?? DEFAULT_NEXT_POSITION_ARM_STATE_PATH;
   const ringPredictionLogPath = deps.ringPredictionLogPath ?? DEFAULT_RING_PREDICTION_LOG_PATH;
   const logsDir = deps.logsDir ?? "logs";
   const ringModelEnabled = deps.ringModelEnabled ?? true;
@@ -1652,7 +1706,14 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // gate has never yet been tested by a MISS, so the Wilson bound has only
     // ever been observed climbing; do not read 72.2% as a measured accuracy
     // ceiling.
-    const overrideStats = nextPositionOverrideStats(nextPositionLogPath);
+    //
+    // **[session 66 §1] AND IT NOW HAS A TRIPWIRE THAT CAN FIRE.** The Wilson
+    // bound cannot: computed from an unbroken streak it only ever climbs
+    // (12/12 ≈ 0.76, 20/20 ≈ 0.84, 50/50 ≈ 0.93), so it can never fire while
+    // the override behaves. `overrideStats.ready` now also requires that no
+    // validated miss has ever been recorded on a turn the override STEERED —
+    // see `src/strategy/fishing/nextPositionArm.ts`.
+    const overrideStats = nextPositionOverrideStats(nextPositionLogPath, nextPositionArmStatePath);
     const nextPositionOverrideActive = pendingPrediction?.turn === turn && overrideStats.ready;
     if (nextPositionOverrideActive) {
       console.log(
@@ -1867,6 +1928,17 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // "nextPosition validation" section. Checks the PRIOR turn's prediction
     // (if any) against this turn's real position, then records whatever
     // THIS turn's response reveals for the next iteration to check.
+    //
+    // [session 66 §1] The THREE cases are classified here rather than inferred
+    // from a bare `hit` boolean, because "no prediction" and "prediction
+    // correct" look identical at this call site (nothing to complain about)
+    // and conflating them is how 12/12 stays 12/12 forever. Only
+    // `acted_miss` — present, STEERED, and wrong — trips the wire.
+    const predictionOutcome = classifyPredictionOutcome({
+      predicted: pendingPrediction ? pendingPrediction.cell : null,
+      actual: toCell,
+      actedOn: nextPositionOverrideActive,
+    });
     if (pendingPrediction) {
       const hit = cellsEqual(toCell, pendingPrediction.cell);
       const validation: NextPositionValidation = {
@@ -1877,10 +1949,39 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         actual: [toCell.x, toCell.y],
         hit,
         gridSize,
+        // The record has to carry this or the ledger cannot distinguish a
+        // prediction the bot ACTED on from one it merely watched — and the
+        // 12 rows written before this field existed are exactly the ones a
+        // future reader would otherwise mis-attribute. Absent means unknown,
+        // never "acted on".
+        overrideActive: nextPositionOverrideActive,
       };
       appendNextPositionValidation(validation, nextPositionLogPath);
-      log.write({ event: "next_position_validation", ...validation });
-      console.log(`  · nextPosition validation: predicted ${JSON.stringify(pendingPrediction.cell)}, actual ${JSON.stringify(toCell)} — ${hit ? "HIT" : "miss"}.`);
+      log.write({ event: "next_position_validation", ...validation, outcome: predictionOutcome.kind });
+      console.log(
+        `  · nextPosition validation: predicted ${JSON.stringify(pendingPrediction.cell)}, actual ${JSON.stringify(toCell)} — ` +
+          `${hit ? "HIT" : "miss"} (${predictionOutcome.kind}).`,
+      );
+      if (tripsWire(predictionOutcome)) {
+        const disarmRecord: OverrideDisarmRecord = {
+          at: new Date().toISOString(),
+          castId,
+          turn,
+          predicted: [pendingPrediction.cell.x, pendingPrediction.cell.y],
+          actual: [toCell.x, toCell.y],
+          gridSize,
+          streakHits: overrideStats.hits,
+          streakAttempts: overrideStats.attempts,
+          lowerBound: overrideStats.lowerBound,
+        };
+        const written = disarmOverride(disarmRecord, nextPositionArmStatePath);
+        log.write({ event: "next_position_override_disarmed", written, ...disarmRecord });
+        console.log(`  ★★★ nextPosition override TRIPWIRE FIRED — first validated miss on a turn it steered.`);
+        console.log(`  ★★★ cast ${castId}, turn ${turn}, predicted [${disarmRecord.predicted.join(",")}], actual [${disarmRecord.actual.join(",")}].`);
+        console.log(`  ★★★ the streak it ended: ${disarmRecord.streakHits}/${disarmRecord.streakAttempts}, Wilson lower bound ${(disarmRecord.lowerBound * 100).toFixed(1)}%.`);
+        console.log(`  ★★★ ${describeArmState(readArmState(nextPositionArmStatePath), nextPositionArmStatePath)}`);
+        console.log(`  ★★★ the cast CONTINUES without the override — it is an optimisation, not a required input.`);
+      }
       pendingPrediction = null;
     }
     const predictedNext = extractNextPosition(newDoc);
@@ -2133,6 +2234,16 @@ async function main() {
   const me = await client.getMe();
   console.log(`  account <USER>`);
 
+  // [session 66 §1] Surface the tripwire's state BEFORE any cast runs. A
+  // safeguard nobody can see the state of is one that gets rediscovered by
+  // accident three sessions later — which is what happened to the override
+  // itself, arming live in session 65 without a decision being taken. Printed
+  // every invocation, armed or not, so "it is still armed" is an observation
+  // rather than an assumption.
+  const nextPositionArmStatePath = dataPath(profile, "nextPositionOverrideDisarm.json");
+  const armState = readArmState(nextPositionArmStatePath);
+  console.log(`  ${armState.disarmed ? "★★★ " : "· "}${describeArmState(armState, nextPositionArmStatePath)}`);
+
   // [session 45, TASKS.md Task 10] Graceful SIGINT, wired into this direct-CLI
   // entry point's own `main()` — `runOneCast` has accepted a `shutdownSignal`
   // since Task 10, but only `scripts/orchestrator.ts` ever constructed and
@@ -2247,6 +2358,16 @@ async function main() {
         // the INNER hop (`runOneCast` -> `mayConsumeOil`) and passed the whole
         // time; nothing pinned this outer one. It is pinned now.
         oilBudget: config.dendren?.oils,
+        // ── [session 66 §1] THE POPULATE SIDE OF THE TRIPWIRE ───────────────
+        //
+        // Handed over explicitly, profile-scoped, rather than left to
+        // `runOneCast`'s default. Session 64's headline was a config block
+        // that existed, was approved, was tested at the inner hop, and was
+        // never populated by `main()` — inert for three sessions while looking
+        // shipped. A test of the read path alone would pass identically on a
+        // permanently-armed override and a permanently-disarmed one, so what
+        // gets pinned is THIS line and the write that fills the file.
+        nextPositionArmStatePath,
       });
     } catch (e) {
       castError = e;

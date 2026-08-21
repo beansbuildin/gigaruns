@@ -38,6 +38,12 @@ export type LiveFishingIsolatedPaths = Required<
     // exact omission as a bug that has already shipped four times, and a new
     // I/O-owning field that skips this list is the fifth.
     | "oilCastStatePath"
+    // [session 66 §1] The first-miss tripwire's disarm state. Added here in
+    // the SAME COMMIT as the field on `LiveFishingDeps`, per the session-62
+    // precedent directly above — and this one matters more than most: a test
+    // that wrote a real disarm would silently switch the live override off
+    // for every subsequent session, and nothing re-arms it automatically.
+    | "nextPositionArmStatePath"
   >
 >;
 
@@ -50,6 +56,7 @@ export function makeLiveFishingDeps(
     | "ringPredictionLogPath"
     | "logsDir"
     | "oilCastStatePath"
+    | "nextPositionArmStatePath"
     | "fixtures"
     | "log"
     | "address"

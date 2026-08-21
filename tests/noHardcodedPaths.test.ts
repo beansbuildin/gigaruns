@@ -83,6 +83,17 @@ const SRC_ALLOWED = new Map<string, string>([
   ["src/orchestrator/opponentModelPersistence.ts", "DEFAULT_OPPONENT_MODEL_PATH"],
   ["src/orchestrator/playCountsPersistence.ts", "DEFAULT_PLAY_COUNTS_PATH"],
   ["src/strategy/fishing/oilCastState.ts", "DEFAULT_OIL_CAST_STATE_PATH — the oil-policy-dry sidecar, same shape as the three above"],
+  [
+    "src/strategy/fishing/nextPositionArm.ts",
+    // [session 66 §1] Meets this header's stated condition rather than merely
+    // resembling the entries above it: `main()` resolves
+    // `dataPath(profile, "nextPositionOverrideDisarm.json")` and passes it
+    // over the top, pinned by `tests/fishing/nextPositionTripwire.test.ts`.
+    // That matters more here than for the other ledgers — a --profile run that
+    // fell through to the default would disarm the DEFAULT profile's override,
+    // and nothing re-arms it automatically.
+    "DEFAULT_NEXT_POSITION_ARM_STATE_PATH — the override tripwire's disarm state, profile-resolved by every live caller",
+  ],
   ["src/sim/corpus.ts", "CORPUS_DIR — the shared, game-global fixture tree"],
   ["src/sim/fishingCorpus.ts", "fishing corpus root, same reason"],
   ["src/sim/fishing/castTrace.ts", "fishing corpus root, same reason"],

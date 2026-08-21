@@ -412,10 +412,11 @@ describe("nextPositionOverrideStats — session 39, CODEXAUDIT #4 (the actual bu
   it("does NOT clear the gate on ten hits buried in ninety interleaved misses — the audit's exact adversarial case", () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
     const path = join(dir, "nextPositionValidation.jsonl");
+    const armPath = join(dir, "nextPositionOverrideDisarm.json"); // absent = ARMED, the normal state
     const records = Array.from({ length: 100 }, (_, i) => ({ hit: i % 10 === 0 })); // exactly 10 hits, 90 misses, interleaved
     seed(path, records);
 
-    const stats = nextPositionOverrideStats(path);
+    const stats = nextPositionOverrideStats(path, armPath);
     expect(stats.attempts).toBe(100);
     expect(stats.hits).toBe(10);
     expect(stats.ready).toBe(false);
@@ -425,18 +426,20 @@ describe("nextPositionOverrideStats — session 39, CODEXAUDIT #4 (the actual bu
   it("does NOT clear the gate below NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS even at a 100% hit rate", () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
     const path = join(dir, "nextPositionValidation.jsonl");
+    const armPath = join(dir, "nextPositionOverrideDisarm.json"); // absent = ARMED, the normal state
     seed(path, Array.from({ length: NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS - 1 }, () => ({ hit: true })));
 
-    expect(nextPositionOverrideStats(path).ready).toBe(false);
+    expect(nextPositionOverrideStats(path, armPath).ready).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("clears the gate at the minimum attempt count with a genuinely high (not just all-time-ever) hit rate", () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
     const path = join(dir, "nextPositionValidation.jsonl");
+    const armPath = join(dir, "nextPositionOverrideDisarm.json"); // absent = ARMED, the normal state
     seed(path, Array.from({ length: NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS }, () => ({ hit: true })));
 
-    const stats = nextPositionOverrideStats(path);
+    const stats = nextPositionOverrideStats(path, armPath);
     expect(stats.attempts).toBe(NEXT_POSITION_OVERRIDE_MIN_ATTEMPTS);
     expect(stats.lowerBound).toBeGreaterThanOrEqual(NEXT_POSITION_OVERRIDE_MIN_LOWER_BOUND);
     expect(stats.ready).toBe(true);
@@ -446,19 +449,28 @@ describe("nextPositionOverrideStats — session 39, CODEXAUDIT #4 (the actual bu
   it("a single early miss lowers the bound but does not permanently disable the gate — enough later hits still clear it", () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-nextpos-gate-test-"));
     const path = join(dir, "nextPositionValidation.jsonl");
+    const armPath = join(dir, "nextPositionOverrideDisarm.json"); // absent = ARMED, the normal state
     // One miss, then enough hits that the Wilson lower bound still clears 0.5.
     seed(path, [{ hit: false }, ...Array.from({ length: 19 }, () => ({ hit: true }))]);
 
-    const stats = nextPositionOverrideStats(path);
+    const stats = nextPositionOverrideStats(path, armPath);
     expect(stats.hits).toBe(19);
     expect(stats.attempts).toBe(20);
     expect(stats.ready).toBe(true); // proves "every hit, ever, forever" is NOT what shipped
+    // [session 66 §1] And this is NOT in tension with the first-miss tripwire,
+    // which reads a different thing. A miss in the LEDGER may have been logged
+    // on a turn the override never steered (the gate was unmet, or the field
+    // fired while the override was off) — that is evidence about the SERVER's
+    // field, and it belongs in the bound. The tripwire fires only on a miss
+    // the bot ACTED on, and it vetoes rather than contributing a term. Both
+    // rows above are ledger misses; neither is a disarm.
+    expect(stats.disarmed).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("returns not-ready with lowerBound 0 for a missing file", () => {
-    const stats = nextPositionOverrideStats("/nonexistent/path.jsonl");
-    expect(stats).toEqual({ attempts: 0, hits: 0, lowerBound: 0, ready: false });
+    const stats = nextPositionOverrideStats("/nonexistent/path.jsonl", "/nonexistent/disarm.json");
+    expect(stats).toEqual({ attempts: 0, hits: 0, lowerBound: 0, disarmed: false, ready: false });
   });
 });
 
@@ -599,6 +611,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       nextPositionLogPath,
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+      nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
     });
@@ -629,12 +642,13 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       nextPositionLogPath,
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+      nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
     });
     const result = await runOneCast(deps);
     expect(result.outcome).toBe("escaped");
-    expect(nextPositionOverrideStats(nextPositionLogPath).ready).toBe(false);
+    expect(nextPositionOverrideStats(nextPositionLogPath, join(dir, "nextPositionOverrideDisarm.json")).ready).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -664,6 +678,7 @@ describe("runOneCast — nextPosition validation-only recording, live wiring (se
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+      nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
       logsDir: join(dir, "logs"),
     });
 
@@ -743,6 +758,7 @@ describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW 
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+      nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
       logsDir: join(dir, "logs"),
     });
   }
@@ -910,6 +926,7 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+      nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
       logsDir: join(dir, "logs"),
     });
 
@@ -947,6 +964,7 @@ describe("runOneCast — contextual fallback live wiring (session 33, CODEXIMPRO
       nextPositionLogPath: join(dir, "nextPositionValidation.jsonl"),
       ringPredictionLogPath: join(dir, "ringPrediction.jsonl"),
       oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+      nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
       logsDir: join(dir, "logs"),
     });
 
@@ -1113,6 +1131,7 @@ describe("ringPrediction rows — paired baseline + shot calibration (session 46
       logsDir: join(dir, "logs"),
       guardStatePath: join(dir, "guard-budget.json"),
       oilCastStatePath: join(dir, "oil-cast-states.jsonl"),
+      nextPositionArmStatePath: join(dir, "nextPositionOverrideDisarm.json"),
     });
     await runOneCast(deps);
     const rows = loadRingPredictions(ringPredictionLogPath);

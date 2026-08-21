@@ -239,6 +239,7 @@ describe("loadFishingCorpus — synthetic corpus regression (session 28, CODEXRE
         nextPositionLogPath: join(root, "next-position-test.jsonl"),
         ringPredictionLogPath: join(root, "ring-prediction-test.jsonl"),
         oilCastStatePath: join(root, "oil-cast-states-test.jsonl"),
+        nextPositionArmStatePath: join(root, "nextPositionOverrideDisarm-test.json"),
         logsDir: join(root, "logs"),
       }));
       await vi.runAllTimersAsync();
