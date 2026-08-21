@@ -1637,9 +1637,21 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     const fishHp = doc.data.fishHp;
     // [session 30, gate rebuilt session 39 CODEXAUDIT #4] Override gated
     // behind a Wilson-score confidence bound on hits/attempts, not a raw hit
-    // count (see this file's "nextPosition validation" section) — this
-    // override has never armed live yet regardless of how many casts run
-    // this session.
+    // count (see this file's "nextPosition validation" section).
+    //
+    // **[session 65] IT ARMED, for the first time.** This comment used to end
+    // "this override has never armed live yet regardless of how many casts run
+    // this session", and that stopped being true during the seven-cast batch:
+    // 10/10 hits, Wilson lower bound 72.2%, and it fired on the turns where
+    // the server had volunteered a `nextPosition`. It then went on hitting —
+    // the validation log's every entry is a HIT.
+    //
+    // Two things follow, and neither is a change to make here. The override is
+    // now a LIVE input to card choice rather than a dormant safeguard, so it
+    // belongs in any account of why a cast played the way it did. And its
+    // gate has never yet been tested by a MISS, so the Wilson bound has only
+    // ever been observed climbing; do not read 72.2% as a measured accuracy
+    // ceiling.
     const overrideStats = nextPositionOverrideStats(nextPositionLogPath);
     const nextPositionOverrideActive = pendingPrediction?.turn === turn && overrideStats.ready;
     if (nextPositionOverrideActive) {

@@ -14,19 +14,24 @@
 cast 2 onward**, the state implemented and tested earlier this session (§1c).
 This batch is its first real execution.
 
-## 2. NEW UNKNOWN FIELDS on the wire: `data.nextPosition`, `data.nextMovePath`
-Fired on turns 1,2,3 of cast 1 and on the `use_fishing_item` doc. Dumped to
-`logs/fishing-unknown-midcast-*.json`. NOT mentioned in session 64's recap.
-**The server appears to be sending the fish's next position outright** — which
-is the exact quantity this repo spends `matcher.ts` / ring predictors / the
-`nextPositionOverride` Wilson gate on predicting. Needs checking: is this new,
-and does it make the prediction stack redundant? Do NOT act on it in-session.
+## 2. `data.nextPosition` — I WAS WRONG, it is not new. CHECKED, corrected.
+My first read was "the server has started sending the fish's next position."
+It has not. `nextPosition`/`nextMovePath` have fired on ~1-2% of responses
+since session 30 (QUESTIONS.md §12), and `liveFishing.ts` has a whole
+validation-and-override section built on them. The `UNKNOWN FIELD` banner
+fires only because the field is not on the known-keys list, not because it is
+new. **Rule 10's trap in miniature, and I nearly walked into it: a warning
+that first APPEARS in today's logs is not an effect that first HAPPENED
+today.** Verified: 2 casts of this batch carry it, and in both the server's
+`nextPosition` matched the NEXT state's `fishPosition` exactly (2/2).
 
-## 3. `nextPosition` override is ARMED for the first time
+## 3. The `nextPosition` override ARMED for the first time — this part IS new
 `· nextPosition override ACTIVE (10/10 hits, Wilson lower bound 72.2%)`
-Session 30/39's gate has never armed live before ("this override has never
-armed live yet regardless of how many casts run this session" — its own
-comment). It has now. Related to §2 above, probably causally.
+The code comment asserting it "has never armed live yet" was true when written
+and is now false; fixed in place. The validation log is 12 entries / 12 hits
+across 9 casts, so **the gate has never been tested by a MISS** — 72.2% is a
+lower bound that has only ever been observed climbing, not a measured accuracy.
+It is now a LIVE input to card choice rather than a dormant safeguard.
 
 ## 4. The sweep's arms were NOT what the brief said — see §3 of the recap
 `oilTimingSweep.ts`'s header already states `costsTurn=true` is an ARTIFACT
