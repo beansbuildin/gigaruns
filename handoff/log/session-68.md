@@ -1,4 +1,4 @@
-# STATE — session 68 — 2026-08-21 (PT) — code at commit 23f182f
+# SESSION 68 — 2026-08-21 (PT) — commit 23f182f
 
 ## Status
 **BOTH GATES PASS.** Suite **1293/1293** (1279 → 1293, +14), `tsc --noEmit`
@@ -167,4 +167,201 @@ repo ledger agrees, 15 casts left. 3 caught / 2 escaped, 3 oils consumed.
      tests/fishing/reversalDispersion.test.ts |  28
      tests/fishing/zoneTemplate.test.ts       |  24
      handoff/DISTRIBUTION.md                  |  22
+```
+
+---
+
+# Verbose appendix
+
+## A. GATE 1 — the leak demonstration, verbatim
+
+Leak applied to `scripts/liveFishing.ts` (reuse the previous turn's shadow
+verdict to suppress this turn's spend):
+
+```
+const LEAKED_SKIP = oilShadowRecords[oilShadowRecords.length - 1]?.wouldSkip ?? [];
+const oilWanted = LEAKED_SKIP.length > 0 ? [] : onDemandTriggers(...)
+```
+
+```
+ × the live decision is BYTE-IDENTICAL with shadow on and shadow off
+
+Expected: ...{"action":"use_fishing_item",...,"itemId":937,"slotIndex":0}...
+          ...{"action":"play_cards",...}...
+          ...{"action":"use_fishing_item",...,"itemId":937,"slotIndex":1}...
+          ...{"action":"play_cards",...}...
+          "result":{"outcome":"escaped","turns":2,...,"oilsConsumed":2}
+
+Received: ...{"action":"use_fishing_item",...,"itemId":937,"slotIndex":0}...
+          ...{"action":"play_cards",...}...
+          ...{"action":"play_cards",...}...
+          "result":{"outcome":"escaped","turns":2,...,"oilsConsumed":1}
+
+ Tests  1 failed | 5 passed (6)
+```
+
+Restored: `grep -c LEAKED_SKIP scripts/liveFishing.ts` → `0`, six green.
+
+**The first leak I wrote did NOT fail the test**, and that was the session's
+most useful accident — see appendix C.
+
+## B. GATE 2 — the collection-time throw, both shapes
+
+Same absent data, ONLY the load location differing:
+
+```
+old shape (load in describe body):   Test Files  1 failed (1)
+                                     Tests  no tests
+
+new shape (load in beforeAll):       Tests  3 passed | 8 skipped (11)
+  ⚠ SKIPPED (author data absent) — tests/rejectionAudit.test.ts
+    run logs under <tmp>/: 10 of 10 pre-session-53 run logs absent
+    These assertions describe the author's own captures, not this code's behaviour.
+    They are skipped, NOT passed. See tests/helpers/authorData.ts.
+```
+
+The three that still pass are the pure-parsing tests — program logic, correctly
+always-running.
+
+## C. The float defect, and how it was found
+
+The leak in appendix A was inert by accident: at turn 0 the gate had FIRED
+rather than skipped, so there was no skip verdict to leak. Probing why:
+
+```
+turn 0: liveWanted [relaxing], shadowWanted [relaxing], skip [], bk 0.9999999999999999
+turn 1: liveWanted [relaxing], shadowWanted [],         skip [relaxing], bk 1
+```
+
+Same card, same board, certain kill by construction — different summation order
+over the distribution. Under `>= 1` the gate's behaviour on a certain kill was
+a coin flip nobody chose.
+
+`NECESSITY_EPSILON = 1e-9` + `meetsThreshold(p, t) => p >= t - EPSILON`.
+
+Re-ran session 67's sweep at n=8000 to check nothing moved:
+
+```
+conserve(r=2,f=2)      88.11%  +19.40pp  5578   3.59
+conserve(r=1,f=1)      88.38%  +19.66pp  3809   2.42     <- byte-identical to s67
+conserve(r=0.5,f=0.5)  88.42%  +19.71pp  3548   2.25
+bestKillProbability at the lethal trigger:
+  exactly 0   719  34.3%     exactly 1  1171  55.8%     [0.75,1)  13  0.6%
+```
+
+Unchanged. **The sim never hits this; the defect is live-only.**
+
+## D. §2 — the five casts, turn by turn
+
+```
+cast A 13022748  CAUGHT  Relaxing 937 lethal (fish 2/18 -> 0) -> GuardTrip
+                         second consume 942 slot 1 -> HTTP 400, token desynced
+                         and the catch was left UNRESOLVED -> account stuck
+cast B 13022872  escaped 2 turns, 0 oils
+cast C 13022874  CAUGHT  4 turns, Focus 942 at meter 0/3 -> 2/3
+                         final play: CRIT_HIT, fish 5 -> 0   [the lure]
+cast D 13022875  escaped 3 turns, 0 oils
+cast E 13022876  CAUGHT  2 turns, Relaxing 937 lethal (fish 1/16 -> 0)
+```
+
+Ledger after: `dayDocs[pond 2] = 5`, repo ledger 5 casts / 60 energy, agree.
+
+### The two defects, and they chain
+
+1. `oilWanted` is computed ONCE per turn and the loop over it never re-checked
+   completion. A lethal Relaxing Oil ENDS the cast, so the Focus consume that
+   triggered on the same turn was sent against a finished cast. The
+   `if (doc.COMPLETE_CID) continue;` that existed sat AFTER the loop; the damage
+   is done by the loop's second iteration.
+
+2. The GuardTrip unwound `runOneCast` before its `loot` block, so the catch's
+   `cardsToAdd` was never resolved — and the account then rejected the next
+   `start_run` with *"Player is already in a game"*. The loot block's own
+   comment claimed "the bot's OWN catches never leave the account stuck"; that
+   was only ever true of casts that reach the end.
+
+Fix 2 is structural: `resolvePendingCardOffer` is now shared and called BEFORE
+`start_run` as well, so recovery is automatic after ANY abort path. Verified
+live:
+
+```
+★ caught! resolving cardsToAdd offer (34, 7, 9) -> chose id 34 [pre-start recovery]
+✓ loot sent — fullDeck now 10 card(s), cardChosenId 34
+· account was left stuck by an earlier cast's catch — offer resolved, starting normally.
+```
+
+(Card 34 looked like the wrong pick — offer 7 has more damage and more zones —
+until `critEffects: 8` on `critZones: [6]` showed up. `max(hit,crit)/mana` = 8
+beats 6. The shipped policy was right.)
+
+## E. The CRIT_HIT envelope
+
+```json
+{"type":"CARD_PLAYED","playerId":0,"batch":1,"value":0,"data":{"result":1}}
+{"type":"CRIT_HIT",   "playerId":0,"batch":1,"value":5,"data":{"result":5}}
+{"type":"FISH_HP_DIFF","playerId":0,"batch":1,"value":5,"data":{"result":0}}
+{"type":"FISH_DIED",  "playerId":0,"batch":2,"value":516,
+  "data":{"fish":{"gameItemId":516,"name":"Finley","moveDistances":[1],
+                  "rarity":0,"size":"SM","pondId":2,"quality":1,...}}}
+```
+
+Card 76: `hitZones [1,2,3,4,6,7,8,9]`, `critZones []`, `critEffects []`,
+`hitEffects [{FISH_HP, 3}]`. Focus `(3,4)`, fish `(2,4)`. Fish 5 → 0.
+
+Event census over the whole corpus (484 card plays, 114 casts):
+
+```
+FISH_MOVED 484  CARD_PLAYED 484  HIT 152  FISH_HP_DIFF 487  NEW_HAND 114
+FISH_ESCAPED 87  FISH_DIED 26  PLAYER_0_MANA 8  PREDICT_NEXT_MOVE 16
+FOCUS_STAMINA_DIFF 6  use_fishing_item 9  DOUBLE_FISH 2  CRIT_HIT 1
+```
+
+**CRIT_HIT: 1.** It had never happened before, which is why two audit bugs
+survived this long.
+
+## F. The two castTrace bugs
+
+```
+castTrace.ts:283   hit: events.some((e) => e.type === "HIT")
+                   -> a CRIT_HIT scored as a MISS in every offline audit
+castTrace.ts:244   if (body.message === ITEM_MESSAGE) continue;
+                   -> dropped the response BEFORE reading its events, so
+                      FISH_DIED on a lethal-oil kill was never seen
+```
+
+The second showed as `loadCastTraces()` reporting **23** catches against the
+corpus's **26**. It read 22 vs 23 before this batch and the one-cast gap was
+attributed to the known incomplete cast — a coincidence that hid it. Both views
+now say 26.
+
+**The live path was never affected**: `liveFishing.ts:2221` derives
+`realizedHit` from `newDoc.data.fishHp < fishHp`. `data/ringPrediction.jsonl`
+and §19's verdict are clean.
+
+## G. §4 — preflight, final run
+
+```
+✓ exported 243 tracked file(s) to dist-preflight/
+  pruned: handoff, .claude, TASKS.md, QUESTIONS.md, CODEXAUDIT, CODEXIMPROVE,
+          CODEXREVIEW, config/.gitkeep
+▸ doctor.ts with an empty HOME — 1 ✗
+    ✗ no JWT at /nonexistent-friend-home/.secrets/gigaverse-jwt.txt
+  ✓ exactly one ✗, which should be the JWT.
+  Test Files  73 passed (73)
+  Tests  1279 passed | 13 skipped (1292)
+  author-data tests skipped: 13
+▸ secret scan of the exported tree — ✓ clean.
+▸ PREFLIGHT PASSED — the export behaves for a stranger.
+```
+
+Against session 67: `4 failed | 1264 passed`, 11 never collected.
+
+## H. §4b — the fixture-tree reconciliation
+
+```
+dirs=118  with-states=95  empty=23
+distinct docIds: 114
+dirs holding >1 docId: 7
+  cast-2026-08-17-05-34-25 -> 12944907 12944911 12944916 12944922 12944926 12944936
+  cast-2026-08-21-20-11-01 -> 13022748 13022872
 ```
