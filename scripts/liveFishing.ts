@@ -356,7 +356,7 @@ export function buildFishingEnvelope(
  * [session 65 §1] **The first UNUSED consumable slot, read off the server's own
  * ledger.** `null` means there is no slot to use and no consume may be sent.
  *
- * ## Why this exists — MEASURED, live, session 65 cast 13019751
+ * ## Why this exists — MEASURED, live, session 65 cast 13019682
  *
  * `slotIndex` was hard-coded to 0 at this call site since session 44. That is
  * correct for the FIRST consume of a cast and wrong for every one after it:
@@ -1552,7 +1552,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       // spent (or the server stopped sending the field), and the correct
       // response is to not send the consume at all rather than aim at a used
       // slot. See `nextConsumableSlot` for the measurement that established
-      // this — a hard-coded 0 cost cast 13019751 its remaining turns.
+      // this — a hard-coded 0 cost cast 13019682 its remaining turns.
       const slotIndex = nextConsumableSlot(doc.data.fishingConsumableSlotUsed);
       if (slotIndex === null) {
         log.write({ event: "oil_no_free_slot", turn, kind, itemId, slotUsed: doc.data.fishingConsumableSlotUsed });
@@ -1604,7 +1604,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         // [session 65] **A REJECTED CONSUME IS NOT FREE.** The comment that
         // stood here said this "fails closed via the catch block, not a
         // GuardTrip: this action is an optional rescue, not a required step in
-        // playing the cast." Live play falsified that on cast 13019751: the
+        // playing the cast." Live play falsified that on cast 13019682: the
         // server ADVANCED ITS ACTION TOKEN on the rejected request
         // (`Invalid action token 1787330936730 != 1787330937735`), the client
         // never saw the new value because the error path throws before

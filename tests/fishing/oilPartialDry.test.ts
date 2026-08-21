@@ -101,7 +101,7 @@ function fakeCard() {
  * drives the meter to zero.
  *
  * `fishingConsumableSlotUsed` is on EVERY live state (all 5 states of cast
- * 13019751, and `fishingCorpus.ts` has read it since session 61), so a mock
+ * 13019682, and `fishingCorpus.ts` has read it since session 61), so a mock
  * that omits it is not a simpler mock — it is a different server. Omitting it
  * makes `nextConsumableSlot` fail closed and no consume is ever sent, which
  * silently turns every assertion about consuming into a vacuous one.
@@ -167,7 +167,7 @@ function makeClient(opts: {
       // assertion on it passes vacuously against `not.toContain`.
       if (body.action === "use_fishing_item") {
         // THE SERVER'S OWN RULE, reproduced from the live HTTP 400 on cast
-        // 13019751: a consume aimed at a slot already marked used is rejected.
+        // 13019682: a consume aimed at a slot already marked used is rejected.
         // Without this the mock accepts slot 0 forever and the cursor could
         // regress to a constant with every test still green.
         if (slotUsed[body.data.slotIndex]) throw new Error("HTTP 400 — slot already used");
@@ -356,7 +356,7 @@ describe("§1b — the seven-cast batch does not stop on a consume", () => {
 // ───────────────────────────────────────────────────────────────────────────
 // [session 65, LIVE-MEASURED] The consumable slot is a CURSOR, not a constant.
 //
-// Cast 13019751 spent a Focus Oil at slot 0, hit `focusMeter: 0` again two
+// Cast 13019682 spent a Focus Oil at slot 0, hit `focusMeter: 0` again two
 // turns later, and sent a SECOND consume at slot 0 — the hard-coded value that
 // had stood at that call site since session 44. The server rejected it with
 // HTTP 400, having already marked `fishingConsumableSlotUsed [T,F,F]`.
@@ -374,7 +374,7 @@ describe("nextConsumableSlot — the cursor over the server's own slot ledger", 
 
   it("returns 1 once slot 0 is spent — THE BUG, stated as a test", () => {
     // The live state that produced the HTTP 400. A hard-coded 0 here is what
-    // cost cast 13019751 its remaining turns.
+    // cost cast 13019682 its remaining turns.
     expect(nextConsumableSlot([true, false, false])).toBe(1);
   });
 
@@ -403,7 +403,7 @@ describe("[session 65] a SECOND consume in one cast targets the next free slot, 
   it("sends slotIndex 0 then slotIndex 1 when the meter empties twice", async () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-oil-slot-"));
     // Meter empty on every state, so the FOCUS trigger fires every turn —
-    // precisely the live shape that exposed the bug on cast 13019751.
+    // precisely the live shape that exposed the bug on cast 13019682.
     const { client, slots, calls } = makeClient({
       fishHp: 9, fishMaxHp: 20, focusMeter: 0, balances: { focus: 22, relaxing: 0 },
     });

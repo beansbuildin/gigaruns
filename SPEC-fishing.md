@@ -298,7 +298,7 @@ costs no mana, after 942's `3 -> 3`).
 
 **(b) A SECOND consume in one cast does NOT use slot 0 — it uses the next FREE
 slot, and aiming at a used one is rejected.** Measured the expensive way on
-cast 13019751:
+cast 13019682:
 
 ```
 state-003  consumablesUsed 1  fishingConsumableSlotUsed [T,F,F]   (942 accepted)
