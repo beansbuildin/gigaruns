@@ -79,6 +79,7 @@ import {
   RECOMMENDED_NECESSITY_THRESHOLDS,
   type OilDecisionState,
 } from "../src/strategy/fishing/oilTiming.js";
+import { SHADOWED_OIL_POLICY } from "../src/strategy/fishing/oilShadow.js";
 import { MID_FOCUS_OIL_ITEM_ID, MID_RELAXING_OIL_ITEM_ID } from "../src/strategy/fishing/oilPolicy.js";
 
 const MAX_TURNS = 60;
@@ -246,6 +247,12 @@ function report(m: ConsumeMoment, excludeSelf: boolean): void {
   const gridSize = Number(d.gridSize);
   const wanted = onDemandTriggers(s, PAYLOAD_OIL_EFFECTS);
   const shadow = conserving.decide(s, PAYLOAD_OIL_EFFECTS);
+  // [session 70 §3] BOTH gates, because as of this session they are no longer
+  // the same question. The shadow moved off `conserving` — measured a live
+  // no-op, 0 holds in 9 firings — onto the exchange threshold, and an audit
+  // that printed only the retired rule would describe a decision nothing takes.
+  // Named off the shared constant so the two can never drift apart in label.
+  const shadowExchange = SHADOWED_OIL_POLICY.decide(s, PAYLOAD_OIL_EFFECTS);
 
   // [session 68 §2] A consume POSTed against an already-COMPLETE doc is the
   // defect that cost a cast — the server rejects it. The moment is still worth
@@ -260,7 +267,9 @@ function report(m: ConsumeMoment, excludeSelf: boolean): void {
   console.log(`  fish ${d.fishHp}/${d.fishMaxHp} at [${(d.fishPosition as number[]).join(",")}] (was [${(d.previousFishPosition as number[]).join(",")}])`);
   console.log(`  player ${d.playerHp}/${d.playerMaxHp}   focus meter ${d.focusMeter}/${d.focusMeterMax} at [${(d.focusPoint as number[]).join(",")}]   grid ${gridSize}`);
   console.log(`  draw pile ${d.cardInDrawPile}, discard ${(d.discard as number[]).length}, hand ${(d.hand as number[]).length}`);
-  console.log(`  on-demand wanted [${wanted.join(",")}]; conserve(r=1,f=1) would take [${shadow.join(",") || "none"}]`);
+  console.log(`  on-demand wanted [${wanted.join(",")}]`);
+  console.log(`    ${conserving.name.padEnd(28)} would take [${shadow.join(",") || "none"}]   (retired from shadow — live no-op, 0 holds in 9 firings)`);
+  console.log(`    ${SHADOWED_OIL_POLICY.name.padEnd(28)} would take [${shadowExchange.join(",") || "none"}]   (SHADOWED as of session 70)`);
 
   // The per-card table. `focusRemaining` is what decides whether the marker
   // could be moved at all, so it is printed beside the placements considered.

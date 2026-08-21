@@ -92,8 +92,9 @@ import type { Distribution, FishingCardLike } from "./cardChoice.js";
 import {
   bestConnectProbabilityFromFrozenCell,
   bestKillProbability,
-  conserving,
+  conservingOil,
   onDemandTriggers,
+  PREREGISTERED_EXCHANGE_THRESHOLDS,
   type OilDecisionState,
   type OilEffects,
   type OilKind,
@@ -125,6 +126,43 @@ import {
  * `exercisable` says whether the arm could have been exercised for real.
  */
 const SHADOW_SATURATED_STOCK = 99;
+
+/**
+ * [session 70 §3] **THE POLICY THE SHADOW ACTUALLY EVALUATES — and it is no
+ * longer the certainty gate.**
+ *
+ * Until session 70 this was `conserving`, i.e. `conserve(r=1,f=1)`. Session 69
+ * measured that gate against a real server and the result is unambiguous:
+ * **it has never once held a Relaxing Oil live — 0 of 9 firings on the entire
+ * record, and `wouldSkip` on 0 of 42 shadow records across ten casts.**
+ *
+ * That is not bad luck; it follows from the inputs. `conserve(r=1,f=1)` holds
+ * only when a card ALREADY kills with probability >= 1, and every Relaxing
+ * `bestKillProbability` ever observed live — 0.400 0.481 0.505 0.506 0.580
+ * 0.587 0.690 0.964 0.975 — is strictly between 0 and 1, as is every Focus
+ * `bestConnectProbability`. The gate was chosen (session 67) because the
+ * SIMULATOR's inputs are bimodal at 0 and 1, 34.3% / 55.8%. Live has no mass at
+ * either endpoint.
+ *
+ * So the shadow was spending every one of its records on the one rule known to
+ * do nothing. It now evaluates the exchange-rate threshold
+ * (`PREREGISTERED_EXCHANGE_THRESHOLDS`, session 69 §3), which would have held
+ * 2 of those 9 firings — derived from a measured exchange rate, pre-registered
+ * before the batch that tested it, and never swept.
+ *
+ * **NOTHING IS LOST BY REPLACING RATHER THAN ADDING A SECOND ARM**, which is
+ * the whole reason this is a swap and not a schema change. `conserve(r=1,f=1)`
+ * holds an arm exactly when that arm's recorded probability is >= 1, and
+ * `bestKillProbability` / `bestConnectProbability` are recorded on EVERY firing
+ * record. The certainty gate's verdict is therefore reconstructable offline
+ * from the same rows, for free — pinned by
+ * `tests/fishing/oilShadowExchangeArm.test.ts` so this claim cannot quietly
+ * stop being true.
+ *
+ * **Still NOT SHIPPED.** `liveFishing.ts` plays `onDemandTriggers`; this is
+ * observed beside it and changes nothing.
+ */
+export const SHADOWED_OIL_POLICY = conservingOil(PREREGISTERED_EXCHANGE_THRESHOLDS);
 
 /** The live board quantities the gate needs and `OilTimingState` does not carry. */
 export interface OilShadowBoard {
@@ -245,7 +283,7 @@ export function evaluateOilShadow(
   snapshot: OilDecisionState,
   effects: OilEffects,
   held: { focus: number; relaxing: number },
-  policy: OilTimingPolicy = conserving,
+  policy: OilTimingPolicy = SHADOWED_OIL_POLICY,
   livePolicyName = "on-demand",
 ): OilShadowRecord {
   const base: OilShadowRecord = {
