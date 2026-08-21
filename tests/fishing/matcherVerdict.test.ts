@@ -194,20 +194,29 @@ describe("batch selection", () => {
 });
 
 describe("against the real corpus — end to end, so the only untested thing on the day is the data", () => {
-  it("§19 is UNDER-POWERED, not settled: the live batch is real but below the minimum, so the verdict is INSUFFICIENT_DATA", () => {
-    // [session 61] THE GATE. This test used to assert DROP — session 51's rule,
-    // applied to the 7 instrumented turns session 60 produced, returned exactly
-    // that. The user's decision of 2026-08-20 was to gather more turns first,
-    // encoded here as `MIN_INSTRUMENTED_TURNS`. Session 51's verdict is not
-    // erased; it is preserved in `SESSION_51_VERDICT` and asserted below, so
-    // the renegotiation is visible in the test suite rather than only in prose.
+  it("§19 has CROSSED: the matcher exceeded the decision threshold, so the verdict is KEEP while the payoff half stays unpowered", () => {
+    // ── [session 64] THE RULE FIRING, WHICH IS THE RULE WORKING ─────────────
     //
-    // **Pinned on `n < N`, never on the literal 7.** Session 60's own lesson
-    // from rewriting this file: `activeTurns === 7` fires on the very next batch
-    // and teaches whoever hits it to edit the number, which is how a
-    // pre-registered rule erodes. Every assertion below is an inequality or a
-    // reference to the constant. When the corpus finally crosses N this test
-    // starts asserting DROP-or-KEEP on its own, which is the rule working.
+    // This test asserted INSUFFICIENT_DATA for three sessions, and session 60's
+    // own comment said what would end that: "When the corpus finally crosses N
+    // this test starts asserting DROP-or-KEEP on its own." It has — not by
+    // crossing N, but by the other door the rule always left open.
+    //
+    // `pi` exceeded `PI_DECISION_THRESHOLD` for the first time ever, on cast
+    // 13019015 (max 0.727) — this session's first live OIL cast. KEEP is an
+    // EXISTENCE claim and fires at any n by design ("the minimum gates the DROP
+    // arm ONLY", asserted below), so a crossing that happened is not made less
+    // real by a small sample.
+    //
+    // What has NOT changed is the power: 20 instrumented turns against a
+    // minimum of 32. So `verdictIsPowered` is still false and `turnsRemaining`
+    // is still positive, and both are asserted, because the danger now runs the
+    // other way — a KEEP is a comfortable answer and it would be easy to read
+    // it as the question being settled. It is not. Session 51's DROP is still
+    // preserved verbatim below.
+    //
+    // Pinned on the rule's conditions and on inequalities, never on the literal
+    // 20 — the same discipline session 60 imposed for the same reason.
     const rows = loadRingPredictions().map((r) => ({
       castId: r.castId,
       turn: r.turn,
@@ -223,17 +232,17 @@ describe("against the real corpus — end to end, so the only untested thing on 
     expect(report.activeTurns).toBeGreaterThan(0);
     expect(report.unmeasuredTurns).toBeGreaterThan(0);
     expect(report.activeTurns + report.unmeasuredTurns).toBeLessThanOrEqual(rows.length);
-    // The state the corpus is actually in, expressed as the rule's condition
-    // and not as a count.
+    // The crossing, which is what moved the verdict.
+    expect(report.distribution!.max).toBeGreaterThan(PI_DECISION_THRESHOLD);
+    expect(report.crossingCastIds.length).toBeGreaterThan(0);
+    expect(report.verdict).toBe("KEEP");
+    // And the half that is still not settled — a KEEP does not retire the
+    // minimum, it only bypasses it for the existence claim.
     expect(report.activeTurns).toBeLessThan(MIN_INSTRUMENTED_TURNS);
-    expect(report.verdict).toBe("INSUFFICIENT_DATA");
     expect(report.verdictIsPowered).toBe(false);
     expect(report.turnsRemaining).toBe(MIN_INSTRUMENTED_TURNS - report.activeTurns);
     expect(report.turnsRemaining).toBeGreaterThan(0);
-    // The measurement itself is unchanged and still points the way session 51's
-    // rule read it — this is a power problem, not a data problem.
-    expect(report.distribution!.max).toBeLessThan(PI_DECISION_THRESHOLD);
-    expect(report.crossingCastIds).toEqual([]);
+    expect(report.rationale).toMatch(/UNPOWERED/);
     // The parts that never depended on the field still work, which is what
     // makes this an end-to-end validation rather than a smoke test.
     expect(report.baseHitTurns).toBe(rows.length);

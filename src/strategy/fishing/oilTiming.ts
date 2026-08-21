@@ -11,17 +11,45 @@
  *
  * **The corpus contains no usable oil data.** 93 of 94 casts spent no
  * consumable at all, and the 94th (12975152) spent one before capture began,
- * with the item unidentifiable. So every candidate below is scored against a
- * MODEL of the oils' effect, built from the item payloads
- * (`FishingRestoreFocus` +2, `FishingDamageFish` +2) and not from a single
- * observed oil cast. That is stated here rather than in a footnote because it
+ * with the item unidentifiable.
+ *
+ * **[session 64] Now ONE fully-captured oil cast (13019015), and it is this
+ * bot's own.** That is enough to confirm the MECHANICS below (the +2, the
+ * slot, the turn and mana cost) and nowhere near enough to score an EFFECT:
+ * n=1, and the trigger fires because of the cast's own state, so a consuming
+ * cast is selected, not sampled.
+ *
+ * So every candidate below is still scored against a MODEL of the oils'
+ * effect, built from the item payloads (`FishingRestoreFocus` +2,
+ * `FishingDamageFish` +2) rather than from observed oil casts. The one live
+ * consume CONFIRMS the Focus payload's +2 exactly; it does not turn the model
+ * into a measurement. That is stated here rather than in a footnote because it
  * bounds what any recommendation from this file can be worth.
  *
- * ## The mechanic this file cannot resolve, and carries both ways instead
+ * ## The mechanic this file could not resolve — RESOLVED [session 64]
  *
- * Does consuming an oil COST A TURN? The payload does not say (see
- * `oilPolicy.ts`). Every policy here is therefore scored under BOTH
- * assumptions, and neither is the default.
+ * Does consuming an oil COST A TURN? The payload never said, so every policy
+ * here was scored under BOTH assumptions with neither as the default.
+ *
+ * **It costs no turn.** Measured on the first live consume (cast 13019015,
+ * Mid Focus Oil at `focusMeter: 0`): the `use_fishing_item` response carries
+ * `FOCUS_STAMINA_DIFF` and NO `FISH_MOVED`, and `fishPosition`,
+ * `previousFishPosition`, `lastMovePath`, `hand`, `discard` and
+ * `nextCardIndex` are byte-identical across it. The fish does not move, no
+ * card leaves the hand, and no mana is spent. SPEC-fishing §4a carries the
+ * full envelope.
+ *
+ * **What this changes, and what it does not.** The dual scoring can now
+ * collapse to the free-consume arm, which is the FAVOURABLE one — so any
+ * recommendation already made under both assumptions still stands, and no
+ * policy ranking here is invalidated. It is not re-scored in this file
+ * because that is a sweep, not a definition; see `scripts/oilTimingSweep.ts`.
+ *
+ * It also removes the one thing that made `lethal-relaxing-only` specially
+ * defensible. Its thesis says the lethal trigger "is provably indifferent to
+ * the mechanic this project cannot yet measure" — true, and now unremarkable,
+ * because every trigger is indifferent to it. That is an argument the shipped
+ * policy no longer needs rather than one it has lost.
  */
 
 import type { Cell } from "../../sim/fishing/geometry.js";
@@ -41,7 +69,7 @@ export interface OilTimingState {
   fishHp: number;
   fishMaxHp: number;
   mana: number;
-  /** Focus-meter points left. Never regenerates within a cast (CONFIRMED session 13). */
+  /** Focus-meter points left. Never regenerates within a cast THROUGH CARD PLAY (CONFIRMED session 13); a Focus Oil is the one exception, measured session 64. */
   focusRemaining: number;
   focusMax: number;
   focusOilHeld: number;
@@ -114,8 +142,10 @@ export function onDemandTriggers(s: OilTimingState, e: OilEffects): OilKind[] {
   // LETHAL, not "low": at `fishHp <= fishDamage` the oil ends the cast, which
   // is what makes this trigger indifferent to the turn-cost mechanic.
   if (s.fishHp > 0 && s.fishHp <= e.fishDamage) out.push("relaxing");
-  // ZERO, not "low": the meter never regenerates within a cast (CONFIRMED
-  // session 13), so zero is the only state where +2 changes a reachable cell.
+  // ZERO, not "low": card play never regenerates the meter (CONFIRMED session
+  // 13, re-scored session 64 with the oil transition excluded), so zero is the
+  // only state where +2 changes a reachable cell. The oil itself is the sole
+  // regeneration there is, which is exactly why this trigger is its moment.
   if (s.focusRemaining <= 0) out.push("focus");
   return out;
 }

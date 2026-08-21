@@ -43,16 +43,42 @@ export interface AuditCount {
 /**
  * `focusMeter` falls by exactly the Manhattan distance the focus point moved,
  * and never rises within a cast.
+ *
+ * [session 64] Both claims are about CARD PLAY and are scoped to it explicitly:
+ * a transition across a consumable is skipped and counted in `oilSkipped`. The
+ * first live Mid Focus Oil (+2 at meter zero) is a deliberate exception to both
+ * and does not falsify either — see the body.
  */
-export function auditFocusMeter(traces: readonly CastTrace[]): AuditCount & { regenObserved: number } {
+export function auditFocusMeter(
+  traces: readonly CastTrace[],
+): AuditCount & { regenObserved: number; oilSkipped: number } {
   let scored = 0;
   let agree = 0;
   let regenObserved = 0;
+  let oilSkipped = 0;
   const violations: string[] = [];
   for (const t of traces) {
     for (let i = 0; i + 1 < t.turns.length; i++) {
       const a = t.turns[i]!;
       const b = t.turns[i + 1]!;
+      // ── [session 64] AN OIL TRANSITION IS NOT A COUNTEREXAMPLE ──────────
+      //
+      // Both claims below describe what CARD PLAY does to the meter. A Mid
+      // Focus Oil restores +2 by design, so a transition spanning a consume
+      // breaks them by doing exactly what it is for. Scoring it as a violation
+      // would report the oil as a defect in the model of the board.
+      //
+      // Detected off the server's own `consumablesUsed`, not off a flag this
+      // repo writes — the same reasoning as `fishingCorpus.ts`'s `oilEra`: it
+      // cannot be forgotten, and it applies retroactively to any capture.
+      //
+      // Counted, not silently dropped. A count that quietly shrinks is how a
+      // denominator stops meaning anything, so `oilSkipped` is reported and the
+      // caller can see how much of the corpus this removed.
+      if (b.consumablesUsed > a.consumablesUsed) {
+        oilSkipped++;
+        continue;
+      }
       const dist = Math.abs(a.focusPoint.x - b.focusPoint.x) + Math.abs(a.focusPoint.y - b.focusPoint.y);
       const spent = a.focusMeter - b.focusMeter;
       scored++;
@@ -61,7 +87,7 @@ export function auditFocusMeter(traces: readonly CastTrace[]): AuditCount & { re
       if (b.focusMeter > a.focusMeter) regenObserved++;
     }
   }
-  return { scored, agree, violations, regenObserved };
+  return { scored, agree, violations, regenObserved, oilSkipped };
 }
 
 function playedCard(trace: CastTrace, before: CastTurn, after: CastTurn): TraceCard | undefined {

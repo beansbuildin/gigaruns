@@ -54,15 +54,17 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // UNCHANGED at 79. Old figures 94/517/411/14/79/1. The cast was
     // classified clean non-oil — the on-demand policy wanted no oil, so it is
     // an ordinary member of the non-oil arm, not a third-state exclusion.
-    // [session 64] The §2 oil batch: 6 casts, 3 caught / 3 escaped. Every
-    // delta reconciles with exactly those six — +6 casts, +28 responseDocs,
-    // +19 playTurns, +3 caught, +3 escaped, `incomplete` unchanged at 1.
-    // Old figures 95/522/414/15/79/1.
-    expect(summary.casts).toBe(101);
-    expect(summary.responseDocs).toBe(550);
-    expect(summary.playTurns).toBe(433);
+    // [session 64] The §2 oil batch (6 casts, 3 caught / 3 escaped) plus the
+    // post-fix re-run (1 cast, escaped, and the corpus's FIRST real oil cast —
+    // one Mid Focus Oil consumed). 7 casts total: +7 casts, +40 responseDocs,
+    // +29 playTurns, +3 caught, +4 escaped, `incomplete` unchanged at 1.
+    // `playTurns` counts the `Item used successfully.` response, which is not a
+    // turn — see castTrace's ITEM_MESSAGE. Old figures 95/522/414/15/79/1.
+    expect(summary.casts).toBe(102);
+    expect(summary.responseDocs).toBe(562);
+    expect(summary.playTurns).toBe(443);
     expect(summary.caught).toBe(18);
-    expect(summary.escaped).toBe(82);
+    expect(summary.escaped).toBe(83);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -268,7 +270,7 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
     }
   });
 
-  it("finds the ONE consumable cast already in the corpus — the brief's 'zero oil casts' is wrong", () => {
+  it("finds the two consumable casts — one inherited, one this bot's own first oil spend", () => {
     // [session 61] Written expecting an empty result, and it was not empty.
     // The session-61 brief states "the corpus contains zero oil casts" and
     // this agent repeated it in a doc comment before running the check.
@@ -288,13 +290,27 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
     // Pinned as a COUNT with the id named, deliberately not as "expect
     // exactly this docId forever": a second consumable cast appearing is real
     // news and should fail this test rather than slip through.
-    const oilCasts = corpus.filter((c) => c.oilEra);
-    expect(oilCasts.map((c) => c.docId)).toEqual(["12975152"]);
-    expect(oilCasts[0]!.consumablesUsed).toBe(1);
-    expect(oilCasts[0]!.slotsUsed).toEqual([true, false, false]);
+    //
+    // ── [session 64] IT APPEARED, AND THE TEST CAUGHT IT ────────────────────
+    //
+    // `13019015` is the FIRST oil this bot has ever consumed: one Mid Focus Oil
+    // (item 942, `slotIndex: 0`) at `focusMeter: 0` on turn 7, restoring the
+    // meter 0 -> 2. Unlike `12975152` this one IS ours and every unknown that
+    // cast left open is closed on it — the item is named on the per-turn record
+    // and the whole `use_fishing_item` envelope is captured.
+    //
+    // The two are kept in ONE assertion rather than split, because what the
+    // test is really pinning is that the derived flag finds every consumable
+    // cast whatever its provenance.
+    const oilCasts = corpus.filter((c) => c.oilEra).sort((a, b) => a.docId.localeCompare(b.docId));
+    expect(oilCasts.map((c) => c.docId)).toEqual(["12975152", "13019015"]);
+    for (const c of oilCasts) {
+      expect(c.consumablesUsed).toBe(1);
+      expect(c.slotsUsed).toEqual([true, false, false]);
+    }
     // ...and everything else is genuinely clean, which is what §4b's pooling
     // rules rest on.
-    expect(corpus.filter((c) => !c.oilEra).length).toBe(corpus.length - 1);
+    expect(corpus.filter((c) => !c.oilEra).length).toBe(corpus.length - 2);
   });
 
   it("oilEra and consumablesUsed agree, so a call site may use either", () => {

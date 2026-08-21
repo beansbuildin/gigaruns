@@ -173,33 +173,46 @@ describe("the committed corpus", () => {
    * numbers MUST be updated, not reverted — same convention as the census in
    * `tests/sim/fishingCorpus.test.ts`.
    *
-   * [session 64] Updated once already, by this session's own 6-cast batch:
-   * 95 -> 101 casts, Focus 56 -> 57 (58.9% -> 56.4%), Relaxing 9 -> 10. The
-   * headline conclusion is unmoved — the Focus trigger is reachable in most
-   * casts and the +17.74pp it carries is not a sim artifact.
+   * [session 64] Updated twice by this session's own live casts: 95 -> 102,
+   * Focus 56 -> 58 (58.9% -> 56.9%), Relaxing 9 -> 10. The headline conclusion
+   * is unmoved — the Focus trigger is reachable in most casts and the +17.74pp
+   * it carries is not a sim artifact. The session's oil cast is itself a
+   * confirmation: its meter hit zero at turn 7 with three turns still to play,
+   * the trigger fired, and the oil was consumed.
    */
-  it("reports reachability over all 101 casts", () => {
+  it("reports reachability over all 102 casts", () => {
     const r = reachabilityReport(loadFishingCorpus());
-    expect(r.casts).toBe(101);
-    expect(r.totalDecisionPoints).toBe(432);
+    expect(r.casts).toBe(102);
+    expect(r.totalDecisionPoints).toBe(443);
     expect(r.relaxingReachable).toBe(10);
-    expect(r.focusReachable).toBe(57);
-    expect(r.eitherReachable).toBe(61);
+    expect(r.focusReachable).toBe(58);
+    expect(r.eitherReachable).toBe(62);
     expect(r.neitherReachable).toBe(40);
     expect(r.totalRelaxingPoints).toBe(10);
-    expect(r.totalFocusPoints).toBe(186);
+    expect(r.totalFocusPoints).toBe(187);
   });
 
   it("shows the lax definition inflating Focus reachability on the real corpus", () => {
     const strict = reachabilityReport(loadFishingCorpus());
     const lax = reachabilityReport(loadFishingCorpus(), { requireTurnRemaining: false });
-    expect(lax.focusReachable).toBe(71);
+    expect(lax.focusReachable).toBe(72);
     // 14 real casts whose only meter-zero state is the one the policy could
     // never have acted on. The error is in the flattering direction.
     // [session 64] Unchanged at 14 after the 6-cast batch: the batch added one
     // cast to each side, so the GAP is the stable quantity, not the endpoints.
     expect(lax.focusReachable - strict.focusReachable).toBe(14);
-    // The Relaxing trigger is unaffected: a lethal fish is never the last state.
-    expect(lax.relaxingReachable).toBe(strict.relaxingReachable);
+    // ── [session 64] THIS CLAIM WAS WRONG, AND LIVE PLAY FALSIFIED IT ──────
+    //
+    // It read: "The Relaxing trigger is unaffected: a lethal fish is never the
+    // last state." That held across 101 casts and then broke on the 102nd.
+    // Cast 13019015 ESCAPED with `fishHp: 1` — the fish was alive, at lethal
+    // range, on the terminal state, with no turn left to spend a Relaxing Oil
+    // into. The lax definition calls that reachable; it was not.
+    //
+    // So the clause now demonstrably defends BOTH triggers on real data, not
+    // just the Focus one. Asserted as an inequality with the gap named, so the
+    // next cast of this shape moves the number without erasing the point.
+    expect(lax.relaxingReachable - strict.relaxingReachable).toBe(1);
+    expect(strict.relaxingReachable).toBe(10);
   });
 });

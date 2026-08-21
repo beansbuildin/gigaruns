@@ -94,6 +94,14 @@ export interface CastTurn {
   focusPoint: Cell;
   focusMeter: number;
   focusMeterMax: number;
+  /**
+   * [session 64] `consumablesUsed` on this state — the server's own running
+   * count. Carried so an audit can tell a turn an oil was consumed BEFORE from
+   * one it was not, which is the difference between a rule being violated and a
+   * rule not applying. The item response itself is skipped (see ITEM_MESSAGE),
+   * so the count is what makes the consume visible in the trace at all.
+   */
+  consumablesUsed: number;
   gridSize: number;
   hand: number[];
   fullDeck: number[];
@@ -150,6 +158,33 @@ export interface CastTrace {
 
 const LOOT_MESSAGE = "Card added to deck successfully.";
 const START_MESSAGE = "Game started successfully.";
+/**
+ * [session 64] `use_fishing_item`'s response. NOT A TURN, and skipped for the
+ * same reason `LOOT_MESSAGE` is: it repeats the preceding turn's move fields
+ * verbatim rather than reporting a new move.
+ *
+ * Confirmed on the first live oil consume (cast 13019015, state-008): the
+ * response carries `FOCUS_STAMINA_DIFF` and `use_fishing_item` events and NO
+ * `FISH_MOVED`, with `fishPosition`, `previousFishPosition`, `lastMovePath`,
+ * `hand`, `discard` and `nextCardIndex` all identical to state-007's.
+ *
+ * Counting it as a turn breaks position continuity — its
+ * `previousFishPosition` is the turn-before-last's, not the last turn's — so
+ * `continuous` goes false and `isCleanTrace` drops the WHOLE cast. That would
+ * have silently excluded every oil cast from the movement corpus from here on,
+ * which is exactly backwards: §4b pools movement quantities across the oil arm
+ * precisely because an oil changes what we spend, not what the fish does.
+ *
+ * Same trap as session 63's `shield.currentMax` dead end, in fishing costume:
+ * a response that RE-REPORTS its predecessor's state read as a fresh event.
+ *
+ * The one thing skipping costs: the trace no longer contains the mid-cast
+ * snapshot in which the meter reads its post-restore value. The restoration is
+ * still visible — the next real turn's `focusMeter` reflects it — but a reader
+ * reconstructing the focus budget turn-by-turn will see it rise without a
+ * local cause and should consult the raw fixture.
+ */
+const ITEM_MESSAGE = "Item used successfully.";
 
 function walkStateFiles(root: string): string[] {
   const out: string[] = [];
@@ -206,6 +241,7 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
     if (typeof docId !== "string") continue;
     if (!body.data?.doc?.data) continue;
     if (body.message === LOOT_MESSAGE) continue; // repeats the final state verbatim
+    if (body.message === ITEM_MESSAGE) continue; // not a turn — repeats the previous turn's move fields; see ITEM_MESSAGE
     const bucket = byDoc.get(docId) ?? { docId, entries: [] };
     bucket.entries.push({ file, body: body as Record<string, unknown> });
     byDoc.set(docId, bucket);
@@ -268,6 +304,7 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
         focusPoint: focus,
         focusMeter: Number(d.focusMeter),
         focusMeterMax: Number(d.focusMeterMax),
+        consumablesUsed: Number(d.consumablesUsed ?? 0),
         gridSize: Number(d.gridSize),
         hand: Array.isArray(d.hand) ? (d.hand as number[]) : [],
         fullDeck: Array.isArray(d.fullDeck) ? (d.fullDeck as number[]) : [],

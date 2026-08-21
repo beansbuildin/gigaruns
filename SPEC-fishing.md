@@ -260,6 +260,40 @@ hypothesis at its live call site (`scripts/liveFishing.ts`) — see
 `src/api/fishing.ts`'s `FishingActionSchema` doc comment and DECISIONS.md
 2026-08-18 (session 44).
 
+**[session 64, 2026-08-21] `slotIndex: 0` CONFIRMED for Mid Focus Oil (942)**
+— by this bot's own first live consume, not a DevTools capture. Cast
+13019015, turn 7, at `focusMeter: 0`:
+
+```
+POST { "action": "use_fishing_item", "actionToken": "1787326437363",
+       "data": { "cards": [], "nodeId": "", "focusPoint": [],
+                 "itemId": 942, "slotIndex": 0, "tierId": 0 } }
+-> { "success": true, "message": "Item used successfully." }
+```
+
+Four things the response settles, all read off the board state either side
+(`fixtures/fishing-casts/live/cast-2026-08-21-15-33-40/state-007` vs `-008`):
+
+- **The effect is exactly +2.** `focusMeter` 0 -> 2 against `focusMeterMax: 3`.
+  `FishingRestoreFocus`'s payload amount is the real amount.
+- **It costs NO turn.** The response's `events` are `FOCUS_STAMINA_DIFF` and
+  `use_fishing_item` and there is **no `FISH_MOVED`**; `fishPosition`,
+  `previousFishPosition`, `lastMovePath`, `hand`, `discard` and
+  `nextCardIndex` are all identical across the consume. This resolves the
+  mechanic `src/strategy/fishing/oilTiming.ts` says it "cannot resolve, and
+  carries both ways instead" — every policy in the sweep was scored under
+  both assumptions, and the free-consume assumption is the correct one.
+- **It costs no mana**, confirming a claim that until now was user-stated.
+- **The slot is marked**: `consumablesUsed` 0 -> 1,
+  `fishingConsumableSlotUsed` `[false,false,false]` -> `[true,false,false]`,
+  which is `slotIndex: 0` reflected back.
+
+**Still NOT confirmed: `slotIndex` for Mid Relaxing Oil (937), and the index
+for a SECOND consume within one cast.** The account holds 1 Relaxing against
+23 Focus, and the Relaxing trigger is reachable in only ~10% of casts, so
+this is unlikely to clear incidentally. Do not report the risk surface as
+retired.
+
 **Not modelled in the sim or the live loop** — this is a capture finding
 only, per this session's read-only-except-fishing-casts scope. `Rod`
 equipment (checked the same session, see below) does NOT carry oil slots or

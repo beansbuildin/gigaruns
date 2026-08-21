@@ -60,15 +60,42 @@ describe("cast-trace corpus reconciliation", () => {
     // Old figures 89/88/388/13.
     // [session 63] Recount after this session's ONE cast (caught, 3 turns).
     // Old figures 94/93/407/14.
-    // [session 64] Recount after the §2 oil batch — 6 casts, 3 caught.
-    // Old figures 95/94/410/15.
-    expect(traces.length).toBe(101);
-    expect(clean.length).toBe(100);
-    // 429 play turns across the clean traces — the same 429 as
+    // [session 64] Recount after the §2 oil batch — 6 casts, 3 caught — and
+    // then the §2 re-run, 1 cast (escaped) which is the corpus's first real
+    // OIL cast. Old figures 95/94/410/15.
+    expect(traces.length).toBe(102);
+    expect(clean.length).toBe(101);
+    // 439 play turns across the clean traces — the same 439 as
     // auditStepClass.ts's off-ring denominator and auditStateFields.ts's, and
-    // the same 18 catches as the all-time 18/101.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(429);
+    // the same 18 catches as the all-time 18/102.
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(439);
     expect(traces.filter((t) => t.caught).length).toBe(18);
+  });
+
+  /**
+   * [session 64] The first live oil cast (13019015) exposed this, and it would
+   * have applied to every oil cast after it.
+   *
+   * `use_fishing_item`'s response is not a turn — it carries
+   * `FOCUS_STAMINA_DIFF` and no `FISH_MOVED`, and repeats the preceding turn's
+   * `previousFishPosition`. Counted as a turn it breaks position continuity,
+   * `continuous` goes false, and `isCleanTrace` drops the ENTIRE cast from the
+   * movement corpus. That inverts §4b, which pools movement quantities across
+   * the oil arm precisely because an oil changes what we spend and not what the
+   * fish does.
+   *
+   * The assertion is on the oil cast specifically rather than on the clean
+   * count alone, because the clean count moves for many reasons and this one
+   * has to stay pinned to its cause.
+   */
+  it("keeps an OIL cast in the movement corpus — the item response is not a turn", () => {
+    const oilCast = traces.find((t) => t.docId === "13019015");
+    expect(oilCast).toBeDefined();
+    expect(isCleanTrace(oilCast!)).toBe(true);
+    expect(oilCast!.continuous).toBe(true);
+    // 11 real turns: state-000 start + 10 play_cards. The item response between
+    // turns 6 and 7 is skipped, so it must NOT contribute a 12th.
+    expect(oilCast!.turns.length).toBe(11);
   });
 
   it("the one non-clean trace is session 45's resumed cast, which has no start_run", () => {

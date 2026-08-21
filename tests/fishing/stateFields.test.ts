@@ -30,8 +30,21 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     expect(r.agree).toBe(r.scored);
   });
 
-  it("never regenerates the focus meter within a cast", () => {
-    expect(auditFocusMeter(traces).regenObserved).toBe(0);
+  /**
+   * [session 64] Still exceptionless — but the claim is now explicitly about
+   * CARD PLAY, and it took the first live oil to make that distinction real.
+   *
+   * A Mid Focus Oil restored the meter 0 -> 2 mid-cast (13019015, between
+   * turns 7 and 8), which is a regeneration by design. `auditFocusMeter` skips
+   * transitions spanning a consumable and counts them in `oilSkipped`, so the
+   * exception is VISIBLE rather than absorbed. Asserting `oilSkipped` here is
+   * the point: a skip that nobody counts is how a denominator quietly stops
+   * meaning anything.
+   */
+  it("never regenerates the focus meter within a cast — across CARD PLAY", () => {
+    const r = auditFocusMeter(traces);
+    expect(r.regenObserved).toBe(0);
+    expect(r.oilSkipped).toBe(1);
   });
 
   it("fishHp moves by exactly the played card's FISH_HP effect, exceptionless", () => {
@@ -55,11 +68,11 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // `critZones`. The discrimination is now 391/391 with 10 crits for the
     // corrected table against 383/391 with 2 for the transposed one — the
     // inequalities below are what assert that gap rather than just the pass.
-    // [session 64] 10 -> 12 across the §2 oil batch's 6 casts, same pattern:
+    // [session 64] 10 -> 13 across this session's 7 live casts, same pattern:
     // each new crit is `critEffects` at a cell inside the card's TRANSLATED
     // `critZones`. The discriminating inequalities below are what carry the
     // claim; the count is a census figure and moves with the corpus.
-    expect(corrected.crits).toBe(12);
+    expect(corrected.crits).toBe(13);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

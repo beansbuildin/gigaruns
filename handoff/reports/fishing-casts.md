@@ -1,8 +1,8 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-21T15:27:23.942Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-21T15:34:07.429Z.
 
-101 recorded casts — 18 caught (17.8%).
+102 recorded casts — 18 caught (17.6%).
 
 ## Fish caught, by name
 
@@ -119,3 +119,4 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 | 13018987 | yes | Plankton (rarity 0) |
 | 13018990 | no | — |
 | 13018993 | no | — |
+| 13019015 | no | — |

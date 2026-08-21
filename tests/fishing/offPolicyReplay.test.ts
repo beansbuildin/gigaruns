@@ -40,6 +40,9 @@ function turn(index: number, pos: Cell): CastTurn {
     lastMovePath: null,
     nextMovePath: null,
     nextPosition: null,
+    // [session 64] No consumable in this synthetic trace — replay is about
+    // movement, and an oil changes what we spend, not what the fish does.
+    consumablesUsed: 0,
     fishHp: 10,
     fishMaxHp: 20,
     mana: 10,
