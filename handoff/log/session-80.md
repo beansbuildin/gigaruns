@@ -192,3 +192,175 @@ vacuous**, `discoveredShipsClean` passes.
        scripts/liveFishing.ts               +32  arg guard (exercised, badly)
        SPEC-fishing.md                       +39  §CRIT_HIT rewritten
 ```
+
+---
+---
+
+# APPENDIX — session 80 verbose material
+
+## A. `scripts/damageEconomy.ts`, full output at n=4000 (post-batch corpus)
+
+```
+── §1  THE LIVE LOSS DECOMPOSITION ──
+    CAUGHT                                     42   30.2%
+    ESCAPED, fish at full HP                   84   60.4%
+    ESCAPED, mana exhausted                    12    8.6%
+    unresolved (no terminal doc captured)       1    0.7%
+
+    Of the 84 fish-at-full escapes, 28 ended with BOTH focus and mana still in hand.
+    Session 48's table: meter-outs dominate, focus intact -> THE DAMAGE ECONOMY.
+
+── §2  THE LIVE ECONOMY ──
+  LIVE — every clean trace on disk
+    casts 139   plays 587   hit 209 (35.6%)   miss 378 (64.4%)   unchanged 0
+    damage on a hit  mean 5.06  mode 5 (n=95)   heal on a miss  mean 3.02  mode 3 (n=283)
+    E[Δ fishHp / play] = 0.356 × (−5.06) + 0.644 × (+3.02) = +0.145
+    damage histogram   1:5  2:6  3:39  4:6  5:95  6:22  7:12  8:15  9:5  10:3  13:1
+    heal histogram     1:25  2:19  3:283  4:27  5:22  6:2
+
+  LIVE — same plays, UNCLAMPED (server's FISH_HP_DIFF)
+    damage 5.34   heal 3.24   drift +0.186
+
+    opening headroom mean 6.8 over 139 casts -> ~2.3 NET misses tolerated
+
+── §3  THE SIMULATOR, SAME STATISTIC ──
+  SIM — bare default (synthetic fish, no fallback) — the oil sweeps' arm
+    plays 13294   hit 10739 (80.8%)   dmg 5.01   heal 3.20   drift −3.437
+    turns 18290 = 13294 plays + 4996 REDRAWS (27.3%, 2.58 mana/cast of 10)
+  SIM — blind matcher (matcherPool: []) — the deck sweep's arm
+    plays 7641    hit 3261 (42.7%)    dmg 3.66   heal 3.28   drift +0.317
+    turns 19641 = 7641 plays + 12000 REDRAWS (61.1%, 8.09 mana/cast of 10)
+  SIM — live config (mined + contextual fallback, empirical fish)
+    plays 16429   hit 6921 (42.1%)    dmg 4.94   heal 3.11   drift −0.282
+    turns 23880 = 16429 plays + 7451 REDRAWS (31.2%, 3.86 mana/cast of 10)
+
+── §4b  VERDICT ──
+  SIM bare         drift −3.437 vs live +0.192  — dominant term: HIT RATE (96%)
+  SIM blind        drift +0.317 vs live +0.192  — dominant term: HIT RATE (49%)
+  SIM live-config  drift −0.282 vs live +0.192  — dominant term: HIT RATE (84%)
+```
+
+(The §4b percentages above were computed pre-batch against live's +0.192; the
+table in §2/§3 is post-batch. Both are reported rather than one silently
+restated — the arm figures did not move, only the live half did.)
+
+### The one-term-at-a-time decomposition, bare arm
+
+```
+  starting from live's +0.192:
+    swap in its HIT RATE   80.8%  ->  −3.502   (Δ −3.693)
+    swap in its DAMAGE     5.01   ->  +0.203   (Δ  0.011)
+    swap in its HEAL       3.20   ->  +0.323   (Δ  0.131)
+    all three (its own drift)     ->  −3.437
+```
+
+## B. GATE 2's byte-for-byte proof, in full
+
+Three reports run at `abf1aaf9^` and again after the rename. The COMPLETE diff:
+
+```
+focusProfileCheck.ts   9 lines, all of the form
+                         "meter-out 61.5% ..."  ->  "fish-at-full 61.5% ..."
+                         "meter-out rate    "   ->  "fish-at-full rate "
+                         "The sim meter-outs on 28.2%" -> "The sim's fish heal to full on 28.2%"
+oilArmCatchCheck.ts    1 line: "meter-out — sim OFF 28.2% sim ON 29.8%"
+                            -> "fish-at-full — sim OFF 28.2% sim ON 29.8%"
+lossDecomposition.ts   1 line: "escaped (meter out)  80/130 (61.5%) ..."
+                            -> "escaped (fish at full HP)  80/130 (61.5%) ..."
+```
+
+Not one numeric character differs anywhere in the three outputs.
+
+## C. The `--help` incident, in full
+
+Command issued, in a compound line whose output was sent to `/dev/null`:
+
+```
+npx tsx scripts/liveFishing.ts --help >/dev/null 2>&1
+```
+
+`parseArgs` looked for `--casts=`, did not find it, defaulted `casts` to 1, and
+ignored `--help` entirely. `logs/fishing-2026-08-22-22-43-27.jsonl`:
+
+```
+{"event":"energy_preflight","requiredEnergy":12,"poolBefore":143,...}
+{"event":"fishing_ledger_reconciled","gameCasts":11,"repoCastsBefore":11,"adjusted":false,"direction":"agreed"}
+{"event":"post","body":{"action":"start_run","actionToken":"","data":{...,"tierId":1}}}
+{"event":"action_applied","action":"start_run"}
+```
+
+Detection chain, in order:
+1. `fishingCorpus` reported 140 casts where 131 + 8 = 139 was expected.
+2. Nine fixture directories, not eight — the ninth timestamped `22-43-29`,
+   after the batch's last at `22-41-38`.
+3. Re-read the server ledger: **12/20, not 11/20.**
+
+The batch itself was correct: 8 casts requested, 8 played, ledger 3 → 11.
+
+**Why this is a rule-5 defect and not an operator error.** A script that spends
+a capped daily resource treated an argument it could not parse as an argument it
+did not need. `liveRun.ts` had the identical shape with `--runs=` defaulting to
+1 — a mistyped flag there starts a PLAIN 20-energy dungeon run, spending a
+run-unit and violating rule 11 in the same step.
+
+## D. The second crit anomaly, and the rules it kills
+
+```
+  13022874 t4   card 76 (hitEffects 3, critEffects [], critZones [])   Δ5   5 -> 0 / 19   LETHAL
+  13041046 t9   card 2  (hitEffects 5, critEffects [])                Δ8   17 -> 9 / 20  NOT lethal
+
+  rule                        case 1        case 2        verdict
+  hit + 2                     3->5  ✓       5->7  ✗       FALSIFIED
+  flat 5                      3->5  ✓       5->5  ✗       FALSIFIED
+  lethal, remaining HP        ✓ (5)         ✗ not lethal  FALSIFIED
+  hit × 1.5, round half up    3->5  ✓       5->8  ✓       fits
+  hit × 1.6, rounded          3->5  ✓       5->8  ✓       fits
+  floor(hit × 5/3)            3->5  ✓       5->8  ✓       fits
+  hit × 2                     3->6  ✗       5->10 ✗       FALSIFIED
+  hit × 1.5, floor            3->4  ✗       5->7  ✗       FALSIFIED
+```
+
+Separation of the three survivors needs a crit on a card with hit amount 9:
+they give 14 / 14 / **15**. Hit 4 gives 6/6/6 and hit 7 gives 11/11/11 — both
+useless. No card in the Shroom deck deals 9 on a hit, so this needs either a
+looted card or a deck change; it is not reachable by casting more.
+
+## E. Corpus pins moved by the batch
+
+```
+  fishingCorpus     casts 131 -> 140, responseDocs 741 -> 799,
+                    playTurns 552 -> 591, caught 38 -> 42, escaped 92 -> 97,
+                    incomplete unchanged at 1
+  castTrace         traces 131 -> 140, clean 130 -> 139 (still trails by one)
+  stateFields       oilSkipped 13 -> 18; card crits 25 -> 26;
+                    fishHp violations 1 -> 2 (see §D)
+  oilReachability   casts 140, decisionPoints 564 -> 608,
+                    relaxingReachable 12 -> 13, focusReachable 65 -> 67,
+                    eitherReachable 70 -> 72, neitherReachable 61 -> 68,
+                    totalRelaxingPoints 14 -> 15, totalFocusPoints 199 -> 205,
+                    lax focusReachable 81 -> 83 (GAP unmoved at 16),
+                    lax-vs-strict relaxing gap 11 -> 12,
+                    reachable-and-caught 10 -> 11, NUMERATOR still 2,
+                    gained/oils 0.167 -> 0.1538, 100·gained/rows 1.5267 -> 1.4286,
+                    reachable rate 9.160% -> 9.286%  ← FIRST rise; numerator moved
+```
+
+`13041058` is the new lethal-reachable cast: 13 decision points, reached the
+lethal band, **and was caught anyway** — which is why the numerator stayed at 2
+for a fourth consecutive batch.
+
+It is also the first cast on record where the on-demand policy WANTED a
+Relaxing oil and was refused by the **3/3 per-cast consumable budget** rather
+than by stock. A third way for a wanted firing to leave no strict decision
+point, alongside the two session 64/69 recorded.
+
+## F. Three oil casts this batch
+
+```
+  13041046   2 consumables (Focus)          10 plays, ESCAPED
+  13041055   1 consumable                    3 plays, CAUGHT
+  13041058   3 consumables — all three slots 10 plays, CAUGHT
+```
+
+Focus oil stock fell 8 -> 6 across the batch. The Relaxing per-cast cap of 2
+still has never bound.

@@ -913,3 +913,109 @@ is pending, a real id once picked, and `-1` on a cast that never offered (92 of
 read the sentinel as a landed pick — i.e. reported a stranded account as
 resolved. Fixed to `> 0` and pinned. What remains unobserved is narrower:
 whether the pile is RE-SHUFFLED at the wrap.
+
+2026-08-22 (session 80 §1) — **THE FISHERY GAP IS THE HIT RATE, NOT THE DAMAGE
+ARITHMETIC, and the session-80 brief's elimination of hit geometry is
+RETRACTED.** The per-play `fishHp` drift is now measured on both sides by one
+shared function (`src/sim/fishing/damageEconomy.ts`), clamped state-to-state on
+both, live off `castTrace.ts` and sim off `castSim.ts`'s `observeTurn` — the
+same hook `focusProfileCheck.ts` uses. **Live +0.145 (the fish GAINS HP in
+expectation); sim bare arm −3.437; blind +0.317; live-config −0.282.**
+Decomposed one term at a time from live's baseline, the HIT RATE carries 96% of
+the movement in the bare arm and 84% in the live-config one, while damage and
+heal are right to within a tenth in every arm — they are read from
+`fixtures/fishing-casts/cards.json`, a real capture, so they could hardly be
+otherwise. **The brief eliminated hit geometry by comparing live's 35.2%
+against `deckObjectiveSweep.ts`'s 36.42% baseline, which is a THIRD arm
+(`matcherPool: []`, a 23-card deck).** The arms that produce OIL-POLICY §0a's
+figures land shots at 80.8% and 42.1%. Two different arms were compared and the
+conclusion carried across — the same error shape as session 79's wrap
+predicate, one level up. Session 48's decision table is confirmed to select the
+middle branch (meter-outs dominate at 60.4% with focus intact on 28 of 84), and
+the branch's own quantity is a drift, not an outcome rate.
+
+2026-08-22 (session 80 §1) — **The simulator REDRAWS on 27–61% of its turns and
+the live bot cannot redraw at all**, so every sim figure in this repo comes from
+a policy the shipped bot does not run. `redrawEnabled` ships false and zero
+redraws appear in 140 committed casts. Found while fixing the drift's
+denominator: counting redraw turns as plays divides the sim's drift by a
+denominator the live side does not have. They are excluded, and the exclusion is
+**validated against `CastResult.shots` by an assertion that THROWS** — card 78's
+`hitEffects` is empty, so a hit that moves `fishHp` by 0 is possible in
+principle and would otherwise be silently dropped as a redraw. **Reported, not
+fixed:** turning the sim's redraw off would move every pinned figure in the
+repo, and rule 4 puts that behind a gate of its own.
+
+2026-08-22 (session 80 §2) — **`escaped_meter` is renamed `escaped_fish_full`,
+and `focusBudgetSweep.ts`'s `meterOutCasts` to `focusZeroCasts`, in the same
+pass and in opposite directions.** The old name never meant the focus meter ran
+out; it means the fish healed back to full, `if (fishHp >= fishMaxHp)`. The
+simulator has no focus terminal condition and is RIGHT not to — live the meter
+hits 0 and the cast continues (one corpus cast runs eight more plays after) and
+53% of CAUGHT casts end with it at 0. Focus exhaustion is a state, not a loss.
+The arithmetic never disagreed (`focusProfileCheck.ts` and
+`lossDecomposition.ts` both already defined the corpus side as *fish reached
+full HP*), so every comparison drawn under the old name still stands: **three
+affected reports were run before and after and every difference is a printed
+label, with not one numeric character changed.** The name was the hazard,
+because read under it "the sim escapes on 0.6% against a live 63.0%" points the
+reader at the focus budget when the measured cause is damage.
+
+2026-08-22 (session 80 §3) — **`fishMaxHp` is a distribution live and the
+simulator may now sample it, OPT-IN, with the default pinned byte-for-byte.**
+Eleven distinct values over 140 casts, mean 18.27 against the sim's fixed 21,
+constant within a cast (0 of 140 change it), and the opening RATIO was already
+right (0.6286 against 13/21 = 0.6190) — the centre was never the problem, the
+spread is absent. `fishMaxHpSampler` draws from its OWN salted stream for the
+reason session 79 gave the draw pile, and that scoping is proven by measurement
+rather than asserted: sampled vs fixed at the same seeds leaves `hitRate`
+(0.4249543200208823) and `meanTurns` (4.9155) byte-identical while
+`escapedFishFull` goes 0 → 392 of 2000. **NOT an answer to §0a and the brief
+said so first:** drift −3.444 → −3.249 against a live +0.145, because a
+per-cast change cannot close a per-play gap. Also recorded in code rather than
+resolved: `mana -= card.manaCost` is indistinguishable from a flat 1 on this
+corpus — `playerHp` fell by exactly 1 on 587 of 587 plays, but every one was a
+manaCost-1 card, and the catalog's one 0-cost (17) and three 2-cost (12, 13,
+14) cards have never been played. A capture settles it; a refactor cannot.
+
+2026-08-22 (session 80 §4) — **THE LURE CRIT IS MULTIPLICATIVE. n=2, and the
+three readings SPEC listed are all falsified.** Session 68 pinned the single
+`fishHp` anomaly as an EXACT list rather than a tolerance, explicitly so a
+second, different one would fail loudly; it did, on this session's eighth live
+cast. `13022874` t4 (card 76, hit 3) took Δ5 and was LETHAL; `13041046` t9
+(card 2, hit 5) took Δ8 and was NOT lethal. `hit + 2` gives 7 for the second, a
+flat 5 gives 5, and "lethal, server reports remaining HP" cannot apply to a
+non-lethal blow. `hit × 1.5` round-half-up, `hit × 1.6` rounded and
+`floor(hit × 5/3)` all fit both exactly. **n=2 separates the FAMILIES, not the
+members — do not encode a multiplier.** What it does settle is that an ADDITIVE
+model is wrong for every card whose hit amount is not 3, which is most of them.
+Separating the survivors needs a crit on a hit-9 card (14/14/15); hit 4 and hit
+7 are useless, and no Shroom-deck card deals 9, so more casting alone will not
+get there.
+
+2026-08-22 (session 80 §5) — **An unrecognised command-line argument now STOPS
+both spending scripts, and the defect was demonstrated by spending a cast.**
+`scripts/lib/cliArgs.ts`. An agent ran `liveFishing.ts --help` to read the
+script's flags; there is no `--help`, unrecognised arguments were silently
+ignored, `--casts=` defaulted to 1, and it **played a real cast** off a capped
+daily allowance nobody had authorised (9 played against 8 approved). Found only
+through rule 13's ledger check — 12/20 where 11/20 was expected — plus a
+fixture directory timestamped after the batch ended. **`liveRun.ts` had the
+identical defect and it is worse there:** `--runs=` defaults to 1, so a
+mistyped flag starts a DUNGEON RUN, spending one of twelve daily run-units as a
+PLAIN 20-energy entry that rule 11 forbids outright. Never exercised; closed
+anyway. The guard runs before any network call, `--help` prints usage and exits
+0, and `tests/cliArgs.test.ts` pins BOTH the classifier and that each script
+wires it in as `main()`'s first statement, plus a drift check that every flag
+`parseArgs` reads is declared — a guard nothing calls is the same as no guard.
+
+2026-08-22 (session 80, corrections) — **`dendren.oils.policyApproved` is TRUE
+and has been since session 62.** Session 79's STATE.md open question 4 and the
+session-80 brief both described it as still FALSE and as something to ask the
+user about "after a profile check that passes". That is stale: the user
+approved the on-demand policy on 2026-08-20 and `config/bot.json` records it.
+Nothing was changed; the staleness is recorded so the next brief does not
+re-raise a settled approval. Also stale in the same brief: the claim that
+session 79 consumed no oil "because policyApproved is still false" — it did not
+consume oil, but not for that reason. This session's batch consumed oil on 3 of
+9 casts.
