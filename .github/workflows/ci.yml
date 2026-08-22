@@ -1,0 +1,82 @@
+# .github/workflows/ci.yml — [session 77 §2] the CI question, open since
+# session 68, closed.
+#
+# ## Why this exists at all
+#
+# `scripts/preflight.ts` answers "does a stranger's clone work?", and it has
+# answered it correctly every time it was run. It was run once, in session 68.
+# The assertion it was supposed to catch shipped in that same commit and the
+# suite was RED for a stranger for eight sessions while the instrument sat in
+# the tree unrun.
+#
+# The mechanism matters for choosing the trigger: **preflight exports from the
+# git INDEX**, so a test written after the last manual run is invisible to it.
+# Push-triggered CI is exactly the trigger that closes that gap. A pre-commit
+# hook is not, because the index is the thing that lags.
+#
+# ## A CI runner IS the stranger, and that is the point
+#
+# It has no `data/`, no `logs/`, no `~/.secrets`. The author-data suites
+# announce their skips here exactly as `tests/helpers/authorData.ts` designs
+# them to, and the green/red signal is precisely the property being tested.
+# **Never add author data to CI to make more tests run** — that destroys the
+# thing being measured.
+#
+# ## What this job may NOT do (user directive, 2026-08-22)
+#
+# Offline only: tests, type checks, and the export rehearsal against committed
+# fixtures. **No credentials. No live game API call. No autobattler / no run
+# of the playing loop. No deploy. No scheduled trigger.**
+#
+# That is not merely a policy here, it is structural: `scripts/doctor.ts` makes
+# exactly one network call to the game and it is guarded by `if (jwt)`. With no
+# `~/.secrets` on a runner there is no JWT, so the call is never reached —
+# preflight already relies on this, running doctor under an empty HOME and
+# expecting exactly one failure (the missing token).
+name: CI
+
+# Push and PR only. No `schedule:` — an autonomous timer is not wanted here,
+# and nothing in this job is worth running when nothing changed.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22 rather than the `engines` floor of 20: vite requires ^20.19 || >=22.12,
+      # so a bare "20" can resolve below what the toolchain accepts.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # `ci`, not `install` — the lockfile is committed precisely so that
+      # "it passes for me" means something (DISTRIBUTION.md, session 67).
+      - run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # The stranger's view: no data/, no logs/, no ~/.secrets. Author-data
+      # suites SKIP here and say so; that is the designed outcome.
+      - name: Test suite
+        run: npx vitest run
+
+      # Does every test actually assert something? Sees the one class neither
+      # the suite nor preflight structurally can — a test that passes while
+      # asserting nothing. Session 77 §1.
+      - name: Assertion coverage
+        run: npx tsx scripts/assertionCoverage.ts
+
+      # The export's view, plus the secret scan of what would leave the machine.
+      # Creates nothing, pushes nothing — DISTRIBUTION.md steps 3/4/6 are the
+      # user's and this script deliberately performs none of them.
+      - name: Distribution preflight
+        run: npx tsx scripts/preflight.ts
