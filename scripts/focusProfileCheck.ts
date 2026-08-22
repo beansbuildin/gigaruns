@@ -53,7 +53,7 @@ import { loadCastTraces, isCleanTrace, type CastTrace } from "../src/sim/fishing
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { buildCellOnlyMap, buildContextualMap } from "../src/strategy/fishing/contextualFallback.js";
 import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
-import { loadMinedPatterns } from "./liveFishing.js";
+import { loadMinedPatterns, loadRingPredictions } from "./liveFishing.js";
 import { profileArg, resolveProfile } from "../src/profile.js";
 import { REAL_DECK } from "../src/sim/fishing/rodDeck.js";
 
@@ -144,10 +144,34 @@ function corpusMeterOut(t: CastTrace): boolean {
   return !t.caught && last !== undefined && last.fishHp >= last.fishMaxHp;
 }
 
-function corpusProfile(): Profile {
-  const traces = loadCastTraces().filter(isCleanTrace);
+/**
+ * [session 71 §1] The docIds of casts played under TODAY's matcher weighting.
+ *
+ * A `ringPrediction.jsonl` row carrying `matcherWeight` was written by
+ * session-51-or-later code, which mixes the matcher tier in at a POSTERIOR; a
+ * row without it was written when the tier got a flat `1 - ringFloor = 0.9`.
+ * CLAUDE.md rule 10 warns against reading a field's first appearance as a
+ * behaviour change, so `scripts/replayGapDecomposition.ts` corroborates the
+ * split on `ts` — the two groups are cleanly separated in time, with zero
+ * interleaving, at 2026-08-19T22:23Z / 2026-08-20T18:27Z.
+ *
+ * This matters here because the corpus pools THREE policy eras and the oldest
+ * two are 88 of its 123 casts. Comparing today's simulator against that pool
+ * is not a gate on the simulator; it is a gate on how much of the corpus was
+ * played by code that has since been replaced.
+ */
+function todaysEraCastIds(): Set<string> {
+  return new Set(
+    loadRingPredictions()
+      .filter((r) => r.turn === 0 && typeof r.focusMoveCost === "number" && r.matcherWeight !== undefined)
+      .map((r) => r.castId),
+  );
+}
+
+function corpusProfile(label = "CORPUS (live)", keep: (t: CastTrace) => boolean = () => true): Profile {
+  const traces = loadCastTraces().filter(isCleanTrace).filter(keep);
   return profileOf(
-    `CORPUS (live)`,
+    label,
     traces.map((t) => ({
       focus: t.turns.map((x) => x.focusMeter),
       caught: t.caught,
@@ -209,6 +233,37 @@ function main(): void {
       `  the corpus has since roughly doubled and every one of them has moved. See §4.`,
   );
 
+  // ── §1b [session 71 §1] THE CORPUS IS THREE POLICY ERAS, NOT ONE ────────
+  //
+  // Session 70 read this script's FAIL and concluded the simulator does not
+  // reproduce the fishery. That verdict was measured against the pooled corpus.
+  // It pools 73 casts played before turn-0 logging existed, 15 played under the
+  // retired fixed-0.9 matcher weight, and 35 played under what ships today —
+  // and the three disagree with each other far more than the sim disagrees with
+  // the last of them.
+  console.log("\n── §1b  THE CORPUS SPLIT BY POLICY ERA ──");
+  const today = todaysEraCastIds();
+  const liveIds = new Set(
+    loadRingPredictions().filter((r) => r.turn === 0 && typeof r.focusMoveCost === "number").map((r) => r.castId),
+  );
+  const todaysEra = corpusProfile("CORPUS — today's policy era", (t) => today.has(t.docId));
+  const retiredEra = corpusProfile("CORPUS — retired fixed-0.9 era", (t) => liveIds.has(t.docId) && !today.has(t.docId));
+  const preLogging = corpusProfile("CORPUS — pre-logging era (session 49's 73)", (t) => !liveIds.has(t.docId));
+  printProfile(todaysEra);
+  printProfile(retiredEra);
+  printProfile(preLogging);
+  console.log(
+    `\n  Session 49's header numbers — 80.8% meter-out, opening spend 1.62 — are NOT stale-and-wrong.\n` +
+      `  They are exactly the pre-logging era above, and correct for the corpus they were computed on.\n` +
+      `  What is wrong is pooling all three and calling the result "the fishery".`,
+  );
+  console.log(
+    `\n  ⚠ THE ERA IS A BUNDLE, not a knob. Between these groups the zone map was fixed, the\n` +
+      `  matcher weighting changed, lures were equipped and the rod was swapped. This split says\n` +
+      `  the pooled comparison is invalid; it does NOT say the weighting alone caused the change.\n` +
+      `  scripts/replayGapDecomposition.ts §2 isolates the weighting on fixed cast sets.`,
+  );
+
   console.log("\n── §2  THE SIMULATOR ──");
   const empiricalMined: Omit<CastOptions, "seed" | "policy"> = {
     empiricalFish: { table },
@@ -246,18 +301,51 @@ function main(): void {
   // policy that spends 0.53, and inertness would then be read as "no effect"
   // when it means "not exercised".
   console.log("\n── §4  VERDICT ──");
+  //
+  // [session 71 §1] The verdict is taken against TODAY'S ERA, not the pool.
+  // The pooled comparison is reported alongside it because session 70 published
+  // that number and it must stay traceable — but it is not the gate, for the
+  // same reason `replayGapDecomposition.ts` found live's "1.08" was not one
+  // policy's opening spend. A simulator of today's policy is not refuted by
+  // casts today's policy never played.
   const cc = meanCi(corpus.openingSpends);
+  const tc = meanCi(todaysEra.openingSpends);
   const sc = meanCi(live.openingSpends);
-  const inside = sc.mean >= cc.lo && sc.mean <= cc.hi;
-  console.log(`  corpus opening spend  ${cc.mean.toFixed(2)}  95% CI [${cc.lo.toFixed(2)}, ${cc.hi.toFixed(2)}]  n=${cc.n}`);
+  const inside = sc.mean >= tc.lo && sc.mean <= tc.hi;
+  console.log(`  corpus, TODAY's era   ${tc.mean.toFixed(2)}  95% CI [${tc.lo.toFixed(2)}, ${tc.hi.toFixed(2)}]  n=${tc.n}   <- the gate`);
+  console.log(`  corpus, POOLED        ${cc.mean.toFixed(2)}  95% CI [${cc.lo.toFixed(2)}, ${cc.hi.toFixed(2)}]  n=${cc.n}   <- session 70 used this`);
   console.log(`  sim    opening spend  ${sc.mean.toFixed(2)}  95% CI [${sc.lo.toFixed(2)}, ${sc.hi.toFixed(2)}]  n=${sc.n}`);
   console.log("");
   if (inside) {
-    console.log("  PASS — the sim reproduces the corpus's opening focus spend. The sweep is");
-    console.log("  measuring the right thing and its ranking may be quoted.");
+    console.log(`  PASS — the sim's ${sc.mean.toFixed(2)} is inside today's-era interval, and it meter-outs on`);
+    console.log(`  ${(live.meterOutRate * 100).toFixed(1)}% of casts against today's era's ${(todaysEra.meterOutRate * 100).toFixed(1)}%. Session 70's FAIL was a`);
+    console.log(`  comparison against a pool 88/123 composed of retired policies, not a sim fault.`);
+    console.log("");
+    console.log(`  READ THE INTERVAL BEFORE CELEBRATING: n=${tc.n} makes it ${(tc.hi - tc.lo).toFixed(2)} wide. This is`);
+    console.log(`  "not refuted at n=${tc.n}", not "reproduced". And the CATCH RATE still disagrees badly`);
+    console.log(`  — sim ${(live.catchRate * 100).toFixed(1)}% against today's era's ${(todaysEra.catchRate * 100).toFixed(1)}% — so the sim is NOT cleared in general.`);
+    console.log("");
+    // [session 71 §2] The comparison SPANS THE MAKESHIFT/SHROOM BREAK and must
+    // say so. The sim arm below is the Shroom deck as of this session's
+    // repoint; today's-era corpus is 20 Makeshift casts and 15 Shroom ones.
+    const SHROOM_FROM = "2026-08-21T19:58:29Z";
+    const eraRows = loadRingPredictions().filter(
+      (r) => r.turn === 0 && typeof r.focusMoveCost === "number" && r.matcherWeight !== undefined,
+    );
+    const onShroom = eraRows.filter((r) => String((r as unknown as { ts?: string }).ts ?? "") >= SHROOM_FROM);
+    const spendOf = (rs: typeof eraRows) => rs.reduce((a, r) => a + (r.focusMoveCost as number), 0) / Math.max(1, rs.length);
+    console.log(`  ⚠ SPANS THE DECK BREAK. The sim arm is the SHROOM deck (repointed this session);`);
+    console.log(`  today's-era corpus is ${eraRows.length - onShroom.length} Makeshift casts and ${onShroom.length} Shroom ones (rod swapped ${SHROOM_FROM}).`);
+    console.log(`  Opening spend within the era: Makeshift ${spendOf(eraRows.filter((r) => !onShroom.includes(r))).toFixed(2)}, Shroom ${spendOf(onShroom).toFixed(2)} — the`);
+    console.log(`  verdict does not turn on which side you take, but the number is not deck-pure.`);
+    console.log("");
+    console.log("  What this licenses: the sweep's arms are no longer known-unexercised. What it");
+    console.log("  does NOT licence: quoting the ranking. Today's policy really does spend ~0.83");
+    console.log("  on the opening move, so costCap(2) still has nothing to cap — inert there now");
+    console.log("  means the policy does not need it, which is a finding, not a measurement.");
   } else {
-    console.log(`  *** FAIL *** — the sim's ${sc.mean.toFixed(2)} is OUTSIDE the corpus's interval.`);
-    console.log(`  The sim meter-outs on ${(live.meterOutRate * 100).toFixed(1)}% of casts against the corpus's ${(corpus.meterOutRate * 100).toFixed(1)}% —`);
+    console.log(`  *** FAIL *** — the sim's ${sc.mean.toFixed(2)} is OUTSIDE today's-era interval.`);
+    console.log(`  The sim meter-outs on ${(live.meterOutRate * 100).toFixed(1)}% of casts against today's era's ${(todaysEra.meterOutRate * 100).toFixed(1)}% —`);
     console.log("  it does not reproduce the failure mode focusBudget.ts was built to fix.");
     console.log("");
     console.log("  A spend cap cannot bind on a policy that does not spend, so an inert arm in");

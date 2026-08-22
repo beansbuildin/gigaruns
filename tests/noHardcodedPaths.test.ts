@@ -97,6 +97,12 @@ const SRC_ALLOWED = new Map<string, string>([
   ["src/sim/corpus.ts", "CORPUS_DIR — the shared, game-global fixture tree"],
   ["src/sim/fishingCorpus.ts", "fishing corpus root, same reason"],
   ["src/sim/fishing/castTrace.ts", "fishing corpus root, same reason"],
+  // [session 71 §2] Same fixture tree, same reason, and deliberately NOT
+  // profile-resolved: this module answers "which rod is the ACCOUNT holding",
+  // which is a fact about the recorded corpus itself and not something a
+  // --profile run should be able to redirect. `latestRodObservation` takes the
+  // root as a parameter, so a caller that wants a different tree can pass one.
+  ["src/sim/fishing/rodDeck.ts", "fishing corpus root, same reason"],
   ["src/sim/fishing/deck.ts", "CARD_CATALOG_PATH — a shipped game data file"],
 ]);
 
