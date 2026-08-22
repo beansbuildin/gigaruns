@@ -1,4 +1,4 @@
-# session 10 — 2026-08-15 — commit b43e241
+# session 10 — 2026-08-15 — commit ff96100
 
 Full detail behind `handoff/STATE.md`'s summary. Brief: session-10 brief §1-5
 ("Every run dies... put a name on it, don't tune blind").
@@ -249,7 +249,7 @@ corpus analysis only.
 
 ## Commit
 
-`b43e241` — `git diff 1b0d77f..b43e241 --stat`:
+`ff96100` — `git diff e256b36..ff96100 --stat`:
 
 ```
 QUESTIONS.md            | 70 ++++++++++++++++++++++++++++++++----

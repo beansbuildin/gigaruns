@@ -1,4 +1,4 @@
-# SESSION 69 LOG — 2026-08-21 (PT) — commit 17cb90e
+# SESSION 69 LOG — 2026-08-21 (PT) — commit 00684e4
 
 ## Status
 **BOTH GATES PASS.** Suite **1328/1328** (1293 → 1328, +35), `tsc --noEmit`
@@ -127,7 +127,7 @@ which is a user directive and can only ever REFUSE a spend.
 
 ## Files changed
 ```
- 5 commits (02acae5, 4724ce7, 21de1e8, a543a53, 17cb90e). 91 files, 10 new casts.
+ 5 commits (a6eea01, 77e46f2, e6e3ac9, fd126e2, 00684e4). 91 files, 10 new casts.
 
      scripts/oilMomentAudit.ts                 | 320  (new — §2b)
      scripts/liveFishing.ts                    | 280  (the hoist + cap + halt)

@@ -1,11 +1,11 @@
-# SESSION 34 — 2026-08-18 — commit cfab795
+# SESSION 34 — 2026-08-18 — commit e391901
 
 Same content as `handoff/STATE.md` at this commit, plus the raw ablation
 output that STATE.md only summarizes.
 
 ---
 
-# STATE — session 34 — 2026-08-18 — commit cfab795
+# STATE — session 34 — 2026-08-18 — commit e391901
 
 ## Status
 No TASKS.md gate was targeted this session — same discipline as sessions
@@ -58,7 +58,7 @@ brief's own staged bar, both stages shipped, both live in `DEFAULT_CONFIG` /
   the tie-break mechanism from this separate continuation-term mechanism.
 - Tests: **516/516 passing** (+6 from session 33's 510: +2 stage 1, +4 stage
   3). `npx tsc --noEmit` clean, checked against this session's final commit
-  (`cfab795`), both dependent-file combinations verified in isolation too
+  (`e391901`), both dependent-file combinations verified in isolation too
   (stage 1 alone, via `git stash` of stage-3-only files, hit 512/512 before
   stage 3 was added back — confirms stage 1 has zero dependency on stage 3).
 - Fishing account still stuck exactly as session 33 left it — checked via

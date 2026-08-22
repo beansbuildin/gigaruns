@@ -1,6 +1,6 @@
 # Session 51 — fishing calibration fixes + the pre-dungeon dry-run
 
-Commit range: `6237853..af2c587`. Six brief items, all delivered. **0 energy
+Commit range: `ea17e3c..2fdfb96`. Six brief items, all delivered. **0 energy
 spent** — no fishing casts (cap was already 20/20 for 2026-08-19 at session
 start) and no dungeon runs (§5 was explicitly a dry run).
 

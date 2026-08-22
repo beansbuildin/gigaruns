@@ -1,4 +1,4 @@
-# Session 41 — 2026-08-18 — commit 02f0373
+# Session 41 — 2026-08-18 — commit 74df985
 
 ## Brief
 Session 40 closed the structural Deps-construction fix, then flagged a live
@@ -137,7 +137,7 @@ directly) and only condition (2) — double-digit real card-choice
 observations, currently one — remains outstanding. Left the rest of Task
 13's section untouched.
 
-## Verification at final commit (02f0373)
+## Verification at final commit (74df985)
 - `npx tsc --noEmit`: clean, no output.
 - `npx vitest run`: 32 test files, 561/561 passing.
 - `git diff --check`: clean (exit 0).

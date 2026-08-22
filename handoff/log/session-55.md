@@ -1,4 +1,4 @@
-# SESSION 55 — 2026-08-19 (PT) — commit 39b8ef7
+# SESSION 55 — 2026-08-19 (PT) — commit 13356b0
 
 Offline by construction. Four brief items, all delivered. No gate was set.
 
@@ -300,7 +300,7 @@ identifier's own **LABEL** next to it rather than matching by shape alone:
 
 Shape alone would be reckless here in a way it is not in JSON: a bare `0x` +
 hex rule eats contract addresses and, **in these very files**, the git SHAs
-quoted in every STATE header (`commit ff36aa1`, `git diff 2f78c74..ff36aa1`).
+quoted in every STATE header (`commit a0a31d6`, `git diff 98757dd..a0a31d6`).
 Losing a commit SHA out of a session log destroys the one thing that makes the
 log checkable. A test asserts SHAs survive.
 
@@ -339,7 +339,7 @@ untouched.
 
 ---
 
-## Verification at the final commit (39b8ef7)
+## Verification at the final commit (13356b0)
 
 ```
 npx tsc --noEmit   -> clean

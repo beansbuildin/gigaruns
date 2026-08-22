@@ -1,4 +1,4 @@
-# STATE — session 67 — 2026-08-21 (PT) — code at commit dc898a8
+# STATE — session 67 — 2026-08-21 (PT) — code at commit e64fe31
 
 ## Status
 **BOTH GATES PASS.** Suite **1279/1279** (1254 → 1279, +25), `tsc --noEmit`
@@ -162,7 +162,7 @@ blocked only the ledger report; everything else was offline.
 
 ## Files changed
 ```
- 2 commits (7d536bc, dc898a8). No new fixtures — offline session.
+ 2 commits (a3e4363, e64fe31). No new fixtures — offline session.
 
      handoff/reports/session-67-distribution-rehearsal.md | 265  (new — §3)
      handoff/OIL-CONSERVE.md                              | 222  (new — §1d)

@@ -1,6 +1,6 @@
 # session 75 — 2026-08-22 — four juiced runs, GATE 1 PASS / GATE 2 PASS
 
-Commits: `6ae4962`, `82baf53`, `e5dbbd2`. Base `6d9217e`.
+Commits: `3f0e4e9`, `c933ab7`, `da75bb8`. Base `db6b210`.
 Suite 1401 → **1433**. `tsc --noEmit` clean. `git diff --check` clean.
 
 ---
@@ -328,6 +328,6 @@ npx tsc --noEmit          clean
 git diff --check          clean
 npx vitest run            Test Files 86 passed (86)   Tests 1433 passed (1433)
 tests/discoveredShipsClean.test.ts   8 passed
-secret scan (0x[a-fA-F0-9]{4,}, noobId, eyJ, PRIVATE) over 6d9217e..HEAD
+secret scan (0x[a-fA-F0-9]{4,}, noobId, eyJ, PRIVATE) over db6b210..HEAD
                           no matches outside 0xUSER
 ```

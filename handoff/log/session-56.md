@@ -1,8 +1,8 @@
-# STATE — session 56 — 2026-08-19 (PT) — code at commit 8ec7520
+# STATE — session 56 — 2026-08-19 (PT) — code at commit c34cafe
 
-> The five code commits end at **8ec7520**; the scratch-notes commit and this
-> recap sit on top of it. All verification below was run AT 8ec7520 and again
-> at the scratch commit, neither of which touches source after 8ec7520.
+> The five code commits end at **c34cafe**; the scratch-notes commit and this
+> recap sit on top of it. All verification below was run AT c34cafe and again
+> at the scratch commit, neither of which touches source after c34cafe.
 
 ## Status
 Session-56 brief: **all seven items (§2a, §2, §2d, §2e, §3, §4, §5) delivered**,

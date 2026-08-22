@@ -1,6 +1,6 @@
 # session 59 — 2026-08-20 — portability: the Profile seam, the safety pin, and deleting the private key that was never supposed to exist
 
-Commits: `408fd0f` (the brief), `6d705bc` (the gitignore hole), plus this recap.
+Commits: `5bc044e` (the brief), `f012bb4` (the gitignore hole), plus this recap.
 Started 09:44 PT, ended before the 11:00 PT rollover by the user's choice.
 Suite 1047 → 1060. Zero energy, zero casts, zero runs, one free GET.
 
@@ -14,7 +14,7 @@ is the session-58 brief; its §1 was completed last session and its §2 (the fir
 live juiced run) is still queued.
 
 The live brief was `handoff/next-portability.md`, modified at 09:44 today in the
-user's own out-of-band commit `ee94c91` — which also rewrote **CLAUDE.md rule
+user's own out-of-band commit `e74fe3e` — which also rewrote **CLAUDE.md rule
 3** and is the reason this session had two mandatory cleanups attached to it.
 
 ---
@@ -250,7 +250,7 @@ permission to use it.**
 npx tsc --noEmit          clean
 npx vitest run            60 files, 1060 passed (was 1047)
 git diff --check          clean
-secret scan on ee94c91..HEAD
+secret scan on e74fe3e..HEAD
   0x[a-fA-F0-9]{4,} | noobId \d+ | eyJ | PRIVATE   ->  zero matches
 .gitignore covers .env, .env.*, *.key, config/discovered.json, data/, logs/, profiles/
 no test writes a real data path — the new tests resolve paths and read source

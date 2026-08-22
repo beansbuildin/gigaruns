@@ -1,4 +1,4 @@
-# SESSION 61 — 2026-08-20 (PT) — commit 8329e0e
+# SESSION 61 — 2026-08-20 (PT) — commit 5e6fb78
 
 ## Status
 **BOTH GATE HALVES PASS.** Suite **1139/1139** at the final commit, `tsc
@@ -177,7 +177,7 @@ before believing one.
 
 ## Files changed
 ```
- 1 commit (8329e0e). 112 files, +51,352 / −68.
+ 1 commit (5e6fb78). 112 files, +51,352 / −68.
  83 are new redacted fixtures from run 24945829.
 
      src/strategy/fishing/matcherVerdict.ts  | 200  (§19's replacement rule)

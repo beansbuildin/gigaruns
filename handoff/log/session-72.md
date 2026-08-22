@@ -1,7 +1,7 @@
 # session 72 — 2026-08-21 (PT) — GATE 1 PASS / GATE 2 PASS
 
-Brief: `handoff/next.md` (written 17:15 PT). Commits `544d872`, `2c3658f`,
-`2016f6e`, `7b919b6`, `8dae6e1`.
+Brief: `handoff/next.md` (written 17:15 PT). Commits `b30bb2e`, `d6b0af1`,
+`9f4e2f7`, `9064d6e`, `7557752`.
 
 Everything in `STATE.md` applies. This file carries the full outputs and the
 things that did not fit.

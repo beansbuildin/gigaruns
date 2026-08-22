@@ -1,4 +1,4 @@
-# STATE — session 63 — 2026-08-21 (PT) — code at commit 20701d0
+# STATE — session 63 — 2026-08-21 (PT) — code at commit 5646e91
 
 ## Status
 **BOTH GATE HALVES PASS.** Suite **1180/1180** (1157 → 1180, +23), `tsc
@@ -148,7 +148,7 @@ carried no rule-11 go-ahead and a full ledger would not have been one either.
 
 ## Files changed
 ```
- 2 commits (20701d0, plus this recap). 5 new redacted fixtures.
+ 2 commits (5646e91, plus this recap). 5 new redacted fixtures.
 
      tests/corrode.test.ts            | 205  (new — gate half 1)
      src/sim/enemyBuffs.ts            | 115  (corrodeOnEnemyWin + header fix)

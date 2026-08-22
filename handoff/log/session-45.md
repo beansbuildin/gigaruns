@@ -48,7 +48,7 @@ predictor on leave-one-cast-out log loss 1.118 vs 3.536 and top-1 46.4% vs
   Verified live: `kill -INT` on a real dry-run PID printed the graceful message
   and exited through the normal path. Session 44 could not get this check.
 - Test suite **664/664**, `tsc --noEmit` clean, `git diff --check` clean, all
-  re-run at the final commit `1c86561`.
+  re-run at the final commit `1719ab3`.
 
 ## What's broken
 - **The account is stuck in the completed-but-unresolved doc state**

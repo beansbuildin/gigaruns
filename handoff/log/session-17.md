@@ -1,4 +1,4 @@
-# STATE — session 17 — 2026-08-16 — commit 5f9df13 (superseded, see final sha in handoff/STATE.md)
+# STATE — session 17 — 2026-08-16 — commit 24c97ff (superseded, see final sha in handoff/STATE.md)
 
 Same top-level content as `handoff/STATE.md` at commit time — reproduced
 here plus verbose detail that doesn't belong in the always-loaded file.
@@ -204,7 +204,7 @@ session's own visible actions, with real `use_item`/`tier_choice`/
 `boon_choice` events and energy deltas around 400 (looking wrong against a
 "240/day" mental model). Spent real effort treating this as possible
 lost/uncommitted pre-compaction work before checking `git log`: the files
-were already committed in `ed96644` ("session 16: Task 12 Stage B
+were already committed in `5bb3a63` ("session 16: Task 12 Stage B
 complete"), which predates this conversation entirely — session 16 simply
 ran earlier the same real-world day. The "400ish energy" confusion
 resolved separately and usefully (§ Corrections: `maxEnergy` 420 is the
@@ -234,7 +234,7 @@ are not evidence of new-this-conversation work.
 
 ## Files changed (full stat)
 ```
-$ git diff c0eb91e..HEAD --stat
+$ git diff d2dd6a0..HEAD --stat
  16 files changed
  QUESTIONS.md                                              |  26 +++
  SPEC-fishing.md                                            |  50 +++--
@@ -254,10 +254,10 @@ $ git diff c0eb91e..HEAD --stat
  tests/liveFishing.test.ts                                   |  32 ++-
  fixtures/fishing-casts/live/cast-2026-08-16-16-18-37/ (new) |   3 files
 ```
-Three commits before the first recap: `3e7f0d4` (Task 12 + potion policy +
-fishing capture-loop), `364886d` (sha record), `8e8c7b2` (loot action
-confirmed), `5f9df13` (sha record), `45c9093` (first recap commit),
-`268c129` (sha record).
+Three commits before the first recap: `d86dcb7` (Task 12 + potion policy +
+fishing capture-loop), `bcb58da` (sha record), `f9f81ec` (loot action
+confirmed), `24c97ff` (sha record), `8f4bbd0` (first recap commit),
+`5b406fd` (sha record).
 
 ## 9. Post-recap: taking over an already-active dungeon run
 
@@ -320,5 +320,5 @@ noted — not enough on its own to revisit that parking decision.
 Fixtures written and redacted automatically: `fixtures/dungeon-runs/
 run-2026-08-16-17-55-21/` (the dry-run's one read) and `fixtures/
 dungeon-runs/run-2026-08-16-17-55-45/` (68 states, the real run).
-Committed in `1da0bc7`, pushed. `handoff/DECISIONS.md` gained one entry
+Committed in `db1f76c`, pushed. `handoff/DECISIONS.md` gained one entry
 documenting the potion-policy-on-a-resumed-run confirmation.

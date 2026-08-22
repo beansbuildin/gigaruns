@@ -1,4 +1,4 @@
-# Session 20 — 2026-08-16 — commit 64d4cc5
+# Session 20 — 2026-08-16 — commit 00b49c0
 
 ## Brief recap
 
@@ -267,6 +267,6 @@ $ npx vitest run
       Tests  351 passed (351)
 ```
 
-Run against the final commit (64d4cc5), not a mid-session check — per
+Run against the final commit (00b49c0), not a mid-session check — per
 CLAUDE.md's working-style rule (added session 19, after session 18 found a
 stale passing-count claim).

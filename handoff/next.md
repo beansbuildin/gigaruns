@@ -4,7 +4,7 @@
 
 Same method as session 76's, and the same limits. **Every claim below about what
 a file contains or does was produced by running it**, in a fresh
-`git clone` of `beansbuildin/gigaruns` checked out at **`9987907`**, `npm ci`, on
+`git clone` of `beansbuildin/gigaruns` checked out at **`26a3404`**, `npm ci`, on
 a machine with **no `data/`, no `logs/`, no `~/.secrets`** — a stranger's tree.
 
 That is now the right instrument for most of this brief, because §1 and §2 of

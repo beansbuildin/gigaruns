@@ -1,6 +1,6 @@
 # session 64 — 2026-08-21 — oil-trigger reachability, and the wire that was never connected
 
-Commit at handoff: `0437f61`. Three commits: `ca8db49`, `1d435f2`, `0437f61`.
+Commit at handoff: `b2cd62a`. Three commits: `7414f40`, `2864acf`, `b2cd62a`.
 Suite 1180 → **1202**. Ledger day 2026-08-20 throughout (session ran 08:10–08:45
 PT, before the 11:00 rollover).
 
@@ -383,7 +383,7 @@ npx tsc --noEmit    clean
 npx vitest run      67 files, 1202/1202 passed
 git diff --check    clean
 secret scan         0 matches for 0x[a-fA-F0-9]{4,} | noobId \d | eyJ | PRIVATE
-                    across the full session diff (ca8db49~1..HEAD)
+                    across the full session diff (7414f40~1..HEAD)
 .gitignore          .env, *.key, data/, logs/ covered.
                     config/discovered.json deliberately NOT ignored (session 60,
                     game-global) — re-verified clean of secrets.

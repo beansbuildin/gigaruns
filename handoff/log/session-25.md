@@ -216,7 +216,7 @@ and logged as `QUESTIONS.md` §12 (new) with both raw dumps referenced, for
 whoever picks this up next (a fresh capture with the field explicitly
 watched for on every turn, not just the terminal one, would settle it).
 
-## Files changed (this session's commit, 9e32109)
+## Files changed (this session's commit, cf7243c)
 
 ```
 $ git show --stat HEAD -- TASKS.md src/sim/boons.ts tests/boons.test.ts tests/enemies.test.ts

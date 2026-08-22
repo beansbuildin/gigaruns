@@ -2,7 +2,7 @@
 
 Brief: `handoff/next.md` (session-28 brief) — implement the five
 safety-critical items from a second reviewer's (Codex) read-only review of
-commit `f04f5ae` (`CODEXREVIEW`, plus `CODEXIMPROVE` for a separate
+commit `dedbe78` (`CODEXREVIEW`, plus `CODEXIMPROVE` for a separate
 performance-opportunity pass, both now committed to the repo root), and
 correct session 27's fishing-corpus stats/Fintuition conclusion, which
 Codex's review found used the wrong counting unit.

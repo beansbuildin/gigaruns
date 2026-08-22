@@ -1,6 +1,6 @@
 # session 58 — 2026-08-20 — the wide orb rule ships; both live items blocked by the server run cap
 
-Commits: `43be799` (§1) and the CLAUDE.md/recap commit on top.
+Commits: `9726e82` (§1) and the CLAUDE.md/recap commit on top.
 Started 08:30 PT. Suite 1014 -> 1028. Zero energy, zero casts, zero runs.
 
 ---
@@ -285,7 +285,7 @@ fails.
 npx tsc --noEmit          clean
 npx vitest run            57 files, 1028 passed (was 1014)
 git diff --check          clean
-secret scan on 7117cb9..HEAD
+secret scan on 6c6148c..HEAD
   0x[a-fA-F0-9]{4,} | noobId \d+ | eyJ | PRIVATE   ->  zero matches
 .gitignore still covers .env, .env.*, *.key, config/discovered.json, data/, logs/
 no test writes a real data path — orbOffers reads fixtures/ and writes nothing;

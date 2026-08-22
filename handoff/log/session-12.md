@@ -1,4 +1,4 @@
-# STATE — session 12 — 2026-08-15 — commit bc58822
+# STATE — session 12 — 2026-08-15 — commit 9448d6e
 
 (Full version of `handoff/STATE.md` as of this session, with verbose detail
 kept here that STATE.md trims for length.)
@@ -329,4 +329,4 @@ non-overlapping), `deepestScorableRoom` still 4.
 
 ## Files changed
 See `handoff/STATE.md`'s Files changed section, and the full diff at
-`git diff 7f5b070..HEAD --stat`.
+`git diff d2d92e5..HEAD --stat`.

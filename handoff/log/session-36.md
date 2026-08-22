@@ -1,4 +1,4 @@
-# STATE — session 36 — 2026-08-18 — commit 34dfbc7
+# STATE — session 36 — 2026-08-18 — commit 1fa4143
 
 ## Status
 Task "CODEXAUDIT #1: opponent-model live-observe double-count fix": **GATE
@@ -148,7 +148,7 @@ alongside these as input/record, not counted as a work product above.
 ### The audit's own findings, verbatim summary
 
 `CODEXAUDIT` (repo root, committed this session) was a read-only review
-performed against commit `b8ecd83` (matched `origin/main` at review time),
+performed against commit `85c8093` (matched `origin/main` at review time),
 independently re-verifying 532/532 tests, `tsc --noEmit`, and `git diff
 --check` all passing before making any claims. Its completion audit:
 

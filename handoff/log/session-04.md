@@ -1,6 +1,6 @@
 # session 04 — 2026-08-15 — Task 4, Simulator + fixtures — GATE PASS
 
-Commit `2ff8c3b`. No energy spent, no live runs, nothing POSTed.
+Commit `46230dc`. No energy spent, no live runs, nothing POSTed.
 
 ---
 

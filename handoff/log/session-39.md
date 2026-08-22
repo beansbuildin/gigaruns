@@ -1,4 +1,4 @@
-# Session 39 — 2026-08-18 — commit c627c69
+# Session 39 — 2026-08-18 — commit 31b5243
 
 ## Brief
 CODEXAUDIT #4: fix the `nextPosition` override gate — it counted cumulative

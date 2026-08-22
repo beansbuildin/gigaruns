@@ -1,7 +1,7 @@
 # session 66 — 2026-08-21 (PT) — OFFLINE — GATE PASS (both halves)
 
-Code at `2bb0dc9`. Suite **1254/1254** (1223 → 1254, +31). `tsc --noEmit`
-clean. `git diff --check` clean. Secret scan clean across `4ab199f..HEAD`.
+Code at `95e8962`. Suite **1254/1254** (1223 → 1254, +31). `tsc --noEmit`
+clean. `git diff --check` clean. Secret scan clean across `98a33c6..HEAD`.
 `tests/discoveredShipsClean.test.ts` 8/8.
 
 **Zero live actions.** No cast, no dungeon run, no `start_run`, no consume.
@@ -300,7 +300,7 @@ npx tsc --noEmit                       clean
 npx vitest run                         69 files, 1254/1254 passed
 npx vitest run tests/discoveredShipsClean.test.ts   8/8
 git diff --check                       clean
-secret scan over 4ab199f..HEAD         no matches
+secret scan over 98a33c6..HEAD         no matches
    (0x[a-fA-F0-9]{4,} | noobId \d | eyJ | PRIVATE)
 .gitignore covers .env .env.* *.key data/ logs/ profiles/
    fixtures/**/*.har fixtures/**/raw/

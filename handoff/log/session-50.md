@@ -1,7 +1,7 @@
 # session 50 — 2026-08-19 — fishing: the coverage reframe, built and rejected
 
-Commit at handoff: `d39468c` (this recap commit; the code and SPEC work is
-`2e656c6`, `1093e3d`, `57e1f71`, `f140754`). Suite 750/750, `tsc --noEmit` clean,
+Commit at handoff: `bba0bdc` (this recap commit; the code and SPEC work is
+`7d03fea`, `b529002`, `0e206f6`, `d99c9f6`). Suite 750/750, `tsc --noEmit` clean,
 `git diff --check` clean, all at the final commit.
 
 STATE.md carries the summary. This file carries the tables, the mechanism, and

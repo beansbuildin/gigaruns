@@ -1,4 +1,4 @@
-# Session 33 — 2026-08-18 — commit c5a2622
+# Session 33 — 2026-08-18 — commit d28fa5a
 
 ## Brief
 
@@ -202,7 +202,7 @@ asserted either way.
 ## Verification
 
 - `npx tsc --noEmit`: clean, run twice (mid-session and against final commit
-  c5a2622).
+  d28fa5a).
 - `npx vitest run`: 510/510 passing (was 500/500 at session 32's end),
   run against the final commit.
 - `npx tsx scripts/fishingContextualCV.ts`: numbers above, reproduced twice

@@ -1,4 +1,4 @@
-# SESSION 68 — 2026-08-21 (PT) — commit 23f182f
+# SESSION 68 — 2026-08-21 (PT) — commit b65fc1d
 
 ## Status
 **BOTH GATES PASS.** Suite **1293/1293** (1279 → 1293, +14), `tsc --noEmit`
@@ -146,7 +146,7 @@ repo ledger agrees, 15 casts left. 3 caught / 2 escaped, 3 oils consumed.
 
 ## Files changed
 ```
- 5 commits (b9830c4, 7a11383, 72921b8, 02e7907, 23f182f). 25 new fixture files.
+ 5 commits (a12adfa, 74cf1af, 632d9c5, f93d9a6, b65fc1d). 25 new fixture files.
 
      src/strategy/fishing/oilShadow.ts        | 306  (new — the shadow)
      scripts/liveFishing.ts                   | 257  (shadow wiring + 2 fixes)

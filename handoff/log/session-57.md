@@ -1,7 +1,7 @@
-# STATE — session 57 — 2026-08-19 (PT) — code at commit 9080355
+# STATE — session 57 — 2026-08-19 (PT) — code at commit cd70013
 
-> One code commit, `9080355`. This recap and the session log sit on top of it
-> and touch no source. All verification below was run AT `9080355`.
+> One code commit, `cd70013`. This recap and the session log sit on top of it
+> and touch no source. All verification below was run AT `cd70013`.
 
 ## Status
 Session-57 brief: **all four items (§1, §2, §3, §4) delivered.**
@@ -321,7 +321,7 @@ entire evidence base, and it is worth knowing in advance what to read off it:
 - The `start_run_energy_probe` event's `tightDelta` — §23 has been armed and
   unfired for four sessions; the first run answers it for free.
 
-## E. Verification, at commit 9080355
+## E. Verification, at commit cd70013
 
 ```
 npx vitest run      ->  Test Files  56 passed (56)

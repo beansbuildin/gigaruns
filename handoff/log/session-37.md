@@ -1,4 +1,4 @@
-# STATE — session 37 — 2026-08-18 — commit 7bd53b5
+# STATE — session 37 — 2026-08-18 — commit fdc8476
 
 ## Status
 Task "CODEXAUDIT #5: centralize durable atomic writes with a real fsync"

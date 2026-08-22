@@ -1,4 +1,4 @@
-# Session 18 — 2026-08-17 — commit 77b91ad
+# Session 18 — 2026-08-17 — commit f21303b
 
 ## Context at start
 
@@ -122,18 +122,18 @@ session's own edits, isolated the question with `git stash` (confirmed the
 failures persisted with a clean working tree) and then, since `git checkout
 <commit> -- .` doesn't remove files added in LATER commits and so doesn't
 give a true clean revert, with an actual `git worktree add /tmp/giga-check-head
-dfe0b34` (a full separate checkout of `main`'s own tip commit) plus a fresh
-`npm install` there. **Confirmed: 4 tests already failed at `dfe0b34` — session
+a3bb9ae` (a full separate checkout of `main`'s own tip commit) plus a fresh
+`npm install` there. **Confirmed: 4 tests already failed at `a3bb9ae` — session
 17's own final commit — with zero relation to anything this session touched.**
 
-Bisected further with a second worktree at `268c129` (the commit immediately
-before the out-of-band `1da0bc7`, "live: took over and completed
+Bisected further with a second worktree at `5b406fd` (the commit immediately
+before the out-of-band `db1f76c`, "live: took over and completed
 already-active dungeon run at room 1"): **tests passed cleanly there, 56/56**.
-So `1da0bc7` is the exact commit that broke the suite — it added 28 new
+So `db1f76c` is the exact commit that broke the suite — it added 28 new
 exchanges and 3 new boon offers to the fixture corpus (a real, legitimate live
 dungeon run) but nobody re-ran `npx vitest run` against the result before
-committing, and session 17's own `STATE.md` (written at `dfe0b34`, chronologically
-AFTER `1da0bc7`) claimed "322/322 passed" — which was not true at that commit.
+committing, and session 17's own `STATE.md` (written at `a3bb9ae`, chronologically
+AFTER `db1f76c`) claimed "322/322 passed" — which was not true at that commit.
 This is a genuine process gap, not a data-integrity problem: every
 model-correctness test (exact clean-exchange replay, per-pickup delta
 re-derivation) passed throughout on both sides of the bisection — only the
@@ -174,7 +174,7 @@ Verification, both directly in the working tree (not just in the diagnostic
 worktrees): `npx tsc --noEmit` clean, `npx vitest run` **325/325 passed**
 (was 322 claimed / actually 4-failing before this session).
 
-Committed separately from the fishing work (`177bb37`) so the "found a
+Committed separately from the fishing work (`32a55a4`) so the "found a
 pre-existing break, fixed it" story reads clearly in `git log` rather than
 being buried inside a fishing-feature commit.
 
@@ -207,7 +207,7 @@ gitignored `raw/` subdirectory, nothing committed).
 
 Updated `config/bot.json`'s `dendren._comment` to record the confirmation and
 its evidence, replacing the `[VERIFY]` note. Not committed as its own commit —
-folded into `77b91ad` alongside the two new fishing-cast fixture dirs from
+folded into `f21303b` alongside the two new fishing-cast fixture dirs from
 this session's later casts (`cast-2026-08-17-00-12-52`,
 `cast-2026-08-17-00-13-28`).
 
@@ -225,7 +225,7 @@ this session's later casts (`cast-2026-08-17-00-12-52`,
 
 ## Commits this session
 
-- `177bb37` — fishing loot-path live verification + mined-pattern wiring +
+- `32a55a4` — fishing loot-path live verification + mined-pattern wiring +
   test-suite repair (the substantive work).
-- `77b91ad` — `config/bot.json` energy-pool-confirmation comment + 2 more live
+- `f21303b` — `config/bot.json` energy-pool-confirmation comment + 2 more live
   fishing-cast fixture dirs from casts run after the first commit.

@@ -1,4 +1,4 @@
-# STATE — session 07 — 2026-08-17 — commit ff36aa1
+# STATE — session 07 — 2026-08-17 — commit a0a31d6
 
 ## Status
 Task 2 "Auth + API client": **GATE PASS**, read-only, live-verified.
@@ -139,7 +139,7 @@ room 4 is actually clean at Safe tier; only room 3 has zero Safe captures.
       tests/{combat,dungeonSim,enemies,strategy}.test.ts
  Docs: CLAUDE.md (§8), SPEC.md (§3e, HP persistence), TASKS.md,
       QUESTIONS.md, handoff/DECISIONS.md
- 25 files changed, 1310 insertions(+), 82 deletions(-) — full stat: `git diff 2f78c74..ff36aa1 --stat`
+ 25 files changed, 1310 insertions(+), 82 deletions(-) — full stat: `git diff 98757dd..a0a31d6 --stat`
 ```
 
 ---

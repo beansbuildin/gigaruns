@@ -1,4 +1,4 @@
-# Session 32 — 2026-08-18 — commit 6fc3b94
+# Session 32 — 2026-08-18 — commit 3a0e877
 
 Brief: `handoff/next.md` at session start — CODEXIMPROVE #1 (persist and
 bootstrap the dungeon opponent model, queued twice already, session 30 and
@@ -321,7 +321,7 @@ what makes this a low-risk area going forward, not just luck.
 
 ---
 
-## Verification (final commit 6fc3b94)
+## Verification (final commit 3a0e877)
 
 ```
 npx tsc --noEmit

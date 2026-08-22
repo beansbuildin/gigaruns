@@ -1,4 +1,4 @@
-# session 38 — 2026-08-18 — commit 937fd56
+# session 38 — 2026-08-18 — commit b027ea3
 
 Full detail behind `handoff/STATE.md`'s summary. This session's whole scope
 was CODEXAUDIT #2 per `handoff/next.md` — no numbered `TASKS.md` task
@@ -180,7 +180,7 @@ unlike CODEXAUDIT #4.
      comment update removing the now-inaccurate "exactly
      DEFAULT_MIN_INDEPENDENT_CASTS' worth of support" framing.
 
-### Verification, at the final commit (937fd56)
+### Verification, at the final commit (b027ea3)
 
 - `npx tsc --noEmit`: clean.
 - `npx vitest run`: **548/548 passing** (545 baseline; net +3 after

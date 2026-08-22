@@ -1,11 +1,11 @@
-# SESSION 35 — 2026-08-18 — commit bfd9842
+# SESSION 35 — 2026-08-18 — commit d73f977
 
 Same content as `handoff/STATE.md` at this commit, plus the raw test/script
 output that STATE.md only summarizes.
 
 ---
 
-# STATE — session 35 — 2026-08-18 — commit bfd9842
+# STATE — session 35 — 2026-08-18 — commit d73f977
 
 ## Status
 Task "CODEXIMPROVE #5: boon valuation + play-count persistence": **GATE

@@ -1,4 +1,4 @@
-# STATE — session 65 — 2026-08-21 (PT) — code at commit 841cd13
+# STATE — session 65 — 2026-08-21 (PT) — code at commit 1969236
 
 ## Status
 **BOTH GATE HALVES PASS.** Suite **1223/1223** (1202 → 1223, +21), `tsc
@@ -167,7 +167,7 @@ casts sent exactly. No denial or interrupt occurred.
 
 ## Files changed
 ```
- 4 commits (edd1b4b, 30d1a0c, a1f887c, 841cd13). 44 new redacted cast files.
+ 4 commits (39dc92e, 728eba1, d2bd7d4, 1969236). 44 new redacted cast files.
 
      tests/fishing/oilPartialDry.test.ts  | 444  (new — gate 2, + the slot cursor)
      scripts/liveFishing.ts               | 134  (nextConsumableSlot, token fail-closed)

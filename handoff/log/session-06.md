@@ -1,4 +1,4 @@
-# STATE — session 06 — 2026-08-16 — commit 536fac6
+# STATE — session 06 — 2026-08-16 — commit f4daf21
 
 ## Status
 Task 5 "Dungeon strategy": **GATE PASS.**

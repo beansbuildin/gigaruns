@@ -1,4 +1,4 @@
-# STATE — session 73 — 2026-08-21 (PT) — code at commit c8f007f
+# STATE — session 73 — 2026-08-21 (PT) — code at commit eba66c6
 
 ## Status
 **GATE 1 PASS. GATE 2 PASS.** Suite **1391/1391** (1375 → 1391, +16),
@@ -159,7 +159,7 @@ moved, no strategy behaviour changed. `offPolicyReplay.ts` gains only an opt-in
 
 ## Files changed
 ```
- 1 commit (c8f007f). 4 files, +786 -0.
+ 1 commit (eba66c6). 4 files, +786 -0.
 
   NEW  scripts/pConnectBiasDecomposition.ts    377  GATE 1
   NEW  tests/fishing/pConnectConsumers.test.ts 290  GATE 2, both modes demoed

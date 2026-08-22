@@ -1,4 +1,4 @@
-# Session 43 — 2026-08-18 — commit 38fd190
+# Session 43 — 2026-08-18 — commit 5ea6f7c
 
 Same content as `handoff/STATE.md` at this session's end, plus verbose
 detail that didn't fit there.
@@ -211,7 +211,7 @@ and a "narrow, center-only" card — caught by the test actually failing
 
 ## Verification
 
-`npx vitest run`: 629/629 passing, at the final commit (38fd190).
+`npx vitest run`: 629/629 passing, at the final commit (5ea6f7c).
 `npx tsc --noEmit`: clean. `git diff --check`: clean. Secret scan (widened
 `0x[a-fA-F0-9]{4,}` pattern, `noobId`, `eyJ`, `PRIVATE`) across all three
 commits: clean. `.gitignore` still covers `.env`, `*.key`,
@@ -219,6 +219,6 @@ commits: clean. `.gitignore` still covers `.env`, `*.key`,
 
 ## Commits this session
 
-- `553596d` — Task 14 gate MET (§0/§1)
-- `aea24c8` — Sword-upgrade priority + 15%-overflow Heal gate (§2)
-- `38fd190` — six fishing strategy heuristics (§3)
+- `db0a502` — Task 14 gate MET (§0/§1)
+- `237a967` — Sword-upgrade priority + 15%-overflow Heal gate (§2)
+- `5ea6f7c` — six fishing strategy heuristics (§3)

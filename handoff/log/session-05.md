@@ -1,6 +1,6 @@
 # session 05 — 2026-08-15 — Task 4.5 boon model — GATE FAIL
 
-Commit `ee47523`. No live runs, no energy, nothing POSTed.
+Commit `ce3c208`. No live runs, no energy, nothing POSTed.
 
 STATE.md holds the summary. This file holds the raw evidence behind it.
 

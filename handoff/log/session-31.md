@@ -51,7 +51,7 @@ again even after fixing the first two tests. Fixed all three by pointing
 Restored the file to its pre-pollution content (`energySpent: 0,
 runsStarted: 1, date: 2026-08-17`) before committing.
 
-7 new tests, all passing. `npx tsc --noEmit` clean. Committed as `b2057d1`.
+7 new tests, all passing. `npx tsc --noEmit` clean. Committed as `41e45f9`.
 
 ## §2 — Resource-conserving fishing tie-breaks (CODEXIMPROVE #2)
 
@@ -101,7 +101,7 @@ could move the sim's aggregate outcome distribution. Noted this reasoning
 explicitly in the commit and DECISIONS.md rather than skipping silently.
 
 2 new tests (17 total in `cardChoice.test.ts`, up from 15), all passing.
-`npx tsc --noEmit` clean. Committed as `1656eae`.
+`npx tsc --noEmit` clean. Committed as `79d0457`.
 
 ## §3 — Documentation sync bundle (CODEXREVIEW #9/#10 + session-30 open question 1)
 
@@ -209,7 +209,7 @@ accuracy fix, not a functional bug fix.
 No logic changes in §3 at all — CLAUDE.md/SPEC.md/DECISIONS.md prose edits
 plus one doc-comment correction in `fishingCorpus.ts`. 488/488 tests still
 pass (no test changes needed), `npx tsc --noEmit` clean. Committed as
-`274046f`.
+`d83eca7`.
 
 ## §4 — Wire standalone report regeneration (session-30 open question 4)
 
@@ -284,11 +284,11 @@ avoidable mistake — I should have listed the glob's matches before running
 discovered it rather than staying silent.
 
 All existing tests still pass (no test changes for §4). `npx tsc --noEmit`
-clean. Committed as `4136064`.
+clean. Committed as `b313294`.
 
 ## Final verification
 
-Ran against the actual final commit (4136064), not a mid-session check —
+Ran against the actual final commit (b313294), not a mid-session check —
 `git status --short` clean, `npx tsc --noEmit` clean, `npx vitest run`:
 488/488 passing across 28 test files.
 

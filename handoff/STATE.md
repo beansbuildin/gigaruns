@@ -1,4 +1,4 @@
-# STATE — session 76 — 2026-08-22 (PT 2026-08-22) — code at commit 2443358
+# STATE — session 76 — 2026-08-22 (PT 2026-08-22) — code at commit 8bb7988
 
 ## Status
 **GATE 1 PASS. GATE 2 PASS. GATE 3 PASS.** Suite **1442/1442** (1433 → 1442,
@@ -61,7 +61,7 @@ the whole session diff, `discoveredShipsClean` 8/8.
 ## What's broken
 - **The author-data guard is a ONE-SHOT SWEEP and guards nothing written after
   the day it was applied.** This is the finding, and it is bigger than the two
-  files. The offending assertion landed in **`02e7907` — the same commit that
+  files. The offending assertion landed in **`f93d9a6` — the same commit that
   added `scripts/preflight.ts`.** Session 68's own preflight reports
   `1279 passed | 13 skipped (1292)` against a tree that ended at **1293**: the
   export is taken from the git INDEX, so a test written after the last run is
@@ -160,7 +160,7 @@ the whole session diff, `discoveredShipsClean` 8/8.
 
 ## Files changed
 ```
- 4 commits (5b489de, ca26733, 13be17a, 2443358). 13 files, +468 -27
+ 4 commits (8008140, f575dcd, 9fc7a66, 8bb7988). 13 files, +468 -27
 
   NEW  scripts/lib/requireInputs.ts        119  GATE 2's shared fail-closed check
   NEW  tests/requireInputs.test.ts         101  8 tests, mkdtemp paths only

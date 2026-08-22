@@ -171,7 +171,7 @@ than before invites: `tests/sim/fishingCorpus.test.ts` asserted strictly more
 `cast-*` directories than directories holding `state-*` files, which is true of
 the author's tree and **structurally unsatisfiable in any clone** — the
 raw-only directories are empty once `fixtures/**/raw/` is ignored, and git
-carries no empty directories. It was written in commit `02e7907`, *the same
+carries no empty directories. It was written in commit `f93d9a6`, *the same
 commit that added this script*, and the session-68 run above reports 1292 tests
 against a tree that ended at 1293: the export comes from the git index, so a
 test written after the last preflight run is invisible to it. **Eight sessions

@@ -1,4 +1,4 @@
-# Session 40 — 2026-08-18 — commit dff0176
+# Session 40 — 2026-08-18 — commit 262c998
 
 ## Brief
 Session 39 closed the entire Codex-derived backlog but, while doing so,

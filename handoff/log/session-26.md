@@ -1,4 +1,4 @@
-# Session 26 — 2026-08-17 — commit 928c870
+# Session 26 — 2026-08-17 — commit 603d4ae
 
 ## Brief
 
@@ -179,10 +179,10 @@ $ npx vitest run
 ```
 408/408 — up from 404/404 at session start (the 4 new `deckIds` tests). Run
 twice: once mid-session after each change, once at the end against the
-actual final commit (928c870), per CLAUDE.md's "re-run against the FINAL
+actual final commit (603d4ae), per CLAUDE.md's "re-run against the FINAL
 commit you're about to hand off" rule (session 18's own lesson).
 
-Secret scan on this session's own commits (`git diff 1a50a9f..HEAD`, the
+Secret scan on this session's own commits (`git diff a993388..HEAD`, the
 range excluding the prior brief commit) against
 `0x[a-fA-F0-9]{4,}`/`noobId\s*\d+`/`eyJ`/`PRIVATE`: **zero matches** — this
 session made no live API calls, touched no fixtures, and wrote no new
@@ -191,10 +191,10 @@ identifiers anywhere. `.gitignore` confirmed still covering `.env`,
 
 ## Commits this session
 
-- `e89a76b` — nextPosition/nextMovePath narrowed to rare (~2/30 casts),
+- `e5f43cf` — nextPosition/nextMovePath narrowed to rare (~2/30 casts),
   Task 13 deck-aware simulateCast infra (QUESTIONS.md, scripts/liveFishing.ts,
   src/sim/fishing/castSim.ts, tests/fishing/castSim.test.ts)
-- `928c870` — DECISIONS.md entry for the same finding
+- `603d4ae` — DECISIONS.md entry for the same finding
 
 ## What's NOT done, and why
 

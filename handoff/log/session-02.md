@@ -1,4 +1,4 @@
-# STATE — session 02 — 2026-08-13 — commit 49959eb
+# STATE — session 02 — 2026-08-13 — commit a9abd4d
 
 ## Status
 Task 3 "Probe & discovery": **GATE PASS**
@@ -33,7 +33,7 @@ model is confirmed and machine-checked against 8 recorded live battle states;
   built on zero evidence.
 - Charge semantics incomplete — see Corrections. Pruning cannot be built safely.
 - `handoff/next.md` carried the raw username. Redacted to `<USER>` in the
-  working tree, but it is still present in git history at commit c916be5
+  working tree, but it is still present in git history at commit b26bc6f
   (user-authored, before this session). Removing it there needs a history
   rewrite and force-push — NOT done, ask first.
 

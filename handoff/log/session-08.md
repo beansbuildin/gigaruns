@@ -1,4 +1,4 @@
-# STATE — session 08 — 2026-08-14 — commit 04dddad
+# STATE — session 08 — 2026-08-14 — commit 04caf45
 
 ## Status
 Task 6 "Live dungeon, supervised": **GATE PARTIALLY MET.** One completed live
@@ -129,7 +129,7 @@ held exactly through all of it — 0 mismatches across every live exchange.
  src/sim/enemies.ts                  |  42 +-
  src/sim/boons.ts                    |  18 +
 
- full stat: `git diff 44a43ce..04dddad --stat`
+ full stat: `git diff e0beb90..04caf45 --stat`
 ```
 
 ---
@@ -138,7 +138,7 @@ held exactly through all of it — 0 mismatches across every live exchange.
 
 ### The session in two halves
 
-**First half** (commits `67cb402`..`af15b8e`): privacy fix (STATE.md was
+**First half** (commits `2b080bf`..`4f39400`): privacy fix (STATE.md was
 carrying a real address/username/noobId, widened the secret scanner),
 CLAUDE.md §9 ("a brief's claims are hypotheses to verify"), `config/bot.json`
 + `guards.ts`, the client's first POST method, `scripts/liveRun.ts` built but
@@ -147,7 +147,7 @@ returning HTTP 401. Logged to QUESTIONS.md §7 immediately per CLAUDE.md's
 "when you get stuck" rule, then did the intuition rare-field corpus check
 (found nothing — SPEC §4e) since it needed no network.
 
-**Second half** (commits `8b8ab76`..`04dddad`): the user overwrote the JWT
+**Second half** (commits `f25f7cd`..`04caf45`): the user overwrote the JWT
 mid-session. From there it was a genuine live-debugging session — five real
 bugs found and fixed by actually running the bot against the live game, each
 one caught cleanly by the fail-closed design (a halt and a log, never a

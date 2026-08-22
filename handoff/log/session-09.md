@@ -1,4 +1,4 @@
-# STATE — session 09 — 2026-08-15 — commit 447f700
+# STATE — session 09 — 2026-08-15 — commit 4b16758
 
 ## Status
 Task 6 "Live dungeon, supervised": **GATE PASS on its numeric terms — five
@@ -150,7 +150,7 @@ src/sim/enemies.ts                          |  17 ++-
 tests/boons.test.ts                         |  38 +++--
 config/bot.json                             |   6 +-
 
-full stat: `git diff 8df2736~1..447f700 --stat`
+full stat: `git diff 913614c~1..4b16758 --stat`
 ```
 
 ---
@@ -192,7 +192,7 @@ full stat: `git diff 8df2736~1..447f700 --stat`
    two/three` corrected to `path_two` CONFIRMED (SPEC's action-list section
    had drifted from what DECISIONS.md already knew).
 5. `npx tsc --noEmit` clean, `npx vitest run` 213 tests pass. Committed
-   (8df2736).
+   (913614c).
 6. **Live check-auth**: real JWT confirmed (`/user/me`, `/game/account`),
    corrupted-JWT halt still clean.
 7. **Live dry-run scan for the gear question**: no active run existed, so a
@@ -247,7 +247,7 @@ full stat: `git diff 8df2736~1..447f700 --stat`
     invocations blur together and are reconstructed from
     `fixtures/dungeon-runs/*/state-*.json`'s `DUNGEON_ID_CID` field, not
     from memory of which console output belonged to which invocation.
-13. Committed (d879446) after fixing all corpus-total test drift from run
+13. Committed (58db5e2) after fixing all corpus-total test drift from run
     1's new fixtures — `pickups.length` 8→9 (new AddEvasion pickup),
     `OBSERVED_OFFERS` +1 entry, `exchanges` 117→122, `sideUpdates` 234→244,
     combat.test.ts's two `resolveExchange` tests re-derived against the
@@ -332,7 +332,7 @@ full stat: `git diff 8df2736~1..447f700 --stat`
     invariants ("clean IFF every picked boon is one of the three clean
     types") rather than the old blanket ones.
 22. `npx tsc --noEmit` clean, `npx vitest run` 236/236 pass. Committed
-    (447f700). Recap (this document).
+    (4b16758). Recap (this document).
 
 ### B. The five runs, reconstructed by `DUNGEON_ID_CID`
 

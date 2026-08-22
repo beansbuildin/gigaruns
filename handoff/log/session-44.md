@@ -1,4 +1,4 @@
-# Session 44 — 2026-08-18 — commit b75cfb2
+# Session 44 — 2026-08-18 — commit 1aa606c
 
 Same content as `handoff/STATE.md` at this session's end, plus verbose
 detail that didn't fit there.
@@ -212,8 +212,8 @@ heuristicsEnabled toggle ×2, `buildFishingEnvelope` use_fishing_item
 shape ×1 — the fishingCorpus.test.ts count-updates aren't new tests, same
 2 tests with updated expected numbers). `npx tsc --noEmit` clean.
 `git diff --check` clean. All checked at this session's actual final
-commit (b75cfb2), not a mid-session snapshot.
+commit (1aa606c), not a mid-session snapshot.
 
-Commits this session: `5f89f95` (§4, use_fishing_item), `1e8645a` (§0-§1,
-pattern-mining reverification + ablation infra), `b75cfb2` (§2-§3, live
+Commits this session: `09522c7` (§4, use_fishing_item), `2bbd91b` (§0-§1,
+pattern-mining reverification + ablation infra), `1aa606c` (§2-§3, live
 batch + focus-budget finding).

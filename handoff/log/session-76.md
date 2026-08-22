@@ -2,7 +2,7 @@
 
 **GATE 1 PASS. GATE 2 PASS. GATE 3 PASS.** Suite 1433 → **1442/1442**,
 `tsc --noEmit` clean, `git diff --check` clean, secret scan clean, tree clean.
-Four commits: `5b489de`, `ca26733`, `13be17a`, `2443358`.
+Four commits: `8008140`, `f575dcd`, `9fc7a66`, `8bb7988`.
 
 **0 live actions.** Opened 07:22 PT against ledgers session 75 exhausted;
 rollover 11:00 PT. Ship-nothing posture HOLDS (user, this session).
@@ -76,16 +76,16 @@ Run twice, byte-identical. At the final commit (with `requireInputs.test.ts`):
 ```
 $ git log --oneline -S 'expect(dirs.length).toBeGreaterThan(withStates.length)' \
       -- tests/sim/fishingCorpus.test.ts
-02e7907 session 68 §4: scripts/preflight.ts, and the "110th cast" was never missing
+f93d9a6 session 68 §4: scripts/preflight.ts, and the "110th cast" was never missing
 
-$ git show --stat 02e7907
+$ git show --stat f93d9a6
  handoff/DISTRIBUTION.md         |  22 +++
  scripts/preflight.ts            | 211 +++++++++++++++++++++
  tests/sim/fishingCorpus.test.ts |  45 ++++-
 ```
 
 **The assertion and the instrument built to catch it shipped in the same
-commit**, after `72921b8` (§3) had swept the four known files. And the
+commit**, after `632d9c5` (§3) had swept the four known files. And the
 session-68 log's final preflight reads `1279 passed | 13 skipped (1292)` while
 that session's working tree ended at **1293** — exactly one test short, because
 `preflight.ts` exports the git **INDEX** and the test was written after the last
@@ -98,7 +98,7 @@ that lags.
 
 ### The sixth file, found by asking the question rather than by a failure
 
-`tests/discoveredShipsClean.test.ts`, from session 60 (`47d7508`):
+`tests/discoveredShipsClean.test.ts`, from session 60 (`743389b`):
 
 ```ts
 it("and if it exists locally, it is the file that holds them", () => {

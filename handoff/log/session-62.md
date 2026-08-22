@@ -1,4 +1,4 @@
-# STATE — session 62 — 2026-08-20 (PT) — code at commit 4e8ffb6
+# STATE — session 62 — 2026-08-20 (PT) — code at commit 1639f55
 
 ## Status
 **ALL THREE GATE ITEMS PASS.** Suite **1157/1157** (1139 → 1157, +18), `tsc
@@ -116,7 +116,7 @@ exercised as routine verification rather than as a rescue.
   - Tier: 12/12 took the top non-Perpetual offer. Perpetual filtered the top
     choice **4 of 12** (session 61: 0 of 4; session 60: 1 of 4).
 - **The 4-vs-4 (`handoff/reports/session-62-comparison.md`), pre-registered at
-  commit 27c7f84 BEFORE either run:**
+  commit 5092a86 BEFORE either run:**
   - Hard Core/run: historical **5712.0** → rule 8 **5160.0** (−9.7%), |t| 0.42
   - Depth: historical **7.25** → rule 8 **6.00** (−17.2%), |t| 0.91
   - Within-arm spread, historical: rooms **4–10**, Hard Core **2976–8112**
@@ -156,7 +156,7 @@ exercised as routine verification rather than as a rescue.
 
 ## Files changed
 ```
- 3 commits (27c7f84, 776618e, 4e8ffb6). 198 new redacted fixtures.
+ 3 commits (5092a86, 0e026c3, 1639f55). 198 new redacted fixtures.
 
      handoff/reports/session-62-comparison.md | 240  (new — pre-reg + report)
      src/sim/boons.ts                         | 175  (5 models + 12 offers)
@@ -176,7 +176,7 @@ exercised as routine verification rather than as a rescue.
 
 # Session 62 — verbose appendix
 
-## A correction to commit 776618e's own message
+## A correction to commit 0e026c3's own message
 
 That message says the two runs had "0/46 and 0/47 first-attempt failures". The
 real figures are **0/46 and 0/46** — both runs, verified from
@@ -199,7 +199,7 @@ lives here and in STATE.md. Nothing downstream used the 47.
 
 Full write-up, including the §2c precondition evidence and the §2f corrode
 recommendation, is in `handoff/reports/session-62-comparison.md`. It was
-committed at 27c7f84 with the comparison group fixed and the Results section
+committed at 5092a86 with the comparison group fixed and the Results section
 empty, BEFORE either run started.
 
 ### Power arithmetic, so the "unfinishable" claim is checkable
@@ -307,7 +307,7 @@ which shell out to `git`. **A sandboxed test run therefore reports two false
 failures.** Anyone reading a red suite should re-run unsandboxed before
 believing it.
 
-## Secret scan, session diff 9365cb9..HEAD
+## Secret scan, session diff 787dd2f..HEAD
 
     0x[a-fA-F0-9]{4,} excluding 0xUSER   0 matches
     eyJ (JWT prefix)                     0

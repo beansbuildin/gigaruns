@@ -223,7 +223,7 @@ terminology, and the sack-empty directive).
 
 ## 7. Commit
 
-`git commit dbeb609` — "session 23: resume-confirmation safety gate + real
+`git commit 3cce4a1` — "session 23: resume-confirmation safety gate + real
 run-count check, corpus updates, juiced-mode terminology corrected". 271
 files (mostly new redacted fixtures from the live batch), 136146 insertions.
 Secret scan on the diff (`0x[a-fA-F0-9]{4,}`, `noobId\s*[0-9]+`, `eyJ`,

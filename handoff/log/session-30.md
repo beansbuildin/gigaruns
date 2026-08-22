@@ -1,4 +1,4 @@
-# session-30.md — 2026-08-18 — commit 05db6ea
+# session-30.md — 2026-08-18 — commit 51c7090
 
 Same content as `handoff/STATE.md` at commit time, plus verbose detail that
 doesn't belong in the always-loaded STATE.md.
@@ -234,7 +234,7 @@ strategy change" pattern as the existing unknown-terminal-field detector.
 ## What's broken
 Nothing newly broken by this session's changes — 479/479 tests pass (up
 from 454/454 at session 29's end), `npx tsc --noEmit` clean, both verified
-against this session's final commit (05db6ea). Unchanged, pre-existing open
+against this session's final commit (51c7090). Unchanged, pre-existing open
 items:
 - The scheduler still can't learn about energy gained outside its own
   tracking, and a single SIGINT during an energy-regen sleep still ends the
@@ -273,7 +273,7 @@ None this session.
    trigger it, or whether a manual-regeneration convention is fine.
 
 ## Commits this session
-- `d9110f6` session 30 §0: fix fishingCorpus.test.ts leaking synthetic casts into real fish-patterns.jsonl
-- `ee3c22f` session 30 §1: run-visibility reporting for dungeon and fishing loops
-- `dc92d5f` session 30 §2: nextPosition validation-only recording, live override gated
-- `05db6ea` session 30 §3: Dual Yield forward detector
+- `b44762b` session 30 §0: fix fishingCorpus.test.ts leaking synthetic casts into real fish-patterns.jsonl
+- `a6fca14` session 30 §1: run-visibility reporting for dungeon and fishing loops
+- `7b09619` session 30 §2: nextPosition validation-only recording, live override gated
+- `51c7090` session 30 §3: Dual Yield forward detector

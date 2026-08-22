@@ -1,4 +1,4 @@
-# SESSION 60 — 2026-08-20 (PT) — code commit 47d7508
+# SESSION 60 — 2026-08-20 (PT) — code commit 743389b
 
 Started 11:16 PT, after the 11:00 rollover. Both ledgers confirmed unspent
 before any spend: dungeon `dayProgressEntities` null (0/12 run-units),
@@ -184,7 +184,7 @@ own preflight claimed 315 from the ROM bank without being asked.
 
 ## Files changed
 ```
- 1 code commit (47d7508) + this recap. 109 files, +54,279 / −40.
+ 1 code commit (743389b) + this recap. 109 files, +54,279 / −40.
  94 are new redacted fixtures (69 dungeon states, 25 fishing).
 
      handoff/scratch-session-60.md        | 260  (new — full session notes)
