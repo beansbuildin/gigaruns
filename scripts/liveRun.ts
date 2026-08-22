@@ -1342,23 +1342,80 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
 
       const body = buildEnvelope(moveToAction(d.move), config.dungeonId, client.getActionToken());
       log.write({ event: "post", body });
-      let resp;
-      try {
-        resp = await client.postDungeonAction(body, pacingForAction(body.action));
-        deps.attemptTelemetry?.record(body.action, false);
-      } catch (e) {
-        // [session 53, brief §1] Recorded BEFORE rethrowing: a combat move has
-        // no retry loop, so its only first attempt is also its last, and the
-        // class would otherwise be absent from the summary of a run it ended.
-        deps.attemptTelemetry?.record(body.action, true);
-        if (e instanceof TokenExpiredError) throw e; // JWT rejected — never retry, SPEC §6.
-        fail(guards, log, "dungeon action rejected", { action: d.move, ...serverErrorDetail(e) });
+
+      /**
+       * [session 78, §2 / CODEXAUG22REVIEW H1] The last action class to reach
+       * the shared protocol, and the weakest case for it — which is why it was
+       * done last. A combat move moves no LEDGER, so nothing here can silently
+       * desynchronise the run-unit count the way `start_run` could.
+       *
+       * What it does fix is real all the same: before this, ANY error on a
+       * combat POST called `fail(...)` and ended the run — including the case
+       * where the server resolved the exchange and only the response was lost.
+       * That abandons a live, paid-for run mid-fight on evidence that proves
+       * nothing (session 08: the API applies writes while returning errors).
+       * The loop re-reads authoritative state at the top of every iteration, so
+       * an applied-but-lost move is recoverable by simply continuing.
+       *
+       * The predicates are the strongest available for a turn-based exchange
+       * with exactly one action in flight: if the move resolved, SOMETHING in
+       * `players[]` moved (health, shield, charges, lastMove). Byte-identical
+       * players is therefore proof it did not land, and a run that is gone
+       * entirely is the session-08 rule already live in `postWithVerifiedRetry`
+       * — a run that ended cannot still be pending this action.
+       */
+      const playersOf = (r: WireRun | null) => (r ? JSON.stringify(r.players) : null);
+      const before = playersOf(run);
+
+      const sent = await runActionTransaction<WireRun, DungeonActionResponse>({
+        action: body.action,
+        before: run,
+        send: () => client.postDungeonAction(body, pacingForAction(body.action)),
+        readState: async () => {
+          const fresh = await client.getDungeonState();
+          return fresh ? (fresh.data.run as unknown as WireRun) : null;
+        },
+        didApply: (_b, after) => after === null || playersOf(after) !== before,
+        provesNotApplied: (_b, after) => after !== null && playersOf(after) === before,
+        // [session 53, brief §1] A combat move has no retry loop, so its only
+        // first attempt is also its last, and the class would otherwise be
+        // absent from the summary of a run it ended. Recorded on every exit.
+        commitSpend: () => guards.recordActionResult(true),
+        rethrow: (e) => e instanceof TokenExpiredError, // SPEC §6 — never retry a rejected JWT.
+        log: (e) => log.write(e),
+      });
+
+      deps.attemptTelemetry?.record(body.action, sent.outcome !== "applied" || sent.response === null);
+
+      if (sent.outcome === "unknown") {
+        // CLAUDE.md rule 5. The run is in an unreadable state; stop and let a
+        // human look rather than send another move into the dark.
+        fail(guards, log, "dungeon action outcome UNKNOWN — the server could not be re-read after the failure", {
+          action: d.move,
+          ...serverErrorDetail(sent.error),
+          readError: sent.readError ? serverErrorDetail(sent.readError) : undefined,
+        });
       }
-      guards.recordActionResult(true);
+      if (sent.outcome === "not_applied") {
+        // Confirmed by a re-read rather than assumed from the error: the
+        // exchange genuinely did not resolve.
+        fail(guards, log, "dungeon action rejected", { action: d.move, ...serverErrorDetail(sent.error) });
+      }
+      const resp = sent.response;
+      if (resp === null) {
+        // Applied, response lost. The exchange RESOLVED — continuing re-reads
+        // it at the top of the loop. The one thing given up is this exchange's
+        // opponent-model observation, which needs the response's `lastMove`
+        // pair; a lost observation is a gap in the model, not a corruption of
+        // it, and it is logged so the count is never a mystery later.
+        log.write({ event: "action_applied_response_lost", action: body.action, room: roomNum });
+        console.log(`  ⚠ ${body.action} APPLIED but its response was lost — re-reading state; this exchange is not observed.`);
+        continue;
+      }
       log.write({ event: "post_response", resp });
       const afterTag = fixtures.write(resp);
 
-      const afterRun = resp!.data.run as unknown as WireRun | undefined;
+      const afterRun = resp.data.run as unknown as WireRun | undefined;
       if (afterRun) {
         const foeAfter = afterRun.players[1] as WireSide;
         const foeMove = foeAfter.lastMove;

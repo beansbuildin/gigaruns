@@ -909,6 +909,113 @@ describe("postWithVerifiedRetry", () => {
  * here — closing it needs proc rates nobody has — but the log must stop
  * overstating what the number means.
  */
+/**
+ * [session 78, §2 / CODEXAUG22REVIEW H1] Combat moves under the transaction
+ * protocol. No LEDGER moves here, so nothing can desynchronise the run-unit
+ * count — what this fixes is that ANY error on a combat POST used to call
+ * `fail(...)` and end the run, including the case where the server resolved
+ * the exchange and only the response was lost. That abandons a live, paid-for
+ * run mid-fight on evidence that proves nothing.
+ */
+describe("a combat move reconciles instead of trusting the throw (session 78 §2)", () => {
+  /**
+   * A handler whose combat POSTs fail. State reads answer `before` until the
+   * first POST and `after` from then on — keyed on the POST, not on a read
+   * COUNT, because `runOnce` reads state several times before it ever decides
+   * a move (the resume check, then the top of the loop) and a count-based fake
+   * silently answers the wrong question.
+   */
+  function combatHandler(before: WireRun, after: () => { status: number; body: unknown }) {
+    let posts = 0;
+    const handler = mockFetch((url, init) => {
+      const method = init?.method ?? "GET";
+      if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+      if (method === "GET") {
+        return posts === 0
+          ? { status: 200, body: { success: true, actionToken: 1, data: { run: before, entity: null } } }
+          : after();
+      }
+      posts++;
+      return { status: 500, body: { success: false, message: "server error" } };
+    });
+    return { handler, postCount: () => posts };
+  }
+
+  const asRun = (r: WireRun) => ({ status: 200, body: { success: true, actionToken: 1, data: { run: r, entity: null } } });
+
+  it("does NOT end the run when the exchange resolved and only the response was lost", async () => {
+    // The state visibly moved (our HP dropped), so the move landed. Before this,
+    // the 500 alone ended the run.
+    const logged: Record<string, unknown>[] = [];
+    const moved = fakeRun({ players: [fakeSide("player", 22), fakeSide("Enemy Room 63", 18)] });
+    const { handler } = combatHandler(fakeRun(), () => asRun(moved));
+    vi.stubGlobal("fetch", handler);
+
+    const deps = makeDeps(false);
+    deps.log = { write: (r: Record<string, unknown>) => logged.push(r), filePath: "t.jsonl" } as unknown as LiveRunDeps["log"];
+    const p = runOnce(deps).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+    await p;
+
+    const events = logged.map((r) => r.event);
+    expect(events).toContain("action_applied_despite_error");
+    expect(events).toContain("action_applied_response_lost");
+
+    // The run CONTINUED: a second decision was made after the lost response.
+    // Before session 78 the first 500 ended the run and there was exactly one.
+    // (This fake then fails the second POST too, against a state that no longer
+    // moves, so the run does end honestly one exchange later — that is the
+    // `not_applied` path and it is the next test's subject, not this one's.)
+    expect(events.filter((e) => e === "decision").length).toBeGreaterThan(1);
+    expect(events.indexOf("action_applied_response_lost")).toBeLessThan(
+      events.lastIndexOf("action_failed"),
+    );
+  });
+
+  it("still fails when the state proves the exchange never resolved", async () => {
+    // Byte-identical players after the failure: nothing moved, so nothing
+    // landed. This must stay a failure — the honest rejection path.
+    const logged: Record<string, unknown>[] = [];
+    const frozen = fakeRun();
+    const { handler } = combatHandler(frozen, () => asRun(frozen));
+    vi.stubGlobal("fetch", handler);
+
+    const deps = makeDeps(false);
+    deps.log = { write: (r: Record<string, unknown>) => logged.push(r), filePath: "t.jsonl" } as unknown as LiveRunDeps["log"];
+    const p = runOnce(deps).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+    const err = await p;
+
+    expect(err).toBeInstanceOf(GuardTrip);
+    expect(JSON.stringify(logged)).toContain("dungeon action rejected");
+  });
+
+  it("sends exactly ONE combat POST per decision on the failure path — never a blind replay", async () => {
+    const frozen = fakeRun();
+    const { handler, postCount } = combatHandler(frozen, () => asRun(frozen));
+    vi.stubGlobal("fetch", handler);
+    const p = runOnce(makeDeps(false)).catch(() => undefined);
+    await vi.runAllTimersAsync();
+    await p;
+    expect(postCount()).toBe(1);
+  });
+
+  it("fails closed as UNKNOWN when the state cannot be re-read after the failure", async () => {
+    const logged: Record<string, unknown>[] = [];
+    const { handler } = combatHandler(fakeRun(), () => ({ status: 500, body: "<html>error</html>" }));
+    vi.stubGlobal("fetch", handler);
+    const deps = makeDeps(false);
+    deps.log = { write: (r: Record<string, unknown>) => logged.push(r), filePath: "t.jsonl" } as unknown as LiveRunDeps["log"];
+    const p = runOnce(deps).catch((e: unknown) => e);
+    await vi.runAllTimersAsync();
+    const err = await p;
+
+    expect(err).toBeInstanceOf(GuardTrip);
+    expect((err as Error).message).toContain("UNKNOWN");
+    expect(JSON.stringify(logged)).toContain("action_outcome_unknown");
+  });
+});
+
 describe("live decisions carry their own coverage verdict (session 78 §3)", () => {
   /** Runs one dry-run decision against `run` and returns the logged records. */
   async function decisionRecords(run: WireRun): Promise<Record<string, unknown>[]> {
