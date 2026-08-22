@@ -899,6 +899,84 @@ describe("postWithVerifiedRetry", () => {
   });
 });
 
+/**
+ * [session 78, §3 / CODEXAUG22REVIEW H2] The live decision log must not present
+ * an EV as supported when the coverage layer would refuse to score the state.
+ *
+ * `decide()` computes a precise EV table; `src/sim/combat.ts` reads corrode and
+ * nothing else; `src/sim/coverage.ts` marks `ROLLED_STATS` on 617 of the 622
+ * non-Safe paths CLAUDE.md rule 8 deliberately selects. The gap is NOT closed
+ * here — closing it needs proc rates nobody has — but the log must stop
+ * overstating what the number means.
+ */
+describe("live decisions carry their own coverage verdict (session 78 §3)", () => {
+  /** Runs one dry-run decision against `run` and returns the logged records. */
+  async function decisionRecords(run: WireRun): Promise<Record<string, unknown>[]> {
+    const logged: Record<string, unknown>[] = [];
+    vi.stubGlobal(
+      "fetch",
+      mockFetch((url) => {
+        if (url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+        return { status: 200, body: { success: true, actionToken: 1, data: { run } } };
+      }),
+    );
+    const deps = makeDeps(true); // dry-run: decides, logs, never POSTs
+    deps.log = { write: (r: Record<string, unknown>) => logged.push(r), filePath: "test.jsonl" } as unknown as LiveRunDeps["log"];
+    const p = runOnce(deps);
+    await vi.runAllTimersAsync();
+    await p;
+    return logged.filter((r) => r.event === "decision");
+  }
+
+  it("marks a clean state as supported", async () => {
+    const [d] = await decisionRecords(fakeRun());
+    expect(d).toBeDefined();
+    expect(d!.evSupported).toBe(true);
+    expect(d!.unmodelled).toEqual([]);
+    // Still logs the EV — this adds a verdict, it does not replace the table.
+    expect(d!.ev).toBeDefined();
+  });
+
+  it("marks a ROLLED_STATS enemy as UNSUPPORTED, beside the EV", async () => {
+    // The captured rule-8 shape, and the `starting: 0` is not decoration: the
+    // real wire pools carry both halves (the client's schema rejects a
+    // `current`-only pool, which is how this fixture was corrected), and
+    // `starting` stays 0 even when `current` is non-zero — enemy 65, see
+    // coverage.ts. A probe written against `starting` reports a clean corpus
+    // and is wrong. `combat.ts` never reads either, so the EV logged below is
+    // the clean model's guess.
+    const foe = { ...fakeSide("Enemy Room 63"), block: { current: 2, starting: 0 } } as unknown as WireSide;
+    const run = fakeRun({ players: [fakeSide("player"), foe] });
+    const [d] = await decisionRecords(run);
+    expect(d!.evSupported).toBe(false);
+    expect(d!.unmodelled).toContain("ROLLED_STATS");
+    // In the SAME record as the EV. A separate line would be droppable by any
+    // reader joining on `event: "decision"`, which is every report here.
+    expect(d!.ev).toBeDefined();
+    expect(d!.move).toBeDefined();
+  });
+
+  it("names WHICH side raised it, so the capture list is derivable from the log", async () => {
+    const foe = { ...fakeSide("Enemy Room 63"), evasion: { current: 3, starting: 0 } } as unknown as WireSide;
+    const run = fakeRun({ players: [fakeSide("player"), foe] });
+    const [d] = await decisionRecords(run);
+    expect(d!.unmodelledBySide).toEqual({ me: [], foe: ["ROLLED_STATS"], run: [] });
+  });
+
+  it("reports a status effect on OUR side too, not only the enemy's", async () => {
+    const me = { ...fakeSide("player"), statusEffects: [{ type: "Burn", amount: 3 }] } as unknown as WireSide;
+    const run = fakeRun({ players: [me, fakeSide("Enemy Room 63")] });
+    const [d] = await decisionRecords(run);
+    expect(d!.evSupported).toBe(false);
+    expect(d!.unmodelledBySide).toMatchObject({ me: ["STATUS_EFFECT"] });
+  });
+
+  it("omits the per-side breakdown when there is nothing to break down", async () => {
+    const [d] = await decisionRecords(fakeRun());
+    expect(d!.unmodelledBySide).toBeUndefined();
+  });
+});
+
 describe("start_run rejection carries the server's own message — [session 47, brief §1e]", () => {
   it("logs the response BODY, not just the transport-level status line", async () => {
     // The dungeon twin of session 46's fishing incident: `.message` on an

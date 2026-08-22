@@ -194,6 +194,55 @@ export function probeRun(r: RunProbe): Reason[] {
   return blocking.length > 0 ? ["ENEMY_BUFF"] : [];
 }
 
+/**
+ * [session 78, §3 / CODEXAUG22REVIEW H2] The two probes above, applied to ONE
+ * live decision.
+ *
+ * **Why this exists.** `decide()` computes a precise EV table through
+ * `resolveExchange`, and `src/sim/combat.ts` reads corrode and no other
+ * mechanic — `evasion`, `block`, `lck`, `tenacity` and `intuition` are carried
+ * on the state and never read, deliberately (`src/sim/types.ts`: their effect
+ * on damage is unexplained, so any non-zero value makes the unit *unscorable
+ * rather than being quietly approximated*). Meanwhile `probeCombatant` marks
+ * `ROLLED_STATS` on 617 of the 622 non-Safe paths that CLAUDE.md rule 8
+ * deliberately selects.
+ *
+ * So the live loop was assigning confident EVs to exactly the states the
+ * coverage layer refuses to score, and saying nothing about it. This does not
+ * close that gap — closing it needs proc rates for five mechanics that nobody
+ * has, and inventing them would convert an honest "unscorable" into a confident
+ * wrong number. **It makes the gap VISIBLE at the point of the decision**,
+ * which is the part that is buildable without a single new capture.
+ *
+ * Two things follow from having it. Every run report can say out loud how much
+ * of its own decision-making was unsupported — until now that was visible only
+ * in a coverage script nobody runs mid-session. And it produces the capture
+ * list: which mechanics actually co-occur in the fights the bot LOSES becomes a
+ * measured ordering rather than a guessed one.
+ *
+ * Pure. Reads a state, returns reasons, decides nothing.
+ */
+export interface DecisionCoverage {
+  /** True when the clean model fully supports this state — i.e. no reasons. */
+  scorable: boolean;
+  /** Union of all three probes, deduplicated, in `REASONS` order. */
+  reasons: Reason[];
+  /** Kept separate because "the ENEMY has rolled stats" and "I do" are
+   *  different capture requests, and the union hides which side raised it. */
+  me: Reason[];
+  foe: Reason[];
+  run: Reason[];
+}
+
+export function probeDecision(me: CoverageProbe, foe: CoverageProbe, run: RunProbe): DecisionCoverage {
+  const mine = probeCombatant(me);
+  const theirs = probeCombatant(foe);
+  const runReasons = probeRun(run);
+  const set = new ReasonSet();
+  for (const r of [...mine, ...theirs, ...runReasons]) set.add(r);
+  return { scorable: set.clean, reasons: set.list(), me: mine, foe: theirs, run: runReasons };
+}
+
 /** Aggregated counts across many scored units, for the headline report. */
 export class CoverageReport {
   scored = 0;

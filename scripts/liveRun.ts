@@ -89,6 +89,7 @@ import {
 import { isPerpetualBuff } from "../src/sim/enemyBuffs.js";
 import { MAX_ROOM, SAFE_TIER } from "../src/sim/enemies.js";
 import { summarizeBoonRunCoverage } from "../src/sim/boonRunCoverage.js";
+import { probeDecision } from "../src/sim/coverage.js";
 import { pickBoon } from "../src/strategy/loot.js";
 import {
   chooseCaptureBoon,
@@ -962,6 +963,15 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
 
   let prevFoeMove: MoveKey | null = null;
   let lastFoeId: string | null = null;
+  /**
+   * [session 78, §3] Counted so the end-of-run line can state, in one number,
+   * how much of this run's own decision-making the model did not support.
+   * Under CLAUDE.md rule 8 this is expected to be most of it — 617 of 622
+   * non-Safe paths carry rolled stats — and that is the point: the figure is a
+   * standing report of a known gap, not an alarm.
+   */
+  let totalDecisions = 0;
+  let unsupportedDecisions = 0;
   const playCounts: Record<MoveKey, number> = { rock: 0, paper: 0, scissor: 0 };
   // [session 35, CODEXIMPROVE #5] Loaded once the run's real DUNGEON_ID_CID
   // is known (first iteration of the loop below) and mutated in place —
@@ -1272,6 +1282,18 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       );
       log.write({ event: "run_over", room: roomNum });
       console.log(`  ▸ run over at room ${roomNum}.`);
+      // [session 78, §3] Said out loud at the end of every run, whatever the
+      // outcome. Before this it was visible only by running a coverage script
+      // against the fixtures afterwards, which nobody does mid-session.
+      if (totalDecisions > 0) {
+        const pct = ((unsupportedDecisions / totalDecisions) * 100).toFixed(1);
+        log.write({ event: "decision_coverage", totalDecisions, unsupportedDecisions });
+        console.log(
+          `  ▸ EV support: ${totalDecisions - unsupportedDecisions}/${totalDecisions} decisions were fully ` +
+            `modelled; ${unsupportedDecisions} (${pct}%) were made on a model the coverage layer would refuse ` +
+            `to score. Rule 8 selects modified enemies, so a high figure here is EXPECTED, not a fault.`,
+        );
+      }
       // [session 35, CODEXIMPROVE #5] Win, death, or flee all land here —
       // delete rather than let it go stale for whatever attempt starts next.
       if (deps.playCountsPersistence && playCountsRunId !== null) deletePlayCounts(deps.playCountsPersistence.path);
@@ -1288,7 +1310,54 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       const battle = buildBattleState(run, roomNum);
       const d: Decision = decide(battle, model, strategyConfig, prevFoeMove);
       console.log(formatDecision(battle, d));
-      log.write({ event: "decision", room: roomNum, move: d.move, ev: d.table });
+
+      /**
+       * [session 78, §3 / CODEXAUG22REVIEW H2] Every logged decision now says
+       * whether the model that produced it actually covers this state.
+       *
+       * The review's observation, verified: `decide()` produces a precise EV
+       * table, `src/sim/combat.ts` reads corrode and nothing else, and
+       * `src/sim/coverage.ts` marks `ROLLED_STATS` on 617 of the 622 non-Safe
+       * paths CLAUDE.md rule 8 deliberately selects. The live loop was
+       * therefore assigning confident EVs to precisely the states the coverage
+       * layer refuses to score — and the EV was the only thing in the log.
+       *
+       * This does NOT close the gap and is not an attempt to. Closing it needs
+       * proc rates for evasion, block, luck, tenacity and intuition, and nobody
+       * has them; building the branch structure and filling it with guesses
+       * would turn an honest "unscorable" into a confident wrong number, which
+       * is the failure this repo has spent seventy-seven sessions removing.
+       * What it does is stop the log from OVERSTATING what the EV means, and
+       * turn "which mechanics co-occur in the fights we lose" into something
+       * measurable from the record rather than guessed.
+       */
+      const decisionCoverage = probeDecision(
+        run.players[0] as WireSide,
+        run.players[1] as WireSide,
+        run as { activeEnemyBuff?: unknown; enemyStartingBuff?: unknown; perpetualBuffs?: unknown[] },
+      );
+      log.write({
+        event: "decision",
+        room: roomNum,
+        move: d.move,
+        ev: d.table,
+        // Deliberately beside the EV in the SAME record. A separate line would
+        // be droppable by any reader joining on `event: "decision"`, which is
+        // every report this repo has.
+        evSupported: decisionCoverage.scorable,
+        unmodelled: decisionCoverage.reasons,
+        unmodelledBySide: decisionCoverage.scorable
+          ? undefined
+          : { me: decisionCoverage.me, foe: decisionCoverage.foe, run: decisionCoverage.run },
+      });
+      if (!decisionCoverage.scorable) {
+        unsupportedDecisions++;
+        console.log(
+          `  ⚠ EV UNSUPPORTED here — the coverage layer would refuse to score this state: ` +
+            `${decisionCoverage.reasons.join(", ")}. The move above is the clean model's best guess.`,
+        );
+      }
+      totalDecisions++;
 
       if (dryRun) {
         console.log(`  [dry-run] would POST ${d.move}`);

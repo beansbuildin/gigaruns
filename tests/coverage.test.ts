@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { CoverageReport, probeCombatant, probeRun, REASONS } from "../src/sim/coverage.js";
+import { CoverageReport, probeCombatant, probeDecision, probeRun, REASONS } from "../src/sim/coverage.js";
 import { loadCorpus } from "../src/sim/corpus.js";
 
 describe("probeCombatant", () => {
@@ -105,5 +105,79 @@ describe("coverage against the real corpus", () => {
     const late = deep!.states.find((s) => s.label.endsWith("state-029.json"))!;
     expect(probeCombatant(late.run.players[0]!)).toContain("BOON_TAKEN");
     expect(probeCombatant(late.run.players[1]!)).toContain("ROLLED_STATS");
+  });
+});
+
+/**
+ * [session 78, §3 / CODEXAUG22REVIEW H2] `probeDecision` — the two probes above
+ * applied to one live decision, so a logged EV can say whether the model that
+ * produced it covers the state.
+ */
+describe("probeDecision", () => {
+  it("calls a fully clean state scorable", () => {
+    const d = probeDecision({}, {}, {});
+    expect(d.scorable).toBe(true);
+    expect(d.reasons).toEqual([]);
+  });
+
+  it("is NOT scorable when either side carries rolled stats", () => {
+    expect(probeDecision({ block: { current: 2 } }, {}, {}).scorable).toBe(false);
+    expect(probeDecision({}, { evasion: { current: 1 } }, {}).scorable).toBe(false);
+  });
+
+  it("keeps the sides separate — the union hides which one raised it", () => {
+    // "the ENEMY has rolled stats" and "I do" are different capture requests,
+    // and §3's whole value is producing that capture list from the record.
+    const d = probeDecision({ pickedBoons: [{}] }, { block: { current: 2 } }, {});
+    expect(d.me).toEqual(["BOON_TAKEN"]);
+    expect(d.foe).toEqual(["ROLLED_STATS"]);
+    expect(d.reasons).toEqual(["BOON_TAKEN", "ROLLED_STATS"]);
+  });
+
+  it("deduplicates a reason both sides raise", () => {
+    const d = probeDecision({ block: { current: 1 } }, { evasion: { current: 3 } }, {});
+    expect(d.reasons).toEqual(["ROLLED_STATS"]);
+    expect(d.me).toEqual(["ROLLED_STATS"]);
+    expect(d.foe).toEqual(["ROLLED_STATS"]);
+  });
+
+  it("raises the run-level reason too, and attributes it to the run", () => {
+    const d = probeDecision({}, {}, { activeEnemyBuff: { id: "not-a-known-buff" } });
+    expect(d.run).toEqual(["ENEMY_BUFF"]);
+    expect(d.scorable).toBe(false);
+  });
+
+  it("agrees with its own components — it is a composition, not a re-implementation", () => {
+    const me = { statusEffects: [{ type: "Burn" }] };
+    const foe = { battleArmorReduction: 1 };
+    const run = {};
+    const d = probeDecision(me, foe, run);
+    expect(d.me).toEqual(probeCombatant(me));
+    expect(d.foe).toEqual(probeCombatant(foe));
+    expect(d.run).toEqual(probeRun(run));
+  });
+
+  it("marks a REAL captured rule-8 state unsupported — the case §3 exists for", () => {
+    // The gate's demonstration, on the corpus rather than on a construction.
+    // CLAUDE.md rule 8 selects the highest non-Perpetual tier, and 617 of the
+    // 622 non-Safe paths carry rolled stats — so the live loop was assigning
+    // confident EVs to almost every fight it deliberately picks.
+    const runs = loadCorpus();
+    const states = runs.flatMap((r) => r.states);
+    expect(states.length).toBeGreaterThan(0);
+
+    const unsupported = states.filter(
+      (s) => !probeDecision(s.run.players[0]!, s.run.players[1]!, s.run).scorable,
+    );
+    expect(unsupported.length).toBeGreaterThan(0);
+
+    // Every reason reported is a real one from the fixed vocabulary, and every
+    // unsupported state names at least one. A state flagged with no reason
+    // would be the silent-refusal failure this module exists to prevent.
+    for (const s of unsupported) {
+      const d = probeDecision(s.run.players[0]!, s.run.players[1]!, s.run);
+      expect(d.reasons.length).toBeGreaterThan(0);
+      for (const r of d.reasons) expect(REASONS).toContain(r);
+    }
   });
 });
