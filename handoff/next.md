@@ -1,212 +1,217 @@
-# BRIEF — session 72
+# BRIEF — session 73
 
 ## The clock and the ledger
 
-Written **2026-08-21, 17:15 PT**. *Source: session 71 live-read.* Fishing game
-ledger **16/20** — four casts remain today; dungeon **0/12**. Rollover **11:00 PT
-tomorrow**.
+Written **2026-08-21, 18:20 PT**. *Source: session 72 live-read.* Fishing
+**20/20 — the day's cap is spent.** Dungeon **0/12**. Rollover **11:00 PT
+tomorrow**, ~16½h out.
 
-**This brief authorizes FISHING CASTS (§3) and ZERO dungeon runs.** `doctor.ts`
-first; read both ledgers and report them before spending anything.
+**This brief authorizes the day's fishing allowance (§3) and ZERO dungeon runs.**
+If the session runs before 11:00, there are no casts and §1 is the whole session.
+`doctor.ts` first; read both ledgers and report them.
 
-*Environment, sessions 66–71: `npx tsx` and `git` both fail under the command
+*Environment, sessions 66–72: `npx tsx` and `git` both fail under the command
 sandbox. Run unsandboxed. Not a repo problem.*
 
 ---
 
-## 1. The sim's catch gap — test the oil hypothesis BEFORE anything else
+## 1. `pConnect` is optimistic — find out why. This is the session's build.
 
-*Source: session 71.* Sim (live config, Shroom deck, n=4000) catches **24.7%**;
-today's policy era catches **60.0%** (21/35, 95% CI [43.6%, 74.4%]). Session 71
-calls this the open disagreement and a bigger one than the focus profile ever was.
+**User decision, 2026-08-21.**
 
-**User hypothesis, 2026-08-21, and it is the right first check: is the sim simply
-not using oils?**
+*Source: session 72, era-matched, n=118 turns.* `pConnect` predicts **50.0%** and
+observes **39.8%** — a gap of **2.3 SE**, so not noise. It is **monotone across
+all five buckets**, so the ordering is right and the level is wrong.
 
-*Source: session 65's changelog —* `src/sim/fishing/castSim.ts | 90 (oils,
-**opt-in** and additive)`. If oils are opt-in and the live-config arm does not opt
-in, then the comparison is **a no-oil simulator against an oil-heavy era**:
-session 69 alone ran 10 casts with 10 oils and caught 8.
+**That distinction is the whole shape of the problem and it should drive the
+session.** A monotone-but-miscalibrated estimator is:
 
-**Note what this is not.** The sim does not average historical catches — it plays
-forward and produces its own rate — so pre-fix casts cannot be dragging it down.
-That was the user's other hypothesis and it is ruled out by construction; say so.
+- **fine wherever it is used to RANK** — argmax over cards, argmax over
+  placements. A uniform optimism cancels.
+- **wrong wherever it is used as a LEVEL** — any threshold, any comparison
+  against a constant, any expected-value figure quoted as a probability.
 
-### 1a. The comparison that settles it
+*Source: session 71/72.* `bestConnectProbability` is the **Focus oil gate's own
+input**, and the exchange threshold compares it against a derived constant. So a
+10pp optimism there means **the gate under-fires** — it believes it can connect
+without the oil more often than it can. That is a level-based consumer, and it is
+live.
 
-- **Check whether the live-config arm enables oils.** One read of the config.
-- **Then compare like with like.** Today's era contains both oil and non-oil
-  casts, and `classifyOilArm` already splits them (session 62). Report:
+### 1a. Enumerate the consumers and classify them — this is gate 2
 
-  | arm | live (today's era) | sim |
-  |---|---|---|
-  | no-oil casts | ? | oils off |
-  | oil casts | ? | oils on |
+Before diagnosing the cause, establish the blast radius. **Every call site that
+reads `pConnect` (or anything derived from it) gets classified rank-based or
+level-based**, and the level-based ones named individually.
 
-- **Report both n's.** Splitting 35 casts by arm leaves small numbers on each
-  side; a 60% that rests on 12 oil casts is not the same claim as one resting on
-  35.
+This is the output most likely to still matter in ten sessions, and it is cheap.
+**Ratchet it the way the repo already ratchets hardcoded paths** (currently 26,
+and it caught `rodDeck.ts` as designed): a test that fails when a new consumer
+appears that is not in the classified list.
 
-**If the gap closes, session 71's "worse than the focus profile" framing is
-retracted and the sim is not broken on this axis** — say that plainly rather than
-letting the alarming version stand. **If it does not close, the gap is real and
-the sim's fate becomes a live question again**, which is where the user left it.
+### 1b. Decompose the bias by source, with a residual
 
----
+Session 71's replay-gap decomposition is the model that worked — **toggle one
+thing at a time and report what does not add up.**
 
-## 2. Recalibrate `REDRAW_THRESHOLD`
+Candidate sources, and this list is a starting set rather than a complete one:
 
-**User decision, 2026-08-21: this is session 72's build.**
+- **The matcher** — its posterior over where the fish moves next.
+- **The ring model / step classes** — the movement distribution the matcher
+  consults.
+- Their combination: a correctly-calibrated matcher over a biased movement model
+  produces a biased product without either part looking wrong alone.
 
-*Source: sessions 70–71.* Redraw is **confirmed, wired, guarded and OFF**.
-`buildFishingEnvelope` throws on a `play_cards` with absent or empty `cards`;
-`buildRedrawEnvelope` is the only producer of `cards: []`. §1 of session 71
-restored the instrument this was waiting on — **era-matched replay reproduces
-live's opening move on 86% and 93% of casts.**
+**Report an explicit residual.** *Session 71's own lesson:* a decomposition that
+sums perfectly on the first attempt should be distrusted. And *session 72's*: the
+brief's named candidates were worth ~nil and the real cause was one nobody had
+listed — so **hold the list loosely.**
 
-### 2a. What went wrong last time, so it is not repeated
+### 1c. Do not correct it in the same session you diagnose it
 
-*Source: `cardChoice.ts` §5 comment.* The one prior calibration triggered redraw
-**almost every turn**: the loss mix flipped from **89% `escaped_meter` to 78%
-`escaped_mana` at a mean of 1.29 turns per cast** — repeated redraws burning mana
-before a card was ever played. **The threshold that produced that is still the
-shipped constant.**
+**Diagnose and report. Do not ship a correction.**
 
-Its stated cause is diagnosable: the trigger was calibrated on "is EV/mana bad",
-and the objective later stopped being EV/mana — cards are now chosen for hit
-probability, so a good card can have a legitimately low EV/mana and trip a
-threshold meant to catch bad ones.
+Three reasons, all specific rather than general caution:
 
-**So do not tune the old trigger's number. Re-derive what the trigger should
-test.** A redraw is worth its cost when the hand cannot connect, not when the
-hand scores poorly per mana.
-
-### 2b. Calibrate on the replay, and state the era
-
-- **Use era-matched replay, not `castSim`** — it is the instrument that passed,
-  and only on today's era. *Session 71:* an era is a **bundle, not a knob**, so a
-  calibration derived on today's era is a claim about today's era only.
-- **Redraw costs 1 mana per card held** (user-stated, and consistent with every
-  card's `manaCost: 1`) and always returns three. Mana is `playerHp`, max 10, so
-  a 3-card redraw is 30% of the cast's whole budget. **Report the calibration in
-  mana spent per extra fish**, the same currency §66 used for oils.
-- **Pin both degeneracies** — a threshold that redraws every turn and one that
-  never redraws must both fail a test, the way session 67 pinned the oil gate.
-- **Do not enable it live.** Recommend, with the causal story. Shipping is the
-  user's call and it is a live-policy change.
+- **A calibration fitted on 118 turns of one era is a claim about that era.**
+  *Session 71:* an era is a bundle, not a knob.
+- **Five buckets on 118 turns is enough to see a bias and not enough to fit a
+  curve** without overfitting it.
+- **Correcting a shared estimator changes every consumer at once**, including the
+  rank-based ones where it was doing no harm. If a correction is warranted, the
+  audit in §1a says where to apply it — possibly at the level-based call sites
+  only, rather than at the source.
 
 ---
 
-## 3. Casts — build today's-era sample
+## 2. The forced Relaxing consume — one, and keep it OUT of the arms
 
-**User decision, 2026-08-21: accumulate casts and read the 60% properly.**
+**User decision, 2026-08-21: spend one forced consume to measure the Relaxing
+payload.**
 
-*Source: session 71.* Today's era is **21/35 = 60.0%, CI [43.6%, 74.4%]** — a
-±15pp interval. Roughly 90 casts in this era would read it to ±10pp.
+*Source: session 72.* `castSim`'s oil arm reads **50.1%** against live's
+**78.6%** (n=14). The Focus payload **is** observed — *session 68: `focusMeter`
+0 → 2 exactly.* The Relaxing payload **never has been**: every firing has been
+lethal, so the record only ever shows `fishHp → 0`, which is consistent with +2
+and with anything else ≥ the fish's remaining HP.
 
-- **Cast the day's available allowance**, in batches of 5 with a hand-back after
-  each. Four remain today; twenty after the 11:00 rollover.
-- Policy **unchanged** — `onDemandTriggers`, Relaxing capped at 2 per cast, never
-  force a consume. Shadow stays on the exchange threshold.
+### 2a. How to spend it
+
+- **One consume, on a fish with `fishHp` comfortably above 2** — high enough that
+  the delta is unambiguous and not clipped by lethality. Early in a cast is best.
+- **This is deliberately outside policy.** `on-demand` fires only at `fishHp ≤ 2`;
+  this is the one case where the loop is told to ignore that.
+- Capture the full `use_fishing_item` envelope, `fishHp` before and after, mana
+  before and after, and confirm nothing else moved.
+- **If the moment does not arise — the fish dies first, the cast ends early —
+  report it and do not retry.** One cast, one attempt.
+
+### 2b. THE HAZARD: it must not enter the oil arm
+
+This is the part that is easy to get wrong and expensive to discover later.
+
+Gate 1's whole verdict rests on the **oil arm at n=14**. A forced consume is
+**not policy play** — it is instrumentation. If it lands in the oil arm it
+contaminates the exact statistic it was spent to inform.
+
+**Give it its own cast state**, the way `OIL-POLICY-DRY` was carved out in
+session 65, and **exclude it from both arms** and from today's-era catch rate.
+Flag it on the record, do not delete it — an excluded cast can be reconsidered.
+
+*And note session 72's related finding:* stock is now **Relaxing 48 / Focus 11**,
+so the `policy-dry` arm's composition has already shifted — casts that would once
+have landed there now land in the oil arm. That is not an era break, but it is a
+change in the split gate 1 rests on, and it should be stated wherever that gate
+is quoted.
+
+---
+
+## 3. Casts — the daily allowance
+
+**User decision, 2026-08-21: keep casting the allowance.** Today's era reads
+**23/39 = 59.0%**, 95% [43.4%, 72.9%]; ~90 casts in this era reads it to ±10pp.
+
+- **Batches of 5, hand back after each.** Twenty available after 11:00 PT; none
+  before.
+- Policy **unchanged** — `onDemandTriggers`, Relaxing capped at 2 per cast (*it
+  has still never bound*), never force a consume **except the single §2 case,
+  which is separately authorized and separately recorded**.
 - Halt on: the batch count; the ledger short; the 15-cast zero-streak tripwire.
-- Rule 13 after each batch: read the ledger and confirm it moved by exactly the
-  casts sent. *Session 70 precedent:* docId **13024510** was charged energy and
-  never ticked `dayDocs`, server-side and unexplained — the reconciler now defers
-  to the game in both directions, so a repeat should be visible, not silent.
-
-### 3a. Two things that keep the sample honest
-
-- **Every new cast is today's era only if nothing in the bundle changes.** If the
-  rod, lures, zone map or matcher weighting change mid-sample, **the era breaks
-  and the sample splits.** Say so at the point it happens rather than discovering
-  it three sessions later — that is the exact failure §1 of session 71 corrected.
-- **Report the running rate with its Wilson interval every batch**, and resist
-  reading a good batch as progress. *Session 62's arithmetic still holds:* the
-  best 5-cast window in the whole corpus is 3/5, and it is the maximum over 85
-  overlapping windows.
+- **Report the running rate with its Wilson interval every batch**, and both oil
+  arms' n alongside — gate 1's margin is **0.9pp** and one escaped no-oil cast
+  flips it.
+- Rule 13 after each batch: the ledger must move by exactly the casts sent.
+- **If the rod, lures, zone map or matcher weighting change, the era breaks and
+  the sample splits.** Say so at the moment it happens.
 
 ---
 
-## 4. `focusBudget` — record why the sweep is not worth running, with the caveat
+## 4. `schedule` — deferred, and record why
 
-*Source: session 71.* The module exists because meter-out was **80.8%** and the
-opening move spent **1.62 of 3**. On the era the shipped policy plays, meter-out
-is **34.3%** and the opener spends **0.83**.
+**User decision, 2026-08-21: after `pConnect`, not before.**
 
-**So `costCap(2)` has nothing to cap** — that is why the sweep read `+0/−0`. The
-arm was inert because it was **never exercised**, which is a finding about the
-fishery, not a measurement failure. Record it in `DECISIONS.md` so nobody
-rebuilds it, and note that the user's opening-turn directive is **substantially
-already satisfied**.
+The reasoning is worth writing into `DECISIONS.md` rather than leaving as a
+scheduling note: **`schedule` constrains focus movement, focus movement is chosen
+on `pConnect`, and `pConnect` is known-biased.** Sweeping a focus policy scored by
+a biased estimator measures the policy against the bias, not against the fishery.
 
-**But do not close the file on the premise.** Two things remain true together:
-
-- The opener is gentle now (0.83).
-- **The meter still empties in about a third of casts** (34.3%), and the cast the
-  user watched hit **0/3 by turn 3**.
-
-`costCap` bounds a *single* move; a meter draining over several turns is a
-**cumulative** problem, which is what the `schedule` family addresses. **If any
-focus arm still has work, it is `schedule`, not `costCap`** — say that in the
-record rather than retiring the whole module on one arm's inertness.
+`costCap` stays retired as a **finding** — today's opener spends 0.83 of 3, so it
+has nothing to bind. `focusBudget.ts` stays in place, unwired: the meter still
+empties in **34.3%** of casts, which is a cumulative drain `costCap` cannot bound
+and `schedule` can.
 
 ---
 
 ## 5. Carried
 
-- **+19.40pp stays SUSPENDED** (`OIL-POLICY.md` §0a, `DECISIONS.md`). Do not
-  quote it. It needs a sim arm passing a profile check, and the bare-default arm
-  is nowhere near one — **meter-out 1.0%, catch 69.7% against a real 34.3% and
-  60.0%.** §1's oil check does not license re-running the oil sweep.
-- **The certainty gate is a proven live no-op** — 0 of 9 Relaxing firings held;
-  the exchange threshold would have held 2. Shadow stays on the exchange
+- **Redraw is CLOSED as a dead end** — 263 mana per extra fish against a cast
+  holding 10; +1.4pp at 1.4 SE. **Do not reopen expecting a better threshold.**
+  Both degeneracies stay pinned, and the ALWAYS pin asserting the recorded
+  disaster (100% `escaped_mana`, 1.00 turns/cast) stays as the guard it is.
+- **+19.40pp stays SUSPENDED.** Do not quote it. §1 licenses nothing about the
+  bare-default sim arm, which is still meter-out 1.0% / catch 69.7%.
+- **The certainty gate is a proven live no-op**; shadow stays on the exchange
   threshold. Nothing oil-related ships.
-- **The crit source is USER-STATED, not confirmed.** The control is the evidence:
-  443 lure-free plays, 0 crits, upper bound 0.86%. Sticky Lure ambiguity intact;
-  crit damage rule OPEN at n=1.
-- **`REAL_DECK` is the Shroom deck, defined once in `src/sim/fishing/rodDeck.ts`**,
-  with a test that fails when it diverges from the rod the account holds. The
-  hardcoded-path ratchet is **26** and that is correct — it caught the new module.
+- **The crit source is USER-STATED**, not confirmed; the control (443 lure-free
+  plays, 0 crits, upper bound 0.86%) is the evidence. Crit damage rule OPEN at
+  n=1.
 - The `nextPosition` tripwire has still never met a real miss — **do not budget
-  casts for it.**
+  casts for it.** `preflight.ts` in CI still open since session 68.
 - Standing: never report energy as a blocker; `--dry-run` before claiming a
   blocker; do not revert rule 8; do not loosen the `fakeDoc` observability guard;
   §19, rule 8 and corrode-in-`dungeonSim` are CLOSED; `boonCapture` settled OFF;
-  do not fold stock into the oil threshold; distribution steps 3/4/6 are the
-  user's; `preflight.ts` in CI still open since session 68.
+  do not fold stock into the oil threshold; leave-one-out and truncation are
+  closed as replay-gap causes; distribution steps 3/4/6 are the user's.
 
 ---
 
 ## 6. Gate
 
-Both halves are offline and deterministic; neither depends on the batch's
-outcome.
+Both halves are offline and deterministic; neither depends on the batch or on §2
+landing.
 
-1. **The oil hypothesis is answered with a like-for-like table** (§1a): whether
-   the live-config arm enables oils, and today's-era catch split by oil arm
-   against the matching sim arm, **with both n's**. A verdict either way meets the
-   gate; a comparison that leaves the arms mismatched does not.
-2. **The re-derived redraw trigger is pinned at both degeneracies** — a test
-   fails for a threshold that redraws every turn and for one that never redraws,
-   each demonstrated failing then restored. **A recalibrated number without both
-   pins does not meet this gate**, because the failure mode on record is exactly
-   the always-fire degeneracy.
+1. **The `pConnect` bias is decomposed by source with an explicit residual**, each
+   contribution measured by toggling that one thing. A named cause without a
+   measured size does not meet this gate, and neither does a decomposition that
+   sums perfectly without saying why it should.
+2. **Every `pConnect` consumer is enumerated and classified rank-based or
+   level-based**, with the level-based sites named, **and a test fails when a new
+   unclassified consumer appears.** Demonstrate that test failing by adding one,
+   then restore.
 
 ---
 
 ## 7. Do not
 
 - **Do not run a dungeon run.**
-- **Do not enable redraw**, and do not ship any focus policy, oil gate or
-  threshold. Recommend and shadow.
-- **Do not tune the old redraw trigger's constant** — re-derive what it tests
-  (§2a).
-- **Do not re-run the oil sweep** or quote +19.40pp (§5).
-- **Do not read a good 5-cast batch as progress** (§3a).
-- **Do not let a bundle change pass unremarked mid-sample** (§3a).
-- **Do not retire `focusBudget.ts` wholesale** on `costCap`'s inertness (§4).
-- Do not present a `castSim` result as evidence about live play — only the
-  era-matched replay has passed a profile check, and only on today's era.
+- **Do not ship a `pConnect` correction** in the session that diagnoses it (§1c).
+- **Do not let the forced consume enter either oil arm or the era catch rate**
+  (§2b).
+- **Do not force any consume other than the single §2 case.**
+- **Do not sweep `schedule`** before `pConnect` is understood (§4).
+- **Do not reopen redraw** (§5).
+- Do not quote +19.40pp, or present a `castSim` result as evidence about live
+  play — only the era-matched replay has passed a profile check, and only on
+  today's era.
 - Do not read a `GearInstance` suffix as an equip time.
 - Do not put identifiers in a test that guards against identifiers, and do not
   give a new I/O-owning test construction a real data path.
@@ -215,49 +220,51 @@ outcome.
 
 ## 8. Corrections to me
 
-- **Both replay-gap candidates I named were nil, and the one I called leading was
-  worth −0.020 in the wrong direction.** Leave-one-out was my headline
-  hypothesis; truncation was **exactly 0.000** and structurally could never have
-  mattered, since it removes tail turns and the divergence was entirely at turn 0.
-  I should have noticed that before naming it.
-- **The gate is what saved this, and it was the right gate for the wrong reason.**
-  I required a decomposition with an explicit residual because I expected the
-  named causes to be partial. They were not partial — they were absent, and the
-  real cause was one I had not considered at all: **live's 1.08 pooled two policy
-  eras.** A brief that had asked "confirm leave-one-out is the cause" would have
-  got a confirmation-shaped answer.
-- **I passed on session 70's correction of session 49's numbers, and that
-  correction was itself wrong.** 80.8% meter-out and 1.62 opening spend were
-  never stale — they are exactly right for the 73-cast era they were computed on.
-  **The defect was pooling, not age**, and I repeated "the numbers behind it
-  moved" without asking *which corpus each number described*. Recomputing a
-  statistic over more data is not how you fix a stale one.
-- **The through-line across §8s: I keep accepting a frame and checking the
-  arithmetic inside it.** Pooled-vs-era, sim-vs-live, mint-vs-equip stamp — each
-  time the numbers were fine and the population they described was not. The
-  question that would have caught all three is the same one: **what exactly is
-  this number computed over?**
+- **I specified the era-matched replay as the instrument for the redraw
+  calibration, and it structurally cannot score a redraw's consequence.** Its
+  licence to refill rests on "one card per turn means the counterfactual empties
+  the hand on the same turn as the record" — and a redraw is precisely the move
+  that breaks that invariant. Half of §2b was unaskable of the tool I named.
+- **This is the second time, and the repeat is the point.** Session 60's brief
+  told the agent to check `tier_choice` on stdout when it only ever reached the
+  JSONL. Same shape both times: **I named a mechanism without checking the
+  mechanism's own invariants against what I was asking it to carry.** The
+  session-60 version I wrote up as a one-off; it was not.
+- **I relayed session 71's "the sim's catch rate is the open disagreement" to the
+  user as established.** It was computed over today's era **pooled across oil
+  arms**, and the user's question — *is the sim not factoring in the relaxing
+  oil?* — is what caught it. That is twice now the user has caught a framing I
+  passed through.
+- **The sharper part: I had named the diagnostic one message earlier.** Session
+  72's §8 said the through-line across my errors was accepting a frame and
+  checking the arithmetic inside it, and that the question which would have caught
+  all of them is *what exactly is this number computed over*. I wrote that, and
+  then relayed the next recap's headline without asking it. **A lesson recorded in
+  a brief is not a lesson applied**; the place to apply this one is the first time
+  a number is quoted, not the retrospective afterwards.
 
 ---
 
-## Your task (session 72)
+## Your task (session 73)
 
 1. `doctor.ts`, read both ledgers, report them.
-2. **§1 / gate 1** — the oil hypothesis, like-for-like, with both n's. **Before
-   anything else**, since it may retract session 71's framing.
-3. **§2 / gate 2** — re-derive the redraw trigger on era-matched replay, report in
-   mana per extra fish, pin both degeneracies. **Do not enable it.**
-4. **§3** — cast the day's allowance in batches of 5, hand back after each,
-   running rate with its interval every batch.
-5. **§4** — record `costCap`'s inertness as a finding, with the `schedule` caveat
-   intact.
-6. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+2. **§1a / gate 2** — enumerate and classify every `pConnect` consumer; ratchet it.
+3. **§1b / gate 1** — decompose the bias by source with an explicit residual.
+   **Diagnose only; ship no correction** (§1c).
+4. **§2** — one forced Relaxing consume at `fishHp` well above 2, captured in
+   full, **excluded from both oil arms and the era rate** (§2b).
+5. **§3** — the day's allowance in batches of 5, running rate and both arms' n
+   reported each batch.
+6. **§4** — record the `schedule` deferral and its reasoning in `DECISIONS.md`.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
    **final** commit, no test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** §1 is small and may retract the largest-sounding claim in
-session 71's recap, which is a good use of a first hour. §2 is the session's real
-build and its risk is well documented: the previous calibration failed by firing
-almost every turn, and the shipped constant is still that one. **The result worth
-being suspicious of is a recalibration that looks obviously better** — the same
-shape of confidence preceded the 1.29-turn casts, and the only defence in the
-brief is that both degeneracies have to fail a test before the number is believed.
+**Honest expectation.** §1a is the item most likely to outlive this session and
+the least likely to feel like progress while doing it — a classified consumer list
+is bookkeeping right up until someone corrects the estimator, at which point it is
+the difference between a targeted fix and a change that silently moves five call
+sites. §1b may not resolve; *"the matcher accounts for 4pp, the movement model for
+3pp, and 3pp is unexplained"* is a good session. **The outcome to be suspicious of
+is a single clean cause**, because that is what session 72 expected of the redraw
+gap and what session 71 expected of the replay gap, and both times the real answer
+was structural and elsewhere.
