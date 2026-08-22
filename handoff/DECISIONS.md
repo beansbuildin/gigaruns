@@ -725,3 +725,88 @@ declined — do not re-raise without an observed 429.** `runActionTransaction`
 is built around the CURRENT behaviour: a `RateLimitedError` after the full
 backoff reaches the helper as an ordinary failure and is reconciled against
 server state like any other.
+
+2026-08-22 (session 78 §1) — **Every request carries a 10s deadline, and the
+guarantee is a property of `client.ts` rather than of `fetch`.** `raw()` called
+`fetch()` with no `signal` inside the client's ONE mutex, so a stalled socket
+stopped the bot permanently with no guard able to fire — CLAUDE.md rule 5 with
+no code behind it, because a hung bot is not a stopped bot. `AbortController`
+tears the socket down AND `Promise.race` bounds the return, deliberately both:
+depending on the abort being honoured would make the guarantee conditional on
+the one thing this file cannot observe. 10s = 2x the ~5s action-token window and
+~5.6x the slowest response ever recorded here (1780ms, session 53); a deadline
+BELOW the token window would convert a slow-but-fine request into an abort.
+
+2026-08-22 (session 78 §1/§2) — **A GET abort proves nothing was written; a POST
+abort proves NOTHING.** GET timeouts retry once, bounded. POST timeouts set
+`RequestTimeoutError.ambiguousWrite` and are never replayed by `raw()` — they
+route into `runActionTransaction`. Reading a POST timeout as "did not apply" is
+rule 13's mistake at machine speed.
+
+2026-08-22 (session 78 §2) — **Every irreversible write goes through
+`runActionTransaction` (`src/api/actionTransaction.ts`).** Routed: dungeon
+`start_run`, fishing `start_run`, `postWithVerifiedRetry` (reward + path),
+dungeon combat moves. NOT routed and stated plainly: fishing's in-cast writes
+(`play_cards`, loot, oil, redraw). Two design points are load-bearing and must
+not be collapsed: **`didApply` and `provesNotApplied` are separate predicates**,
+because "I cannot see that it applied" and "I can see that it did not" are
+different claims and merging them turns an ambiguous write into a confident
+wrong answer; and **`commitSpend` runs exactly once on applied, response or
+not**, because an applied action with a lost response must still move the
+ledger. `unknown` fails closed and NEVER retries — that is the branch where a
+retry double-spends. Session 09's locate-by-identity rule survives the refactor
+and is why `postWithVerifiedRetry` is not flattened into one transaction.
+
+2026-08-22 (session 78 §2) — **A persistent 5xx on a post-failure state re-check
+is now a `GuardTrip` carrying BOTH errors, not the read's
+`UnexpectedResponseError` alone.** Same halt, same `exit(1)`. The old throw
+carried the READ's body and silently dropped the POST's, so the operator was
+told the re-check failed and never told what the action itself returned.
+
+2026-08-22 (session 78 §3) — **A live decision may not be logged as a supported
+EV when the coverage layer would refuse to score it.** `probeDecision` in
+`src/sim/coverage.ts`; `event: "decision"` carries `evSupported` / `unmodelled`
+/ `unmodelledBySide` in the SAME record as the EV (a separate line is droppable
+by any reader joining on `event: "decision"`). **This makes the gap visible and
+does NOT close it.** H2's proc-branch model is NOT built — not stubbed, not
+defaulted, not flagged — because the proc rates for evasion/block/lck/tenacity/
+intuition do not exist and inventing them converts an honest "unscorable" into a
+confident wrong number. Recorded as TASKS.md CAPTURE-1.
+
+2026-08-22 (session 78 §4) — **M3's fishing deck objective is BLOCKED ON A
+CAPTURE, discovered by building it.** All 80 appended candidates measured
+byte-identical to the baseline (hit 41.06%); the same cards PREPENDED moved hit
+rate up to +19.91pp. `castSim`'s `drawHand` is sequential from index 0 and a
+cast lasts ~5 turns, so on a 23-card deck an appended card is **unreachable by
+construction**. **Do NOT unblock this by adding a shuffle** — the ranking would
+become an artifact of an invented draw model and look exactly as authoritative
+as a real one (rule 1); `tests/fishing/castSim.test.ts` pins the behaviour so it
+cannot be done quietly. TASKS.md CAPTURE-3. Two corollaries: M3's advice to
+cache "by normalized deck composition" is WRONG here (same multiset, different
+decks), and `chooseNewCard`'s pick ranking 79/80 is DOUBLY suspended — a
+`castSim` result measured in the prepended arm, which is not what a loot pick
+does. `chooseNewCard` UNTOUCHED.
+
+2026-08-22 (session 78 §5) — **CI runs the suite ONCE plus preflight's export
+run.** It ran it three times. `assertionCoverage.ts` is the suite step — it is a
+strict superset (exit 2 red, exit 1 vacuous) — and it now PRINTS vitest's output
+on failure, which it did not before. That last part is the condition on the
+whole change: without it a red CI job would name no failing test.
+
+2026-08-22 (session 78 §5) — **One capture module, `src/orchestrator/capture.ts`.**
+`FixtureWriter` and `RunLog` existed twice with the redaction duplicated a third
+time. These classes write the evidence everything else is built on and one of
+the things they do is REDACT, so a fix landing in one copy is a silent
+divergence in the two paths that produce the corpus — the shape this repo has
+been bitten by four times. **The review's log-thinning proposal is REFUSED**:
+`logs/` is already lossy, and cutting it is a bet about what future analysis
+will need placed by someone who has not done it.
+
+2026-08-22 (session 78 §6) — **M4's three lines (`observe` + `turn++` on redraw)
+are NOT written.** They are not a consistency repair: the sim can observe on a
+redraw because it has a true trajectory to observe against, and live there is no
+placement to score the observation with — same lines, different operation. The
+`── UNRESOLVED ──` block in `liveFishing.ts` now names the two candidate
+semantics and carries session 75's prices (24.9% → 32.5% → 40.1% catch, at ~43.9
+and ~29.9 extra mana per extra fish, all `castSim` and all suspended).
+`redrawEnabled` stays off and `DEFAULT_POTION_THRESHOLD` stays 0.5.

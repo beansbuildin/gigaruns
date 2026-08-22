@@ -1,4 +1,4 @@
-# STATE — session 78 — 2026-08-22 (PT 2026-08-22) — code at commit 4e20e91
+# SESSION LOG — session 78 — 2026-08-22 (PT 2026-08-22) — code at commit 4e20e91
 
 ## Status
 **GATE 1 PASS. GATE 2 PASS. GATE 3 PASS.** Suite **1511/1511** (was 1443),
@@ -21,11 +21,12 @@
   deliberately both: `AbortController` (tears the socket down) and
   `Promise.race` (bounds `raw()`'s return even if fetch ignores the signal —
   the guarantee must be a property of `client.ts`, not of undici). The race
-  covers `res.text()` too. **11 tests stall a real socket**, including one
-  asserting the mutex releases so the next request still goes out.
+  covers `res.text()`, because headers that arrive over a stalled body hang
+  just as completely. **11 tests stall a real socket** — a deaf fetch, a polite
+  one, a stalled BODY, the mutex releasing so the next request goes out.
 - **GET/POST split on what an abort PROVES.** GET: nothing was written →
-  retried once, bounded. POST: nothing at all → `ambiguousWrite`, never
-  replayed, routed into §2.
+  retried once (`MAX_GET_TIMEOUT_RETRIES`), bounded. POST: nothing at all →
+  `RequestTimeoutError.ambiguousWrite` is true, never replayed, routed into §2.
 - **§2 GATE 2 — one transaction protocol, `src/api/actionTransaction.ts`.**
   `runActionTransaction` returns `applied` / `not_applied` / `unknown`. Two
   design points are load-bearing: `didApply` and `provesNotApplied` are
@@ -37,11 +38,10 @@
   ATTEMPT against freshly-fetched state, and the transaction now hands that
   state back (`after`) so the retry path does not spend a second request.
 - **§3 GATE 3 — every live decision logs whether its own EV is supported.**
-  New `probeDecision` in `src/sim/coverage.ts`; every `event: "decision"`
-  record carries `evSupported` / `unmodelled` / `unmodelledBySide`, **in the
-  same record as the EV**, and each run ends with an `EV support: n/m` line.
-  (617 of 622 non-Safe paths carry rolled stats, so a high figure is EXPECTED.)
-  Demonstrated on the REAL corpus and on `runOnce`.
+  New `probeDecision(me, foe, run)` in `src/sim/coverage.ts`; every
+  `event: "decision"` record carries `evSupported`, `unmodelled`, and
+  `unmodelledBySide`, **in the same record as the EV**. Each run ends with an
+  `EV support: n/m` line. Demonstrated on the REAL corpus and on `runOnce`.
 - **§5** L1 (CI ran the suite THREE times, now once + preflight's), L2
   (`engines` → `^20.19.0 || >=22.12.0`), L3 (Actions pinned to SHAs), L4
   (`src/orchestrator/capture.ts` — one `FixtureWriter`/`RunLog`).
@@ -68,10 +68,11 @@
 - **H2's model is NOT built and must not be** — §3 makes the gap visible, it
   does not close it. Proc rates for evasion/block/lck/tenacity/intuition do not
   exist. TASKS.md CAPTURE-1.
-- Carried, untouched: `nextPosition` tripwire never met a real miss; session
-  72's oil gate row still fails (50.1% sim vs 78.6% live, n=14); shrinkage
-  re-fit unstable/unadopted; `pConnect` +9.38pp optimistic, closed BY
-  IRRELEVANCE; pre-session-77 SHAs dead outside the tip.
+- Carried, untouched: `nextPosition` tripwire has still never met a real miss;
+  the oil row of session 72's gate 1 still fails (50.1% sim vs 78.6% live,
+  n=14); the shrinkage re-fit is unstable and unadopted; `pConnect` still
+  optimistic at +9.38pp and closed BY IRRELEVANCE; old SHAs (pre-session-77)
+  are dead outside the tip.
 
 ## Corrections to SPEC.md
 - **None to SPEC.md this session** — no live response was read.
@@ -90,9 +91,9 @@
 - **M3's advice to cache "by normalized deck composition" is WRONG for this
   simulator.** `[...deck, id]` and `[id, ...deck]` are the same multiset and
   measurably different decks. A normalized cache would have hidden the finding.
-- **Rolled-stat pools carry `{current, starting}`, not `current` alone** — the
-  client's zod schema rejected a first-draft fixture omitting `starting`, which
-  stays 0 while `current` is non-zero.
+- **The wire's rolled-stat pools carry `{current, starting}`, not `current`
+  alone** — the client's zod schema rejected a first-draft test fixture that
+  omitted `starting`. `starting` stays 0 while `current` is non-zero.
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: PRESENT — unchanged, not re-measured.
 
@@ -108,9 +109,10 @@
 - **Building H2's proc-branch model.** Not stubbed, not defaulted, not flagged.
 - **Writing M4's three lines** (`observe` + `turn++` on redraw). They ARE the
   decision the code's own comment says is not the flipper's to make.
-- Standing, none re-opened: energy is never a blocker; `--dry-run` before
-  claiming one; do not revert rule 8; redraw CLOSED on price; +19.40pp
-  SUSPENDED; no oil sweep on the current instrument; `boonCapture` OFF.
+- Standing, none re-opened: never report energy as a blocker; `--dry-run`
+  before claiming a blocker; do not revert rule 8; redraw CLOSED on price;
+  +19.40pp SUSPENDED; do not re-run the oil sweep on the current instrument;
+  `boonCapture` OFF; `shrinkageK` inert.
 - **`npx tsx` and `git` both fail under the command sandbox.** Run unsandboxed.
 
 ## Metrics
@@ -163,3 +165,107 @@
        .github/workflows/ci.yml           +44  L1, L3
        src/sim/coverage.ts                +49  GATE 3 — probeDecision
 ```
+
+
+---
+
+# Verbose appendix
+
+## A. The deck sweep's full diagnosis
+
+`npx tsx scripts/deckObjectiveSweep.ts 800` — 23-card real deck read from
+`fixtures/fishing-casts/live/cast-2026-08-22-00-56-14/state-000.json`,
+80 candidates, matcher blind (`matcherPool: []`, session 14's representative
+condition), 800 paired casts per arm.
+
+```
+baseline (deck unchanged):  catch 0.0%  hit 41.06%  meanTurns 5.00  meanFinalFishHp 13.22
+
+  rank  card                        appended Δhit   prepended hit%    Δhit   mana
+     1  +25 (r4, 1m)                        0.00            60.97   19.91     1
+     2  +20 (r3, 1m)                        0.00             47.03    5.97     1
+    ...
+    78  +108 (r4, 1m)                       0.00            41.25    0.19     1
+    79  +110 (r4, 1m)                       0.00            41.25    0.19     1
+    80  +17 (r1, 0m)                        0.00            39.56   -1.50     0
+
+  chooseNewCard (damage/mana):  card 110      → ranks 79/80
+  composition argmax:           card 25       → 19.72pp ahead
+```
+
+The isolating probe that produced the diagnosis, run before the harness was
+rewritten around it:
+
+```
+baseline           hit 0.4106  turns 5.00  finalHp 13.22
+card 17  APPENDED hit 0.4106 finalHp 13.22 | PREPENDED hit 0.3956 finalHp 13.38
+card 25  APPENDED hit 0.4106 finalHp 13.22 | PREPENDED hit 0.6097 finalHp  9.94
+card 20  APPENDED hit 0.4106 finalHp 13.22 | PREPENDED hit 0.4703 finalHp 10.97
+```
+
+Appended arms are identical to FOUR DECIMAL PLACES across every candidate.
+That is not a weak effect, it is no effect: the card is never drawn.
+
+Note `catch 0.0%` on every arm as well. That is the blind-matcher condition
+session 45 documented (against the empirical fish a blind policy catches
+nothing, matching live), which is why `hitRate` — added session 46 explicitly
+as "the right instrument for a deck comparison" — is the ranked column.
+
+## B. Why the CI red-suite output change was needed
+
+`assertionCoverage.ts` spawns vitest with `stdio: ["ignore","pipe","pipe"]` and
+exits 2 on a red suite without printing what vitest said. With the plain
+`npx vitest run` step removed, that would have been CI's only suite run. Planted
+a deliberately failing test to verify the fix surfaces the diagnosis:
+
+```
+ FAIL  tests/zz-deliberate-red.test.ts > deliberate red > fails on purpose ...
+AssertionError: expected 1 to be 2 // Object.is equality
+      2| describe("deliberate red", () => {
+  ★★★ the suite did not pass. Fix that first — counts from a partial run mean nothing.
+```
+
+File name, assertion and source line all present. The planted file was removed.
+
+## C. Action pins (L3), resolved against the GitHub API
+
+```
+actions/checkout    v5 → fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  (= tag v5.1.0)
+actions/setup-node  v5 → a0853c24544627f65ddf259abe73b1d18a591444  (= tag v5.0.0)
+```
+
+Both are `commit` objects (checked — an annotated-tag SHA would not work as a
+`uses:` pin). Latest majors are v7.0.1 / v7.0.0 and were deliberately NOT taken:
+session 77 chose v5 and nothing here has tested v7.
+
+## D. Two corrections the code forced on the tests
+
+Recorded because both were the TEST lying, not the code — rule 9 in miniature.
+
+1. **The combat-move fake keyed on a READ COUNT.** `runOnce` reads state several
+   times before it ever decides a move (the resume check, then the loop head),
+   so `reads <= 1 ? before : after` landed on the wrong question and produced a
+   `not_applied` where an `applied` was intended. Re-keyed on whether a POST has
+   happened, which is what "the exchange resolved" actually means.
+2. **"Never says rejected" was too strong.** The run correctly CONTINUES to a
+   second decision after the lost response, then fails honestly when the state
+   stops moving. The property is that the first lost response did not end the
+   run, and that is what it asserts now.
+
+Also, in `postWithVerifiedRetry`, session 53's own telemetry test caught a real
+regression in the refactor: `firstAttemptFailed` is a property of the SEND, not
+of the final outcome — an attempt that threw and then reconciled to `applied`
+still failed on its first try. Second time that test has earned its place.
+
+## E. The persistent-5xx behaviour change, in full
+
+Before: `client.getDungeonState()`'s `UnexpectedResponseError` propagated out of
+`postWithVerifiedRetry`, carrying the READ's body and silently dropping the
+POST's — so the operator was told the re-check 5xx'd and never told what the
+action itself returned.
+
+After: the transaction's `unknown` outcome, thrown as `GuardTrip` carrying BOTH.
+Same halt, same `exit(1)` at `main()`, strictly more information. Pinned by the
+rewritten session-28 test, which now asserts the detail carries the POST's
+`"server error"` body AND `getDungeonState`'s own
+`"repeated 5xx on /game/dungeon/state"` verdict.
