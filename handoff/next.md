@@ -1,347 +1,304 @@
-# BRIEF — session 79 — the deck is shuffled
+# BRIEF — session 80 — the damage economy
 
-## 0. How this was checked, and session 78's verification
+## 0. Verification, and a correction to me first
 
-Fresh clone at `e7607bc`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
+Fresh clone at `ee2c45a`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
 
 ```
 npx tsc --noEmit                     clean
-npx vitest run   Tests  1498 passed | 13 skipped (1511)   89 files
-npx tsx scripts/assertionCoverage.ts   1498 counted, 0 vacuous
+npx vitest run   Tests  1516 passed | 13 skipped (1529)   91 files
 ```
 
-**Session 78's three gates hold on independent re-run.** The deadline, the
-transaction protocol, and the EV-support logging are all in and all sound. The
-`preflight`-caught synthetic JWT and the response — *"the scanner was right and
-no allowance was added"* — is the right call and worth keeping as precedent.
+**Both gates hold.** The shuffle, its own salted rng stream, the sequential model
+kept selectable so it can be watched failing, the byte-for-byte pins on the
+random-sample path — all of it is right, and the chi-square-both-ways test is a
+better ratchet than the one I asked for.
 
-**Everything below is one finding.** It is measured from `fixtures/` alone, needs
-no live play, and it changes what several suspended numbers mean.
+**And session 79 corrected me, on exactly the error I had warned it about.**
+
+My §1d said the pile never exhausts, evidenced by `nextCardIndex` never exceeding
+`fullDeck.length` across 721 states. Session 79 found **7 wraps in 131 casts** —
+`nextCardIndex` 9→2 on a ten-card deck — because the server **wraps rather than
+overflows**, so my predicate could not see the event it was testing for. Two
+briefs earlier I wrote that a detector shaped to the wrong predicate reports
+green and means nothing. I then shipped one. It is CLAUDE.md rule 10 and I am the
+example.
 
 ---
 
 ## The clock and the ledger
 
-Written **2026-08-22, 12:18 PT**. **Both ledgers rolled at 11:00 PT and session
-78 spent nothing** — user directive, no live play. So as of writing there are
-**12 run-units and 20 casts available, unspent, and the window closes at 11:00 PT
-tomorrow.** Three sessions running have been offline; this is the first that is
-offline only by choice.
+Written **2026-08-22, 14:36 PT**. Session 79 spent **3 of 20 casts and 0 of 12
+run-units**, so **17 casts and 12 run-units remain, expiring 11:00 PT tomorrow.**
 
 `doctor.ts` first, both ledgers, report them. §1 needs neither.
 
-*⚠ Pre-session-77 SHAs are dead. Cite the tip. `npx tsx` and `git` fail under the
-command sandbox — run unsandboxed. `preflight.ts` (~90s) is the last check before
-a push, not an optional one (session 78's own dead end).*
+*⚠ `preflight.ts` (~90s) before the push. `npx tsx` and `git` fail under the
+command sandbox. Pre-session-77 SHAs are dead.*
 
 ---
 
-## 1. `castSim` draws the deck in order. The server shuffles it. This has never been true
+## 1. Open question 1, answered: it is the damage economy, and session 48 wrote down that it would be
 
-### 1a. What session 78 found, and the half of it that is wrong
+**Everything in this section is measured from committed fixtures.** No `data/`,
+no `logs/`, no live play. 131 casts, 130 with a terminal doc, 543 card plays.
 
-§4's deck sweep returned a diagnosed null and the diagnosis is right about the
-**simulator**: `castSim.ts:388`'s `drawHand` walks `deck[idx % deck.length]` from
-`drawIdx = 0`, so a card appended to the end is never reached in a ~5-turn cast.
-Verified.
-
-STATE.md then generalises it to the game:
-
-> *"on the real 23-card deck only the first ~8 cards are ever seen — an appended
-> card is **unreachable by construction**."*
-
-**That sentence is false, and the corpus already says so.** It is a property of
-`drawHand`, not of Dendren.
-
-### 1b. The measurement — 129 live opening hands, from committed fixtures
-
-Every live fishing state carries `fullDeck`, `hand`, `nextCardIndex`,
-`cardInDrawPile` and `discard`. I took every state where
-`nextCardIndex === hand.length` — i.e. the opening hand of a cast — across
-`fixtures/fishing-casts/live/`:
+### 1a. The live loss decomposition
 
 ```
-opening hands examined                     129
-hand === fullDeck[0..2]                      0      ← sequential draw predicts 129
-distinct fullDeck orderings                 38
-states with nextCardIndex                  721
-states where nextCardIndex > fullDeck.length  0     ← the pile never exhausts in this corpus
+completed casts                                    130
+  CAUGHT                                            38     29.2%
+  ESCAPED, fish at full HP at the terminal doc      81     62.3%
+  ESCAPED, otherwise                                11      8.5%
 ```
 
-**Zero of 129.** Three opening hands from the same directory on the same
-ten-card deck `[1,2,3,4,5,6,7,76,77,79]`:
+`fishHp` reaching `fishMaxHp` is terminal without exception: **81 casts reach it,
+and in all 81 it is the last captured state. Zero casts continue past it.**
+Terminal `fishHp == fishMaxHp` holds on 81 of 92 escapes and **0 of 38 catches**.
+
+The bare simulator arm, run in this clone at n=4000:
 
 ```
-state-000   hand [6, 3, 1]      nextCardIndex 3   discard []
-state-006   hand [2, 77, 1]     nextCardIndex 3   discard []
-state-009   hand [79, 76, 4]    nextCardIndex 3   discard []
+                              LIVE          SIM (bare arm)
+  caught                     29.2%              81.5%
+  fish healed to full         62.3%              0.6%
+  player/mana exhausted       10.0%             17.9%
 ```
 
-and the next draw inside the first of those is `[79, 4, 5]`, not `fullDeck[3..5]`
-= `[4,5,6]`.
+**One discrepancy dominates everything: the dominant live loss mode fires 100×
+less often in the simulator.** Catch rate is the symptom; this is the disease.
 
-On that deck alone, 31 opening hands, by deck position:
+*Limit, stated plainly: I cannot run the live-config arm — `empiricalFish`,
+`matcherPool` and `blindFallback` all come from `data/`. The sim column above is
+the bare arm, which is the arm §0a is about.*
+
+### 1b. Hit geometry is ELIMINATED — the rates already match
+
+For every card play I took the sign of the `fishHp` delta:
 
 ```
-pos          0    1    2    3    4    5    6    7    8    9
-card id      1    2    3    4    5    6    7   76   77   79
-in opening  13    8    5   16    6   10    7   13    7    6      / 31
-
-uniform shuffle predicts 9.3 each   → χ² = 13.5, df 9, NOT rejected (crit 16.9)
-sequential-from-0 predicts 31,31,31,0,0,0,0,0,0,0
+543 live plays      fishHp DOWN (hit)   191   35.2%
+                    fishHp UP  (miss)   352   64.8%
+                    unchanged             0    0.0%
 ```
 
-**Positions 7, 8 and 9 — the tail — appear in opening hands 13, 7 and 6 times.**
-And the one 23-card deck in the corpus opened with cards from positions 0, 2, and
-14-or-later. There is no positional decay of any kind.
+**Live per-shot hit rate 35.2%. The sim's shuffled baseline reads 36.42%**
+(session 79's own deck-sweep figure). Within a point.
 
-`deckCardData` is also in canonical order (it is the card *metadata* list), so the
-shuffled pile is **not exposed on the wire**. `fullDeck` is a roster;
-`nextCardIndex` indexes a hidden shuffled pile.
+Open question 1 lists "the zone/hit geometry" as a candidate. **It is not the
+cause.** The sim lands shots at the live rate and still catches three times as
+often, which means the gap is not in how often you hit — it is in **what a hit
+and a miss are worth.**
 
-**The server shuffles. `castSim` has never modelled that, on any figure it has
-ever produced.**
+### 1c. The mechanism, as one number
 
-### 1c. What this costs, and it is not confined to M3
+From the same 543 plays, the actual amounts:
 
-The simulated bot always holds the same first three cards of a fixed order and
-draws the same next three after that. The real bot holds a random three of ten to
-twenty-three. **Every `castSim` number is computed on a hand distribution the bot
-never faces**, which touches:
+```
+damage on a hit    mean 5.05   (mode 5, n=89 of 191; range 1–13)
+heal on a miss     mean 3.00   (mode 3, n=269 of 352; range 1–6)
 
-- catch rate, `escaped_mana`, `escaped_meter`, turns per cast;
-- **the redraw price** — session 75's 263.0 → 43.9. A real redraw returns three
-  *fresh random* cards; the sim's returns the deterministic next three. The
-  measured 43.9 is a number about the wrong draw model;
-- the oil sweeps and the focus profile — already suspended by `OIL-POLICY.md`
-  §0a, now for a **third, independent** reason;
-- `shouldRedraw`, `chooseCard`'s EV, and every threshold derived from them.
+expected fishHp change per play
+  = 0.352 × (−5.05) + 0.648 × (+3.00)
+  = −1.78 + 1.94
+  = +0.166
+```
 
-**This is a plausible contributor to the §0a suspension itself.** §0a records the
-sim reading catch ~70% and meter-out 1.0% against a real 27.6% and 64.2%. A sim
-that always draws its best-ordered opening hand and never faces a bad one would
-over-catch and never run its meter out, which is the shape of that gap. **I am
-not claiming it explains §0a — I am claiming it is the first named mechanism that
-could, and it is testable.**
+**The live fish gains HP in expectation.** Every cast is a race against a rising
+floor: mean opening `fishHp` is 11.5 with **6.8 HP of headroom**, so at 3 per miss
+a cast tolerates **~2.3 net misses** before the fish is full and gone. That is the
+whole fishery in one line, and it is why 62% of casts end the way they do.
 
-### 1d. The fix is measured, not invented — which is the crux
+**This is the diagnostic I would build the session on.** It is a scalar, it is
+computed identically on both sides, and it localises the gap in a way an outcome
+rate cannot: if the sim's drift is negative where live's is +0.166, the fault is
+in the damage economy — card selection, or the damage and heal arithmetic — and
+**not** in hit frequency, which 1b has already ruled out.
 
-Session 78 declined to shuffle, and the reasoning is recorded as a dead end:
+### 1d. Session 48 already wrote the decision table, and this selects a branch
 
-> *"Shuffling the deck in `castSim` to unblock M3. Not done: the ranking would
-> become an artifact of an invented draw model and would look exactly as
-> authoritative as a real one."*
+`scripts/lossDecomposition.ts`'s header:
 
-**That was the right instinct applied to a wrong premise.** Sequential draw is not
-the conservative default and shuffling is not the invention — **it is the other
-way round.** `drawHand`'s fixed order is an unexamined assumption that the corpus
-falsifies at 129/129; a per-cast shuffle is what the corpus shows.
+> *meter-outs dominate, focus hits 0 early → the focus budget, still*
+> *meter-outs dominate, **focus intact** → **the damage economy***
+> *mana-outs dominate → cast length / redraw policy*
 
-What to build, and it is small:
+Meter-outs dominate at 62.3%. And **24 of those escapes ended with BOTH the focus
+meter and the player's plays still in hand** — every one of them at
+`fishHp == fishMaxHp`, most after only three plays. Focus intact.
 
-1. **Shuffle the deck once per cast**, from the cast's own seeded rng, before the
-   first `drawHand`. Draw sequentially from the shuffled pile exactly as now —
-   that matches `nextCardIndex` advancing 3, 6, 9.
-2. **Validate it against these 129 opening hands.** A test that runs the sim over
-   the corpus decks and asserts the opening-position distribution is consistent
-   with the live one (and that sequential draw fails the same test) is a real
-   ratchet, not a vibe check. The numbers in §1b are the target.
-3. **Keep `drawHand` itself.** Only the pile's order changes. One mechanism, not
-   two — the same discipline session 75 used on the redraw's `turn++`.
+**The middle branch. Written down in session 48, unselected for thirty-one
+sessions because nobody had the number that picks it.**
 
-**State the limits in the code, because I hit two:**
+### 1e. Two more measurements, both cheap and both wrong in the sim
 
-- **Per-cast vs per-draw shuffle is not distinguished by this corpus.** Both
-  reproduce the opening-hand statistics. Per-cast is the simpler hypothesis and
-  matches `nextCardIndex`'s monotone advance; say so rather than implying it was
-  measured.
-- **Reshuffle on exhaustion is UNOBSERVED.** `nextCardIndex` never exceeds
-  `fullDeck.length` in 721 states (max ratio 0.92), so `drawHand`'s
-  `idx % deck.length` wraparound is unvalidated. It rarely fires on real decks.
-  Leave it, mark it.
+**`fishMaxHp` is a distribution, not the constant 21.** Over 132 opening hands:
 
-### 1e. CAPTURE-3 is already answered. Retract it
+```
+14:12  15:13  16:12  17:21  18:17  19:9  20:18  21:21  23:2  25:2  26:5
+mean 18.3   eleven distinct values   sim uses a fixed 21
+```
 
-STATE.md open question 2 says CAPTURE-3 *"is answerable by ordinary fishing casts
-and would unblock M3"*, wanting *"enough consecutive casts on one deck to see
-whether hands repeat in deck order."*
+The opening ratio *is* right — live mean 0.629 against `REAL_PARAMS`' 13/21 =
+0.619. It is the **variance that is missing entirely**, and catch is a threshold
+outcome, so a fixed-HP sim understates the spread of results on both tails. This
+is open question 1's third named candidate, now measured.
 
-**Thirty-one consecutive opening hands on one deck are already committed, and they
-do not repeat in deck order.** The question is answered; spending casts on it
-would re-measure something the repo already holds. **Close CAPTURE-3 with §1b's
-table** rather than carrying it as a capture request.
+**`playerHp` is the wire name for what the sim calls mana.** It decrements by
+exactly 1 on every card played — **543 of 543 plays, deltas only −1 and 0** — and
+reaching 0 is terminal in all 13 casts that got there. The sim's
+`mana -= card.manaCost` is consistent with every observation, **but only because
+all 543 plays were manaCost-1 cards**; 3 Dendren cards cost 2 and 1 costs 0, and
+none was ever played. Flat-1 and cost-equals-manaCost are indistinguishable on
+this corpus. **Say so in the code rather than treating it as confirmed.**
 
-What CAPTURE-3 *could* still usefully ask, if anything: a `fullDeck` read either
-side of a loot pick, to confirm where an added card lands in the roster. That is
-one line of a normal cast's log and does not justify a session.
+### 1f. A naming hazard that has already cost the record once
 
-### 1f. M3 after the fix — unblocked, still suspended
+**`escaped_meter` does not mean the focus meter ran out. It means the fish healed
+to full** — `castSim.ts:789`, `if (fishHp >= fishMaxHp)`. The sim has no focus
+terminal condition at all, and it is right not to: live, `focusMeter` hits 0 and
+the cast **continues** (a cast in the corpus runs eight more plays after the meter
+empties), and **53% of CAUGHT casts end with the meter at 0.** Focus exhaustion
+is a state, not a loss.
 
-Once the pile shuffles, an appended card is as reachable as any other and the
-deck sweep can be re-run meaningfully. **Do not let that become a live change.**
-`chooseNewCard` ranking 79/80 was measured in the *prepended* arm, which is not
-what a loot pick does; after the fix the appended arm is the right one and the
-number will move. It remains a `castSim` result under §0a. Report it, mark it
-suspended, change nothing live. Rule 4.
+The definitions are consistent — `focusProfileCheck.ts:158` and
+`lossDecomposition.ts` both define corpus meter-out as *fish reached full HP*, so
+§0a's comparison is apples-to-apples and its numbers stand. **The name is the
+hazard, not the arithmetic.** Reading "the sim meter-outs on 0.6% of casts"
+naturally suggests a focus problem, and the actual finding is a damage problem.
+**Rename it `escapedFishFull` / `escaped_fish_full`**, mechanically, in one commit
+with no behaviour change. Every future reader of §0a is otherwise pointed at the
+wrong subsystem by the word itself.
 
 ---
 
-## 2. What to do with the suspended figures now that there is a third reason
+## 2. What I would NOT do with this
 
-`OIL-POLICY.md` §0a suspends every Δ because the sim's bare arm does not
-reproduce the fishery. Session 76 added the redraw fix as a second invalidation.
-**§1 is a third, and it differs from the other two in a way that matters: it is a
-named, fixable modelling error rather than a calibration gap.**
-
-So the standing advice — *mark, do not re-derive* — should get one amendment:
-
-> **After the shuffle lands, the profile check that §0a names as its precondition
-> becomes worth attempting for the first time.** Not the oil sweep — §0a forbids
-> re-running that on the current instrument by name, and that stands. The profile
-> check: does `castSim` now reproduce the fishery's catch rate and meter-out rate
-> within a stated band?
-
-If it does, §0a's suspension has a path to lifting and a great deal of shelved
-work comes back. If it does not, that is a stronger result than today's — the gap
-survives its first named cause, and the next hypothesis has to be somewhere else.
-
-**Do not quote +19.40pp either way. Do not re-run the oil sweep.**
+- **Do not re-run the oil sweep.** §0a forbids it on this instrument by name,
+  before or after, and narrowing a cause does not change that.
+- **Do not tune damage or heal amounts to close the gap.** They are read from the
+  card catalog, which is a real capture. If the sim's drift is wrong with correct
+  per-card amounts, the fault is in **which cards get played** or in the
+  hit/miss resolution's effect selection (`hitEffects[0]`, `critEffects[0]`,
+  `missEffects[0]` — first-element-only, and no card with multiple effects has
+  been checked). Find it; do not fit it.
+- **Do not sample `fishMaxHp` and call §0a addressed.** Adding the distribution
+  is right and it is not the 60-point mechanism.
+- **Do not touch `chooseNewCard`, `DEFAULT_POTION_THRESHOLD`, `policyApproved`,
+  or `redrawEnabled`.** The ship-nothing posture holds.
 
 ---
 
-## 3. Session 78's own open items
-
-- **Fishing's in-cast writes are the last unrouted class** (`play_cards`, loot,
-  oil, redraw). Session 78 asks whether it is worth a pass given no daily ledger
-  moves. **Yes, but after §1** — and the honest justification is not the ledger,
-  it is that `resolvePendingCardOffer` is a one-off recovery for one stranding
-  state, and *one-off recovery per state* is the shape §2 of last session
-  replaced. It is a small increment on machinery that already exists.
-- **The oil policy approval** (`dendren.oils.policyApproved` still FALSE) is a
-  user decision, and §1 argues for *not* raising it yet: the timing policy was
-  derived on the pre-shuffle simulator. **Ask after the profile check, not
-  before.** The user's answer that `use_fishing_item` neither advances the fish
-  nor costs mana closes §1's mechanic questions but not the timing.
-- Carried: low-assertion review; crit-source separation with one-lure casts;
-  what re-derives +19.40pp; `nextPosition` tripwire still unmet; session 72's oil
-  gate row still failing.
-
----
-
-## 4. The live budget — 12 units and 20 casts, and §1 changes what they are for
-
-**Available now, unspent, expiring 11:00 PT tomorrow.** Every item needs its own
-go-ahead; rule 11 terms unchanged (60-energy juiced, `--juiced-index=3`, 3× Big
-Heal Juice, `--runs=1`, stop and hand back). Rule 13 after every run. `--dry-run`
-first — the dungeon path has not executed since session 75.
-
-**§1 re-orders what the casts are worth.** CAPTURE-3 no longer needs them (§1e).
-What does:
-
-- **The forced Relaxing consume** — carried since session 73, now six sessions.
-  The user has *answered* the two mechanic questions; a cast would **verify** the
-  answer against a live response, which rule 1 says wins over any stated fact.
-  That is a smaller prize than it was a week ago, and it is honest to say so.
-- **Ordinary casts are now worth more than they were**, because §1's fix wants
-  validation data: more opening hands on known decks, especially a deck longer
-  than ten, directly tighten §1b's distribution. **This costs nothing extra —
-  it is a property of casts the bot plays anyway.**
-
-**One juiced dungeon run** would seed §3-of-last-session's `evSupported` telemetry
-with real rule-8 co-occurrence data, which is what turns CAPTURE-1's ordering from
-guessed into measured. That is a real use for one run-unit and is the only dungeon
-item I would argue for.
-
----
-
-## 5. Gate
+## 3. Gate
 
 **Offline, deterministic, no live budget, no `data/`.** Rule 6.
 
-1. **`castSim` draws from a shuffled pile**, shuffled once per cast from the
-   cast's own seed, and a test over the corpus decks asserts the simulated
-   opening-hand position distribution is consistent with §1b's live one **and
-   that the old sequential draw fails that same test.** Demonstrated by running
-   it both ways, as session 75 demonstrated the redraw fix.
-2. **CAPTURE-3 is closed in `TASKS.md`** with §1b's table as its answer, and the
-   deck sweep is re-run on the shuffled pile with its result recorded as
-   SUSPENDED under §0a. **A re-run that does not carry the suspension label does
-   not meet this gate.**
+1. **The per-play `fishHp` drift is computed on both sides and reported
+   together.** Live from the corpus, sim from the same instrument §0a's profile
+   check uses. The live target is **+0.166 per play, from 543 plays, 35.2% hit
+   rate, 5.05 mean damage, 3.00 mean heal** — reproduce those four numbers first
+   as the check that the corpus side is right, then run the sim side. **A drift
+   comparison whose live half does not reproduce §1c does not meet this gate.**
+2. **`escaped_meter` is renamed to say what it is** (§1f), mechanically, with the
+   suite green and no figure moved. Byte-for-byte pins on the affected sweeps are
+   the proof that nothing but the name changed.
 
-Not gated, do if there is room: §3's in-cast transaction routing; §2's profile
-check if §1 lands early — but **do not start the profile check until the shuffle
-is pinned by gate 1**, or it measures two changes at once.
+Not gated, do if there is room: sample `fishMaxHp` from the measured
+distribution behind an opt-in flag, pinned so the default does not move (§1e);
+record the flat-1 vs manaCost ambiguity in the code (§1e).
+
+**What would make gate 1 unmeetable, stated per rule 6:** nothing. Both halves
+run on committed fixtures and the shipped simulator. If the sim half needs
+`data/` to be meaningful, say so at the top of the session and report the bare
+arm's drift explicitly labelled as the bare arm.
 
 ---
 
-## 6. Do not
+## 4. The live budget — 17 casts, 12 run-units, and what they now buy
 
-- **Do not treat the shuffle as an invented model** (§1d). It is measured at
-  129/129; the fixed order is the assumption.
-- **Do not change `chooseNewCard`**, and do not quote the re-run deck ranking
-  without §0a's suspension attached (§1f).
-- **Do not re-run the oil sweep on the current instrument**, before or after the
-  shuffle. §0a forbids it by name. **Do not quote +19.40pp.**
-- **Do not raise `policyApproved`** (§3).
-- **Do not claim the shuffle explains §0a's gap** until the profile check says so.
-  §1c states it as the first named candidate mechanism, not as the cause.
-- **Do not implement reshuffle-on-exhaustion** — unobserved in 721 states (§1d).
-- **Do not build H2's proc-branch model**; do not write M4's `observe`/`turn++`
-  lines; do not touch `DEFAULT_POTION_THRESHOLD`; do not re-raise rule 7's 429
-  backoff without an observed 429 (all settled, sessions 77–78).
-- **Do not start a dungeon run without `--dry-run`, `doctor.ts`, and a per-run
+Every item needs its own go-ahead. Rule 11 terms unchanged; rule 13 after every
+run; `--dry-run` first — the dungeon path has not executed since session 75.
+
+**§1 raises what casts are worth and narrows what they are for.** Each cast now
+contributes to a decomposition that has a named target: more plays tighten
+§1c's 543, and the drift estimate is the thing the session is gated on. **A batch
+of ordinary casts is the cheapest way to tighten the one number that matters**,
+and it costs nothing beyond the casts themselves.
+
+The forced Relaxing consume is now **seven sessions** carried. Its prize shrank
+when the user answered the mechanic questions directly; what remains is
+verification against a live response, which rule 1 says outranks a stated fact.
+That is worth one cast, not a session.
+
+**One juiced dungeon run** to seed session 78's `evSupported` telemetry with real
+rule-8 co-occurrence data remains the only dungeon item worth arguing for, and it
+is the input that turns CAPTURE-1's ordering from guessed into measured.
+
+---
+
+## 5. Do not
+
+- **Do not read `escaped_meter` as a focus problem** (§1f).
+- **Do not fit damage/heal amounts to the gap** (§2).
+- **Do not claim hit geometry is the cause** — eliminated at 35.2% vs 36.4% (§1b).
+- **Do not re-run the oil sweep on this instrument. Do not quote +19.40pp.**
+- **Do not treat `mana -= card.manaCost` as confirmed** — the corpus cannot
+  distinguish it from a flat 1 (§1e).
+- **Do not start a dungeon run without `--dry-run`, `doctor.ts` and a per-run
   go-ahead**, and never chain runs.
-- Do not present a `castSim` result as evidence about live play. Do not read
-  session 75's run 4 against runs 1–3. Do not give a new I/O-owning test
-  construction a real data path. **Run `preflight.ts` before pushing.**
+- Standing, none re-opened: do not build H2's proc model; do not write M4's
+  `observe`/`turn++` lines; do not raise `policyApproved`; do not revert rule 8;
+  redraw CLOSED on price; `boonCapture` OFF; no 429 backoff without an observed
+  429; do not shuffle the random-sample deck path; do not model reshuffle-at-wrap
+  beyond what session 79 measured.
 
 ---
 
-## 7. Corrections to me
+## 6. Corrections to me
 
-- **I triaged the Codex review and told session 78 that M3 was "the best item in
-  the review... readier than it says", and it was not ready at all.** The
-  simulator it had to be built on draws the deck wrong. I checked that the card
-  catalog existed and did not check that the thing consuming it modelled the
-  draw. **A harness is only as ready as the model underneath it, and I verified
-  the input and skipped the mechanism.**
-- **Session 78 found the real obstacle by building the thing anyway**, which is
-  the better failure — a null with a diagnosis attached beat my confident go.
-  Its only error was generalising a simulator property to the game, and it is a
-  small error sitting on top of a good measurement.
-- **I have now spent three briefs advising deferral of the fishing items on the
-  grounds that they cost nothing to defer.** §1 is a reason that was available in
-  `fixtures/` the entire time and would have been found by anyone who asked what
-  the live opening hands looked like. **The corpus answers more questions than it
-  is asked.**
-- **Rule 9 applies.** §1 is a measurement over committed fixtures; if a live
-  response disagrees, the live response wins and the correction goes in the
-  recap.
+- **§0's correction is the one that matters and I have made this exact mistake
+  before, in writing, in the brief that warned against it.** My predicate
+  (`nextCardIndex > fullDeck.length`) could not observe a wrap because the server
+  wraps modularly. **A measurement is only as good as its predicate, and I did not
+  test mine against a case where the event was known to have happened.** Session
+  79 did, and found seven.
+- **I framed §0a's gap as "one draw-order fix against a seventy-point chasm" and
+  predicted the gap would barely move. It moved ten points and the prediction was
+  right for the wrong reason** — I expected the deck model to be a small term, and
+  it was, but I had no account of where the large term lived. §1 is that account,
+  and it was available in `fixtures/` while I was writing the prediction.
+- **Three briefs running I have told this project to look at its own corpus, and
+  three briefs running the corpus has answered a question the brief had filed as
+  needing new captures.** The shuffle, the wrap, and now the damage economy. That
+  is a pattern about the corpus, not about any one session: **it is under-read,
+  and the cheapest instrument available is a script over `fixtures/`.**
+- **Rule 9 applies.** §1 is a measurement over committed fixtures; a live response
+  that disagrees wins, and the correction goes in the recap.
 
 ---
 
-## Your task (session 79)
+## Your task (session 80)
 
-1. `doctor.ts` first, both ledgers. **They rolled at 11:00 PT and are unspent.**
-2. **§1 / gate 1** — shuffle the pile once per cast, pin it with a corpus-validated
-   test that the old draw fails.
-3. **§1e / gate 2** — close CAPTURE-3 with the measurement, re-run the deck sweep
-   on the shuffled pile, record it SUSPENDED.
-4. **§2** — if gate 1 lands early, attempt §0a's profile check. Not before.
-5. **§3** — fishing's in-cast writes, if there is room.
-6. **§4** — only with a per-run go-ahead: one juiced run to seed the `evSupported`
-   telemetry is the dungeon item worth arguing for; casts are worth more than
-   they were and CAPTURE-3 no longer needs them.
-7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
+1. `doctor.ts` first, both ledgers. **17 casts and 12 run-units, expiring 11:00
+   PT.**
+2. **§1 / gate 1** — reproduce §1c's live numbers, then compute the sim's drift
+   on the same instrument and report both together.
+3. **§1f / gate 2** — rename `escaped_meter`, mechanically, nothing else moved.
+4. **§1e** — `fishMaxHp` sampling behind an opt-in flag; record the manaCost
+   ambiguity.
+5. **§4** — with a go-ahead: a batch of ordinary casts is the cheapest thing that
+   tightens gate 1's live half. One juiced run for the `evSupported` telemetry.
+6. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
    commit, `assertionCoverage` at zero, **`preflight.ts` before the push**, no
    test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** §1 is a one-line change to `drawHand`'s caller wrapped in
-a real validation test, and it will move a lot of numbers. The satisfying version
-is that the shuffle lands, the profile check narrows §0a's gap, and shelved work
-comes back. **The likelier and more useful version is that the gap barely moves** —
-sim catch ~70% against a real 27.6% is a wide chasm for one draw-order fix to
-close — and then the finding is that the fishery's difficulty lives somewhere the
-deck model was never hiding it, with one more candidate eliminated by measurement
-instead of assumption. Either way, do not let the deck sweep's re-run become the
-session; it is a consequence of gate 1, not a rival to it.
+**Honest expectation.** §1b is the useful half and it is a negative result: the
+sim lands shots at the live rate, so thirty sessions of focus-budget and
+hit-geometry work were aimed at a subsystem that was already right. **The
+satisfying version of this session is that the drift comparison localises the
+remaining gap to a specific term in the damage economy** — most likely which card
+the policy selects, since the per-card amounts come from a real capture. **The
+unsatisfying version is that the sim's drift comes out near +0.166 too**, and then
+the gap is not in the per-play economy at all but in something that ends casts
+early, and the next place to look is the terminal conditions rather than the
+arithmetic. Both are worth knowing and both are one script away.
