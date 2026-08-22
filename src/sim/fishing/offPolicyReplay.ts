@@ -74,6 +74,7 @@ import {
   contextualFallback,
   previousDisplacement,
   DEFAULT_SHRINKAGE_K,
+  type Displacement,
 } from "../../strategy/fishing/contextualFallback.js";
 import {
   buildStepClassTable,
@@ -85,6 +86,9 @@ import {
   stickyStepDistribution,
   DEFAULT_RING_MODEL_OPTIONS,
   type RingModelOptions,
+  type Distribution,
+  type StepClass,
+  type StepClassTable,
   DEFAULT_SWITCH_PROBABILITY,
 } from "../../strategy/fishing/stepClass.js";
 import {
@@ -290,6 +294,65 @@ function lossOn(dist: ReadonlyMap<string, { cell: Cell; p: number }>, actual: Ce
   return -Math.log(Math.max(FLOOR, dist.get(cellKey(actual))?.p ?? 0));
 }
 
+/**
+ * [session 73 §1b] One turn's PREDICTOR INTERNALS, handed to
+ * `ReplayOptions.onTurn` for offline diagnosis. Nothing here feeds a decision
+ * — the replay's behaviour is byte-for-byte identical whether the hook is
+ * supplied or not.
+ *
+ * **Why a hook and not a return field.** The bias decomposition
+ * (`scripts/pConnectBiasDecomposition.ts`) needs to re-score the SAME chosen
+ * cell set under a DIFFERENT tier's distribution — hold the placement fixed,
+ * swap one component, and watch the predicted mass move while the observed
+ * outcome cannot. That is the only form of "toggle one thing" available here:
+ * re-planning under a different distribution also changes WHICH cells get
+ * chosen, which confounds the estimator's calibration with the policy's
+ * choices. Carrying every tier's full distribution on `ReplayTurn` would put
+ * megabytes of Maps on a struct that four scripts and six tests already
+ * serialise; a callback hands them over at the one instant they exist.
+ */
+export interface ReplayTurnDiagnostic {
+  turn: number;
+  /** The cell the fish occupied when the prediction was made. */
+  currentCell: Cell;
+  /** The cell it actually moved to — the outcome every tier is scored against. */
+  actual: Cell;
+  gridSize: number;
+  /** `lastStepClass` under the sticky default, `classifyStep` under `hardRing`. */
+  stepClass: StepClass | null;
+  /**
+   * The two inputs the ring model was built from on this turn, handed over so
+   * a diagnostic can rebuild `ringDistribution`/`stickyStepDistribution` under
+   * DIFFERENT `RingModelOptions` against the identical leave-one-out table.
+   * Without them a knob sweep would have to re-derive the table itself and
+   * would silently be measuring a second thing.
+   */
+  prevDelta: Displacement | null;
+  stepTable: StepClassTable;
+  /** The mixed distribution `chooseCard` actually consulted. */
+  dist: Distribution;
+  /** The ring-model tier alone, before any matcher mass is mixed in. */
+  ringDist: Distribution;
+  /** The matcher tier AFTER `intersectWithRing`; `null` when the tier is off or empty. */
+  matcherOnRing: Distribution | null;
+  /** The matcher tier BEFORE the ring intersection — the renormalisation's input. */
+  matcherRaw: Distribution | null;
+  /** The mass the matcher tier received in the mixture; 0 when it had none. */
+  matcherWeight: number;
+  /** The contextual fallback, i.e. the predictor the ring model replaced. */
+  baseline: Distribution;
+  /**
+   * The hit+crit cells of the chosen (card, focus) — EXACTLY the set
+   * `pConnect` sums `dist` over. Re-summing another distribution over this
+   * same set is the single-toggle measurement.
+   */
+  connectCells: readonly Cell[];
+  pConnect: number;
+  /** Whether `actual` landed in `connectCells`. Fixed across every toggle. */
+  hit: boolean;
+  handSize: number;
+}
+
 export interface ReplayOptions {
   /** Defaults to the shipped `DEFAULT_FOCUS_RESERVE_WEIGHT`. */
   focusReserveWeight?: number;
@@ -434,6 +497,13 @@ export interface ReplayOptions {
    * which is byte-for-byte today's behavior.
    */
   focusPolicy?: FocusBudgetPolicy;
+  /**
+   * [session 73 §1b] Diagnostic tap — called once per replayed turn with the
+   * predictor internals (`ReplayTurnDiagnostic`), after the choice is made and
+   * the actual cell is known. Purely observational: the replay never reads
+   * anything back, so supplying it cannot change a single replayed decision.
+   */
+  onTurn?: (d: ReplayTurnDiagnostic) => void;
 }
 
 /** Reflect `c` about the diagonal through `focus` — see `ReplayOptions.mismatchedZones`. */
@@ -697,6 +767,43 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       handSize: hand.length,
       pConnectCeiling,
     });
+
+    // [session 73 §1b] The diagnostic tap. Nothing below is read back, so the
+    // hook cannot move a decision — it fires after the turn is fully resolved.
+    // `connectCells` is the TRUE zone geometry, so `actual ∈ connectCells`
+    // equals `hit` exactly when `mismatchedZones` is off; under that arm the
+    // replay resolves against a reflection and the two deliberately diverge.
+    if (opts.onTurn) {
+      const connectCells = [
+        ...zonesToCells(choice.focus, choice.card.critZones, gridSize),
+        ...zonesToCells(choice.focus, choice.card.hitZones, gridSize),
+      ];
+      const seen = new Set<string>();
+      opts.onTurn({
+        turn: i,
+        currentCell,
+        actual,
+        gridSize,
+        stepClass,
+        prevDelta,
+        stepTable: table,
+        dist,
+        ringDist,
+        matcherOnRing,
+        matcherRaw: matcherDist,
+        matcherWeight: matcherOnRing ? matcherWeightHere : 0,
+        baseline,
+        connectCells: connectCells.filter((c) => {
+          const k = cellKey(c);
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        }),
+        pConnect: choice.pHit + choice.pCrit,
+        hit,
+        handSize: hand.length,
+      });
+    }
 
     history.push(actual);
     // Update the posterior BEFORE narrowing the candidate set: the likelihood
