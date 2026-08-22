@@ -52,7 +52,13 @@ describe("redactCapture", () => {
     // prefix from `maskedJwt()`, so most of a real credential could have landed
     // in a "redacted" fixture on a public repo. The full-token redactor is the
     // client's own and is the only thing that has ever seen the real value.
-    const jwt = "eyJhbGciOiJIUzI1NiJ9.reallylongsecretpayload.signature";
+    // Deliberately NOT `eyJ...`-shaped. `scripts/preflight.ts` scans the export
+    // for anything structurally a JWT and flagged the first draft of this line
+    // — correctly. Its narrow allowance exists for "the redaction module has to
+    // contain the thing it redacts", and this is not that case: `capture.ts`
+    // DELEGATES to the caller's redactor and holds no token literal. What the
+    // test needs is a long multi-segment secret, which this is.
+    const jwt = "HEADER-part.reallylongsecretpayload.SIGNATURE-part";
     const out = redactCapture(JSON.stringify({ t: jwt }), "0xabc", (t) => t.split(jwt).join("<JWT>"));
     expect(out).toContain("<JWT>");
     expect(out).not.toContain("reallylongsecretpayload");
@@ -170,7 +176,9 @@ describe("there is exactly ONE implementation of each", () => {
   });
 
   it("redaction is identical on both, because it is the same code", () => {
-    const jwt = "eyJ.secret.sig";
+    // Same reason as above — no `eyJ` prefix anywhere in this file, so a future
+    // tightening of preflight's JWT pattern cannot turn this into a false hit.
+    const jwt = "HEADER.secret.SIG";
     const redactor = (t: string) => t.split(jwt).join("<JWT>");
     const body = { address: "0xSECRET", userName: "someone", NOOB_TOKEN_CID: 99, t: jwt };
 

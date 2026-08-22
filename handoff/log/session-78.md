@@ -3,7 +3,7 @@
 ## Status
 **GATE 1 PASS. GATE 2 PASS. GATE 3 PASS.** Suite **1511/1511** (was 1443),
 89 files, `tsc --noEmit` clean, `git diff --check` clean, `assertionCoverage`
-**0 vacuous**, secret scan clean across the whole session diff.
+**0 vacuous**, `preflight.ts` PASSED, **CI green on a real run**.
 
 - **Offline session, by USER DIRECTIVE.** Asked at 11:00 PT with both ledgers
   freshly rolled (12 run-units, 20 casts), the user chose no live play.
@@ -269,3 +269,42 @@ Same halt, same `exit(1)` at `main()`, strictly more information. Pinned by the
 rewritten session-28 test, which now asserts the detail carries the POST's
 `"server error"` body AND `getDungeonState`'s own
 `"repeated 5xx on /game/dungeon/state"` verdict.
+
+
+## F. CI went RED on the recap commit, and the scanner was right
+
+Run 32591431828 failed at the `Distribution preflight` step:
+
+```
+  ★★★ HITS — DO NOT SHARE THIS EXPORT:
+      JWT in tests/capture.test.ts
+```
+
+The string was `eyJhbGciOiJIUzI1NiJ9.reallylongsecretpayload.signature`, which I
+wrote as a synthetic fixture and which matches preflight's pattern
+`/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./` exactly.
+
+**The recap's own step-1 grep found this string and I judged it synthetic and
+moved on.** That judgement is precisely what a scanner exists to take away from
+a human, and a scanner with case-by-case exceptions trains its reader to ignore
+it — which `preflight.ts`'s own allowance comment says in as many words.
+
+**No allowance was added.** `SCAN_ALLOW` exists for "the redaction module has to
+contain the thing it redacts" (`redact.ts` and its test carry `NOOB_TOKEN_CID`
+as a literal). This is not that case: `src/orchestrator/capture.ts` DELEGATES to
+the caller's redactor and holds no token literal. The test needed a long
+multi-segment secret, not a structurally valid JWT, so it uses
+`"HEADER-part.reallylongsecretpayload.SIGNATURE-part"`. The other `eyJ`-prefixed
+literal in the file was changed too, so a future tightening of the pattern
+cannot turn it into a fresh false hit.
+
+**The process lesson:** `preflight.ts` takes ~90s and is the last check before a
+push. It was run only via CI, after the push. It now passes locally:
+
+```
+  Tests  1496 passed | 15 skipped (1511)
+  author-data tests skipped: 15
+  ✓ green in a stranger's tree.
+  ▸ secret scan of the exported tree ✓ clean.
+  ▸ PREFLIGHT PASSED — the export behaves for a stranger.
+```

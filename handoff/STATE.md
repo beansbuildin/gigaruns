@@ -3,7 +3,7 @@
 ## Status
 **GATE 1 PASS. GATE 2 PASS. GATE 3 PASS.** Suite **1511/1511** (was 1443),
 89 files, `tsc --noEmit` clean, `git diff --check` clean, `assertionCoverage`
-**0 vacuous**, secret scan clean across the whole session diff.
+**0 vacuous**, `preflight.ts` PASSED, **CI green on a real run**.
 
 - **Offline session, by USER DIRECTIVE.** Asked at 11:00 PT with both ledgers
   freshly rolled (12 run-units, 20 casts), the user chose no live play.
@@ -112,6 +112,16 @@
   claiming one; do not revert rule 8; redraw CLOSED on price; +19.40pp
   SUSPENDED; no oil sweep on the current instrument; `boonCapture` OFF.
 - **`npx tsx` and `git` both fail under the command sandbox.** Run unsandboxed.
+- **Pushing before running `preflight.ts` — CI went RED on this session's own
+  recap commit** (run 32591431828). A synthetic
+  `eyJhbGci...` test string in `tests/capture.test.ts` matched preflight's JWT
+  pattern; my own step-1 grep saw it and judged it synthetic, which is exactly
+  the judgement a scanner exists to remove from a human. **The scanner was right
+  and no allowance was added** — its narrow allowance is for "the redaction
+  module must contain what it redacts", and `capture.ts` DELEGATES redaction and
+  holds no token literal, so the test simply uses a long non-JWT-shaped secret
+  instead. `preflight.ts` is ~90s and is the last check before a push, not an
+  optional one.
 
 ## Metrics
 - **Live: 0 dungeon runs, 0 fishing casts, 0 energy.** User directive.

@@ -810,3 +810,14 @@ placement to score the observation with — same lines, different operation. The
 semantics and carries session 75's prices (24.9% → 32.5% → 40.1% catch, at ~43.9
 and ~29.9 extra mana per extra fish, all `castSim` and all suspended).
 `redrawEnabled` stays off and `DEFAULT_POTION_THRESHOLD` stays 0.5.
+
+2026-08-22 (session 78, post-recap) — **`preflight.ts` runs BEFORE the push, not
+via CI after it.** The recap commit turned CI red: a synthetic
+`eyJhbGci...`-shaped test string in `tests/capture.test.ts` matched preflight's
+JWT pattern. The recap's own secret grep found that string, judged it synthetic,
+and moved on — which is exactly the judgement a scanner exists to remove from a
+human. **No `SCAN_ALLOW` entry was added**: that allowance is for "the redaction
+module has to contain the thing it redacts", and `src/orchestrator/capture.ts`
+delegates redaction and holds no token literal, so the test uses a long
+non-JWT-shaped secret instead. A scanner with case-by-case exceptions trains its
+reader to ignore it.
