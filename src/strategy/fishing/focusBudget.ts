@@ -12,6 +12,33 @@
  *
  * i.e. **the first move alone spends 1.62 of 3 points.**
  *
+ * ── [session 71 §1] THOSE NUMBERS ARE THIS MODULE'S OWN ERA, AND THE FISHERY
+ *    HAS MOVED OUT FROM UNDER ITS PREMISE ────────────────────────────────────
+ *
+ * Session 70 called the figures above stale and recomputed them over the whole
+ * 123-trace corpus (64.2% meter-out, opening spend 1.40). **Both readings are
+ * wrong in the same way.** The corpus is three policy eras, and the numbers
+ * above are exactly the oldest of them — correct for the 73 casts they were
+ * computed on, and not a description of the corpus at any other size:
+ *
+ *     era                        casts  opening  meter-out  catch
+ *     pre-logging (session 49)      73     1.62      80.8%   11.0%
+ *     retired fixed-0.9 weighting   15     1.67      53.3%   33.3%
+ *     TODAY's policy                35     0.83      34.3%   60.0%
+ *
+ * **This is not a footnote, it is a question about whether the module is still
+ * needed.** It was built because meter-out was the dominant loss at 80.8%. On
+ * the era the shipped policy actually plays, meter-out is 34.3% and the catch
+ * rate is 60.0% — the failure mode is less than half as common and may no
+ * longer be the binding constraint at all. The module stays `NO_FOCUS_POLICY`
+ * and nothing here is wired live, so no behaviour rests on this; what rests on
+ * it is whether the next session should sweep these families at all.
+ *
+ * Caveats that must travel with the split: n=35 is small, an era is a BUNDLE
+ * (zone map, matcher weighting, lures, rod — not one knob), and the era spans
+ * the Makeshift/Shroom deck break. See `handoff/reports/session-71-replay-gap.md`
+ * and `scripts/focusProfileCheck.ts` §1b, which prints the split on every run.
+ *
  * Why the penalty term could never fix that (session 48 measured it inert:
  * w=0 and w=3 indistinguishable on 73 traces, w>=4 monotonically worse):
  * `focusReserveWeight` adds a FIXED penalty proportional to budget retained,

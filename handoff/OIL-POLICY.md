@@ -6,6 +6,32 @@ Session 61, 2026-08-20. Brief §4d. **Nothing here has been consumed live.**
 
 ---
 
+## 0a. ⚠ SUSPENDED [session 71, 2026-08-21] — +19.40pp MAY NOT BE QUOTED
+
+**Every `Δ` in this document was computed on `castSim`'s BARE DEFAULT arm, and
+that arm has since been shown not to reproduce this fishery.** It reads
+meter-out **1.0%** and catch **~70%**; the real fishery reads meter-out
+**64.2%** and catch **27.6%** (and **34.3% / 60.0%** on the era today's policy
+actually played). A policy delta measured where the meter never fills cannot be
+assumed to transfer to a fishery where two casts in three end that way.
+
+**What is suspended is the INPUT, not the conclusion.** `on-demand` is not
+overturned and this derivation is not withdrawn — the claim that its headline
+number is *supported* is. Do not quote **+19.40pp**, or any Δ in the tables
+below, in a recap, report, brief or decision until it has been re-derived on an
+instrument that passes a profile check. **Do not re-run the oil sweep on the
+current instrument to "check"**: that produces a second unsupported number.
+
+Session 71 restored the *replay's* precondition, not this sim arm. They are
+different instruments and progress on one licenses nothing about the other.
+See `handoff/DECISIONS.md`, 2026-08-21 (session 71, §4).
+
+Unaffected, because they are live measurements rather than sim ones: the
+certainty gate is a proven live no-op (0 of 9 Relaxing firings held), and the
+shadow stays on the exchange threshold.
+
+---
+
 ## 0. What this is worth, stated first and not in a footnote
 
 **The corpus contains no usable oil data.** 93 of 94 casts spent no consumable
@@ -78,7 +104,7 @@ Robust within the branch the sim can model: it wins at effect amounts 1, 2 and
 | policy | catch | Δ vs never | 95% CI | oils spent | Δpp per oil |
 |---|---|---|---|---|---|
 | never (control) | 68.71% | — | — | 0 | — |
-| **on-demand** | **88.11%** | **+19.40pp** | [+19.39, +19.41] | 5578 | 0.278 |
+| **on-demand** | **88.11%** | **+19.40pp** (SUSPENDED §0a) | [+19.39, +19.41] | 5578 | 0.278 |
 | focus-when-empty-only | 86.45% | +17.74pp | [+17.73, +17.75] | 3515 | **0.404** |
 | start | 74.38% | +5.66pp | [+5.66, +5.67] | 16000 | 0.028 |
 | heuristic-c (shipped) | 73.22% | +4.51pp | [+4.51, +4.52] | 2630 | 0.137 |
@@ -125,7 +151,7 @@ live, not a hypothetical.
 | amount | winner | Δ vs never |
 |---|---|---|
 | 1 | on-demand | +13.89pp |
-| **2 (payload)** | **on-demand** | **+19.40pp** |
+| **2 (payload)** | **on-demand** | **+19.40pp** (SUSPENDED §0a) |
 | 3 | on-demand | +21.99pp |
 
 The winner does not flip. The *magnitude* scales strongly with the amount,

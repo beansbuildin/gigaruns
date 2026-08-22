@@ -1,5 +1,29 @@
 # Session 70 §2 — the focus-meter policy sweep, and the gate it failed
 
+> ## ⚠ SUPERSEDED IN PART — [session 71, 2026-08-21]
+>
+> **Both FAIL verdicts below were measured against targets that pool policy
+> eras, and both reverse when the comparison is made like-for-like.** The
+> corpus's 1.40 pools 73 pre-logging casts (1.62), 15 retired-weighting casts
+> (1.67) and 35 played by what ships (0.83); "live's 1.08" is the last two of
+> those pooled. Against today's era the sim's 0.77 is INSIDE [0.58, 1.08] and
+> the replay reproduces the recorded opening move exactly on 86% of casts.
+> **Neither instrument was broken; both comparisons were.**
+>
+> Also corrected here: this report calls session 49's 80.8% / 1.62 "stale". They
+> are not stale — they are exactly the pre-logging era, correct for the corpus
+> they were computed on. The defect is pooling, not age.
+>
+> **What still stands:** the sweep's ranking still may not be quoted (§3's arms
+> remain barely exercised, now for a substantive reason); `focusBudget.ts` stays
+> `{kind:"none"}`; the `observeTurn` instrumentation bug in §2 is real and its
+> lesson unaffected; §5's "sim-selected policy is not a reliable instrument" is
+> softened but not withdrawn — the sim's CATCH RATE still reads 24.7% against
+> today's era's 60.0%, a worse disagreement than the one this report failed on.
+>
+> See `handoff/reports/session-71-replay-gap.md` and
+> `scripts/replayGapDecomposition.ts`.
+
 **Verdict up front: no focus policy is recommended, and the sweep's ranking must
 not be quoted.** Not because `{kind:"none"}` won — because both instruments that
 could score these policies under-spend the focus meter by roughly half, which

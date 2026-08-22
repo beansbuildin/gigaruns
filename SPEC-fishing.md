@@ -309,6 +309,14 @@ crits, upper bound 0.86% — below the stated 3%. That is the first positive
 evidence that the crit source is the GEAR rather than something the card model
 is missing; session 69 could only say the lure was "not contradicted".
 
+**[session 71 §3] USER-STATED, 2026-08-21: the Steady Lure is the crit
+source.** Recorded as a user statement, which is what it is — the corpus is
+CONSISTENT with it and does not confirm it, and the paragraph below is the
+reason the distinction is not pedantry. CLAUDE.md rule 9's habit applies to a
+user's claim exactly as it does to a brief's: session 63 caught a user-stated
+inventory that the live read contradicted. **Do not write "CONFIRMED" against
+the crit source, and do not drop the Sticky Lure from the record.**
+
 **A SECOND LURE was equipped and the attribution is now ambiguous.** From
 2026-08-21T19:58:29Z the account carries BOTH the Steady Lure (951) and a
 **Sticky Lure (952)**, and the single observed crit falls inside that window
