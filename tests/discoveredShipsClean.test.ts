@@ -25,9 +25,12 @@
  */
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
+
+import { announceMissingAuthorData, probeAuthorData } from "./helpers/authorData.js";
 import { createHash } from "node:crypto";
 
 const DISCOVERED = "config/discovered.json";
+const ROMS = "data/roms.json";
 
 /** Every scalar in the file, with its dotted path, so failures name the key. */
 function scalars(node: unknown, path: string[] = []): Array<{ path: string; value: unknown }> {
@@ -129,10 +132,26 @@ describe("the per-account half stays out of the repo", () => {
     expect(ignore).toMatch(/^data\/$/m);
   });
 
-  it("and if it exists locally, it is the file that holds them", () => {
-    // Skipped in a fresh clone, which is correct — there is nothing to check.
-    if (!existsSync("data/roms.json")) return;
-    const roms = JSON.parse(readFileSync("data/roms.json", "utf8")) as Record<string, unknown>;
+});
+
+/**
+ * **[session 76 §1] This block used to be a bare `if (!existsSync(...)) return;`
+ * inside the describe above, with the comment "Skipped in a fresh clone, which
+ * is correct".** It was not skipped. It PASSED, green, having asserted nothing
+ * — which `tests/helpers/authorData.ts` names as the same failure mode as a
+ * vacuous assertion, and which is strictly harder to notice than the red
+ * assertion §1 came here to fix. Found while asking why the author-data guard
+ * had not reached a fifth file; the answer is that it reaches whatever goes
+ * RED, and a silent early return never does.
+ */
+const romsProbe = probeAuthorData(ROMS, () => {
+  if (!existsSync(ROMS)) throw new Error("absent (not shipped — it is the author's per-account ROM enumeration)");
+});
+announceMissingAuthorData("tests/discoveredShipsClean.test.ts", romsProbe);
+
+describe.skipIf(!romsProbe.ok)("the per-account half, where it exists (author data — see romsProbe)", () => {
+  it("data/roms.json is the file that holds the ids", () => {
+    const roms = JSON.parse(readFileSync(ROMS, "utf8")) as Record<string, unknown>;
     expect(Array.isArray(roms.allRoms)).toBe(true);
     expect(Array.isArray(roms.knownRomIds)).toBe(true);
   });

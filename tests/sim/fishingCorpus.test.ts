@@ -17,7 +17,7 @@
  *     same code path a live `--casts=2` invocation does.
  */
 
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -30,6 +30,48 @@ import { GuardState } from "../../src/orchestrator/guards.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
 import type { BotConfig } from "../../src/orchestrator/config.js";
 import type { FishingGameDoc } from "../../src/api/fishing.js";
+import { announceMissingAuthorData, probeAuthorData } from "../helpers/authorData.js";
+
+const LIVE_ROOT = join("fixtures", "fishing-casts", "live");
+
+/** Every `cast-*` directory in the working tree, empty ones included. */
+function castDirectories(): string[] {
+  return readdirSync(LIVE_ROOT).filter((d) => d.startsWith("cast-"));
+}
+
+/** The subset of those that actually hold captured state — the ones git carries. */
+function directoriesWithStates(): string[] {
+  return castDirectories().filter((d) => readdirSync(join(LIVE_ROOT, d)).some((f) => f.startsWith("state-")));
+}
+
+/**
+ * **[session 76 §1] The empty-directory half of session 68 §4's identity is
+ * AUTHOR DATA, and git cannot carry it — in a clone the assertion below is
+ * not merely unmet, it is UNSATISFIABLE.**
+ *
+ * `.gitignore` excludes the `raw` subdirectory of every fixture directory
+ * (one glob line under `fixtures`), and git tracks files, not directories. A `cast-*` directory whose only content is `raw/` therefore has
+ * nothing tracked inside it and cannot exist in any clone of any commit. The
+ * author's tree has 133 directories and 109 with state files; a clone has 109
+ * and 109, and `expect(133).toBeGreaterThan(109)` becomes
+ * `expect(109).toBeGreaterThan(109)`.
+ *
+ * So the probe asks the only question that matters: **does this tree contain
+ * the untracked shape the assertion is about?** Not "is a path missing" — the
+ * path is present and complete. That difference is why the four declared
+ * author-data files (`data/`, `logs/`, `handoff/` — whole directories absent)
+ * did not resemble this one.
+ */
+const emptyDirProbe = probeAuthorData(`raw-only cast directories under ${LIVE_ROOT}/`, () => {
+  const empties = castDirectories().length - directoriesWithStates().length;
+  if (empties === 0) {
+    throw new Error(
+      "none present — `fixtures/**/raw/` is gitignored and git carries no empty directories, " +
+        "so a clone has zero of them. This is the expected state for anyone but the author.",
+    );
+  }
+});
+announceMissingAuthorData("tests/sim/fishingCorpus.test.ts", emptyDirProbe);
 
 describe("loadFishingCorpus / summarizeFishingCorpus — against the real committed corpus", () => {
   it("counts by docId, not by directory or raw file — reproduces the CODEXREVIEW-corrected numbers", () => {
@@ -111,22 +153,24 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
    * Asserted as RELATIONS, not literals: the directory count grows with every
    * invocation, including ones that record nothing, so pinning it would make
    * this fail for reasons that mean nothing.
+   *
+   * **[session 76 §1] The two relations were SPLIT, because only one of them
+   * ships.** The packing inequality below is computed entirely from tracked
+   * files and runs for everyone. The empty-directory inequality moved to the
+   * guarded block at the bottom of this file — see `emptyDirProbe`.
    */
   it("reconciles with the fixture tree: distinct docIds, NOT directories", () => {
     const casts = loadFishingCorpus();
-    const root = join("fixtures", "fishing-casts", "live");
-    const dirs = readdirSync(root).filter((d) => d.startsWith("cast-"));
-    const withStates = dirs.filter(
-      (d) => existsSync(join(root, d)) && readdirSync(join(root, d)).some((f) => f.startsWith("state-")),
-    );
     // The corpus counts casts by docId, and that is the only number any
     // statistic in this repo is computed on.
     expect(new Set(casts.map((c) => c.docId)).size).toBe(casts.length);
-    // Strictly MORE directories than directories-with-data, because empty ones
-    // exist; and strictly FEWER directories-with-data than casts, because a
-    // batch packs several casts into one. Both inequalities are the point.
-    expect(dirs.length).toBeGreaterThan(withStates.length);
-    expect(withStates.length).toBeLessThan(casts.length);
+    // Strictly FEWER directories-with-data than casts, because a batch packs
+    // several casts into one directory. **This is the half that ships**: every
+    // file it counts is tracked, so a stranger's clone runs it and it means the
+    // same thing there. It is also the half that carries the session-68 lesson
+    // — it is the packing, not the empty directories, that makes
+    // `ls | wc -l` an undercount of casts as often as an overcount.
+    expect(directoriesWithStates().length).toBeLessThan(casts.length);
   });
 
   it("every cast has at least one start_run response, except a cast this project's own process only ever RESUMED", () => {
@@ -143,6 +187,34 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // it just never finished playing.)
     const withoutStartRun = casts.filter((c) => !c.responses.some((r) => r.kind === "start_run"));
     expect(withoutStartRun.map((c) => c.docId)).toEqual(["12975152"]);
+  });
+});
+
+/**
+ * **[session 76 §1] The author-only half — and the reason this file is the
+ * FIFTH of its class and the only one that was never declared.**
+ *
+ * It was not missed by session 68's sweep. It was written **after** it, in the
+ * same commit that shipped the instrument built to catch it: `02e7907`
+ * ("session 68 §4") adds `scripts/preflight.ts` and this assertion together.
+ * The session-68 log's own final preflight run reports `1279 passed | 13
+ * skipped (1292)` against a working tree that ended the session at **1293** —
+ * exactly one test short, and this is that test. The export is taken from the
+ * git INDEX, so a test written after the last `preflight.ts` run is invisible
+ * to it.
+ *
+ * The lesson is therefore not about taxonomy. **A one-shot sweep does not stay
+ * swept**, and `tests/helpers/authorData.ts` guards nothing that is written
+ * after the day it was applied. That is the standing argument for running
+ * `preflight.ts` in CI (open since session 68) rather than before invites.
+ */
+describe.skipIf(!emptyDirProbe.ok)("the fixture tree's untracked shape (author data — see emptyDirProbe)", () => {
+  it("has strictly more cast directories than directories with data, because raw-only ones exist", () => {
+    // A run that starts no cast — every `--dry-run`, and any invocation that
+    // halts before `start_run` — still creates a directory containing only
+    // `raw`. That is the claim; it is true of the machine that captured the
+    // corpus and false, structurally, of every clone.
+    expect(castDirectories().length).toBeGreaterThan(directoriesWithStates().length);
   });
 });
 
