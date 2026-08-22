@@ -65,8 +65,12 @@
 import {
   chooseCard,
   DEFAULT_FOCUS_RESERVE_WEIGHT,
+  DEFAULT_LETHALITY,
+  NEVER_LETHAL,
+  type CardFocusChoice,
   type FishingCardLike,
   type FocusBudget,
+  type LethalityPolicy,
 } from "../../strategy/fishing/cardChoice.js";
 import {
   buildContextualMap,
@@ -351,6 +355,29 @@ export interface ReplayTurnDiagnostic {
   /** Whether `actual` landed in `connectCells`. Fixed across every toggle. */
   hit: boolean;
   handSize: number;
+  // ── [session 74 §2a] the `isLethal` override's blast radius ─────────────
+  //
+  // Everything below is a read of a local that already existed at this point
+  // in the turn, EXCEPT `noOverride`, which re-plans the turn. All of it is
+  // computed only when `onTurn` is supplied.
+  /** The choice actually played this turn — card, focus, ev, pHit/pCrit and `lethal`. */
+  played: CardFocusChoice;
+  /** Whether the played choice claimed lethality under the arm's own predicate. */
+  lethal: boolean;
+  /** `fishHp` entering the turn, and leaving it. `fishHpAfter <= 0` is the catch. */
+  fishHpBefore: number;
+  fishHpAfter: number;
+  /** The placement's focus-meter cost, and the cap the spend constraint would have applied. */
+  moveCost: number;
+  maxMoveCost: number;
+  /**
+   * The choice the SAME turn would have made with the lethality override
+   * withdrawn entirely (`NEVER_LETHAL`) — same state, same distribution, same
+   * hand, so it is PAIRED with the played choice rather than being a separate
+   * replay whose turns need not line up. `null` only when no affordable card
+   * exists, which cannot happen on a turn that played one.
+   */
+  noOverride: CardFocusChoice | null;
 }
 
 export interface ReplayOptions {
@@ -504,6 +531,14 @@ export interface ReplayOptions {
    * anything back, so supplying it cannot change a single replayed decision.
    */
   onTurn?: (d: ReplayTurnDiagnostic) => void;
+  /**
+   * [session 74 §2] The lethality rule the replayed policy plays under.
+   * Defaults to the SHIPPED predicate, so every existing arm is unchanged.
+   * `scripts/isLethalBlastRadius.ts` uses it to score the tightening; the
+   * PAIRED no-override counterfactual is computed separately at the `onTurn`
+   * tap and does not need this.
+   */
+  lethality?: LethalityPolicy;
 }
 
 /** Reflect `c` about the diagonal through `focus` — see `ReplayOptions.mismatchedZones`. */
@@ -630,7 +665,10 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       fishHp,
       bestHitEffect,
     });
-    const chooseAt = (focusCandidates?: readonly Cell[]) =>
+    // [session 74 §2a] `lethality` is threaded so the diagnostic tap can
+    // re-plan the SAME turn with the override withdrawn. It defaults to the
+    // shipped predicate, so no arm that does not pass one can change.
+    const chooseAt = (focusCandidates?: readonly Cell[], lethality: LethalityPolicy = opts.lethality ?? DEFAULT_LETHALITY) =>
       chooseCard(
         cards,
         mana,
@@ -643,6 +681,8 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
         focusReserveWeight,
         constraint,
         focusCandidates,
+        lethality,
+        currentCell,
       );
     let choice = chooseAt();
     if (!choice) {
@@ -748,6 +788,7 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       : hit
         ? (choice.card.hitEffects[0]?.amount ?? 0)
         : (choice.card.missEffects[0]?.amount ?? 0);
+    const fishHpBefore = fishHp;
     fishHp = hit ? Math.max(0, fishHp - amount) : Math.min(fishMaxHp, fishHp - amount);
 
     turns.push({
@@ -774,6 +815,10 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
     // equals `hit` exactly when `mismatchedZones` is off; under that arm the
     // replay resolves against a reflection and the two deliberately diverge.
     if (opts.onTurn) {
+      // Re-planning the turn with the override withdrawn. `chooseAt` reads
+      // only locals that this call cannot mutate, and its result is never
+      // assigned back to `choice`, so the tap stays observational.
+      const noOverride = chooseAt(undefined, NEVER_LETHAL);
       const connectCells = [
         ...zonesToCells(choice.focus, choice.card.critZones, gridSize),
         ...zonesToCells(choice.focus, choice.card.hitZones, gridSize),
@@ -802,6 +847,13 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
         pConnect: choice.pHit + choice.pCrit,
         hit,
         handSize: hand.length,
+        played: choice,
+        lethal: choice.lethal,
+        fishHpBefore,
+        fishHpAfter: fishHp,
+        moveCost,
+        maxMoveCost: constraint.maxMoveCost,
+        noOverride,
       });
     }
 

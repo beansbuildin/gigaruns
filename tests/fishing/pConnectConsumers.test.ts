@@ -107,7 +107,7 @@ const CLASSIFIED = new Map<string, FileEntry>([
   [
     "src/strategy/fishing/cardChoice.ts",
     {
-      sites: 18,
+      sites: 20,
       note:
         "THE PRODUCER, and both classes at once. `evaluateCardAtFocus` computes pHit/pCrit; " +
         "`ev`, `score`, `evPerMana` and `isPreferred` consume them as RANK (argmax over cards " +
@@ -178,10 +178,18 @@ const LEVEL_SITES: { file: string; contains: string; live: boolean; why: string 
     live: true,
     why:
       "`isLethal`'s certainty test, and the most consequential live level consumer in the repo. " +
-      "A `lethal` placement is exempt from the focus spend constraint (`bestFocusForCard`: 'A " +
-      "LETHAL placement is never blocked') and short-circuits the oil gates, so an optimistic " +
-      "p=1 claim buys an override. It sits at the very top of the range, which is exactly where " +
-      "the reliability table is worst: the [0.50, 1.01) bucket predicts 72.2% and observes 60.3%.",
+      "It does not decline an action, it GRANTS AN OVERRIDE, along five paths counted in session " +
+      "74 §2: exemption from `spendConstraint.maxMoveCost`; dominance over any non-lethal " +
+      "candidate in `bestFocusForCard`; skipping the `moveEvThreshold` stay-put comparison; " +
+      "`chooseCard` picking among lethal options only; and `offPolicyReplay` skipping the " +
+      "coverage re-ranking. An optimistic p=1 claim buys all five, and it sits at the very top " +
+      "of the range, which is exactly where the reliability table is worst: the [0.50, 1.01) " +
+      "bucket predicts 72.2% and observes 60.3%. " +
+      "CORRECTION (session 74): this note used to say a lethal claim also 'short-circuits the " +
+      "oil gates'. IT DOES NOT — `isLethal` has ONE call site, the shipped trigger " +
+      "`onDemandTriggers` is `fishHp <= fishDamage` with no estimator input at all, and the " +
+      "derived necessity gates read their own functions. Card-play lethality and oil lethality " +
+      "were conflated, and the error propagated from here into STATE.md and the session-74 brief.",
   },
   {
     file: "src/strategy/fishing/cardChoice.ts",

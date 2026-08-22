@@ -189,6 +189,156 @@ function isLethal(card: FishingCardLike, pHit: number, pCrit: number, fishHp: nu
   return fishHp - worstCase <= 0;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// [session 74 §2] THE LETHALITY PREDICATE, MADE INJECTABLE
+//
+// ## Why this seam exists
+//
+// `lethal` is not a label — it is an OVERRIDE, and session 73 identified it as
+// the most consequential live consumer of `pConnect`'s LEVEL (as opposed to
+// its ranking, which a uniform optimism cannot disturb). Everything else that
+// reads a connect probability live either ranks with it or reports it. This
+// grants exemptions:
+//
+//   1. `bestFocusForCard` — a lethal placement is exempt from
+//      `spendConstraint.maxMoveCost` ("A LETHAL placement is never blocked").
+//   2. `bestFocusForCard` — a lethal candidate beats a non-lethal one whatever
+//      the scores say, and
+//   3. skips the `moveEvThreshold` stay-put comparison entirely.
+//   4. `chooseCard` — if ANY option is lethal, the pick is made among lethal
+//      options only (SPEC.md §5's "lethal check first").
+//   5. `offPolicyReplay` — the coverage re-ranking is skipped for a lethal
+//      choice, deliberately, so coverage never overrides a catch.
+//
+// And it reads the worst-calibrated end of the range: the [0.50, 1.01) bucket
+// predicts 72.2% and observes 60.3% (session 73).
+//
+// **CORRECTION, session 74.** Session 73 recorded — in `STATE.md`, in the
+// session-74 brief, and in `tests/fishing/pConnectConsumers.test.ts`'s own
+// rationale — that a lethal claim "short-circuits the oil gates". IT DOES NOT.
+// `isLethal` has exactly ONE call site (below), the shipped oil trigger
+// `onDemandTriggers` is `fishHp <= fishDamage` with no estimator input at all,
+// and the derived necessity gates read `bestKillProbability` /
+// `bestConnectProbabilityFromFrozenCell`, which are their own functions. The
+// two senses of "lethal" — card-play lethality and oil lethality — were
+// conflated. The five paths above are the complete list.
+//
+// ## Why the seam and not an edit
+//
+// The tightening is NOT adopted (session-74 brief §3: ship nothing while the
+// `pConnect` diagnosis is open). `DEFAULT_LETHALITY` is the shipped predicate
+// byte for byte and is the default of every parameter below, so no existing
+// caller changes. `tests/fishing/lethalOverride.test.ts` fails if that stops
+// being true.
+
+/**
+ * Everything a lethality rule may look at. Wider than the shipped predicate
+ * needs, because the tightening below needs `currentCell` and a positional
+ * parameter list that already runs to twelve arguments is not the place to
+ * add a thirteenth.
+ */
+export interface LethalityContext {
+  card: FishingCardLike;
+  focus: Cell;
+  dist: Distribution;
+  gridSize: number;
+  pHit: number;
+  pCrit: number;
+  fishHp: number;
+  /**
+   * The cell the fish occupied when `dist` was built. OPTIONAL, and the
+   * optionality is load-bearing: most callers of `bestFocusForCard` do not
+   * have it in scope, and a rule that needs it must FAIL CLOSED when it is
+   * absent — declining to certify is the safe direction for an override.
+   */
+  currentCell?: Cell;
+}
+
+/** One lethality rule. */
+export interface LethalityPolicy {
+  readonly name: string;
+  isLethal(ctx: LethalityContext): boolean;
+}
+
+/** The SHIPPED predicate. The default everywhere; changing this ships a behaviour change. */
+export const DEFAULT_LETHALITY: LethalityPolicy = {
+  name: "certainty",
+  isLethal: (c) => isLethal(c.card, c.pHit, c.pCrit, c.fishHp),
+};
+
+/**
+ * **The tightening — BUILT, DEFAULTED OFF, NOT ADOPTED.**
+ *
+ * ## The shipped predicate cannot be tightened on its THRESHOLD, and that is
+ * the first thing to understand about it
+ *
+ * `pAnyHit < 0.999999` looks unfalsifiably strict: nothing is above 1, so
+ * there is no number to raise it to. Discounting `pAnyHit` by any calibration
+ * haircut sends it below the threshold ALWAYS, collapsing the predicate to
+ * never-lethal. So the obvious "apply the measured bias" correction is not
+ * available here — it is degenerate, not conservative.
+ *
+ * ## The optimism enters through the SUPPORT, not the threshold
+ *
+ * `pAnyHit` reaches 1.0 exactly when the card's hit+crit cells cover every
+ * cell `dist` gives mass to, and the ring model gives mass only to Manhattan
+ * distance EXACTLY 1 and EXACTLY 2 from the fish's current cell. Two outcome
+ * classes therefore carry probability zero by CONSTRUCTION rather than by
+ * evidence:
+ *
+ *   - the fish does not move (`actual == currentCell`), and
+ *   - the fish lands off both rings.
+ *
+ * So "certain" means "certain GIVEN the fish moves exactly 1 or 2 cells". The
+ * claim is conditional; the five override paths spend it as unconditional.
+ *
+ * ## The tightening
+ *
+ * Require the certainty to survive the one structural escape a PLACEMENT can
+ * be made robust to: the card's connect cells must also cover the fish's
+ * CURRENT cell. An off-ring landing is not coverable by any single placement,
+ * so demanding that too would collapse the predicate to never-lethal — the
+ * degenerate reading again, not a fix.
+ *
+ * Damage is unchanged: still the worst case of hit and crit.
+ *
+ * Fails closed without `currentCell`: a caller that cannot say where the fish
+ * is cannot be granted an override on the strength of where it is not.
+ *
+ * ## What it costs, stated honestly
+ *
+ * Session 73 measured no-move turns at **0 of 134** on today's era, so on the
+ * corpus this repo has, this is very nearly inert — and
+ * `scripts/isLethalBlastRadius.ts` reports exactly how nearly. An inert
+ * tightening is a real result: it says the override's optimism is NOT being
+ * spent on the no-move escape, which narrows where a correction could
+ * usefully go. It is not an argument for shipping it.
+ */
+export const STRICT_LETHALITY: LethalityPolicy = {
+  name: "strict-covers-current-cell",
+  isLethal: (c) => {
+    if (!isLethal(c.card, c.pHit, c.pCrit, c.fishHp)) return false;
+    if (!c.currentCell) return false; // fail closed — see the doc comment
+    const covered = new Set([
+      ...zonesToCells(c.focus, c.card.critZones, c.gridSize).map(cellKey),
+      ...zonesToCells(c.focus, c.card.hitZones, c.gridSize).map(cellKey),
+    ]);
+    return covered.has(cellKey(c.currentCell));
+  },
+};
+
+/**
+ * **Diagnostic only — never a shipping candidate.** Disables the override
+ * entirely, which is how `scripts/isLethalBlastRadius.ts` gets a PAIRED
+ * counterfactual: the same turn, same state, same distribution, replanned with
+ * every exemption withdrawn. Running it as a policy would throw away catches
+ * on purpose.
+ */
+export const NEVER_LETHAL: LethalityPolicy = {
+  name: "never (diagnostic)",
+  isLethal: () => false,
+};
+
 /**
  * **[RE-DERIVED 2026-08-16, session 15]** argmax raw `EV(card, f)` over
  * every focus placement the grid allows, for one card. Session 13's
@@ -255,6 +405,15 @@ export function bestFocusForCard(
    * time.
    */
   focusCandidates?: readonly Cell[],
+  /**
+   * [session 74 §2] The lethality rule. Defaults to the SHIPPED predicate, so
+   * every existing caller behaves byte-for-byte as before — the same
+   * convention `heuristicsEnabled`, `focusReserveWeight` and `spendConstraint`
+   * were added under. `currentCell` is threaded alongside because
+   * `STRICT_LETHALITY` needs it and fails closed without it.
+   */
+  lethality: LethalityPolicy = DEFAULT_LETHALITY,
+  currentCell?: Cell,
 ): CardFocusChoice {
   const searchSpace =
     focusCandidates ?? (focusBudget ? reachableCells(gridSize, focusBudget.current, focusBudget.remaining) : allCells(gridSize));
@@ -286,7 +445,7 @@ export function bestFocusForCard(
       score,
       pHit,
       pCrit,
-      lethal: isLethal(card, pHit, pCrit, fishHp),
+      lethal: lethality.isLethal({ card, focus, dist, gridSize, pHit, pCrit, fishHp, currentCell }),
     };
     if (!anyCandidate) anyCandidate = candidate;
     const moveCost = moveCostOf(focus);
@@ -465,6 +624,9 @@ export function chooseCard(
   spendConstraint: FocusSpendConstraint = UNCONSTRAINED,
   /** [session 50, brief §2] See `bestFocusForCard`'s doc comment — same restriction, threaded through. */
   focusCandidates?: readonly Cell[],
+  /** [session 74 §2] See `bestFocusForCard` — same policy, threaded through. */
+  lethality: LethalityPolicy = DEFAULT_LETHALITY,
+  currentCell?: Cell,
 ): CardFocusChoice | null {
   const options = hand
     .map((c, i) => [c, i] as const)
@@ -482,6 +644,8 @@ export function chooseCard(
         focusReserveWeight,
         spendConstraint,
         focusCandidates,
+        lethality,
+        currentCell,
       ),
     );
   if (options.length === 0) return null;
