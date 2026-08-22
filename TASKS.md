@@ -1658,6 +1658,47 @@ changing `0.5` blindly." Raising it without a better model wastes a limited
 consumable; leaving it spends the potion after the dangerous hit instead of
 before it. Neither is fixable by picking a different number.
 
+### CAPTURE-3 — what the server does to `fullDeck` when it grows (M3's blocker)
+
+**Found by building M3's harness, not by reasoning about it.**
+`scripts/deckObjectiveSweep.ts` runs the composition objective the review asked
+for, and the answer it returns is a null with a diagnosis:
+
+```
+  all 80 appended candidates   IDENTICAL to baseline, full precision
+  the same cards prepended     hit rate moves by up to +19.91pp
+```
+
+`castSim`'s `drawHand` is sequential from index 0 and a cast lasts ~5 turns, so
+on the account's real 23-card deck only the first ~8 cards are ever seen — **a
+card appended at the end is unreachable by construction.** Whether that models
+reality depends entirely on where a looted card LANDS in `fullDeck` and whether
+the server shuffles, which is the review's own fourth listed missing input and
+is not captured anywhere.
+
+**What would answer it:** a `fullDeck` read before and after a loot pick (does
+the new id land at the end, at a sorted position, elsewhere?), and enough
+consecutive casts on one deck to see whether hand composition repeats in deck
+order or varies. Both are ordinary fishing captures — no probe, no new endpoint.
+
+**Do NOT unblock this by adding a shuffle to `castSim`.** The ranking would
+become an artifact of an invented draw model and would look exactly as
+authoritative as a real one (CLAUDE.md rule 1). The tests in
+`tests/fishing/castSim.test.ts` ("deck ORDER is load-bearing") pin the current
+behaviour so this cannot be done quietly.
+
+**Also settled by building it:** M3's advice to cache "by normalized deck
+composition" is wrong for this simulator — `[...deck, id]` and `[id, ...deck]`
+are the same multiset and measurably different decks. The harness keys on the
+ordered deck.
+
+**Note the harness ALSO reports a live-relevant disagreement, and it is doubly
+suspended.** `chooseNewCard`'s damage-per-mana pick ranks 79/80 by prepended hit
+rate, 19.72pp behind the composition argmax. That is the disagreement M3
+predicted — but it is a `castSim` result (OIL-POLICY.md §0a suspends those) AND
+it is measured in the prepended arm, which is not what a loot pick does. It is a
+reason to run this capture, not a reason to touch `chooseNewCard`.
+
 ---
 
 ## Later, if the user wants it
