@@ -173,7 +173,7 @@ import { cellKey, cellsEqual, inGrid, manhattan, type Cell } from "../src/sim/fi
 import { REDRAW_THRESHOLD } from "../src/sim/fishing/castSim.js";
 import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fishing/patterns.js";
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
-import { redactNoobToken } from "../src/api/redact.js";
+import { CaptureFixtureWriter, CaptureRunLog, stamp } from "../src/orchestrator/capture.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
 import { SESSION_64_LIMITS, SESSION_69_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
@@ -1046,26 +1046,6 @@ export const NEXT_POSITION_OVERRIDE_WEIGHT = 0.99;
 // ---------------------------------------------------------------------------
 
 /**
- * [session 28, CODEXREVIEW #7] `redactSecrets` removes the FULL jwt — see
- * `GigaverseClient.redactSecrets`'s doc comment. Callers pass that method
- * bound to a real client; nothing here ever sees or stores the raw token.
- */
-function redact(raw: string, address: string, redactSecrets: (text: string) => string): string {
-  let s = raw;
-  for (const form of [address, address.toLowerCase(), address.toUpperCase()]) {
-    if (form) s = s.split(form).join("0xUSER");
-  }
-  s = redactSecrets(s);
-  s = s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
-  // [session 54] See src/api/redact.ts.
-  return redactNoobToken(s);
-}
-
-function stamp(): string {
-  return new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-}
-
-/**
  * [session 28, CODEXREVIEW #1] One directory is one CAST — a fresh
  * `FixtureWriter` must be constructed per cast (see `main()`'s loop below).
  * Session 26/27's own corpus counts used directories as if they were casts,
@@ -1076,46 +1056,30 @@ function stamp(): string {
  * instead of trusting directory boundaries, but a fresh writer per cast
  * keeps the two back in 1:1 correspondence for anyone reading the
  * filesystem directly.
+ *
+ * [session 78, §5 / CODEXAUG22REVIEW L4] The body now lives in
+ * `src/orchestrator/capture.ts`. It was duplicated line for line in
+ * `scripts/liveRun.ts`, redaction included — see that module's header for why
+ * two copies of a REDACTING writer is a correctness problem. What stays here
+ * is the fishing-specific part: the default root and the `cast-` prefix.
+ *
+ * [session 28, CODEXREVIEW #7] `redactSecrets` removes the FULL jwt — see
+ * `GigaverseClient.redactSecrets`. Callers pass that method bound to a real
+ * client; nothing here ever sees or stores the raw token.
  */
-export class FixtureWriter {
-  private n = 0;
-  private readonly out: string;
-  private readonly raw: string;
-
+export class FixtureWriter extends CaptureFixtureWriter {
   constructor(
-    private readonly address: string,
-    private readonly redactSecrets: (text: string) => string,
+    address: string,
+    redactSecrets: (text: string) => string,
     root: string = join("fixtures", "fishing-casts", "live"),
   ) {
-    this.out = join(root, `cast-${stamp()}`);
-    this.raw = join(this.out, "raw");
-    mkdirSync(this.raw, { recursive: true });
-  }
-
-  write(body: unknown): void {
-    const tag = String(this.n).padStart(3, "0");
-    const text = JSON.stringify(body, null, 2);
-    writeFileSync(join(this.raw, `state-${tag}.json`), text);
-    writeFileSync(join(this.out, `state-${tag}.json`), redact(text, this.address, this.redactSecrets));
-    this.n++;
-  }
-
-  get dir(): string {
-    return this.out;
+    super(address, redactSecrets, root, "cast");
   }
 }
 
-export class RunLog {
-  private readonly path: string;
+export class RunLog extends CaptureRunLog {
   constructor(dir: string = "logs") {
-    mkdirSync(dir, { recursive: true });
-    this.path = join(dir, `fishing-${stamp()}.jsonl`);
-  }
-  write(entry: Record<string, unknown>): void {
-    writeFileSync(this.path, JSON.stringify({ ts: new Date().toISOString(), ...entry }) + "\n", { flag: "a" });
-  }
-  get filePath(): string {
-    return this.path;
+    super(dir, "fishing");
   }
 }
 
@@ -2409,6 +2373,48 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         // is waiting on, NOT for whoever first flips it. It is written here
         // rather than in a brief because this is the line that would have to
         // change.
+        //
+        // ── [session 78, §6 / CODEXAUG22REVIEW M4] The two candidate
+        //    semantics, named, and the numbers that price the feature ───────
+        //
+        // An external review reached this block, correctly identified that the
+        // corrected simulator (`src/sim/fishing/castSim.ts`) observes the moved
+        // cell AND increments `turn` while this branch does neither, and
+        // proposed the three-line fix:
+        //
+        //     matcher = observe(matcher, toCell); doc = ...; turn++;
+        //
+        // **Those three lines are the decision this comment says is not the
+        // flipper's to make.** They are not a consistency repair. The sim can
+        // observe on a redraw because it has a TRUE trajectory to observe
+        // against; live there is no placement to score the observation with, so
+        // the same three lines are a different operation on the two sides. The
+        // choice is between two semantics nobody has measured:
+        //
+        //   (a) redraw is a turn the predictor learns from — observe the moved
+        //       cell with no placement, increment `turn`. Matches the sim's
+        //       bookkeeping; changes how the predictor is fed.
+        //   (b) redraw is a turn the predictor SKIPS — leave both alone, and
+        //       accept that the matcher's history has a hole where a real
+        //       movement happened. What ships today.
+        //
+        // Session 75's measured figures, for whoever does the recalibration —
+        // these price the feature and they are the reason it stays off, which
+        // is a separate question from which semantics is right:
+        //
+        //   never redraw           catch 24.9%
+        //   derived trigger        catch 32.5%   ~43.9 extra mana per extra fish
+        //   fresh-hand threshold   catch 40.1%   ~29.9 extra mana per extra fish
+        //
+        // Redraw BUYS catch rate and PAYS in mana, and mana is the dominant
+        // loss in this fishery (`escaped_mana`, OIL-POLICY.md §1). That is why
+        // "it raises catch %" is not an argument for enabling it. And every one
+        // of those numbers comes from `castSim`, which OIL-POLICY.md §0a
+        // suspends for this fishery — sim catch ~70% against a real 27.6% —
+        // so they order the options and do not authorize any of them.
+        //
+        // Do not write the three lines to make the two sides agree. Making them
+        // agree is the recalibration's output, not its input.
         // The server charges a redraw as a turn (FISH_MOVED fires), so the
         // loop restarts against the new doc rather than falling through to
         // play the card it just decided against.

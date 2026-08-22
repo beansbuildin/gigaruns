@@ -70,10 +70,27 @@ function main(): void {
       env: { ...process.env, ASSERTION_COUNT_OUT: out },
       stdio: ["ignore", "pipe", "pipe"],
     });
-  } catch {
+  } catch (e) {
     // A red suite is a different failure from a vacuous test, and it must not
     // be reported as one — the counts from a partial run mean nothing.
     suiteFailed = true;
+    /**
+     * [session 78, §5 / CODEXAUG22REVIEW L1] Print what vitest said.
+     *
+     * This script is now CI's ONLY suite run (the plain `npx vitest run` step
+     * was removed — it was the second of three full runs of the same 1489
+     * tests). That makes swallowing the output a real regression rather than a
+     * tidiness question: without this, a red CI job would report "the suite did
+     * not pass" and not one word about WHICH test, and the operator's next move
+     * would be to re-run the suite locally to find out.
+     *
+     * The brief for this change said "nothing is lost" by dropping the plain
+     * step. That was true of the pass/fail SIGNAL and not of the diagnostics;
+     * this is the difference, closed rather than accepted.
+     */
+    const captured = e as { stdout?: string; stderr?: string };
+    const text = `${captured.stdout ?? ""}${captured.stderr ?? ""}`.trim();
+    if (text) console.log(`${text}\n`);
   }
 
   const rows: Row[] = readFileSync(out, "utf8")

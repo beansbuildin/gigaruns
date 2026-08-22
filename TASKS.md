@@ -1607,6 +1607,59 @@ between the two runs as planned — see `src/sim/enemies.ts`'s PLAYER doc).
 
 ---
 
+## Blocked on captures that do not exist yet
+
+[session 78 / CODEXAUG22REVIEW] Recorded here rather than left as review prose,
+because CLAUDE.md rule 6 draws exactly this line: **a gate that depends on data
+that does not exist is "a capture request wearing a gate's clothes"**, and no
+amount of working harder can meet it. Both items below are capture requests.
+Neither is a modelling task today, and neither should be attempted as one.
+
+### CAPTURE-1 — mechanics for the five rolled stats (H2's blocked half)
+
+**What is missing:** authoritative semantics or exchange-level captures for
+`evasion`, `block`, `lck`, `tenacity`, `intuition` — and separately for the
+statuses `Weak`, `Vulnerable`, `Burn`, `Regen` and lifesteal.
+
+**Why nothing can be built without them.** `src/sim/combat.ts` reads corrode
+and no other mechanic, deliberately: `src/sim/types.ts:31-36` says a non-zero
+value in these fields makes the unit *unscorable rather than being quietly
+approximated*. The review's proposed fix is probability-weighted proc branches,
+which need proc RATES — 1-5% events wanting hundreds of observations each
+(SPEC §4e). Building the branch structure and filling it with defaults converts
+an honest "unscorable" into a confident wrong number, which is the failure this
+repo exists to avoid. **Do not stub it, default it, or hide it behind a flag.**
+
+**What session 78 built instead, and why it matters here:** every live decision
+now logs `evSupported` / `unmodelled` / `unmodelledBySide` beside its EV
+(§3). So the ordering of this capture list stops being guessed — *which*
+mechanics co-occur in the fights the bot actually loses becomes readable
+straight out of `logs/`. **Read that before choosing what to capture.**
+
+**Blocks:** any Rule 8 policy claim derived from the simulator; CAPTURE-2.
+
+### CAPTURE-2 — potion timing on a model that covers Rule 8 fights (M2)
+
+**Blocked on CAPTURE-1, and it is the user's call regardless.**
+
+`src/strategy/potions.ts` ships a flat `DEFAULT_POTION_THRESHOLD = 0.5`, swept
+correctly — but against the CLEAN simulator, which does not represent the
+statuses and proc damage a Rule 8 fight carries. Recent live runs crossed from
+above the threshold to as low as 3/40 HP before the next potion check.
+
+The review's fix is `hp <= credibleNextExchangeHpDamage`, which needs exactly
+the model CAPTURE-1 is blocked on — so the review's own implementation order
+sequences a blocked item behind a blocked item. It is also a **live policy
+change to consumable use**, which is CLAUDE.md rule 4 and the user's decision
+even once the model exists.
+
+**Do not touch `0.5`.** The review says this too: it "should not be solved by
+changing `0.5` blindly." Raising it without a better model wastes a limited
+consumable; leaving it spends the potion after the dangerous hit instead of
+before it. Neither is fixable by picking a different number.
+
+---
+
 ## Later, if the user wants it
 
 - Multi-account orchestration (permitted by Fair Play Rules; needs per-account

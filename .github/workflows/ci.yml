@@ -48,11 +48,26 @@ jobs:
   offline-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      # [session 78 §5, CODEXAUG22REVIEW L3] Pinned to commit SHAs, not to the
+      # mutable `@v5` tags session 77 used. A major-version tag is moved by its
+      # maintainer, so `@v5` is a promise about compatibility, not about the
+      # code that will run. `permissions: contents: read` and the absence of any
+      # secret in this job already cap the blast radius, so this is hygiene
+      # rather than urgency — but it costs nothing and it makes the job
+      # reproducible.
+      #
+      # These SHAs are exactly what `@v5` resolved to on 2026-08-22, so this
+      # changes NOTHING about what runs today. Deliberately not bumped to the
+      # current v7 majors: session 77 chose v5 and nothing here has tested v7.
+      # Verified against the GitHub API, not typed from memory — a wrong SHA
+      # here fails the job outright.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      # 22 rather than the `engines` floor of 20: vite requires ^20.19 || >=22.12,
-      # so a bare "20" can resolve below what the toolchain accepts.
-      - uses: actions/setup-node@v5
+      # 22 rather than the `engines` floor: package.json now declares
+      # "^20.19.0 || >=22.12.0" (session 78 §5, L2) because vite requires that
+      # range and the manifest used to say a bare ">=20", which a stranger on
+      # 20.0-20.18 could satisfy while the toolchain refused to run.
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -66,13 +81,20 @@ jobs:
 
       # The stranger's view: no data/, no logs/, no ~/.secrets. Author-data
       # suites SKIP here and say so; that is the designed outcome.
-      - name: Test suite
-        run: npx vitest run
-
-      # Does every test actually assert something? Sees the one class neither
-      # the suite nor preflight structurally can — a test that passes while
-      # asserting nothing. Session 77 §1.
-      - name: Assertion coverage
+      #
+      # This IS the suite step. [session 78 §5, CODEXAUG22REVIEW L1] There used
+      # to be a plain `npx vitest run` above it, which meant this job ran the
+      # same ~1489 tests THREE times: here, again inside assertionCoverage, and
+      # a third time inside preflight. The first two were the same tree and the
+      # same result; preflight's stays, because it runs against the EXPORTED
+      # tree and that difference is the entire point of it.
+      #
+      # `assertionCoverage.ts` is a strict superset of the plain run: it spawns
+      # vitest itself, exits 2 on a red suite and 1 on a vacuous test — two
+      # distinct failures, never conflated — and since session 78 it prints
+      # vitest's own output on a failure, so nothing diagnostic was traded away
+      # for the saved minute.
+      - name: Test suite + assertion coverage
         run: npx tsx scripts/assertionCoverage.ts
 
       # The export's view, plus the secret scan of what would leave the machine.

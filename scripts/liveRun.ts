@@ -42,8 +42,7 @@
  * grows the corpus automatically — session-08 brief §4.
  */
 
-import { writeFileSync, mkdirSync } from "node:fs";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { GigaverseClient } from "../src/api/client.js";
 import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, DungeonState } from "../src/api/schemas.js";
@@ -106,7 +105,7 @@ import {
 } from "../src/strategy/boonPriority.js";
 import { shouldUsePotion, DEFAULT_POTION_THRESHOLD } from "../src/strategy/potions.js";
 import { createShutdownSignal, installProcessSigintHandler, type ShutdownSignal } from "../src/orchestrator/shutdown.js";
-import { redactNoobToken } from "../src/api/redact.js";
+import { CaptureFixtureWriter, CaptureRunLog } from "../src/orchestrator/capture.js";
 
 /**
  * Hard cap, DECISIONS.md 2026-08-15 (session 11): potions are a
@@ -437,64 +436,21 @@ export function buildJuicedStartRunEnvelope(dungeonId: number, index: number, co
  * `GigaverseClient.redactSecrets`'s doc comment. Callers pass that method
  * bound to a real client; nothing here ever sees or stores the raw token.
  */
-function redact(raw: string, address: string, redactSecrets: (text: string) => string): string {
-  let s = raw;
-  for (const form of [address, address.toLowerCase(), address.toUpperCase()]) {
-    if (form) s = s.split(form).join("0xUSER");
-  }
-  s = redactSecrets(s);
-  s = s.replace(/("(?:[A-Za-z_]*[Uu]ser[Nn]ame[A-Za-z_]*)"\s*:\s*)"[^"]*"/g, '$1"<USER>"');
-  // [session 54] See src/api/redact.ts — shared so this rule cannot hold in
-  // five of six writers.
-  return redactNoobToken(s);
-}
-
-function stamp(): string {
-  return new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-}
-
-export class FixtureWriter {
-  private n = 0;
-  private readonly out: string;
-  private readonly raw: string;
-
+/**
+ * [session 78, §5 / CODEXAUG22REVIEW L4] The dungeon binding of the shared
+ * capture module. The bodies used to live here in full, duplicated line for
+ * line in `scripts/liveFishing.ts` — see `src/orchestrator/capture.ts` for why
+ * two copies of a REDACTING writer is a correctness problem and not a tidiness
+ * one. All that survives here is what is genuinely dungeon-specific: the
+ * default root and the `run-` prefix.
+ */
+export class FixtureWriter extends CaptureFixtureWriter {
   constructor(
-    private readonly address: string,
-    private readonly redactSecrets: (text: string) => string,
+    address: string,
+    redactSecrets: (text: string) => string,
     root: string = join("fixtures", "dungeon-runs"),
   ) {
-    this.out = join(root, `run-${stamp()}`);
-    this.raw = join(this.out, "raw");
-    mkdirSync(this.raw, { recursive: true });
-  }
-
-  /**
-   * [session 36, CODEXAUDIT #1 fix] Returns the exact file name this write
-   * just used (e.g. `state-023.json`) — the same tail `src/sim/corpus.ts`'s
-   * `CorpusState.label` carries once this fixture is later read back off
-   * disk. Callers that need to name the exchange they just observed (the
-   * live-observe call site below) build it from this return value plus
-   * `runName`, via `exchangeLabel`/`exchangeIdentity` — the SAME derivation
-   * `opponentModelPersistence.ts`'s corpus bootstrap uses, so the two can
-   * never compute a different identity for the same exchange.
-   */
-  write(body: unknown): string {
-    const tag = String(this.n).padStart(3, "0");
-    const text = JSON.stringify(body, null, 2);
-    const fileName = `state-${tag}.json`;
-    writeFileSync(join(this.raw, fileName), text);
-    writeFileSync(join(this.out, fileName), redact(text, this.address, this.redactSecrets));
-    this.n++;
-    return fileName;
-  }
-
-  get dir(): string {
-    return this.out;
-  }
-
-  /** The run-directory name `loadCorpus()` will later read as `CorpusRun.name` — the `run` half of this fixture's exchange identities. */
-  get runName(): string {
-    return basename(this.out);
+    super(address, redactSecrets, root, "run");
   }
 }
 
@@ -502,17 +458,9 @@ export class FixtureWriter {
 // Structured JSONL logging — SPEC §7.
 // ---------------------------------------------------------------------------
 
-export class RunLog {
-  private readonly path: string;
+export class RunLog extends CaptureRunLog {
   constructor(dir: string = "logs") {
-    mkdirSync(dir, { recursive: true });
-    this.path = join(dir, `run-${stamp()}.jsonl`);
-  }
-  write(entry: Record<string, unknown>): void {
-    writeFileSync(this.path, JSON.stringify({ ts: new Date().toISOString(), ...entry }) + "\n", { flag: "a" });
-  }
-  get filePath(): string {
-    return this.path;
+    super(dir, "run");
   }
 }
 
