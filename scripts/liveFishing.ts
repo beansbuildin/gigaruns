@@ -1203,6 +1203,8 @@ async function resolvePendingCardOffer(
     dryRun: boolean;
     turn: number;
     where: string;
+    /** [session 79 §3] Needed to re-read authoritative state when the loot POST fails. */
+    address: string;
   },
 ): Promise<boolean> {
   if (!doc.SUCCESS_CID || !doc.data.cardsToAdd || doc.data.cardsToAdd.length === 0 || doc.data.cardChosenId != null) {
@@ -1216,23 +1218,116 @@ async function resolvePendingCardOffer(
   const lootBody = buildFishingEnvelope("loot", ctx.client.getFishingActionToken(), { cards: [chosen.id] });
   ctx.log.write({ event: "post", body: lootBody, where: ctx.where });
   if (ctx.dryRun) return false;
-  try {
-    const lootResp = await ctx.client.postFishingAction(lootBody);
+
+  /**
+   * ── [session 79 §3] THE LOOT PICK JOINS THE TRANSACTION PROTOCOL ─────────
+   *
+   * Fishing's in-cast writes were the last unrouted class after session 78.
+   * This is the one of the four worth routing, and the reason is not the daily
+   * ledger — no ledger moves here — it is that **a loot pick is the only
+   * irreversible one that is also RECOVERABLE.**
+   *
+   *   - It changes `fullDeck` permanently, and an unresolved offer strands the
+   *     account: every future `start_run` fails with "Player is already in a
+   *     game" (session 17, QUESTIONS.md §10). That is the state this whole
+   *     function exists to clear.
+   *   - It happens at CAST END, after the last `play_cards`. So unlike every
+   *     other in-cast write, a failure here does not have to end anything —
+   *     there is nothing left to play, and the action-token chain that a
+   *     mid-cast failure desyncs (see the `use_fishing_item` catch below) no
+   *     longer matters.
+   *
+   * So the transaction buys a real outcome and not just a better message: an
+   * APPLIED-but-lost loot used to throw `GuardTrip("fishing loot rejected")`,
+   * leaving the caller believing the account was stranded when the pick had in
+   * fact landed and the account was fine. Now it returns `true`.
+   *
+   * The predicates read the DOC, which is what the server treats as
+   * authoritative — `cardChosenId` going non-null, or `fullDeck` growing, are
+   * transitions only this write causes. Anything else, including a state the
+   * server no longer returns for this cast, is `unknown` and fails closed
+   * (CLAUDE.md rule 5): a wrong "it landed" here would leave a stranded
+   * account for a human to find, which is the failure this function was
+   * written to prevent.
+   */
+  const before = doc;
+  const looted = await runActionTransaction<FishingGameDoc | null, FishingActionResponse>({
+    action: "loot",
+    before,
+    send: () => ctx.client.postFishingAction(lootBody),
+    readState: async () => (await ctx.client.getFishingState(ctx.address)).gameState ?? null,
+    didApply: (b, after) =>
+      Boolean(
+        after &&
+          b &&
+          after.docId === b.docId &&
+          (after.data.cardChosenId != null || after.data.fullDeck.length > b.data.fullDeck.length),
+      ),
+    provesNotApplied: (b, after) =>
+      Boolean(
+        after &&
+          b &&
+          after.docId === b.docId &&
+          after.data.cardChosenId == null &&
+          after.data.fullDeck.length === b.data.fullDeck.length &&
+          (after.data.cardsToAdd?.length ?? 0) > 0,
+      ),
+    rethrow: (e) => e instanceof TokenExpiredError,
+    log: (e) => ctx.log.write({ ...e, where: ctx.where }),
+  });
+
+  if (looted.outcome === "applied") {
     ctx.guards.recordActionResult(true);
+    if (looted.response === null) {
+      // Applied, response lost. The offer IS resolved — the re-read doc is
+      // what proved it — so the account is not stranded and the caller must
+      // not be told it is. No fixture is written: there is no response to
+      // write, and inventing one from the re-read doc would put a document
+      // into the corpus that the server never sent for this action.
+      const after = looted.after ?? null;
+      ctx.log.write({
+        event: "loot_applied_response_lost",
+        where: ctx.where,
+        docId: after?.docId,
+        fullDeck: after?.data.fullDeck.length,
+        cardChosenId: after?.data.cardChosenId ?? null,
+      });
+      console.log(
+        `  ✓ loot APPLIED but its response was lost — re-read confirms it landed ` +
+          `(fullDeck ${after?.data.fullDeck.length ?? "?"}, cardChosenId ${after?.data.cardChosenId ?? "?"}). Account is not stuck.`,
+      );
+      return true;
+    }
+    const lootResp = looted.response;
     ctx.log.write({ event: "post_response", resp: lootResp });
     ctx.fixtures.write(lootResp);
     checkPossibleDualYield(lootResp, ctx.log, ctx.turn, "loot", ctx.logsDir);
     const resolvedDeck = lootResp.data.doc.data.fullDeck.length;
     console.log(`  ✓ loot sent — fullDeck now ${resolvedDeck} card(s), cardChosenId ${lootResp.data.doc.data.cardChosenId ?? "still null?"}`);
     return true;
-  } catch (e) {
-    if (e instanceof TokenExpiredError) throw e;
-    ctx.guards.recordActionResult(false);
-    const lootDetail = serverErrorDetail(e);
-    ctx.log.write({ event: "action_failed", reason: "loot rejected", error: lootDetail.message, body: lootDetail.body });
-    console.log(`  ✗ loot rejected — account may be left in the stuck-until-resolved state; see QUESTIONS.md §10.`);
-    throw new GuardTrip("fishing loot rejected", { error: lootDetail.message });
   }
+
+  ctx.guards.recordActionResult(false);
+  if (looted.outcome === "unknown") {
+    const d = serverErrorDetail(looted.error);
+    ctx.log.write({
+      event: "loot_outcome_unknown",
+      where: ctx.where,
+      ...d,
+      readError: looted.readError ? serverErrorDetail(looted.readError) : undefined,
+    });
+    console.log(`  ✗ loot outcome UNKNOWN — could not prove whether the pick landed. Check the account before re-running.`);
+    throw new GuardTrip(
+      "fishing loot outcome UNKNOWN — neither the pick nor its absence could be proven. Read the account's " +
+        "fishing state before re-running; a loot pick is permanent (CLAUDE.md rule 13).",
+      { ...d, readError: looted.readError ? serverErrorDetail(looted.readError) : undefined },
+    );
+  }
+
+  const lootDetail = serverErrorDetail(looted.error);
+  ctx.log.write({ event: "action_failed", reason: "loot rejected", error: lootDetail.message, body: lootDetail.body });
+  console.log(`  ✗ loot rejected, and the re-read PROVES it did not land — the account is left in the stuck-until-resolved state; see QUESTIONS.md §10.`);
+  throw new GuardTrip("fishing loot rejected", { error: lootDetail.message });
 }
 
 // ---------------------------------------------------------------------------
@@ -1532,7 +1627,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // `resolvePendingCardOffer`.
   if (existing.gameState && existing.gameState.COMPLETE_CID) {
     const cleared = await resolvePendingCardOffer(existing.gameState, {
-      client, guards, log, fixtures, logsDir, dryRun, turn: 0, where: "pre-start recovery",
+      client, guards, log, fixtures, logsDir, dryRun, turn: 0, where: "pre-start recovery", address,
     });
     if (cleared) {
       console.log(`  · account was left stuck by an earlier cast's catch — offer resolved, starting normally.`);
@@ -2462,6 +2557,36 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     });
     log.write({ event: "post", body });
     let resp: FishingActionResponse;
+    /**
+     * ── [session 79 §3] WHY THIS ONE IS *NOT* A TRANSACTION ────────────────
+     *
+     * Session 78 left fishing's four in-cast writes — `play_cards`, redraw,
+     * `use_fishing_item`, `loot` — as the last unrouted class, and the session
+     * 79 brief asked for a pass over all four. One of them was routed (`loot`,
+     * see `resolvePendingCardOffer`). These three were not, and the reason is
+     * a measurement this repo already owns rather than an appetite for scope.
+     *
+     * **A failed in-cast POST desyncs the action-token chain, and there is no
+     * resync.** Session 65 measured it live on cast 13019682: the server
+     * ADVANCED its action token on a REJECTED request, the client never saw
+     * the new value because the error path throws before `postFishingAction`
+     * assigns it, and the next write died on a token mismatch. `GET
+     * /fishing/state` carries no `actionToken` (see `client.ts`), so the chain
+     * cannot be recovered without inventing an endpoint — which CLAUDE.md rule
+     * 2 forbids.
+     *
+     * So mid-cast the cast is over either way, and reconciliation could only
+     * change the WORDING of the stop, not the outcome. What it costs is one
+     * extra request on every failure and a second reading of "did it land"
+     * that nothing downstream can act on. `loot` is different on exactly this
+     * point — it is the last action of the cast, so there is no chain left to
+     * desync, and its outcome decides whether the ACCOUNT is stranded.
+     *
+     * **What would change this:** an endpoint that returns a fresh
+     * `actionToken` for an in-progress cast. If one is ever confirmed, these
+     * three become routable and a mid-cast failure becomes survivable. That is
+     * a capture, not a refactor.
+     */
     try {
       resp = await client.postFishingAction(body);
     } catch (e) {
@@ -2657,7 +2782,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // already in a game"), the exact stuck state that blocked all of session
   // 15/16's further fishing. Resolving it immediately here means the bot's
   // OWN catches never leave the account stuck for a human to notice.
-  await resolvePendingCardOffer(doc, { client, guards, log, fixtures, logsDir, dryRun, turn, where: "cast end" });
+  await resolvePendingCardOffer(doc, { client, guards, log, fixtures, logsDir, dryRun, turn, where: "cast end", address });
 
   // [session 62 §1b] Record the THIRD state, if this cast hit it. Written only
   // when a trigger actually fired dry — an empty file is the normal state and
