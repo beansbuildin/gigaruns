@@ -30,6 +30,50 @@ Unaffected, because they are live measurements rather than sim ones: the
 certainty gate is a proven live no-op (0 of 9 Relaxing firings held), and the
 shadow stays on the exchange threshold.
 
+### 0a-i. [session 79 §2] THE FIRST NAMED CAUSE WAS TESTED. THE SUSPENSION STANDS
+
+`castSim` drew every held deck in roster order from index 0 until session 79 —
+the simulated bot always opened on the same three cards and never faced a bad
+hand. The live corpus falsifies that at 129/129 opening hands, so the pile now
+shuffles once per cast (`src/sim/fishing/drawModel.ts`). That is the first
+NAMED, FIXABLE modelling error anyone has been able to point at as a candidate
+explanation for the gap above, rather than a calibration complaint.
+
+Measured with `scripts/focusProfileCheck.ts`, 4000 casts per arm, run both ways
+via its new `--sequential-pile` flag so exactly one thing differs:
+
+| | sequential pile (old) | shuffled pile (new) | corpus |
+|---|---|---|---|
+| **live-config arm** | | | |
+| per-turn focus Δ, turns 1–3 | +0.84 / +0.92 / +0.69 | **+0.10 / +0.01 / −0.01** | — |
+| opening spend | 0.53 | 1.27 | 1.37 pooled; **0.79 [0.57, 1.02]** today's era |
+| meter-out | 27.3% | 29.3% | 63.0% pooled; 33.3% today's era |
+| catch | 32.7% | 20.6% | 28.3% (pools oil + non-oil) |
+| **bare arm — the one every Δ below was computed on** | | | |
+| meter-out | 0.6% | **0.6%** | 63.0% / 33.3% |
+| catch | 91.5% | **81.2%** | 27.6% |
+
+**The live-config arm's per-turn focus profile essentially closed** — the worst
+turn-by-turn discrepancy falls from 0.92 focus points to 0.16, which is the
+largest single improvement to this instrument anyone has measured. That is a
+real result and it is not the one that matters here.
+
+**The bare arm did not move where it counts, and §0a rests on the bare arm.**
+Meter-out is unchanged at 0.6% against a fishery that ends two casts in three
+that way; catch fell 91.5% → 81.2% against a real 27.6%. A draw-order fix took
+ten points off a seventy-point chasm.
+
+**So: §0a is NOT lifted, +19.40pp still MAY NOT BE QUOTED, and no oil sweep was
+re-run** (§0a forbids that on this instrument by name, before or after). The
+`focusProfileCheck` verdict is still `*** FAIL ***`, now for a different
+reason — the sim overshoots today's-era opening spend (1.27 against [0.57,
+1.02]) where it used to undershoot it badly (0.53).
+
+**What this buys is elimination, which is worth having.** The fishery's
+difficulty does not live in the deck model. One candidate mechanism is gone
+by measurement instead of by assumption, and the next hypothesis has to be
+somewhere else.
+
 ---
 
 ## 0. What this is worth, stated first and not in a footnote

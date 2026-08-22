@@ -43,7 +43,28 @@
  * Profile-resolved, so the corpus it reads follows `--profile` rather than a
  * hardcoded `data/` — `tests/noHardcodedPaths.test.ts`'s ratchet stays at 25.
  *
+ * ## [session 79 §2] The draw-model result, so it is not re-derived by hand
+ *
+ * `castSim` drew held decks in roster order from index 0 until session 79; the
+ * live corpus falsifies that at 129/129 opening hands and the pile now shuffles
+ * per cast. Run both ways here (`--sequential-pile`), 4000 casts an arm:
+ *
+ *     live-config arm      sequential      shuffled      corpus
+ *       focus Δ turns 1-3  +0.84/+0.92/+0.69   +0.10/+0.01/-0.01
+ *       opening spend      0.53            1.27          0.79 [0.57, 1.02] today's era
+ *       meter-out          27.3%           29.3%         33.3% today's era
+ *     bare arm (the oil sweeps')
+ *       meter-out          0.6%            0.6%          63.0% pooled
+ *       catch              91.5%           81.2%         27.6%
+ *
+ * **The per-turn focus profile essentially closed** — worst-turn discrepancy
+ * 0.92 -> 0.16 — and the VERDICT still FAILS, now because the sim overshoots
+ * today's-era opening spend where it used to undershoot it. The bare arm, which
+ * is what `OIL-POLICY.md` §0a suspends, did not move where it counts. §0a
+ * stands; see its §0a-i for the full table.
+ *
  * Usage: npx tsx scripts/focusProfileCheck.ts [--runs=N] [--profile=NAME]
+ *                                             [--sequential-pile]
  */
 
 import { join } from "node:path";
@@ -180,6 +201,21 @@ function corpusProfile(label = "CORPUS (live)", keep: (t: CastTrace) => boolean 
   );
 }
 
+/**
+ * [session 79 §2] Run the sim arms under the PRE-SESSION-79 draw model — the
+ * roster dealt sequentially from index 0 — instead of the shuffled pile the
+ * live corpus shows (`src/sim/fishing/drawModel.ts`, 129/129 opening hands).
+ *
+ * Here for one reason: this script is the instrument §0a names as its own
+ * precondition, so "did the shuffle move the profile" has to be answerable
+ * without editing the script to find out. Run it both ways and diff the
+ * verdict.
+ *
+ * **Not a supported mode.** Anything measured under it is measured under a
+ * draw order the server does not use.
+ */
+const SEQUENTIAL_PILE = process.argv.includes("--sequential-pile");
+
 function simProfile(label: string, extra: Omit<CastOptions, "seed" | "policy">, runs: number, seed = 1): Profile {
   const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, true);
   const casts: { focus: number[]; caught: boolean; meterOut: boolean }[] = [];
@@ -189,6 +225,7 @@ function simProfile(label: string, extra: Omit<CastOptions, "seed" | "policy">, 
       policy,
       ...REAL_PARAMS,
       ...extra,
+      sequentialDrawPile: SEQUENTIAL_PILE,
       seed: seed + i,
       observeTurn: (s) => focus.push(s.focusRemaining),
     });
@@ -265,6 +302,11 @@ function main(): void {
   );
 
   console.log("\n── §2  THE SIMULATOR ──");
+  console.log(
+    SEQUENTIAL_PILE
+      ? "  ⚠ --sequential-pile: the FALSIFIED pre-session-79 draw model. Comparison only.\n"
+      : "  draw model: SHUFFLED pile, once per cast (session 79 §1, measured 129/129 live).\n",
+  );
   const empiricalMined: Omit<CastOptions, "seed" | "policy"> = {
     empiricalFish: { table },
     matcherPool: minedPool,
