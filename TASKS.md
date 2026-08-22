@@ -1609,7 +1609,6 @@ between the two runs as planned — see `src/sim/enemies.ts`'s PLAYER doc).
 
 ## Later, if the user wants it
 
-- Path B — bot-owned EOA with full sign-in, so the JWT self-renews.
 - Multi-account orchestration (permitted by Fair Play Rules; needs per-account
   token isolation — do not share one action-token mutex across accounts).
 - Auto-leveling (blocked in `CLAUDE.md`; needs an explicit stat-priority config

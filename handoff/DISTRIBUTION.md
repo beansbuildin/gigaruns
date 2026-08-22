@@ -2,6 +2,48 @@
 
 Drafted session 59 against the portability brief §3.
 
+---
+
+## ⚠ [session 76] THIS DOCUMENT DESCRIBES A DISTRIBUTION THAT DID NOT HAPPEN
+
+**Read this box before acting on anything below it.** What the document plans —
+a private repo, collaborators only, *"ship from a fresh repo with squashed
+history"*, and a does-not-ship list — is not what exists. What exists, verified
+from this working tree on 2026-08-22:
+
+| the plan below | what shipped |
+|---|---|
+| private repo, collaborators added | **`github.com/beansbuildin/gigaruns`, PUBLIC** — clonable with no credentials |
+| fresh repo, one squashed commit | **370 commits of full history**, pushed from this repo (`origin` is that URL) |
+| `handoff/`, `QUESTIONS.md`, `TASKS.md`, `CODEX*`, `.claude/` do not ship | **all present and tracked** — `handoff/` alone is 102 files |
+| `data/`, `logs/`, `profiles/` do not ship | **correctly absent** |
+
+**This is a known state, not a discovery.** `src/api/redact.ts` says "on a
+PUBLIC repo" and "this repo's public git HISTORY" in as many words, and
+`fixtures/README.md`'s *"What the redaction does NOT achieve"* records the noob
+token in history as an accepted exposure. This file is simply the one document
+nobody reconciled, and it had begun to read as instructions.
+
+**So the does-not-ship table below is now the EXPORT's list, not the REPO's.**
+It is what `scripts/preflight.ts` prunes when it rehearses a stranger's clone,
+and `DOES_NOT_SHIP` in that script is its executable copy. It is not a
+description of what is published.
+
+**What is published, measured rather than feared** (working tree and all
+commits, `--all`): **0** wallet addresses, **0** JWTs, **0** private keys. The
+residue is two items, both the user's call and neither one an agent's:
+
+- The macOS username appears in 5 files — `handoff/log/session-{01,15,35,37}.md`
+  (vitest `RUN` header lines) and `.claude/settings.local.json.bak`.
+- **`.claude/settings.local.json.bak` is committed.** `.gitignore` covered
+  `.claude/settings.local.json` and not the `.bak`. Session 76 added
+  `.claude/*.bak` to `.gitignore`, which stops the next one; it does **not**
+  untrack the copy already in history. Removing that is the user's decision.
+
+**No agent may rewrite history, touch the remote, or delete a committed file.**
+Steps 3–6 below remain the user's by standing decision, and that has not
+changed — only the description of what they already did.
+
 **[session 60] Steps 1 and 2 of the order of operations below are now DONE in
 the working tree** — the `config/discovered.json` split and the MIT `LICENSE`,
 plus the README's ToS correction. Steps 3–6, which create and push the
@@ -22,6 +64,12 @@ to read. **Pointing friends at it is an invitation.**
 costs nothing and sidesteps the `git filter-repo` / force-push question
 entirely — no rewriting, no stale clones holding the old objects, no chance a
 reflog or a fork keeps what was removed.
+
+> **[session 76] NOT WHAT HAPPENED, and it cannot be undone by editing this
+> paragraph.** The full 370-commit history is public. The scan above says what
+> that history actually carries — nothing in the class this paragraph feared —
+> so the outcome is better than the plan's premise, but the plan is spent: a
+> squash is only available before the first push.
 
 ---
 
@@ -75,6 +123,9 @@ reflog or a fork keeps what was removed.
      `playerEndpoint`/`playerEndpointConfidence`, which are endpoint paths.
 2. **Private repo.** Friends are added as collaborators. Public stays available
    later; the reverse is not.
+   - **[session 76] SUPERSEDED — the repo is public.** The user took the
+     one-way door. Recorded, not reopened; "the reverse is not" is exactly why
+     nobody should treat this line as a live instruction.
 3. **MIT licence.** Add `LICENSE` at the distribution root. Without it nobody has
    permission to use the code at all, collaborator access notwithstanding.
 
@@ -113,6 +164,20 @@ skipped (1292)`, secret scan clean. Session 67's four failures and eleven
 never-collected tests are gone; the 13 skips are author-data suites announcing
 themselves loudly, which is the designed outcome, not a regression.
 
+*Session 76 result:* **PASSED — 272 files exported, one `✗` (the JWT),
+`1419 passed | 15 skipped (1434)`, secret scan clean.** But it opened the
+session **RED**, and the reason is the argument for running this in CI rather
+than before invites: `tests/sim/fishingCorpus.test.ts` asserted strictly more
+`cast-*` directories than directories holding `state-*` files, which is true of
+the author's tree and **structurally unsatisfiable in any clone** — the
+raw-only directories are empty once `fixtures/**/raw/` is ignored, and git
+carries no empty directories. It was written in commit `02e7907`, *the same
+commit that added this script*, and the session-68 run above reports 1292 tests
+against a tree that ended at 1293: the export comes from the git index, so a
+test written after the last preflight run is invisible to it. **Eight sessions
+passed with the first command a stranger runs going red.** A one-shot sweep does
+not stay swept.
+
 Two false alarms in the script's own first run, fixed and worth knowing about
 if it ever cries wolf again: counting `✗` anywhere matched doctor's summary
 sentence as a second failure, and the secret scanner flagged `src/api/redact.ts`
@@ -146,6 +211,14 @@ not.** Four test files assert against `data/`, `logs/` and `handoff/`, all
 correctly on the does-not-ship list, so a friend's first `npx vitest run` is
 red and eleven tests silently never run at all. `fixtures/` was NOT trimmed,
 which is what step 6 was there to catch.
+
+**[session 76] The suite is portable now, and the count of such files was 5, not
+4.** The fifth was `tests/sim/fishingCorpus.test.ts` (above). A sixth,
+`tests/discoveredShipsClean.test.ts`, was the same class in the harder-to-see
+direction: `if (!existsSync("data/roms.json")) return;` inside an `it`, under a
+comment claiming it was "skipped in a fresh clone". It was not skipped — it
+PASSED, having asserted nothing. Both now declare themselves through
+`tests/helpers/authorData.ts`, which is why the skip count moved 13 → 15.
 
 ---
 

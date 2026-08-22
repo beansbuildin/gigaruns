@@ -28,6 +28,12 @@ fixtures/**/*.harx
 fixtures/**/raw/
 .DS_Store
 .claude/settings.local.json
+# [session 76 §4] The `.bak` was NOT matched by the line above and is
+# committed — ~70 lines of the author's local allow-list, absolute home
+# paths included. `.claude/` is on DISTRIBUTION.md's does-not-ship list, so
+# this was a gap in the ignore rule, not a decision. Ignoring it does not
+# untrack the copy already in history; removing that is the user's call.
+.claude/*.bak
 
 # [session 67] Distribution rehearsal export (DISTRIBUTION.md steps 3/5/6).
 # A copy of the ships list with no .git, used to run the friend's first-run

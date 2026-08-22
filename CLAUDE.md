@@ -273,7 +273,11 @@ quietly.
 
 ## Working style
 
-- **TypeScript, Node 20+, `viem` for signing.** Abstract tooling is TS-first.
+- **TypeScript, Node 20+. Nothing here signs.** Abstract tooling is TS-first.
+  [session 76] This bullet used to read "`viem` for signing", which rule 3
+  above retires: `viem` was dropped in session 59 and is imported nowhere
+  (`tests/clientSurface.test.ts` fails the build if that changes). The rule's
+  own document was the last place the claim survived.
 - Run `npx tsc --noEmit` and the test suite before declaring a task done.
 - At recap time, re-run the full test suite against the FINAL commit you're
   about to hand off — not against your last in-session check. Session 18
