@@ -43,6 +43,9 @@ function state(
     successCid: null,
     caughtFish: null,
     board: { fishHp: board.fishHp, fishMaxHp: 15, focusMeter: board.focusMeter, focusMeterMax: 3 },
+    // [session 79] These fixtures test oil REACHABILITY, which reads the board
+    // scalars only. No draw pile is asserted on, so `null` is the honest value.
+    deck: null,
     updatedAt: opts.updatedAt ?? `2026-08-21T00:00:${String(stamp).padStart(2, "0")}.000Z`,
   };
 }

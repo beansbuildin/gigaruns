@@ -75,50 +75,57 @@ describe("deckIds — Task 13 infrastructure, real held deck instead of a random
   });
 
   /**
-   * [session 78, §4 / CODEXAUG22REVIEW M3] **Deck ORDER is load-bearing, and it
-   * is why a deck-composition objective cannot be derived here today.**
+   * [session 78 §4, **RETRACTED session 79 §1**] Deck ORDER was load-bearing,
+   * because `castSim` drew the roster sequentially from index 0. Session 78
+   * pinned that with three tests asserting an appended card is never drawn —
+   * a true statement about the simulator, written up in STATE.md as a fact
+   * about Dendren:
    *
-   * `drawHand` is sequential from index 0 and cycles with `% deck.length`. A
-   * real cast lasts ~5 turns, so on the account's real 23-card deck only the
-   * first ~8 cards are ever seen and a card APPENDED at the end is unreachable
-   * by construction. `scripts/deckObjectiveSweep.ts` measured every one of 80
-   * appended candidates as byte-identical to the baseline, while the same cards
-   * PREPENDED moved hit rate by up to +19.91pp.
+   *     "on the real 23-card deck only the first ~8 cards are ever seen —
+   *      an appended card is unreachable by construction"
    *
-   * These pin that, because it is the kind of fact a later reader "fixes" by
-   * adding a shuffle — which would make every ranking an artifact of an
-   * invented draw model (CLAUDE.md rule 1). The real question is a CAPTURE:
-   * what does the server do to `fullDeck` when it grows?
+   * The corpus already said otherwise. 129 live opening hands, zero equal to
+   * `fullDeck[0..2]`, roster tail positions drawn as often as the head. The
+   * server shuffles; `castSim` now does too, once per cast.
+   *
+   * **Those three tests are gone rather than inverted, and the replacement is
+   * `tests/fishing/deckShuffle.test.ts`** — which pins the live measurement
+   * itself, checks the simulator against it deck by deck, and fails the old
+   * sequential pile on the same statistic. What survives here is the one
+   * consequence that is still true and still worth a guard.
    */
-  describe("deck ORDER is load-bearing (session 78 §4)", () => {
-    // The account's real held deck, off the most recent live capture that
-    // carries one. Short enough to inline, real enough to mean something.
+  describe("deck composition after the shuffle (session 79 §1)", () => {
     const HELD = [74, 75, 76, 78, 1, 2, 3, 4, 5, 6, 34, 7, 36, 10, 38, 41, 39, 49, 48, 36, 74, 75, 76];
     const opts = { policy: matcherFishPolicy, matcherPool: [] as [] };
 
-    it("appending a card to a 23-card deck changes NOTHING — it is never drawn", () => {
+    it("appending a card to a 23-card deck now CHANGES the result — it is reachable", () => {
       const base = simulateCasts(200, { ...opts, deckIds: HELD }, 1);
       for (const id of [17, 25, 20]) {
         const appended = simulateCasts(200, { ...opts, deckIds: [...HELD, id] }, 1);
-        expect(appended.hitRate).toBe(base.hitRate);
-        expect(appended.meanFinalFishHp).toBe(base.meanFinalFishHp);
+        expect(appended.hitRate).not.toBe(base.hitRate);
       }
     });
 
-    it("prepending the SAME card changes a lot — so the multiset is not the deck", () => {
-      const base = simulateCasts(200, { ...opts, deckIds: HELD }, 1);
-      const prepended = simulateCasts(200, { ...opts, deckIds: [25, ...HELD] }, 1);
-      expect(prepended.hitRate).toBeGreaterThan(base.hitRate);
-    });
-
-    it("append and prepend are the same multiset and different results — do NOT cache on a normalized deck", () => {
-      // M3 advises caching "by normalized deck composition". That advice is
-      // wrong for this simulator, and a cache that took it would have returned
-      // the append arm's numbers for the prepend arm and hidden the finding.
+    it("append and prepend are the same multiset and STILL not byte-identical — do not cache on a normalized deck", () => {
+      // The advice is still wrong for this simulator, on a weaker reason than
+      // session 78's: the two arms are now the same DISTRIBUTION, but each
+      // cast shuffles from the order it was handed, so a fixed seed gives
+      // different piles and a normalized cache would hand one arm's concrete
+      // numbers to the other.
       const appended = simulateCasts(200, { ...opts, deckIds: [...HELD, 25] }, 1);
       const prepended = simulateCasts(200, { ...opts, deckIds: [25, ...HELD] }, 1);
       expect([...[...HELD, 25]].sort()).toEqual([...[25, ...HELD]].sort());
       expect(prepended.hitRate).not.toBe(appended.hitRate);
+    });
+
+    it("the falsified sequential pile is still selectable, and still does what it always did", () => {
+      // `sequentialDrawPile` exists so `deckShuffle.test.ts` can fail it. This
+      // guards the one property that made it worth keeping: under it, and only
+      // under it, an appended card is inert.
+      const base = simulateCasts(200, { ...opts, deckIds: HELD, sequentialDrawPile: true }, 1);
+      const appended = simulateCasts(200, { ...opts, deckIds: [...HELD, 25], sequentialDrawPile: true }, 1);
+      expect(appended.hitRate).toBe(base.hitRate);
+      expect(appended.meanFinalFishHp).toBe(base.meanFinalFishHp);
     });
   });
 });

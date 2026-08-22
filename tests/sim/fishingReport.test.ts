@@ -15,7 +15,9 @@ import { buildFishingMarkdown, summarizeFishingCast, summarizeFishingRollup } fr
  * board-sensitive belongs in `tests/fishing/oilReachability.test.ts`.
  */
 function board(updatedAt: string) {
-  return { board: { fishHp: 8, fishMaxHp: 15, focusMeter: 2, focusMeterMax: 3 }, updatedAt };
+  // [session 79] `deck: null` — this file tests the fishing REPORT's counts,
+  // which read no draw-pile state.
+  return { board: { fishHp: 8, fishMaxHp: 15, focusMeter: 2, focusMeterMax: 3 }, deck: null, updatedAt };
 }
 
 function cast(

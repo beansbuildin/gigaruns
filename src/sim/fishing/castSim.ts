@@ -51,6 +51,7 @@ import {
 import type { Cell } from "./geometry.js";
 import { cellKey, FOCUS_METER_MAX, manhattan, reachableCells, zonesToCells } from "./geometry.js";
 import { loadDendrenDeck } from "./deck.js";
+import { shuffleInPlace } from "./drawModel.js";
 import { buildPatternPool, toCandidate, type Pattern } from "./patterns.js";
 import { sampleEmpiricalTrajectory, type EmpiricalFishOptions } from "./empiricalFish.js";
 import { makeRng, type Rng } from "../rng.js";
@@ -270,14 +271,38 @@ export interface CastOptions {
    * WHOLE catalog on every single cast (the prior, and still-default,
    * behavior: `deck.push(rng.pick(catalog))`, sized to `catalog.length`,
    * with no concept of "the deck this specific account actually has").
-   * Order matters — `drawHand` draws sequentially off this array, cycling
-   * with `% deck.length`, same as the random-sample path always has.
+   * **[session 79 §1] Order does NOT matter any more, and that is a fix, not
+   * a loosening.** This comment used to end "Order matters — `drawHand` draws
+   * sequentially off this array". It did, and that was the bug: the roster
+   * order is not the pile order. The pile is now SHUFFLED once per cast from
+   * this cast's own seed (`shuffleInPlace`, below), which is what the live
+   * corpus shows at 129/129 opening hands — see `drawModel.ts`. Two decks
+   * with the same multiset are now the same deck distributionally, and the
+   * per-seed results still differ because the shuffle starts from the order
+   * given.
    * Infrastructure only: nothing yet calls this with a real deck, and
    * `chooseNewCard`'s own scoring logic is unchanged — see TASKS.md Task
    * 13's own scoping note on why the scoring half stays unbuilt this
    * session.
    */
   deckIds?: readonly number[];
+  /**
+   * ── [session 79 §1] THE FALSIFIED DRAW MODEL, KEPT ONLY TO BE FAILED ─────
+   *
+   * Draw `deckIds` in roster order from index 0 — the model every figure this
+   * simulator produced before session 79 was computed under.
+   *
+   * It is FALSE. The live corpus has 129 opening hands and not one of them is
+   * `fullDeck[0..2]`; a sequential pile predicts all 129. This option exists
+   * so `tests/fishing/deckShuffle.test.ts` can demonstrate the old model
+   * failing the same validation the new one passes — session 75's discipline
+   * for the redraw fix, where a correction that nobody can see fail is
+   * indistinguishable from a preference.
+   *
+   * **Do not use it to produce a result.** Anything measured under it is a
+   * measurement of a draw order the server does not use.
+   */
+  sequentialDrawPile?: boolean;
   /**
    * **[ADDED session 33, CODEXIMPROVE #3]** When the matcher is blind
    * (`matcherPool: []`, the condition session 14 established as
@@ -350,7 +375,25 @@ export interface CastOptions {
    * `scripts/lossDecomposition.ts` averages over the real corpus. Anything
    * else and the two profiles would not be the same measurement.
    */
-  observeTurn?: (state: { turn: number; focusRemaining: number; mana: number; fishHp: number }) => void;
+  observeTurn?: (state: {
+    turn: number;
+    focusRemaining: number;
+    mana: number;
+    fishHp: number;
+    /**
+     * [session 79 §1] The card ids held at the START of this turn, in the
+     * order they were drawn. Additive — a callback that ignores it is
+     * assignable exactly as before.
+     *
+     * Here because the DRAW MODEL is now a claim that has to be validated
+     * against the live corpus, and a claim about which cards a cast opens on
+     * cannot be checked through `CastResult`'s end-of-cast aggregates. Turn 0's
+     * state carries the opening hand — `tests/fishing/deckShuffle.test.ts`
+     * compares its roster-position distribution against 129 live opening
+     * hands, and fails the pre-session-79 sequential pile on the same test.
+     */
+    hand: readonly number[];
+  }) => void;
   /**
    * [session 61 §4d] Oils. **Opt-in and additive** — omitted, the sim is
    * byte-for-byte the sim it has always been, and every historical number
@@ -385,6 +428,14 @@ export interface CastOptions {
   };
 }
 
+/**
+ * [session 79 §1] Salt for the draw pile's own rng stream, so shuffling cannot
+ * shift the stream the fish is drawn from. Any fixed odd constant does; this
+ * is the golden-ratio one mulberry32 itself uses, for no deeper reason than
+ * that it is already in this file's neighbourhood.
+ */
+const PILE_SEED_SALT = 0x9e3779b9;
+
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
   const hand: FishingCardLike[] = [];
   let idx = drawIdx;
@@ -413,7 +464,46 @@ export function simulateCast(opts: CastOptions): CastResult {
       if (!c) throw new Error(`deckIds: card id ${id} not found in Dendren catalog — a wire assumption just broke`);
       return c;
     });
+    // ── [session 79 §1] THE PILE IS SHUFFLED, ONCE, PER CAST ───────────────
+    //
+    // Measured, not invented: across every committed live fishing state, 129
+    // opening hands and ZERO equal to `fullDeck[0..2]`, with roster tail
+    // positions turning up as often as the head (`drawModel.ts` carries the
+    // table). The server deals from a shuffled pile that it never puts on the
+    // wire; `fullDeck` is a roster and `nextCardIndex` is a cursor into the
+    // pile.
+    //
+    // Once per cast, so a seed still reproduces a cast exactly. Per-cast and
+    // per-draw shuffles are indistinguishable in this corpus; per-cast is the
+    // simpler hypothesis and the one that matches `nextCardIndex` advancing
+    // 3, 6, 9 through a pile. `drawHand` is unchanged — only the order of what
+    // it walks.
+    //
+    // **From a SEPARATE stream, and that is load-bearing.** Fisher-Yates
+    // consumes `deck.length - 1` draws, so shuffling off the main `rng` would
+    // make every later draw — the start cell, the whole fish trajectory — a
+    // function of how many cards the deck holds. That silently destroys the
+    // exact pairing `scripts/deckObjectiveSweep.ts` is built on: its arms
+    // differ by one card, so a 23-card arm and a 24-card arm would face
+    // DIFFERENT fish at the same seed, and every Δ it reports would carry a
+    // trajectory difference inside it. With the pile on its own stream, the
+    // main stream is untouched by deck size and each seed still pins one fish
+    // for every arm.
+    if (!opts.sequentialDrawPile) shuffleInPlace(deck, makeRng(opts.seed ^ PILE_SEED_SALT));
   } else {
+    // ── AND THE SAMPLED PATH IS DELIBERATELY NOT SHUFFLED ─────────────────
+    //
+    // Not an oversight and not an exemption on grounds of churn. This path
+    // builds `catalog.length` cards i.i.d. uniform WITH REPLACEMENT, so the
+    // array is already exchangeable: reading it sequentially yields i.i.d.
+    // uniform draws, which is exactly what shuffling it would yield. The
+    // shuffle is a distributional no-op here, and applying it would move every
+    // seeded figure in the repo while changing nothing about what is modelled.
+    //
+    // What this path is NOT is a model of a held deck — it has no fixed
+    // composition to be dealt without replacement, which is the mechanic the
+    // `deckIds` branch above now gets right. That difference is the same one
+    // it has always had; session 79 did not introduce it.
     deck = [];
     for (let i = 0; i < catalog.length; i++) deck.push(rng.pick(catalog));
   }
@@ -469,7 +559,7 @@ export function simulateCast(opts: CastOptions): CastResult {
     ? () => {
         if (turn === lastRecordedTurn) return;
         lastRecordedTurn = turn;
-        opts.observeTurn!({ turn, focusRemaining: focus.remaining, mana, fishHp });
+        opts.observeTurn!({ turn, focusRemaining: focus.remaining, mana, fishHp, hand: hand.map((c) => c.id) });
       }
     : () => {};
   while (turn < maxTurns) {

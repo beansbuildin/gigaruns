@@ -89,6 +89,8 @@ export interface FishingCorpusResponse {
    * sort on something the SERVER stamped, which is this.
    */
   board: FishingBoardScalars;
+  /** [session 79 §1] The draw-pile state, or `null` when this response carries no deck. */
+  deck: FishingDeckState | null;
   /** Server-stamped `doc.updatedAt`. The only sound ordering key within a cast — see `board`. */
   updatedAt: string;
 }
@@ -99,6 +101,35 @@ export interface FishingBoardScalars {
   fishMaxHp: number;
   focusMeter: number;
   focusMeterMax: number;
+}
+
+/**
+ * ── [session 79 §1] THE DRAW-PILE STATE THIS RESPONSE REPORTS ──────────────
+ *
+ * Every fishing response has carried these four fields since the first cast
+ * ever captured; nothing here is new instrumentation. They are surfaced now
+ * because the question "what order does the server draw the deck in" is
+ * answerable from the corpus alone, and session 78 answered it wrongly by
+ * generalising a property of `castSim`'s `drawHand` to the game.
+ *
+ * `fullDeck` is a ROSTER, not the pile. `nextCardIndex` indexes a pile the
+ * server shuffled and does not put on the wire — `deckCardData` is the card
+ * METADATA list and is likewise in canonical order. So the pile's order is
+ * only ever observable indirectly, through which cards turn up in `hand`.
+ *
+ * `null` when a response carries no board (an error dump, a probe response).
+ */
+export interface FishingDeckState {
+  /** The account's held deck for this cast, in the server's canonical roster order. */
+  fullDeck: number[];
+  /** The cards in hand right now. */
+  hand: number[];
+  /** How far into the (hidden, shuffled) draw pile the cast has read. */
+  nextCardIndex: number;
+  /** Server's own count of cards left in the pile. */
+  cardInDrawPile: number;
+  /** Size of the discard pile. The ids are on the wire too; only the count is needed so far. */
+  discardCount: number;
 }
 
 export interface FishingCast {
@@ -194,6 +225,30 @@ function numOr(v: unknown, fallback: number): number {
 }
 
 /**
+ * [session 79 §1] `null` unless the response carries a real draw pile. Unlike
+ * `board`'s NaN convention, a partial deck state is not useful for anything —
+ * every question asked of it ("was this an opening hand?", "which roster
+ * positions are in hand?") needs `fullDeck`, `hand` and `nextCardIndex`
+ * together — so this is all-or-nothing rather than field-by-field.
+ */
+function readDeckState(d: {
+  fullDeck?: number[];
+  hand?: number[];
+  nextCardIndex?: number;
+  cardInDrawPile?: number;
+  discard?: number[];
+} | undefined): FishingDeckState | null {
+  if (!d || !Array.isArray(d.fullDeck) || !Array.isArray(d.hand) || typeof d.nextCardIndex !== "number") return null;
+  return {
+    fullDeck: [...d.fullDeck],
+    hand: [...d.hand],
+    nextCardIndex: d.nextCardIndex,
+    cardInDrawPile: numOr(d.cardInDrawPile, Number.NaN),
+    discardCount: Array.isArray(d.discard) ? d.discard.length : Number.NaN,
+  };
+}
+
+/**
  * Loads every committed fishing fixture under `root` (default
  * `fixtures/fishing-casts`) and groups response documents by
  * `data.doc.docId` — see this file's header comment for why that, and not
@@ -225,6 +280,11 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
             fishMaxHp?: number;
             focusMeter?: number;
             focusMeterMax?: number;
+            fullDeck?: number[];
+            hand?: number[];
+            nextCardIndex?: number;
+            cardInDrawPile?: number;
+            discard?: number[];
           };
         };
         events?: { type?: string; data?: { fish?: CaughtFish } }[];
@@ -273,6 +333,7 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
         focusMeter: numOr(d?.focusMeter, Number.NaN),
         focusMeterMax: numOr(d?.focusMeterMax, Number.NaN),
       },
+      deck: readDeckState(d),
       updatedAt: typeof body.data?.doc?.updatedAt === "string" ? body.data.doc.updatedAt : "",
     });
     byDoc.set(docId, cast);
