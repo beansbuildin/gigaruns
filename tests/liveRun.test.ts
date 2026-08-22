@@ -40,7 +40,6 @@ import {
   type LiveRunDeps,
 } from "../scripts/liveRun.js";
 import { GigaverseClient } from "../src/api/client.js";
-import { UnexpectedResponseError } from "../src/api/errors.js";
 import type { BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip, isBudgetGuardTrip } from "../src/orchestrator/guards.js";
 import { AttemptTelemetry } from "../src/orchestrator/attemptTelemetry.js";
@@ -831,6 +830,16 @@ describe("postWithVerifiedRetry", () => {
   // Now a PERSISTENT 5xx on the re-check throws instead, and that throw
   // must propagate out of postWithVerifiedRetry rather than being
   // swallowed into a null "applied despite the error" result.
+  //
+  // [session 78, §2] The property under test is unchanged — it halts, and it
+  // does NOT report applied. What changed is the error: this is now the
+  // transaction's `unknown` outcome, which fails closed as a `GuardTrip`
+  // rather than letting the READ's `UnexpectedResponseError` propagate. Both
+  // exit non-zero at `main()`. The reason for the swap is that the old throw
+  // carried the state-read's body and silently dropped the POST's, so the
+  // operator was told the re-check 5xx'd and never told what the action
+  // itself returned. The new detail carries BOTH, which is what the assertions
+  // below pin.
   it("halts (does not report 'applied') when the POST fails and the state re-check 5xxs persistently", async () => {
     vi.stubGlobal(
       "fetch",
@@ -845,9 +854,29 @@ describe("postWithVerifiedRetry", () => {
     const guards = new GuardState(TEST_CONFIG);
     const log = makeLog();
     const p = postWithVerifiedRetry(client, guards, log, initialRun, locate, buildBody, stillInRewardPhase, "reward selection rejected");
-    const assertion = expect(p).rejects.toBeInstanceOf(UnexpectedResponseError);
+    const caught = p.then(
+      (resp) => ({ resolved: resp }),
+      (e: unknown) => ({ error: e }),
+    );
     await vi.runAllTimersAsync();
-    await assertion;
+    const result = await caught;
+
+    // It halted — it did not return, and above all did not return a null
+    // "applied despite the error".
+    expect(result).not.toHaveProperty("resolved");
+    const err = (result as { error: unknown }).error;
+    expect(err).toBeInstanceOf(GuardTrip);
+    expect((err as Error).message).toContain("UNKNOWN");
+    expect((err as Error).message).toContain("Do NOT retry");
+
+    // Both halves of what went wrong, which the pre-session-78 throw could not
+    // carry: the POST's own server response AND why the re-check was unreadable.
+    const detail = (err as GuardTrip).detail as { body?: string; readError?: { body?: string } };
+    expect(detail.body).toContain("server error");
+    // `getDungeonState` replaces the raw HTML with its own diagnosis after the
+    // second 5xx (session 28), so this is that verdict, not the page body —
+    // which is the more useful of the two to hand an operator anyway.
+    expect(detail.readError?.body).toContain("repeated 5xx on /game/dungeon/state");
   });
 
   it("trips the guard after maxConsecutiveActionFailures if the action never lands", async () => {
@@ -1021,6 +1050,141 @@ describe("runOnce — committed energy spend (session 31, CODEXREVIEW #8)", () =
     // energy read, this test would hang or throw on an unhandled URL instead
     // of resolving cleanly with the committed amount recorded.
     expect(deps.guards.spentEnergy).toBe(TEST_CONFIG.energyCostPerRun);
+  });
+
+  /**
+   * [session 78, §2 / CODEXAUG22REVIEW H1] The defect, at the call site.
+   *
+   * Before this, `start_run`'s error path called `fail(...)` — which THROWS —
+   * before `recordRunStarted`, `recordEnergySpent` and `saveGuardBudget` ever
+   * ran. So a start the server applied while losing the response left the local
+   * ledger reading zero runs and zero energy while the server had spent 3 of
+   * the day's 12 run-units. Silent disagreement about what CLAUDE.md rule 4
+   * calls "the scarce thing", and exactly the reconciliation CLAUDE.md rule 13
+   * currently asks a HUMAN to do afterwards.
+   *
+   * The API demonstrably does this: session 08 measured `reward_one` returning
+   * HTTP 500 with `pickedBoons` already grown.
+   */
+  describe("start_run reconciles against the server rather than trusting the throw", () => {
+    /** POST fails; the follow-up state read shows a run that did not exist before. */
+    const appliedDespiteError = () => {
+      let stateReads = 0;
+      return mockFetch((url, init) => {
+        const method = init?.method ?? "GET";
+        if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+        if (method === "GET") {
+          stateReads++;
+          // First read: idle, so `runOnce` takes the start_run branch. After
+          // the failed POST: a run exists — the start landed.
+          return stateReads === 1
+            ? { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } }
+            : { status: 200, body: { success: true, actionToken: 0, data: { run: fakeRun() } } };
+        }
+        return { status: 500, body: { success: false, message: "server error" } };
+      });
+    };
+
+    it("COMMITS the ledger when the start applied and the response was lost", async () => {
+      vi.stubGlobal("fetch", appliedDespiteError());
+      const deps = makeDeps(false);
+      const p = runOnce(deps, { stage2Only: true }).catch((e: unknown) => e);
+      await vi.runAllTimersAsync();
+      await p;
+
+      // The whole point: the throw does not skip the ledger any more.
+      expect(deps.guards.spentEnergy).toBe(TEST_CONFIG.energyCostPerRun);
+      expect(deps.guards.runCount).toBe(1);
+    });
+
+    it("still HALTS on that path — the run is active but this process has no actionToken for it", async () => {
+      // `GET /game/dungeon/state` reports `actionToken: 0` regardless of the
+      // run's real state (confirmed 3x live, session 08), so there is no honest
+      // way to continue. Re-invoking resumes rather than starting a second run.
+      vi.stubGlobal("fetch", appliedDespiteError());
+      const deps = makeDeps(false);
+      const p = runOnce(deps, { stage2Only: true }).catch((e: unknown) => e);
+      await vi.runAllTimersAsync();
+      const err = await p;
+      expect(err).toBeInstanceOf(GuardTrip);
+      expect((err as Error).message).toContain("Re-run to RESUME");
+    });
+
+    it("does NOT commit when the server proves the start never landed", async () => {
+      // The daily-cap rejection and every other honest refusal. A ledger that
+      // moved here would invent a spend that did not happen — the mirror of
+      // the bug above and just as bad.
+      vi.stubGlobal(
+        "fetch",
+        mockFetch((url, init) => {
+          const method = init?.method ?? "GET";
+          if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+          if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          return { status: 400, body: { success: false, message: "Player has reached max runs for dungeon" } };
+        }),
+      );
+      const deps = makeDeps(false);
+      const p = runOnce(deps, { stage2Only: true }).catch((e: unknown) => e);
+      await vi.runAllTimersAsync();
+      const err = await p;
+
+      expect(deps.guards.spentEnergy).toBe(0);
+      expect(deps.guards.runCount).toBe(0);
+      expect(err).toBeInstanceOf(GuardTrip);
+      // Session 47's property, unchanged: the server's own reason survives.
+      expect((err as GuardTrip).message).toContain("start_run rejected");
+    });
+
+    it("fails closed as UNKNOWN when the server cannot be re-read, and commits nothing", async () => {
+      // Neither proven. CLAUDE.md rule 5 — and above all no retry, because a
+      // retry here burns another 3 run-units against a 12-unit day.
+      let stateReads = 0;
+      vi.stubGlobal(
+        "fetch",
+        mockFetch((url, init) => {
+          const method = init?.method ?? "GET";
+          if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+          if (method === "GET") {
+            stateReads++;
+            return stateReads === 1
+              ? { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } }
+              : { status: 500, body: "<html>error</html>" };
+          }
+          return { status: 500, body: { success: false, message: "server error" } };
+        }),
+      );
+      const deps = makeDeps(false);
+      const p = runOnce(deps, { stage2Only: true }).catch((e: unknown) => e);
+      await vi.runAllTimersAsync();
+      const err = await p;
+
+      expect(deps.guards.spentEnergy).toBe(0);
+      expect(deps.guards.runCount).toBe(0);
+      expect((err as Error).message).toContain("UNKNOWN");
+      // Points the operator at the only authority on what was spent (rule 13).
+      expect((err as Error).message).toContain("checkDungeonToday");
+    });
+
+    it("sends exactly ONE start_run POST on every one of those paths", async () => {
+      // The failure mode a reconciliation protocol could introduce if it were
+      // written carelessly: retrying the ambiguous write it exists to protect.
+      for (const handler of [
+        appliedDespiteError(),
+        mockFetch((url, init) => {
+          const method = init?.method ?? "GET";
+          if (method === "GET" && url.includes("dungeon/today")) return DUNGEON_TODAY_EMPTY;
+          if (method === "GET") return { status: 200, body: { success: true, actionToken: 0, data: { run: null, entity: null } } };
+          return { status: 400, body: { success: false, message: "nope" } };
+        }),
+      ]) {
+        vi.stubGlobal("fetch", handler);
+        const p = runOnce(makeDeps(false), { stage2Only: true }).catch(() => undefined);
+        await vi.runAllTimersAsync();
+        await p;
+        const posts = handler.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "POST");
+        expect(posts).toHaveLength(1);
+      }
+    });
   });
 
   it("commits nothing on a resume — no new start_run POST means no new committed spend", async () => {

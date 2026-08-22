@@ -693,3 +693,35 @@ commits keep their old hashes: rewriting citations inside history changes the
 hashes being cited, which has no fixed point. **When commit archaeology in a log
 older than session 77 hits a dead hash, that is why** — do not spend a session on
 it.
+
+2026-08-22 (session 78) — **`use_fishing_item` DOES NOT advance the fish and
+DOES NOT cost mana** — user answer, given directly when asked whether to spend a
+cast probing it. This is `OIL-POLICY.md` §1's pair of load-bearing live
+questions, open since session 73 and deferred by four consecutive briefs, and it
+confirms the sim's `costsTurn=false` arm is the real mechanic — the
+`costsTurn=true` arm was never modelling anything that exists, which is why its
+numbers were incoherent (an added cost that *improved* catch rate 74% → 93%).
+**It is an answer, not a measurement**: no capture exists, and rule 1 still says
+a live response wins if one ever disagrees. It does NOT authorize live oil use —
+`dendren.oils.policyApproved` still ships FALSE and the timing policy is a
+separate approval from the budget. **Do not re-request this cast as a probe.**
+
+2026-08-22 (session 78) — **Session 78 is OFFLINE by user directive.** Asked at
+11:00 PT with both ledgers freshly rolled (12 run-units, 20 casts), the user
+chose no live play. 0 runs, 0 casts, 0 energy.
+
+2026-08-22 (session 78 §2d) — **Rule 7's 429 backoff stays EXACTLY as written,
+writes included** — user decision, taken after the argument was put in full.
+CODEXAUG22REVIEW H1's smallest fix was *"do not automatically retry
+non-idempotent requests in `raw()`"*, and the case for it is futility rather
+than danger: rule 7 pins the action-token window at ~5s, the backoff starts at
+5000ms and doubles, so a retried POST carries a token that is **stale by
+construction** and can only be rejected — 5+10+20+40+80s of the only mutex held
+to guarantee five failures. The case against changing it is that **this repo has
+never recorded a single 429** (session 75: zero across 216 actions; none
+anywhere in `handoff/`), so it is an entirely unmeasured path and an agent does
+not amend a non-negotiable to fix a failure nobody has seen. **Considered and
+declined — do not re-raise without an observed 429.** `runActionTransaction`
+is built around the CURRENT behaviour: a `RateLimitedError` after the full
+backoff reaches the helper as an ordinary failure and is reconciled against
+server state like any other.

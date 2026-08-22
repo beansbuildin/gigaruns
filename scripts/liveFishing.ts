@@ -82,12 +82,13 @@ import { z } from "zod";
 
 import { GigaverseClient } from "../src/api/client.js";
 import { TokenExpiredError, UnexpectedResponseError, serverErrorDetail } from "../src/api/errors.js";
+import { runActionTransaction } from "../src/api/actionTransaction.js";
 // [session 47, brief §1e] `serverErrorDetail` moved to src/api/errors.ts — it is a
 // property of the error type, and keeping it here is what let the dungeon side go
 // three sessions with the same swallowed-body bug. Re-exported so every existing
 // `from "./liveFishing.js"` import site is unchanged.
 export { serverErrorDetail };
-import type { FishingActionRequest, FishingActionResponse, FishingGameDoc } from "../src/api/fishing.js";
+import type { FishingActionRequest, FishingActionResponse, FishingGameDoc, FishingState } from "../src/api/fishing.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
@@ -1592,11 +1593,78 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       tierId: dendren.tierId,
     });
     log.write({ event: "post", body });
+
+    /**
+     * [session 78, §2 / CODEXAUG22REVIEW H1] The fishing twin of `liveRun.ts`'s
+     * `start_run`, and it had the identical defect: the ledger commit below sat
+     * AFTER the `try`, so a start that applied server-side with its response
+     * lost left `dayDocs[pondId]` counting a cast the local guard never
+     * recorded. Same class, different ledger.
+     *
+     * The predicates read the doc rather than the response, because the doc is
+     * what the server considers authoritative: a live cast is a `gameState`
+     * that exists and is NOT `COMPLETE_CID`. That is exactly the condition the
+     * resume branch above tests, so applied/not-applied here agree with what
+     * the next invocation will do.
+     */
+    const commitStartCast = () => {
+      guards.recordActionResult(true);
+      guards.recordRunStarted();
+      // [session 31, CODEXREVIEW #8] Committed spend, recorded the moment
+      // start_run lands — independent of whatever the account balance does
+      // afterward. This is the guard's ledger of record; the before/after read
+      // in `main()` is a diagnostic only. See src/orchestrator/energyAccounting.ts.
+      guards.recordEnergySpent(dendren.energyCostPerCast);
+      saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
+    };
+
+    const started = await runActionTransaction<FishingState, FishingActionResponse>({
+      action: "start_run",
+      before: existing,
+      send: () => client.postFishingAction(body),
+      readState: () => client.getFishingState(address),
+      didApply: (_before, after) => Boolean(after?.gameState && !after.gameState.COMPLETE_CID),
+      provesNotApplied: (_before, after) => Boolean(after && (!after.gameState || after.gameState.COMPLETE_CID)),
+      commitSpend: commitStartCast,
+      rethrow: (e) => e instanceof TokenExpiredError,
+      log: (e) => log.write(e),
+    });
+
+    if (started.outcome === "applied" && started.response === null) {
+      // Applied, response lost. The ledger IS committed. The cast is live and
+      // the doc is readable from `after` — but the fishing actionToken chain
+      // only advances through POST responses (SPEC-fishing.md §2), so this
+      // process holds a stale token for a cast that has moved on. Stop clean:
+      // re-invoking resumes this cast (`resuming_existing_cast` above) instead
+      // of paying for a second one.
+      log.write({ event: "start_run_applied_response_lost", docId: started.after?.gameState?.docId });
+      throw new GuardTrip(
+        "fishing start_run APPLIED but its response was lost — the cast is active and the ledger is committed, " +
+          "but this process has no actionToken for it. Re-run to RESUME (it will not start a second cast).",
+        { docId: started.after?.gameState?.docId },
+      );
+    }
+
+    if (started.outcome === "unknown") {
+      // CLAUDE.md rule 5. Do not retry — a retry here buys a second cast
+      // against a 20-cast day on the strength of a guess.
+      const d = serverErrorDetail(started.error);
+      log.write({
+        event: "start_run_outcome_unknown",
+        ...d,
+        readError: started.readError ? serverErrorDetail(started.readError) : undefined,
+        ledgerCheck: "npx tsx scripts/checkFishingCaps.ts",
+      });
+      throw new GuardTrip(
+        "fishing start_run outcome UNKNOWN — the server could not be re-read after the failure. " +
+          "Do NOT re-run until `npx tsx scripts/checkFishingCaps.ts` says whether a cast was spent (CLAUDE.md rule 13).",
+        { ...d, readError: started.readError ? serverErrorDetail(started.readError) : undefined },
+      );
+    }
+
     let resp: FishingActionResponse;
-    try {
-      resp = await client.postFishingAction(body);
-    } catch (e) {
-      if (e instanceof TokenExpiredError) throw e;
+    if (started.outcome === "not_applied") {
+      const e = started.error;
       guards.recordActionResult(false);
       // [session 46] `.message` alone never carries the server's own text —
       // see `serverErrorDetail`. Both the classifier below and the log line
@@ -1620,14 +1688,8 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       log.write({ event: "action_failed", reason: "start_run rejected", error: message, body: detail.body });
       throw new GuardTrip("fishing start_run rejected", { error: message, body: detail.body });
     }
-    guards.recordActionResult(true);
-    guards.recordRunStarted();
-    // [session 31, CODEXREVIEW #8] Committed spend, recorded the moment
-    // start_run succeeds — independent of whatever the account balance does
-    // afterward. This is now the guard's ledger of record; the before/after
-    // read in `main()` is a diagnostic only. See src/orchestrator/energyAccounting.ts.
-    guards.recordEnergySpent(dendren.energyCostPerCast);
-    saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
+    // Narrowed by the three throwing branches above: `applied` with a response.
+    resp = started.response!;
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
     doc = resp.data.doc;

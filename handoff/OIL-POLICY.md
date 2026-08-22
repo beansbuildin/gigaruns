@@ -83,11 +83,32 @@ a turn spends mana and risks a miss that *undoes* damage. So the comparison is
 not "2 versus the card's damage" even in principle, and the Relaxing Oil is
 less obviously bad under a turn cost than the brief feared.
 
-**What still needs the first live oil cast:** whether `use_fishing_item`
-advances the fish, and — the question the sim says actually matters — whether
-it costs **mana**. Nothing in the payload or the `use_fishing_item` envelope
-suggests it does, which is why the sim models it as free, but that is an
-assumption and it is the load-bearing one.
+**~~What still needs the first live oil cast~~ — ANSWERED, 2026-08-22, session
+78, BY THE USER.** Both questions, directly:
+
+> **`use_fishing_item` does not advance the fish and does not cost mana.**
+
+So the load-bearing assumption below was **correct**: the sim's `costsTurn=false`
+arm is the real mechanic, and the `costsTurn=true` arm was never modelling
+anything that exists. §2's `on-demand` recommendation stands on the arm that
+turned out to be true, which is the good outcome and not a lucky one — it was
+chosen because the other arm was incoherent (an added cost that *improves* the
+result), not because it was assumed.
+
+**Two things this does NOT do, and both matter.** It is an answer from the
+account owner, not a measurement by this repo — no capture exists, no fixture
+records it, and CLAUDE.md rule 1 still says the live response is the authority
+if one ever disagrees. And it does not authorize live oil consumption:
+`dendren.oils.policyApproved` still ships FALSE, and the TIMING policy is a
+separate approval from the budget (CLAUDE.md "Ask first"). What it removes is
+the reason the first oil cast had to be a deliberate *probe* — the two questions
+it existed to answer are answered.
+
+The original text, for the record: whether `use_fishing_item` advances the fish,
+and — the question the sim says actually matters — whether it costs **mana**.
+Nothing in the payload or the `use_fishing_item` envelope suggested it did,
+which is why the sim modelled it as free, but that was an assumption and it was
+the load-bearing one.
 
 ---
 

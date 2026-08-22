@@ -48,6 +48,7 @@ import { basename, join } from "node:path";
 import { GigaverseClient } from "../src/api/client.js";
 import type { DungeonAction, DungeonActionRequest, DungeonActionResponse, DungeonState } from "../src/api/schemas.js";
 import { TokenExpiredError, UnexpectedResponseError, serverErrorDetail } from "../src/api/errors.js";
+import { runActionTransaction } from "../src/api/actionTransaction.js";
 import { loadBotConfig, type BotConfig } from "../src/orchestrator/config.js";
 import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { AttemptTelemetry } from "../src/orchestrator/attemptTelemetry.js";
@@ -756,43 +757,89 @@ export async function postWithVerifiedRetry(
     const body = buildBody(index);
     attemptNumber++;
     log.write({ event: "post", body });
-    try {
-      const resp = await client.postDungeonAction(body, pacingForAction(body.action));
-      guards.recordActionResult(true);
-      log.write({ event: "post_response", resp });
-      settle(body.action);
-      return resp;
-    } catch (e) {
-      if (attemptNumber === 1) firstAttemptFailed = true;
-      if (e instanceof TokenExpiredError) {
-        settle(body.action);
-        throw e;
-      }
-      // [session 47, brief §1e] `.message` is only "Unexpected response from
-      // <path>: HTTP <status>" — the server's own text lives in `.body`. See
-      // `serverErrorDetail`'s doc comment for the fishing-side incident that
-      // established this; the same omission was here.
-      log.write({ event: "post_attempt_failed", reason, ...serverErrorDetail(e) });
 
-      const fresh = await client.getDungeonState();
-      const freshRun = fresh ? (fresh.data.run as unknown as WireRun) : null;
-      const pending = freshRun ? isPending(freshRun) : false;
-      if (!pending) {
-        // Applied despite the error response (or the run moved on for some
-        // other reason) — never retry an action that already landed.
-        log.write({ event: "action_applied_despite_error" });
-        guards.recordActionResult(true);
-        settle(body.action);
-        return null;
-      }
-      try {
-        guards.recordActionResult(false); // throws GuardTrip once the configured limit is hit
-      } catch (tripped) {
-        settle(body.action);
-        throw tripped;
-      }
-      run = freshRun!; // re-derive `index` against this freshly-fetched offer next loop
+    /**
+     * [session 78, §2] The attempt, expressed as the same transaction every
+     * other irreversible write in this repo now uses. The classification below
+     * is session 08's, UNCHANGED and deliberately so — `didApply` accepts a
+     * null read because a run that is simply gone cannot still be pending this
+     * action, which is the rule that has been live since session 08. What the
+     * refactor adds is the third outcome: a state read that THROWS used to
+     * propagate an `UnexpectedResponseError` out of this function, which is a
+     * correct stop but an uninformative one. It is now `unknown` and says so.
+     *
+     * `locate` is called ONCE PER ATTEMPT, above, against `run` — which the
+     * failure path replaces with freshly-fetched state. That is session 09's
+     * rule and it is the reason this loop cannot be flattened into a single
+     * transaction: re-sending a position captured before a failure can land on
+     * a DIFFERENT option than intended. See this function's header.
+     */
+    const attempt = await runActionTransaction<WireRun, DungeonActionResponse>({
+      action: body.action,
+      before: run,
+      send: () => client.postDungeonAction(body, pacingForAction(body.action)),
+      readState: async () => {
+        const fresh = await client.getDungeonState();
+        return fresh ? (fresh.data.run as unknown as WireRun) : null;
+      },
+      didApply: (_before, after) => (after ? !isPending(after) : true),
+      provesNotApplied: (_before, after) => (after ? isPending(after) : false),
+      commitSpend: () => guards.recordActionResult(true),
+      rethrow: (e) => e instanceof TokenExpiredError,
+      log: (e) => log.write(e),
+    });
+
+    /**
+     * [session 53 §1] "First attempt failed" is a property of the SEND, not of
+     * the final outcome — an attempt that threw and then reconciled to
+     * `applied` still failed on its first try, and the telemetry exists to
+     * count exactly that. `response === null` on an `applied` outcome is the
+     * signal that the send threw and reconciliation rescued it.
+     */
+    if (attemptNumber === 1 && (attempt.outcome !== "applied" || attempt.response === null)) {
+      firstAttemptFailed = true;
     }
+
+    if (attempt.outcome === "applied") {
+      if (attempt.response !== null) log.write({ event: "post_response", resp: attempt.response });
+      settle(body.action);
+      return attempt.response;
+    }
+
+    // [session 47, brief §1e] `.message` is only "Unexpected response from
+    // <path>: HTTP <status>" — the server's own text lives in `.body`. See
+    // `serverErrorDetail`'s doc comment for the fishing-side incident that
+    // established this; the same omission was here.
+    log.write({ event: "post_attempt_failed", reason, ...serverErrorDetail(attempt.error) });
+
+    if (attempt.outcome === "unknown") {
+      // CLAUDE.md rule 5. Neither applied nor proven-unapplied, so retrying is
+      // the one thing that must not happen.
+      settle(body.action);
+      throw new GuardTrip(
+        `${reason}: action outcome UNKNOWN — the server could not be re-read after the failure. ` +
+          "Do NOT retry; read the server ledger (CLAUDE.md rule 13).",
+        {
+          ...serverErrorDetail(attempt.error),
+          // Both halves. The pre-session-78 behaviour let the READ's error
+          // propagate and silently dropped the POST's, so the log said the
+          // state check 5xx'd and never said what the action itself returned.
+          readError: attempt.readError ? serverErrorDetail(attempt.readError) : undefined,
+        },
+      );
+    }
+
+    try {
+      guards.recordActionResult(false); // throws GuardTrip once the configured limit is hit
+    } catch (tripped) {
+      settle(body.action);
+      throw tripped;
+    }
+    // Re-derive `index` against the state the transaction ALREADY fetched
+    // (session 09's rule; re-reading here would be a second request for the
+    // same answer). `after` is non-null on `not_applied` by construction —
+    // `provesNotApplied` can only be satisfied by a run that exists.
+    run = attempt.after!;
   }
 }
 
@@ -1011,30 +1058,92 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     // window and stop being tight.
     const energyBefore = deps.energyProbe ? await deps.energyProbe() : null;
     log.write({ event: "post", body });
-    let resp;
-    try {
-      resp = await client.postDungeonAction(body);
-    } catch (e) {
-      if (e instanceof TokenExpiredError) throw e;
+
+    /**
+     * [session 31, CODEXREVIEW #8] Committed spend, recorded the moment
+     * start_run lands — independent of whatever the account balance does
+     * afterward (in-run regen, an external ROM claim). This is the guard's
+     * ledger of record; the before/after read in `main()` is a diagnostic
+     * only. See src/orchestrator/energyAccounting.ts. `estimatedCost` is the
+     * same juiced-aware figure used for the pre-spend gate above.
+     *
+     * [session 78, §2] Moved into `commitSpend` so it runs on EVERY applied
+     * outcome, including the one where the server applied the start and the
+     * response was lost. It used to sit after the `try`, which the throw
+     * skipped — so an applied-but-lost start left the local ledger reading
+     * zero runs while the server had spent 3 of the day's 12 run-units.
+     * `runActionTransaction` guarantees this body runs exactly once.
+     */
+    const commitStartRun = () => {
+      guards.recordActionResult(true);
+      guards.recordRunStarted(runUnits);
+      guards.recordEnergySpent(estimatedCost);
+      saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath); // [session 09] persist immediately — see guardPersistence.ts
+    };
+
+    /**
+     * [session 78, §2 / CODEXAUG22REVIEW H1] `start_run` is the call where an
+     * applied-but-lost write costs something unrecoverable, so it reconciles
+     * against the server rather than trusting the throw. `before` is `null` by
+     * construction — this branch only runs when the state read above found no
+     * active run — which makes both predicates crisp: a run now existing is the
+     * transition `start_run` itself causes, and no run still existing is proof
+     * it did not land. A read that THROWS is neither, and fails closed.
+     */
+    const started = await runActionTransaction<DungeonState, DungeonActionResponse>({
+      action: "start_run",
+      before: null,
+      send: () => client.postDungeonAction(body),
+      readState: () => client.getDungeonState(),
+      didApply: (_before, after) => after !== null,
+      provesNotApplied: (_before, after) => after === null,
+      commitSpend: commitStartRun,
+      rethrow: (e) => e instanceof TokenExpiredError,
+      log: (e) => log.write(e),
+    });
+
+    if (started.outcome === "not_applied") {
       // [session 47, brief §1e] The dungeon twin of session 46's fishing
       // incident: a `start_run` rejection is the ONE place the server tells
       // you WHY (daily cap, run already active, energy floor), and this line
       // threw that away. It is also the exact call whose fishing counterpart
       // spent two sessions being misdiagnosed from the doc state.
-      fail(guards, log, "start_run rejected", serverErrorDetail(e));
+      //
+      // [session 78] Reaching here now means the server was RE-READ and still
+      // reports no active run — so the rejection is confirmed, not assumed.
+      fail(guards, log, "start_run rejected", serverErrorDetail(started.error));
     }
-    guards.recordActionResult(true);
-    guards.recordRunStarted(runUnits);
-    // [session 31, CODEXREVIEW #8] Committed spend, recorded the moment
-    // start_run succeeds — independent of whatever the account balance does
-    // afterward (in-run regen, an external ROM claim). This is now the
-    // guard's ledger of record; the before/after read in `main()` is a
-    // diagnostic only. See src/orchestrator/energyAccounting.ts. `estimatedCost`
-    // here is the same juiced-aware figure used for the pre-spend gate above
-    // — the live before/after energy read in `main()` remains the diagnostic
-    // ground truth per CLAUDE.md §1, this is only the guard's own ledger.
-    guards.recordEnergySpent(estimatedCost);
-    saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath); // [session 09] persist immediately — see guardPersistence.ts
+
+    if (started.outcome === "unknown") {
+      // CLAUDE.md rule 5. Do not invent a recovery and above all do not retry:
+      // this is the branch where a retry burns another 3 run-units against a
+      // 12-unit day. Rule 13's instruction to a human, pointed at from the one
+      // place that knows the read just failed.
+      log.write({
+        event: "start_run_outcome_unknown",
+        ...serverErrorDetail(started.error),
+        ledgerCheck: "npx tsx scripts/checkDungeonToday.ts",
+      });
+      fail(guards, log, "start_run outcome UNKNOWN — the server could not be re-read after the failure. Do NOT re-run until `npx tsx scripts/checkDungeonToday.ts` says whether a run was spent (CLAUDE.md rule 13).", serverErrorDetail(started.error));
+    }
+
+    const resp = started.response;
+    if (resp === null) {
+      // Applied, response lost. The ledger IS committed — that is the whole
+      // point of `commitSpend` — but the actionToken this run needs came back
+      // in the response that never arrived, and `GET /game/dungeon/state`
+      // reports `actionToken: 0` regardless of the run's real state (see
+      // `client.getDungeonState`'s comment, confirmed 3x live in session 08).
+      // So there is no honest way to continue THIS process. Stop clean: the
+      // run is genuinely active and re-invoking resumes it rather than
+      // starting a second one.
+      log.write({ event: "start_run_applied_response_lost", runUnits, estimatedCost });
+      throw new GuardTrip(
+        "start_run APPLIED but its response was lost — the run is active and the ledger is committed, " +
+          "but this process has no actionToken for it. Re-run to RESUME (it will not start a second run).",
+        { runUnits, estimatedCost },
+      );
+    }
     log.write({ event: "post_response", resp });
     fixtures.write(resp);
     console.log(`  ✓ start_run sent — actionToken now ${client.getActionToken()}`);
