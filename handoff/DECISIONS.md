@@ -594,3 +594,50 @@ Two things this decision explicitly does NOT say. **It does not clear the simula
 2026-08-22 (session 75, §3) — **THE REDRAW BRANCH IS NOT OPT-IN, AND 87.9% OF DEFAULT-POLICY CASTS EXECUTE IT.** `redrawEnabled` is a LIVE flag and gates nothing in the simulator. `matcherFishPolicy` — the default nearly every sim consumer uses — reaches the branch two ways: `shouldRedraw` at `REDRAW_THRESHOLD = 0`, and the `!best` fallback, which needs no threshold crossed at all, only a hand nothing in it can afford. Measured at n=4000 on the live config: **3515 of 4000 casts redraw at least once.** So the brief's hoped-for containment ("if the oil sweeps and the focus profile never enable redraw, the fix touches nothing else") is FALSE, and 19 files reference a redraw-capable policy. `scripts/redrawBlastRadius.ts` enumerates them and measures the incidence — the enumeration was a gate condition precisely because asserting containment here would have been wrong. **What the full suite then showed is the useful bound:** exactly ONE pinned number moved (`tests/fishing/redrawTrigger.test.ts`'s ALWAYS arm, turns/cast < 1.29 → ≤ 4, re-pinned on the OUTCOME — `escaped_mana` is 100%, which is the degeneracy the test exists for and is unchanged). Any figure quoted from an oil sweep, the focus profile, or the pattern-mining comparison and derived BEFORE 2026-08-22 should be re-derived before it is re-quoted.
 
 2026-08-22 (session 75, §1) — **THE ACCOUNT'S ARMOR WAS RE-SPEC'd BETWEEN RUNS 3 AND 4 OF THE 2026-08-22 BATCH.** User-stated in chat, captured from run 4's own `start_run` (cid 24983279): Shield 6/12 → **10/15**, Sword 26/9 → 25/8, Spell unchanged, armorMax 17 → **22**, block 8 → 10, hpMax 40 unchanged. `src/sim/enemies.ts`'s `PLAYER` updated. **Runs 1–3 and run 4 are NOT the same arm** — nothing may read run 4's depth or Hard Core against the other three as a strategy effect, the same trap sessions 42/43 recorded. Four downstream consequences, all recorded rather than smoothed away: the room-4 Shield mirror that stalled forever now nets 2 per tie (Shield ATK 10 > enemy 66's DEF 8), so `combat.test.ts` and `strategy.test.ts` now pin the STALL RULE with explicit numbers and assert the current loadout's behaviour separately; `the-lost-run-position` scenario's answer CHANGED — a Shield win now breaks the 8 armor and carries 2 into HP where it previously left HP untouched; the random-vs-random sanity band went 0.9 → 0.95 (second widening for the same cause — if it ever needs above ~0.97, re-derive it rather than widen again); and the loadout census gained five combos. **The general fix applied throughout: a test about a MODEL should not read the user's current gear.** Pinning `PLAYER.moves.paper.atk` into an assertion about the armor threshold made a gear change look like a combat-model regression.
+
+2026-08-22 (session 76) — **The ship-nothing posture HOLDS.** User decision,
+answering STATE.md's open question 1 after the `pConnect` thread closed as moot.
+The frozen items (shrinkage re-fit, `isLethal` tightening, the unfalsified
+conditional) stay frozen and nothing is adopted live. Note what makes this
+cheap rather than cautious: none of them has passed the profile check
+`handoff/OIL-POLICY.md` §0a names as its precondition, and rule 4 bars a live
+change on a sim result regardless — so "unblocked by the diagnosis" was never
+the same as "ready to ship".
+
+2026-08-22 (session 76 §1) — **An author-data assertion must be DECLARED through
+`tests/helpers/authorData.ts`, and the guard is a sweep, not a standing check.**
+`tests/sim/fishingCorpus.test.ts:128` asserted more `cast-*` directories than
+directories holding `state-*` files — unsatisfiable in any clone, since
+`fixtures/**/raw/` is ignored and git carries no empty directories. It was
+written in `02e7907`, the same commit that added `scripts/preflight.ts`, and the
+session-68 preflight reports 1292 tests against a tree that ended at 1293: the
+export reads the git INDEX, so a test written after the last run is invisible to
+it. **Eight sessions ran with a stranger's first command red.**
+
+2026-08-22 (session 76 §1) — **A silent `if (!existsSync(...)) return;` inside an
+`it` is a BUG, not a skip.** `tests/discoveredShipsClean.test.ts` carried one
+under a comment claiming it was skipped in a clone; it passed, asserting
+nothing. Vacuous passes are invisible to both the suite and `preflight.ts`. Use
+`probeAuthorData` + `describe.skipIf` so the skip is announced and counted.
+
+2026-08-22 (session 76 §2) — **CLAUDE.md rule 5 extends to the ANALYSIS scripts,
+via `scripts/lib/requireInputs.ts`.** A script whose entire output is a statistic
+over the author's corpus must name its inputs, check them, and exit non-zero —
+never degrade. `redrawBlastRadius.ts` printed a full report with `catch 0.0%` on
+both arms; `liveGateFiringRates.ts` crashed at §3 only AFTER publishing a §2
+computed on a degraded corpus. The live loop's `if (!existsSync(p)) return [];`
+loaders are correct for the loop and wrong for the analysis.
+
+2026-08-22 (session 76 §3) — **Redraw is closed on PRICE, not on EFFECT**, and
+that is the recorded verdict everywhere it appears. 43.9 mana per extra fish
+against a cast holding 10 is unaffordable; the 7.6pp gain at |t| = 7.6 is real
+and is not noise. The "understatement" prediction is retracted at all three
+sites (SPEC-fishing §7a, `castSim.ts`, `pConnectConsumers.test.ts`).
+
+2026-08-22 (session 76 §4) — **`handoff/DISTRIBUTION.md` documents the EXPORT,
+not the REPO.** The repo is public with 370 commits of full history including
+`handoff/`, `TASKS.md`, `QUESTIONS.md`, `CODEX*` and `.claude/`; the
+does-not-ship table is what `scripts/preflight.ts` prunes. History scans over
+all 370 commits: 0 addresses, 0 JWTs, 0 private keys. `.claude/*.bak` added to
+`.gitignore` — this does NOT untrack the committed `.bak`, and removing that
+(and the username in four session logs) is the user's decision, not an agent's.
