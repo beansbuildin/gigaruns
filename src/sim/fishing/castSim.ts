@@ -25,7 +25,7 @@
  *    SPEC-fishing.md §8.
  */
 
-import { chooseCard, shouldRedraw, type FishingCardLike, type FocusBudget } from "../../strategy/fishing/cardChoice.js";
+import { chooseCard, shouldRedraw, shouldRedrawOnConnect, type FishingCardLike, type FocusBudget } from "../../strategy/fishing/cardChoice.js";
 import {
   emptyFallback,
   initMatcher,
@@ -82,6 +82,18 @@ export interface CastResult {
   shots: number;
   /** [session 61 §4d] Oils consumed this cast, in spend order. Empty when the sim ran without oils. */
   oilsUsed: OilKind[];
+  /**
+   * [session 72 §2] Mana burned on redraws this cast — one per card held, at
+   * each redraw. Zero on every arm whose policy never redraws, which is all of
+   * them today.
+   *
+   * Recorded so a redraw trigger can be priced in MANA PER EXTRA FISH rather
+   * than in catch rate alone. A trigger that buys +2pp catch for a third of
+   * the cast's mana budget is not obviously good, and catch rate on its own
+   * cannot say so — which is how the 1.29-turns-per-cast calibration passed
+   * whatever look it got at the time.
+   */
+  redrawMana: number;
 }
 
 export interface FishPolicyContext {
@@ -189,6 +201,43 @@ export function makeMatcherFishPolicy(
 }
 
 export const matcherFishPolicy: FishPolicy = makeMatcherFishPolicy(REDRAW_THRESHOLD);
+
+/**
+ * [session 72 §2] The same policy with the RE-DERIVED redraw trigger — see
+ * `cardChoice.ts`'s `shouldRedrawOnConnect`. Identical in every other respect
+ * to `makeMatcherFishPolicy`, so an A/B between them isolates the trigger and
+ * nothing else.
+ *
+ * **This exists because the replay cannot score a redraw's consequence.** The
+ * corpus has no draw pile — `fullDeck` is a canonical sorted list and 0 of 56
+ * refills match a slice of it — so only a simulator can deal the replacement
+ * cards. `scripts/redrawTriggerCalibration.ts` §5 is the one caller, and it
+ * labels the result as the simulator's claim rather than the replay's.
+ *
+ * NOT WIRED LIVE and not the default. `liveFishing.ts` still calls
+ * `shouldRedraw`, and `redrawEnabled` is still false.
+ */
+export function makeConnectRedrawFishPolicy(
+  connectThreshold: number,
+  heuristicsEnabled: boolean = true,
+  focusReserveWeight: number = 0,
+): FishPolicy {
+  return {
+    name: `matcher-connect(redraw=${connectThreshold},w=${focusReserveWeight})`,
+    act(ctx) {
+      const missPenaltyMultiplier = 1;
+      const best = chooseCard(ctx.hand, ctx.mana, ctx.dist, ctx.gridSize, missPenaltyMultiplier, ctx.fishHp, ctx.focusBudget, heuristicsEnabled, focusReserveWeight);
+      if (!best) {
+        if (ctx.mana >= ctx.hand.length && ctx.hand.length > 0) return { type: "redraw" };
+        return { type: "pass" };
+      }
+      if (shouldRedrawOnConnect(best, ctx.hand.length, ctx.mana, connectThreshold) && ctx.mana >= ctx.hand.length) {
+        return { type: "redraw" };
+      }
+      return { type: "play", handIndex: best.handIndex, focus: best.focus };
+    },
+  };
+}
 
 export interface CastOptions {
   seed: number;
@@ -404,6 +453,7 @@ export function simulateCast(opts: CastOptions): CastResult {
   let focusOilHeld = opts.oils?.focusOilHeld ?? 0;
   let relaxingOilHeld = opts.oils?.relaxingOilHeld ?? 0;
   const oilsUsed: OilKind[] = [];
+  let redrawMana = 0;
   // [session 70 §2a] See `observeTurn`. Reads the live locals at the moment it
   // is called and hands out a fresh object, so no caller can reach back in.
   //
@@ -426,7 +476,7 @@ export function simulateCast(opts: CastOptions): CastResult {
     // Before the mana check, so a mana-out cast records its terminal state the
     // same way a corpus trace does.
     record();
-    if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+    if (mana <= 0) return { outcome: "escaped_mana", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
     if (hand.length === 0) ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
 
     const ringOpts: RingModelOptions = opts.ringModel?.options ?? DEFAULT_RING_MODEL_OPTIONS;
@@ -527,7 +577,7 @@ export function simulateCast(opts: CastOptions): CastResult {
       // A lethal Relaxing Oil ends the cast HERE, before any card is played —
       // which is exactly why the lethal trigger is indifferent to `costsTurn`:
       // there is no next turn to lose.
-      if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+      if (fishHp <= 0) return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
       if (consumedThisTurn > 0 && opts.oils.costsTurn) {
         // The turn-cost branch: the fish moves and the turn burns, but no shot
         // is taken and NO MANA is spent — nothing in the payload or the
@@ -541,10 +591,11 @@ export function simulateCast(opts: CastOptions): CastResult {
     const action = opts.policy.act({ hand, mana, dist, gridSize, fishHp, focusBudget: focus }, rng);
 
     if (action.type === "pass") {
-      return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+      return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
     }
     if (action.type === "redraw") {
       mana -= hand.length;
+      redrawMana += hand.length;
       ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
       continue;
     }
@@ -581,14 +632,14 @@ export function simulateCast(opts: CastOptions): CastResult {
     // never comes back around to record it.
     if (fishHp <= 0) {
       record();
-      return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+      return { outcome: "caught", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
     }
     if (fishHp >= fishMaxHp) {
       record();
-      return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+      return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
     }
   }
-  return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed };
+  return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
 }
 
 function zoneToOffsets(

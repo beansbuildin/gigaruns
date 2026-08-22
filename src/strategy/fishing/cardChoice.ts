@@ -548,3 +548,77 @@ export function shouldRedraw(
   const bestEv = best?.ev ?? -Infinity;
   return bestEv < redrawThreshold && mana > redrawCost;
 }
+
+/**
+ * ── [session 72 §2] THE RE-DERIVED REDRAW TRIGGER ──────────────────────────
+ *
+ * **This is not a re-tune of `shouldRedraw`'s number. It is a different
+ * question asked of the hand**, and the brief was explicit that re-tuning the
+ * old constant was the failure mode to avoid.
+ *
+ * THE POSTMORTEM, in one line: §5 above records that the one prior calibration
+ * fired almost every turn, flipping the loss mix from 89% `escaped_meter` to
+ * 78% `escaped_mana` at a mean of **1.29 turns per cast**. Its stated cause is
+ * a mismatch of currency — the trigger tests `ev`, but `chooseCard` stopped
+ * maximizing EV in session 13 and now picks for hit probability, so a card can
+ * be the right pick and carry a legitimately low EV. A threshold calibrated to
+ * catch bad cards fires on good ones. **Tuning that constant cannot fix a
+ * currency mismatch; it can only move where the mismatch bites.**
+ *
+ * SO ASK THE RIGHT QUESTION. A redraw is worth its cost when the hand CANNOT
+ * CONNECT, not when the hand scores poorly per mana. The quantity that says so
+ * is the connect probability of the play the policy is about to make —
+ * `pHit + pCrit` — measured under the policy's own distribution, in the same
+ * currency the objective is already denominated in.
+ *
+ * **THE THRESHOLD IS DERIVED, NOT TUNED, AND THAT IS THE WHOLE POINT.** What
+ * you get by redrawing is a FRESH HAND, so the only defensible bar is the
+ * connect probability a fresh hand delivers. Redraw when this hand is worse
+ * than a fresh one by more than the mana is worth:
+ *
+ *     fire  <=>  pConnect  <  pFresh - manaPrice
+ *
+ * `pFresh` is measurable on real recorded turns (`scripts/
+ * redrawTriggerCalibration.ts` reads it off the era-matched replay; it is the
+ * mean `pConnect` on hands the server had just dealt). `manaPrice` is the
+ * margin that pays for `handSize` mana out of a 10-mana cast. Neither is a
+ * free parameter fitted to an outcome — which is exactly what the old
+ * threshold was, and why nobody could say what it meant.
+ *
+ * **Both degeneracies are reachable by construction and pinned by
+ * `tests/fishing/redrawTrigger.test.ts`**, mirroring `oilTiming.ts`'s
+ * `NEVER_FIRES_THRESHOLD` / `ALWAYS_FIRES_THRESHOLD` precedent. Since
+ * `pConnect` is a probability in [0, 1], a threshold of 0 can never fire and a
+ * threshold above 1 always fires — so the failure mode ON RECORD (fires every
+ * turn) is a specific, testable value rather than a thing to be careful about.
+ *
+ * NOT WIRED LIVE. `liveFishing.ts` still calls `shouldRedraw`, and redraw is
+ * still off. Shipping this is a live-policy change and the user's call.
+ */
+export function shouldRedrawOnConnect(
+  best: CardFocusChoice | null,
+  handSize: number,
+  mana: number,
+  connectThreshold: number,
+): boolean {
+  const redrawCost = handSize;
+  // A hand with no affordable/legal play connects with probability 0 — it is
+  // the strongest possible case for a redraw, not a case to skip. `-Infinity`
+  // (what `shouldRedraw` uses for `ev`) is not available to a probability, and
+  // 0 is both correct and in-range.
+  const pConnect = best ? best.pHit + best.pCrit : 0;
+  return pConnect < connectThreshold && mana > redrawCost;
+}
+
+/**
+ * A threshold `shouldRedrawOnConnect` can never fire at: `pConnect >= 0`
+ * always, so `pConnect < 0` is unsatisfiable. The never-redraw degeneracy.
+ */
+export const NEVER_REDRAW_CONNECT_THRESHOLD = 0;
+
+/**
+ * A threshold `shouldRedrawOnConnect` always fires at whenever the mana check
+ * passes: `pConnect <= 1` always, so `pConnect < 2` is unsatisfiable to
+ * violate. The always-redraw degeneracy — the failure mode on record.
+ */
+export const ALWAYS_REDRAW_CONNECT_THRESHOLD = 2;

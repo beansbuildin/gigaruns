@@ -159,6 +159,60 @@ export interface ReplayTurn {
   /** [session 50] Same question for the RECORDED policy's focus on this turn. */
   actualCovered: boolean;
   /**
+   * [session 72 §2] P(connect) of the play the policy is about to make —
+   * `choice.pHit + choice.pCrit`, under the policy's own distribution.
+   *
+   * **This is the currency the redraw trigger should be denominated in, and
+   * the reason is a postmortem, not a preference.** `shouldRedraw` tests
+   * `best.ev < REDRAW_THRESHOLD`. EV stopped being what `chooseCard`
+   * maximizes in session 13 — cards are picked for hit probability now — so a
+   * card can be the right pick and still carry a legitimately low EV. The one
+   * prior calibration of that threshold fired almost every turn and flipped
+   * the loss mix from 89% `escaped_meter` to 78% `escaped_mana` at a mean of
+   * 1.29 turns/cast (`cardChoice.ts` §5). A redraw is worth its cost when the
+   * hand CANNOT CONNECT, and this is that quantity, measured on real
+   * recorded turns rather than assumed.
+   *
+   * Recorded on every arm. It costs nothing — `chooseCard` already computes
+   * `pHit`/`pCrit` for the choice it returns — and it is inert unless a
+   * calibration reads it.
+   */
+  pConnect: number;
+  /**
+   * [session 72 §2] Cards in hand BEFORE this turn's play. A redraw costs one
+   * mana per card held, so this is the trigger's price, and a hand of 3 is
+   * also what marks a freshly-dealt hand. Recorded rather than inferred from
+   * `turn % 3` — the mod-3 rule follows from the "one card per turn, refill at
+   * empty" invariant and is true of every recorded play, but a derived
+   * quantity that could silently stop being true is not what a calibration
+   * should rest on.
+   */
+  handSize: number;
+  /**
+   * [session 72 §2] THE CEILING: the best `pConnect` any card in the cast's
+   * whole deck could reach on this turn's distribution, at any legal focus.
+   *
+   * **This is the confound check that decides whether a redraw trigger is
+   * worth anything at all**, and without it the calibration is circular. A low
+   * `pConnect` has two possible causes and they call for opposite actions:
+   *
+   *   (a) the HAND is bad — its cards' hitboxes are the wrong shape for where
+   *       the fish probably is. A fresh hand fixes this. Redraw.
+   *   (b) the DISTRIBUTION is flat — the policy does not know where the fish
+   *       is, so no card in any hand connects well. A fresh hand fixes
+   *       nothing and the redraw is 3 mana burned for the same shot.
+   *
+   * `pConnect` alone cannot tell them apart, and a trigger that fires on (b)
+   * is the 1.29-turns-per-cast failure again with a different number on it.
+   * The ceiling separates them: `ceiling - pConnect` is the headroom a perfect
+   * redraw could actually buy. Near zero, the turn is case (b).
+   *
+   * Computed by running the SAME `chooseCard` over the whole deck instead of
+   * the hand — an upper bound a real 3-card redraw would rarely reach, which
+   * is the conservative direction for a trigger that wants to fire.
+   */
+  pConnectCeiling: number;
+  /**
    * [session 51 §3] The weight the matcher tier actually received on this
    * turn — the fixed `1 - ringFloor` under the shipped arm, the posterior
    * under `matcherPosterior`, and 0 when there was no matcher distribution
@@ -525,6 +579,23 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       outcome = "no_affordable_card";
       break;
     }
+    // [session 72 §2] The ceiling — see `ReplayTurn.pConnectCeiling`. Same
+    // call, whole deck instead of the hand, so hand quality is the only thing
+    // that differs between it and `choice`.
+    const deckCards = [...target.cards.values()].map(toCardLike);
+    const deckBest = chooseCard(
+      deckCards,
+      mana,
+      dist,
+      gridSize,
+      missPenaltyMultiplier,
+      fishHp,
+      focus,
+      true,
+      focusReserveWeight,
+      constraint,
+    );
+    const pConnectCeiling = deckBest ? deckBest.pHit + deckBest.pCrit : 0;
     // [session 50, brief §2] The expected-coverage placement, applied AFTER
     // the unconstrained EV pick so a lethal placement is never overridden.
     // Re-running `chooseCard` restricted to the coverage cell is what keeps
@@ -622,6 +693,9 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       covered: covers(choice.focus, actual),
       actualCovered: covers(rec.focusPoint, actual),
       matcherWeight: matcherOnRing ? matcherWeightHere : 0,
+      pConnect: choice.pHit + choice.pCrit,
+      handSize: hand.length,
+      pConnectCeiling,
     });
 
     history.push(actual);
