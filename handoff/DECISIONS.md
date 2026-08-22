@@ -865,3 +865,51 @@ the other stands and is the one that matters (rule 4). The re-run also yields
 the harness's own noise floor for free: two arms that are the SAME deck differ
 by 1.93pp at 4000 casts, so only 10 of 80 arms clear their own noise and rank
 order below those means nothing.
+
+2026-08-22 (session 79 §2) — **The shuffle was the first NAMED candidate cause
+of OIL-POLICY §0a's gap, it was tested, and §0a is NOT lifted.**
+`focusProfileCheck.ts` gains `--sequential-pile` so the two draw models can be
+compared with exactly one thing different. The live-config arm's per-turn focus
+profile essentially closed (worst turn discrepancy 0.92 → 0.16 focus points,
+the largest single improvement to this instrument measured so far). The BARE
+arm — which is what every Δ in OIL-POLICY was computed on — did not move where
+it counts: meter-out 0.6% → 0.6% against a fishery at 63.0% pooled, catch 91.5%
+→ 81.2% against a real 27.6%. The verdict is still FAIL, now in the opposite
+direction (the sim overshoots today's-era opening spend at 1.27 against
+[0.57, 1.02] where it used to undershoot at 0.53). **+19.40pp still may not be
+quoted, the oil sweep was NOT re-run** (§0a forbids it on this instrument by
+name, and eliminating one cause does not change that), and `policyApproved`
+stays false. What this buys is elimination: the fishery's difficulty does not
+live in the deck model, measured rather than assumed.
+
+2026-08-22 (session 79 §3) — **`loot` joins the transaction protocol; the other
+three in-cast writes do NOT, on a measurement rather than on appetite.** Loot is
+the only in-cast write that is both irreversible (it grows `fullDeck`
+permanently and an unresolved offer strands the account) and recoverable (it is
+the LAST action of a cast, so there is no action-token chain left to desync). An
+APPLIED-but-lost loot used to throw `GuardTrip("fishing loot rejected")`,
+telling the caller the account was stranded when the pick had landed. It now
+returns true. `play_cards`, redraw and `use_fishing_item` stay unrouted:
+session 65 measured live (cast 13019682) that the server ADVANCES its action
+token on a REJECTED request while the client never sees the new value, and `GET
+/fishing/state` carries no `actionToken` to resync from — so mid-cast the cast
+is over either way and reconciliation could only change the wording of the stop,
+at the cost of one extra request per failure. **What would change that is a
+capture — an endpoint returning a fresh actionToken for an in-progress cast —
+not a refactor.**
+
+2026-08-22 (session 79 §4) — **Three live fishing casts, user-approved, and
+they corrected two things committed earlier the same day.** (a) A looted card is
+APPENDED to `fullDeck` — CAPTURE-3's literal question, answered live — and it
+carries no draw consequence: the appended card was drawn on turn 6 of the next
+cast and was in the OPENING HAND of the one after. (b) **The pile EXHAUSTS and
+the cursor WRAPS**, in 7 of 131 casts, exactly `(idx + handSize) %
+deck.length`; the morning's "the pile never exhausts" came from
+`nextCardIndex > fullDeck.length` being zero, and that predicate cannot see the
+event because the server wraps rather than overflows — CLAUDE.md rule 10 in
+miniature. (c) **`cardChosenId` has THREE states**: null/absent while an offer
+is pending, a real id once picked, and `-1` on a cast that never offered (92 of
+129 states). The loot predicate's first draft tested `!= null` and would have
+read the sentinel as a landed pick — i.e. reported a stranded account as
+resolved. Fixed to `> 0` and pinned. What remains unobserved is narrower:
+whether the pile is RE-SHUFFLED at the wrap.

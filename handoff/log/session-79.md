@@ -1,4 +1,6 @@
-# STATE — session 79 — 2026-08-22 (PT 2026-08-22) — code at commit 6c51176
+# SESSION 79 — 2026-08-22 — the deck is shuffled
+
+*Copy of STATE.md at handoff, plus the verbose material below it.*
 
 ## Status
 **GATE 1 PASS. GATE 2 PASS.** Suite **1529/1529** (was 1511), 91 files,
@@ -164,3 +166,182 @@ vacuous**, `discoveredShipsClean` passes.
        handoff/DECISIONS.md                +44
        scripts/focusProfileCheck.ts        +42  --sequential-pile
 ```
+
+
+---
+
+# Verbose appendix
+
+## A. The measurement, in full — 129 opening hands (132 after the live batch)
+
+Predicate: every committed live fishing state where `nextCardIndex ===
+hand.length`, i.e. the pile has been read exactly as far as the hand is wide.
+Re-derived independently of the brief before anything was built.
+
+```
+BEFORE the session's own three casts:
+  states carrying a draw pile                   721
+  opening hands                                 129
+  hand === fullDeck[0..2]                         0     ← sequential predicts 129
+  distinct fullDeck orderings                    38
+  nextCardIndex > fullDeck.length                 0     ← see §C: this predicate is blind
+
+AFTER:
+  states 741   opening hands 132   sequential 0   orderings 39
+```
+
+Three opening hands from one directory on one deck `[1,2,3,4,5,6,7,76,77,79]`:
+
+```
+  state-000   hand [6, 3, 1]     nextCardIndex 3   discard []
+  state-006   hand [2, 77, 1]    nextCardIndex 3   discard []
+  state-009   hand [79, 76, 4]   nextCardIndex 3   discard []
+```
+
+Position counts on that deck, 31 opening hands:
+
+```
+  pos          0    1    2    3    4    5    6    7    8    9
+  card id      1    2    3    4    5    6    7   76   77   79
+  in opening  13    8    5   16    6   10    7   13    7    6      / 31
+
+  uniform shuffle predicts 9.3 each  →  chi-square 13.47, 9 df, crit 16.92, NOT rejected
+  sequential-from-0 predicts         →  31, 31, 31, 0, 0, 0, 0, 0, 0, 0
+```
+
+The chi-square is a CONSISTENCY check, not a significance test — three cards are
+drawn without replacement per hand, so the per-position counts are not
+independent. The falsification rests on the support test (0/129), which needs no
+distributional assumption. Both are stated that way in `drawModel.ts`.
+
+## B. Sim-vs-live, the statistic the old model fails
+
+```
+                            chi-square of live counts against the model's shares
+  shuffled sim (4000 casts)          14.08     crit 16.92 at 9 df → not rejected
+  sequential sim (4000 casts)     Infinity     the model gives probability 0 to
+                                               positions the live data occupies
+```
+
+Simulated position counts, shuffled, 4000 casts:
+`[1200, 1200, 1176, 1196, 1218, 1143, 1205, 1209, 1176, 1277]`, tail share 0.7020
+(uniform predicts 0.70). Sequential, same seeds: `[n, n, n, 0, 0, 0, 0, 0, 0, 0]`.
+
+## C. The rule-10 trap I walked into, and the field that could not report it
+
+The first commit of the day asserted "the draw pile never exhausts in the
+corpus", from `nextCardIndex > fullDeck.length` being **0** across 721 states
+(max ratio 0.92). That is true and it means nothing: the server WRAPS the cursor
+rather than overflowing it, so exhaustion is invisible to an overflow test. The
+right detector is a DECREASE within one cast, ordered by the server's own
+`updatedAt`:
+
+```
+  12923274   9 -> 2  of 10    cast-2026-08-15-20-38-13/state-024.json
+  12975713   9 -> 2  of 10
+  12975717   9 -> 2  of 10
+  12978000   9 -> 1  of 11
+  12978003   9 -> 1  of 11
+  12988710   9 -> 1  of 11
+  (+1 more)                    7 of 131 casts
+```
+
+Every one satisfies `to === (from + 3) % deckLength` — `drawHand`'s own
+arithmetic. So the wraparound is validated in FORM and does fire on real decks.
+Six of the seven predate today. **The data was there the whole time; the
+predicate could not express the question.**
+
+## D. The deck sweep, re-run — full head of the table
+
+```
+  baseline (23-card held deck):  catch 0.0%  hit 36.42%  meanTurns 4.39  meanFinalFishHp 13.62
+
+  CONTROL — append vs prepend, which the shuffle should have made equivalent
+    mean |append − prepend| hit rate   1.93pp     ← the harness's own noise floor
+    max                                2.59pp
+    spread across appended arms        9.09pp
+    (session 78 measured this pair at 0.00pp and up to 19.91pp — that asymmetry
+     WAS the sequential pile)
+
+  rank  card                 appended hit%    Δhit   prepended Δhit   mana
+     1  +25  (r4, 1m)              45.82    9.40             7.34     1
+     2  +16  (r0, 1m)              44.76    8.34             6.11     1
+     3  +109 (r3, 1m)              43.26    6.84             4.96     1
+     4  +18  (r2, 1m)              43.26    6.84             4.96     1
+     5  +99  (r2, 1m)              43.26    6.84             4.96     1
+     ...
+    10  +17  (r1, 0m)              40.51    4.09             2.62     0
+    11  +24  (r3, 1m)              38.31    1.89            -0.16     1   ← below the floor
+     ...
+    62  +110 (r4, 1m)              37.02    0.60            -1.35     1   ← chooseNewCard's pick
+     ...
+    80  +97  (r2, 1m)              36.73    0.31            -1.42     1
+
+  10 of 80 arms beat the baseline by more than the 1.93pp control gap.
+  The rest are inside the harness's own noise and their ORDER means nothing.
+
+  chooseNewCard (damage/mana):  card 110
+  composition argmax:           card 25
+  → 62/80, 8.80pp behind, 4.6x the control gap. SUSPENDED (§0a). UNTOUCHED.
+```
+
+## E. The profile check, both draw models, 4000 casts/arm
+
+```
+                        sequential      shuffled     corpus
+  live-config arm
+    focus, turn 0..3    3.00 2.47 1.88 1.21   3.00 1.73 0.98 0.51   3.00 1.63 0.97 0.52
+    Δ, turns 1-3        +0.84 +0.92 +0.69     +0.10 +0.01 -0.01     —
+    opening spend       0.53            1.27         1.37 pooled; 0.79 [0.57,1.02] today
+    meter-out           27.3%           29.3%        63.0% pooled;  33.3% today
+    catch               32.7%           20.6%        28.3% (pools oil + non-oil)
+    turns at focus 0    38.5%           54.7%        43.0%
+  bare arm — what every OIL-POLICY Δ was computed on
+    meter-out           0.6%            0.6%         63.0% / 33.3%
+    catch               91.5%           81.2%        27.6%
+
+  VERDICT: *** FAIL *** both ways. §0a NOT lifted.
+```
+
+## F. The three live casts
+
+```
+  cast 1  13039914   CAUGHT in ~4 turns.  loot: offered (38, 48, 37) → chose 38
+  cast 2  13039923   escaped after 10 turns.  cardChosenId -1 on the terminal doc
+  cast 3  13039932   CAUGHT in 2 turns.   loot: offered (41, 48, 10) → chose 10
+
+  fullDeck  [74,75,76,78,1,2,3,4,5,6]  →  [74,75,76,78,1,2,3,4,5,6,38]   ← APPENDED
+  card 38 then appears in cast 2's turn-6 hand and in cast 3's OPENING hand.
+
+  energy 39 → 28 → 16 → 4.  One accounting drift note on cast 1 (committed 12 vs
+  observed 11) — the guard enforces off committed spend by design (CODEXREVIEW #8),
+  and a ROM claim landing mid-run is the stated benign cause.
+
+  ledger check (rule 13):  GAME dayDocs pond 2 = 3/20, REPO 3 casts — agree.
+```
+
+## G. Corpus pin churn from the live batch, itemised
+
+Five test files carry hard-pinned corpus counts. Each was updated with what
+moved AND what did not, because the second half is the finding:
+
+```
+  fishingCorpus:  casts 128→131, responseDocs 721→741, playTurns 537→552,
+                  caught 36→38, escaped 91→92, incomplete unchanged at 1
+  zoneTemplate:   traces 128→131, clean 127→130 (still trails by exactly one),
+                  clean play turns 533→548, caught 36→38
+  stateFields:    corrected.crits 24→25
+  oilReachability: casts 128→131, decisionPoints 549→564, neitherReachable 58→61
+                  (ALL THREE new casts reach neither trigger),
+                  relaxingReachable STILL 12 across three consecutive batches,
+                  focusReachable STILL 65, terminalMeterZero STILL 68
+```
+
+## H. What the next session should NOT re-derive
+
+- The 129/132 opening-hand measurement — `deckShuffle.test.ts` re-derives it on
+  every run and will say so if it ever stops holding.
+- The pre-session-79 simulator's figures — pinned as literals (0.4075 / 13.255 /
+  0 for the held deck, 0.86 / 0.7768969422423556 for the sampled path).
+- The append/prepend control gap — printed by the sweep every run.
+- CAPTURE-3. Closed. Do not spend casts on it.
