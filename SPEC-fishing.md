@@ -871,6 +871,53 @@ discriminator: in ordinary play the hand SHRINKS turn over turn (fixture
 currently held** (1, 2 or 3) and **always returns 3 new cards** regardless of
 how many were held.
 
+### The fish takes NO damage on a redraw — and it does not heal either
+
+**User confirmation, 2026-08-21 (session 74), from their own play.** The
+complete cost of a redraw is: **mana equal to the number of cards held, and
+the fish moves.** Nothing happens to `fishHp` in either direction.
+
+**This retracts a reading the session-74 brief proposed, and the retraction is
+recorded so it is not proposed a third time.** That brief pointed at a DevTools
+capture (doc `13025041`) whose events were `FISH_MOVED` / `CARD_PLAYED value 0
+result 0` / `FISH_HP_DIFF value -3 result 10` / `NEW_HAND [4, 38, 75]`, and read
+the `-3` with `result: 10` as `fishHp` going 7 → 10 — the fish **healing** 3 on
+a redraw. The brief flagged its own attribution gap honestly: the response and
+the `cards: []` request payload came from **different calls**, captured on
+separate manual casts, and it noted that a `CARD_PLAYED result 0` with a −3 heal
+is otherwise indistinguishable from an ordinary MISS whose card carries
+`missEffects`. The account owner's direct observation resolves it that way: the
+heal belonged to a miss, not to a redraw. Treat the three-card `NEW_HAND` as the
+only reliable redraw discriminator in that capture, and the `FISH_HP_DIFF` row
+as unattributed.
+
+### What `castSim` charges for a redraw — audited [session 74 §5a]
+
+`src/sim/fishing/castSim.ts`, the `action.type === "redraw"` branch, against
+the mechanic above:
+
+| charge | sim | correct? |
+|---|---|---|
+| mana | `mana -= hand.length` | ✓ 1 per card held |
+| new hand | `drawHand(deck, drawIdx, 3)` | ✓ always 3 |
+| `fishHp` | untouched | ✓ no damage **and** no heal |
+| the fish's position | **unchanged** | ✗ **WRONG — the fish should step** |
+
+The branch `continue`s, which skips both `matcher = observe(...)` and the
+`turn++` under it, so `trueTrajectory[matcher.turn]` returns the **same cell**
+on the next iteration. **A redraw in the sim is time-free.**
+
+**The direction of the error is what matters, and it does not reopen redraw.** A
+free fish step makes the sim's redraw strictly cheaper than the real one, so
+session 72's **263 mana per extra fish** and its `escaped_mana` **18.8% →
+39.8%** are both **understatements** of the true cost. Redraw stays CLOSED, and
+this pushes the cost up rather than down. Fixing the model means advancing the
+trajectory index on a redraw and re-deriving 263 — deferred out of session 74
+under its brief's ship-nothing posture, not because it is unimportant.
+
+Note this is the same missing step already recorded as unresolved item 1 below
+(the matcher observation), seen from the sim side rather than the live side.
+
 ### ⚠ The hazard this creates, and the guard for it
 
 **A redraw is indistinguishable on the wire from a play that failed to choose a

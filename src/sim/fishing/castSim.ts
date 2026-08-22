@@ -594,6 +594,34 @@ export function simulateCast(opts: CastOptions): CastResult {
       return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
     }
     if (action.type === "redraw") {
+      // [session 74 §5a] AUDITED AGAINST THE REAL MECHANIC, and two of three
+      // charges are right. User confirmation, 2026-08-21, from their own play:
+      // a redraw costs 1 mana per card HELD, always returns 3, **does not
+      // damage or heal the fish**, and **the fish MOVES**.
+      //
+      //   mana  -= hand.length   ✓ correct
+      //   fishHp  untouched      ✓ correct — no damage AND no heal
+      //   drawHand(.., 3)        ✓ correct
+      //   the fish's position    ✗ WRONG — see below
+      //
+      // `continue` skips `matcher = observe(...)` and the `turn++` beneath it,
+      // so `trueTrajectory[matcher.turn]` yields the SAME cell on the next
+      // iteration. A redraw here is time-free: the sim's fish stands still
+      // while the real one steps.
+      //
+      // The direction of the error is the part that matters. A free step makes
+      // the redraw strictly CHEAPER in sim than in play, so session 72's
+      // "263 mana per extra fish" and its `escaped_mana` 18.8% -> 39.8% are
+      // both UNDERSTATEMENTS of the true cost. That strengthens the CLOSED
+      // verdict on redraw rather than reopening it, which is why this is
+      // recorded and NOT fixed in the session that found it (brief §3/§7:
+      // ship nothing while the `pConnect` diagnosis is open). Fixing it means
+      // advancing the trajectory index on a redraw and re-deriving 263.
+      //
+      // NOTE what this is NOT. The session-74 brief read a DevTools capture
+      // (`FISH_HP_DIFF: -3`, `result: 10`) as a redraw HEALING the fish 3 and
+      // asked whether the sim was missing that. It is not, and there is no
+      // heal — see SPEC-fishing §7a.
       mana -= hand.length;
       redrawMana += hand.length;
       ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
