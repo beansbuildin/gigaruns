@@ -293,6 +293,15 @@ function main(): void {
   console.log(`  opening spend       corpus ${corpus.openingSpend.toFixed(2)}    sim ${live.openingSpend.toFixed(2)}`);
   console.log(`  turns at focus 0    corpus ${(corpus.zeroTurnShare * 100).toFixed(1)}%   sim ${(live.zeroTurnShare * 100).toFixed(1)}%`);
   console.log(`  catch rate          corpus ${(corpus.catchRate * 100).toFixed(1)}%   sim ${(live.catchRate * 100).toFixed(1)}%`);
+  // [session 72 §1] DO NOT READ THE CATCH ROW AS A SIM VERDICT. Both sim arms
+  // here are built without an `oils` key, so they are NO-OIL simulators; the
+  // corpus rows pool oil and non-oil casts together. Session 71 read this row
+  // as "the simulator's catch rate is the open disagreement, worse than the
+  // focus profile" — comparing a no-oil sim against an era 12 of whose 35
+  // casts spent an oil. Split like for like and the sim lands INSIDE the live
+  // no-oil arm's interval (24.7% vs 42.9%, 95% [24.5%, 63.5%]) — by 0.2pp.
+  // scripts/oilArmCatchCheck.ts is that comparison; read it before quoting this.
+  console.log(`    ⚠ this row pools oil + non-oil casts against a NO-OIL sim — see scripts/oilArmCatchCheck.ts`);
 
   // ── §4. The verdict is COMPUTED, not narrated. The test is an interval one:
   // does the sim's opening spend land inside the corpus's 95% interval for the
@@ -322,8 +331,17 @@ function main(): void {
     console.log(`  comparison against a pool 88/123 composed of retired policies, not a sim fault.`);
     console.log("");
     console.log(`  READ THE INTERVAL BEFORE CELEBRATING: n=${tc.n} makes it ${(tc.hi - tc.lo).toFixed(2)} wide. This is`);
-    console.log(`  "not refuted at n=${tc.n}", not "reproduced". And the CATCH RATE still disagrees badly`);
-    console.log(`  — sim ${(live.catchRate * 100).toFixed(1)}% against today's era's ${(todaysEra.catchRate * 100).toFixed(1)}% — so the sim is NOT cleared in general.`);
+    console.log(`  "not refuted at n=${tc.n}", not "reproduced".`);
+    // [session 72 §1] SUPERSEDED. This block used to end "and the CATCH RATE
+    // still disagrees badly — sim X% against today's era's Y% — so the sim is
+    // NOT cleared in general", and session 71's recap carried that forward as
+    // its headline open problem. The comparison was wrong in the same way the
+    // one it had just corrected was wrong: `live` here is a NO-OIL sim arm and
+    // today's era is 12/35 oil casts. Against the live NO-OIL arm the sim is
+    // inside the interval. The catch rate is no longer the open disagreement.
+    console.log(`  The CATCH RATE line that used to end this block is RETRACTED — it compared this`);
+    console.log(`  no-oil sim (${(live.catchRate * 100).toFixed(1)}%) against an era pooling oil casts (${(todaysEra.catchRate * 100).toFixed(1)}%). Like for like it is`);
+    console.log(`  inside the live no-oil arm's interval, by 0.2pp. See scripts/oilArmCatchCheck.ts.`);
     console.log("");
     // [session 71 §2] The comparison SPANS THE MAKESHIFT/SHROOM BREAK and must
     // say so. The sim arm below is the Shroom deck as of this session's
