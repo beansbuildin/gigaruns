@@ -89,3 +89,43 @@ export function serverErrorDetail(e: unknown): { message: string; body?: string 
   }
   return { message: (e as Error).message };
 }
+
+/**
+ * [session 78, §1 / CODEXAUG22REVIEW M1] The request outlived its deadline and
+ * was aborted. Before this existed there was no deadline at all: `raw()` called
+ * `fetch()` with no signal, inside the client's ONE mutex, whose own header says
+ * "a second concurrent request can only race it, never help it." So a stalled
+ * socket did not slow the bot down — it stopped it permanently, holding the
+ * lock, with no guard able to fire. `maxConsecutiveActionFailures` never counts,
+ * no `GuardTrip` throws, the process simply never returns. CLAUDE.md §5 says a
+ * stopped bot costs nothing; a HUNG bot is not a stopped bot, and this is the
+ * error that turns one into the other.
+ *
+ * `ambiguousWrite` is the field callers must respect. On a GET an abort proves
+ * nothing was written and a bounded retry is safe. On a POST it proves nothing
+ * at all — the request may have been fully applied server-side with only the
+ * response lost, which is the same shape session 08 measured directly
+ * (`reward_one` returned HTTP 500 with `pickedBoons` already grown). So a POST
+ * timeout is NOT evidence the action did not land, and any caller reading it as
+ * "did not apply" repeats CLAUDE.md rule 13's mistake at machine speed. Route it
+ * through `runActionTransaction` (src/api/actionTransaction.ts) instead.
+ */
+export class RequestTimeoutError extends Error {
+  /** True for every method except GET — see the class comment. */
+  public readonly ambiguousWrite: boolean;
+
+  constructor(
+    public readonly method: string,
+    public readonly path: string,
+    public readonly timeoutMs: number,
+  ) {
+    super(
+      `${method} ${path} exceeded its ${timeoutMs}ms deadline and was aborted` +
+        (method === "GET"
+          ? " — a GET abort proves nothing was written."
+          : " — an aborted write is AMBIGUOUS: it may have applied server-side with only the response lost."),
+    );
+    this.name = "RequestTimeoutError";
+    this.ambiguousWrite = method !== "GET";
+  }
+}

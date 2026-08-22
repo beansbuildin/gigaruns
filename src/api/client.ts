@@ -13,7 +13,7 @@
 
 import type { z } from "zod";
 import { loadJwt, mask } from "./auth.js";
-import { TokenExpiredError, RateLimitedError, UnexpectedResponseError } from "./errors.js";
+import { TokenExpiredError, RateLimitedError, UnexpectedResponseError, RequestTimeoutError } from "./errors.js";
 import {
   UserMeSchema,
   AccountSchema,
@@ -50,6 +50,37 @@ const MIN_GAP_MS = 1200;
 const JITTER_MS = 400;
 const BACKOFF_START_MS = 5000;
 const MAX_429_RETRIES = 5;
+
+/**
+ * [session 78, §1 / CODEXAUG22REVIEW M1] Every request's deadline. Not a round
+ * number picked for looking reasonable — derived from this file's own measured
+ * constants, because a deadline set below the action-token window converts a
+ * slow-but-fine request into an abort, which is a worse failure than the one it
+ * prevents:
+ *
+ *   action-token window   ~5000ms   (CLAUDE.md §7, and `RequestPacing` below)
+ *   observed latency      720-1780ms, median 1450 (session 53, ten run logs)
+ *
+ * 10s is 2x the token window and ~5.6x the slowest response this repo has ever
+ * recorded, so nothing that was going to succeed gets cut off. Anything past it
+ * has already missed the window it was racing: the token it carries is stale by
+ * construction, so waiting longer cannot turn it into a success.
+ *
+ * The deadline covers headers AND body — `res.text()` can stall just as
+ * completely as the connect — which is why the whole attempt is raced rather
+ * than only the `fetch()` call.
+ */
+const REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * A GET that times out is retried this many extra times before throwing. A GET
+ * is idempotent and the abort proves nothing was written, so retrying is free
+ * of the ambiguity a POST retry carries; bounded at 1 so a persistently dead
+ * endpoint still fails closed rather than looping (CLAUDE.md §5). The rate
+ * limiter already spaces the two attempts by the usual 1200ms + jitter, so no
+ * extra delay is added here.
+ */
+const MAX_GET_TIMEOUT_RETRIES = 1;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -192,18 +223,32 @@ export class GigaverseClient {
     init?: RequestInit,
     pacing?: RequestPacing,
   ): Promise<{ status: number; text: string }> {
+    const method = (init?.method ?? "GET").toUpperCase();
     return this.mutex.run(async () => {
       let attempt = 0;
+      let timeouts = 0;
       for (;;) {
         await this.limiter.wait(pacing);
-        const res = await fetch(`${this.base}${path}`, {
-          ...init,
-          headers: {
-            ...(init?.headers ?? {}),
-            Authorization: `Bearer ${this.jwt}`,
-          },
-        });
-        const text = await res.text();
+
+        let res: { status: number; text: string };
+        try {
+          res = await this.fetchWithDeadline(path, method, init);
+        } catch (e) {
+          // [session 78, §1] A GET abort proves nothing was written, so it may
+          // be retried under a BOUNDED policy. A POST abort proves nothing at
+          // all and is rethrown untouched for the caller's transaction helper
+          // to reconcile — retrying it here is exactly the blind replay
+          // CODEXAUG22REVIEW H1 is about.
+          if (
+            e instanceof RequestTimeoutError &&
+            !e.ambiguousWrite &&
+            timeouts < MAX_GET_TIMEOUT_RETRIES
+          ) {
+            timeouts++;
+            continue;
+          }
+          throw e;
+        }
         this.limiter.noteResponse();
 
         if (res.status === 429) {
@@ -212,9 +257,63 @@ export class GigaverseClient {
           await sleep(BACKOFF_START_MS * 2 ** (attempt - 1));
           continue;
         }
-        return { status: res.status, text };
+        return res;
       }
     });
+  }
+
+  /**
+   * [session 78, §1 / CODEXAUG22REVIEW M1] One `fetch` under a hard deadline.
+   *
+   * Two mechanisms, deliberately both:
+   *  1. `AbortController` — tears the socket down, so a stalled connection is
+   *     actually released rather than left dangling behind a returned promise.
+   *  2. `Promise.race` against a timer — so `raw()`'s own return is bounded
+   *     even if the fetch implementation ignores the signal. The point of this
+   *     method is that the caller CANNOT hang; depending on the abort being
+   *     honoured would make that guarantee conditional on the one thing we
+   *     cannot observe from here.
+   *
+   * The race covers `res.text()` as well as the `fetch()`, because a response
+   * whose headers arrive and whose body stalls hangs just as completely.
+   */
+  private async fetchWithDeadline(
+    path: string,
+    method: string,
+    init?: RequestInit,
+  ): Promise<{ status: number; text: string }> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new RequestTimeoutError(method, path, REQUEST_TIMEOUT_MS));
+      }, REQUEST_TIMEOUT_MS);
+    });
+
+    const attempt = (async () => {
+      const res = await fetch(`${this.base}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          ...(init?.headers ?? {}),
+          Authorization: `Bearer ${this.jwt}`,
+        },
+      });
+      const text = await res.text();
+      return { status: res.status, text };
+    })();
+
+    // An abandoned attempt still rejects later (the abort lands on it); without
+    // this it surfaces as an unhandled rejection and can kill the process.
+    attempt.catch(() => {});
+
+    try {
+      return await Promise.race([attempt, deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**

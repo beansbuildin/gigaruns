@@ -10,7 +10,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { RateLimitedError, TokenExpiredError, UnexpectedResponseError, serverErrorDetail } from "../../src/api/errors.js";
+import {
+  RateLimitedError,
+  RequestTimeoutError,
+  TokenExpiredError,
+  UnexpectedResponseError,
+  serverErrorDetail,
+} from "../../src/api/errors.js";
 
 describe("serverErrorDetail", () => {
   it("carries the server's own body for an UnexpectedResponseError", () => {
@@ -36,6 +42,17 @@ describe("serverErrorDetail", () => {
     const d = serverErrorDetail(new RateLimitedError(5));
     expect(d.body).toBeUndefined();
     expect(d.message).toContain("Rate limited");
+  });
+
+  it("carries a timeout's own message — there is no server body when nobody answered", () => {
+    // [session 78, §1] A `RequestTimeoutError` has no `.body` by construction:
+    // the whole failure is that the server never said anything. The fallback
+    // branch is what every live call site logs on a stall, so it must carry the
+    // method and path — a bare "timed out" would not say WHICH request hung.
+    const d = serverErrorDetail(new RequestTimeoutError("POST", "/game/dungeon/action", 10_000));
+    expect(d.body).toBeUndefined();
+    expect(d.message).toContain("/game/dungeon/action");
+    expect(d.message).toContain("10000ms");
   });
 
   it("is safe on a plain Error, so call sites can use it unconditionally", () => {

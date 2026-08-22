@@ -7,7 +7,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GigaverseClient } from "../../src/api/client.js";
-import { TokenExpiredError, UnexpectedResponseError, RateLimitedError } from "../../src/api/errors.js";
+import {
+  TokenExpiredError,
+  UnexpectedResponseError,
+  RateLimitedError,
+  RequestTimeoutError,
+} from "../../src/api/errors.js";
 
 const okMe = { address: "0xabc", canEnterGame: true };
 
@@ -340,6 +345,184 @@ describe("GigaverseClient", () => {
     await vi.runAllTimersAsync();
     await Promise.all([p1, p2]);
     expect(maxInFlight).toBe(1);
+  });
+
+  /**
+   * [session 78, §1 / CODEXAUG22REVIEW M1] The request deadline.
+   *
+   * The defect these pin is not "requests are slow" — it is that `raw()` had no
+   * deadline at all while holding the client's ONE mutex, so a single stalled
+   * socket stopped the bot permanently with no guard able to fire. CLAUDE.md §5
+   * says a stopped bot costs nothing; a hung bot is not a stopped bot.
+   *
+   * Every test here stalls the socket for real rather than reading the code.
+   */
+  describe("request deadline", () => {
+    const actionBody = {
+      action: "reward_one" as const,
+      dungeonId: 5,
+      actionToken: "" as const,
+      data: { consumables: [], isJuiced: false, index: 0 },
+    };
+
+    /** A fetch that never resolves and IGNORES the abort signal — the worst case. */
+    const deafStall = () => vi.fn(() => new Promise<Response>(() => {}));
+
+    /** A fetch that stalls but honours the signal, as a real `fetch` does. */
+    const politeStall = () =>
+      vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => reject(new Error("The operation was aborted.")));
+          }),
+      );
+
+    it("aborts a stalled GET with a typed RequestTimeoutError rather than hanging", async () => {
+      vi.stubGlobal("fetch", politeStall());
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getMe();
+      const assertion = expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
+
+    it("bounds a fetch that ignores the abort signal too — the guarantee cannot be conditional", async () => {
+      // If `raw()` only aborted and awaited the fetch, a non-cooperating fetch
+      // would still hang forever. The race is what makes the deadline a
+      // property of THIS file rather than of the fetch implementation.
+      vi.stubGlobal("fetch", deafStall());
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getMe();
+      const assertion = expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
+
+    it("passes an abort signal to fetch, so the stalled socket is actually torn down", async () => {
+      const fetchMock = politeStall();
+      vi.stubGlobal("fetch", fetchMock);
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getMe().catch(() => "timed out");
+      await vi.runAllTimersAsync();
+      expect(await p).toBe("timed out");
+      const init = fetchMock.mock.calls[0]![1] as RequestInit;
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      expect(init.signal!.aborted).toBe(true);
+    });
+
+    it("RELEASES THE MUTEX on timeout — the next request still goes out", async () => {
+      // The defect in one assertion. A stalled request used to keep the mutex
+      // forever, so this second call would never have reached `fetch` at all.
+      let calls = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((_url: string, init?: RequestInit) => {
+          calls++;
+          if (calls === 1) {
+            return new Promise<Response>((_r, reject) => {
+              init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+            });
+          }
+          return Promise.resolve({ status: 200, text: async () => JSON.stringify(okMe) } as Response);
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const stalled = client.postDungeonAction(actionBody).catch((e: unknown) => e);
+      const behind = client.getMe();
+      await vi.runAllTimersAsync();
+      expect(await stalled).toBeInstanceOf(RequestTimeoutError);
+      await expect(behind).resolves.toEqual(okMe);
+      expect(calls).toBe(2);
+    });
+
+    it("a stalled body counts against the deadline, not just a stalled connect", async () => {
+      // Headers arrive, `res.text()` never does. Racing only the `fetch()` call
+      // would leave this hanging exactly as before.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => ({ status: 200, text: () => new Promise<string>(() => {}) }) as unknown as Response),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getMe();
+      const assertion = expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
+
+    it("retries a timed-out GET once — an abort proves nothing was written", async () => {
+      let calls = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((_url: string, init?: RequestInit) => {
+          calls++;
+          if (calls === 1) {
+            return new Promise<Response>((_r, reject) => {
+              init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+            });
+          }
+          return Promise.resolve({ status: 200, text: async () => JSON.stringify(okMe) } as Response);
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getMe();
+      const assertion = expect(p).resolves.toEqual(okMe);
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(calls).toBe(2);
+    });
+
+    it("the GET retry is BOUNDED — a persistently dead endpoint fails closed", async () => {
+      const fetchMock = politeStall();
+      vi.stubGlobal("fetch", fetchMock);
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getMe();
+      const assertion = expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(fetchMock).toHaveBeenCalledTimes(2); // one attempt + MAX_GET_TIMEOUT_RETRIES
+    });
+
+    it("NEVER retries a timed-out POST — an aborted write is ambiguous, not proven-unapplied", async () => {
+      // The whole point of the GET/POST split. A replayed POST is the blind
+      // retry CODEXAUG22REVIEW H1 is about, and session 08 measured the API
+      // applying a write while returning an error.
+      const fetchMock = politeStall();
+      vi.stubGlobal("fetch", fetchMock);
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.postDungeonAction(actionBody);
+      const err = p.catch((e: unknown) => e);
+      await vi.runAllTimersAsync();
+      const caught = await err;
+      expect(caught).toBeInstanceOf(RequestTimeoutError);
+      expect((caught as RequestTimeoutError).ambiguousWrite).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("a POST timeout says AMBIGUOUS in its own message, where a caller will read it", async () => {
+      vi.stubGlobal("fetch", politeStall());
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const err = client.postDungeonAction(actionBody).catch((e: unknown) => e as Error);
+      await vi.runAllTimersAsync();
+      expect((await err).message).toContain("AMBIGUOUS");
+    });
+
+    it("does not fire on a response that arrives inside the window", async () => {
+      // The deadline must not convert a slow-but-fine request into an abort:
+      // 10s is 2x the ~5s action-token window and ~5.6x the slowest response
+      // this repo has recorded.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          await new Promise((r) => setTimeout(r, 9_000));
+          return { status: 200, text: async () => JSON.stringify(okMe) } as Response;
+        }),
+      );
+      const client = new GigaverseClient({ jwt: "test-jwt" });
+      const p = client.getMe();
+      const assertion = expect(p).resolves.toEqual(okMe);
+      await vi.runAllTimersAsync();
+      await assertion;
+    });
   });
 
   it("never logs the full JWT, even in a masked-string helper", async () => {

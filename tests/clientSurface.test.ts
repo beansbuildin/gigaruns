@@ -66,6 +66,12 @@ const ALLOWED = new Set([
   "raw",
   "get",
   "post",
+  // [session 78] `raw`'s inner half, split out so the request deadline can
+  // cover `res.text()` as well as the `fetch()` (CODEXAUG22REVIEW M1). Same
+  // class as the three above and it adds NO capability: it reaches exactly
+  // where `raw` already could, under a 10s abort. The transport-usage test
+  // below covers it too.
+  "fetchWithDeadline",
 ]);
 
 /**
@@ -115,7 +121,7 @@ describe("the client's surface is the safety story", () => {
     // directly instead of trusting a keyword the compiler throws away.
     const { execSync } = await import("node:child_process");
     const hits = execSync(
-      `grep -rn --include='*.ts' -e 'client\.post(' -e 'client\.get(' -e 'client\.raw(' src scripts tests || true`,
+      `grep -rn --include='*.ts' -e 'client\.post(' -e 'client\.get(' -e 'client\.raw(' -e 'client\.fetchWithDeadline(' src scripts tests || true`,
       { encoding: "utf8" },
     )
       .split("\n")
