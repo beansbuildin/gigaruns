@@ -378,6 +378,29 @@ export interface ReplayTurnDiagnostic {
    * exists, which cannot happen on a turn that played one.
    */
   noOverride: CardFocusChoice | null;
+  // ── [session 75 §2] the oil-gate snapshot inputs ────────────────────────
+  //
+  // The three remaining live level-based `pConnect` consumers (the Focus and
+  // Relaxing oil necessity gates, and the shadow's two `>= 1` certainty
+  // checks) all read an `OilDecisionState`, which needs the hand, the mana and
+  // the focus budget AS THEY WERE AT THE OIL-DECISION MOMENT. That moment is
+  // above the card choice — the session-69 hoist — so these are the PRE-PLAY
+  // values, not the post-play ones the fields above carry.
+  //
+  // Publishing them here rather than re-deriving them in a script is what
+  // keeps the gate measurement PAIRED AT THE TURN: the counterfactual is
+  // evaluated on the identical state the played turn was chosen from, so the
+  // two arms share a turn set by construction. Session 73 §6's unpaired
+  // comparison is the failure this shape avoids.
+  /** The hand as `chooseCard` saw it, BEFORE the played card is removed. */
+  hand: readonly FishingCardLike[];
+  /** Mana before the played card's cost is deducted. */
+  manaBefore: number;
+  /** The focus budget before the played placement moves the marker. */
+  focusBefore: FocusBudget;
+  fishMaxHp: number;
+  /** The cast's focus-meter maximum, i.e. `t0.focusMeter`. */
+  focusMax: number;
 }
 
 export interface ReplayOptions {
@@ -774,6 +797,12 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
     const actual = rec.fishPosition;
 
     const moveCost = manhattan(focus.current, choice.focus);
+    // [session 75 §2] The PRE-PLAY mana and focus, captured before the two
+    // mutations below. The oil-decision moment is above the card choice (the
+    // session-69 hoist), so a gate diagnostic re-planned from post-play values
+    // would be asking about a state the live gate never sees.
+    const manaBefore = mana;
+    const focusBefore = focus;
     focus = { current: choice.focus, remaining: Math.max(0, focus.remaining - moveCost) };
     mana -= choice.card.manaCost;
 
@@ -854,6 +883,12 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
         moveCost,
         maxMoveCost: constraint.maxMoveCost,
         noOverride,
+        // ── [session 75 §2] the oil-gate snapshot inputs ──────────────────
+        hand: cards,
+        manaBefore,
+        focusBefore,
+        fishMaxHp,
+        focusMax: t0.focusMeter,
       });
     }
 
