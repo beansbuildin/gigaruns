@@ -313,7 +313,7 @@ function main(): void {
   for (const [label, opts, sw, note] of knobs) {
     const g = gapOf(shipped.map((r) => massOn(ringUnder(r.d, opts, sw), r.d.connectCells)), hits);
     console.log(
-      `  ${label.padEnd(20)}${pct(g.pred).padStart(8)}   ${pp(g.gap).padStart(9)}   ${(label === "SHIPPED" ? "—" : pp(g.gap - (mRing - base.obs))).padStart(10)}   ${note}`,
+      `  ${label.padEnd(20)}${pct(g.pred).padStart(8)}   ${pp(g.gap).padStart(9)}   ${(label === "SHIPPED" ? "—" : pp(g.gap - (mRing - base.obs))).padStart(10)}   ${note}`.trimEnd(),
     );
   }
   const condOff = gapOf(shipped.map((r) => massOn(ringUnder(r.d, scaleShrinkage(shippedRing, Infinity), DEFAULT_SWITCH_PROBABILITY), r.d.connectCells)), hits);
