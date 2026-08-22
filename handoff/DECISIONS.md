@@ -536,3 +536,9 @@ Three consequences, so this is not re-litigated: (a) **the oil sweep must not be
 The obligation this creates is on the READER of any corpus statistic, not on the person who computed it: **before comparing a model of today's policy against a corpus number, ask what fraction of that corpus today's policy played.** `scripts/replayGapDecomposition.ts` and `scripts/focusProfileCheck.ts` §1b both print the era split, so the question is cheap to answer.
 
 Two things this decision explicitly does NOT say. **It does not clear the simulator** — the catch rate still reads 24.7% against today's era's 60.0%, which is a worse disagreement than the one session 70 failed on, and it is now the open one. And **it does not rehabilitate session 49's numbers as "current"**: 80.8% and 1.62 turn out to be exactly the pre-logging era, so session 70 was right that they must not be quoted as today's fishery and wrong that they were *stale* — they were correct for the corpus they were computed on, which is a different defect with a different fix. **An era is a BUNDLE** (zone map, matcher weighting, lures, rod), so the split establishes that a pooled comparison is invalid, never that any one change caused the difference; the 2×2 in `replayGapDecomposition.ts` §2 is what isolates the weighting.
+
+2026-08-21 (session 71) — one-line settlements:
+- **Leave-one-out is NOT the cause of the replay's spend shortfall** — measured at −0.020, in the wrong direction. Do not reopen it.
+- **Truncation contributes exactly 0.000 to any turn-0 statistic** — it removes tail turns; 0/123 casts lose their opening observation.
+- **`REAL_DECK` lives in `src/sim/fishing/rodDeck.ts` only**, and is the Shroom rod's grant. Three private copies caused the stale-through-110-traces failure; a fourth would recreate it.
+- **`focusProfileCheck.ts`'s gate is taken against TODAY'S ERA, not the pooled corpus** — the pooled figure is still printed so session 70's number stays traceable.
