@@ -69,6 +69,8 @@ import {
 } from "../src/strategy/fishing/oilTiming.js";
 import { snapshotOilDecision, SHADOWED_OIL_POLICY } from "../src/strategy/fishing/oilShadow.js";
 import { ERA_OPTS, eraCasts } from "./pConnectBiasDecomposition.js";
+import { DEFAULT_RING_PREDICTION_LOG_PATH, MINED_PATTERNS_PATH } from "./liveFishing.js";
+import { requireInputs } from "./lib/requireInputs.js";
 
 const pct = (n: number, d: number) => (d === 0 ? "  n/a" : `${((100 * n) / d).toFixed(1)}%`);
 
@@ -171,6 +173,19 @@ function liveShadowRecords(): Record<string, unknown>[] {
 const PRE_HOIST_RELAXING: readonly number[] = [0.4, 0.58, 0.587, 0.975];
 
 function main(): void {
+  // [session 76 §2] FAIL CLOSED, and note WHERE. This script used to crash at
+  // §3 with a raw `ENOENT: scandir 'logs'` — but only after publishing a §2
+  // computed on a degraded corpus (420 turns, 0 era casts). Checking all three
+  // inputs up front means the report is either whole or absent.
+  requireInputs("liveGateFiringRates.ts", [
+    { path: DEFAULT_RING_PREDICTION_LOG_PATH, what: "`eraCasts` — which casts were played under today's posterior (§2's era rows)" },
+    { path: MINED_PATTERNS_PATH, what: "`ERA_OPTS`'s matcher library — the replay's matcher tier (§2)" },
+    {
+      path: resolveProfile(profileArg(process.argv)).logRoot,
+      what: "every `oil_shadow` record the live loop has written (§3's live column)",
+      matching: (n) => n.startsWith("fishing-") && n.endsWith(".jsonl"),
+    },
+  ]);
   const traces = loadCastTraces().filter(isCleanTrace);
   const era = eraCasts(traces);
   const eraRows = collect(traces, era);

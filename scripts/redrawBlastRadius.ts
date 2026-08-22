@@ -59,7 +59,8 @@ import { buildCellOnlyMap, buildContextualMap } from "../src/strategy/fishing/co
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { profileArg, resolveProfile } from "../src/profile.js";
 import { REAL_DECK } from "../src/sim/fishing/rodDeck.js";
-import { loadMinedPatterns } from "./liveFishing.js";
+import { loadMinedPatterns, MINED_PATTERNS_PATH } from "./liveFishing.js";
+import { requireInputs } from "./lib/requireInputs.js";
 
 /** The live cast parameters, matching `scripts/redrawTriggerCalibration.ts` §5 exactly. */
 const REAL_PARAMS = { fishMaxHp: 21, startFishHpRatio: 13 / 21, startMana: 10, handSize: 3, gridSize: 4 } as const;
@@ -110,7 +111,16 @@ function run(policy: FishPolicy, base: Omit<CastOptions, "seed" | "policy">, run
 function main(): void {
   const runs = Number(process.argv.find((a) => a.startsWith("--runs="))?.split("=")[1] ?? 4000);
   const profile = resolveProfile(profileArg(process.argv));
-  const cleanCasts = groupByCast(loadTransitionRecords(join(profile.dataRoot, "fish-patterns.jsonl"))).filter(isCleanCast);
+  const patterns = join(profile.dataRoot, "fish-patterns.jsonl");
+  // [session 76 §2] FAIL CLOSED. Without these the script still ran and printed
+  // `catch 0.0%` on both arms under §4's unchanged prose — see
+  // `scripts/lib/requireInputs.ts`. Every figure below is computed on the
+  // author's corpus; none of it is program logic.
+  requireInputs("redrawBlastRadius.ts", [
+    { path: patterns, what: "the empirical fish-step table and both blind-fallback maps (§3, §4)" },
+    { path: MINED_PATTERNS_PATH, what: "`matcherPool` — the matcher the live config plays with (§3, §4)" },
+  ]);
+  const cleanCasts = groupByCast(loadTransitionRecords(patterns)).filter(isCleanCast);
   const liveConfig: Omit<CastOptions, "seed" | "policy"> = {
     ...REAL_PARAMS,
     empiricalFish: { table: buildStepClassTable(cleanCasts) },

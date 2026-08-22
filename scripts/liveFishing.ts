@@ -301,7 +301,7 @@ export function fishCell(doc: FishingGameDoc): Cell {
   return { x, y };
 }
 
-const MINED_PATTERNS_PATH = join("data", "minedFishPatterns.json");
+export const MINED_PATTERNS_PATH = join("data", "minedFishPatterns.json");
 
 /**
  * Reads scripts/mineFishPatterns.ts's output (pattern names that hit the
