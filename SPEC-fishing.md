@@ -262,10 +262,36 @@ That resolves the shape of the anomaly exactly — a crit that owes nothing to
 `cardChoice.ts`'s crit model (which is entirely `critZones`/`critEffects`
 geometry) is describing only ONE of the two crit sources in play.
 
-**What is still unresolved, and must not be guessed:** the crit's DAMAGE rule.
-At n=1 three readings fit equally well — `hit + 2`; a flat 5; or "the blow was
-lethal and the server reports the fish's remaining HP", which was also exactly
-5. Do not encode any of them.
+**~~What is still unresolved, and must not be guessed:~~ [session 80] n = 2,
+AND THE FAMILY IS NOW SETTLED — THE CRIT IS MULTIPLICATIVE.**
+
+This paragraph used to read: *"At n=1 three readings fit equally well — `hit +
+2`; a flat 5; or 'the blow was lethal and the server reports the fish's
+remaining HP', which was also exactly 5. Do not encode any of them."* A second
+`CRIT_HIT` landed on 2026-08-22 and **all three are falsified:**
+
+| cast | card | hit amount | actual Δ | lethal |
+|---|---|---|---|---|
+| `13022874` t4 | 76 | 3 | **5** | yes (5 → 0 / 19) |
+| `13041046` t9 | 2 | 5 | **8** | **no** (17 → 9 / 20) |
+
+    hit + 2                3->5 ✓   5->7 ✗
+    flat 5                 3->5 ✓   5->5 ✗
+    lethal, remaining HP   ✓        ✗  — the second crit is not lethal at all
+
+**What survives SCALES the card's damage** — `hit × 1.5` rounded half up,
+`hit × 1.6` rounded, and `floor(hit × 5/3)` all fit both observations exactly.
+n=2 separates the FAMILIES, not the members: do not encode a specific
+multiplier either. What it does settle is that **a model adding a constant is
+wrong for every card whose hit amount is not 3**, which is most of them.
+
+A third observation would separate the survivors, but only on the right card:
+hit 4 gives 6/6/6 and hit 7 gives 11/11/11, while **hit 9 gives 14/14/15**.
+
+`tests/fishing/stateFields.test.ts` pins both anomalies as an exact list and
+re-derives the falsification arithmetic, so a third, novel exception fails
+loudly rather than being absorbed into a tolerance — which is exactly how this
+one was found.
 
 **Rate — the whole-corpus figure was never the right one.** 1 `CRIT_HIT` in
 484 recorded card plays across 114 casts is 0.2% against the lure's stated 3%,

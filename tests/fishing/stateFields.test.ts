@@ -54,7 +54,11 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // but only two contribute a skipped transition: the lethal Relaxing ended
     // its cast and so has no following card play to skip, exactly as the
     // session-69 note describes.
-    expect(r.oilSkipped).toBe(13);
+    // [session 80] 13 -> 18 across this session's eight-cast batch. Same
+    // mechanism, more oils spent: the on-demand policy fired its focus trigger
+    // repeatedly once the meter emptied. The CLAIM — regen 0 — is unmoved at
+    // 569/569.
+    expect(r.oilSkipped).toBe(18);
   });
 
   /**
@@ -80,24 +84,72 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
    * not come from the card — and means `cardChoice.ts`'s crit model covers
    * only one of the two crit sources in play.
    *
-   * **n = 1**, so the damage rule stays open: `hit + 2`, a flat 5, or "lethal,
-   * and the server reports the fish's remaining HP" (also exactly 5) all fit.
-   * **Do not pick one.** Nor should the 1-in-484 corpus rate be read against
-   * the lure's 3%: the corpus spans ~60 sessions and the lure's equip date is
-   * unknown, so most of those plays predate it. SPEC-fishing carries both.
+   * ## [session 80 §4] **n = 2, AND THE MECHANISM SEPARATED — EXACTLY AS THIS
+   * PIN WAS BUILT TO DO.**
    *
-   * This is pinned as an EXACT expected list rather than relaxed to a count or
-   * a `toBeLessThan`, so a SECOND, different exception fails loudly instead of
-   * being absorbed into a tolerance. If that happens there will be n=2 and the
-   * mechanism may become separable — which is the point.
+   * The paragraph this replaces said: *"n = 1, so the damage rule stays open:
+   * `hit + 2`, a flat 5, or 'lethal, and the server reports the fish's
+   * remaining HP' (also exactly 5) all fit. Do not pick one."* It then said a
+   * second exception would fail loudly rather than be absorbed, and that if it
+   * happened the mechanism might become separable.
+   *
+   * It happened, on this session's eighth live cast, and **all three of those
+   * candidate rules are now FALSIFIED:**
+   *
+   *     13022874 t4   card 76, hit 3   actual Δ5   (5 -> 0 / 19)   LETHAL
+   *     13041046 t9   card 2,  hit 5   actual Δ8   (17 -> 9 / 20)  NOT lethal
+   *
+   *     hit + 2                  3->5 ✓   5->7 ✗   FALSIFIED
+   *     flat 5                   3->5 ✓   5->5 ✗   FALSIFIED
+   *     lethal, remaining HP     ✓        ✗ (the second is not lethal)   FALSIFIED
+   *
+   * **What survives is MULTIPLICATIVE**, and three members of that family fit
+   * both observations exactly:
+   *
+   *     hit × 1.5, round half up   3->5 ✓   5->8 ✓
+   *     hit × 1.6, rounded         3->5 ✓   5->8 ✓
+   *     floor(hit × 5/3)           3->5 ✓   5->8 ✓
+   *
+   * **Do not pick one of THOSE either** — n=2 separates the families, not the
+   * members. What it does settle is the shape: the Steady Lure's crit SCALES
+   * the card's damage, it does not add a constant to it, and a model that adds
+   * one is wrong for every card whose hit amount is not 3.
+   *
+   * The corpus rate must still not be read against the lure's stated 3%: the
+   * corpus spans ~60 sessions and the lure's equip date is unknown, so most of
+   * these plays predate it.
+   *
+   * Pinned as an EXACT list, for the same reason it was before: a THIRD, novel
+   * exception should fail loudly here rather than be absorbed into a count. A
+   * third observation on a card with a hit amount that is not 3 or 5 would
+   * separate the three surviving rules — 4 gives 6/6/6, but 7 gives 11/11/11
+   * and 9 gives 14/14/15, so `floor(hit × 5/3)` separates first at hit 9.
    */
-  const KNOWN_CRIT_ANOMALY = "13022874 t4: card 76 hit=true crit=false predicted Δ-3, actual Δ-5 (5->0/19)";
+  const KNOWN_CRIT_ANOMALIES = [
+    "13022874 t4: card 76 hit=true crit=false predicted Δ-3, actual Δ-5 (5->0/19)",
+    "13041046 t9: card 2 hit=true crit=false predicted Δ-5, actual Δ-8 (17->9/20)",
+  ];
 
-  it("fishHp moves by exactly the played card's FISH_HP effect — one documented exception", () => {
+  it("fishHp moves by exactly the played card's FISH_HP effect — two documented exceptions", () => {
     const r = auditFishHp(traces);
     expect(r.scored).toBeGreaterThanOrEqual(308);
-    expect(r.violations).toEqual([KNOWN_CRIT_ANOMALY]);
-    expect(r.agree).toBe(r.scored - 1);
+    expect(r.violations).toEqual(KNOWN_CRIT_ANOMALIES);
+    expect(r.agree).toBe(r.scored - KNOWN_CRIT_ANOMALIES.length);
+  });
+
+  it("THE SEPARATION: an additive crit rule cannot fit both, a multiplicative one does", () => {
+    // The finding above, as arithmetic rather than as prose, so it fails if a
+    // future reader edits the comment's numbers without re-deriving them.
+    const observed: { hit: number; actual: number }[] = [
+      { hit: 3, actual: 5 },
+      { hit: 5, actual: 8 },
+    ];
+    const additive = (h: number) => h + 2;
+    const flat = () => 5;
+    const multiplicative = (h: number) => Math.round(h * 1.5 + 1e-9);
+    expect(observed.every((o) => additive(o.hit) === o.actual)).toBe(false);
+    expect(observed.every((o) => flat() === o.actual)).toBe(false);
+    expect(observed.every((o) => multiplicative(o.hit) === o.actual)).toBe(true);
   });
 
   it("identifies crits by critZone geometry — and that test discriminates the zone table", () => {
@@ -108,9 +160,10 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // inequality is asserted, not just the pass.
     const corrected = auditFishHp(traces, correctedZoneOffset);
     const transposed = auditFishHp(traces, transposedZoneOffset);
-    // Same single exception as above — it is not a crit BY GEOMETRY (the card
-    // has no `critZones` at all), which is exactly what makes it interesting.
-    expect(corrected.agree).toBe(corrected.scored - 1);
+    // Same TWO exceptions as above — neither is a crit BY GEOMETRY (card 76 has
+    // no `critZones` at all, and card 2's hit was not at a crit cell), which is
+    // exactly what makes them interesting: both come from the lure, not the card.
+    expect(corrected.agree).toBe(corrected.scored - 2);
     // [session 50] 8 → 10 across this session's live batch, every one again
     // exactly `critEffects` at a cell inside the card's TRANSLATED
     // `critZones`. The discrimination is now 391/391 with 10 crits for the
@@ -128,7 +181,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // crit sources need two instruments; do not read this as the crit rate.
     // [session 72] 22 -> 24 across the four-cast batch.
     // [session 79] 24 -> 25 across the three-cast batch.
-    expect(corrected.crits).toBe(25);
+    // [session 80] 25 -> 26 across the eight-cast batch.
+    expect(corrected.crits).toBe(26);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

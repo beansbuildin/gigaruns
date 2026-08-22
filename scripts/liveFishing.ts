@@ -94,6 +94,7 @@ import { GuardState, GuardTrip } from "../src/orchestrator/guards.js";
 import { acquireGuardLock, loadGuardBudget, saveGuardBudget, todayKey } from "../src/orchestrator/guardPersistence.js";
 import { reconcileFishingLedger } from "../src/orchestrator/fishingLedgerReconcile.js";
 import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profile.js";
+import { rejectUnknownArgs } from "./lib/cliArgs.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
 import { regenerateRunReports } from "./regenerateReports.js";
@@ -2872,7 +2873,34 @@ async function currentEnergy(client: GigaverseClient, address: string): Promise<
 
 export const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
 
+/**
+ * Every token `liveFishing.ts` understands. Anything else stops the script
+ * before a single request goes out — see `scripts/lib/cliArgs.ts` for the
+ * incident that made this necessary (a `--help` probe played a real cast).
+ */
+const KNOWN_ARGS = [
+  "--casts=",
+  "--dry-run",
+  "--status",
+  "--no-rom-claim",
+  "--oil-batch",
+  "--profile=",
+] as const;
+
+const USAGE = `Usage: npx tsx scripts/liveFishing.ts [flags]
+
+  --casts=N          play N casts, then stop (default 1)
+  --dry-run          decide and log, POST nothing
+  --status           local ledger only, no network
+  --no-rom-claim     skip the ROM-claim energy preflight
+  --oil-batch        cast until one of oilBatch.ts's halt conditions fires
+  --profile=NAME     data/log profile (value takes an equals sign)
+
+  There is NO bare --casts: write --casts=1. An unrecognised flag is refused
+  rather than ignored, because the default is to PLAY.`;
+
 async function main() {
+  rejectUnknownArgs(process.argv.slice(2), KNOWN_ARGS, USAGE);
   const args = parseArgs(process.argv.slice(2));
 
   // [session 59] See liveRun.ts's main() — same seam, same guarantee: with no

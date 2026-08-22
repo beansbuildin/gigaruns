@@ -125,11 +125,18 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // `incomplete` unchanged at 1. NO oil was consumed — `policyApproved` is
     // still false — so this is the first batch in five that adds only non-oil
     // casts to the control arm.
-    expect(summary.casts).toBe(131);
-    expect(summary.responseDocs).toBe(741);
-    expect(summary.playTurns).toBe(552);
-    expect(summary.caught).toBe(38);
-    expect(summary.escaped).toBe(92);
+    // [session 80] Nine-cast batch: 131 -> 140, +58 responseDocs, +39
+    // playTurns, +4 caught, +5 escaped, `incomplete` unchanged at 1. Eight
+    // casts were authorised; the ninth was spent by `liveFishing.ts --help`
+    // falling through an unguarded arg parser to its default — the defect is
+    // closed in tests/cliArgs.test.ts and the cast is real data either way.
+    // THREE of the nine consumed an oil, and `policyApproved` has been TRUE
+    // since session 62 (the note above saying it is "still false" was stale).
+    expect(summary.casts).toBe(140);
+    expect(summary.responseDocs).toBe(799);
+    expect(summary.playTurns).toBe(591);
+    expect(summary.caught).toBe(42);
+    expect(summary.escaped).toBe(97);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -481,6 +488,13 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       "13022748", "13022874", "13022876",
       "13024476", "13024510", "13024550", "13024562", "13024574", "13024581",
       "13025987", "13025990",
+      // [session 80] +3 from the nine-cast batch: `13041046` (two Focus),
+      // `13041055` (one), `13041058` (THREE — the third cast ever to walk all
+      // three slots). Focus stock fell 8 -> 6 over the batch; the Relaxing
+      // per-cast cap of 2 still has never bound, though `13041058` is the first
+      // cast on record where the on-demand policy WANTED a relaxing oil and was
+      // refused by the 3/3 per-cast budget instead.
+      "13041046", "13041055", "13041058",
     ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

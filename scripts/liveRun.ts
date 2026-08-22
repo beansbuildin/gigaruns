@@ -77,6 +77,7 @@ import {
 } from "../src/orchestrator/opponentModelPersistence.js";
 import { loadPlayCounts, savePlayCounts, deletePlayCounts } from "../src/orchestrator/playCountsPersistence.js";
 import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profile.js";
+import { rejectUnknownArgs } from "./lib/cliArgs.js";
 import {
   assertTierChoiceOk,
   auditTierChoice,
@@ -2000,7 +2001,58 @@ async function assertDungeonCapNotExhausted(
   }
 }
 
+/**
+ * Every token `liveRun.ts` understands. Anything else stops the script before a
+ * single request goes out.
+ *
+ * **This one matters more than fishing's.** `--runs=` defaults to 1, so before
+ * session 80 an unrecognised flag started a DUNGEON RUN — one of twelve daily
+ * run-units, entered PLAIN at 20 energy, which CLAUDE.md rule 11 forbids
+ * outright. The defect was demonstrated on `liveFishing.ts` by accident; it was
+ * never exercised here, and it is closed here for the same reason.
+ */
+const KNOWN_ARGS = [
+  "--runs=",
+  "--dry-run",
+  "--stage2",
+  "--status",
+  "--juiced",
+  "--juiced-index=",
+  "--potions=",
+  "--potions-used=",
+  "--potion-threshold=",
+  "--boon-capture",
+  "--resume-existing",
+  "--no-rom-claim",
+  "--claim-order=",
+  "--probe-use-item",
+  "--probe-consumables=",
+  "--profile=",
+] as const;
+
+const USAGE = `Usage: npx tsx scripts/liveRun.ts [flags]
+
+  ⚠ CLAUDE.md rule 11: every dungeon run is a 60-energy juiced Tier-3 entry
+    with 3 Big Heal Juices, ONE run at a time, and it needs a per-run human
+    go-ahead. The authorised form is:
+
+      npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1
+
+  --dry-run          decide and log, POST nothing — run this first, always
+  --status           local ledger only, no network
+  --runs=N           play N runs (default 1; rule 11 says 1)
+  --juiced           juiced entry (3 run-units), with --juiced-index=N
+  --potions=N        load N Big Heal Juice, with --potion-threshold=X
+  --boon-capture     arm the boonCapture block (also needs config enabled:true)
+  --resume-existing  resume a run already in progress
+  --no-rom-claim     skip the ROM-claim energy preflight
+  --profile=NAME     data/log profile (value takes an equals sign)
+
+  An unrecognised flag is refused rather than ignored, because the default is
+  to START A RUN.`;
+
 async function main() {
+  rejectUnknownArgs(process.argv.slice(2), KNOWN_ARGS, USAGE);
   const args = parseArgs(process.argv.slice(2));
 
   // [session 59] Every path in this function resolves off the profile. With no
