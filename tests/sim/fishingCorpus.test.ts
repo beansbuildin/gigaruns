@@ -120,11 +120,16 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // [session 72] Four-cast batch (the day's remaining allowance): 124 -> 128,
     // +25 responseDocs, +16 playTurns, +2 caught, +2 escaped, `incomplete`
     // unchanged at 1. Two of the four consumed an oil.
-    expect(summary.casts).toBe(128);
-    expect(summary.responseDocs).toBe(721);
-    expect(summary.playTurns).toBe(537);
-    expect(summary.caught).toBe(36);
-    expect(summary.escaped).toBe(91);
+    // [session 79] Three-cast batch, the first live fishing in seven sessions:
+    // 128 -> 131, +20 responseDocs, +15 playTurns, +2 caught, +1 escaped,
+    // `incomplete` unchanged at 1. NO oil was consumed — `policyApproved` is
+    // still false — so this is the first batch in five that adds only non-oil
+    // casts to the control arm.
+    expect(summary.casts).toBe(131);
+    expect(summary.responseDocs).toBe(741);
+    expect(summary.playTurns).toBe(552);
+    expect(summary.caught).toBe(38);
+    expect(summary.escaped).toBe(92);
     expect(summary.incomplete).toBe(1);
   });
 

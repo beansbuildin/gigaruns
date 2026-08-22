@@ -1243,13 +1243,24 @@ async function resolvePendingCardOffer(
    * fact landed and the account was fine. Now it returns `true`.
    *
    * The predicates read the DOC, which is what the server treats as
-   * authoritative — `cardChosenId` going non-null, or `fullDeck` growing, are
-   * transitions only this write causes. Anything else, including a state the
-   * server no longer returns for this cast, is `unknown` and fails closed
+   * authoritative — `cardChosenId` naming a real card, or `fullDeck` growing,
+   * are transitions only this write causes. Anything else, including a state
+   * the server no longer returns for this cast, is `unknown` and fails closed
    * (CLAUDE.md rule 5): a wrong "it landed" here would leave a stranded
    * account for a human to find, which is the failure this function was
    * written to prevent.
+   *
+   * **`cardChosenId` has THREE states, not two** — found in live play the same
+   * session this was written (CLAUDE.md rule 1). `null`/absent while an offer
+   * is pending; a real card id once one is picked; and **`-1` on a cast where
+   * nothing was ever offered**, which is 92 of the 129 corpus states carrying
+   * the field against only 37 with a real id. So `!= null`, this predicate's
+   * first draft, is not the test for "a pick landed" — `> 0` is. The
+   * conservative direction matters here in one specific way: reading a
+   * sentinel as a landed pick would report a stranded account as resolved,
+   * which is the failure this whole function exists to prevent.
    */
+  const chosenIdIsReal = (id: number | null | undefined) => typeof id === "number" && id > 0;
   const before = doc;
   const looted = await runActionTransaction<FishingGameDoc | null, FishingActionResponse>({
     action: "loot",
@@ -1261,14 +1272,14 @@ async function resolvePendingCardOffer(
         after &&
           b &&
           after.docId === b.docId &&
-          (after.data.cardChosenId != null || after.data.fullDeck.length > b.data.fullDeck.length),
+          (chosenIdIsReal(after.data.cardChosenId) || after.data.fullDeck.length > b.data.fullDeck.length),
       ),
     provesNotApplied: (b, after) =>
       Boolean(
         after &&
           b &&
           after.docId === b.docId &&
-          after.data.cardChosenId == null &&
+          !chosenIdIsReal(after.data.cardChosenId) &&
           after.data.fullDeck.length === b.data.fullDeck.length &&
           (after.data.cardsToAdd?.length ?? 0) > 0,
       ),

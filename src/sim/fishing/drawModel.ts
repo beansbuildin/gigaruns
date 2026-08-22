@@ -45,9 +45,20 @@
  *   hypothesis and is the one that matches `nextCardIndex` advancing 3, 6, 9
  *   through a pile rather than re-randomising each draw, so that is what is
  *   implemented — but it was chosen, not measured.
- * - **Reshuffle on exhaustion is UNOBSERVED.** `nextCardIndex` never exceeds
- *   `fullDeck.length` in 721 committed states (max ratio 0.92), so
- *   `drawHand`'s `% deck.length` wraparound is unvalidated. Left alone.
+ * - **The pile DOES exhaust, and the cursor WRAPS — corrected the same day it
+ *   was written.** The first draft of this file said "the pile never exhausts"
+ *   on the evidence that `nextCardIndex` never exceeds `fullDeck.length` in the
+ *   corpus. That predicate cannot see the event: the server wraps the cursor
+ *   rather than letting it overflow, so exhaustion shows up as `nextCardIndex`
+ *   going DOWN. It does so in **7 of 131 casts** — 9 -> 2 on a 10-card deck,
+ *   9 -> 1 on an 11-card one — which is exactly `(idx + handSize) %
+ *   deck.length`, `drawHand`'s own arithmetic. So the wraparound is validated
+ *   in FORM and it fires on real decks. `pileWraps` re-derives it.
+ *
+ *   This is CLAUDE.md rule 10 in miniature: counting a field that cannot
+ *   express the event and reading the zero as an answer. What is still
+ *   unobserved is narrower — whether the pile is RE-SHUFFLED at the wrap or
+ *   continues in the same order. Nothing here models that either way.
  * - **Where a LOOTED card lands in the roster is unobserved.** It does not
  *   matter to the pile order under a shuffle, which is exactly why session
  *   78's CAPTURE-3 could be closed rather than spent on.
@@ -230,4 +241,44 @@ export function tailShare(c: DeckPositionCounts): number {
   let tail = 0;
   for (let i = c.handSize; i < c.counts.length; i++) tail += c.counts[i]!;
   return tail / total;
+}
+
+/** One observed exhaustion of the draw pile: the server's cursor wrapping. */
+export interface PileWrap {
+  docId: string;
+  deckLength: number;
+  from: number;
+  to: number;
+}
+
+/**
+ * Every point in the corpus where `nextCardIndex` DECREASED inside one cast.
+ *
+ * The right detector, and the reason matters more than the function. Exhaustion
+ * does not appear as `nextCardIndex > fullDeck.length` — the server wraps the
+ * cursor instead of overflowing it — so a scan for overflow returns zero on a
+ * corpus that contains seven wraps, and reads as "the pile never exhausts".
+ * That reading survived one draft of this file. Check what the field can
+ * express before believing what it reports (CLAUDE.md rule 10).
+ *
+ * Ordered by `updatedAt`, the server's own stamp: a cast's responses are not
+ * guaranteed to arrive in turn order (`fishingCorpus.ts`'s header), and a
+ * decrease is only meaningful along real time.
+ */
+export function pileWraps(casts: readonly FishingCast[]): PileWrap[] {
+  const out: PileWrap[] = [];
+  for (const cast of casts) {
+    const rows = cast.responses
+      .filter((r) => r.deck !== null)
+      .slice()
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    for (let i = 1; i < rows.length; i++) {
+      const prev = rows[i - 1]!.deck!;
+      const cur = rows[i]!.deck!;
+      if (cur.nextCardIndex < prev.nextCardIndex) {
+        out.push({ docId: cast.docId, deckLength: cur.fullDeck.length, from: prev.nextCardIndex, to: cur.nextCardIndex });
+      }
+    }
+  }
+  return out;
 }

@@ -127,7 +127,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // so `corrected.crits` counts CARD crits only and always will. The two
     // crit sources need two instruments; do not read this as the crit rate.
     // [session 72] 22 -> 24 across the four-cast batch.
-    expect(corrected.crits).toBe(24);
+    // [session 79] 24 -> 25 across the three-cast batch.
+    expect(corrected.crits).toBe(25);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

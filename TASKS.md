@@ -1705,18 +1705,34 @@ this same data.
 not the conservative default; it was an unexamined assumption that the corpus
 falsifies at 129/129. The shuffle is the measurement, not the invention.
 
-**What is still NOT measured, and is not worth a capture on its own:**
+**CONFIRMED LIVE the same session, on three ordinary casts (2 catches):**
+
+- **A looted card is APPENDED to the roster.** `[74,75,76,78,1,2,3,4,5,6]` ->
+  `[74,75,76,78,1,2,3,4,5,6,38]`. This was CAPTURE-3's literal question.
+- **And it makes no difference, which is the point.** Card 38 — last position
+  in the roster, the position session 78 called unreachable — was drawn on
+  turn 6 of the very next cast and was in the OPENING HAND of the one after.
+- **The pile EXHAUSTS and the cursor WRAPS**, and the corpus always said so:
+  `nextCardIndex` 9 -> 2 on a 10-card deck and 9 -> 1 on an 11-card one, in 7
+  of 131 casts. That is exactly `(idx + handSize) % deck.length` — `drawHand`'s
+  own arithmetic — so the wraparound is validated in FORM and does fire on real
+  decks.
+
+**That last bullet corrects this section's own first draft, written hours
+earlier, and the error is CLAUDE.md rule 10 in miniature.** It claimed "the
+pile never exhausts" from `nextCardIndex > fullDeck.length` being zero in 721
+states. That predicate cannot see the event: the server wraps the cursor rather
+than overflowing it, so exhaustion shows up as the cursor going DOWN. Check
+what a field can express before believing what it reports.
+
+**What is still NOT measured:**
 
 - **Per-cast vs per-draw shuffle.** Both reproduce the opening-hand statistics
   above. Per-cast is implemented as the simpler hypothesis matching
-  `nextCardIndex`'s monotone advance — chosen, not measured, and said so in
-  code.
-- **Reshuffle on exhaustion.** `nextCardIndex` never exceeds `fullDeck.length`
-  in 721 states (max ratio 0.92), so `drawHand`'s `% deck.length` wraparound is
-  unvalidated. It rarely fires on real decks. Left alone, marked.
-- **Where a looted id lands in the roster.** One line of an ordinary cast's log
-  would show it. It no longer blocks anything, so it does not justify a capture
-  of its own — read it off the next cast that loots.
+  `nextCardIndex`'s advance — chosen, not measured, and said so in code.
+- **Whether the pile is RE-SHUFFLED at the wrap**, or continues in the order it
+  was dealt. Narrower than the old bullet it replaces, and not modelled either
+  way.
 
 **The sweep re-run, 2026-08-22, 4000 paired casts per arm, and it is SUSPENDED**
 (`OIL-POLICY.md` §0a — this simulator does not reproduce the fishery: sim catch

@@ -31,6 +31,7 @@ import {
   matchesSequentialDraw,
   openingHands,
   openingPositionCounts,
+  pileWraps,
   tailShare,
   type DeckPositionCounts,
   type OpeningHand,
@@ -112,21 +113,36 @@ describe("§1a — the live corpus falsifies the sequential draw pile", () => {
     expect(chiSquareUniform(deck10)).toBeLessThan(16.92);
   });
 
-  it("the draw pile never exhausts in the corpus — so wraparound stays UNVALIDATED, not silently blessed", () => {
+  it("the draw pile DOES exhaust, and the cursor wraps by drawHand's own arithmetic", () => {
+    // The first draft of this file asserted the opposite — "the pile never
+    // exhausts" — on the evidence that `nextCardIndex` never exceeds
+    // `fullDeck.length`. **That predicate cannot see the event.** The server
+    // wraps the cursor rather than overflowing it, so exhaustion shows up as
+    // `nextCardIndex` going DOWN, and a scan for overflow returns a confident
+    // zero on a corpus containing seven wraps. CLAUDE.md rule 10: check what
+    // the field can express before believing what it reports.
     let states = 0;
     let overflow = 0;
-    let maxRatio = 0;
     for (const cast of CORPUS) {
       for (const r of cast.responses) {
         if (!r.deck) continue;
         states++;
-        maxRatio = Math.max(maxRatio, r.deck.nextCardIndex / r.deck.fullDeck.length);
         if (r.deck.nextCardIndex > r.deck.fullDeck.length) overflow++;
       }
     }
     expect(states).toBeGreaterThanOrEqual(721);
+    // Still zero, and now recorded as what it is: proof about the FIELD's
+    // representation, not about the pile.
     expect(overflow).toBe(0);
-    expect(maxRatio).toBeLessThan(1);
+
+    const wraps = pileWraps(CORPUS);
+    expect(wraps.length).toBeGreaterThanOrEqual(7);
+    // 9 -> 2 on a 10-card deck, 9 -> 1 on an 11-card one: every wrap is
+    // exactly `(idx + handSize) % deck.length`, which is `drawHand`'s own
+    // arithmetic. The wraparound is validated in FORM and fires on real decks.
+    for (const w of wraps) expect(w.to).toBe((w.from + 3) % w.deckLength);
+    // What remains unobserved is narrower and is NOT modelled: whether the
+    // pile is re-shuffled at the wrap or continues in the same order.
   });
 });
 

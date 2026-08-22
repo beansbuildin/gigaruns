@@ -74,8 +74,8 @@ describe("cast-trace corpus reconciliation", () => {
     // [session 69] 114 -> 124 across the ten-cast batch; clean STILL trails
     // traces by exactly one, the same long-standing incomplete cast, now
     // across three consecutive oil batches.
-    expect(traces.length).toBe(128); // [session 72] 124 -> 128 across the four-cast batch.
-    expect(clean.length).toBe(127); // [session 72] 123 -> 127; all four new casts are clean.
+    expect(traces.length).toBe(131); // [session 79] 128 -> 131 across the three-cast batch.
+    expect(clean.length).toBe(130); // [session 79] 127 -> 130; all three new casts are clean, and clean STILL trails traces by exactly one.
     // 480 play turns across the clean traces.
     //
     // [session 68] **The catch count now RECONCILES with the corpus view, and
@@ -87,10 +87,10 @@ describe("cast-trace corpus reconciliation", () => {
     // 26 and thereby visible. With the ITEM_MESSAGE branch fixed both views
     // say 26 — the reconciliation is the evidence, which is why it is asserted
     // against the corpus figure rather than against a literal.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(533); // [session 72] 517 -> 533 (+16 play turns).
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(548); // [session 79] 533 -> 548 (+15 play turns).
     // Still asserted against the corpus figure rather than a literal — the
-    // reconciliation is the evidence, and it holds at 34.
-    expect(traces.filter((t) => t.caught).length).toBe(36); // [session 72] 34 -> 36.
+    // reconciliation is the evidence, and it holds at 38.
+    expect(traces.filter((t) => t.caught).length).toBe(38); // [session 79] 36 -> 38 (+2 catches in three casts).
   });
 
   /**

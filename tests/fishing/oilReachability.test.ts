@@ -214,14 +214,14 @@ describe("the committed corpus", () => {
   // is no later `play_cards` and no strict decision point. The reachability
   // view and the live firing view count different things, and the oil era
   // widens the gap between them every batch.
-  it("reports reachability over all 128 casts", () => {
+  it("reports reachability over all 131 casts", () => {
     const r = reachabilityReport(loadFishingCorpus());
-    expect(r.casts).toBe(128);
-    expect(r.totalDecisionPoints).toBe(549); // [session 72] 531 -> 549 across the four-cast batch (+18; one cast ran 10 turns).
+    expect(r.casts).toBe(131);
+    expect(r.totalDecisionPoints).toBe(564); // [session 79] 549 -> 564 across the three-cast batch (+15).
     expect(r.relaxingReachable).toBe(12);
-    expect(r.focusReachable).toBe(65); // [session 72] 64 -> 65 across the four-cast batch.
-    expect(r.eitherReachable).toBe(70); // [session 72] 69 -> 70 across the four-cast batch.
-    expect(r.neitherReachable).toBe(58); // [session 72] 55 -> 58 across the four-cast batch (3 of the 4 reach neither trigger).
+    expect(r.focusReachable).toBe(65); // [session 79] unmoved: none of the three new casts reaches the focus trigger.
+    expect(r.eitherReachable).toBe(70); // [session 79] unmoved for the same reason.
+    expect(r.neitherReachable).toBe(61); // [session 79] 58 -> 61 — ALL THREE new casts reach neither trigger.
     expect(r.totalRelaxingPoints).toBe(14);
     expect(r.totalFocusPoints).toBe(199); // [session 72] 197 -> 199 across the four-cast batch.
   });
@@ -322,8 +322,8 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
   const rows = loadFishingCorpus().map((c) => castReachability(c, { requireTurnRemaining: true }));
   const reachable = rows.filter((r) => r.relaxingReachable);
 
-  it("finds the lethal trigger reachable on 12 of 128 casts, over 14 decision points", () => {
-    expect(rows).toHaveLength(128);
+  it("finds the lethal trigger reachable on 12 of 131 casts, over 14 decision points", () => {
+    expect(rows).toHaveLength(131);
     expect(reachable).toHaveLength(12);
     expect(rows.reduce((n, r) => n + r.relaxingPoints, 0)).toBe(14);
   });
@@ -347,7 +347,7 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
     // — 4.47 vs 1.83 — because the sim reaches the lethal band on 22.8% of
     // casts against this corpus's 11.0%. Trigger RATE, not oil value, and it
     // is why +4.47pp must not be quoted as the live cost of zero stock.
-    expect((100 * reachable.length) / rows.length).toBeCloseTo(9.375, 2); // [session 69] 10.5 -> 9.7; [session 72] 9.7 -> 9.375. The NUMERATOR is STILL unmoved at 12 across both batches — only the denominator grows, which is the whole point of quoting it as a fraction.
+    expect((100 * reachable.length) / rows.length).toBeCloseTo(9.160, 2); // [session 69] 10.5 -> 9.7; [session 72] 9.7 -> 9.375; [session 79] 9.375 -> 9.160. The NUMERATOR is STILL unmoved at 12 across THREE batches — only the denominator grows, which is the whole point of quoting it as a fraction.
     expect((100 * 1821) / 8000).toBeCloseTo(22.8, 1);
   });
 
@@ -359,7 +359,7 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
     // mechanism and calibrates no rate.
     const gained = reachable.filter((r) => !r.caught).length;
     expect(gained).toBe(2);
-    expect((100 * gained) / rows.length).toBeCloseTo(1.5625, 3); // [session 69] 1.75 -> 1.61; [session 72] 1.61 -> 1.5625, all on the larger denominator; `gained` is STILL 2.
+    expect((100 * gained) / rows.length).toBeCloseTo(1.5267, 3); // [session 69] 1.75 -> 1.61; [session 72] 1.61 -> 1.5625; [session 79] -> 1.5267, all on the larger denominator; `gained` is STILL 2.
   });
 });
 
@@ -405,20 +405,17 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
       // gap" from an exception into an ordinary consequence of the oil era.
       "13024562",
     ]);
-    // [session 69] The window is the TEN casts of this session's batch rather
-    // than five, because the batch size changed and a fixed literal would
-    // silently start describing a different window. `13022748` is now outside
-    // it — it belongs to session 68's batch — so this asserts the newest
-    // member alone, which is the statement worth making: which cast joined,
-    // not how many.
-    const newest10 = new Set(
-      corpus
-        .map((c) => ({ docId: c.docId, first: orderedResponses(c)[0]?.updatedAt ?? "" }))
-        .sort((a, b) => a.first.localeCompare(b.first))
-        .slice(-10)
-        .map((c) => c.docId),
-    );
-    expect(gap.filter((c) => newest10.has(c.docId)).map((c) => c.docId)).toEqual(["13024562"]);
+    // [session 79] **The newest batch contributed NO gap member, and this
+    // assertion is now written to say that rather than to name one.** The
+    // sliding-window form ("the newest N casts contain exactly this id") was
+    // always going to become false the session after the id it names falls out
+    // of the window, and it did: 13024562 belongs to session 69's batch and is
+    // outside the newest ten. The durable statement is the membership list
+    // above — settled by id — plus this: the three casts played on 2026-08-22
+    // are not in it. All three reach NEITHER trigger, so there was no route in.
+    const batch79 = ["13039914", "13039923", "13039932"];
+    expect(corpus.filter((c) => batch79.includes(c.docId))).toHaveLength(3);
+    expect(gap.filter((c) => batch79.includes(c.docId))).toEqual([]);
   });
 
   it("shares a property, and it is clause 2 restated rather than a fact about the meter", () => {
@@ -460,7 +457,7 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
    */
   it("a caught cast CAN be in the gap — one does, and only via an oil-ended cast", () => {
     const caught = corpus.filter((c) => c.responses.some((r) => r.caughtFish !== null));
-    expect(caught).toHaveLength(36); // [session 69] 26 -> 34 across the ten-cast batch; [session 72] 34 -> 36 across the four-cast batch.
+    expect(caught).toHaveLength(38); // [session 69] 26 -> 34; [session 72] 34 -> 36; [session 79] 36 -> 38 across the three-cast batch.
     // [session 69] TWO caught casts are now gap members, both oil-ended. The
     // count matters: session 68 had one, which a reader could file as a freak.
     // A second, from an independent batch, says the oil era produces these
@@ -481,15 +478,15 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
     // Written as the explicit decomposition rather than patched to 15, so the
     // one exceptional member stays visible instead of being absorbed.
     const escaped = corpus.filter((c) => !c.responses.some((r) => r.caughtFish !== null));
-    expect(escaped).toHaveLength(92); // [session 69] 88 -> 90 (ten casts, eight of them caught); [session 72] 90 -> 92 (four casts, two of them caught).
+    expect(escaped).toHaveLength(93); // [session 69] 88 -> 90; [session 72] 90 -> 92; [session 79] 92 -> 93 (three casts, two of them caught).
     const terminalMeterZero = escaped.filter((c) => {
       const ordered = orderedResponses(c);
       const last = ordered[ordered.length - 1];
       return !!last && last.board.fishHp > 0 && last.board.focusMeter <= 0;
     });
-    expect(terminalMeterZero).toHaveLength(68); // [session 72] 67 -> 68 across the four-cast batch.
+    expect(terminalMeterZero).toHaveLength(68); // [session 79] unmoved: the one escaped cast in the batch did not end with an empty meter.
     const alreadyStrict = terminalMeterZero.filter((c) => castReachability(c, { requireTurnRemaining: true }).focusReachable);
-    expect(alreadyStrict).toHaveLength(54); // [session 72] 53 -> 54 across the four-cast batch.
+    expect(alreadyStrict).toHaveLength(54); // [session 79] unmoved, with `terminalMeterZero`.
     expect(terminalMeterZero.length - alreadyStrict.length).toBe(14);
     // The whole gap is that residue PLUS the oil-ended caught casts — now two
     // of them, so the decomposition is written as a sum rather than as

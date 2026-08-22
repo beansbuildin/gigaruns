@@ -56,6 +56,8 @@ function strandedDoc(extra: Record<string, unknown> = {}) {
         { id: 25, manaCost: 1, hitZones: [1, 2, 3], critZones: [], hitEffects: [{ type: "FISH_HP", amount: 5 }], critEffects: [], missEffects: [], rarity: 4 },
         { id: 17, manaCost: 1, hitZones: [4, 5, 6], critZones: [], hitEffects: [{ type: "FISH_HP", amount: 3 }], critEffects: [], missEffects: [], rarity: 1 },
       ],
+      // A PENDING offer carries null here. The `-1` sentinel is a different
+      // state — see the sentinel test below.
       cardChosenId: null,
       fullDeck: [1, 2, 3],
       ...extra,
@@ -146,6 +148,18 @@ describe("loot — APPLIED despite the error (the outcome that used to be report
 });
 
 describe("loot — PROVABLY not applied", () => {
+  it("reads the -1 sentinel as NOT chosen, not as a successful pick", async () => {
+    // [session 79, live] `cardChosenId` is `-1` on a cast where nothing was
+    // ever chosen — 92 of 129 corpus states carrying the field read it, and
+    // only 37 carry a real card id. This predicate's first draft tested
+    // `!= null`, which would read that sentinel as a landed pick and report a
+    // stranded account as resolved: the exact wrong answer the transaction
+    // exists to prevent. Live data wins (CLAUDE.md rule 1).
+    const { client } = makeClient({ stateAfterLoot: strandedDoc({ cardChosenId: -1 }) });
+    await expect(runOneCast(deps(client))).rejects.toThrow(/loot rejected/);
+    expect(events.some((e) => e.event === "loot_applied_response_lost")).toBe(false);
+  });
+
   it("throws the rejection, because the account really is left stranded", async () => {
     const { client, posted } = makeClient({ stateAfterLoot: strandedDoc() });
 
