@@ -197,7 +197,10 @@ const LEVEL_SITES: { file: string; contains: string; live: boolean; why: string 
     live: false,
     why:
       "`shouldRedrawOnConnect`. NOT LIVE — `redrawEnabled` is false and redraw is a closed dead " +
-      "end (session 72: 263 mana per extra fish). Listed because the threshold was DERIVED from " +
+      "end (session 75 re-derivation: 43.9 mana per extra fish, against a cast holding 10 — the " +
+      "session-72 figure of 263 was computed on a sim redraw that neither burned a turn nor " +
+      "observed the fish, and it is CLOSED on price, not on effect). Listed because the " +
+      "threshold was DERIVED from " +
       "`pFresh`, a mean of this same biased quantity, so the derivation inherits the bias even " +
       "though nothing acts on it.",
   },

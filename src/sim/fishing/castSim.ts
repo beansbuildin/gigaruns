@@ -619,12 +619,32 @@ export function simulateCast(opts: CastOptions): CastResult {
       // second mechanism, so there is one way a non-shooting turn advances
       // time in this file and not two.
       //
-      // The direction of the old error is worth keeping: a free step made the
-      // redraw strictly CHEAPER in sim than in play, so session 72's "263 mana
-      // per extra fish" and its `escaped_mana` 18.8% -> 39.8% were both
-      // UNDERSTATEMENTS. Correcting it therefore STRENGTHENS the CLOSED verdict
-      // on redraw and cannot reopen it. `tests/fishing/redrawFishStep.test.ts`
-      // fails against the old `continue`.
+      // **[session 76 §3] The direction of the old error was predicted here, and
+      // the prediction was BACKWARDS.** This comment used to say a free step
+      // made the sim's redraw strictly CHEAPER than the real one, so session
+      // 72's "263 mana per extra fish" and its `escaped_mana` 18.8% -> 39.8%
+      // were UNDERSTATEMENTS. Measured under the fix, same harness, n=4000/arm:
+      // **263.0 -> 43.9** mana per extra fish, catch 26.2% -> 32.5%, turns/cast
+      // 4.38 -> 6.07. The cost went DOWN by a factor of six, and the
+      // `escaped_mana` pair that was called an understatement re-reads
+      // 18.5% -> 39.4% (session 75 §3's table), i.e. essentially unmoved.
+      //
+      // The reasoning priced the missing `turn++` and forgot the missing
+      // `observe()` beside it. **A `continue` skips everything below it, not
+      // the one thing you were thinking about.** The old branch was not merely
+      // time-free, it was INFORMATION-free — a real redraw moves the fish and
+      // the bot SEES where it went, so it buys an observation for the price of
+      // the mana, and that term is the larger one. Hit rate per shot
+      // 35.6% -> 45.4% between the arms under the fix.
+      //
+      // **Redraw stays CLOSED, but on PRICE, not on effect** — 43.9 mana
+      // against a cast holding 10 in total is unaffordable at either figure,
+      // and CLAUDE.md rule 4 bars a live change on a sim result regardless.
+      // What is retracted is the old recorded REASON: the gain was written up
+      // as "not distinguishable from zero", true at |t| = 1.4 and false at
+      // |t| = 7.6. SPEC-fishing §7a carries the retraction and the full table.
+      // `tests/fishing/redrawFishStep.test.ts` fails against the old
+      // `continue`.
       //
       // NOTE what this is NOT. The session-74 brief read a DevTools capture
       // (`FISH_HP_DIFF: -3`, `result: 10`) as a redraw HEALING the fish 3 and
