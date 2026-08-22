@@ -1,194 +1,183 @@
-# STATE — session 71 — 2026-08-21 (PT) — code at commit f91cafb
+# STATE — session 72 — 2026-08-21 (PT) — code at commit 8dae6e1
 
 ## Status
-**GATE 1 PASS. GATE 2 PASS.** Suite **1368/1368** (1360 → 1368, +8),
+**GATE 1 PASS. GATE 2 PASS.** Suite **1375/1375** (1368 → 1375, +7),
 `tsc --noEmit` clean, `git diff --check` clean, secret scan clean across the
-whole session diff (zero matches), `discoveredShipsClean` 8/8. **Zero casts,
-zero dungeon runs** — the brief authorized none and none were spent. Ledgers
-identical at session start and end: fishing game **16/20**, dungeon **0/12**.
+whole session diff, `discoveredShipsClean` 8/8, new fixtures 0 raw identifiers
+/ 25 redaction markers. **4 fishing casts, 0 dungeon runs.**
 
-- **Gate 1 PASS. The headline is a retraction, not a discovery: the replay was
-  never broken — the comparison was.** Live's "1.08" pools two policy eras.
-- **Gate 2 PASS.** `REAL_DECK` is the Shroom deck, in ONE place, with a test
-  that fails when it diverges from the rod the account holds.
-- **The same defect had failed session 70's OTHER gate too**, and that one now
-  PASSES on a like-for-like comparison. **Session 70's report is superseded in
-  part** — header added, not edited away.
+- **Gate 1 PASS, and the headline is a RETRACTION of session 71's headline.**
+  The sim's catch gap was an **oil** gap. Session 71's "the simulator's catch
+  rate is the open disagreement, worse than the focus profile" is withdrawn.
+- **Gate 2 PASS. The redraw trigger was re-derived and the answer is STILL NO** —
+  263 mana per extra fish against a cast holding 10. Both degeneracies pinned
+  at predicate *and* outcome, each demonstrated failing then restored.
+- **The brief's §2b instrument was unavailable** and that is structural, not a
+  shortfall — the replay cannot score a redraw's consequence. See below.
 
-**NOTHING NEW IS SHIPPED TO THE LIVE LOOP.** `liveFishing.ts` is untouched.
-`focusBudget.ts` is still `{kind:"none"}`; redraw is still wired and OFF. Every
-change is analysis scripts, one new sim module, tests, and documentation.
+**NOTHING NEW IS SHIPPED TO THE LIVE LOOP.** `liveFishing.ts` untouched;
+`redrawEnabled` still false; `REDRAW_THRESHOLD` untouched; `focusBudget.ts`
+still `NO_FOCUS_POLICY`. Every change is analysis scripts, two sim/strategy
+additions used only offline, tests, and documentation.
 
 ## What works
-- **§1 GATE 1 — `scripts/replayGapDecomposition.ts`.** The 1.08-vs-0.73 gap
-  decomposed by toggling one thing at a time, with an explicit residual:
+- **§1 GATE 1 — `scripts/oilArmCatchCheck.ts`.** The live-config sim arm does
+  **not** enable oils: `focusProfileCheck.ts` builds both arms as
+  `{empiricalFish, matcherPool, deckIds, blindFallback}` with no `oils` key,
+  and `castSim`'s oil block is opt-in. So 24.7% was a **no-oil simulator**
+  measured against today's era **pooled**, 12 of whose 35 casts spent an oil.
+  Like for like (n=4000/arm, after the 4-cast batch):
 
-  ```
-  session 70's as-run arm (all 123, re-mined, posterior)   0.732
-  + cast set: the 50 live actually logged     0.732 -> 0.760   +0.028
-  + matcher library: live's loaded 3 patterns 0.760 -> 0.840   +0.080
-  + matcher weighting: each cast's OWN era    0.840 -> 1.060   +0.220
-                                                     target     1.080
-  RESIDUAL, unexplained                                        +0.020
-  ```
-
-  **The residual is 5.7% and does NOT sum perfectly** — which the brief
-  correctly said would be the suspicious outcome.
-- **§1 the dominant term is not a harness conservatism at all.** Live's 1.08
-  pools **15 casts played under the RETIRED fixed-0.9 matcher weight** (spent
-  **1.667**) with **35 under today's posterior** (spent **0.829**). Asked about
-  today's policy alone, the replay lands on **0.829 against live's 0.829**.
-- **§1 the brief's two named candidates were MEASURED and are ~nil.**
-  Leave-one-out — the *leading* hypothesis — is worth **−0.020, in the wrong
-  direction**. Truncation is **exactly 0.000**: 0/123 casts lose a turn-0
-  observation, because truncation removes TAIL turns and cannot touch the
-  opener. A third difference the brief did not name (live estimates the sticky
-  switch probability at load, 0.0431; the replay took the constant 0.05) is
-  worth +0.000.
-- **§1 the match is PER-CAST, not a coincidence of means** — era-matched, the
-  replay reproduces the recorded opening move **exactly** on 30/35 (86%) and
-  14/15 (93%), against 33/50 (66%) for the as-run arm.
-- **§1 the 2×2 separates POLICY from CAST SET.** Each era's casts under both
-  weightings: fixed-era 1.267 (as played) vs 0.800; posterior-era 1.114 vs
-  0.743 (as played). Both rows move the same way, so it is the weighting.
-- **§1 rule 10 applied to my own era marker.** `matcherWeight` first appears in
-  session 51, so the split is corroborated on `ts`, which predates it: legacy
-  rows all ≤ 2026-08-19T22:23:49Z, posterior all ≥ 2026-08-20T18:27:39Z,
-  **zero interleaving**.
-- **§1 `focusProfileCheck.ts` is era-aware and its gate now PASSES.** The
-  corpus is **three** policy eras, printed on every run:
-
-  | era | casts | opening | meter-out | catch |
+  | arm | live (today's era) | 95% Wilson | sim | |
   |---|---|---|---|---|
-  | pre-logging (session 49's corpus) | 73 | 1.62 | 80.8% | 11.0% |
-  | retired fixed-0.9 weighting | 15 | 1.67 | 53.3% | 33.3% |
-  | **today's policy** | **35** | **0.83** | **34.3%** | **60.0%** |
-  | pooled — session 70's target | 123 | 1.40 | 64.2% | 27.6% |
+  | no-oil | 43.5% (10/23) | [25.6%, 63.2%] | 26.5% | **INSIDE** |
+  | oil | 78.6% (11/14) | [52.4%, 92.4%] | 50.1% | OUTSIDE |
 
-  Sim 0.77 is INSIDE today's-era [0.58, 1.08]; meter-out 33.9% vs 34.3%.
-- **§2 GATE 2 — `src/sim/fishing/rodDeck.ts` + `tests/fishing/rodDeck.test.ts`.**
-  `REAL_DECK` is `[1,2,3,4,5,6,74,75,76,78]` (Shroom, 811), defined ONCE and
-  imported by all three scripts. The guard resolves the rod off the LATEST
-  cast's own `GEAR_CID_array` and checks the table **against play** too — the
-  granted prefix of that cast's `fullDeck`. Demonstrated failing on Makeshift
-  before restoring (message names rod 811, cast 13024581), 8/8 after.
-- **§3 the crit source is recorded as USER-STATED** in SPEC-fishing.md, with
-  the 443-play zero-crit control alongside it and the Sticky Lure ambiguity
-  intact. Not CONFIRMED.
-- **§4 +19.40pp is SUSPENDED**, marked in `OIL-POLICY.md` §0a where the number
-  lives *and* in `DECISIONS.md`, and struck through in both tables.
+  mean oils/cast — sim OFF 0.00 (that is the proof), sim ON 1.16, live 1.36.
+- **§1 the margin is the number to quote, not the PASS.** The sim clears the
+  live arm's lower bound by **0.9pp** (0.2pp before the batch). One more
+  escaped no-oil cast flips the verdict. The script prints the margin with the
+  verdict so the PASS cannot be quoted alone.
+- **§1 the user's other hypothesis is ruled out BY CONSTRUCTION**, not measured:
+  the sim plays forward and produces its own rate; the corpus enters only as a
+  movement model, never as an outcome. Pre-fix casts cannot drag it down.
+- **§2 GATE 2 — `shouldRedrawOnConnect` + `scripts/redrawTriggerCalibration.ts`
+  + `tests/fishing/redrawTrigger.test.ts`.** Not a re-tune. `shouldRedraw`
+  tests `best.ev`; `chooseCard` stopped maximizing EV in session 13. The
+  re-derived trigger fires when the hand **cannot connect**:
+  `pConnect < pFresh − manaPrice`, both terms measured, threshold **0.3428**.
+- **§2 `pConnect` is calibrated enough to threshold on** — monotone across five
+  buckets on 118 era-matched turns, though **optimistic throughout** (predicts
+  50.0%, observes 39.8%).
+- **§2 the verdict, in `castSim` (n=4000/arm, live config, Shroom deck):**
+
+  | threshold | catch | mana/cast | escaped_mana | turns/cast | mana/fish |
+  |---|---|---|---|---|---|
+  | NEVER (0) | 24.8% | 0.00 | 18.8% | 6.17 | — |
+  | derived (0.343) | 26.2% | 3.68 | 39.8% | 4.38 | **263.0** |
+  | ALWAYS (2) | 0.0% | 9.00 | 100.0% | 1.00 | — |
+
+  +1.4pp is **1.4 SE** — not distinguishable from zero.
+- **§2 both degeneracies pinned at predicate AND outcome, demonstrated.**
+  NEVER broken (`<`→`<=`): 2 tests fail. ALWAYS broken (threshold clamped ≤1):
+  1 test fails. Restored, 7/7. The ALWAYS **outcome** pin asserts against
+  `cardChoice.ts` §5's recorded disaster (78% `escaped_mana`, 1.29 turns/cast);
+  the harness reproduces 100% at 1.00.
+- **§3 4 casts sent, 2 caught.** Rule 13 honoured: game ledger 16 → 20, exactly
+  the casts sent; repo agrees at 20.
 
 ## What's broken
-- **THE SIMULATOR'S CATCH RATE IS THE OPEN DISAGREEMENT, and it is WORSE than
-  the one session 70 failed on.** Sim (live config) **24.7%** against today's
-  era's **60.0%**. The focus profile agreeing does **not** clear the sim.
-- **The gate PASSES on n=35, an interval 0.49 wide** — "not refuted at n=35",
-  not "reproduced". Repeated here so a brief cannot quote the PASS alone.
-- **The profile gate now SPANS THE MAKESHIFT/SHROOM DECK BREAK.** The sim arm
-  is the Shroom deck as of this session's repoint; today's-era corpus is **20
-  Makeshift casts and 15 Shroom** (opening spend 0.75 and 0.93). The verdict
-  does not turn on which side you take, but the number is not deck-pure.
-- **AN ERA IS A BUNDLE, NOT A KNOB** — zone map, matcher weighting, lures and
-  rod all changed between them. The split proves a pooled comparison invalid; it
-  does **not** prove any one change caused it. Only the 2×2 isolates the
-  weighting, and only for the replay.
-- **`focusBudget.ts`'s PREMISE is in question, not just its numbers.** It
-  exists because meter-out was 80.8%; on the era the shipped policy plays it is
-  **34.3%**, catch **60.0%**. In the module header. Nothing is wired live.
-- **The sim's oil arm is UNCHANGED and still not this fishery** (meter-out
-  1.0%, catch 69.7% post-repoint). §1 restored the *replay's* precondition;
-  that licenses nothing about `castSim`'s bare-default arm.
+- **THE OIL ROW DID NOT PASS.** `castSim`'s modelled oil block under-delivers
+  against the real oil arm — **50.1% vs 78.6%**. At n=14 against **assumed**
+  payloads (`FishingRestoreFocus` +2 / `FishingDamageFish` +2, never observed)
+  this neither establishes the payloads are wrong nor clears them.
+- **Gate 1's PASS rests on a 0.9pp margin against a 37.6pp-wide interval.**
+  "Not refuted at n=23" is not "reproduced". Do not read the axis as settled.
+- **The era-matched replay CANNOT score a redraw's consequence, and no care
+  fixes it.** Its licence to refill is "one card per turn means the
+  counterfactual empties the hand on the SAME turn as the record"; a redraw is
+  exactly the move that breaks that invariant, and the draw pile never appears
+  on the wire (**0/56** refills match a `fullDeck` slice). The brief's §2b asked
+  for the whole calibration there and that half was unavailable.
+- **30% of the derived trigger's firings could not pay for themselves even with
+  a PERFECT redraw** (`ReplayTurn.pConnectCeiling`, §4 of the script) — and the
+  ceiling picks the best card in the whole deck, so the true waste is higher.
+- **The redraw failure was never only the currency.** The new trigger fires 4x
+  less often than the old one and still lands in the same failure — mana
+  exhaustion replacing meter exhaustion.
+- **`pConnect` is optimistic in every bucket** (50.0% predicted vs 39.8%
+  observed). Unmeasured whether that is the matcher, the ring model, or both.
 - Carried: the `nextPosition` tripwire has still never met a real miss;
-  distribution steps 3/4/6 remain the user's; the hardcoded-path ratchet is now
-  **26** (rodDeck.ts documented in the allowlist — it caught the new module, as
-  designed).
+  distribution steps 3/4/6 remain the user's; the hardcoded-path ratchet is
+  **26**, unchanged.
 
 ## Corrections to SPEC.md
-- **SPEC-fishing.md §CRIT: the Steady Lure is USER-STATED**, not confirmed.
-  The load-bearing evidence is still the control — **443 lure-free plays, 0
-  crits, upper bound 0.86%**, below the stated 3%. The single crit falls inside
-  the Steady+Sticky overlap; the 27 Steady-only plays hold none;
-  `/offchain/static` has no effect field for 951 or 952.
-- **Session 49's `focusBudget.ts` numbers were NOT STALE — session 70's
-  correction was itself wrong.** 80.8% meter-out and opening spend 1.62 are
-  *exactly* the pre-logging era of 73 casts, correct for the corpus they were
-  computed on. The defect is **pooling, not age**, and the fix is different:
-  do not recompute over everything, split by era.
-- **A live/replay difference nobody had named:** `liveFishing.ts` **estimates**
-  the sticky switch probability at load (0.0431, n=394); `offPolicyReplay.ts`
-  takes the constant 0.05. Worth +0.000 here — documentation, not a bug.
-- **`fullDeck`'s opening entries ARE the rod's grant** — the latest cast's
-  20-card `fullDeck` opens with exactly the Shroom 10, rest is loot. The
-  independent witness for the rod→deck rule.
+- **Session 71's "the sim's catch rate is the open disagreement" is RETRACTED**,
+  in place, in `focusProfileCheck.ts` §4 — the line that produced it now prints
+  the retraction and points at `oilArmCatchCheck.ts`. The defect was session
+  71's OWN defect one level down: it split the corpus by **era** and then
+  pooled the **oil arms** inside the era it kept.
+- **`13025987` spent TWO FOCUS oils (942), not Relaxing.** I wrote the opposite
+  into two test comments before checking the log, and corrected both before
+  commit. The Relaxing per-cast cap of 2 **has still never bound.**
+- **Oil stock is now Relaxing 48 / Focus 11**, against `config/bot.json`'s note
+  describing "fewer oils than a batch needs... runs out MID-batch". That note
+  is what PRODUCED the `policy-dry` arm; with 48 held the policy cannot run
+  dry, so casts that would have landed there now land in the oil arm. Not an
+  era break, but a composition change in the split gate 1 rests on.
+- **`costCap`'s inertness is a FINDING about the fishery, not a measurement
+  failure.** Today's policy spends 0.83 of a 3-point meter on the opener, so
+  `costCap(2)` has nothing to bind on and `+0/−0` is correct. The user's
+  opening-turn directive is substantially already satisfied.
+- Corpus 124 → 128 casts, 521 → 537 `playTurns`, 34 → 36 caught. Twelve pinned
+  assertions across four test files updated with the move recorded inline. **No
+  assertion was loosened.**
 - Resolved IDs unchanged: forbiddenWoods=5, dendren nodeId="5"/pondId=2.
 - Move charges: PRESENT — unchanged, no new capture.
 
 ## Dead ends
-- **Leave-one-out as the explanation for the replay gap. It is worth −0.020, in
-  the wrong direction.** Do not re-open it; the measurement is in
-  `replayGapDecomposition.ts` §4.
-- **Truncation likewise: exactly 0.000.** It removes tail turns and structurally
-  cannot touch turn 0. Measuring it was still right — it turns "probably
-  irrelevant" into a number — but it was never going to be the cause.
-- **Recomputing a corpus statistic over MORE casts is not the fix for a stale
-  one.** Session 70 did that to session 49's numbers and produced a figure
-  describing no policy at all. Split by era instead.
+- **Redraw, at any threshold in this currency.** Do not reopen expecting a
+  better number to rescue it — a redraw costs 30% of the mana budget and a
+  fresh 3-card hand is not 30% better. The measurement is in
+  `redrawTriggerCalibration.ts` §5/§6.
+- **Calibrating a redraw's VALUE on the replay.** Structurally impossible, see
+  above. Only `castSim` can deal replacement cards.
+- **Rebuilding `costCap`.** Inert because unneeded. But **do NOT retire
+  `focusBudget.ts` wholesale** — the meter still empties in 34.3% of casts,
+  which is a CUMULATIVE drain that `costCap` cannot bound and `schedule` can.
 - Standing: never report energy as a blocker; `--dry-run` before claiming a
   blocker; do not revert rule 8; do not loosen the `fakeDoc` observability
   guard; §19, rule 8 and corrode-in-`dungeonSim` are CLOSED; `boonCapture`
-  settled OFF; do not fold stock into the oil threshold.
+  settled OFF; do not fold stock into the oil threshold; leave-one-out and
+  truncation are closed as replay-gap causes.
 - **`npx tsx` and `git` both fail under the command sandbox** on this machine.
   Run unsandboxed. Not a repo problem.
 
 ## Metrics
-- **Live: 0 casts, 0 dungeon runs.** Ledgers unchanged start→end: fishing game
-  **16/20** (4 remain, rollover 11:00 PT), dungeon **0/12** run-units.
-- Corpus unchanged: 124 casts / 123 clean traces / 521 `playTurns`.
-- Replay, era-matched: posterior era **0.829** vs live 0.829 (n=35, 86% exact);
-  fixed era **1.600** vs live 1.667 (n=15, 93% exact).
-- Sim (live config, n=4000, **Shroom deck** — post-repoint): opening spend
-  **0.77**, meter-out **33.9%**, catch **24.7%**. Session 70's Makeshift-deck
-  read of the same arm was 0.77 / 32.5% / 20.7%.
-- Sim (bare default, synthetic fish — the oil sweeps' arm, post-repoint):
-  opening 0.64, meter-out **1.0%**, catch **69.7%**. Still not this fishery.
-- **Suite 1360 → 1368.** New: `rodDeck` 8.
+- **Live: 4 fishing casts, 0 dungeon runs.** Fishing ledger **16 → 20/20**
+  (cap spent, rollover 11:00 PT); dungeon **0/12** throughout.
+- Batch: 2/4 caught — escaped(2 turns), escaped(10, two Focus oils),
+  caught(2, lethal Relaxing), caught(2, no oil).
+- **Today's era running: 23/39 = 59.0%, 95% [43.4%, 72.9%]** (was 21/35 =
+  60.0%, [43.6%, 74.4%]). Interval 30.8pp → 29.5pp. ~90 casts reads it to ±10pp.
+- Corpus: **128 casts / 127 clean traces / 537 `playTurns`**.
+- Replay, today's era: 35 casts, 118 turns; `pFresh` 0.4897 (n=50 fresh hands);
+  derived threshold fires on 25.4% of turns.
+- **Suite 1368 → 1375.** New: `redrawTrigger` 7.
 
 ## Open questions for Claude
-1. **The sim's CATCH RATE is the open gap: 24.7% vs today's era's 60.0%.** A
-   bigger disagreement than the focus profile ever was, and NOT an era artefact
-   — it is measured on the era the policy plays. Is closing it the next
-   session's work, and what gate would be set on something the agent controls
-   (rule 6)?
-2. **Should the focus-budget families be swept at all now?** Built for a 80.8%
-   meter-out fishery; today's era is 34.3% with catch 60.0%. The arms are no
-   longer *known-unexercised* — but today's policy really does spend only ~0.83
-   on the opener, so `costCap(2)` still has nothing to cap. **A finding, not a
-   measurement failure.**
-3. **Is the era split worth making a first-class corpus concept?** Three
-   analyses have now been invalidated by pooling; a shared `eraOf(cast)` would
-   make the question cheap instead of re-derived per script.
-4. **What re-derives +19.40pp?** It needs a sim arm passing a profile check, and
-   the bare-default arm is nowhere near one (catch 69.7% vs 27.6%). Worth a
-   session, or is the oil decision made on live evidence instead?
-5. Carried: separate the crit source with one-lure-only casts? Recalibrate
-   `REDRAW_THRESHOLD` — §1 restored the instrument it was waiting on. Should
-   `preflight.ts` run in CI (open since session 68)?
+1. **The oil row is the one that did not pass — 50.1% sim vs 78.6% live (n=14).**
+   `castSim`'s oil payloads are ASSUMED, never observed. Is measuring them the
+   next session's work, and what gate would be set on something the agent
+   controls (rule 6) given no cast supplies an oil outcome?
+2. **`pConnect` is optimistic in every bucket (50.0% predicted, 39.8%
+   observed).** That is the policy's own distribution being overconfident, and
+   it is upstream of card choice, focus placement and every EV number in the
+   repo. Worth a session on its own?
+3. **Is `schedule` worth sweeping?** It is the one focus arm §4 did NOT retire,
+   and the cumulative-drain premise (34.3% meter-out) is live-measured.
+4. **Casts: 20 available after 11:00 PT.** Continuing to 90 in this era takes
+   ~3 more days at 20/day. Is that the plan, or is the ±15pp interval good
+   enough for the decisions actually pending?
+5. Carried: separate the crit source with one-lure-only casts? Should
+   `preflight.ts` run in CI (open since session 68)? What re-derives +19.40pp
+   (still SUSPENDED, do not quote)?
 
 ## Files changed
 ```
- 3 commits (d67aa87, b1ff5fc, f91cafb). 14 files, +903 -58.
+ 5 commits (544d872, 2c3658f, 2016f6e, 7b919b6, 8dae6e1).
+ 40 files, +22755 -41 (21,689 of the insertions are 25 new fixture files).
 
-  NEW  scripts/replayGapDecomposition.ts        237  GATE 1
-  NEW  handoff/reports/session-71-replay-gap.md 171  the gate-1 argument
-  NEW  src/sim/fishing/rodDeck.ts               158  GATE 2
-  NEW  tests/fishing/rodDeck.test.ts             96  GATE 2, the ratchet
-       scripts/focusProfileCheck.ts            +129  era-aware; gate now PASSES
-       handoff/OIL-POLICY.md                    +30  §0a SUSPENDED
-       src/strategy/fishing/focusBudget.ts      +27  the era split, and the premise
-       handoff/reports/session-70-focus-profile.md +24  SUPERSEDED IN PART
-       scripts/{fishingEmpiricalAblation,focusReserveAblation}.ts +45  REAL_DECK
-       handoff/DECISIONS.md                     +16  §4 + the era rule
-       scripts/critByGear.ts                    +14  shares rodDeck's constants
-       SPEC-fishing.md                           +8  crit source: user-stated
-       tests/noHardcodedPaths.test.ts            +6  rodDeck documented (ratchet 26)
+  NEW  scripts/redrawTriggerCalibration.ts    319  GATE 2
+  NEW  scripts/oilArmCatchCheck.ts            281  GATE 1
+  NEW  tests/fishing/redrawTrigger.test.ts    154  GATE 2, both pins
+       src/sim/fishing/offPolicyReplay.ts     +74  pConnect, handSize, ceiling
+       src/strategy/fishing/cardChoice.ts     +74  shouldRedrawOnConnect + bounds
+       src/sim/fishing/castSim.ts             +65  connect policy, redrawMana
+       tests/fishing/oilReachability.test.ts  +34  corpus pins 124 -> 128
+       scripts/focusProfileCheck.ts           +22  catch-rate verdict RETRACTED
+       src/strategy/fishing/focusBudget.ts    +21  costCap answered, schedule kept
+       tests/sim/fishingCorpus.test.ts        +20  corpus pins, oil ids
+       handoff/DECISIONS.md                   +12  eleven settlements
+       tests/{stateFields,zoneTemplate}.test.ts +18  corpus pins
 ```
