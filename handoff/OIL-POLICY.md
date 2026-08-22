@@ -110,13 +110,13 @@ Diagnosed from the sweep's own numbers, not assumed:
   cast is **2.95**; `stalled` — the only outcome `maxTurns` can produce — is
   **1 in 8000**.
 - **What is scarce is mana and misses.** `escaped_mana` is the dominant loss
-  (2003/8000 on the control arm), `escaped_meter` second (499/8000, driven by
+  (2003/8000 on the control arm), `escaped_fish_full` second (499/8000, driven by
   misses pushing `fishHp` back toward `fishMaxHp`).
 - A consume turn plays no card, so it **spends no mana, takes no miss, and
   hands the matcher a free observation of the fish's move.**
 
 The consequence is visible directly: `start` at `costsTurn=true` cuts
-`escaped_mana` 868 → 270 and `escaped_meter` 165 → 10, and its catch rate
+`escaped_mana` 868 → 270 and `escaped_fish_full` 165 → 10, and its catch rate
 **rises** from 74% to 93%. An added cost that improves the outcome is an
 artifact. Those rows are printed with a warning attached rather than deleted.
 

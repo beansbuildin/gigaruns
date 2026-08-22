@@ -52,9 +52,9 @@
  *     live-config arm      sequential      shuffled      corpus
  *       focus Δ turns 1-3  +0.84/+0.92/+0.69   +0.10/+0.01/-0.01
  *       opening spend      0.53            1.27          0.79 [0.57, 1.02] today's era
- *       meter-out          27.3%           29.3%         33.3% today's era
+ *       fish-at-full       27.3%           29.3%         33.3% today's era
  *     bare arm (the oil sweeps')
- *       meter-out          0.6%            0.6%          63.0% pooled
+ *       fish-at-full       0.6%            0.6%          63.0% pooled
  *       catch              91.5%           81.2%         27.6%
  *
  * **The per-turn focus profile essentially closed** — worst-turn discrepancy
@@ -102,7 +102,7 @@ interface Profile {
   /** Casts alive at turn i. */
   alive: number[];
   /** Share of casts that ended by the meter filling. */
-  meterOutRate: number;
+  fishFullRate: number;
   catchRate: number;
   /** Points spent on the opening move: `focus[0] - focus[1]`. */
   openingSpend: number;
@@ -128,7 +128,7 @@ function meanCi(xs: number[]): { mean: number; lo: number; hi: number; n: number
 }
 
 /** One profile out of a set of per-cast focus sequences plus outcomes. */
-function profileOf(label: string, casts: { focus: number[]; caught: boolean; meterOut: boolean }[]): Profile {
+function profileOf(label: string, casts: { focus: number[]; caught: boolean; fishFull: boolean }[]): Profile {
   const focus: number[] = [];
   const alive: number[] = [];
   for (let i = 0; i < TURNS_SHOWN; i++) {
@@ -144,7 +144,7 @@ function profileOf(label: string, casts: { focus: number[]; caught: boolean; met
     label,
     focus,
     alive,
-    meterOutRate: casts.filter((c) => c.meterOut).length / Math.max(1, casts.length),
+    fishFullRate: casts.filter((c) => c.fishFull).length / Math.max(1, casts.length),
     catchRate: casts.filter((c) => c.caught).length / Math.max(1, casts.length),
     openingSpend: (focus[0] ?? 0) - (focus[1] ?? 0),
     openingSpends,
@@ -155,12 +155,12 @@ function profileOf(label: string, casts: { focus: number[]; caught: boolean; met
 
 /**
  * The corpus's terminal reason, matching `lossDecomposition.ts` exactly — a
- * cast escaped by meter-out when the fish reached full HP. Re-derived here
+ * cast escaped by the fish reaching full HP. Re-derived here
  * rather than imported because that script's copy is a local function; the
  * definition is one line and duplicating it is cheaper than exporting a
  * private helper and having two callers drift.
  */
-function corpusMeterOut(t: CastTrace): boolean {
+function corpusFishFull(t: CastTrace): boolean {
   const last = t.turns[t.turns.length - 1];
   return !t.caught && last !== undefined && last.fishHp >= last.fishMaxHp;
 }
@@ -196,7 +196,7 @@ function corpusProfile(label = "CORPUS (live)", keep: (t: CastTrace) => boolean 
     traces.map((t) => ({
       focus: t.turns.map((x) => x.focusMeter),
       caught: t.caught,
-      meterOut: corpusMeterOut(t),
+      fishFull: corpusFishFull(t),
     })),
   );
 }
@@ -218,7 +218,7 @@ const SEQUENTIAL_PILE = process.argv.includes("--sequential-pile");
 
 function simProfile(label: string, extra: Omit<CastOptions, "seed" | "policy">, runs: number, seed = 1): Profile {
   const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, true);
-  const casts: { focus: number[]; caught: boolean; meterOut: boolean }[] = [];
+  const casts: { focus: number[]; caught: boolean; fishFull: boolean }[] = [];
   for (let i = 0; i < runs; i++) {
     const focus: number[] = [];
     const r = simulateCast({
@@ -230,7 +230,7 @@ function simProfile(label: string, extra: Omit<CastOptions, "seed" | "policy">, 
       observeTurn: (s) => focus.push(s.focusRemaining),
     });
     const outcome: CastOutcome = r.outcome;
-    casts.push({ focus, caught: outcome === "caught", meterOut: outcome === "escaped_meter" });
+    casts.push({ focus, caught: outcome === "caught", fishFull: outcome === "escaped_fish_full" });
   }
   return profileOf(label, casts);
 }
@@ -240,7 +240,7 @@ function printProfile(p: Profile): void {
   console.log(`    focus: ${p.focus.map((f) => f.toFixed(2).padStart(5)).join("")}`);
   console.log(`    n    : ${p.alive.map((a) => String(a).padStart(5)).join("")}`);
   console.log(
-    `    meter-out ${(p.meterOutRate * 100).toFixed(1)}%   catch ${(p.catchRate * 100).toFixed(1)}%` +
+    `    fish-at-full ${(p.fishFullRate * 100).toFixed(1)}%   catch ${(p.catchRate * 100).toFixed(1)}%` +
       `   opening spend ${p.openingSpend.toFixed(2)}   turns at focus 0 ${(p.zeroTurnShare * 100).toFixed(1)}%   casts ${p.n}`,
   );
 }
@@ -331,7 +331,7 @@ function main(): void {
 
   // The two summary statistics the sweep would actually be optimising.
   console.log("");
-  console.log(`  meter-out rate      corpus ${(corpus.meterOutRate * 100).toFixed(1)}%   sim ${(live.meterOutRate * 100).toFixed(1)}%`);
+  console.log(`  fish-at-full rate   corpus ${(corpus.fishFullRate * 100).toFixed(1)}%   sim ${(live.fishFullRate * 100).toFixed(1)}%`);
   console.log(`  opening spend       corpus ${corpus.openingSpend.toFixed(2)}    sim ${live.openingSpend.toFixed(2)}`);
   console.log(`  turns at focus 0    corpus ${(corpus.zeroTurnShare * 100).toFixed(1)}%   sim ${(live.zeroTurnShare * 100).toFixed(1)}%`);
   console.log(`  catch rate          corpus ${(corpus.catchRate * 100).toFixed(1)}%   sim ${(live.catchRate * 100).toFixed(1)}%`);
@@ -368,8 +368,8 @@ function main(): void {
   console.log(`  sim    opening spend  ${sc.mean.toFixed(2)}  95% CI [${sc.lo.toFixed(2)}, ${sc.hi.toFixed(2)}]  n=${sc.n}`);
   console.log("");
   if (inside) {
-    console.log(`  PASS — the sim's ${sc.mean.toFixed(2)} is inside today's-era interval, and it meter-outs on`);
-    console.log(`  ${(live.meterOutRate * 100).toFixed(1)}% of casts against today's era's ${(todaysEra.meterOutRate * 100).toFixed(1)}%. Session 70's FAIL was a`);
+    console.log(`  PASS — the sim's ${sc.mean.toFixed(2)} is inside today's-era interval, and its fish heal to full on`);
+    console.log(`  ${(live.fishFullRate * 100).toFixed(1)}% of casts against today's era's ${(todaysEra.fishFullRate * 100).toFixed(1)}%. Session 70's FAIL was a`);
     console.log(`  comparison against a pool 88/123 composed of retired policies, not a sim fault.`);
     console.log("");
     console.log(`  READ THE INTERVAL BEFORE CELEBRATING: n=${tc.n} makes it ${(tc.hi - tc.lo).toFixed(2)} wide. This is`);
@@ -405,7 +405,7 @@ function main(): void {
     console.log("  means the policy does not need it, which is a finding, not a measurement.");
   } else {
     console.log(`  *** FAIL *** — the sim's ${sc.mean.toFixed(2)} is OUTSIDE today's-era interval.`);
-    console.log(`  The sim meter-outs on ${(live.meterOutRate * 100).toFixed(1)}% of casts against today's era's ${(todaysEra.meterOutRate * 100).toFixed(1)}% —`);
+    console.log(`  The sim's fish heal to full on ${(live.fishFullRate * 100).toFixed(1)}% of casts against today's era's ${(todaysEra.fishFullRate * 100).toFixed(1)}% —`);
     console.log("  it does not reproduce the failure mode focusBudget.ts was built to fix.");
     console.log("");
     console.log("  A spend cap cannot bind on a policy that does not spend, so an inert arm in");

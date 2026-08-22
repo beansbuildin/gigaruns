@@ -29,7 +29,7 @@
  *
  * `cardChoice.ts` §5 records the only calibration `REDRAW_THRESHOLD` has ever
  * had: repeated redraws burning mana before a card was played, the loss mix
- * flipping from 89% `escaped_meter` to 78% `escaped_mana`, at a mean of **1.29
+ * flipping from 89% `escaped_fish_full` to 78% `escaped_mana`, at a mean of **1.29
  * turns per cast** — and that threshold is still the shipped constant. So the
  * send path is exercised HERE, with the dep forced true, and nowhere else.
  */

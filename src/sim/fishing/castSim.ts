@@ -62,7 +62,37 @@ import {
   type OilTimingPolicy,
 } from "../../strategy/fishing/oilTiming.js";
 
-export type CastOutcome = "caught" | "escaped_meter" | "escaped_mana" | "stalled";
+/**
+ * How a cast ended.
+ *
+ * ## ⚠ `escaped_fish_full` WAS CALLED `escaped_meter` UNTIL SESSION 80
+ *
+ * Renamed because the old name pointed every reader at the wrong subsystem.
+ * It never meant "the focus meter ran out" — it means **the fish healed back
+ * to full HP**, `if (fishHp >= fishMaxHp)` below, and that is the dominant
+ * live loss mode at 80 of 130 committed casts.
+ *
+ * The distinction is not pedantic, it is the difference between two different
+ * diagnoses of the same number:
+ *
+ *  - **This simulator has no focus terminal condition at all**, and it is
+ *    right not to. Live, `focusMeter` hits 0 and the cast CONTINUES — one
+ *    corpus cast runs eight more plays after the meter empties — and **53% of
+ *    CAUGHT casts end with the meter at 0.** Focus exhaustion is a STATE, not
+ *    a loss.
+ *  - Reading "the sim escapes on 0.6% of casts against a live 63.0%" under the
+ *    old name suggests a focus-budget problem. The measured cause is a DAMAGE
+ *    problem: `scripts/damageEconomy.ts` puts the live per-play `fishHp` drift
+ *    at +0.192 and this arm's at −3.437, with the hit rate carrying 96% of it.
+ *
+ * The arithmetic never disagreed — `focusProfileCheck.ts` and
+ * `lossDecomposition.ts` both defined the corpus side as *fish reached full
+ * HP*, so every comparison drawn under the old name is still apples-to-apples
+ * and its figures still stand. **The name was the hazard, not the numbers.**
+ * `scripts/focusBudgetSweep.ts`'s `focusZeroCasts` was renamed in the same
+ * pass, in the other direction, for the same reason.
+ */
+export type CastOutcome = "caught" | "escaped_fish_full" | "escaped_mana" | "stalled";
 
 export interface CastResult {
   outcome: CastOutcome;
@@ -788,7 +818,7 @@ export function simulateCast(opts: CastOptions): CastResult {
     }
     if (fishHp >= fishMaxHp) {
       record();
-      return { outcome: "escaped_meter", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
+      return { outcome: "escaped_fish_full", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
     }
   }
   return { outcome: "stalled", turns: turn, finalFishHp: fishHp, hits, shots, oilsUsed, redrawMana };
@@ -828,7 +858,7 @@ export interface CastSummary {
    * Mean final fish HP still separates "nearly had it" from "never close",
    * so an ablation has something to move even where no cast is ever won.
    */
-  escapedMeter: number;
+  escapedFishFull: number;
   escapedMana: number;
   stalled: number;
   meanFinalFishHp: number;
@@ -847,7 +877,7 @@ export interface CastSummary {
 export function simulateCasts(runs: number, opts: Omit<CastOptions, "seed">, seed = 1): CastSummary {
   let caught = 0;
   let totalTurns = 0;
-  let escapedMeter = 0;
+  let escapedFishFull = 0;
   let escapedMana = 0;
   let stalled = 0;
   let totalFinalHp = 0;
@@ -858,7 +888,7 @@ export function simulateCasts(runs: number, opts: Omit<CastOptions, "seed">, see
     hits += r.hits;
     shots += r.shots;
     if (r.outcome === "caught") caught++;
-    else if (r.outcome === "escaped_meter") escapedMeter++;
+    else if (r.outcome === "escaped_fish_full") escapedFishFull++;
     else if (r.outcome === "escaped_mana") escapedMana++;
     else stalled++;
     totalTurns += r.turns;
@@ -869,7 +899,7 @@ export function simulateCasts(runs: number, opts: Omit<CastOptions, "seed">, see
     caught,
     catchRate: caught / runs,
     meanTurns: totalTurns / runs,
-    escapedMeter,
+    escapedFishFull,
     escapedMana,
     stalled,
     meanFinalFishHp: totalFinalHp / runs,

@@ -23,12 +23,12 @@
 
 import { loadCastTraces, isCleanTrace, type CastTrace } from "../src/sim/fishing/castTrace.js";
 
-type Reason = "caught" | "escaped (meter out)" | "mana out" | "truncated / unresolved";
+type Reason = "caught" | "escaped (fish at full HP)" | "mana out" | "truncated / unresolved";
 
 function terminalReason(t: CastTrace): Reason {
   const last = t.turns[t.turns.length - 1]!;
   if (t.caught) return "caught";
-  if (last.fishHp >= last.fishMaxHp) return "escaped (meter out)";
+  if (last.fishHp >= last.fishMaxHp) return "escaped (fish at full HP)";
   if (last.mana <= 0) return "mana out";
   return "truncated / unresolved";
 }

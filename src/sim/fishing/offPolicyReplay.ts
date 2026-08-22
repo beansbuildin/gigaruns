@@ -133,7 +133,7 @@ import {
 
 export type ReplayOutcome =
   | "caught"
-  | "escaped_meter"
+  | "escaped_fish_full"
   /** The recorded trajectory ran out before the cast resolved — scored as not caught. */
   | "truncated"
   /** No affordable card; the live loop halts here (CLAUDE.md §5), so the replay does too. */
@@ -176,7 +176,7 @@ export interface ReplayTurn {
    * maximizes in session 13 — cards are picked for hit probability now — so a
    * card can be the right pick and still carry a legitimately low EV. The one
    * prior calibration of that threshold fired almost every turn and flipped
-   * the loss mix from 89% `escaped_meter` to 78% `escaped_mana` at a mean of
+   * the loss mix from 89% `escaped_fish_full` to 78% `escaped_mana` at a mean of
    * 1.29 turns/cast (`cardChoice.ts` §5). A redraw is worth its cost when the
    * hand CANNOT CONNECT, and this is that quantity, measured on real
    * recorded turns rather than assumed.
@@ -907,7 +907,7 @@ export function replayCast(target: CastTrace, others: readonly CastTrace[], opts
       break;
     }
     if (fishHp >= fishMaxHp) {
-      outcome = "escaped_meter";
+      outcome = "escaped_fish_full";
       break;
     }
     if (hand.length === 0) {

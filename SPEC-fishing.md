@@ -977,7 +977,7 @@ So intent is carried by **which builder is called**:
 The reason is no longer "we do not know how". It is that `REDRAW_THRESHOLD` has
 never been calibrated against a redraw that could actually be sent. The one
 calibration in this repo's history (`cardChoice.ts` §5) produced **casts
-averaging 1.29 turns**, with the loss mix flipping from 89% `escaped_meter` to
+averaging 1.29 turns**, with the loss mix flipping from 89% `escaped_fish_full` to
 78% `escaped_mana` — repeated redraws burning mana before a card was ever
 played — and **that threshold is still the shipped constant**.
 

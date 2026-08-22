@@ -63,13 +63,13 @@
  *     `stalled` (the only outcome `maxTurns` can cause) is 0 or 1 in 4000.
  *   - What IS scarce is MANA (10 to start, every card costs some;
  *     `escaped_mana` is the dominant loss at 1007/4000) and MISSES (a miss
- *     pushes `fishHp` back toward `fishMaxHp`; `escaped_meter` 259/4000).
+ *     pushes `fishHp` back toward `fishMaxHp`; `escaped_fish_full` 259/4000).
  *   - A consume turn as implemented plays no card, so it spends no mana, takes
  *     no miss, and hands the matcher a free observation of the fish's move.
  *
  * So burning a turn on an oil is not a cost in this model — it is a free
  * scouting action, and the numbers show exactly that: `start` at `costsTurn=
- * true` cuts `escaped_mana` 868 -> 270 and `escaped_meter` 165 -> 10, and its
+ * true` cuts `escaped_mana` 868 -> 270 and `escaped_fish_full` 165 -> 10, and its
  * catch rate RISES from 74% to 93%. An added cost that improves the outcome is
  * an artifact, not a finding, and the `costsTurn=true` rows are reported with
  * that label attached rather than deleted.
@@ -101,7 +101,7 @@ export interface ArmResult {
   caught: number;
   catchRate: number;
   meanTurns: number;
-  escapedMeter: number;
+  escapedFishFull: number;
   escapedMana: number;
   oilsSpent: number;
   /** Casts where at least one oil was spent — a policy that never triggers is inert, not good. */
@@ -137,7 +137,7 @@ export function runArm(
 ): { summary: ArmResult; caughtBySeed: boolean[] } {
   let caught = 0;
   let turns = 0;
-  let escapedMeter = 0;
+  let escapedFishFull = 0;
   let escapedMana = 0;
   let oilsSpent = 0;
   let castsUsingOil = 0;
@@ -158,7 +158,7 @@ export function runArm(
     const isCaught = r.outcome === "caught";
     caughtBySeed.push(isCaught);
     if (isCaught) caught++;
-    if (r.outcome === "escaped_meter") escapedMeter++;
+    if (r.outcome === "escaped_fish_full") escapedFishFull++;
     if (r.outcome === "escaped_mana") escapedMana++;
     if (r.outcome === "stalled") stalled++;
     turns += r.turns;
@@ -172,7 +172,7 @@ export function runArm(
       caught,
       catchRate: caught / runs,
       meanTurns: turns / runs,
-      escapedMeter,
+      escapedFishFull,
       escapedMana,
       oilsSpent,
       castsUsingOil,
@@ -237,7 +237,7 @@ function reportBranch(runs: number, costsTurn: boolean, amount: number): PairedD
       `  ${p.name.padEnd(22)} ${pct(s.catchRate).padStart(8)} ${pp(d.deltaCatchRate).padStart(11)} ` +
         `${`[${pp(d.lo)}, ${pp(d.hi)}]`.padStart(18)} ` +
         `${String(s.oilsSpent).padStart(6)} ${(s.oilsSpent > 0 ? perOil.toFixed(3) : "—").padStart(7)} ` +
-        `${String(s.escapedMana).padStart(8)} ${String(s.escapedMeter).padStart(9)} ${String(s.stalled).padStart(6)}`,
+        `${String(s.escapedMana).padStart(8)} ${String(s.escapedFishFull).padStart(9)} ${String(s.stalled).padStart(6)}`,
     );
   }
   return deltas;

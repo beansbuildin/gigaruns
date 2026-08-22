@@ -697,7 +697,7 @@ export function chooseNewCard(offers: readonly FishingCardLike[]): FishingCardLi
  * when it's the right pick, and comparing that number against a threshold
  * calibrated for "is EV/mana bad" triggered redraw almost every turn —
  * confirmed live in the 500-cast sim, where the matcher policy's outcome
- * mix flipped from 89% `escaped_meter` to 78% `escaped_mana` at a mean of
+ * mix flipped from 89% `escaped_fish_full` to 78% `escaped_mana` at a mean of
  * 1.29 turns/cast (repeated redraws burning mana before a card was ever
  * played). Reading raw `ev` against a re-tuned threshold (`REDRAW_THRESHOLD`,
  * `src/sim/fishing/castSim.ts`) fixes it.
@@ -721,7 +721,7 @@ export function shouldRedraw(
  * old constant was the failure mode to avoid.
  *
  * THE POSTMORTEM, in one line: §5 above records that the one prior calibration
- * fired almost every turn, flipping the loss mix from 89% `escaped_meter` to
+ * fired almost every turn, flipping the loss mix from 89% `escaped_fish_full` to
  * 78% `escaped_mana` at a mean of **1.29 turns per cast**. Its stated cause is
  * a mismatch of currency — the trigger tests `ev`, but `chooseCard` stopped
  * maximizing EV in session 13 and now picks for hit probability, so a card can

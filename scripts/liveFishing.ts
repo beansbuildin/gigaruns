@@ -1435,7 +1435,7 @@ export interface LiveFishingDeps {
    * how". It is that `REDRAW_THRESHOLD` has never been calibrated against a
    * redraw that could actually be sent. The one calibration attempt in this
    * repo's history produced casts averaging **1.29 turns**, with the loss mix
-   * flipping from 89% `escaped_meter` to 78% `escaped_mana` (`cardChoice.ts`
+   * flipping from 89% `escaped_fish_full` to 78% `escaped_mana` (`cardChoice.ts`
    * §5), and that threshold is still the shipped constant.
    *
    * The order, from the session-70 brief §1a, is: capture (done) → implement
@@ -2418,7 +2418,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // longer true. What is true is that the ONE calibration this repo has ever
     // done of `REDRAW_THRESHOLD` was a disaster: `cardChoice.ts` §5 records
     // repeated redraws burning mana before a card was ever played, the loss mix
-    // flipping from 89% `escaped_meter` to 78% `escaped_mana`, at a mean of
+    // flipping from 89% `escaped_fish_full` to 78% `escaped_mana`, at a mean of
     // **1.29 turns per cast**. That threshold is still the shipped constant, so
     // turning this on today would reproduce that batch.
     //

@@ -27,7 +27,7 @@ describe("Task 8 gate — matcher-driven card choice vs random", () => {
   it("never exceeds maxTurns and always resolves to a real outcome", () => {
     for (let seed = 1; seed <= 20; seed++) {
       const r = simulateCast({ policy: matcherFishPolicy, maxTurns: 40, seed });
-      expect(["caught", "escaped_meter", "escaped_mana", "stalled"]).toContain(r.outcome);
+      expect(["caught", "escaped_fish_full", "escaped_mana", "stalled"]).toContain(r.outcome);
       expect(r.turns).toBeLessThanOrEqual(40);
       expect(r.turns).toBeGreaterThan(0);
       expect(r.finalFishHp).toBeGreaterThanOrEqual(0);
@@ -52,7 +52,7 @@ describe("deckIds — Task 13 infrastructure, real held deck instead of a random
       deckIds: [1, 2, 3, 4],
       maxTurns: 2, // stop well before the deck could exhaust naturally either way
     });
-    expect(["caught", "escaped_meter", "escaped_mana", "stalled"]).toContain(r.outcome);
+    expect(["caught", "escaped_fish_full", "escaped_mana", "stalled"]).toContain(r.outcome);
   });
 
   it("is deterministic given a fixed deck and seed — no random catalog sampling once deckIds is set", () => {

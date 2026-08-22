@@ -126,22 +126,22 @@ interface SimArm {
   label: string;
   n: number;
   catchRate: number;
-  meterOutRate: number;
+  fishFullRate: number;
   meanOils: number;
 }
 
 function simArm(label: string, extra: Omit<CastOptions, "seed" | "policy">, runs: number, seed = 1): SimArm {
   const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, true);
   let caught = 0;
-  let meterOut = 0;
+  let fishFull = 0;
   let oils = 0;
   for (let i = 0; i < runs; i++) {
     const r = simulateCast({ policy, ...REAL_PARAMS, ...extra, seed: seed + i });
     if (r.outcome === "caught") caught++;
-    if (r.outcome === "escaped_meter") meterOut++;
+    if (r.outcome === "escaped_fish_full") fishFull++;
     oils += r.oilsUsed.length;
   }
-  return { label, n: runs, catchRate: caught / runs, meterOutRate: meterOut / runs, meanOils: oils / runs };
+  return { label, n: runs, catchRate: caught / runs, fishFullRate: fishFull / runs, meanOils: oils / runs };
 }
 
 function main(): void {
@@ -238,7 +238,7 @@ function main(): void {
   row("oil", arms.get("oil")!, simOn);
   console.log(`\n  mean oils/cast — sim OFF ${simOff.meanOils.toFixed(2)} (must be 0.00, that is §1's proof)` +
     `   sim ON ${simOn.meanOils.toFixed(2)}   live oil arm ${(arms.get("oil")!.oilsSpent / arms.get("oil")!.n).toFixed(2)}`);
-  console.log(`  meter-out      — sim OFF ${pct(simOff.meterOutRate)}   sim ON ${pct(simOn.meterOutRate)}`);
+  console.log(`  fish-at-full   — sim OFF ${pct(simOff.fishFullRate)}   sim ON ${pct(simOn.fishFullRate)}`);
 
   // ── §4 ─────────────────────────────────────────────────────────────────
   const off = arms.get("non-oil")!;

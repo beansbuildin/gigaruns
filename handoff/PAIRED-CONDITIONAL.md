@@ -93,7 +93,7 @@ printed at all it must carry the turn counts and the words "not comparable".
 and the third is the only judgement call:
 
 - `caught` — a success.
-- `escaped_meter` / `escaped_mana` — a failure.
+- `escaped_fish_full` / `escaped_mana` — a failure.
 - **`hand_exhausted` — CENSORED, never a failure.** This is not a game outcome;
   it is the corpus running out of recorded hand refills, i.e. a limit of the
   data rather than of the policy. Counting it as an escape would penalise

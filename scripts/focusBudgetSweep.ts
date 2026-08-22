@@ -98,20 +98,28 @@ function exactMcNemarP(b: number, c: number): number {
 
 /**
  * The focus-spend profile — the PRECONDITION check for this whole sweep. If
- * the replay does not reproduce session 48's meter-out dynamics (80.8% of
- * casts empty the meter, 50.4% of turns played at zero, 1.62 points on the
- * first move), then a null result here says nothing about the policies; it
- * says the harness cannot see the phenomenon they target.
+ * the replay does not reproduce session 48's focus dynamics (80.8% of casts
+ * empty the meter, 50.4% of turns played at zero, 1.62 points on the first
+ * move), then a null result here says nothing about the policies; it says the
+ * harness cannot see the phenomenon they target.
+ *
+ * **[session 80 §2] `focusZeroCasts` was called `meterOutCasts`, and the old
+ * name was wrong in the direction that matters.** It counts casts that ever
+ * reach `focusRemaining <= 0` — a STATE, and one 53% of CAUGHT casts pass
+ * through. It is not a loss and it never ended a cast. The word "meter-out"
+ * elsewhere in this repo means the FISH HEALED TO FULL, which is a loss and
+ * has nothing to do with the focus meter; both names moved this session so
+ * that neither can be read as the other.
  */
 function focusStats(report: ReplayReport) {
   let turns = 0;
-  let meterOutCasts = 0;
+  let focusZeroCasts = 0;
   let zeroFocusTurns = 0;
   const spendByTurn: number[] = [];
   const countByTurn: number[] = [];
   for (const r of report.results) {
     turns += r.turns.length;
-    if (r.turns.some((t) => t.focusRemaining <= 0)) meterOutCasts++;
+    if (r.turns.some((t) => t.focusRemaining <= 0)) focusZeroCasts++;
     for (let i = 0; i < r.turns.length; i++) {
       const t = r.turns[i]!;
       if (t.focusRemaining <= 0) zeroFocusTurns++;
@@ -121,7 +129,7 @@ function focusStats(report: ReplayReport) {
   }
   return {
     meanTurns: turns / Math.max(1, report.results.length),
-    meterOutCasts,
+    focusZeroCasts,
     zeroFocusTurns,
     totalTurns: turns,
     firstMoveSpend: countByTurn[0] ? spendByTurn[0]! / countByTurn[0]! : 0,
@@ -218,7 +226,7 @@ function main() {
   );
   console.log(`\n    TODAY's policy in the replay (corrected zone map, matcher tier ${matcherTier.toUpperCase()}):`);
   console.log(
-    `      casts that ever hit focus 0: ${b0.meterOutCasts}/${base.casts} = ${((b0.meterOutCasts / base.casts) * 100).toFixed(1)}%   ` +
+    `      casts that ever hit focus 0: ${b0.focusZeroCasts}/${base.casts} = ${((b0.focusZeroCasts / base.casts) * 100).toFixed(1)}%   ` +
       `turns at focus 0: ${b0.zeroFocusTurns}/${b0.totalTurns} = ${((b0.zeroFocusTurns / Math.max(1, b0.totalTurns)) * 100).toFixed(1)}%`,
   );
   console.log(`      mean spend on the FIRST move: ${b0.firstMoveSpend.toFixed(2)} of 3`);

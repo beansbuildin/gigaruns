@@ -9,7 +9,7 @@
  *
  * **The failure on record, so the pins are not abstract.** `cardChoice.ts` §5:
  * the one prior calibration of `REDRAW_THRESHOLD` fired almost every turn and
- * flipped the loss mix from 89% `escaped_meter` to 78% `escaped_mana` at a
+ * flipped the loss mix from 89% `escaped_fish_full` to 78% `escaped_mana` at a
  * mean of 1.29 turns per cast. Nothing caught it before it was played. These
  * tests are what "caught before it is played" looks like.
  *
