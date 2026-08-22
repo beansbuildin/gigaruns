@@ -258,7 +258,7 @@ function main() {
 // The unit of stratification is the turn's `lastK`, not the cast's mode:
 // that is the class the sticky chain conditions on at that turn.
 
-interface ShrinkTurn {
+export interface ShrinkTurn {
   castId: string;
   fold: number;
   from: Cell;
@@ -267,12 +267,12 @@ interface ShrinkTurn {
   lastK: StepClassT | null;
 }
 
-interface Fold {
+export interface Fold {
   table: ReturnType<typeof buildStepClassTable>;
   s: number;
 }
 
-function buildFolds(casts: readonly Cast[]): { folds: Fold[]; turns: ShrinkTurn[] } {
+export function buildFolds(casts: readonly Cast[]): { folds: Fold[]; turns: ShrinkTurn[] } {
   const folds: Fold[] = [];
   const turns: ShrinkTurn[] = [];
   for (let i = 0; i < casts.length; i++) {
@@ -293,7 +293,7 @@ function buildFolds(casts: readonly Cast[]): { folds: Fold[]; turns: ShrinkTurn[
 }
 
 /** Per-turn log loss and top-1 hit for one option set, on the pre-built folds. */
-function scoreTurns(folds: readonly Fold[], turns: readonly ShrinkTurn[], opts: RingModelOptions) {
+export function scoreTurns(folds: readonly Fold[], turns: readonly ShrinkTurn[], opts: RingModelOptions) {
   return turns.map((t) => {
     const f = folds[t.fold]!;
     const dist = stickyStepDistribution(t.from, t.lastK, t.prev, f.table, 4, opts, f.s);
@@ -311,7 +311,7 @@ function scoreTurns(folds: readonly Fold[], turns: readonly ShrinkTurn[], opts: 
 const meanOf = (xs: readonly number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 /** Cluster bootstrap over CASTS — turns within a cast share the trajectory under test. */
-function clusterCI(rows: readonly { castId: string; d: number }[], iters = 4000): [number, number] {
+export function clusterCI(rows: readonly { castId: string; d: number }[], iters = 4000): [number, number] {
   const byCast = new Map<string, number[]>();
   for (const r of rows) {
     const arr = byCast.get(r.castId) ?? [];
@@ -340,7 +340,7 @@ function clusterCI(rows: readonly { castId: string; d: number }[], iters = 4000)
 // asymptote it stops short of. Session 50's k=2 diagnosis (a sparse table
 // over-trusted) has "drop it entirely" as its limiting case, and a grid that
 // ends at 64 cannot distinguish that from "smooth it a lot".
-const SHRINK_GRID = [0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 16, 32, 64, 128, 512, Number.POSITIVE_INFINITY];
+export const SHRINK_GRID = [0.1, 0.25, 0.5, 1, 2, 3, 5, 8, 16, 32, 64, 128, 512, Number.POSITIVE_INFINITY];
 
 /**
  * Score ONE fixed candidate pair against the shared value — the honest gate.
@@ -368,8 +368,57 @@ export function scoreFixedPair(casts: readonly Cast[], byClass: Partial<Record<S
   };
 }
 
-export function perClassShrinkageSweep(casts: readonly Cast[]) {
+export interface ClassSweepRow {
+  K: number;
+  ll: number;
+  acc: number;
+}
+
+export interface ClassSweep {
+  c: StepClassT;
+  n: number;
+  rows: ClassSweepRow[];
+  /** The row at the shared baseline — the feasibility reference for top-1. */
+  atShipped: ClassSweepRow;
+  /** The bare logLoss argmin, reported so the selection rule's cost is visible. */
+  unconstrained: ClassSweepRow;
+  /** The rule's actual choice: logLoss argmin subject to top-1 >= `atShipped`. */
+  pick: ClassSweepRow;
+}
+
+/**
+ * [session 74 §1] Stage A as a PURE function, so a second caller can read the
+ * grid without re-implementing the selection rule.
+ *
+ * The rule is stated at its old call site below and is unchanged: logLoss
+ * argmin subject to top-1 no worse than the shared baseline, never the bare
+ * argmin. It lives here now because `shrinkageDeliveryCheck.ts` needs the same
+ * pick at two corpus sizes, and two copies of a selection rule is how the
+ * 88-cast and 128-cast answers would stop being comparable.
+ */
+export function sweepClass(folds: readonly Fold[], turns: readonly ShrinkTurn[], c: StepClassT): ClassSweep {
+  const shared = SHARED_SHRINKAGE_BASELINE;
+  const rows: ClassSweepRow[] = [];
+  for (const K of SHRINK_GRID) {
+    const scored = scoreTurns(folds, turns, { ...shared, shrinkageKByClass: { [c]: K } }).filter((r) => r.lastK === c);
+    rows.push({ K, ll: meanOf(scored.map((r) => r.ll)), acc: (scored.filter((r) => r.hit).length / scored.length) * 100 });
+  }
+  const atShipped = rows.find((r) => r.K === shared.shrinkageK)!;
+  const unconstrained = rows.reduce((a, b) => (b.ll < a.ll ? b : a));
+  const feasible = rows.filter((r) => r.acc >= atShipped.acc - 1e-9);
+  const pick = feasible.reduce((a, b) => (b.ll < a.ll ? b : a), atShipped);
+  return { c, n: turns.filter((t) => t.lastK === c).length, rows, atShipped, unconstrained, pick };
+}
+
+/** Both classes swept on one set of folds. The folds are returned so a caller can score paired arms on them. */
+export function perClassGridRows(casts: readonly Cast[]) {
   const { folds, turns } = buildFolds(casts);
+  const sweeps = ([1, 2] as StepClassT[]).map((c) => sweepClass(folds, turns, c));
+  return { folds, turns, sweeps };
+}
+
+export function perClassShrinkageSweep(casts: readonly Cast[]) {
+  const { folds, turns, sweeps } = perClassGridRows(casts);
   const shared = SHARED_SHRINKAGE_BASELINE;
   const nByClass = new Map<number, number>();
   for (const t of turns) if (t.lastK !== null) nByClass.set(t.lastK, (nByClass.get(t.lastK) ?? 0) + 1);
@@ -381,18 +430,16 @@ export function perClassShrinkageSweep(casts: readonly Cast[]) {
   console.log(`  shipped shared value: shrinkageK=${shared.shrinkageK}, ringFloor=${shared.ringFloor}\n`);
 
   // Stage A — sweep one class at a time, the other held at the shipped value,
-  // and READ each class's column only on its own turns.
+  // and READ each class's column only on its own turns. The grid and the
+  // selection rule now live in `sweepClass` above; this loop only prints.
   const picks = new Map<StepClassT, number>();
-  for (const c of [1, 2] as StepClassT[]) {
+  for (const sweep of sweeps) {
+    const c = sweep.c;
     console.log(`  k=${c} turns only (n=${nByClass.get(c) ?? 0}):`);
     console.log(`    shrinkageK      top1    logLoss`);
-    const rowsAt: { K: number; ll: number; acc: number }[] = [];
-    for (const K of SHRINK_GRID) {
-      const rows = scoreTurns(folds, turns, { ...shared, shrinkageKByClass: { [c]: K } }).filter((r) => r.lastK === c);
-      rowsAt.push({ K, ll: meanOf(rows.map((r) => r.ll)), acc: (rows.filter((r) => r.hit).length / rows.length) * 100 });
-    }
-    const atShipped = rowsAt.find((r) => r.K === shared.shrinkageK)!;
-    const unconstrained = rowsAt.reduce((a, b) => (b.ll < a.ll ? b : a));
+    const rowsAt = sweep.rows;
+    const atShipped = sweep.atShipped;
+    const unconstrained = sweep.unconstrained;
     // SELECTION RULE — logLoss argmin subject to top-1 no worse than the
     // shipped shared value, not the bare argmin. Two reasons, both from this
     // repo's own history. (1) Session 45's gate on this very model required
@@ -402,8 +449,7 @@ export function perClassShrinkageSweep(casts: readonly Cast[]) {
     // across 64..Infinity (spread 0.002 at n=150), so its bare argmin is
     // noise picking a point on a plateau — exactly what
     // `DEFAULT_RING_MODEL_OPTIONS`'s own comment says not to do.
-    const feasible = rowsAt.filter((r) => r.acc >= atShipped.acc - 1e-9);
-    const best = feasible.reduce((a, b) => (b.ll < a.ll ? b : a), atShipped);
+    const best = sweep.pick;
     for (const r of rowsAt) {
       const mark = r.K === best.K ? " <-  PICK" : r.K === unconstrained.K ? "  (bare argmin)" : "";
       console.log(`    ${String(r.K).padStart(10)}   ${r.acc.toFixed(1).padStart(5)}%    ${r.ll.toFixed(3).padStart(6)}${mark}`);

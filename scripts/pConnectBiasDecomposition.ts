@@ -63,7 +63,7 @@ const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
 const pp = (x: number) => `${x >= 0 ? "+" : ""}${(100 * x).toFixed(2)}pp`;
 const mean = (xs: readonly number[]) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
 
-function wilson(k: number, n: number, z = 1.96): [number, number] {
+export function wilson(k: number, n: number, z = 1.96): [number, number] {
   if (n === 0) return [0, 1];
   const p = k / n;
   const z2 = z * z;
@@ -77,20 +77,20 @@ function wilson(k: number, n: number, z = 1.96): [number, number] {
 const playedUnderPosterior = (r: RingPredictionRecord): boolean => r.matcherWeight !== undefined;
 
 /** The mass a distribution puts on a (deduplicated) cell set — what `pConnect` is. */
-function massOn(dist: Distribution | null, cells: readonly Cell[]): number {
+export function massOn(dist: Distribution | null, cells: readonly Cell[]): number {
   if (!dist) return 0;
   let total = 0;
   for (const c of cells) total += dist.get(cellKey(c))?.p ?? 0;
   return total;
 }
 
-function uniformOver(cells: readonly Cell[]): Distribution {
+export function uniformOver(cells: readonly Cell[]): Distribution {
   const out: Distribution = new Map();
   for (const c of cells) out.set(cellKey(c), { cell: c, p: 1 / cells.length });
   return out;
 }
 
-function allGridCells(gridSize: number): Cell[] {
+export function allGridCells(gridSize: number): Cell[] {
   const out: Cell[] = [];
   for (let x = 1; x <= gridSize; x++) for (let y = 1; y <= gridSize; y++) out.push({ x, y });
   return out;
@@ -103,20 +103,20 @@ function allGridCells(gridSize: number): Cell[] {
  * own cell (a no-move turn) is outside every ring and carries probability
  * zero under every arm in this file. §4 measures how often that bites.
  */
-function stickySupport(current: Cell, gridSize: number): Cell[] {
+export function stickySupport(current: Cell, gridSize: number): Cell[] {
   return [...ringCells(current, 1, gridSize), ...ringCells(current, 2, gridSize)];
 }
 
-const ERA_OPTS = (): ReplayOptions => ({ matcherTier: "loo", matcherLibrary: loadMinedPatterns() });
+export const ERA_OPTS = (): ReplayOptions => ({ matcherTier: "loo", matcherLibrary: loadMinedPatterns() });
 
-function eraCasts(traces: readonly CastTrace[]): CastTrace[] {
+export function eraCasts(traces: readonly CastTrace[]): CastTrace[] {
   const byId = new Map(traces.map((t) => [t.docId, t]));
   const live = loadRingPredictions().filter((r) => r.turn === 0 && typeof r.focusMoveCost === "number");
   return live.filter(playedUnderPosterior).flatMap((r) => (byId.has(r.castId) ? [byId.get(r.castId)!] : []));
 }
 
 /** Replay one arm over today's era and return every turn's diagnostic. */
-function collect(traces: readonly CastTrace[], era: readonly CastTrace[], opts: ReplayOptions): { docId: string; d: ReplayTurnDiagnostic }[] {
+export function collect(traces: readonly CastTrace[], era: readonly CastTrace[], opts: ReplayOptions): { docId: string; d: ReplayTurnDiagnostic }[] {
   const out: { docId: string; d: ReplayTurnDiagnostic }[] = [];
   for (const t of era) {
     const others = traces.filter((o) => o.docId !== t.docId);
@@ -126,7 +126,7 @@ function collect(traces: readonly CastTrace[], era: readonly CastTrace[], opts: 
 }
 
 /** predicted − observed, with the SE of the observed rate (the noisy half). */
-function gapOf(predicted: readonly number[], hits: readonly boolean[]): { gap: number; pred: number; obs: number; se: number } {
+export function gapOf(predicted: readonly number[], hits: readonly boolean[]): { gap: number; pred: number; obs: number; se: number } {
   const pred = mean(predicted);
   const k = hits.filter(Boolean).length;
   const obs = k / hits.length;
@@ -160,7 +160,7 @@ function scaleShrinkage(opts: RingModelOptions, factor: number): RingModelOption
   };
 }
 
-function ringUnder(d: ReplayTurnDiagnostic, opts: RingModelOptions, s: number): Distribution {
+export function ringUnder(d: ReplayTurnDiagnostic, opts: RingModelOptions, s: number): Distribution {
   return stickyStepDistribution(d.currentCell, d.stepClass, d.prevDelta, d.stepTable, d.gridSize, opts, s);
 }
 
@@ -374,4 +374,10 @@ function main(): void {
   console.log(`  because pretending the toggles decompose cleanly is the failure the brief names.`);
 }
 
-main();
+// [session 74] Entry point guarded so the ladder's helpers above can be
+// IMPORTED rather than re-implemented. `shrinkageDeliveryCheck.ts` recomputes
+// the delivery ratio at a different shrinkage, and a second copy of `massOn`
+// / `stickySupport` / `eraCasts` is exactly how the two scripts would drift
+// into reporting ratios that are not comparable.
+const isMain = process.argv[1]?.endsWith("pConnectBiasDecomposition.ts");
+if (isMain) main();
