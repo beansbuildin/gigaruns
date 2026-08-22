@@ -39,6 +39,27 @@
  * the Makeshift/Shroom deck break. See `handoff/reports/session-71-replay-gap.md`
  * and `scripts/focusProfileCheck.ts` §1b, which prints the split on every run.
  *
+ * ── [session 72 §4] THE QUESTION ABOVE IS ANSWERED, AND THE ANSWER SPLITS ──
+ *
+ * **`costCap` is inert because the policy does not need it. That is a FINDING
+ * about the fishery, not a measurement failure, and it should not be
+ * rebuilt.** Today's policy spends **0.83** of a 3-point meter on the opening
+ * move, so `costCap(2)` has nothing to bind on and `focusBudgetSweep.ts`'s
+ * `+0/−0` is the correct reading rather than a broken one. The user's
+ * opening-turn directive is substantially already satisfied by the shipped
+ * policy.
+ *
+ * **`schedule` is NOT covered by that, and retiring this module on `costCap`'s
+ * inertness would throw away the arm that still has a question in it.** Two
+ * things hold at once: the opener is gentle (0.83), AND the meter still
+ * empties in **34.3%** of casts — including the cast the user watched reach
+ * 0/3 by turn 3. `costCap` bounds a SINGLE move. A meter draining across
+ * several turns is a CUMULATIVE problem, and `schedule` is the only family
+ * here that prices it. If any focus arm is worth a session, it is that one.
+ *
+ * Recorded in `handoff/DECISIONS.md` 2026-08-21 (session 72). Still nothing
+ * wired live; `NO_FOCUS_POLICY` remains the default.
+ *
  * Why the penalty term could never fix that (session 48 measured it inert:
  * w=0 and w=3 indistinguishable on 73 traces, w>=4 monotonically worse):
  * `focusReserveWeight` adds a FIXED penalty proportional to budget retained,
