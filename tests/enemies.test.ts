@@ -199,7 +199,29 @@ describe("player loadout matches the fixtures", () => {
     // session 61, which is why the assertion below is unchanged. The evidence
     // is in the SEQUENCE, not in a new pair of numbers.
     expect([...seen].sort()).toEqual([
-      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/11", "40/14", "40/17", "40/25", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16", "54/17",
+      // [session 75] FIVE new combos from the four juiced runs of 2026-08-22,
+      // and only ONE of them is a new starting loadout. 40/22 is the user's
+      // armor re-spec, stated in chat between runs 3 and 4 and captured from
+      // run 4's own `start_run` (armorMax 17 -> 22). The other four are
+      // MID-RUN states after AddMaxArmor / AddMaxHealth pickups, the same
+      // shape as 34/20 and 36/18 above: 40/21 and 40/27 and 40/30 from runs
+      // 1-3 on the OLD 40/17 loadout, and 54/25 / 54/27 / 54/30 / 54/32 after
+      // AddMaxHealth took hpMax to 54. 62/32 is run 4's deepest state, two
+      // AddMaxHealth and two AddMaxArmor pickups on the NEW loadout.
+      //
+      // **The re-spec means runs 1-3 and run 4 are not comparable**, and any
+      // baseline quoted across that boundary needs re-measuring — which is
+      // exactly what this census exists to make visible.
+      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/11", "40/14", "40/17",
+      "40/21",
+      "40/22", "40/25",
+      "40/27",
+      "40/30", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16", "54/17",
+      "54/25",
+      "54/27",
+      "54/30",
+      "54/32",
+      "62/32",
     ]);
   });
 });

@@ -1,0 +1,672 @@
+{
+  "success": true,
+  "actionToken": 1787372096172,
+  "message": "Move Used",
+  "data": {
+    "run": {
+      "DUNGEON_ID_CID": 24983080,
+      "players": [
+        {
+          "id": "0xUSER",
+          "rock": {
+            "startingATK": 16,
+            "startingDEF": 0,
+            "currentATK": 26,
+            "currentDEF": 21,
+            "currentCharges": 2,
+            "maxCharges": 3
+          },
+          "paper": {
+            "startingATK": 6,
+            "startingDEF": 12,
+            "currentATK": 6,
+            "currentDEF": 12,
+            "currentCharges": 2,
+            "maxCharges": 3
+          },
+          "scissor": {
+            "startingATK": 12,
+            "startingDEF": 8,
+            "currentATK": 12,
+            "currentDEF": 8,
+            "currentCharges": 1,
+            "maxCharges": 3
+          },
+          "health": {
+            "current": 23,
+            "starting": 30,
+            "currentMax": 40,
+            "startingMax": 30
+          },
+          "shield": {
+            "current": 5,
+            "starting": 12,
+            "currentMax": 17,
+            "startingMax": 12
+          },
+          "lastMove": "paper",
+          "statusEffects": [],
+          "evasion": {
+            "current": 0,
+            "starting": 0
+          },
+          "block": {
+            "current": 9,
+            "starting": 0
+          },
+          "lck": {
+            "current": 0,
+            "starting": 0
+          },
+          "tenacity": {
+            "current": 0,
+            "starting": 0
+          },
+          "pickedBoons": [
+            {
+              "MinRoom": 1,
+              "MaxRoom": 17,
+              "RestrictedToDungeons": [
+                "5"
+              ],
+              "BoonType": "AddIntuition",
+              "Rarity": "Common",
+              "val1Min": 1,
+              "val1Max": 1,
+              "TokenId": 50,
+              "UINT256_CID_array": [
+                1,
+                1,
+                null,
+                null
+              ],
+              "UINT256_CID": 16,
+              "RARITY_CID": 0,
+              "selectedVal1": 1,
+              "selectedVal2": 0,
+              "boonTypeString": "AddIntuition",
+              "docId": ""
+            },
+            {
+              "MinRoom": 1,
+              "MaxRoom": 12,
+              "BoonType": "UpgradeRock",
+              "Rarity": "Uncommon",
+              "val1Min": 0,
+              "val1Max": 0,
+              "val2Min": 2,
+              "val2Max": 2,
+              "TokenId": 29,
+              "UINT256_CID_array": [
+                0,
+                0,
+                2,
+                2
+              ],
+              "UINT256_CID": 1,
+              "RARITY_CID": 1,
+              "selectedVal1": 0,
+              "selectedVal2": 4,
+              "boonTypeString": "UpgradeRock",
+              "docId": ""
+            },
+            {
+              "MinRoom": 1,
+              "MaxRoom": 12,
+              "BoonType": "UpgradeRock",
+              "Rarity": "Epic",
+              "val1Min": 0,
+              "val1Max": 1,
+              "val2Min": 4,
+              "val2Max": 4,
+              "TokenId": 42,
+              "UINT256_CID_array": [
+                0,
+                1,
+                4,
+                4
+              ],
+              "UINT256_CID": 1,
+              "RARITY_CID": 3,
+              "selectedVal1": 0,
+              "selectedVal2": 8,
+              "boonTypeString": "UpgradeRock",
+              "docId": ""
+            },
+            {
+              "MinRoom": 1,
+              "MaxRoom": 17,
+              "RestrictedToDungeons": [
+                "5"
+              ],
+              "BoonType": "WeakeningTenacity",
+              "Rarity": "Rare",
+              "val1Min": 4,
+              "val1Max": 4,
+              "TokenId": 117,
+              "UINT256_CID_array": [
+                4,
+                4,
+                null,
+                null
+              ],
+              "UINT256_CID": 53,
+              "RARITY_CID": 2,
+              "selectedVal1": 4,
+              "selectedVal2": 0,
+              "boonTypeString": "WeakeningTenacity",
+              "docId": ""
+            }
+          ],
+          "thisPlayerWin": false,
+          "otherPlayerWin": false,
+          "activeEffects": [
+            {
+              "triggerType": "OnStartDungeon",
+              "effects": [
+                {
+                  "type": "IncreaseArmor_Sword",
+                  "amount": 3
+                },
+                {
+                  "type": "IncreaseDamage_Sword",
+                  "amount": 8
+                }
+              ],
+              "playerType": "ThisPlayer"
+            },
+            {
+              "triggerType": "OnStartDungeon",
+              "effects": [
+                {
+                  "type": "IncreaseArmor_Sword",
+                  "amount": 6
+                },
+                {
+                  "type": "IncreaseDamage_Sword",
+                  "amount": 2
+                }
+              ],
+              "playerType": "ThisPlayer"
+            },
+            {
+              "triggerType": "OnStartDungeon",
+              "effects": [],
+              "playerType": "ThisPlayer"
+            },
+            {
+              "triggerType": "OnStartDungeon",
+              "effects": [],
+              "playerType": "ThisPlayer"
+            }
+          ],
+          "intuition": {
+            "current": 1,
+            "starting": 0
+          },
+          "triggeredBoons": [],
+          "battleArmorReduction": 0,
+          "gearBoons": [
+            {
+              "UINT256_CID": 17,
+              "selectedVal1": 2,
+              "selectedVal2": 0,
+              "boonTypeString": "AddBurnSword",
+              "source": "gear:GearInstance#901_1786984760_8bc9b82f"
+            },
+            {
+              "UINT256_CID": 17,
+              "selectedVal1": 2,
+              "selectedVal2": 0,
+              "boonTypeString": "AddBurnSword",
+              "source": "gear:GearInstance#901_1787019613_204a0647"
+            }
+          ],
+          "_id": "6a8921cc68a79676414af8b0",
+          "focusBuffs": []
+        },
+        {
+          "id": "Enemy Room 67",
+          "rock": {
+            "startingATK": 15,
+            "startingDEF": 12,
+            "currentATK": 15,
+            "currentDEF": 12,
+            "currentCharges": 3,
+            "maxCharges": 3,
+            "blocked": false
+          },
+          "paper": {
+            "startingATK": 12,
+            "startingDEF": 9,
+            "currentATK": 12,
+            "currentDEF": 9,
+            "currentCharges": -1,
+            "maxCharges": 3,
+            "blocked": false
+          },
+          "scissor": {
+            "startingATK": 18,
+            "startingDEF": 6,
+            "currentATK": 18,
+            "currentDEF": 6,
+            "currentCharges": 3,
+            "maxCharges": 3,
+            "blocked": false
+          },
+          "health": {
+            "current": 45,
+            "starting": 45,
+            "currentMax": 45,
+            "startingMax": 45
+          },
+          "shield": {
+            "current": 12,
+            "starting": 18,
+            "currentMax": 18,
+            "startingMax": 18
+          },
+          "lastMove": "paper",
+          "statusEffects": [],
+          "evasion": {
+            "current": 5,
+            "starting": 0
+          },
+          "block": {
+            "current": 5,
+            "starting": 0
+          },
+          "lck": {
+            "current": 3,
+            "starting": 0
+          },
+          "tenacity": {
+            "current": 5,
+            "starting": 0
+          },
+          "pickedBoons": [],
+          "thisPlayerWin": false,
+          "otherPlayerWin": false,
+          "activeEffects": [],
+          "intuition": {
+            "current": 0,
+            "starting": 0
+          },
+          "triggeredBoons": [],
+          "battleArmorReduction": 0,
+          "gearBoons": [],
+          "_id": "6a892238dcc8124478438a3f",
+          "focusBuffs": []
+        }
+      ],
+      "lootPhase": false,
+      "pathPhase": false,
+      "rewardPathPhase": false,
+      "enemyPathPhase": false,
+      "_id": "6a8921cc68a79676414af8af",
+      "userId": "0xUSER",
+      "pathOptions": [],
+      "rewardPathOptions": [],
+      "enemyPathOptions": [],
+      "activeEnemyBuff": {
+        "id": "ironhide",
+        "name": "Ironhide",
+        "description": "+50% <color=#3B82F6>DEF</color> on all moves",
+        "minTier": 2,
+        "effects": [
+          {
+            "kind": "pctDef",
+            "percent": 50
+          }
+        ]
+      },
+      "perpetualBuffs": [],
+      "enemyStartingBuff": null,
+      "version": 1,
+      "lootOptions": [],
+      "createdAt": "2026-08-22T04:13:00.573Z",
+      "updatedAt": "2026-08-22T04:14:56.183Z",
+      "__v": 12
+    },
+    "events": [
+      {
+        "type": "use_move",
+        "value": "paper",
+        "playerId": 0,
+        "batch": 0,
+        "data": {
+          "blockProc0": false,
+          "evadeProc0": false,
+          "critProc0": false,
+          "intuitionProc0": false,
+          "tenacityProc0": false
+        }
+      },
+      {
+        "type": "use_move",
+        "value": "paper",
+        "playerId": 1,
+        "batch": 0,
+        "data": {
+          "blockProc1": false,
+          "evadeProc1": false,
+          "critProc1": false,
+          "tenacityProc1": false
+        }
+      },
+      {
+        "type": "OnApplyShield",
+        "value": 12,
+        "playerId": 0,
+        "batch": 1,
+        "data": {}
+      },
+      {
+        "type": "OnApplyShield",
+        "value": 9,
+        "playerId": 1,
+        "batch": 1,
+        "data": {}
+      },
+      {
+        "type": "OnDamage",
+        "value": 12,
+        "playerId": 0,
+        "batch": 2,
+        "data": {
+          "ignoreShield": false,
+          "prevent": 0,
+          "source": ""
+        }
+      },
+      {
+        "type": "OnDamage",
+        "value": 6,
+        "playerId": 1,
+        "batch": 2,
+        "data": {
+          "ignoreShield": false,
+          "prevent": 0,
+          "source": ""
+        }
+      },
+      {
+        "type": "OnUpdateStatus",
+        "value": 0,
+        "playerId": 0,
+        "batch": 3,
+        "data": {}
+      },
+      {
+        "type": "OnUpdateStatus",
+        "value": 1,
+        "playerId": 1,
+        "batch": 3,
+        "data": {}
+      }
+    ],
+    "entity": {
+      "_id": "6a8921cc68a79676414af89a",
+      "docId": "Dungeon#24983080",
+      "data": {
+        "v": 1,
+        "playerEquipment": {
+          "_id": "68386965b84ee266740ef37e",
+          "docId": "EntityEquipment#<NOOB_TOKEN>",
+          "createdAt": "2025-05-29T14:04:21.753Z",
+          "updatedAt": "2025-08-07T16:38:08.209Z",
+          "EQUIPMENT_BODY_CID": 324,
+          "EQUIPMENT_HEAD_CID": 323
+        },
+        "gearInstances": [
+          {
+            "_id": "687919029726ca9f0bdcc3a4",
+            "docId": "GearInstance#109_1752766722",
+            "GAME_ITEM_ID_CID": 109,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 1,
+            "DURABILITY_CID": 29,
+            "EQUIPPED_TO_SLOT_CID": 2,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2025-07-17T15:38:42.625Z",
+            "updatedAt": "2026-08-20T20:39:48.775Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 3
+          },
+          {
+            "_id": "68791918abffd81e8bf191cf",
+            "docId": "GearInstance#110_1752766744",
+            "GAME_ITEM_ID_CID": 110,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 1,
+            "DURABILITY_CID": 20,
+            "EQUIPPED_TO_SLOT_CID": 3,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2025-07-17T15:39:04.032Z",
+            "updatedAt": "2026-08-20T20:39:48.782Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 1
+          },
+          {
+            "_id": "6a81eb7fdf34de08dae40e15",
+            "docId": "GearInstance#208_1786899327_31c43502",
+            "GAME_ITEM_ID_CID": 208,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 1,
+            "DURABILITY_CID": 40,
+            "EQUIPPED_TO_SLOT_CID": 6,
+            "EQUIPPED_TO_INDEX_CID": 1,
+            "createdAt": "2026-08-16T16:55:27.421Z",
+            "updatedAt": "2026-08-20T20:39:48.789Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 1
+          },
+          {
+            "_id": "6a81eb90510c17842158e4d4",
+            "docId": "GearInstance#204_1786899344_845265fa",
+            "GAME_ITEM_ID_CID": 204,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 0,
+            "DURABILITY_CID": 35,
+            "EQUIPPED_TO_SLOT_CID": 6,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2026-08-16T16:55:44.203Z",
+            "updatedAt": "2026-08-20T20:39:48.797Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 1
+          },
+          {
+            "_id": "694d6770f8b930158b54b6cf",
+            "docId": "GearInstance#50_1766680432",
+            "GAME_ITEM_ID_CID": 50,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 0,
+            "DURABILITY_CID": 0,
+            "EQUIPPED_TO_SLOT_CID": 8,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2025-12-25T16:33:52.496Z",
+            "updatedAt": "2026-04-27T19:05:59.922Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 1
+          },
+          {
+            "_id": "6a84c9f2f9ef10c8e3b8f818",
+            "docId": "GearInstance#636_1787087346_292b3023",
+            "GAME_ITEM_ID_CID": 636,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 3,
+            "DURABILITY_CID": 31,
+            "EQUIPPED_TO_SLOT_CID": 11,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2026-08-18T21:09:06.196Z",
+            "updatedAt": "2026-08-22T04:00:43.043Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 0
+          },
+          {
+            "_id": "6a84c9ee7a80e6a4db28f606",
+            "docId": "GearInstance#637_1787087342_2cbe8de5",
+            "GAME_ITEM_ID_CID": 637,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 1,
+            "DURABILITY_CID": 11,
+            "EQUIPPED_TO_SLOT_CID": 12,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2026-08-18T21:09:02.567Z",
+            "updatedAt": "2026-08-22T04:00:43.051Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 0
+          },
+          {
+            "_id": "6a8339384e65ca1b60d81b46",
+            "docId": "GearInstance#901_1786984760_8bc9b82f",
+            "GAME_ITEM_ID_CID": 901,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 1,
+            "DURABILITY_CID": 7,
+            "EQUIPPED_TO_SLOT_CID": 13,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2026-08-17T16:39:20.175Z",
+            "updatedAt": "2026-08-22T04:00:43.058Z",
+            "__v": 0,
+            "REPAIR_COUNT_CID": 0
+          },
+          {
+            "_id": "6a83c15d1e40a6f2bde9f543",
+            "docId": "GearInstance#901_1787019613_204a0647",
+            "GAME_ITEM_ID_CID": 901,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 1,
+            "DURABILITY_CID": 7,
+            "EQUIPPED_TO_SLOT_CID": 13,
+            "EQUIPPED_TO_INDEX_CID": 1,
+            "createdAt": "2026-08-18T02:20:13.290Z",
+            "updatedAt": "2026-08-22T04:00:43.065Z",
+            "__v": 0
+          },
+          {
+            "_id": "6a88891f2e8e389e85429252",
+            "docId": "GearInstance#811_1787332895_d777fbaa",
+            "GAME_ITEM_ID_CID": 811,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 1,
+            "DURABILITY_CID": 23,
+            "EQUIPPED_TO_SLOT_CID": 14,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2026-08-21T17:21:35.982Z",
+            "updatedAt": "2026-08-22T00:56:18.805Z",
+            "__v": 0
+          },
+          {
+            "_id": "6a8757a034dc78c60557473f",
+            "docId": "GearInstance#951_1787254688_dab73d91",
+            "GAME_ITEM_ID_CID": 951,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 3,
+            "DURABILITY_CID": 12,
+            "EQUIPPED_TO_SLOT_CID": 15,
+            "EQUIPPED_TO_INDEX_CID": 0,
+            "createdAt": "2026-08-20T19:38:08.328Z",
+            "updatedAt": "2026-08-22T00:56:18.812Z",
+            "__v": 0
+          },
+          {
+            "_id": "6a888927f32b9813056fbb7f",
+            "docId": "GearInstance#952_1787332903_e3c3234e",
+            "GAME_ITEM_ID_CID": 952,
+            "OWNER_CID": "0xUSER",
+            "PLAYER_CID": "0xUSER",
+            "RARITY_CID": 0,
+            "DURABILITY_CID": 0,
+            "EQUIPPED_TO_SLOT_CID": 15,
+            "EQUIPPED_TO_INDEX_CID": 1,
+            "createdAt": "2026-08-21T17:21:43.817Z",
+            "updatedAt": "2026-08-22T00:56:06.353Z",
+            "__v": 0
+          }
+        ],
+        "additionalInvaderPercentage": 0,
+        "invader": null,
+        "nerfCost": null,
+        "roomNerfCount": 0,
+        "roomInvaderItemsEarned": [],
+        "activePath": {
+          "tier": 2,
+          "tierName": "Dangerous",
+          "enemyBuff": {
+            "id": "ironhide",
+            "name": "Ironhide",
+            "description": "+50% <color=#3B82F6>DEF</color> on all moves",
+            "minTier": 2,
+            "effects": [
+              {
+                "kind": "pctDef",
+                "percent": 50
+              }
+            ]
+          },
+          "lootTableId": 99,
+          "rolledEnemyStats": {
+            "evasion": 5,
+            "block": 5,
+            "lck": 3,
+            "tenacity": 5
+          }
+        },
+        "enemyPathOptions": [],
+        "enemyPending": false,
+        "rewardPathOptions": [],
+        "rewardPending": false
+      },
+      "LEVEL_CID": 29,
+      "GAME_ITEM_ID_CID_array": [
+        0,
+        131,
+        131
+      ],
+      "ID_CID": "5",
+      "PLAYER_CID": "0xUSER",
+      "NOOB_TOKEN_CID": "<NOOB_TOKEN>",
+      "DUNGEON_ID_CID": 24983080,
+      "FACTION_CID": 4,
+      "COMPLETE_CID": false,
+      "ROOM_NUM_CID": 5,
+      "ENEMY_CID": 67,
+      "GEAR_CID_array": [
+        "GearInstance#109_1752766722",
+        "GearInstance#110_1752766744",
+        "GearInstance#208_1786899327_31c43502",
+        "GearInstance#204_1786899344_845265fa",
+        "GearInstance#50_1766680432",
+        "GearInstance#636_1787087346_292b3023",
+        "GearInstance#637_1787087342_2cbe8de5",
+        "GearInstance#901_1786984760_8bc9b82f",
+        "GearInstance#901_1787019613_204a0647",
+        "GearInstance#811_1787332895_d777fbaa",
+        "GearInstance#951_1787254688_dab73d91",
+        "GearInstance#952_1787332903_e3c3234e"
+      ],
+      "TIER_CID": 3,
+      "IS_JUICED_CID": true,
+      "WANTS_JUICED_MODE_CID": true,
+      "MULTIPLIER_CID": 12,
+      "WEEK_CID": 85,
+      "DAY_CID": 20686,
+      "DAY_OF_WEEK_CID": 1,
+      "createdAt": "2026-08-22T04:13:00.505Z",
+      "updatedAt": "2026-08-22T04:14:48.209Z",
+      "__v": 0
+    }
+  }
+}

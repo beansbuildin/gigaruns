@@ -215,6 +215,59 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-15-22-50-38 state-010→state-011",
     observed: "selectedVal1 2 → no change to any player field",
   },
+  AddLifestealShield: {
+    // [session 75, LIVE] First pair — the orb fallback took it at room 1 of
+    // the first of four juiced runs. Offered six times since session 03 and
+    // never picked until now; it is the most-offered unmodelled type on the
+    // record, so this closes the largest single hole in `boonCoverage`.
+    // Same shape as the other four lifesteal/corrosive latents: zero change
+    // to any player field at pickup.
+    //
+    // THE ZERO IS MEASURED, NOT A BLIND SPOT. Three boons in the SAME run
+    // moved a field under the identical diff — AddEvasion evasion 0→1,
+    // AddIntuition intuition 0→1, AddMaxArmor shield.currentMax 17→21 — so
+    // the instrument was demonstrably live when it recorded nothing here.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-22-03-51-44 state-005→state-006",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
+  CorrosiveSword: {
+    // [session 75, LIVE] First pair — taken TWICE in one run (rooms 2 and 3),
+    // both times by the BOON-PRIORITY Sword-family rule rather than the orb
+    // fallback. Zero change to any player field at pickup, both times.
+    //
+    // This completes the corrode BOON triple at pickup: CorrosiveShield
+    // (session 11), CorrosiveMagic (session 14) and now CorrosiveSword all
+    // measure latent. Note that is the BOON table and says nothing about the
+    // ENEMY-BUFF `corrosive*` family, which is modelled separately and read
+    // off the buff. Per DECISIONS 2026-08-15 the effect is not inferred from
+    // the name: this is NOT assumed to be Sword's analogue of AddBurnSword.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-22-04-00-32 state-005→state-006",
+    observed: "selectedVal1 2 → no change to any player field (twice in one run)",
+  },
+  AddWeakSword: {
+    // [session 75, LIVE] First pair — BOON-PRIORITY 4 took it at room 7 of
+    // the deepest run of the session, and again in the fourth run. Zero
+    // change to any player field at pickup on BOTH observations, which is
+    // worth more than one: a single zero can be a capture that missed a
+    // field, two independent ones on different runs cannot.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-22-04-12-49 state-105→state-106",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
+  AddVulnerableShield: {
+    // [session 75, LIVE] First pair — BOON-PRIORITY 5 (Vulnerable family)
+    // took it at room 9, the deepest reward this corpus has recorded. Same
+    // shape as the rest of the Vulnerable family: zero change at pickup.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-22-04-12-49 state-135→state-136",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
   AddMaxHealth: {
     // [session 23, LIVE] First pair — picked at room 3 during this session's
     // live batch (bot's own reward-pick logic, not a supervised choice).
@@ -1567,6 +1620,143 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 6,
     source: "run-2026-08-20-22-46-26/state-087",
     options: [opt("AddTenacity", 2), opt("AddTenacity", 7), opt("Vengeance", 15)],
+  },
+  // ── [session 75, LIVE] the four juiced runs of 2026-08-22 ──────────────
+  //
+  // 26 new offers across four runs, the largest single-session addition this
+  // table has had. GENERATED from the fixtures rather than transcribed by hand
+  // — the entries above were hand-written and the count had reached the size
+  // where transcription is the likelier error source than the capture is.
+  // Run 3 reached room 9, so the deepest offer in the table moves with it.
+  {
+    room: 1,
+    source: "run-2026-08-22-03-51-44/state-005",
+    options: [opt("AddLifestealShield", 2), opt("AddLuck", 1), opt("CorrosiveMagic", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-22-03-51-44/state-023",
+    options: [opt("AddEvasion", 1), opt("AddIntuition", 1), opt("AddLuck", 5)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-22-03-51-44/state-043",
+    options: [opt("AddIntuition", 1), opt("RegenMastery", 1), opt("AddTenacity", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-22-03-51-44/state-057",
+    options: [opt("AddMaxArmor", 4), opt("AddLifestealSword", 2), opt("LossBlockUp", 5)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-22-03-51-44/state-077",
+    options: [opt("AddLuck", 1), opt("CorrosiveMagic", 2), opt("AddEvasion", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-22-04-00-32/state-005",
+    options: [opt("CorrosiveSword", 2), opt("CorrosiveMagic", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-22-04-00-32/state-023",
+    options: [opt("LossIntuitionUp", 5), opt("CorrosiveSword", 2), opt("UpgradePaper", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-22-04-00-32/state-035",
+    options: [opt("AddLuck", 1), opt("AddLifestealShield", 2), opt("AddTenacity", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-22-04-00-32/state-043",
+    options: [opt("AddBurnMagic", 5), opt("AddMaxArmor", 8), opt("UpgradeScissor", 12)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-22-04-00-32/state-061",
+    options: [opt("AddLifestealMagic", 2), opt("AddMaxHealth", 14), opt("CorrosiveShield", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-22-04-00-32/state-075",
+    options: [opt("WeakeningEvade", 4), opt("AddLuck", 1), opt("AddBlock", 7)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-22-04-12-49/state-009",
+    options: [opt("AddTenacity", 2), opt("AddBlock", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-22-04-12-49/state-023",
+    options: [opt("AddIntuition", 10), opt("UpgradePaper", 4), opt("UpgradeRock", 0, 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-22-04-12-49/state-039",
+    options: [opt("AddBlock", 2), opt("UpgradeRock", 0, 8), opt("AddIntuition", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-22-04-12-49/state-057",
+    options: [opt("WeakeningTenacity", 4), opt("AddBlock", 2), opt("UpgradePaper", 6)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-22-04-12-49/state-073",
+    options: [opt("CorrosiveSword", 2), opt("AddWeakMagic", 2), opt("AddMaxHealth", 14)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-22-04-12-49/state-105",
+    options: [opt("AddWeakSword", 2), opt("AddEvasion", 5), opt("Heal", 16)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-22-04-12-49/state-123",
+    options: [opt("AddBlock", 2), opt("SecondWind", 10), opt("AddIntuition", 5)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-22-04-12-49/state-135",
+    options: [opt("AddLuck", 1), opt("AddVulnerableShield", 2), opt("Vengeance", 25)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-22-04-27-03/state-005",
+    options: [opt("UpgradeRock", 4), opt("UpgradePaper", 6), opt("AddBlock", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-22-04-27-03/state-021",
+    options: [opt("AddWeakSword", 2), opt("AddLuck", 1), opt("Thorns", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-22-04-27-03/state-031",
+    options: [opt("Regen", 2), opt("AddMaxArmor", 8), opt("UpgradeRock", 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-22-04-27-03/state-053",
+    options: [opt("BurningCrit", 3), opt("AddEvasion", 2), opt("AddMaxHealth", 14)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-22-04-27-03/state-073",
+    options: [opt("AddEvasion", 10), opt("AddMaxArmor", 2), opt("AddLifestealShield", 3)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-22-04-27-03/state-089",
+    options: [opt("AddMaxHealth", 8), opt("AddEvasion", 10), opt("AddBurnShield", 3)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-22-04-27-03/state-115",
+    options: [opt("UpgradeRock", 4), opt("Heal", 16), opt("AddEvasion", 1)],
   },
 ];
 

@@ -140,11 +140,19 @@ export const PLAYER: Combatant = {
   id: "player",
   hp: 40,
   hpMax: 40,
-  armor: 17,
-  armorMax: 17,
+  // [session 75] ARMOR RE-SPEC, user-stated in chat between run 3 and run 4 of
+  // 2026-08-22 and captured from run 4's own `start_run` (cid 24983279). Read
+  // off the wire, not inferred: armorMax 17 -> 22, block 8 -> 10, Shield gains
+  // (+4 ATK, +3 DEF) and Sword gives back one of each. Spell is untouched.
+  //
+  // **Runs 1-3 and run 4 of that session are therefore NOT the same arm**, and
+  // nothing may read run 4's depth or Hard Core against the other three as a
+  // strategy effect. Same trap as the sessions 42/43 re-spec recorded below.
+  armor: 22,
+  armorMax: 22,
   moves: {
-    rock: mv(26, 9), // Sword — unchanged since session 42 second update
-    paper: mv(6, 12), // Shield
+    rock: mv(25, 8), // Sword — was 26/9 from session 42 until the session-75 re-spec
+    paper: mv(10, 15), // Shield — was 6/12; the re-spec's biggest single gain
     scissor: mv(12, 8), // Spell — unchanged since session 42 second update
   },
   // The player starts every run with all rolled stats at zero; the only way

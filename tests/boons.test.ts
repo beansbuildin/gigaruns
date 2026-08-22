@@ -166,6 +166,16 @@ describe("fail-closed on unmodelled types", () => {
 
   it("names the types the corpus offered but never showed the effect of", () => {
     expect(UNMODELLED_TYPES).toEqual([
+      // [session 75] FOUR moved OUT — AddLifestealShield, CorrosiveSword,
+      // AddWeakSword and AddVulnerableShield all got first-ever pickup pairs
+      // from this session's four juiced runs, all four LATENT.
+      // AddLifestealShield was the most-offered unmodelled type on the record
+      // (6 offers since session 03), so this is the largest hole the table has
+      // closed in one session.
+      // ONE moved IN: `WeakeningEvade`, offered for the first time this session
+      // and not picked. The list shrinks by three, not four — a deeper corpus
+      // finds new types about as fast as it explains old ones, which is the
+      // honest shape of this metric rather than a regression.
       // AddBlock moved OUT — session 08 gave it a live pickup pair, now modelled.
       // UpgradeRock/UpgradeScissor moved OUT — session 09 gave both live
       // pickup pairs (moveDelta), now modelled.
@@ -191,20 +201,16 @@ describe("fail-closed on unmodelled types", () => {
       // Note how long some of them waited: SecondWind was first SIGHTED in
       // session 16 and AddBurnMagic in session 12, so a sighting is not a
       // pair and the gap between them can be dozens of sessions.
-      "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked
-      "AddLifestealShield", // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
-      "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked
-      "AddVulnerableShield", // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
+      "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
+      "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
       "AddVulnerableSword", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
-      "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked
-      "AddWeakSword", // session 11: first sighting, room-1 offer, not picked
+      "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked // session 11: first sighting, room-1 offer, not picked
       "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
       "BurningCrit", // session 52: first sighting, live room-5 offer, not picked
       "BurningEvade", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
-      "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked
-      "CorrosiveSword", // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
+      "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
       "CritHeal", // session 43: first sighting, live room-2 offer (bot-initiated juiced run 2), not picked
       "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
       "LossBlockUp", // session 20: first sighting, live room-2 offer, not picked
@@ -217,7 +223,8 @@ describe("fail-closed on unmodelled types", () => {
       "TieWeak", // session 09: first sighting, offered in the new room-2 (non-Safe-tier) offer, not picked
       "VulnerableBlock", // live [2026-08-16/17]: first sighting, the takeover run's room-1 offer, not picked
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
-      "WeakeningBlock", // session 09: first sighting, room-1 offers, not picked
+      "WeakeningBlock",
+      "WeakeningEvade", // session 09: first sighting, room-1 offers, not picked
       "WeakeningMastery", // session 08: same offer, not picked
     ]);
   });
@@ -342,7 +349,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // orb rule keeps converting offered-only types into modelled ones without
     // converting any of them into CLEAN ones, because what it reaches are
     // status-effect boons.
-    expect(roomOne.length).toBe(159);
+    // [session 75] 159 -> 171: FOUR juiced runs, twelve room-1 options across
+    // them. Same pattern a fourth time — the four types that gained first-ever
+    // pickup pairs this session (AddLifestealShield, CorrosiveSword,
+    // AddWeakSword, AddVulnerableShield) are ALL LATENT, so the clean list
+    // below is again unchanged. Three sessions of this now: what the orb and
+    // priority rules reach are status-effect boons, and status-effect boons
+    // never become clean.
+    expect(roomOne.length).toBe(171);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -366,6 +380,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // other two options were AddIntuition and AddEvasion, neither clean.
     // `TieVulnerable` gained a model this session but a LATENT one, so like
     // WeakeningTenacity it cannot join this list either.
+    // [session 75] +1 `UpgradePaper` (tenth) and +1 `UpgradeRock` (seventh),
+    // from this session's four runs. Both are already-clean types recurring —
+    // NOT new holes, the same distinction sessions 60 and 61 drew. Wall 1
+    // still has exactly six clean types, unchanged since session 52, even
+    // though the corpus grew by 26 offers and four models.
     expect(clean.sort()).toEqual([
       "AddMaxArmor",
       "AddMaxArmor",
@@ -385,6 +404,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
+      "UpgradePaper",
+      "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
@@ -438,7 +459,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // the orb fallback took it at 25 Hard Core against [19, 19, 25]. Appended
     // at the array's end by insertion order, same as sessions 43 and 53, so
     // the new "2" lands last rather than beside the other twos.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2]);
+    // [session 75] +2, a room-6 and a room-7 Heal offer — Heal's first
+    // sightings past room 3, from the two deepest runs of the session (rooms 9
+    // and 8). Neither was picked: BOON-PRIORITY 4 took AddWeakSword over
+    // Heal at room 7. Appended at the array's end by insertion order, same as
+    // sessions 43, 53 and 62.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7]);
   });
 });
 

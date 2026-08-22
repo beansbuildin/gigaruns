@@ -87,11 +87,28 @@ import type { BoonOption } from "../sim/boons.js";
  * room 1. Order is meaningful: when an offer holds two targets, the earlier
  * entry wins, so the most frequently offered type gets modelled soonest.
  */
+/**
+ * [session 75] `AddLifestealShield` RETIRED — it got its first-ever pickup pair
+ * from the 2026-08-22 juiced batch (the orb fallback took it at room 1), so it
+ * is modelled and no longer a capture target. `tests/boonCapture.test.ts` calls
+ * that outcome SUCCESS in as many words, and the replacement is the
+ * next-ranked unmodelled type still offered in a permitted room:
+ * `LossBlockUp`, 5 offers, all room 1.
+ *
+ * The rest of the list is unchanged and the ordering is still by offer
+ * frequency over `OBSERVED_OFFERS` (TieWeak 11, AddBurnShield 10, Regen 7,
+ * LossBlockUp 5, VulnerableBlock 4).
+ *
+ * **This changes nothing that runs.** `boonCapture` is settled OFF and needs
+ * both a config flag and an explicit `--boon-capture` argument; keeping the
+ * list coherent is bookkeeping so the module is not quietly dead code the day
+ * someone turns it on.
+ */
 export const DEFAULT_CAPTURE_TARGETS: readonly string[] = [
   "TieWeak",
   "AddBurnShield",
-  "AddLifestealShield",
   "Regen",
+  "LossBlockUp",
   "VulnerableBlock",
 ];
 

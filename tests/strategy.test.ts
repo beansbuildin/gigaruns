@@ -239,12 +239,27 @@ describe("decide — SPEC §4b's worked sanity check", () => {
 
 describe("decide — the tie threshold, not raw ATK", () => {
   /**
-   * SPEC §4b: our Shield's ATK 6 against enemy 66's Shield DEF 8 makes literally
+   * SPEC §4b: a Shield ATK of 6 against enemy 66's Shield DEF 8 makes literally
    * zero progress, forever. A raw-ATK engine scores that 6 damage as 75% of an
    * 8-damage move; this one has to see it as nothing.
+   *
+   * **[session 75] The 6 is supplied explicitly instead of read off `PLAYER`.**
+   * The user's 2026-08-22 armor re-spec took Shield ATK to 10, which clears
+   * DEF 8 and makes the room-4 mirror a scoring cell rather than a stall — so
+   * these tests began failing on a gear change while the engine behaviour they
+   * describe was untouched. The stall RULE is a property of the model and is
+   * pinned with fixed numbers; what the current loadout does about it is
+   * asserted separately below, where a future re-spec will show up as a
+   * changed fact rather than as a broken test.
    */
+  const shieldAtk = (atk: number) => {
+    const me = cloneCombatant(PLAYER);
+    me.moves.paper.atk = atk;
+    return me;
+  };
+
   it("marks the zero-progress mirror as a stall in the EV table", () => {
-    const s = state({}, 4);
+    const s = state(shieldAtk(6), 4);
     const d = decide(s, new OpponentModel(), cfg());
     const shieldRow = d.table.find((r) => r.move === "paper")!;
     const mirror = shieldRow.cells.find((c) => c.foeMove === "paper")!;
@@ -253,10 +268,19 @@ describe("decide — the tie threshold, not raw ATK", () => {
   });
 
   it("does not mark a mirror that makes progress", () => {
-    // Enemy 63's Shield is DEF 2, so our 6 clears it by 4.
-    const d = decide(state({}, 1), new OpponentModel(), cfg());
+    // Enemy 63's Shield is DEF 2, so a 6 clears it by 4.
+    const d = decide(state(shieldAtk(6), 1), new OpponentModel(), cfg());
     const mirror = d.table.find((r) => r.move === "paper")!.cells.find((c) => c.foeMove === "paper")!;
     expect(mirror.netDamage).toBe(4);
+    expect(mirror.stalls).toBe(false);
+  });
+
+  it("the CURRENT loadout scores the room-4 mirror instead of stalling on it", () => {
+    // [session 75] The re-spec's consequence for the EV table, recorded as a
+    // fact about the gear. Shield 6 -> 10 against enemy 66's DEF 8 nets 2.
+    const d = decide(state({}, 4), new OpponentModel(), cfg());
+    const mirror = d.table.find((r) => r.move === "paper")!.cells.find((c) => c.foeMove === "paper")!;
+    expect(mirror.netDamage).toBe(PLAYER.moves.paper.atk - enemy(4).moves.paper.def);
     expect(mirror.stalls).toBe(false);
   });
 

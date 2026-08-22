@@ -1,6 +1,6 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-22T00:56:26.353Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-22T04:31:08.984Z.
 
 128 recorded casts — 36 caught (28.1%).
 

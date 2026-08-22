@@ -80,10 +80,14 @@ describe("terminal cases", () => {
     expect(state.foe.hp).toBe(1);
     // Our biggest hit is 16 against 12 armor: 4 overflows, which is still lethal.
     expect(isDead(resolveExchange(state, "rock", "scissor").state.foe)).toBe(true);
-    // Our Shield's 6 does not get through the 12 at all.
+    // [session 75] Our Shield's ATK went 6 -> 10 in the user's armor re-spec,
+    // so it now eats 10 of the 12 armor instead of 6. The SCENARIO'S POINT is
+    // unchanged and is the reason this is an edit rather than a rewrite: a
+    // Shield win still cannot reach a 1-HP enemy through 12 armor, which is
+    // what "one hit from death is false" means. Only the residue moved.
     const chip = resolveExchange(state, "paper", "rock").state.foe;
     expect(chip.hp).toBe(1);
-    expect(chip.armor).toBe(6);
+    expect(chip.armor).toBe(2);
   });
 
   it("self-one-hit-from-death: any lost exchange kills us", () => {
@@ -151,12 +155,21 @@ describe("armor scenarios", () => {
     expect(next.me.hp).toBe(state.me.hp - 12); // 16 - 4 absorbed
   });
 
-  it("the-lost-run-position: our Shield cannot dent enemy 63's HP from here", () => {
+  it("the-lost-run-position: our Shield now dents enemy 63's HP, where it once could not", () => {
     const { state } = get("the-lost-run-position");
     expect(state.foe.hp).toBe(30);
-    // Even winning with Shield, the 6 goes into 8 armor and leaves HP untouched.
+    // **[session 75] THIS SCENARIO'S ANSWER CHANGED, AND THE GEAR IS WHY.**
+    // Through session 74 a Shield win put 6 into 8 armor and left HP untouched
+    // — that was the whole point of the position, and the test was named for
+    // it. The user's 2026-08-22 armor re-spec took Shield ATK 6 -> 10, so the
+    // 8 armor now breaks and 2 carries into HP.
+    //
+    // Recorded as a CHANGED ANSWER rather than smoothed away, because the
+    // position is a real recorded one and "can our Shield make progress here"
+    // is exactly the question it was kept to answer. The armor model itself is
+    // untouched: 10 - 8 = 2 is the same overflow rule as before.
     const { state: next } = resolveExchange(state, "paper", "rock");
-    expect(next.foe.hp).toBe(30);
-    expect(next.foe.armor).toBe(2);
+    expect(next.foe.armor).toBe(0);
+    expect(next.foe.hp).toBe(28);
   });
 });

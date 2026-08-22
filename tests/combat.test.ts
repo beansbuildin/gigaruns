@@ -183,8 +183,12 @@ describe("net damage against restoring armor — session-04 brief §1, corrected
     const state: BattleState = { me: me(), foe: { ...e63(), armor: 0 }, room: 1 };
     const { state: next } = resolveExchange(state, "paper", "rock"); // Shield beats Sword
     expect(next.foe.armor).toBe(0); // loser regenerates nothing
-    expect(next.foe.hp).toBe(e63().hp - PLAYER.moves.paper.atk); // full 6 lands
-    expect(netDamageOnWin(PLAYER.moves.paper.atk)).toBe(6);
+    expect(next.foe.hp).toBe(e63().hp - PLAYER.moves.paper.atk); // the full ATK lands
+    // [session 75] Asserted AGAINST `PLAYER` rather than against the literal 6
+    // it used to hold. The claim is "a win lands the whole ATK", which is
+    // gear-independent; pinning the user's current Shield ATK into it made an
+    // armor re-spec look like a combat-model regression. The value is 10 today.
+    expect(netDamageOnWin(PLAYER.moves.paper.atk)).toBe(PLAYER.moves.paper.atk);
   });
 
   it("offsets damage by the opponent's move DEF on a TIE — the real threshold", () => {
@@ -200,10 +204,21 @@ describe("net damage against restoring armor — session-04 brief §1, corrected
   });
 
   it("makes literally zero progress in a stalling tie loop, forever", () => {
-    // Our Shield (6/12) mirrored against enemy 66's Shield (8/8).
-    let state: BattleState = { me: me(), foe: roomEnemy(4), room: 4 };
+    // A 6-ATK Shield mirrored against enemy 66's Shield (8/8).
+    //
+    // **[session 75] THE 6 IS NOW EXPLICIT INSTEAD OF `PLAYER`'s.** It used to
+    // read the player's own Shield ATK, which was 6 from session 04 until the
+    // user's 2026-08-22 armor re-spec took it to 10. At 10 against DEF 8 the
+    // mirror MAKES PROGRESS, so the test began failing — not because the
+    // combat model changed but because the gear did.
+    //
+    // The mechanic under test (ATK <= opponent's move DEF ⟹ zero progress
+    // forever) is a property of the model, so it is asserted with fixed
+    // numbers. What the current loadout happens to do about it is a separate
+    // question, asserted separately in the test below.
+    let state: BattleState = { me: { ...me(), moves: { ...me().moves, paper: { ...me().moves.paper, atk: 6 } } }, foe: roomEnemy(4), room: 4 };
     const startHp = state.foe.hp;
-    expect(stallsOnTie(PLAYER.moves.paper.atk, state.foe.moves.paper.def)).toBe(true);
+    expect(stallsOnTie(6, state.foe.moves.paper.def)).toBe(true);
 
     for (let i = 0; i < 50; i++) {
       // Refresh charges so the loop tests the armor threshold, not charge decay.
@@ -218,9 +233,20 @@ describe("net damage against restoring armor — session-04 brief §1, corrected
   });
 
   it("does NOT stall when the opponent's regen is below our ATK", () => {
-    // Enemy 63's Shield is 8/2 — our Shield's 6 clears the 2 and progresses.
+    // Enemy 63's Shield is 8/2 — any Shield ATK above 2 clears it and progresses.
     expect(stallsOnTie(PLAYER.moves.paper.atk, e63().moves.paper.def)).toBe(false);
     expect(maxRestore(e63())).toBe(6); // its Sword DEF, not "restores to full 12"
+  });
+
+  it("the CURRENT loadout no longer stalls against enemy 66 — a gear fact, recorded", () => {
+    // [session 75] The re-spec's one behavioural consequence for the combat
+    // model, stated as its own assertion so it is a finding rather than a
+    // silently-passing side effect. The Shield went 6/12 -> 10/15 and enemy
+    // 66's Shield DEF is 8, so the mirror that stalled forever now nets 2 per
+    // tie. If a future re-spec drops Shield ATK back to 8 or below, this fails
+    // and the stall is back — which is the point of pinning it.
+    expect(PLAYER.moves.paper.atk).toBeGreaterThan(roomEnemy(4).moves.paper.def);
+    expect(stallsOnTie(PLAYER.moves.paper.atk, roomEnemy(4).moves.paper.def)).toBe(false);
   });
 });
 

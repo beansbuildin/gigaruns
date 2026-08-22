@@ -294,8 +294,17 @@ describe("the Task 4 gate", () => {
     // genuinely stronger move against these enemies), pushing even a random
     // policy's measured rate to ~0.82. A real stat change, not a sim bug —
     // margin added the same way the two bands above this one already were.
+    // [session 75] Upper bound 0.9 -> 0.95, and the cause is the SAME as
+    // session 23's: a real gear re-spec, this time 2026-08-22 (Shield 6/12 ->
+    // 10/15, armorMax 17 -> 22 — see enemies.ts's PLAYER doc). A random policy
+    // now measures ~0.92 against these enemies. A stat change, not a sim bug.
+    //
+    // Worth noting the band has now been widened twice for the same reason,
+    // and it will keep drifting up as the account gears: this is a
+    // non-degeneracy check, and if it ever needs a bound above ~0.97 the right
+    // move is to re-derive it against the enemies rather than widen it again.
     expect(s.scoredBattleWinRate).toBeGreaterThan(0.3);
-    expect(s.scoredBattleWinRate).toBeLessThan(0.9);
+    expect(s.scoredBattleWinRate).toBeLessThan(0.95);
   });
 
   it("[session 11] a scored clear is possible by construction but landed at 0 in this seeded batch", () => {
