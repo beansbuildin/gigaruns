@@ -641,3 +641,55 @@ does-not-ship table is what `scripts/preflight.ts` prunes. History scans over
 all 370 commits: 0 addresses, 0 JWTs, 0 private keys. `.claude/*.bak` added to
 `.gitignore` — this does NOT untrack the committed `.bak`, and removing that
 (and the username in four session logs) is the user's decision, not an agent's.
+
+2026-08-22 (session 77 §1) — **The class the author-data guards protect is "an
+assertion that does not run", NOT "a stranger's clone goes red".** Sessions 68
+and 76 scoped it to shipping; that was the visible cause. The seventh instance
+(`tests/dungeonSim.test.ts:177`) had no filesystem call, identical test counts in
+the export and at home, and passed in both. `scripts/assertionCoverage.ts`
+measures the class directly. **Use the runtime count, never a grep** — the static
+"only `expect` sits behind an `if`" version returns 3 candidates here and 2 of
+them assert on every run, so a ratchet pinned at 3 would ratchet false positives
+into permanence.
+
+2026-08-22 (session 77 §1) — **`CHARGES_ALL_LOCKED` is unreachable and the branch
+is KEPT anyway.** `chargesAfterPlay` sends a move played from 1 to −1 and never
+to 0, `chargesAfterRest` gives every unplayed move +1, and one move is played per
+exchange — so at most ONE move is ever ≤ 0 at a time and two would have to reach
+−1 in the same exchange. 0 occurrences in 64,000 runs. **Do not delete the branch
+on coverage grounds**: it exists to refuse a server rule nobody has observed, and
+a charge-model change could make it live. Do not restore the old test — it
+asserted only inside `if (outcome === "halted")`, and `halted` occurs 8204 times
+in 64,000 runs for OTHER reasons, so entering that guard would have FAILED it.
+
+2026-08-22 (session 77 §2) — **This repo has CI, and it is offline only.**
+`.github/workflows/ci.yml` on push and pull_request: `npm ci`, `tsc --noEmit`,
+the suite, `assertionCoverage`, `preflight.ts`. User directive: **no credentials,
+no live game API, no autobattler, no deploy, no `schedule:` trigger.** Push is
+the trigger that matters because `preflight.ts` exports from the git INDEX, so a
+test written after the last manual run is invisible to it — which is how the
+suite stayed red for a stranger for eight sessions. **A CI runner IS the
+stranger; never add `data/` or `logs/` to CI to make more tests run.**
+
+2026-08-22 (session 77 §3) — **History was rewritten and force-pushed. Every
+commit SHA before 2026-08-22 no longer exists.** User directive. Two identifier
+classes removed from all 379 commits — the macOS username (→ `<USER>`) and the
+in-game handle (→ `<PLAYER>`) — and `.claude/settings.local.json.bak` deleted
+from every commit. Verified on a fresh clone of the public repo: 0 occurrences of
+either, 0 revisions carrying the `.bak`, 0 addresses, 0 JWTs. **A credential scan
+ran first and found none** — the `.bak`'s hits were permission-rule command
+templates, not values.
+
+2026-08-22 (session 77 §3) — **The noob token in history stays an accepted
+exposure.** 2,727 historical files carry a non-zero `NOOB_TOKEN_CID`. It was
+reported alongside the identifiers above and deliberately excluded from the
+rewrite; `fixtures/README.md`'s recorded decision is unchanged.
+
+2026-08-22 (session 77 §3) — **Only the TIP's SHA citations are remapped, and
+that is the end state, not a shortfall.** 225 citations in 68 files were rewritten
+to post-rewrite hashes (map validated on all 379 pairs; 140 distinct tokens
+resolve after, the same 140 that resolved before). Historical copies inside old
+commits keep their old hashes: rewriting citations inside history changes the
+hashes being cited, which has no fixed point. **When commit archaeology in a log
+older than session 77 hits a dead hash, that is why** — do not spend a session on
+it.
