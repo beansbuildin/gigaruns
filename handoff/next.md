@@ -1,475 +1,347 @@
-# BRIEF — session 78 — the Codex review, triaged
+# BRIEF — session 79 — the deck is shuffled
 
-## 0. What this brief is, and how it was checked
+## 0. How this was checked, and session 78's verification
 
-`CODEXAUG22REVIEW.md` is a read-only external review at `489c989`. **This brief
-is the triage of it, not a relay of it.** Ten findings; my verdicts:
+Fresh clone at `e7607bc`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
 
-| | finding | verdict |
-|---|---|---|
-| **M1** | no request deadline; a stall holds the mutex forever | **DO — first** |
-| **H1** | live writes lack shared reconciliation | **DO the reconciliation half. The HTTP half is a rule-7 change and is the USER'S.** |
-| **H2** | Rule 8 fights scored by a model that calls them unscorable | **DO the diagnosis half. REFUSE the modelling half — it requires guessing.** |
-| **M3** | permanent deck additions use a placeholder objective | **DO — and it is more ready than the review thinks** |
-| **L1** | CI runs the suite twice | **DO — it is actually THREE times** |
-| **L2** | `engines` advertises Node the toolchain rejects | **DO — the reasoning is already written in your own CI file** |
-| **L3** | Actions on mutable major tags | **DO — cheap, low value** |
-| **L4** | responses stored up to three times | **DO the shared-module half. REFUSE the log-thinning half.** |
-| **M4** | live redraw branch disagrees with the sim | **DO the comment. REFUSE the code.** |
-| **M2** | potion timing swept on the pre-Rule-8 model | **DEFER — blocked behind H2, and it is a live policy change** |
+```
+npx tsc --noEmit                     clean
+npx vitest run   Tests  1498 passed | 13 skipped (1511)   89 files
+npx tsx scripts/assertionCoverage.ts   1498 counted, 0 vacuous
+```
 
-**Every claim below was verified by opening the file at `489c989`**, in a fresh
-clone with `npm ci` and no `data/`, `logs/` or `~/.secrets`. The review's own
-validation baseline reproduces exactly: `tsc` clean, **1430 passed | 13 skipped
-(1443)**, `assertionCoverage` **zero vacuous**. Session 77's gates hold
-independently.
+**Session 78's three gates hold on independent re-run.** The deadline, the
+transaction protocol, and the EV-support logging are all in and all sound. The
+`preflight`-caught synthetic JWT and the response — *"the scanner was right and
+no allowance was added"* — is the right call and worth keeping as precedent.
 
-**The review is good.** Its facts are accurate almost everywhere I checked — the
-617/622, the 429-on-POST path, the missing abort signal, the placeholder
-objective, the duplicated writers. Where I disagree it is never about the
-observation; it is about **two places where it read a deliberate refusal as an
-oversight**, and about ordering.
+**Everything below is one finding.** It is measured from `fixtures/` alone, needs
+no live play, and it changes what several suspended numbers mean.
 
 ---
 
 ## The clock and the ledger
 
-Written **2026-08-22, 10:25 PT**. **Rollover is 11:00 PT — ~35 minutes out.**
-Sessions 76 and 77 were both offline by arithmetic; this one need not be. After
-11:00 there are **12 run-units and 20 casts**.
+Written **2026-08-22, 12:18 PT**. **Both ledgers rolled at 11:00 PT and session
+78 spent nothing** — user directive, no live play. So as of writing there are
+**12 run-units and 20 casts available, unspent, and the window closes at 11:00 PT
+tomorrow.** Three sessions running have been offline; this is the first that is
+offline only by choice.
 
-`doctor.ts` first, both ledgers, report them. **Everything in §1–§4 is offline
-and needs neither.**
+`doctor.ts` first, both ledgers, report them. §1 needs neither.
 
-*Environment: `npx tsx` and `git` both fail under the command sandbox. Run
-unsandboxed.*
-
-*⚠ Session 77 rewrote history. Every SHA older than today is dead. Cite the tip.*
+*⚠ Pre-session-77 SHAs are dead. Cite the tip. `npx tsx` and `git` fail under the
+command sandbox — run unsandboxed. `preflight.ts` (~90s) is the last check before
+a push, not an optional one (session 78's own dead end).*
 
 ---
 
-## 1. M1 — the request deadline. Do this first; it is the cheapest real defect in the review
+## 1. `castSim` draws the deck in order. The server shuffles it. This has never been true
 
-**`src/api/client.ts:198-217`. Verified: `fetch()` is called with no `signal`.**
+### 1a. What session 78 found, and the half of it that is wrong
 
-`raw()` runs inside `this.mutex.run(...)`, and that mutex is the only one — the
-file's own header says *"a second concurrent request can only race it, never
-help it."* So a stalled socket does not slow the bot down; **it stops it
-permanently, holding the lock, with no timeout anywhere to break it.** No guard
-fires, no `maxConsecutiveActionFailures` counts, no `GuardTrip` throws. The
-process simply never returns.
+§4's deck sweep returned a diagnosed null and the diagnosis is right about the
+**simulator**: `castSim.ts:388`'s `drawHand` walks `deck[idx % deck.length]` from
+`drawIdx = 0`, so a card appended to the end is never reached in a ~5-turn cast.
+Verified.
 
-This is CLAUDE.md rule 5 with no code behind it. A hung bot is not a stopped bot.
+STATE.md then generalises it to the game:
 
-```ts
-const res = await fetch(`${this.base}${path}`, {
-  ...init,
-  signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  headers,
-});
+> *"on the real 23-card deck only the first ~8 cards are ever seen — an appended
+> card is **unreachable by construction**."*
+
+**That sentence is false, and the corpus already says so.** It is a property of
+`drawHand`, not of Dendren.
+
+### 1b. The measurement — 129 live opening hands, from committed fixtures
+
+Every live fishing state carries `fullDeck`, `hand`, `nextCardIndex`,
+`cardInDrawPile` and `discard`. I took every state where
+`nextCardIndex === hand.length` — i.e. the opening hand of a cast — across
+`fixtures/fishing-casts/live/`:
+
+```
+opening hands examined                     129
+hand === fullDeck[0..2]                      0      ← sequential draw predicts 129
+distinct fullDeck orderings                 38
+states with nextCardIndex                  721
+states where nextCardIndex > fullDeck.length  0     ← the pile never exhausts in this corpus
 ```
 
-**One thing the review gets right and it changes the sequencing: an aborted POST
-is an ambiguous write, not proof that nothing applied.** So:
+**Zero of 129.** Three opening hands from the same directory on the same
+ten-card deck `[1,2,3,4,5,6,7,76,77,79]`:
 
-- **Land the deadline for `GET` now.** A GET is idempotent, the abort proves
-  nothing was written, and retrying under a bounded policy is safe. This half
-  needs nothing else and removes the hang.
-- **Land the deadline for `POST` together with §2's transaction helper**, so an
-  abort routes into reconciliation instead of throwing an error the caller reads
-  as "did not apply."
-
-Pick the timeout from the repo's own numbers, not a round one: rule 7 pins
-minimum spacing at 1200ms + jitter and the action-token window at ~5s. A deadline
-below the token window turns a slow-but-fine request into an abort; **10s is the
-review's suggestion and is defensible, but state the reasoning in the constant's
-comment** rather than leaving a bare `10_000`.
-
----
-
-## 2. H1 — reconciliation: do the transaction half, and take the HTTP half to the user
-
-### 2a. The diagnosis is right, and the evidence is this repo's own
-
-Verified at `scripts/liveRun.ts:729`, the header of `postWithVerifiedRetry`:
-
-> *[session 08, live] `reward_one` returned HTTP 500 twice on an otherwise
-> byte-identical request — once where the pick had silently applied server-side
-> anyway (`pickedBoons` had grown despite the error), once where it hadn't.*
-
-**The API demonstrably applies writes while returning errors. That is measured,
-not theoretical.** And the protection built for it guards exactly two call sites
-— `liveRun.ts:1380` (reward) and `:1584` (path). Nothing else.
-
-### 2b. `start_run` is the case that matters, and rule 13 already knows it
-
-`scripts/liveRun.ts:1015-1038`, verified. On a `start_run` error the code calls
-`fail(...)`, which throws — **before** `recordRunStarted(runUnits)`,
-`recordEnergySpent(estimatedCost)` and `saveGuardBudget(...)`. So if the server
-applied the start and lost the response, **the local ledger says zero runs while
-the server says one**, and the scarce thing — 12 server-enforced run-units, the
-thing rule 4 calls *"the scarce thing"* — is silently out of sync.
-
-**CLAUDE.md rule 13 is a human doing this reconciliation by hand, after the fact:**
-*"A permission denial is NOT evidence that nothing ran. Verify against the
-server."* The rule exists because this failure is real and recurring. **H1's
-`start_run` half is rule 13 executed in code, at the moment of failure, instead
-of by a person afterwards.** That is the argument for it and it is a strong one.
-
-Combat moves are a weaker case — the loop re-reads state each iteration, so an
-applied-but-lost move largely self-heals. Fishing `play_cards` and loot sit in
-between. **Order the work by ledger consequence: `start_run` first, fishing
-`start`/loot second, combat moves last.**
-
-### 2c. What to build
-
-The review's shape is right. Return an explicit outcome rather than throwing:
-
-```ts
-type ActionOutcome<T> =
-  | { outcome: "applied"; response: T | null }
-  | { outcome: "not_applied"; error: unknown }
-  | { outcome: "unknown"; error: unknown };
+```
+state-000   hand [6, 3, 1]      nextCardIndex 3   discard []
+state-006   hand [2, 77, 1]     nextCardIndex 3   discard []
+state-009   hand [79, 76, 4]    nextCardIndex 3   discard []
 ```
 
-Two constraints the review states and both are correct:
+and the next draw inside the first of those is `[79, 4, 5]`, not `fullDeck[3..5]`
+= `[4,5,6]`.
 
-- **Commit the spend exactly once**, on `applied`, whether or not a response came
-  back. An applied action with a lost response must still move the ledger.
-- **`unknown` fails closed.** Do not invent a recovery. Log the full state pair,
-  exit non-zero, let a human read it. Rule 5.
+On that deck alone, 31 opening hands, by deck position:
 
-`postWithVerifiedRetry`'s session-09 lesson must survive the refactor: **re-derive
-the index from freshly-fetched state on every attempt, by stable identity, never
-by array position.** A generic helper that loses that reintroduces a bug this
-repo already paid for.
+```
+pos          0    1    2    3    4    5    6    7    8    9
+card id      1    2    3    4    5    6    7   76   77   79
+in opening  13    8    5   16    6   10    7   13    7    6      / 31
 
-### 2d. The HTTP half is NOT an agent's to make
+uniform shuffle predicts 9.3 each   → χ² = 13.5, df 9, NOT rejected (crit 16.9)
+sequential-from-0 predicts 31,31,31,0,0,0,0,0,0,0
+```
 
-The review's smallest fix is *"do not automatically retry non-idempotent
-requests in `raw()`."* Verified: `raw()` retries every 429 regardless of method
-(`client.ts:208-213`), `BACKOFF_START_MS = 5000`, `MAX_429_RETRIES = 5`.
+**Positions 7, 8 and 9 — the tail — appear in opening hands 13, 7 and 6 times.**
+And the one 23-card deck in the corpus opened with cards from positions 0, 2, and
+14-or-later. There is no positional decay of any kind.
 
-**CLAUDE.md rule 7 is a non-negotiable and it mandates the current behaviour:**
-*"Exponential backoff on 429 starting at 5s."* An agent does not amend a
-non-negotiable. **Put this to the user as a rule-7 amendment.**
+`deckCardData` is also in canonical order (it is the card *metadata* list), so the
+shuffled pile is **not exposed on the wire**. `fullDeck` is a roster;
+`nextCardIndex` indexes a hidden shuffled pile.
 
-And when you do, put the sharper argument in front of them, because it is not the
-one the review makes:
+**The server shuffles. `castSim` has never modelled that, on any figure it has
+ever produced.**
 
-> **On a POST the retry is not dangerous — it is futile.** Rule 7 pins the
-> action-token window at ~5s and `client.ts:10` repeats it. The backoff starts at
-> 5000ms and doubles. **The retried token is stale by construction**; the retry
-> can only be rejected. So the cost is not a double-apply — a 429 means
-> rate-limited, which almost certainly means *not applied* — the cost is 5, 10,
-> 20, 40, 80 seconds of the only mutex held to guarantee a failure, on a clock
-> where the action token is expiring.
+### 1c. What this costs, and it is not confined to M3
 
-Also worth telling the user plainly: **this repo has never recorded a single
-429.** Session 75 logged *"zero 429s"* across 216 actions and I found no observed
-429 anywhere in `handoff/`. So this is an unmeasured path. That is a reason to
-change it cheaply and honestly — return the 429 to the caller and let the
-transaction helper decide — not a reason to treat it as urgent.
+The simulated bot always holds the same first three cards of a fixed order and
+draws the same next three after that. The real bot holds a random three of ten to
+twenty-three. **Every `castSim` number is computed on a hand distribution the bot
+never faces**, which touches:
 
----
+- catch rate, `escaped_mana`, `escaped_meter`, turns per cast;
+- **the redraw price** — session 75's 263.0 → 43.9. A real redraw returns three
+  *fresh random* cards; the sim's returns the deterministic next three. The
+  measured 43.9 is a number about the wrong draw model;
+- the oil sweeps and the focus profile — already suspended by `OIL-POLICY.md`
+  §0a, now for a **third, independent** reason;
+- `shouldRedraw`, `chooseCard`'s EV, and every threshold derived from them.
 
-## 3. H2 — do the honesty half. Refuse the modelling half
+**This is a plausible contributor to the §0a suspension itself.** §0a records the
+sim reading catch ~70% and meter-out 1.0% against a real 27.6% and 64.2%. A sim
+that always draws its best-ordered opening hand and never faces a bad one would
+over-catch and never run its meter out, which is the shape of that gap. **I am
+not claiming it explains §0a — I am claiming it is the first named mechanism that
+could, and it is testable.**
 
-### 3a. The observation is correct
+### 1d. The fix is measured, not invented — which is the crux
 
-Verified. `src/strategy/decide.ts:177-204` computes a precise EV table through
-`resolveExchange`. `scripts/liveRun.ts:148-164`'s `buildBattleState` attaches
-`run.activeEnemyBuff` and nothing else. `src/sim/combat.ts` reads **corrode and
-no other mechanic**. And `src/sim/coverage.ts:145-194` marks `ROLLED_STATS` on
-**617 of the same 622 non-Safe paths** rule 8 selects — the number is in the
-repo's own comment.
+Session 78 declined to shuffle, and the reasoning is recorded as a dead end:
 
-**So the live loop assigns confident EVs to states the coverage layer refuses to
-score.** That is real and it is worth fixing.
+> *"Shuffling the deck in `castSim` to unblock M3. Not done: the ranking would
+> become an artifact of an invented draw model and would look exactly as
+> authoritative as a real one."*
 
-### 3b. But the absence is deliberate, and the review read it as an oversight
+**That was the right instinct applied to a wrong premise.** Sequential draw is not
+the conservative default and shuffling is not the invention — **it is the other
+way round.** `drawHand`'s fixed order is an unexamined assumption that the corpus
+falsifies at 129/129; a per-cast shuffle is what the corpus shows.
 
-`src/sim/types.ts:31-36`, verbatim:
+What to build, and it is small:
 
-> *`src/sim/combat.ts` does not read these AT ALL, **and that is the point**:
-> their effect on damage is unexplained, so any non-zero value makes the
-> surrounding unit **UNSCORABLE rather than being quietly approximated**.*
+1. **Shuffle the deck once per cast**, from the cast's own seeded rng, before the
+   first `drawHand`. Draw sequentially from the shuffled pile exactly as now —
+   that matches `nextCardIndex` advancing 3, 6, 9.
+2. **Validate it against these 129 opening hands.** A test that runs the sim over
+   the corpus decks and asserts the opening-position distribution is consistent
+   with the live one (and that sequential draw fails the same test) is a real
+   ratchet, not a vibe check. The numbers in §1b are the target.
+3. **Keep `drawHand` itself.** Only the pile's order changes. One mechanism, not
+   two — the same discipline session 75 used on the redraw's `turn++`.
 
-The review proposes replacing that with probability-weighted proc branches. **To
-fill those branches you need proc rates for evasion, block, lck, tenacity and
-intuition, and nobody has them.** The review knows: its own *"context that would
-materially improve implementation"* asks for *"authoritative mechanics or
-captures for evasion, block, luck, tenacity, and intuition."*
+**State the limits in the code, because I hit two:**
 
-Building the machinery and filling it with guessed numbers is CLAUDE.md rule 1
-inverted. It would convert an honest **"unscorable"** into a confident wrong
-number — the exact failure this repo has spent seventy-seven sessions
-eliminating, and the one session 75's redraw finding is a monument to.
+- **Per-cast vs per-draw shuffle is not distinguished by this corpus.** Both
+  reproduce the opening-hand statistics. Per-cast is the simpler hypothesis and
+  matches `nextCardIndex`'s monotone advance; say so rather than implying it was
+  measured.
+- **Reshuffle on exhaustion is UNOBSERVED.** `nextCardIndex` never exceeds
+  `fullDeck.length` in 721 states (max ratio 0.92), so `drawHand`'s
+  `idx % deck.length` wraparound is unvalidated. It rarely fires on real decks.
+  Leave it, mark it.
 
-**Do not build it. Not as a stub, not "with conservative defaults", not behind a
-flag.** A branch structure with invented probabilities is worse than no branch
-structure, because the next reader sees an EV and believes it.
+### 1e. CAPTURE-3 is already answered. Retract it
 
-### 3c. What to do instead — and the review says it, at line 160
+STATE.md open question 2 says CAPTURE-3 *"is answerable by ordinary fishing casts
+and would unblock M3"*, wanting *"enough consecutive casts on one deck to see
+whether hands repeat in deck order."*
 
-> *Until all mechanics are covered, live decision logs should report the specific
-> unmodeled reasons instead of presenting the result as a fully supported EV.*
+**Thirty-one consecutive opening hands on one deck are already committed, and they
+do not repeat in deck order.** The question is answered; spending casts on it
+would re-measure something the repo already holds. **Close CAPTURE-3 with §1b's
+table** rather than carrying it as a capture request.
 
-**That is the whole of H2 that is buildable today, and it is genuinely valuable.**
-`probeCombatant` and `probeRun` already compute exactly these reasons. Wire them
-into the live decision path so every logged decision in a rule-8 fight carries
-its `ROLLED_STATS` / `UNKNOWN_EFFECT` / `ENEMY_BUFF` reasons beside the EV.
+What CAPTURE-3 *could* still usefully ask, if anything: a `fullDeck` read either
+side of a loot pick, to confirm where an added card lands in the roster. That is
+one line of a normal cast's log and does not justify a session.
 
-Two consequences worth having:
+### 1f. M3 after the fix — unblocked, still suspended
 
-- **Every run report says out loud how much of its own decision-making was
-  unsupported.** Right now that is visible only in a coverage script nobody runs
-  mid-session.
-- **It produces the capture list.** Which mechanics actually co-occur in fights
-  the bot loses becomes a measured priority ordering instead of the review's
-  guessed one.
-
-Then the follow-on is a **capture request, not a modelling task** — and rule 6 is
-explicit that a gate needing data that does not exist is *"a capture request
-wearing a gate's clothes."* Record it as one in `TASKS.md`.
-
----
-
-## 4. M3 — the deck objective. The best item in the review, and readier than it says
-
-### 4a. Verified, including the part the review gets wrong
-
-`src/strategy/fishing/cardChoice.ts:678-684` — `chooseNewCard` is argmax
-`max(hit, crit) / manaCost`, and its own comment says it is a *"simple,
-defensible placeholder... Not sim-validated against a full-deck-composition
-objective."* The review is right that each pick permanently changes every future
-cast.
-
-**But the review lists *"a complete fishing card catalog mapping card IDs to
-zones/effects"* as missing context. It is not missing.**
-`fixtures/fishing-casts/cards.json` holds **80 cards** with `hitZones`,
-`critZones`, `hitEffects`, `critEffects`, `missEffects`, `manaCost`, `rarity` and
-`foundInPonds`, and `src/sim/fishing/deck.ts` already loads and zod-validates it.
-**M3 can be built today, offline, with no new captures.**
-
-### 4b. Build it — with one condition that is not optional
-
-Paired Monte Carlo over full-deck composition, identical trajectories and seeds
-per arm, cached by normalized deck. Offline, precomputed; **never inside the
-action-token-sensitive live loop** — the review says this and is right.
-
-**The condition:** `castSim` has been shown not to reproduce this fishery.
-`OIL-POLICY.md` §0a suspends every Δ in it for exactly this reason — sim catch
-~70% against a real 27.6%, meter-out 1.0% against 64.2%. **A deck objective
-derived on that instrument inherits that suspension the day it is written.**
-
-So: build the harness, report the ranking, and **mark it SUSPENDED pending a
-profile check, in the same words §0a uses.** Do not let it become a second
-headline number that cannot be quoted. If the ranking is robust across the
-profile-check parameters, say so and that is a real result; if it flips, that is
-a more useful one.
-
-**Do not change `chooseNewCard` live.** That is a live policy change on a sim
-result — rule 4 — and the ship-nothing posture holds.
+Once the pile shuffles, an appended card is as reachable as any other and the
+deck sweep can be re-run meaningfully. **Do not let that become a live change.**
+`chooseNewCard` ranking 79/80 was measured in the *prepended* arm, which is not
+what a loot pick does; after the fix the appended arm is the right one and the
+number will move. It remains a `castSim` result under §0a. Report it, mark it
+suspended, change nothing live. Rule 4.
 
 ---
 
-## 5. The low-priority items — take four, and one of them is bigger than labelled
+## 2. What to do with the suspended figures now that there is a third reason
 
-**L1 — do it, and note the review undercounted.** `.github/workflows/ci.yml`
-runs `npx vitest run`, then `assertionCoverage.ts` which spawns
-`vitest run --config vitest.assertions.config.ts` (`scripts/assertionCoverage.ts:68`),
-then `preflight.ts` which runs the suite against the export. **Three full runs,
-~65s each.** Drop the plain step and let `assertionCoverage.ts` be the suite step
-— it already distinguishes a red suite from a vacuous test (`suiteFailed`), so
-nothing is lost. Keep preflight's run: it tests a different tree, which is the
-whole point of it.
+`OIL-POLICY.md` §0a suspends every Δ because the sim's bare arm does not
+reproduce the fishery. Session 76 added the redraw fix as a second invalidation.
+**§1 is a third, and it differs from the other two in a way that matters: it is a
+named, fixable modelling error rather than a calibration gap.**
 
-**L2 — do it; your own CI file already contains the reasoning.**
-`package.json` says `>=20`; `ci.yml:52-53` says, in a comment: *"22 rather than
-the `engines` floor of 20: vite requires ^20.19 || >=22.12, so a bare '20' can
-resolve below what the toolchain accepts."* **The problem was diagnosed, worked
-around in CI, and left wrong in the manifest a stranger reads.** Set
-`"node": "^20.19.0 || >=22.12.0"`.
+So the standing advice — *mark, do not re-derive* — should get one amendment:
 
-**L3 — do it, low value, no downside.** `actions/checkout@v5` and
-`actions/setup-node@v5` are mutable. `permissions: contents: read` and no secrets
-limit the blast radius, so this is hygiene not urgency. Pin SHAs with a version
-comment beside each. Note session 77 §2 deliberately moved to `@v5`; this is the
-next notch, not a reversal.
+> **After the shuffle lands, the profile check that §0a names as its precondition
+> becomes worth attempting for the first time.** Not the oil sweep — §0a forbids
+> re-running that on the current instrument by name, and that stands. The profile
+> check: does `castSim` now reproduce the fishery's catch rate and meter-out rate
+> within a stated band?
 
-**L4 — take the refactor. REFUSE the log-thinning.**
+If it does, §0a's suspension has a path to lifting and a great deal of shelved
+work comes back. If it does not, that is a stronger result than today's — the gap
+survives its first named cause, and the next hypothesis has to be somewhere else.
 
-The refactor is right and is the same class of defect this repo keeps finding:
-`FixtureWriter` and `RunLog` each exist **twice**, independently, at
-`scripts/liveRun.ts:454`/`:503` and `scripts/liveFishing.ts:1079`/`:1107`. A
-redaction or durability fix applied to one and not the other is a silent
-divergence in the two paths that write the evidence everything else is built on.
-Extract one capture module.
-
-**But do not thin the JSONL logs to "tag, action, status, room/turn, deltas."**
-Session 76's STATE.md records that `logs/` is gitignored and **LOSSY**, and that
-four Relaxing observations from session 69 survive only inside a report because
-the record was never written — CLAUDE.md rule 10 in its second form. **Cutting
-the log is a bet about what future analysis will need, placed by a reviewer who
-has not done that analysis.** Fixtures are 73MB in a clean clone. That is not a
-problem worth paying for in evidence.
+**Do not quote +19.40pp either way. Do not re-run the oil sweep.**
 
 ---
 
-## 6. M4 and M2 — one comment, one deferral
+## 3. Session 78's own open items
 
-**M4 — write the comment, not the code.**
-
-The inconsistency is real: `liveFishing.ts:2296` calls `shouldRedraw()`, does not
-observe the moved cell, and does not increment `turn`, while the corrected sim
-does all three. But `liveFishing.ts:2337-2352` **already says so**, under a
-heading reading `── UNRESOLVED, AND IT BLOCKS ENABLING THIS ──`, and it raises
-what the review misses:
-
-> *feeding it in without a placement is a change to how the predictor is fed that
-> nothing has measured. Which of those is right is a question for the
-> recalibration this flag is waiting on, **NOT for whoever first flips it**.*
-
-The review's fix — `matcher = observe(matcher, toCell); turn++` — **is that
-decision, made silently, by exactly the reader that comment warns about.** The sim
-can observe on a redraw because it has a true trajectory to observe *against*;
-live there is no placement to score the observation with. Same three lines, not
-the same operation.
-
-**Do:** update that block to cite session 75's measured figures (263.0 → 43.9,
-catch 24.9% → 32.5%, ~29.9 at the fresh-hand threshold) and name the two
-candidate semantics as the open choice. **Do not** write the lines.
-
-**M2 — defer, and record why.**
-
-The claim is accurate: `src/strategy/potions.ts:11` is a flat
-`DEFAULT_POTION_THRESHOLD = 0.5`, swept on the clean simulator. But the review's
-fix is `hp <= credibleNextExchangeHpDamage`, which needs the corrected Rule 8
-model — **which §3 says cannot be built yet.** The review's own implementation
-order puts H2 third and M2 fourth, so it sequences a blocked item behind a blocked
-item.
-
-It is also a **live policy change** to consumable use, which is rule 4 and the
-user's call regardless. **Record it in `TASKS.md` as blocked on the H2 captures,
-and do not touch `0.5`.** The review says this too — *"should not be solved by
-changing `0.5` blindly"* — and it is right.
+- **Fishing's in-cast writes are the last unrouted class** (`play_cards`, loot,
+  oil, redraw). Session 78 asks whether it is worth a pass given no daily ledger
+  moves. **Yes, but after §1** — and the honest justification is not the ledger,
+  it is that `resolvePendingCardOffer` is a one-off recovery for one stranding
+  state, and *one-off recovery per state* is the shape §2 of last session
+  replaced. It is a small increment on machinery that already exists.
+- **The oil policy approval** (`dendren.oils.policyApproved` still FALSE) is a
+  user decision, and §1 argues for *not* raising it yet: the timing policy was
+  derived on the pre-shuffle simulator. **Ask after the profile check, not
+  before.** The user's answer that `use_fishing_item` neither advances the fish
+  nor costs mana closes §1's mechanic questions but not the timing.
+- Carried: low-assertion review; crit-source separation with one-lure casts;
+  what re-derives +19.40pp; `nextPosition` tripwire still unmet; session 72's oil
+  gate row still failing.
 
 ---
 
-## 7. Gate
+## 4. The live budget — 12 units and 20 casts, and §1 changes what they are for
 
-**All offline, deterministic, no live budget, no `data/`.** Rule 6.
+**Available now, unspent, expiring 11:00 PT tomorrow.** Every item needs its own
+go-ahead; rule 11 terms unchanged (60-energy juiced, `--juiced-index=3`, 3× Big
+Heal Juice, `--runs=1`, stop and hand back). Rule 13 after every run. `--dry-run`
+first — the dungeon path has not executed since session 75.
 
-1. **The bot cannot hang.** `raw()` carries a deadline; a GET abort is bounded
-   and retried, a POST abort routes into §2's outcome type rather than throwing
-   a "did not apply." Demonstrated by a test that stalls a socket and asserts the
-   mutex is released and a typed outcome returned — **not** by reading the code.
-2. **Every irreversible action class returns the same transaction outcome**, and
-   `start_run` in particular can no longer throw without either committing the
-   spend or proving it did not land. Tests cover applied-despite-error,
-   definitely-pending, unreadable state, timeout and exactly-once accounting.
-   `postWithVerifiedRetry`'s locate-by-identity rule survives the refactor,
-   pinned by a test.
-3. **No live decision is logged as a supported EV when the coverage layer would
-   refuse to score it.** `probeCombatant`/`probeRun` reasons appear beside the EV
-   in the live decision log, demonstrated on a captured rule-8 state.
+**§1 re-orders what the casts are worth.** CAPTURE-3 no longer needs them (§1e).
+What does:
 
-Not gated, do if there is room: §4's deck harness (the largest single item and
-the one most likely to overrun), §5's four items, §6's comment.
+- **The forced Relaxing consume** — carried since session 73, now six sessions.
+  The user has *answered* the two mechanic questions; a cast would **verify** the
+  answer against a live response, which rule 1 says wins over any stated fact.
+  That is a smaller prize than it was a week ago, and it is honest to say so.
+- **Ordinary casts are now worth more than they were**, because §1's fix wants
+  validation data: more opening hands on known decks, especially a deck longer
+  than ten, directly tighten §1b's distribution. **This costs nothing extra —
+  it is a property of casts the bot plays anyway.**
 
-**Rule 7's amendment is NOT gated — it is a question for the user (§2d).**
-
----
-
-## 8. Do not
-
-- **Do not change `raw()`'s 429 behaviour.** Rule 7 is a non-negotiable; take it
-  to the user with the futility argument (§2d).
-- **Do not build H2's proc-branch model**, not stubbed, not defaulted, not
-  flagged. The proc rates do not exist and inventing them is rule 1 inverted
-  (§3b).
-- **Do not change `chooseNewCard` live**, and do not quote the deck ranking
-  unsuspended (§4b).
-- **Do not write M4's three lines** (§6). Do not enable `redrawEnabled`.
-- **Do not touch `DEFAULT_POTION_THRESHOLD`** (§6).
-- **Do not thin the JSONL capture logs** (§5, L4).
-- **Do not run a deck simulation inside the live loop** — action-token window.
-- **Do not start a live run without `doctor.ts` and a per-run go-ahead**, and
-  never chain runs.
-- Standing: do not quote +19.40pp; do not re-run the oil sweep on the current
-  instrument; do not present a `castSim` result as evidence about live play; do
-  not read session 75's run 4 against runs 1–3; do not give a new I/O-owning test
-  construction a real data path.
+**One juiced dungeon run** would seed §3-of-last-session's `evSupported` telemetry
+with real rule-8 co-occurrence data, which is what turns CAPTURE-1's ordering from
+guessed into measured. That is a real use for one run-unit and is the only dungeon
+item I would argue for.
 
 ---
 
-## 9. Carried, and one of them is now six sessions old
+## 5. Gate
 
-Session 77's open questions, none addressed by the review:
+**Offline, deterministic, no live budget, no `data/`.** Rule 6.
 
-- **The forced Relaxing consume plus the era batch — unspent since session 73.**
-  `OIL-POLICY.md` §1's two load-bearing live questions (does `use_fishing_item`
-  advance the fish, does it cost mana) are answerable by **one** deliberate cast.
-  **Rollover is 11:00 PT and there are 20 casts.** Three briefs running have said
-  this costs nothing to defer; it is now the oldest thing on the board and
-  deferring it a sixth time is a decision, not a deferral.
-- Per-test assertion counts are now recorded — is a low-assertion review worth one
-  pass, or does that metric rot into a target?
-- Dead SHA citations inside old session logs — note in each, or does DECISIONS.md
-  suffice?
-- Separate the crit source with one-lure-only casts? What re-derives +19.40pp?
+1. **`castSim` draws from a shuffled pile**, shuffled once per cast from the
+   cast's own seed, and a test over the corpus decks asserts the simulated
+   opening-hand position distribution is consistent with §1b's live one **and
+   that the old sequential draw fails that same test.** Demonstrated by running
+   it both ways, as session 75 demonstrated the redraw fix.
+2. **CAPTURE-3 is closed in `TASKS.md`** with §1b's table as its answer, and the
+   deck sweep is re-run on the shuffled pile with its result recorded as
+   SUSPENDED under §0a. **A re-run that does not carry the suspension label does
+   not meet this gate.**
 
-The review's own fishing priority list agrees with the record on two points worth
-noting: **keep `pConnect` closed** unless a level-sensitive consumer appears
-(matching session 75's moot verdict), and **keep the focus work suspended** until
-the harness reproduces live opening focus spend. Both are already the posture.
+Not gated, do if there is room: §3's in-cast transaction routing; §2's profile
+check if §1 lands early — but **do not start the profile check until the shuffle
+is pinned by gate 1**, or it measures two changes at once.
 
 ---
 
-## 10. Corrections to me
+## 6. Do not
 
-- **I triaged a review I did not commission, against rules I have been reading for
-  four sessions, and I am the third opinion in the room.** Where I say "refuse",
-  I mean *"do not do this silently"* — H2's model and M4's three lines are both
-  defensible with evidence that does not exist yet, and the user may want them
-  anyway. **Neither is an agent's call and neither should be settled by a brief.**
-- **The review is better than my objections make it sound.** Its facts held up
-  under every check I ran; the two disagreements are both cases of an outsider
-  reading a documented refusal as a gap, which is what an outsider is for. **The
-  correct response is to write the refusal where the reviewer would have seen it**
-  — `types.ts:31-36` says it well, `chooseNewCard` says it well, `liveFishing.ts`
-  says it well, and Codex still missed all three, which is evidence about where
-  those notes live rather than about the reviewer.
-- **Rule 9 applies to this document.** If anything above is wrong against the code
-  or a live response, the code wins, the claim is not implemented as stated, and
-  the correction goes in the recap.
+- **Do not treat the shuffle as an invented model** (§1d). It is measured at
+  129/129; the fixed order is the assumption.
+- **Do not change `chooseNewCard`**, and do not quote the re-run deck ranking
+  without §0a's suspension attached (§1f).
+- **Do not re-run the oil sweep on the current instrument**, before or after the
+  shuffle. §0a forbids it by name. **Do not quote +19.40pp.**
+- **Do not raise `policyApproved`** (§3).
+- **Do not claim the shuffle explains §0a's gap** until the profile check says so.
+  §1c states it as the first named candidate mechanism, not as the cause.
+- **Do not implement reshuffle-on-exhaustion** — unobserved in 721 states (§1d).
+- **Do not build H2's proc-branch model**; do not write M4's `observe`/`turn++`
+  lines; do not touch `DEFAULT_POTION_THRESHOLD`; do not re-raise rule 7's 429
+  backoff without an observed 429 (all settled, sessions 77–78).
+- **Do not start a dungeon run without `--dry-run`, `doctor.ts`, and a per-run
+  go-ahead**, and never chain runs.
+- Do not present a `castSim` result as evidence about live play. Do not read
+  session 75's run 4 against runs 1–3. Do not give a new I/O-owning test
+  construction a real data path. **Run `preflight.ts` before pushing.**
 
 ---
 
-## Your task (session 78)
+## 7. Corrections to me
 
-1. `doctor.ts` first, both ledgers. Past 11:00 PT they have rolled.
-2. **§1 / gate 1** — the request deadline. GET now; POST with §2.
-3. **§2 / gate 2** — the transaction helper, `start_run` first. **Ask the user
-   about rule 7 (§2d); do not amend it yourself.**
-4. **§3 / gate 3** — wire the coverage reasons into the live decision log.
-   **Build nothing else of H2.**
-5. **§5** — L1, L2, L3, and L4's refactor only.
-6. **§4, §6** — the deck harness if there is room; M4's comment; M2 recorded as
-   blocked.
-7. **§9** — if past 11:00 and the user gives a go-ahead, the forced Relaxing
-   consume is the item I would spend a cast on.
-8. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
-   commit, `assertionCoverage` at zero, no test writes a real data path, secret
-   scan before handoff.
+- **I triaged the Codex review and told session 78 that M3 was "the best item in
+  the review... readier than it says", and it was not ready at all.** The
+  simulator it had to be built on draws the deck wrong. I checked that the card
+  catalog existed and did not check that the thing consuming it modelled the
+  draw. **A harness is only as ready as the model underneath it, and I verified
+  the input and skipped the mechanism.**
+- **Session 78 found the real obstacle by building the thing anyway**, which is
+  the better failure — a null with a diagnosis attached beat my confident go.
+  Its only error was generalising a simulator property to the game, and it is a
+  small error sitting on top of a good measurement.
+- **I have now spent three briefs advising deferral of the fishing items on the
+  grounds that they cost nothing to defer.** §1 is a reason that was available in
+  `fixtures/` the entire time and would have been found by anyone who asked what
+  the live opening hands looked like. **The corpus answers more questions than it
+  is asked.**
+- **Rule 9 applies.** §1 is a measurement over committed fixtures; if a live
+  response disagrees, the live response wins and the correction goes in the
+  recap.
 
-**Honest expectation.** §1 and §2 are the session: a bot that can hang forever and
-a ledger that can silently disagree with the server are the only two findings here
-that can cost something irreversible, and both are fixable today with no new
-captures. §3 is small and will feel unsatisfying — it makes the gap *visible*
-rather than closing it, which is the right move and reads like a half-measure.
-**The likeliest way this session goes wrong is §4 eating it**: a paired-Monte-Carlo
-deck harness is a genuinely interesting problem and it is the one item here with
-no ceiling. If it starts to overrun, stop and hand it forward — it has waited
-since session 17 and it can wait one more.
+---
+
+## Your task (session 79)
+
+1. `doctor.ts` first, both ledgers. **They rolled at 11:00 PT and are unspent.**
+2. **§1 / gate 1** — shuffle the pile once per cast, pin it with a corpus-validated
+   test that the old draw fails.
+3. **§1e / gate 2** — close CAPTURE-3 with the measurement, re-run the deck sweep
+   on the shuffled pile, record it SUSPENDED.
+4. **§2** — if gate 1 lands early, attempt §0a's profile check. Not before.
+5. **§3** — fishing's in-cast writes, if there is room.
+6. **§4** — only with a per-run go-ahead: one juiced run to seed the `evSupported`
+   telemetry is the dungeon item worth arguing for; casts are worth more than
+   they were and CAPTURE-3 no longer needs them.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
+   commit, `assertionCoverage` at zero, **`preflight.ts` before the push**, no
+   test writes a real data path, secret scan before handoff.
+
+**Honest expectation.** §1 is a one-line change to `drawHand`'s caller wrapped in
+a real validation test, and it will move a lot of numbers. The satisfying version
+is that the shuffle lands, the profile check narrows §0a's gap, and shelved work
+comes back. **The likelier and more useful version is that the gap barely moves** —
+sim catch ~70% against a real 27.6% is a wide chasm for one draw-order fix to
+close — and then the finding is that the fishery's difficulty lives somewhere the
+deck model was never hiding it, with one more candidate eliminated by measurement
+instead of assumption. Either way, do not let the deck sweep's re-run become the
+session; it is a consequence of gate 1, not a rival to it.
