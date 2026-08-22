@@ -121,7 +121,7 @@ describe("the two degeneracies are pinned at the OUTCOME, in the simulator", () 
     return { escapedMana: escapedMana / runs, turnsPerCast: turns / runs, redrawMana: redrawMana / runs };
   };
 
-  it("ALWAYS reproduces the recorded failure: mana exhaustion at ~1 turn per cast", () => {
+  it("ALWAYS reproduces the recorded failure: total mana exhaustion, every cast", () => {
     const a = run(ALWAYS_REDRAW_CONNECT_THRESHOLD);
     // `cardChoice.ts` §5's recorded disaster was 78% escaped_mana at 1.29
     // turns/cast. The always-threshold is strictly more aggressive than the
@@ -129,8 +129,20 @@ describe("the two degeneracies are pinned at the OUTCOME, in the simulator", () 
     // assertion ever relaxes, the harness has stopped exercising the failure
     // and every other pin here is decorative.
     expect(a.escapedMana).toBeGreaterThan(0.78);
-    expect(a.turnsPerCast).toBeLessThan(1.29);
     expect(a.redrawMana).toBeGreaterThan(0);
+    // **[session 75 §3] THE TURNS BOUND MOVED, AND IT IS THE FIX, NOT A
+    // REGRESSION.** `castSim` now charges a redraw a turn and a fish step, so
+    // an all-redraw cast spends its 10 mana over FOUR turns (3 + 3 + 3, then
+    // out) instead of appearing to die inside a single one. The old `< 1.29`
+    // was measuring the missing `turn++`, not the degeneracy.
+    //
+    // The DEGENERACY ITSELF is unchanged and is what this test exists for:
+    // every cast still ends in mana exhaustion having taken no useful shot.
+    // Pinning that on the OUTCOME rather than on the turn count is also the
+    // more honest pin — the turn count was never the disaster, the mana was.
+    expect(a.escapedMana).toBe(1);
+    expect(a.turnsPerCast).toBeLessThanOrEqual(4);
+    expect(a.redrawMana).toBeGreaterThanOrEqual(9);
   });
 
   it("NEVER spends no mana on redraws at all, and does not exhaust mana", () => {

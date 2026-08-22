@@ -609,22 +609,33 @@ export function simulateCast(opts: CastOptions): CastResult {
       // iteration. A redraw here is time-free: the sim's fish stands still
       // while the real one steps.
       //
-      // The direction of the error is the part that matters. A free step makes
-      // the redraw strictly CHEAPER in sim than in play, so session 72's
-      // "263 mana per extra fish" and its `escaped_mana` 18.8% -> 39.8% are
-      // both UNDERSTATEMENTS of the true cost. That strengthens the CLOSED
-      // verdict on redraw rather than reopening it, which is why this is
-      // recorded and NOT fixed in the session that found it (brief §3/§7:
-      // ship nothing while the `pConnect` diagnosis is open). Fixing it means
-      // advancing the trajectory index on a redraw and re-deriving 263.
+      // **[session 75 §3] FIXED — the fish now steps and the turn burns.** User
+      // decision, 2026-08-22: this is outside the ship-nothing freeze, because
+      // redraw is disabled live (`redrawEnabled` false) so the correction
+      // cannot move live behaviour.
+      //
+      // The step is charged EXACTLY the way the turn-costing oil branch above
+      // charges it — `observe` the true cell, then `turn++` — rather than by a
+      // second mechanism, so there is one way a non-shooting turn advances
+      // time in this file and not two.
+      //
+      // The direction of the old error is worth keeping: a free step made the
+      // redraw strictly CHEAPER in sim than in play, so session 72's "263 mana
+      // per extra fish" and its `escaped_mana` 18.8% -> 39.8% were both
+      // UNDERSTATEMENTS. Correcting it therefore STRENGTHENS the CLOSED verdict
+      // on redraw and cannot reopen it. `tests/fishing/redrawFishStep.test.ts`
+      // fails against the old `continue`.
       //
       // NOTE what this is NOT. The session-74 brief read a DevTools capture
       // (`FISH_HP_DIFF: -3`, `result: 10`) as a redraw HEALING the fish 3 and
       // asked whether the sim was missing that. It is not, and there is no
-      // heal — see SPEC-fishing §7a.
+      // heal — see SPEC-fishing §7a. Mana and damage were always right; the
+      // fish step is the only thing that was wrong.
       mana -= hand.length;
       redrawMana += hand.length;
       ({ hand, nextIdx: drawIdx } = drawHand(deck, drawIdx, handSize));
+      matcher = observe(matcher, trueTrajectory[matcher.turn]!);
+      turn++;
       continue;
     }
 

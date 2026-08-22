@@ -302,9 +302,20 @@ function main(): void {
   console.log(`  derived threshold fires on ${pct(fireRate(derived))} of turns rather than almost all of them, and`);
   console.log(`  ${pct(1 - (firing.length ? deadTurns / firing.length : 0))} of its firings are on hands with real headroom rather than flat`);
   console.log(`  distributions (§4). The trigger is asking the right question.`);
-  console.log(`\n  The ANSWER is still no. In the simulator it buys ${(100 * dCatch).toFixed(1)}pp of catch — ${(dCatch / se).toFixed(1)} standard`);
-  console.log(`  errors at n=${runs}, i.e. not distinguishable from zero — for ${d.manaPerCast.toFixed(2)} mana per cast, and`);
-  console.log(`  it more than doubles \`escaped_mana\` (${pct(base.escapedMana)} -> ${pct(d.escapedMana)}). That is`);
+  // [session 75] The significance clause is now COMPUTED, not asserted. It
+  // read "i.e. not distinguishable from zero" unconditionally — true when this
+  // was written at |t| = 1.4, and false at |t| = 7.6 after `castSim`'s redraw
+  // branch was fixed to charge a fish step. A conclusion baked into a template
+  // string survives the data that contradicts it, which is the failure mode
+  // here worth naming.
+  const t = dCatch / se;
+  const verdict =
+    Math.abs(t) < 2
+      ? "i.e. not distinguishable from zero"
+      : "i.e. a REAL gain in the simulator, and the objection below is price, not noise";
+  console.log(`\n  The ANSWER is still no. In the simulator it buys ${(100 * dCatch).toFixed(1)}pp of catch — ${t.toFixed(1)} standard`);
+  console.log(`  errors at n=${runs}, ${verdict} — for ${d.manaPerCast.toFixed(2)} mana per cast, and`);
+  console.log(`  it roughly doubles \`escaped_mana\` (${pct(base.escapedMana)} -> ${pct(d.escapedMana)}). That is`);
   console.log(`  ${(d.manaPerCast / Math.max(dCatch, 1e-9)).toFixed(0)} mana per extra fish against a cast that holds 10 mana in total.`);
   console.log(`\n  Note the DIRECTION of the failure is the recorded one: mana exhaustion replacing`);
   console.log(`  meter exhaustion. The re-derived trigger fires four times less often than the old`);

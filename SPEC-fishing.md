@@ -903,17 +903,48 @@ the mechanic above:
 | `fishHp` | untouched | ✓ no damage **and** no heal |
 | the fish's position | **unchanged** | ✗ **WRONG — the fish should step** |
 
-The branch `continue`s, which skips both `matcher = observe(...)` and the
-`turn++` under it, so `trueTrajectory[matcher.turn]` returns the **same cell**
-on the next iteration. **A redraw in the sim is time-free.**
+The branch `continue`d, which skipped both `matcher = observe(...)` and the
+`turn++` under it, so `trueTrajectory[matcher.turn]` returned the **same cell**
+on the next iteration. **A redraw in the sim was time-free.**
 
-**The direction of the error is what matters, and it does not reopen redraw.** A
-free fish step makes the sim's redraw strictly cheaper than the real one, so
-session 72's **263 mana per extra fish** and its `escaped_mana` **18.8% →
-39.8%** are both **understatements** of the true cost. Redraw stays CLOSED, and
-this pushes the cost up rather than down. Fixing the model means advancing the
-trajectory index on a redraw and re-deriving 263 — deferred out of session 74
-under its brief's ship-nothing posture, not because it is unimportant.
+**FIXED [session 75]** — the branch now charges the step exactly as the
+turn-costing oil branch does (`observe`, then `turn++`).
+`tests/fishing/redrawFishStep.test.ts` fails against the old `continue` on
+three of its four assertions.
+
+### ⚠ Session 74 predicted the direction of this error and got it BACKWARDS
+
+That prediction, made here and in DECISIONS, was: a free fish step makes the
+sim's redraw cheaper than the real one, so **263 mana per extra fish** and
+`escaped_mana` **18.8% → 39.8%** must be **understatements**. **It is
+retracted.** Re-derived under the fix, on the same harness at n=4000/arm:
+
+| | session 72 (broken) | session 75 (fixed) |
+|---|---|---|
+| catch, NEVER arm | 24.8% | 24.9% |
+| catch, derived arm | 26.2% | **32.5%** |
+| `escaped_mana`, derived | 39.8% | 39.4% |
+| turns/cast, derived | 4.38 | 6.07 |
+| **mana per extra fish** | **263.0** | **43.9** |
+
+**Why the reasoning failed.** It priced the missing `turn++` and forgot the
+missing `observe()` beside it. A sim redraw was not merely time-free, it was
+**information-free** — and that is the larger term. A real redraw moves the
+fish and the bot *sees where it went*, so it buys an extra observation for the
+price of the mana. The old branch charged the mana and withheld the
+information. Measured: hit rate per shot **35.6% → 45.4%** between the NEVER
+and derived arms under the fix (`scripts/redrawBlastRadius.ts` §4).
+
+The general lesson is about `continue` specifically: **a `continue` skips
+everything below it, not the one thing you were thinking about.** The audit
+enumerated three charges and checked each; it did not enumerate what else the
+statement jumped over.
+
+**REDRAW IS STILL CLOSED** and this does not reopen it — 43.9 mana per extra
+fish against a cast holding 10 in total is unaffordable at either figure, and
+CLAUDE.md rule 4 bars a live change on a sim result regardless. What changed is
+the recorded REASON: the old write-up called the gain "not distinguishable from
+zero", which was true at |t| = 1.4 and is false at |t| = 7.6.
 
 Note this is the same missing step already recorded as unresolved item 1 below
 (the matcher observation), seen from the sim side rather than the live side.
