@@ -48,11 +48,11 @@ jobs:
   offline-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 22 rather than the `engines` floor of 20: vite requires ^20.19 || >=22.12,
       # so a bare "20" can resolve below what the toolchain accepts.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
