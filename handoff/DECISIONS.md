@@ -821,3 +821,47 @@ module has to contain the thing it redacts", and `src/orchestrator/capture.ts`
 delegates redaction and holds no token literal, so the test uses a long
 non-JWT-shaped secret instead. A scanner with case-by-case exceptions trains its
 reader to ignore it.
+
+2026-08-22 (session 79 §1) — **The server SHUFFLES the fishing draw pile;
+`castSim` now does too, once per cast, and session 78's "deck ORDER is
+load-bearing" is RETRACTED.** Measured over committed fixtures with no live
+play: 129 opening hands (`nextCardIndex === hand.length`), **zero** equal to
+`fullDeck[0..2]`, which a sequential-from-0 pile predicts for all 129. On the
+most-played deck, 31 opening hands by roster position 13/8/5/16/6/10/7/13/7/6 —
+the tail is drawn as often as the head, chi-square 13.47 on 9 df against a
+uniform shuffle (crit 16.92, not rejected). Session 78's finding was correct
+about `drawHand` and was then generalised into a claim about the GAME
+("an appended card is unreachable by construction"); the corpus falsifies that.
+Its instruction — *do not unblock this by adding a shuffle* — was the right
+instinct on a wrong premise: sequential draw was never the conservative
+default, it was an unexamined assumption, and the shuffle is the measurement.
+Four scoping decisions, all deliberate: the pile draws from its OWN salted rng
+stream so deck length cannot shift the fish (or `deckObjectiveSweep.ts`'s
+seed-paired arms would each carry a trajectory difference); the random-SAMPLE
+deck path is NOT shuffled because it is built i.i.d. with replacement and is
+already exchangeable, so shuffling it would move every pinned figure in the
+repo while modelling nothing new (pinned byte-for-byte); `sequentialDrawPile:
+true` keeps the falsified model selectable ONLY so `deckShuffle.test.ts` can
+watch it fail, and is verified byte-identical to the pre-session-79 simulator;
+per-cast vs per-draw shuffle is NOT distinguished by this corpus and
+reshuffle-on-exhaustion stays UNOBSERVED (max `nextCardIndex`/deck 0.92), both
+stated in code as chosen rather than measured. Session 45's recorded
+"`drawHand` cycles the deck sequentially" confound (2026-08-18 above) is
+resolved for held decks by this change.
+
+2026-08-22 (session 79 §1e) — **CAPTURE-3 is CLOSED, answered from the corpus,
+and no casts were spent on it.** It asked what the server does to `fullDeck`
+when it grows. Where a looted card lands cannot matter to what is drawn,
+because the pile is re-ordered every cast. STATE.md's open question 2 wanted
+"enough consecutive casts on one deck to see whether hands repeat in deck
+order" — 31 consecutive opening hands on one deck were already committed and
+they do not repeat. The deck sweep re-ran on the shuffled pile, 4000 paired
+casts per arm: baseline hit 36.42% (catch **0.0%** on the real 23-card deck),
+best appended arm card 25 at +9.40pp, and `chooseNewCard`'s pick (card 110)
+62/80 at 8.80pp behind the argmax. **SUSPENDED under OIL-POLICY.md §0a and
+`chooseNewCard` is UNTOUCHED** — one of session 78's two suspensions lifts (the
+number is now measured in the APPENDED arm, which is what a loot pick does),
+the other stands and is the one that matters (rule 4). The re-run also yields
+the harness's own noise floor for free: two arms that are the SAME deck differ
+by 1.93pp at 4000 casts, so only 10 of 80 arms clear their own noise and rank
+order below those means nothing.

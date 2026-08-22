@@ -1658,46 +1658,90 @@ changing `0.5` blindly." Raising it without a better model wastes a limited
 consumable; leaving it spends the potion after the dangerous hit instead of
 before it. Neither is fixable by picking a different number.
 
-### CAPTURE-3 — what the server does to `fullDeck` when it grows (M3's blocker)
+### CAPTURE-3 — CLOSED 2026-08-22 (session 79). The corpus already held the answer
 
-**Found by building M3's harness, not by reasoning about it.**
-`scripts/deckObjectiveSweep.ts` runs the composition objective the review asked
-for, and the answer it returns is a null with a diagnosis:
+**Asked:** does the server shuffle, and where does a looted card land in
+`fullDeck`? Session 78 raised it after `scripts/deckObjectiveSweep.ts` returned
+a null — all 80 appended candidates byte-identical to baseline, the same cards
+prepended moving hit rate up to +19.91pp — and diagnosed it as `castSim`'s
+`drawHand` walking the roster from index 0.
+
+**Answered, from committed fixtures, with no live play.** Every live fishing
+state carries `fullDeck`, `hand`, `nextCardIndex`, `cardInDrawPile` and
+`discard`. Taking every state where `nextCardIndex === hand.length` — the
+opening hand of a cast:
 
 ```
-  all 80 appended candidates   IDENTICAL to baseline, full precision
-  the same cards prepended     hit rate moves by up to +19.91pp
+  opening hands examined                        129
+  hand === fullDeck[0..2]                         0    ← sequential draw predicts 129
+  distinct fullDeck orderings                    38
+  states carrying a draw pile                   721
+  states with nextCardIndex > fullDeck.length     0    ← the pile never exhausts
 ```
 
-`castSim`'s `drawHand` is sequential from index 0 and a cast lasts ~5 turns, so
-on the account's real 23-card deck only the first ~8 cards are ever seen — **a
-card appended at the end is unreachable by construction.** Whether that models
-reality depends entirely on where a looted card LANDS in `fullDeck` and whether
-the server shuffles, which is the review's own fourth listed missing input and
-is not captured anywhere.
+On the most-played deck `[1,2,3,4,5,6,7,76,77,79]`, 31 opening hands by roster
+position:
 
-**What would answer it:** a `fullDeck` read before and after a loot pick (does
-the new id land at the end, at a sorted position, elsewhere?), and enough
-consecutive casts on one deck to see whether hand composition repeats in deck
-order or varies. Both are ordinary fishing captures — no probe, no new endpoint.
+```
+  pos          0    1    2    3    4    5    6    7    8    9
+  in opening  13    8    5   16    6   10    7   13    7    6      / 31
+  uniform shuffle predicts 9.3 each  →  chi-square 13.47, 9 df, NOT rejected (crit 16.92)
+  sequential-from-0 predicts         →  31, 31, 31, 0, 0, 0, 0, 0, 0, 0
+```
 
-**Do NOT unblock this by adding a shuffle to `castSim`.** The ranking would
-become an artifact of an invented draw model and would look exactly as
-authoritative as a real one (CLAUDE.md rule 1). The tests in
-`tests/fishing/castSim.test.ts` ("deck ORDER is load-bearing") pin the current
-behaviour so this cannot be done quietly.
+**The server shuffles.** `fullDeck` is a roster; `nextCardIndex` indexes a
+hidden shuffled pile that is never on the wire (`deckCardData` is the card
+metadata list and is likewise canonical). Roster tail positions 7/8/9 turn up
+13, 7 and 6 times in opening hands — there is no positional decay of any kind.
 
-**Also settled by building it:** M3's advice to cache "by normalized deck
-composition" is wrong for this simulator — `[...deck, id]` and `[id, ...deck]`
-are the same multiset and measurably different decks. The harness keys on the
-ordered deck.
+**What that does to the blocker:** it dissolves it. Where a looted card lands in
+the roster cannot matter to which cards are drawn, because the pile is
+re-ordered every cast. `castSim` shuffles now (session 79 §1), the sweep re-runs
+meaningfully, and `tests/fishing/deckShuffle.test.ts` fails the old model on
+this same data.
 
-**Note the harness ALSO reports a live-relevant disagreement, and it is doubly
-suspended.** `chooseNewCard`'s damage-per-mana pick ranks 79/80 by prepended hit
-rate, 19.72pp behind the composition argmax. That is the disagreement M3
-predicted — but it is a `castSim` result (OIL-POLICY.md §0a suspends those) AND
-it is measured in the prepended arm, which is not what a loot pick does. It is a
-reason to run this capture, not a reason to touch `chooseNewCard`.
+**Session 78's instruction here — "Do NOT unblock this by adding a shuffle to
+`castSim`" — was the right instinct on a wrong premise.** Sequential draw was
+not the conservative default; it was an unexamined assumption that the corpus
+falsifies at 129/129. The shuffle is the measurement, not the invention.
+
+**What is still NOT measured, and is not worth a capture on its own:**
+
+- **Per-cast vs per-draw shuffle.** Both reproduce the opening-hand statistics
+  above. Per-cast is implemented as the simpler hypothesis matching
+  `nextCardIndex`'s monotone advance — chosen, not measured, and said so in
+  code.
+- **Reshuffle on exhaustion.** `nextCardIndex` never exceeds `fullDeck.length`
+  in 721 states (max ratio 0.92), so `drawHand`'s `% deck.length` wraparound is
+  unvalidated. It rarely fires on real decks. Left alone, marked.
+- **Where a looted id lands in the roster.** One line of an ordinary cast's log
+  would show it. It no longer blocks anything, so it does not justify a capture
+  of its own — read it off the next cast that loots.
+
+**The sweep re-run, 2026-08-22, 4000 paired casts per arm, and it is SUSPENDED**
+(`OIL-POLICY.md` §0a — this simulator does not reproduce the fishery: sim catch
+~70% against a real 27.6%, meter-out 1.0% against 64.2%; on the real 23-card
+deck the sim's own baseline catch rate is 0.0%):
+
+```
+  baseline (23-card held deck)      catch 0.0%   hit 36.42%   meanTurns 4.39
+  best appended arm      card 25    hit 45.82%   (+9.40pp)
+  control: mean |append − prepend|  1.93pp       ← the harness's own noise floor
+  spread across the 80 arms         9.09pp
+  chooseNewCard's pick   card 110   ranks 62/80, 8.80pp behind the argmax (4.6x the floor)
+```
+
+**`chooseNewCard` is UNTOUCHED and stays untouched.** Session 78's version of
+that last line was doubly suspended — a `castSim` result measured in the
+PREPENDED arm, which is not what a loot pick does. One of those two suspensions
+is now lifted: the number above is measured in the appended arm, the one a loot
+pick produces. The other stands, and it is the one that matters: changing live
+card selection on a sim result is CLAUDE.md rule 4. The next thing that could
+move this is the §0a profile check, not more simulation.
+
+**Read the control gap before reading the ranking.** Two arms that are the same
+deck differ by 1.93pp at 4000 casts, so only 10 of 80 arms clear their own
+noise, and rank order below those is meaningless.
 
 ---
 

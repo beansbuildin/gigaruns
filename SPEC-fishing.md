@@ -603,7 +603,7 @@ Field-by-field, from the captured board (`doc.data`):
 | `focusPoint` | the bobber's cell. **[CONFIRMED]** moved mid-cast (`[2,2]` → `[3,3]`), carried on the NEXT `play_cards` request — a move and a card play are one action on this grid, matching the community note. |
 | `focusMeter`/`focusMeterMax` | bobber move budget, both `3` throughout this capture — present, but un-spent-looking here since the original capture never moved the focus point more than a couple cells. **Spend rule [CONFIRMED 2026-08-15, session 13, live]**: costs the Manhattan distance from the CURRENT focus point, out of a 3-point budget that does **not** regenerate within a cast (regeneration ACROSS turns is still `[VERIFY]` — no cast has ever tested it). This project's first live cast moved it `3/3 → 3/3 (dist 0) → 2/3 (dist 1) → 1/3 (dist 1)`, then a 4th move of distance 2 with only 1 point left was REJECTED outright (`HTTP 400`) — the cap is enforced server-side, not just a display number. `src/strategy/fishing/cardChoice.ts`'s `chooseCard`/`bestFocusForCard` take an optional `FocusBudget` to respect this. **[MODELLED 2026-08-15, session 14]** `src/sim/fishing/castSim.ts` now tracks this budget too (`FOCUS_METER_MAX`, `defaultStartFocus`) — modelling it alone drops the 500-cast catch rate from 92.4% to ~70%, real but not the dominant explanation for the sim-vs-live gap. See `SPEC.md §5` for the fuller finding (the pattern-library mismatch is the bigger cause) and `scripts/fishFocusMeter.ts` for the measurement. |
 | `focusMechanicEnabled` | `true` for this (Dendren) cast. **[CONFIRMED]**. The community note says this is `false` on the simpler 3×3 ponds — not independently verified here (no second-pond capture), but consistent with the `gridSize`/`pondId` split above. |
-| `hand`/`discard`/`fullDeck`/`nextCardIndex`/`cardInDrawPile` | **[CONFIRMED]** — `hand` shrinks by the played index and `discard` grows by the played card's id every turn, exactly as needed to implement `cards: [handIndex]`. |
+| `hand`/`discard`/`fullDeck`/`nextCardIndex`/`cardInDrawPile` | **[CONFIRMED]** — `hand` shrinks by the played index and `discard` grows by the played card's id every turn, exactly as needed to implement `cards: [handIndex]`. **[CONFIRMED 2026-08-22, session 79] The draw pile is SHUFFLED, and `fullDeck` is a roster rather than the pile.** Across every committed live state there are 129 opening hands (`nextCardIndex === hand.length`) and **zero** equal to `fullDeck[0..2]`; on the most-played deck the roster's tail positions appear in opening hands as often as its head (13/8/5/16/6/10/7/13/7/6 over 31 hands, chi-square 13.47 on 9 df against a uniform shuffle, not rejected). The pile's order is never on the wire — `deckCardData` is the card metadata list and is likewise canonical — so `nextCardIndex` is a cursor into something hidden. **Per-cast vs per-draw shuffle is NOT distinguished** by this corpus. **Reshuffle on exhaustion is UNOBSERVED**: `nextCardIndex` never exceeds `fullDeck.length` in 721 states (max ratio 0.92). |
 | `deckCardData` | the card catalog **as it applies to this cast** — see §6 for a live finding about `isDayCard` entries here. |
 
 **Card hitboxes are bobber-relative, not absolute, on this grid — [CONFIRMED
@@ -2118,7 +2118,10 @@ be describing the same card geometry. The session-46 brief asked for one
 diagnostic to settle it: re-run the deck arms printing **per-turn hit rate**
 beside catch rate. Hit rate is very nearly a pure function of card zones and
 focus placement, independent of the HP arithmetic, the mana curve, and the
-sequential-`drawHand` confound.
+sequential-`drawHand` confound (**session 79**: that confound was real and is
+now fixed for held decks — `castSim` shuffles the pile once per cast — which
+does not weaken the instrument, it removes one of the things it was insuring
+against).
 
 Measured, `scripts/fishingEmpiricalAblation.ts` §3, empirical fish + ring
 model, N=20000 × 2 far-apart seeds, **after (d)'s retirement**:

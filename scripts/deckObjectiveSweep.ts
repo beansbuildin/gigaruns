@@ -35,49 +35,52 @@
  * locally efficient card can lower whole-deck catch rate by duplicating
  * coverage the deck already had.
  *
- * ## THE RESULT, measured 2026-08-22: M3 CANNOT BE ANSWERED ON THIS INSTRUMENT
+ * ## THE RESULT OF 2026-08-22 (session 78), AND WHY IT NO LONGER STANDS
  *
- * Not because of the profile mismatch above — because of the DRAW MODEL.
+ * This script first returned a null with a diagnosis: all 80 appended
+ * candidates byte-identical to the baseline, the same cards prepended moving
+ * hit rate by up to +19.91pp. The diagnosis was that `castSim`'s `drawHand`
+ * walked the deck from index 0, so a card appended to a 23-card deck was never
+ * drawn inside a ~5-turn cast. That was correct about the simulator.
  *
- * `castSim`'s `drawHand` is strictly sequential from index 0 and cycles with
- * `% deck.length`. A cast lasts ~5 turns, so with the account's real 23-card
- * deck only the first ~8 cards are ever seen. **A card appended to the end of
- * the deck is unreachable by construction.** Measured, not reasoned:
+ * It was then generalised into a claim about the GAME — that an appended card
+ * is "unreachable by construction" on the real deck — and **that claim is
+ * false.** Session 79 measured every committed live fishing state: 129 opening
+ * hands, ZERO equal to `fullDeck[0..2]`, roster tail positions drawn as often
+ * as the head. The server deals from a shuffled pile. `castSim` now shuffles
+ * once per cast (`src/sim/fishing/drawModel.ts`, and
+ * `tests/fishing/deckShuffle.test.ts` fails the old model on the live data).
  *
- *     baseline (23 cards)         hit 41.06%   meanFinalFishHp 13.22
- *     card 17 APPENDED            hit 41.06%   13.22      (identical, 4 d.p.)
- *     card 17 PREPENDED           hit 39.56%   13.38      (−1.50pp)
- *     card 25 APPENDED            hit 41.06%   13.22      (identical)
- *     card 25 PREPENDED           hit 60.97%    9.94      (+19.91pp)
+ * **So the APPENDED column is the live one now**, and it is what this script
+ * ranks on: appending is what a loot pick does. The PREPENDED column is kept
+ * as a control rather than as the headline — under a shuffle the two arms are
+ * the same multiset AND the same distribution, so a large systematic gap
+ * between them would mean the shuffle is not doing what it claims. Watch it,
+ * do not quote it.
  *
- * Every appended arm is byte-identical to the baseline; the same cards moved to
- * the front swing hit rate by up to twenty points. So the whole answer to "which
- * card should I keep?" is dominated by WHERE the card lands in `fullDeck` — and
- * that is a server behaviour nobody has captured. It is the review's own fourth
- * listed missing input: *"Confirmation of draw/shuffle behavior when `fullDeck`
- * grows beyond the currently observed sizes."*
+ * **The null check below is now a TRIPWIRE.** If every appended arm ever comes
+ * out identical to the baseline again, the sequential pile is back and nothing
+ * printed here means anything.
  *
- * **This is a capture request, not a modelling task** (CLAUDE.md rule 6). The
- * fix that suggests itself — shuffle the deck per cast so an added card can be
- * drawn — is rule 1 inverted: the entire ranking would then be an artifact of an
- * invented draw model, and it would look exactly as authoritative as a real one.
- * Not done. The script reports the null and says why.
- *
- * A second consequence, worth its own line because M3 explicitly advises the
- * opposite: **the cache must key on the ORDERED deck, not a normalized one.**
- * `[...deck, id]` and `[id, ...deck]` are the same multiset and, in this sim,
- * measurably different decks. Normalizing would have silently returned the
- * append arm's numbers for the prepend arm and hidden the entire finding.
+ * A consequence that survives from session 78 with its reason replaced: **the
+ * cache still keys on the ORDERED deck.** Not because order changes the
+ * distribution any more — it does not — but because each cast shuffles from
+ * the order it was handed, so `[...deck, id]` and `[id, ...deck]` still
+ * produce different concrete piles at a given seed. A normalized cache would
+ * hand one arm's numbers to the other.
  *
  * ## Why the pairing here is exact rather than approximate
  *
- * `simulateCast` consumes NO rng while building the deck when `deckIds` is
- * supplied (it maps ids through the catalog; the random-sample path that does
- * consume rng is the `deckIds`-absent branch). The start cell and the true fish
- * pattern are drawn immediately after. So at a given seed, **every arm faces
- * the identical fish trajectory** — the arms differ only in what the deck could
- * do about it. `simulateCasts(runs, opts, seed)` walks `seed + i`, so passing
- * one base seed to every arm pairs the whole batch, not just one cast.
+ * `simulateCast` consumes no MAIN-stream rng while building the deck when
+ * `deckIds` is supplied: the ids map through the catalog, and the pile's
+ * shuffle draws from its own salted stream precisely so that deck LENGTH
+ * cannot shift the fish (session 79 §1 — this script's arms differ by one
+ * card, so a shared stream would have put a trajectory difference inside every
+ * Δ below). The start cell and the true fish pattern are drawn immediately
+ * after. So at a given seed, **every arm faces the identical fish trajectory**
+ * — the arms differ only in what the deck could do about it.
+ * `simulateCasts(runs, opts, seed)` walks `seed + i`, so passing one base seed
+ * to every arm pairs the whole batch, not just one cast.
  *
  * This is the property M3 asks for ("identical fish trajectories and seeds per
  * arm") and it is a fact about `castSim`, not something this script arranges.
@@ -209,8 +212,12 @@ function main(): void {
   console.log(`  held deck   ${deck.length} cards, from ${deckSource}`);
   console.log(`  candidates  ${candidates.length}`);
   console.log(
-    `  pairing     exact — with deckIds supplied, deck construction consumes no rng, so every\n` +
-      `              arm faces the identical fish trajectory at a given seed.\n`,
+    `  pairing     exact — the pile shuffles off its own rng stream, so deck length cannot\n` +
+      `              move the fish and every arm faces the identical trajectory at a seed.\n`,
+  );
+  console.log(
+    `  draw model  SHUFFLED pile, once per cast (session 79 §1, measured 129/129 live).\n` +
+      `              Ranked on the APPENDED arm — that is what a loot pick does.\n`,
   );
 
   // `matcherPool: []` — the blind matcher. Session 14 established this as the
@@ -220,11 +227,11 @@ function main(): void {
 
   /**
    * Cached on the ORDERED deck. M3 advises caching "by normalized deck
-   * composition" and that advice is WRONG for this simulator: `drawHand` is
-   * sequential, so `[...deck, id]` and `[id, ...deck]` are the same multiset and
-   * measurably different decks. Normalizing would return the append arm's
-   * numbers for the prepend arm and hide the finding this script exists to
-   * report. See the header.
+   * composition" and that advice is still wrong here, for a weaker reason than
+   * session 78's: the two orderings are now the same DISTRIBUTION, but each
+   * cast shuffles from the order it was handed, so at a given seed they are
+   * different concrete piles. A normalized cache would return one arm's
+   * numbers for the other and make the append/prepend control below vacuous.
    */
   const cache = new Map<string, CastSummary>();
   const run = (ids: readonly number[]): CastSummary => {
@@ -256,11 +263,14 @@ function main(): void {
     a.catchRate === b.catchRate && a.hitRate === b.hitRate && a.meanFinalFishHp === b.meanFinalFishHp;
   const appendInert = arms.every((a) => identical(a.summary, baseline));
 
+  // [session 79] On the APPENDED arm — the one a loot pick actually produces.
+  // Session 78 ranked on `front` because `summary` was inert; it is not any
+  // more, and ranking on the prepend arm now measures a deck nobody builds.
   arms.sort(
     (a, b) =>
-      b.front.hitRate - a.front.hitRate ||
-      b.front.catchRate - a.front.catchRate ||
-      a.front.meanFinalFishHp - b.front.meanFinalFishHp,
+      b.summary.hitRate - a.summary.hitRate ||
+      b.summary.catchRate - a.summary.catchRate ||
+      a.summary.meanFinalFishHp - b.summary.meanFinalFishHp,
   );
 
   console.log(
@@ -270,33 +280,55 @@ function main(): void {
   );
 
   if (appendInert) {
-    console.log(rule("NULL RESULT — AND THE NULL IS THE FINDING"));
+    console.log(rule("★ TRIPWIRE — THE SEQUENTIAL PILE IS BACK"));
     console.log(
       `\n  All ${arms.length} appended arms are IDENTICAL to the baseline, to full precision.\n` +
-        `  That does NOT mean every card is equivalent. It means the added card is never DRAWN.\n\n` +
-        `  \`drawHand\` is sequential from index 0 and cycles with % deck.length. A cast lasts\n` +
-        `  ${baseline.meanTurns.toFixed(2)} turns, so only the first ~${Math.ceil(baseline.meanTurns) + 3} of these ${deck.length} cards are ever seen —\n` +
-        `  a card appended at position ${deck.length} is unreachable by construction.\n\n` +
-        `  The PREPENDED column below is the same cards moved to the front. It moves, and by a\n` +
-        `  lot. So the answer to "which card should I keep?" is dominated by WHERE the card\n` +
-        `  lands in \`fullDeck\`, which is a server behaviour nobody has captured.\n\n` +
-        `  ★ BLOCKED ON A CAPTURE, not on more simulation: the draw/shuffle behaviour when\n` +
-        `    \`fullDeck\` grows. Do NOT "fix" this by shuffling the deck here — the ranking\n` +
-        `    would become an artifact of an invented draw model and would look exactly as\n` +
-        `    authoritative as a real one (CLAUDE.md rule 1).\n`,
+        `  Under a shuffled pile that cannot happen: an appended card is drawn as often as any\n` +
+        `  other, so it must move SOMETHING at ${RUNS} casts an arm.\n\n` +
+        `  This was session 78's result and it was a property of \`drawHand\` walking the roster\n` +
+        `  from index 0. Session 79 replaced that with a per-cast shuffle, measured against 129\n` +
+        `  live opening hands (0 of which were fullDeck[0..2]). If this block prints, either\n` +
+        `  the shuffle has been removed or \`sequentialDrawPile\` is set — and NOTHING BELOW\n` +
+        `  MEANS ANYTHING until that is fixed. See tests/fishing/deckShuffle.test.ts.\n`,
     );
   }
 
-  console.log(`\n  Ranked by PREPENDED hit rate — the only column that moves. See above.\n`);
-  console.log(`  rank  card                        appended Δhit   prepended hit%    Δhit   mana`);
+  /**
+   * [session 79] The append/prepend control, which replaces session 78's
+   * headline. Under a shuffle the two arms hold the same multiset AND draw it
+   * the same way, so they should agree up to Monte Carlo noise. A systematic
+   * gap means the shuffle is not doing what this script says it does — the
+   * same check, pointed at the new model instead of at the old one's damage.
+   */
+  const gaps = arms.map((a) => Math.abs(a.summary.hitRate - a.front.hitRate));
+  const meanGap = gaps.reduce((x, y) => x + y, 0) / gaps.length;
+  const maxGap = Math.max(...gaps);
+  const spread = Math.max(...arms.map((a) => a.summary.hitRate)) - Math.min(...arms.map((a) => a.summary.hitRate));
+  console.log(rule("CONTROL — append vs prepend, which the shuffle should have made equivalent"));
+  console.log(
+    `\n  mean |append − prepend| hit rate   ${(meanGap * 100).toFixed(2)}pp\n` +
+      `  max                                ${(maxGap * 100).toFixed(2)}pp\n` +
+      `  spread across appended arms        ${(spread * 100).toFixed(2)}pp\n\n` +
+      `  These are the SAME deck under the session-79 draw model, so the first two ARE the\n` +
+      `  harness's own noise at ${RUNS} casts — measured, not assumed, which is the useful\n` +
+      `  part. **Read the mean as a floor: any Δhit below ${(meanGap * 100).toFixed(2)}pp in the table below is\n` +
+      `  indistinguishable from zero**, and so is any rank difference between two such arms.\n\n` +
+      `  Session 78 measured this pair at 0.00pp and up to 19.91pp respectively — that\n` +
+      `  asymmetry was the sequential pile, and it is gone. If the mean gap ever approaches\n` +
+      `  the spread, the arms are not exchangeable and the ranking is measuring deck POSITION\n` +
+      `  again rather than deck composition.\n`,
+  );
+
+  console.log(`\n  Ranked by APPENDED hit rate — what a loot pick produces. SUSPENDED under OIL-POLICY §0a.\n`);
+  console.log(`  rank  card                        appended hit%    Δhit   prepended Δhit   mana`);
   console.log(`  ${"─".repeat(84)}`);
   for (const [i, a] of arms.entries()) {
     const c = byId.get(a.id!)!;
     console.log(
       `  ${String(i + 1).padStart(4)}  ${a.label.slice(0, 26).padEnd(26)} ` +
-        `${((a.summary.hitRate - baseline.hitRate) * 100).toFixed(2).padStart(13)}  ` +
-        `${(a.front.hitRate * 100).toFixed(2).padStart(15)}  ` +
-        `${((a.front.hitRate - baseline.hitRate) * 100).toFixed(2).padStart(6)}  ` +
+        `${(a.summary.hitRate * 100).toFixed(2).padStart(12)}  ` +
+        `${((a.summary.hitRate - baseline.hitRate) * 100).toFixed(2).padStart(6)}  ` +
+        `${((a.front.hitRate - baseline.hitRate) * 100).toFixed(2).padStart(15)}  ` +
         `${String(c.manaCost).padStart(4)}`,
     );
   }
@@ -307,6 +339,12 @@ function main(): void {
    * documentation fix. If it does, that difference is the finding — still
    * suspended, but a finding.
    */
+  const aboveFloor = arms.filter((a) => a.summary.hitRate - baseline.hitRate > meanGap).length;
+  console.log(
+    `\n  ${aboveFloor} of ${arms.length} arms beat the baseline by more than the ${(meanGap * 100).toFixed(2)}pp control gap.\n` +
+      `  The rest are inside the harness's own noise and their ORDER means nothing.\n`,
+  );
+
   const offered = candidates.map((id) => byId.get(id)!).filter(Boolean);
   const placeholder = chooseNewCard(offered);
   const best = arms[0]!;
@@ -323,13 +361,18 @@ function main(): void {
   } else {
     const ph = arms.find((a) => a.id === placeholder.id)!;
     console.log(
-      `  They DISAGREE. The placeholder's pick ranks ${arms.indexOf(ph) + 1}/${arms.length} by prepended hit rate,\n` +
-        `  ${((best.front.hitRate - ph.front.hitRate) * 100).toFixed(2)}pp behind the composition argmax.\n\n` +
-        `  This is the disagreement M3 predicted, and it is DOUBLY suspended: it is a castSim\n` +
-        `  result (OIL-POLICY.md §0a) AND it is measured in the prepended arm, which is not\n` +
-        `  what a loot pick does — appending is, and appending measures nothing at all until\n` +
-        `  the draw behaviour is captured. It is a reason to run that capture. It is NOT a\n` +
-        `  reason to change chooseNewCard.\n`,
+      `  They DISAGREE. The placeholder's pick ranks ${arms.indexOf(ph) + 1}/${arms.length} by APPENDED hit rate,\n` +
+        `  ${((best.summary.hitRate - ph.summary.hitRate) * 100).toFixed(2)}pp behind the composition argmax — ` +
+        `${((best.summary.hitRate - ph.summary.hitRate) / meanGap).toFixed(1)}x the ${(meanGap * 100).toFixed(2)}pp control gap.\n` +
+        `  (The RANK is the weaker half of that sentence: only ${aboveFloor} of ${arms.length} arms clear the\n` +
+        `  control gap, so two ranks inside it are the same measurement. The pp deficit is not.)\n\n` +
+        `  This is the disagreement M3 predicted, now measured in the arm a loot pick actually\n` +
+        `  produces — session 78's version of this line was measured in the prepended arm and\n` +
+        `  was doubly suspended for that reason. ONE of those two suspensions is lifted. The\n` +
+        `  other is not: it is still a castSim result, and OIL-POLICY.md §0a suspends every Δ\n` +
+        `  measured in this simulator because it does not reproduce the fishery (sim catch\n` +
+        `  ~70% vs a real 27.6%, meter-out 1.0% vs 64.2%). It is NOT a reason to change\n` +
+        `  chooseNewCard — that is CLAUDE.md rule 4, and the ship-nothing posture holds.\n`,
     );
   }
 

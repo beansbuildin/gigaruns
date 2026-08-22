@@ -74,7 +74,10 @@ export interface CastResult {
    *
    * Per-turn hit rate is very nearly a pure function of card zones and focus
    * placement — independent of the HP arithmetic, the mana curve, and the
-   * sequential-`drawHand` confound. That makes it the right instrument for
+   * sequential-`drawHand` confound (session 79 fixed that confound for held
+   * decks — the pile shuffles per cast — which removes one of the things this
+   * instrument was insuring against rather than weakening it). That makes it
+   * the right instrument for
    * telling a genuine geometry difference apart from a harness bug when two
    * deck arms disagree on catch rate, which is exactly what the session-45
    * deck measurement and its independent re-run did (a ~20pp inversion).
