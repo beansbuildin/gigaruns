@@ -87,6 +87,7 @@ import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
 import { loadMinedPatterns } from "./liveFishing.js";
 import { profileArg, resolveProfile } from "../src/profile.js";
 import { REAL_DECK } from "../src/sim/fishing/rodDeck.js";
+import { buildFishMaxHpSampler, fishMaxHpCounts, meanFishMaxHp, meanOpeningRatio } from "../src/sim/fishing/fishMaxHp.js";
 
 /**
  * The real board, exactly as `focusProfileCheck.ts` and
@@ -341,11 +342,33 @@ function main(): void {
   console.log("  per cast as the others. Do not read it as \"the good arm\" on the strength of one");
   console.log("  matching scalar — read it as where the next question is.");
 
-  console.log("\n── §5  READ THIS BEFORE QUOTING ANY OF IT ──");
-  console.log("  The sim arms carry a FIXED fishMaxHp of 21; live it is a distribution over eleven");
-  console.log("  values, mean 18.3. The opening RATIO matches (0.629 live vs 13/21 = 0.619) so the");
-  console.log("  drift is barely affected, but any THRESHOLD outcome — catch rate above all — is");
-  console.log("  understated in spread on both tails. See --sample-fish-max-hp in castSim.");
+  // ── §5  fishMaxHp: A DISTRIBUTION LIVE, A CONSTANT IN THE SIM ───────────
+  console.log("\n── §5  fishMaxHp ──");
+  const counts = fishMaxHpCounts(traces);
+  console.log(
+    `  live, per cast:  ${[...counts.entries()].sort((a, b) => a[0] - b[0]).map(([k, v]) => `${k}:${v}`).join("  ")}`,
+  );
+  console.log(
+    `  ${counts.size} distinct values, mean ${meanFishMaxHp(traces).toFixed(2)}, against the sim's fixed ` +
+      `${REAL_PARAMS.fishMaxHp}. Opening ratio ${meanOpeningRatio(traces).toFixed(4)} against 13/21 = ${(13 / 21).toFixed(4)}.`,
+  );
+  console.log(`  The CENTRE is close and the SPREAD is absent. Catch is a threshold outcome, so a`);
+  console.log(`  fixed-HP sim understates the result spread on both tails at once.`);
+  if (process.argv.includes("--sample-fish-max-hp")) {
+    const sampled = arm("SIM — bare, fishMaxHp SAMPLED from the corpus", { deckIds: [...REAL_DECK], fishMaxHpSampler: buildFishMaxHpSampler(traces) }, runs);
+    console.log("");
+    printEconomy(sampled.economy);
+    console.log(
+      `\n  drift ${bare.economy.drift.toFixed(3)} -> ${sampled.economy.drift.toFixed(3)} against live's ` +
+        `+${live.drift.toFixed(3)}. Sampling the max HP is a PER-CAST change and the drift is a PER-PLAY`,
+    );
+    console.log(`  quantity, so it barely moves — which is the point of running it: §0a's gap is not here.`);
+  } else {
+    console.log(`  Pass --sample-fish-max-hp to run the bare arm with the measured distribution. It is`);
+    console.log(`  OPT-IN and the default is pinned byte-for-byte (tests/fishing/fishMaxHp.test.ts).`);
+  }
+
+  console.log("\n── §6  READ THIS BEFORE QUOTING ANY OF IT ──");
   console.log("  OIL-POLICY.md §0a is NOT lifted by anything printed here. This script measures a");
   console.log("  discrepancy; it does not license a policy.\n");
 }

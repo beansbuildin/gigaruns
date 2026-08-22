@@ -280,6 +280,35 @@ export interface CastOptions {
   handSize?: number;
   startMana?: number;
   fishMaxHp?: number;
+  /**
+   * ── [session 80 §3] THE FISH'S MAX HP IS A DISTRIBUTION LIVE, NOT A
+   * CONSTANT ──────────────────────────────────────────────────────────────
+   *
+   * Opt-in. Omitted, `fishMaxHp` above is used for every cast and behaviour is
+   * byte-for-byte what it has always been — `tests/fishing/fishMaxHp.test.ts`
+   * pins that, because a default that moves silently is how a whole repo's
+   * figures get rebased without anyone deciding to.
+   *
+   * Supplied, this is called ONCE PER CAST to draw that cast's `fishMaxHp`,
+   * and the opening `fishHp` follows from `startFishHpRatio` as it always did.
+   *
+   * **The corpus says the constant is wrong in variance, not in centre.** Over
+   * 131 committed casts `fishMaxHp` takes ELEVEN distinct values — 14:12 15:13
+   * 16:12 17:21 18:17 19:10 20:18 21:19 23:2 25:2 26:5 — with mean 18.27
+   * against the constant 21, and it never changes within a cast (0 of 131). The
+   * opening RATIO is already right: live 0.6286 against `REAL_PARAMS`' 13/21 =
+   * 0.6190. So the mean is close and the SPREAD is absent entirely, which
+   * matters for a threshold outcome (catch) far more than for a rate.
+   *
+   * **It draws from its OWN salted stream**, for the reason session 79 gave
+   * the draw pile: taking one number off the main `rng` would shift every later
+   * draw, so enabling this would change the fish's whole trajectory as well as
+   * its HP and no A/B could separate the two.
+   *
+   * `buildFishMaxHpSampler` in `src/sim/fishing/fishMaxHp.ts` builds one of
+   * these from the corpus. Nothing in `scripts/` passes it by default.
+   */
+  fishMaxHpSampler?: (rng: Rng) => number;
   startFishHpRatio?: number;
   maxTurns?: number;
   /** Pool the TRUE fish pattern is drawn from. Defaults to the full synthetic pool. */
@@ -469,6 +498,13 @@ export interface CastOptions {
  */
 const PILE_SEED_SALT = 0x9e3779b9;
 
+/**
+ * [session 80 §3] Salt for `fishMaxHpSampler`'s own rng stream. Same reasoning
+ * as `PILE_SEED_SALT` and a different constant, so the two streams cannot
+ * shadow each other at any seed.
+ */
+const FISH_MAX_HP_SEED_SALT = 0x85ebca6b;
+
 function drawHand(deck: FishingCardLike[], drawIdx: number, handSize: number): { hand: FishingCardLike[]; nextIdx: number } {
   const hand: FishingCardLike[] = [];
   let idx = drawIdx;
@@ -484,7 +520,9 @@ export function simulateCast(opts: CastOptions): CastResult {
   const gridSize = opts.gridSize ?? 4;
   const handSize = opts.handSize ?? 3;
   const maxTurns = opts.maxTurns ?? 40;
-  const fishMaxHp = opts.fishMaxHp ?? 20;
+  const fishMaxHp = opts.fishMaxHpSampler
+    ? opts.fishMaxHpSampler(makeRng(opts.seed ^ FISH_MAX_HP_SEED_SALT))
+    : (opts.fishMaxHp ?? 20);
   let mana = opts.startMana ?? 10;
   let fishHp = Math.round(fishMaxHp * (opts.startFishHpRatio ?? 0.65));
 
@@ -783,6 +821,22 @@ export function simulateCast(opts: CastOptions): CastResult {
     }
 
     const card = hand[action.handIndex]!;
+    // ── [session 80 §3] `card.manaCost` AND A FLAT 1 ARE INDISTINGUISHABLE ON
+    // THIS CORPUS, AND THAT IS RECORDED RATHER THAN RESOLVED ─────────────────
+    //
+    // `playerHp` is the wire name for this pool, and it decrements by exactly 1
+    // on every play: **548 of 548 committed plays, deltas only −1**, reaching 0
+    // terminal in all 11 casts that got there. Consistent with the line below —
+    // and only because **every one of those 548 plays was a manaCost-1 card.**
+    // The Dendren catalog holds one 0-cost card (17) and three 2-cost ones (12,
+    // 13, 14); none is in the Shroom deck (`rodDeck.ts`) and none has ever been
+    // played. So the corpus cannot separate "mana costs what the card says"
+    // from "mana costs 1 per play", and this line is the FORMER by assumption.
+    //
+    // Left as it is deliberately: `manaCost` comes from a real capture and is
+    // the more specific hypothesis, so it is the right default. What would
+    // settle it is a capture — one live play of card 12, 13, 14 or 17 — not a
+    // refactor. Do not read the 548/548 as confirmation of this line.
     mana -= card.manaCost;
     hand = hand.filter((_, i) => i !== action.handIndex);
 
