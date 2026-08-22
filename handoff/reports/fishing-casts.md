@@ -1,8 +1,8 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-21T22:02:12.498Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-22T00:56:26.353Z.
 
-124 recorded casts — 34 caught (27.4%).
+128 recorded casts — 36 caught (28.1%).
 
 ## Fish caught, by name
 
@@ -11,9 +11,10 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 - Plankton: 5
 - Ollie: 4
 - Zombo: 2
+- Kelpkin: 2
 - Deadfin: 2
-- Kelpkin: 1
 - Gulp: 1
+- Jelloid: 1
 
 ## Per-cast detail
 
@@ -143,3 +144,7 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 | 13024574 | yes | Ollie (rarity 1) |
 | 13024579 | yes | Gulp (rarity 3) |
 | 13024581 | yes | Barnaboo (rarity 0) |
+| 13025986 | no | — |
+| 13025987 | no | — |
+| 13025990 | yes | Kelpkin (rarity 1) |
+| 13025991 | yes | Jelloid (rarity 1) |

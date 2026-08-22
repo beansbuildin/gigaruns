@@ -75,11 +75,14 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // `responseDocs` again outruns `playTurns` by more than the turn count —
     // `use_fishing_item` responses are docs and are not turns (castTrace's
     // ITEM_MESSAGE).
-    expect(summary.casts).toBe(124);
-    expect(summary.responseDocs).toBe(696);
-    expect(summary.playTurns).toBe(521);
-    expect(summary.caught).toBe(34);
-    expect(summary.escaped).toBe(89);
+    // [session 72] Four-cast batch (the day's remaining allowance): 124 -> 128,
+    // +25 responseDocs, +16 playTurns, +2 caught, +2 escaped, `incomplete`
+    // unchanged at 1. Two of the four consumed an oil.
+    expect(summary.casts).toBe(128);
+    expect(summary.responseDocs).toBe(721);
+    expect(summary.playTurns).toBe(537);
+    expect(summary.caught).toBe(36);
+    expect(summary.escaped).toBe(91);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -390,10 +393,17 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
     // invariant below held on every one, which is the slot cursor from session
     // 65 now tested across a much wider sample than the single cast that
     // motivated it.
+    // [session 72] +2 from the four-cast batch: `13025987` (TWO consumables,
+    // 10 turns, ESCAPED) and `13025990` (one, 2 turns, caught). Checked against
+    // the log rather than assumed: `13025987`'s pair were both FOCUS oil (942),
+    // fired by the meter-zero trigger on turns 4 and 6 — the Relaxing per-cast
+    // cap of 2 did not bind and has still never bound. So the batch added 2 oil
+    // casts and only 1 oil-arm catch; the arm went 10/12 -> 11/14, not 12/14.
     expect(oilCasts.map((c) => c.docId)).toEqual([
       "12975152", "13019015", "13019665", "13019677", "13019682",
       "13022748", "13022874", "13022876",
       "13024476", "13024510", "13024550", "13024562", "13024574", "13024581",
+      "13025987", "13025990",
     ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

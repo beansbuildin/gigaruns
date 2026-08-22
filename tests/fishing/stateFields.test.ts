@@ -49,7 +49,12 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // are VISIBLY excluded rather than silently averaged in. 464/464 agree with
     // regen 0 — every consumable transition accounted for and none of them
     // quietly counted as card play.
-    expect(r.oilSkipped).toBe(11); // [session 69] 6 -> 11: ten oils consumed in the ten-cast batch (one was the lethal Relaxing that ends the cast, so it contributes no skipped transition).
+    // [session 72] 11 -> 13 across the four-cast batch. Three oils were spent
+    // across two casts (two Focus on `13025987`, one Relaxing on `13025990`),
+    // but only two contribute a skipped transition: the lethal Relaxing ended
+    // its cast and so has no following card play to skip, exactly as the
+    // session-69 note describes.
+    expect(r.oilSkipped).toBe(13);
   });
 
   /**
@@ -121,7 +126,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // `critZones: []`) is invisible to a zone-geometry audit by construction,
     // so `corrected.crits` counts CARD crits only and always will. The two
     // crit sources need two instruments; do not read this as the crit rate.
-    expect(corrected.crits).toBe(22);
+    // [session 72] 22 -> 24 across the four-cast batch.
+    expect(corrected.crits).toBe(24);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });
