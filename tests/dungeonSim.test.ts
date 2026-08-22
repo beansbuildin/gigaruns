@@ -9,7 +9,8 @@
 import { describe, expect, it } from "vitest";
 
 import { fixedPolicy, randomPolicy, simulate, simulateRun } from "../src/sim/dungeonSim.js";
-import { MAX_OBSERVED_ROOM } from "../src/sim/enemies.js";
+import { MAX_OBSERVED_ROOM, PLAYER } from "../src/sim/enemies.js";
+import { legalMoves } from "../src/sim/combat.js";
 
 const base = { opponent: randomPolicy, chargesAreHardLimit: true } as const;
 
@@ -174,19 +175,84 @@ describe("fail-closed accounting", () => {
     expect(r.roomsCleared).toBe(0);
   });
 
-  it("halts rather than inventing a move when every move is locked", () => {
-    // Under a hard limit, a policy that only ever plays one move drives it to
-    // -1 and then has nothing legal left once the others also run down.
-    const r = simulateRun({
-      policy: fixedPolicy("rock"),
-      opponent: fixedPolicy("rock"),
-      chargesAreHardLimit: true,
-      seed: 1,
-      maxRooms: 1,
-    });
-    // Either it resolved normally or it halted — but it must never have
-    // silently played an illegal move.
-    if (r.outcome === "halted") expect(r.reasons).toContain("CHARGES_ALL_LOCKED");
+  /**
+   * **[session 77 §1] This replaces a test that asserted NOTHING, and it is
+   * worth saying exactly what was wrong with it.**
+   *
+   * It read:
+   *
+   * ```ts
+   * const r = simulateRun({ policy: fixedPolicy("rock"), opponent: fixedPolicy("rock"),
+   *                         chargesAreHardLimit: true, seed: 1, maxRooms: 1 });
+   * if (r.outcome === "halted") expect(r.reasons).toContain("CHARGES_ALL_LOCKED");
+   * ```
+   *
+   * The run cleared on every seed tried, so the branch never ran and the test
+   * had been green and empty since the day it was written —
+   * `scripts/assertionCoverage.ts` found it as the only zero-assertion test in
+   * the suite. Its premise ("a policy that only ever plays one move drives it
+   * to -1 and then has nothing legal left once the others also run down") is
+   * false: the others do not run down, they REGENERATE while unplayed.
+   *
+   * It was also wrong in a second way that the vacuity hid. `outcome ===
+   * "halted"` DOES occur — 8204 of 64000 runs in a sweep — for
+   * `NO_TIER_CAPTURE` and `DEPTH_BEYOND_CORPUS`. Had the guard ever been
+   * entered under those, the assertion would have FAILED, because
+   * `CHARGES_ALL_LOCKED` is not the only way to halt.
+   *
+   * **The state it was named for is unreachable, and that is arithmetic, not
+   * luck.** `chargesAfterPlay` sends a move played from 1 to −1 and never to 0;
+   * `chargesAfterRest` gives every UNPLAYED move +1. One move is played per
+   * exchange, so a move can sit at −1 for exactly one exchange before
+   * regenerating, and a move reaches 0 only on its way up from −1. Therefore at
+   * most ONE move is ever ≤ 0 at a time, and `legalMoves` cannot return the
+   * empty set inside a run. Two moves would have to reach −1 in the same
+   * exchange, and only one move is played.
+   *
+   * So the branch at `dungeonSim.ts`'s `mine.length === 0 || theirs.length === 0`
+   * is dead code against the current charge model — deliberately dead, since it
+   * refuses to invent a server rule nobody has observed. It is kept, and this
+   * pins the fact rather than pretending to exercise it.
+   */
+  it("never locks every move at once under a hard limit — measured, not assumed", () => {
+    const policies = [fixedPolicy("rock"), fixedPolicy("paper"), fixedPolicy("scissor"), randomPolicy];
+    const outcomes = new Set<string>();
+    let runs = 0;
+    for (const policy of policies) {
+      for (const opponent of policies) {
+        for (let seed = 1; seed <= 15; seed++) {
+          for (const maxRooms of [1, 5, MAX_OBSERVED_ROOM + 3]) {
+            const r = simulateRun({ policy, opponent, chargesAreHardLimit: true, seed, maxRooms });
+            runs++;
+            outcomes.add(r.outcome);
+            // Unconditional, on every run — the assertion the old test made
+            // only inside an `if` that never fired.
+            expect(r.reasons).not.toContain("CHARGES_ALL_LOCKED");
+          }
+        }
+      }
+    }
+    expect(runs).toBe(720);
+    // And the guard the old test hid behind is genuinely reachable, which is
+    // why asserting inside it was a trap rather than merely useless.
+    expect(outcomes.has("halted")).toBe(true);
+  });
+
+  it("but legalMoves DOES return the empty set the sim's guard is written for", () => {
+    // The guard is not wrong, it is unreachable THROUGH `simulateRun`. Tested
+    // where it can be constructed: hand a combatant charges no play can produce
+    // and the primitive still refuses to invent a legal move.
+    const locked = {
+      ...PLAYER,
+      moves: {
+        rock: { ...PLAYER.moves.rock, charges: 0 },
+        paper: { ...PLAYER.moves.paper, charges: -1 },
+        scissor: { ...PLAYER.moves.scissor, charges: 0 },
+      },
+    };
+    expect(legalMoves(locked, true)).toEqual([]);
+    // …and that it is the HARD LIMIT doing it, not the charge values.
+    expect(legalMoves(locked, false)).toEqual(["rock", "paper", "scissor"]);
   });
 
   it("keeps coverage and win rate describing the same subset", () => {

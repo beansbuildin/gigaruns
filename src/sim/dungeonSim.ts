@@ -249,6 +249,20 @@ function fightBattle(
     // Under a hard limit both sides can in principle lock every move at once.
     // Nothing in the corpus shows what the server does then, so stop rather
     // than invent a rule.
+    //
+    // **[session 77 §1] "In principle" is doing real work in that sentence:
+    // this branch is UNREACHABLE under the current charge model, and it is
+    // kept anyway.** `chargesAfterPlay` sends a move played from 1 to −1 and
+    // never to 0, `chargesAfterRest` gives every unplayed move +1, and exactly
+    // one move is played per exchange — so a move sits at −1 for one exchange
+    // and at 0 for one more on its way back up. **At most one move is ever
+    // ≤ 0 at a time**, and two would have to reach −1 in the same exchange.
+    // Measured as well as derived: 0 occurrences in 64,000 runs across four
+    // policies × four opponents × 200 seeds × five depths × four start rooms.
+    // `tests/dungeonSim.test.ts` pins both halves — that this never fires, and
+    // that `legalMoves` still returns [] for a state no play can produce.
+    // Do not delete it on the strength of the coverage: it exists to refuse an
+    // unobserved server rule, and a charge-model change could make it live.
     if (mine.length === 0 || theirs.length === 0) {
       reasons.add("CHARGES_ALL_LOCKED");
       halted = true;
