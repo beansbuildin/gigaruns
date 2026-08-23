@@ -109,6 +109,18 @@ function arm(label: string, extra: Omit<CastOptions, "seed" | "policy">, runs: n
   return a;
 }
 
+/**
+ * [session 81 §2] The hit rate at which the drift is exactly zero:
+ * `drift = h·(−damage) + (1−h)·(+heal)` solves to `h* = heal / (damage + heal)`.
+ * An arm's drift sign is entirely decided by which side of its own h* its hit
+ * rate falls, so the distance to it — the MARGIN — is the comparable quantity
+ * across arms and the raw drift is not.
+ */
+function breakEven(e: Economy): number {
+  const denom = e.meanDamage + e.meanHeal;
+  return denom === 0 ? 0 : e.meanHeal / denom;
+}
+
 function histLine(h: ReadonlyMap<number, number>): string {
   return [...h.entries()].sort((a, b) => a[0] - b[0]).map(([k, v]) => `${k}:${v}`).join("  ");
 }
@@ -270,14 +282,42 @@ function main(): void {
     { label: "SIM blind", e: blind.economy },
     ...(liveArm ? [{ label: "SIM live-config", e: liveArm.economy }] : []),
   ];
-  console.log(`  ${"".padEnd(18)}${"plays".padStart(8)}${"hit%".padStart(9)}${"dmg".padStart(8)}${"heal".padStart(8)}${"drift".padStart(10)}`);
+  console.log(
+    `  ${"".padEnd(18)}${"plays".padStart(8)}${"hit%".padStart(9)}${"dmg".padStart(8)}${"heal".padStart(8)}` +
+      `${"h*".padStart(9)}${"margin".padStart(10)}${"drift".padStart(10)}`,
+  );
   for (const { label, e } of rows) {
+    const bp = breakEven(e);
+    const m = e.hitRate - bp;
     console.log(
       `  ${label.padEnd(18)}${String(e.plays).padStart(8)}${(e.hitRate * 100).toFixed(1).padStart(9)}` +
         `${e.meanDamage.toFixed(2).padStart(8)}${e.meanHeal.toFixed(2).padStart(8)}` +
+        `${(bp * 100).toFixed(1).padStart(9)}${`${m >= 0 ? "+" : ""}${(m * 100).toFixed(1)}pp`.padStart(10)}` +
         `${`${e.drift >= 0 ? "+" : ""}${e.drift.toFixed(3)}`.padStart(10)}`,
     );
   }
+  console.log(`
+  **h* is the break-even hit rate, heal / (damage + heal), and MARGIN is hit% minus it.**
+  [session 81 §2] The whole table is one equation: drift = h·(−damage) + (1−h)·(+heal), which
+  is zero exactly at h*. Read the MARGIN column, not the drift column.
+
+  Two arms can match on the SIGN of the drift and match on nothing else. The blind arm clears
+  zero the way live does, but for a different reason: its damage is low (lifting its break-even),
+  not its hit rate — its hit rate is well ABOVE live's. **Matching a sign is not matching a
+  mechanism.**
+
+  The fishery is a knife-edge and the shipped bot sits a couple of points on the wrong side of
+  it. That is the whole of the catch-rate chasm, and it is also why catch rate has been such an
+  unstable instrument: near h* it is a step function.
+
+  ⚠ THE BARE ARM'S MARGIN IS THE REASON ITS FIGURES MAY NOT BE QUOTED. An arm clearing its own
+  break-even by forty-odd points is not a noisy model of this fishery — it is a different
+  fishery, one in which the fish essentially cannot escape. Every OIL-POLICY §0a figure,
+  +19.40pp included, was computed there. It is kept, and marked, so nobody re-quotes it by
+  accident. Do not silently re-home that work onto another arm either: the live-config arm is
+  closer and still on the wrong side of the line, so it would produce a different unsupported
+  number rather than a supported one. **An arm becomes admissible when its margin brackets
+  live's within a stated band. None currently does.**`);
 
   // The decomposition: hold two of the three terms at the live value and swap
   // in the sim's, one at a time. This says WHICH term carries the difference

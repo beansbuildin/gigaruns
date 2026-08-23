@@ -501,6 +501,78 @@ sure card-based kill is a legitimate spend), so the name is misleading but
 the mechanic is right where the brief expected it. "Mid Mana Oil" (docId
 939, not "Relaxing Oil") is the actual `FishingRestoreMana` item.
 
+## 4d. Shot resolution ordering — WHICH two states a card resolves between **[session 81 §3, CONFIRMED, 590/590]**
+
+A play is a transition between two consecutive state docs, and **both** of
+them carry a `focusPoint` and a `fishPosition`. So "did this card hit" has four
+defensible readings, and only one is the server's. Scored over every recorded
+play in the corpus (`src/sim/fishing/zoneAudit.ts`, `RESOLUTION_READINGS`;
+`a` = the state before the play, `b` = the state after):
+
+| reading | agreement with the server |
+|---|---|
+| **`b.focusPoint` + `b.fishPosition`** | **590 / 590 — 100.0%** ✔ |
+| `a.focusPoint` + `b.fishPosition` | 467 / 590 — 79.2% |
+| `a.focusPoint` + `a.fishPosition` | 372 / 590 — 63.1% |
+| `b.focusPoint` + `b.previousFishPosition` | 369 / 590 — 62.5% |
+
+**A card resolves against the focus point AFTER the move, and the fish's cell
+in the RESULTING state — never `previousFishPosition`.** The fish moves first
+and the shot lands at the cell it moved to (§`castTrace.ts` header: `FISH_MOVED`
+→ `CARD_PLAYED` → `HIT`), which is precisely what makes fishing a one-step-ahead
+PREDICTION problem rather than an aiming one.
+
+The wrong readings are dangerous because of where they land, not because they
+fail: **62–79% is the band in which a convention error looks like a working
+model** and survives review. `previousFishPosition` is the specific trap — it
+reads as "where the fish was when you aimed", and `movePathAudit.ts` uses it
+correctly for a different purpose (path continuity), so its presence in the
+codebase is not itself a smell.
+
+Nothing depended on the wrong reading, and nothing wrote the right one down
+either. It is now pinned by `tests/fishing/zoneTemplate.test.ts`, which asserts
+all four scores — **including that the pin FAILS under the
+`previousFishPosition` reading**, because a pin that does not fail the wrong
+reading has not tested anything.
+
+## 4e. The focus budget is NOT the pre-play `focusMeter` when an oil landed **[session 81, CONFIRMED, 590/590 accounted]**
+
+The budget available to a play is exactly:
+
+```
+budgetBefore = manhattan(a.focusPoint, b.focusPoint) + b.focusMeter
+               (what the move spent)  +  (what remained after it)
+```
+
+This identity recovers the pre-play `focusMeter` on **572 of 572** non-oil
+plays. It FAILS on exactly **18**, and every one of the 18 is an oil consume
+(`consumablesUsed` increments across the same transition) — not most of them,
+all of them, with no unexplained residue.
+
+**The cause is a capture convention, not a game rule.** `castTrace.ts` skips
+`use_fishing_item` responses (they re-report their predecessor's state, and
+counting them as turns breaks position continuity and drops the whole cast from
+the movement corpus — session 64). So a Focus Oil restores the meter *between*
+two consecutive recorded turns, and a reader reconstructing the budget
+turn-by-turn sees it rise with no local cause. That file's header already said
+so; §4e is what it costs downstream.
+
+**What it cost, concretely.** Under the naive `prev.focusMeter` budget, 10 of
+590 plays move the focus further than the model allows, and the same-card
+oracle in `matcherHeadroom.ts` calls **5 server-scored HITS unhittable** — a
+ceiling below its own observed floor. Both invariants are now asserted and
+THROW (`assertHeadroomSelfConsistent`).
+
+**Restore-to-2 vs add-2 is NOT settled by the corpus**, and the reason is
+worth stating: all 18 consumes recover a budget of exactly 2 and all 18
+happened at a meter reading **0**, where the two models are the same event.
+§4a's static table points at add-2 — `FishingRestoreFocus` is an amount per
+tier (Lil 1 / Mid 2 / Big 3) and the bot spends the MID oil (942), whose
+amount is exactly the 2 observed; under restore-to-2 the tiering would carry no
+meaning. **Neither is encoded**, because reading the budget off the transition
+never needs to know. A Lil or Big consume, or any consume at a non-zero meter,
+confirms it outright.
+
 ## 4b. Rod equipment — checked, found no encoded spell-set effect
 [2026-08-16, session 15]
 

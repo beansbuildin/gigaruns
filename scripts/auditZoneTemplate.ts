@@ -21,7 +21,7 @@
  */
 
 import { loadCastTraces } from "../src/sim/fishing/castTrace.js";
-import { auditZoneTemplate, TRANSPOSED_ZONE_OFFSET } from "../src/sim/fishing/zoneAudit.js";
+import { auditZoneTemplate, RESOLUTION_READINGS, TRANSPOSED_ZONE_OFFSET } from "../src/sim/fishing/zoneAudit.js";
 
 function main() {
   const traces = loadCastTraces();
@@ -41,6 +41,23 @@ function main() {
       );
     }
   }
+  // [session 81 §3] The second axis. The template says where a zone LANDS;
+  // the reading says which two states the shot is RESOLVED BETWEEN. Either can
+  // be wrong on its own, and until this session only the first was ever
+  // checked. Printed together so the exceptionless score is visibly a score
+  // under one specific reading rather than an unqualified fact.
+  console.log(`\n  resolution reading — which two states a shot resolves between:`);
+  for (const key of ["truth", "focusBefore", "stateBefore", "previousFishPosition"] as const) {
+    const reading = RESOLUTION_READINGS[key];
+    const r = auditZoneTemplate(traces, undefined, reading);
+    const mark = r.correct === r.scored ? "✔" : " ";
+    console.log(
+      `    ${mark} ${reading.name.padEnd(40)} ${String(r.correct).padStart(4)}/${r.scored}   ` +
+        `${((100 * r.correct) / r.scored).toFixed(1).padStart(5)}%`,
+    );
+  }
+  console.log(`    (62-79% is the band where a convention error looks like a working model — see SPEC-fishing §4d.)`);
+
   console.log(
     `\n  ${live.correct === live.scored ? "✓ exceptionless — the template matches the server on every recorded play." : "✗ the template disagrees with the server; do not trust any hit-probability figure until this is resolved."}\n`,
   );

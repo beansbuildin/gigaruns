@@ -16,7 +16,7 @@
 import { describe, expect, it } from "vitest";
 
 import { loadCastTraces, isCleanTrace } from "../../src/sim/fishing/castTrace.js";
-import { auditZoneTemplate, TRANSPOSED_ZONE_OFFSET } from "../../src/sim/fishing/zoneAudit.js";
+import { auditZoneTemplate, RESOLUTION_READINGS, TRANSPOSED_ZONE_OFFSET } from "../../src/sim/fishing/zoneAudit.js";
 import { zonesToCells, zoneToCell, cellKey } from "../../src/sim/fishing/geometry.js";
 
 describe("ZONE_OFFSET against the real corpus", () => {
@@ -24,7 +24,20 @@ describe("ZONE_OFFSET against the real corpus", () => {
 
   it("predicts the server's hit/miss on every recorded play, exceptionless", () => {
     const r = auditZoneTemplate(traces);
-    expect(r.scored).toBeGreaterThanOrEqual(282);
+    // [session 81] **The predicate, in the test, in words** — CLAUDE.md rule
+    // 6, and the lesson of session 80's 543-vs-548 chase: a pinned count whose
+    // filter lives only in someone's scratch buffer is unmeetable by
+    // construction. This scores *every state-to-state transition whose
+    // resulting state carries a `play`, whose `play.handIndex` resolves to a
+    // card id in the PRE-play hand, and whose id is present in the cast's
+    // `deckCardData`* — nothing else filtered: not clean traces, not terminal
+    // plays, not oil casts.
+    //
+    // The count was `>= 282` for thirty-four sessions, which could not
+    // distinguish "the corpus grew" from "the predicate silently narrowed".
+    // Now exact: 590 plays, of which 587 lie in clean traces and 3 in session
+    // 45's resumed cast. Recount on a corpus change, and say which.
+    expect(r.scored).toBe(590);
     expect(r.mismatches).toEqual([]);
     expect(r.correct).toBe(r.scored);
   });
@@ -34,6 +47,40 @@ describe("ZONE_OFFSET against the real corpus", () => {
     // the test above fails, so the pair localizes the regression.
     const r = auditZoneTemplate(traces, TRANSPOSED_ZONE_OFFSET);
     expect(r.correct).toBeLessThan(r.scored);
+  });
+
+  /**
+   * [session 81 §3] The OTHER axis, which nothing checked until now. The zone
+   * template says where a zone lands; the READING says which two states a shot
+   * is resolved between. Both can be wrong independently, and the corpus
+   * separates them cleanly: only one of the four readings is exceptionless and
+   * the rest sit at 62–79%, which is exactly the band where a convention error
+   * looks like a working model and survives review.
+   */
+  it("resolves against the POST-move focus and the RESULTING fish cell — and no other reading fits", () => {
+    const truth = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.truth);
+    expect(truth.correct).toBe(590);
+    expect(truth.scored).toBe(590);
+
+    // The three wrong readings, pinned at their exact scores. `toBeLessThan`
+    // alone would pass if a refactor made them all 589.
+    const focusBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.focusBefore);
+    const stateBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.stateBefore);
+    const prevFish = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.previousFishPosition);
+    expect(focusBefore.correct).toBe(467);
+    expect(stateBefore.correct).toBe(372);
+    expect(prevFish.correct).toBe(369);
+
+    // **The demonstration the gate asks for: the pin FAILS under the
+    // `previousFishPosition` reading.** A pin that does not fail the wrong
+    // reading has not tested anything. 369/590 is 62.5% — a "mostly works"
+    // number, which is the danger.
+    expect(prevFish.correct).not.toBe(prevFish.scored);
+    expect(prevFish.mismatches.length).toBe(221);
+
+    // All four score the same denominator: the reading changes which cells are
+    // compared, never which plays are eligible.
+    for (const r of [truth, focusBefore, stateBefore, prevFish]) expect(r.scored).toBe(590);
   });
 
   it("zone numbering is row-major with x as the ROW", () => {
