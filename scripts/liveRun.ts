@@ -1138,6 +1138,71 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
   const boonTypesOffered: string[] = [];
   const boonTypesPicked: string[] = [];
 
+  /**
+   * [session 84 §4] THE ONE PLACE A RUN ENDS.
+   *
+   * Until now there were two, and they printed different things. Every real
+   * run exits through `run_ended_or_absent` — the state simply disappears when
+   * the run resolves — while `run_over` (state present AND
+   * `classifyPhase() === "over"`) has **never fired in any logged run**. The
+   * boon-coverage snapshot and session 78 §3's `EV support` line both lived
+   * inside `run_over`, so the two things this loop is instrumented to report
+   * at run end have never once been reported. Session 78 shipped a line that
+   * says "said out loud at the end of every run, whatever the outcome" and it
+   * has not been said out loud at the end of any run.
+   *
+   * Two exits printing different things is HOW that happened, so the fix is
+   * one exit, not two copies of the reporting: adding the missing lines to the
+   * absent branch would leave the same divergence one edit away from
+   * returning.
+   *
+   * ⚠ `room` is `null` on the absent branch and that is not an omission — when
+   * the state is gone there is no room number to read, and inventing the last
+   * one seen would put a fabricated depth in the log. The field is omitted
+   * from the record rather than written as null, so a reader joining on
+   * `room` sees no row instead of a wrong one.
+   *
+   * Its gate (DECISIONS 2026-08-23, session 83 §4): the reporting must be
+   * demonstrated EXECUTING on a replayed run of each shape before it is
+   * trusted live — one ending with state absent, one ending with state
+   * present-and-finished. `tests/liveRunFinishRun.test.ts` is that
+   * demonstration, and it costs no run-unit.
+   */
+  const finishRun = (reason: "run_over" | "run_ended_or_absent", room: number | null): void => {
+    // [session 61 §5] Coverage snapshot at run end — RECORDED, not acted on.
+    // See src/sim/boonRunCoverage.ts on why this is instrumentation and
+    // explicitly not an argument for the wide orb rule.
+    const coverage = summarizeBoonRunCoverage(boonTypesOffered, boonTypesPicked);
+    log.write({ event: "boon_run_coverage", ...(room === null ? {} : { room }), ...coverage });
+    console.log(
+      `  ▸ boon coverage this run: ${coverage.typesPicked.length} type(s) picked, ` +
+        `${coverage.firstEverCandidates} of them still UNMODELLED (first-ever candidates), ` +
+        `${coverage.unmodelledOffered.length} unmodelled type(s) offered, ` +
+        `UNMODELLED_TYPES size ${coverage.unmodelledTypesAtRunStart}.`,
+    );
+
+    log.write({ event: reason, ...(room === null ? {} : { room }) });
+    console.log(reason === "run_over" ? `  ▸ run over at room ${room}.` : `  · no active run — stopping.`);
+
+    // [session 78, §3] Said out loud at the end of every run, whatever the
+    // outcome. Before session 84 it was reachable only through the exit no
+    // run takes.
+    if (totalDecisions > 0) {
+      const pct = ((unsupportedDecisions / totalDecisions) * 100).toFixed(1);
+      log.write({ event: "decision_coverage", totalDecisions, unsupportedDecisions });
+      console.log(
+        `  ▸ EV support: ${totalDecisions - unsupportedDecisions}/${totalDecisions} decisions were fully ` +
+          `modelled; ${unsupportedDecisions} (${pct}%) were made on a model the coverage layer would refuse ` +
+          `to score. Rule 8 selects modified enemies, so a high figure here is EXPECTED, not a fault.`,
+      );
+    }
+
+    // [session 35, CODEXIMPROVE #5] Per-run state, not a running total — win,
+    // death, flee or a vanished run all land here. Delete rather than let it
+    // go stale for whatever attempt starts next.
+    if (deps.playCountsPersistence && playCountsRunId !== null) deletePlayCounts(deps.playCountsPersistence.path);
+  };
+
   for (;;) {
     let state: DungeonState | null;
     try {
@@ -1149,11 +1214,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       throw e;
     }
     if (!state) {
-      log.write({ event: "run_ended_or_absent" });
-      console.log(`  · no active run — stopping.`);
-      // [session 35, CODEXIMPROVE #5] Per-run state, not a running total —
-      // delete rather than let it go stale for whatever attempt starts next.
-      if (deps.playCountsPersistence && playCountsRunId !== null) deletePlayCounts(deps.playCountsPersistence.path);
+      finishRun("run_ended_or_absent", null);
       return;
     }
     // [session 36, CODEXAUDIT #1 fix] Captured so a combat POST later this
@@ -1218,34 +1279,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
     }
 
     if (phase === "over") {
-      // [session 61 §5] Coverage snapshot at run end — RECORDED, not acted
-      // on. See src/sim/boonRunCoverage.ts on why this is instrumentation and
-      // explicitly not an argument for the wide orb rule.
-      const coverage = summarizeBoonRunCoverage(boonTypesOffered, boonTypesPicked);
-      log.write({ event: "boon_run_coverage", room: roomNum, ...coverage });
-      console.log(
-        `  ▸ boon coverage this run: ${coverage.typesPicked.length} type(s) picked, ` +
-          `${coverage.firstEverCandidates} of them still UNMODELLED (first-ever candidates), ` +
-          `${coverage.unmodelledOffered.length} unmodelled type(s) offered, ` +
-          `UNMODELLED_TYPES size ${coverage.unmodelledTypesAtRunStart}.`,
-      );
-      log.write({ event: "run_over", room: roomNum });
-      console.log(`  ▸ run over at room ${roomNum}.`);
-      // [session 78, §3] Said out loud at the end of every run, whatever the
-      // outcome. Before this it was visible only by running a coverage script
-      // against the fixtures afterwards, which nobody does mid-session.
-      if (totalDecisions > 0) {
-        const pct = ((unsupportedDecisions / totalDecisions) * 100).toFixed(1);
-        log.write({ event: "decision_coverage", totalDecisions, unsupportedDecisions });
-        console.log(
-          `  ▸ EV support: ${totalDecisions - unsupportedDecisions}/${totalDecisions} decisions were fully ` +
-            `modelled; ${unsupportedDecisions} (${pct}%) were made on a model the coverage layer would refuse ` +
-            `to score. Rule 8 selects modified enemies, so a high figure here is EXPECTED, not a fault.`,
-        );
-      }
-      // [session 35, CODEXIMPROVE #5] Win, death, or flee all land here —
-      // delete rather than let it go stale for whatever attempt starts next.
-      if (deps.playCountsPersistence && playCountsRunId !== null) deletePlayCounts(deps.playCountsPersistence.path);
+      finishRun("run_over", roomNum);
       return;
     }
 
