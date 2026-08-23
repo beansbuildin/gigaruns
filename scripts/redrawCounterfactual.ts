@@ -221,6 +221,9 @@ function main(): void {
   // ── §7  WHAT THE COLLAPSE IS MADE OF ────────────────────────────────────
   printDecomposition(traces, created);
 
+  // ── §7a  DOES THE TRIGGER SIGNAL SURVIVE THE ERA SPLIT? ─────────────────
+  printEraSeparability(traces, created);
+
   console.log("\n── §8  READ THIS BEFORE QUOTING ANY OF IT ──");
   console.log("  Redraw is CLOSED and nothing here reopens it. `redrawEnabled` ships false and is");
   console.log("  pinned false from both ends. This script measures a price; it does not license a");
@@ -350,6 +353,46 @@ function printEraConditionedCounterfactual(traces: readonly CastTrace[], created
 
     This does not reopen the CLOSED verdict. It says the counterfactual that informs it
     should be read on the era the bot actually plays in.`);
+}
+
+/**
+ * §7a — §3's `heldCoverage` separability, re-run on each era.
+ *
+ * NOT GATED, and it is the input a shadow-evaluation design would need: §3's
+ * dominant dead-hand class was the budget-0 hands, and today's era has almost
+ * none, so whether the signal survives at all was unknown before this ran.
+ */
+function printEraSeparability(traces: readonly CastTrace[], created: ReadonlyMap<string, string>): void {
+  const split = splitByEra(traces, created);
+  console.log(`\n── §7a  DOES §3's SIGNAL SURVIVE THE SPLIT? (not gated) ──`);
+  console.log(
+    `    ${"".padEnd(8)}${"dead".padStart(6)}${"live".padStart(6)}${"AUC".padStart(8)}` +
+      `${"mean cov dead".padStart(15)}${"live".padStart(8)}`,
+  );
+  for (const [label, ts] of [["pooled", traces], ["before", split.before], ["today", split.today]] as [string, readonly CastTrace[]][]) {
+    const sp = separability(redrawCounterfactual(ts));
+    console.log(
+      `    ${label.padEnd(8)}${String(sp.deadPlays).padStart(6)}${String(sp.livePlays).padStart(6)}` +
+        `${sp.coverageAuc.toFixed(3).padStart(8)}${sp.meanCoverageDead.toFixed(2).padStart(15)}` +
+        `${sp.meanCoverageLive.toFixed(2).padStart(8)}`,
+    );
+  }
+  const today = separability(redrawCounterfactual(split.today));
+  console.log(`\n    today's era, \`heldCoverage <= K\` as a trigger over ALL its plays:`);
+  console.log(`      ${"K".padStart(3)}${"fires".padStart(7)}${"rescues".padStart(9)}${"sacrifices".padStart(12)}${"wasted".padStart(8)}${"mana".padStart(7)}`);
+  for (const row of today.sweep) {
+    if (row.fires === 0) continue;
+    console.log(
+      `      ${String(row.threshold).padStart(3)}${String(row.fires).padStart(7)}${String(row.rescues).padStart(9)}` +
+        `${String(row.sacrifices).padStart(12)}${String(row.wasted).padStart(8)}${String(row.manaSpent).padStart(7)}`,
+    );
+  }
+  console.log(`
+    WHY THIS IS THE SHADOW DESIGN'S INPUT. In today's era \`wasted\` is structurally ZERO —
+    §6 pinned neither = 0, so a redraw fired on a dead hand always rescues it. The trigger's
+    job is therefore DETECTION, not selection, and the only thing a threshold trades is
+    rescues against sacrifices. ⚠ Still oracle-labelled, still no held-out set, n = 15 dead.
+    QUESTIONS.md §26 asks the user whether to shadow-evaluate it live for non-oracle labels.`);
 }
 
 /** §7 — GATE 2: what the 44.9% -> 1.5% collapse is made of. */

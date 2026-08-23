@@ -61,6 +61,7 @@ import {
 import {
   assertRedrawCounterfactualSound,
   redrawCounterfactual,
+  separability,
 } from "../../src/sim/fishing/redrawCounterfactual.js";
 
 const traces = loadCastTraces();
@@ -300,5 +301,36 @@ describe("GATE 2 — the collapse, decomposed", () => {
     const oiled = split.today.find(firedOil)!;
     fake.set(oiled.docId, "2026-08-19T00:00:00.000Z");
     expect(() => assertCastEraSound(traces, fake)).toThrow(/before-era cast\(s\) fired an oil/);
+  });
+});
+
+/**
+ * Not part of either gate — the brief's "do if there is room" item. It is
+ * pinned anyway because it is the input QUESTIONS.md §26's shadow design rests
+ * on, and an unpinned input to a design decision is how the +19.40pp figure
+ * happened.
+ */
+describe("§3's heldCoverage signal, re-run per era", () => {
+  it("SURVIVES the split — the dead hands changed, the separation did not", () => {
+    const pooled = separability(redrawCounterfactual(traces));
+    const today = separability(redrawCounterfactual(split.today));
+    expect(pooled.coverageAuc).toBeCloseTo(0.922, 3);
+    expect(today.coverageAuc).toBeCloseTo(0.907, 3);
+    // The dead hands today are a DIFFERENT population, not a smaller version of
+    // the old one: their mean coverage nearly doubles once the budget-0 hands
+    // (which could barely cover anything, being frozen on one cell) are gone.
+    expect(pooled.meanCoverageDead).toBeCloseTo(5.13, 2);
+    expect(today.meanCoverageDead).toBeCloseTo(8.87, 2);
+    expect(today.deadPlays).toBe(15);
+    expect(today.livePlays).toBe(112);
+  });
+
+  it("makes `wasted` structurally zero at every threshold, because neither = 0", () => {
+    const today = separability(redrawCounterfactual(split.today));
+    for (const row of today.sweep) expect(row.wasted).toBe(0);
+    // So the only trade a threshold makes is rescues against sacrifices — which
+    // is what turns the trigger's job from selection into detection.
+    const k7 = today.sweep.find((r) => r.threshold === 7)!;
+    expect([k7.fires, k7.rescues, k7.sacrifices, k7.manaSpent]).toEqual([9, 7, 0, 11]);
   });
 });
