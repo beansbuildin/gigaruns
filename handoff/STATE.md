@@ -1,186 +1,199 @@
-# STATE — session 81 — 2026-08-22 (PT 2026-08-22) — code at commit 2981e4ea
+# STATE — session 82 — 2026-08-22 (PT) — code at commit 6858f63d
 
 ## Status
-**GATE 1 PASS. GATE 2 PASS.** Suite **1573/1573** (was 1561), 95 files,
+**GATE 1 PASS. GATE 2 PASS.** Suite **1594/1594** (was 1573), 95 files,
 `tsc --noEmit` clean, `git diff --check` clean, `assertionCoverage` **0
-vacuous**, `discoveredShipsClean` passes.
+vacuous**, `discoveredShipsClean` passes, **`preflight.ts` PASSED** with a
+clean secret scan at the final commit.
 
-- **The crit rule family is down from three members to TWO.** The third crit
-  anomaly landed on this session's live batch and **falsifies
-  `floor(hit × 5/3)`**. `hit × 1.5` round-half-up and `hit × 1.6` rounded both
-  survive. Card 10 crits for 10 and is in the deck — the last two are
-  separable by ordinary casting.
-- **Both gates were pinned BEFORE the live batch and both HELD on the 22 new
-  plays they had never seen.** The resolver went 590/590 → **612/612**
-  exceptionless; the headroom instrument moved by ≤1pp on every row.
-- **Live: 8 casts played, all 8 authorised** (the full remaining allowance,
-  two batches of 4 with a ledger check between). Ledgers agree at **20/20**.
-  6 catches, 4 casts consumed oil. **0 dungeon runs, 12 run-units unspent.**
-- **Ship-nothing posture HOLDS.** No strategy changed. Every new module is a
-  measurement instrument; nothing it reports is wired to a decision.
+- **The dungeon programme ran: FOUR authorised juiced runs, the full daily
+  allowance, one human go-ahead each (rule 11).** Rule 13 after every one:
+  `dayProgressEntities` **null → 3 → 6 → 9 → 12**, exactly 3 units per run.
+  **Zero denials, zero discrepancies** — nothing like session 61's race.
+- **The dry-run passed BEFORE any run was played**, which was the whole point:
+  three mechanisms that commit a run-unit had been rewritten since the last
+  live run and none had executed.
+- **`EV support: 0/174` across all four runs.** Not "high" — total. And the
+  line session 78 §3 wrote to print it **has never executed**, in any run ever.
+- **Ship-nothing posture HOLDS.** No strategy changed. The gear diff was EMPTY,
+  so all four runs are ONE arm.
 
 ## What works
-- **§1 GATE 1 — the resolver pinned at 612/612 WITH its predicate, and the
-  wire semantics it depends on** (`zoneAudit.ts` `RESOLUTION_READINGS`,
-  `zoneTemplate.test.ts`). The brief asked for a new test; that test has
-  existed since session 47 and already scored exceptionless, so what was
-  actually missing was the OTHER axis — which two states a shot resolves
-  between. Both states carry a `focusPoint` and a `fishPosition`:
+- **§1 GATE 1 — the dry-run, and the three unexercised mechanisms.** Exit 0,
+  `[dry-run] would POST start_run (dungeonId 5, juiced)`.
+  - **Arg guard** (`d650e8e`, recorded as NEVER EXERCISED): now exercised.
+    `--bogus-flag` → `✖ unrecognised argument(s)`, **exit 1, nothing sent**.
+  - **`runActionTransaction` at `:1052`**: correctly **NOT entered**. The
+    `dryRun` branch at `liveRun.ts:997` fires the real gate
+    (`assertCanStartRun`) and returns before it. The guard has not moved.
+  - **`raw()` 10s deadline**: exercised on the dungeon path's GETs only. A POST
+    has still never hit it.
+- **§2 GATE 2 — the telemetry, computed per run and pooled.** 4 runs, 174
+  decisions, **0 supported**. Pooled reasons:
 
   ```
-    b.focusPoint + b.fishPosition           612/612  100.0%   <- the server's
-    a.focusPoint + b.fishPosition           480/612   78.4%
-    a.focusPoint + a.fishPosition           385/612   62.9%
-    b.focusPoint + b.previousFishPosition   380/612   62.1%
+    ROLLED_STATS      174/174  100.0%    me 174, foe 159
+    UNKNOWN_EFFECT    174/174  100.0%    me 174
+    BOON_TAKEN        161/174   92.5%    me 161
+    STATUS_EFFECT      87/174   50.0%    foe 63, me 30
+    ENEMY_BUFF         87/174   50.0%    run 87  (never me/foe)
+    ARMOR_REDUCTION    12/174    6.9%    foe 12  (never me)
   ```
 
-  The pin **fails under the `previousFishPosition` reading** and asserts all
-  four exact scores — a pin that does not fail the wrong reading has not
-  tested anything. `scored` was `>= 282` for thirty-four sessions, which could
-  not distinguish "the corpus grew" from "the predicate silently narrowed".
-
-- **§1b GATE 2 — the matcher costed against a fixed ceiling**
-  (`src/sim/fishing/matcherHeadroom.ts`, `scripts/matcherHeadroom.ts`, 9
-  tests). Four policies, same 612 plays, same cards, same budget:
+  **The pre-death ordering is NOT the frequency ordering, and that is the
+  finding CAPTURE-1 asked for.** `STATUS_EFFECT` is on **12 of 12** pre-death
+  decisions while being 50.0% overall; `ENEMY_BUFF`, also 50.0%, is on **none**
+  of them. `ARMOR_REDUCTION` is 6.9% overall and was on all three of run 1's.
+- **§4 gear diff EMPTY, stated as a positive.** Run 1's own `start_run`: rock
+  25/8, paper 10/15, scissor 12/8, HP 40/40, armor 22/22, block 10 — identical
+  to `enemies.ts` PLAYER. No re-spec since session 75, so unlike that session
+  all four runs are comparable.
+- **The four runs.** 0/204 first-attempt failures, 0 429s, 0 guard trips, 0
+  unknown enums. `auditTierChoice` **21/21 offers, 0 violations**.
 
   ```
-    RANDOM    uniform over reachable focus    20.3%   floor
-    STAY-PUT  never move the focus            24.2%
-    ACTUAL    the shipped bot                 36.3%
-    ORACLE    same card, best focus           66.3%   ceiling
-    ORACLE    best card in hand + best focus  71.1%
+    run 1  25011957  death @ room 8   8112 HC  420 DR   48 decisions
+    run 2  25012461  death @ room 3   1824 HC   42 DR   26 decisions
+    run 3  25012690  death @ room 7   6384 HC  309 DR   58 decisions
+    run 4  25012886  death @ room 7   6336 HC  309 DR   42 decisions
   ```
 
-  Captures **34.6%** of available prediction headroom; **30.1pp** remain with
-  today's cards and budget; card selection is worth **4.7pp** on top; focus
-  MOVEMENT is worth **12.1pp** over never moving, so prediction is
-  load-bearing. **ACTUAL is the only row a code change can move** — that is
-  what makes it a scoreboard rather than a snapshot.
-
-- **§5 answered: the miss is STRUCTURED, not diffuse.** 176 of 367 misses
-  (**48.0%**) land ONE cell from the shot's footprint, 86% within two. The
-  fraction was 48.0% before the batch and 48.0% after.
-
-- **§2 the margin column** (`scripts/damageEconomy.ts`): `h* = heal/(damage+heal)`,
-  margin = hit% − h*. LIVE −1.8pp, bare **+41.9pp**, blind −4.6pp, live-config
-  +3.8pp. The bare arm is marked with its margin in the output so +19.40pp is
-  not re-quoted by accident.
+- **Rule 12's ROM mechanism fired live (run 3).** Pool 39 against a planned 60
+  — exactly the reading that looks like a blocker. Preflight read the bank (37
+  ROMs, 2412 claimable), made ONE descending claim of 220, **measured +220,
+  drift +0**, and reported cap overflow unreachable.
+- **§23 `(elapsed, drift)` is 15/15**, floor 6 / ceil 9 — the n=15 the brief
+  projected. New rows: 3.73→1 (floor), 1.75→0 (floor), 4.03→1 (floor),
+  3.29→1 (ceil).
 
 ## What's broken
-- **A ceiling that sat below its own floor, found by an assertion I wrote.**
-  `prev.focusMeter` is the WRONG focus budget: 12 of 612 plays move the focus
-  further than it allows, and the oracle called **6 server-scored HITS
-  unhittable**. Cause: `castTrace.ts` skips `use_fishing_item` responses, so an
-  oil restores the meter between two recorded turns. Fixed by reconstructing
-  the budget as `spent + remaining`; both invariants now THROW.
-- **23 of 612 plays (3.8%) fired a card with NO on-grid footprint** — every
-  zone off-board, so the shot could not hit whatever the fish did. All misses;
-  **6 avoidable** with the same card from a different reachable focus. A wasted
-  play is invisible in the hit rate: it looks exactly like a bad prediction.
-  **REPORTED, NOT FIXED** — live-policy change, rule 4.
-- **The brief's 581 does not reproduce.** True count 590 (pre-batch), now 612.
-  Neighbours it is not: 587/609 (clean traces), 583 (the brief's own stated
-  discard predicate). Hunt time-boxed and abandoned.
-- **§0a is NOT lifted. +19.40pp still MAY NOT BE QUOTED.**
-- **`play_cards`, redraw and `use_fishing_item` remain unrouted**, unchanged
-  and for the unchanged reason (session 65). Blocked on a capture.
-- Carried, untouched: H2's proc model (CAPTURE-1); shrinkage re-fit unstable;
-  per-cast vs per-draw shuffle undistinguished; reshuffle-at-wrap unobserved.
+- **`run_over` (`liveRun.ts:1233`) has NEVER fired — not in these four runs,
+  not in any logged run on record (13 checked).** Every real run exits via
+  `run_ended_or_absent` at `:1151`, which returns *before* session 78 §3's
+  `EV support: n/m` line at `:1241`. **The session's headline deliverable is
+  unreachable where it was placed.** The `decision` records carry the data, so
+  this recap's numbers were computed from them directly. Also never printed:
+  the `run_over` branch's boon-coverage summary (`firstEverCandidates`,
+  `UNMODELLED_TYPES` size). **REPORTED, NOT FIXED** — it is a live-path change
+  and nothing was going to be shipped this session.
+- **`boonCoverage.ts` cannot measure a live run's boon delta.** It reads
+  `OBSERVED_OFFERS`, a HAND-TRANSCRIBED constant in `src/sim/boons.ts`.
+  Re-running it with the four new fixture dirs removed gives **byte-identical**
+  output. A zero from that script after a live capture is never evidence — the
+  brief's §3 method would have produced a false negative.
+- **Three potions are routinely not enough.** All 3 spent in runs 1, 2 and 3,
+  at HP 17/19/8, 20/16/12 and 9/5/15 of 40, and all three runs died anyway.
+  The 5/40 is the most extreme M2 case on record. `DEFAULT_POTION_THRESHOLD`
+  untouched; M2 stays blocked.
+- Carried, untouched: H2's proc model (CAPTURE-1); `play_cards`/redraw/
+  `use_fishing_item` unrouted; §0a NOT lifted, **+19.40pp MAY NOT BE QUOTED**;
+  `mana -= card.manaCost` unconfirmed; shrinkage re-fit unstable.
 
 ## Corrections to SPEC.md
-- **`floor(hit × 5/3)` is FALSIFIED — two crit rules survive, not three.**
-  Cast `13041474` t2: card 38 landed in its own translated `critZones`, so the
-  card's crit fired for base **9**, and the server reported `FISH_HP_DIFF`
-  **14**. `×1.5`→14 ✓, `×1.6`→14 ✓, `floor(9×5/3)`→15 ✗. Two details make it
-  usable: **it is LETHAL** (12→0), so the clamped delta says only "≥12" and
-  only the uncensored field separates; and **the base is the card's CRIT
-  amount, not its hit amount**. Session 80 searched `hitEffects` for a 9, found
-  none, and DECISIONS recorded that casting could not settle this — but the
-  lure scales whatever the shot's damage would have been, and base-9 crits are
-  common (cards 38, 39, 40). **The two crit sources COMPOSE.** SPEC-fishing
-  §CRIT_HIT rewritten. Next separator: base 6, 8 or 10; **card 10 crits for 10
-  and is in the deck**.
-- **SPEC-fishing §4d written — shot resolution ordering.** A card resolves
-  against the focus point AFTER the move and the fish's cell in the RESULTING
-  state, never `previousFishPosition`. 612/612. The wrong readings are
-  dangerous for WHERE THEY LAND (62–79%), not for failing.
-- **SPEC-fishing §4e written — the focus budget.** `spent + remaining` recovers
-  the pre-play meter on 591/591 non-oil plays; all 21 failures are oil
-  consumes, **zero residue**. **Restore-to-2 vs add-2 is NOT settled by the
-  corpus** — all 21 fired at meter 0, where they are the same event. §4a's
-  static table points at add-2 (`FishingRestoreFocus` is an amount per tier,
-  Lil 1 / Mid 2 / Big 3; the bot spends the MID oil). Neither is encoded.
-- **Session 80's "only the denominator grows" retirement is itself softened.**
-  It was retired on one observation; this batch moved the relaxing numerator
-  by ZERO across 8 casts. Two batches say the numerator moves *rarely* —
-  weaker and better supported than either previous version.
-- Unchanged: `mana -= card.manaCost` still unconfirmed (no 0- or 2-cost card
-  has ever been played). Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/
-  pondId=2. Move charges: PRESENT — unchanged, not re-measured.
+- **`perpetual_corrosiveShield` no longer appears ZERO times.** Run `25011957`
+  offered it in room 2; it is now in `fixtures/` **4 times**, against 0 in
+  every prior fixture. `perpetual_corrosiveMagic` is still at zero.
+  `src/sim/enemyBuffs.ts:121` asserted both were at zero and is corrected.
+  **The table is still NOT completed, and that is the result rather than an
+  omission**: the twin arrived inline carrying its own `effects: [{ kind:
+  onEnemyWinExchange_corrode, amount: 3, moveType: "paper" }]` and classified
+  correctly with no entry — **field for field the synthetic case session 63
+  wrote on a guess**. The capture that would license completing the table is
+  the same capture proving the entry buys nothing.
+- **`TieWeak` and `VulnerableBlock` have first-ever pickup pairs, both LATENT.**
+  Neither changes any player field at pickup; the pair's only difference is the
+  boon in `pickedBoons`. TieWeak came from the ORB FALLBACK, VulnerableBlock
+  from BOON-PRIORITY 5 (Vulnerable family) — **orb 7→8, priority 5→6**.
+  TieWeak was the most-offered unmodelled type on the whole record (11 offers
+  since session 03, never once taken) and then landed TWICE in one day.
+  `VulnerableBlock`'s `selectedVal1` 4 is **NOT** a flat add to rolled `block`
+  (10 → 10 across the pair) — the one reading the pair rules out.
+- **`LossEvasionUp` is a first-ever TYPE**, absent from all 181 prior offers.
+  `OBSERVED_OFFERS` **181 → 202**; `UNMODELLED_TYPES` net −1 (two out, one in).
+- **Big Heal Juice (itemId 131) heals exactly 20** — `OnHeal value 20`, 3 of 3
+  on the wire. Raw material for M2, which stays blocked.
+- **`DEFAULT_CAPTURE_TARGETS` loses TieWeak and VulnerableBlock, gains
+  WeakeningMastery and AddLifestealSword.** Three of the original five targets
+  are now modelled **without `boonCapture` ever being armed** — the shipped
+  rules are clearing that list on their own, so the module's own
+  "27 runs to model five boons" estimate was costing the wrong mechanism.
+- **The boonCapture/priority overlap is 0 of 5, not 1 of 5.** The one shared
+  type was `VulnerableBlock`, and the priority layer went and captured it.
+- Unchanged: resolved IDs forbiddenWoods=5, dendren nodeId="5"/pondId=2. Move
+  charges: PRESENT — unchanged, not re-measured.
 
 ## Dead ends
-- **Recovering the brief's 581.** Tried clean-traces-only (587), the brief's
-  own discard predicate (583), `lastMovePath` present (590), non-terminal
-  (461). None is 581. Abandoned per session 80's lesson; every count now ships
-  with the filter that produced it.
-- **Reading the hit-9 separator as unreachable.** Session 80 searched
-  `hitEffects` and concluded casting could not settle the crit rule. Wrong
-  field — `critEffects` carries 9s, and one landed within eight casts.
-- **`prev.focusMeter` as the focus budget.** Kept as the scored counter-model
-  in the test, because a pin that does not fail the wrong model tests nothing.
+- **Using `boonCoverage.ts` to measure the run's coverage delta.** See above —
+  it reads a hand-transcribed constant. Verified by removing the fixtures and
+  re-running.
+- **Reading `dayProgressEntities` for a dungeon other than 5.** A `Dungeon#3`
+  row at 9 units, updated today, is the USER's own manual play (user
+  confirmed). Caps are per-dungeon; it never touched the Forbidden Woods 12.
+- **Grepping the console log for potion HP with a `^room` anchor.** Silently
+  returned nothing on run 3 and briefly read as "no potions used" — the
+  potions were used. Read `use_item_post` from the JSONL instead.
 - Standing, none re-opened: energy is never a blocker; `--dry-run` before
-  claiming one; do not revert rule 8; redraw CLOSED on price; +19.40pp
-  SUSPENDED; `boonCapture` OFF; do not build H2's proc model; do not write
-  M4's lines; `DEFAULT_POTION_THRESHOLD` untouched; `chooseNewCard` UNTOUCHED;
-  no 429 backoff without an observed 429; do not shuffle the random-sample deck.
+  claiming one; do not revert rule 8; redraw CLOSED; +19.40pp SUSPENDED;
+  `boonCapture` OFF; no H2 proc model; no M4 lines;
+  `DEFAULT_POTION_THRESHOLD`/`chooseNewCard` UNTOUCHED; no 429 backoff without
+  an observed 429; do not shuffle the random-sample deck.
 - **`npx tsx` and `git` both fail under the command sandbox.** Run unsandboxed.
-- **`preflight.ts` (~90s) runs BEFORE the push**, not via CI after it.
+- **`preflight.ts` (~90s) runs BEFORE the push**, not via CI after it. Run it
+  AFTER committing new fixtures — it exports TRACKED files only, so an
+  uncommitted corpus is invisible to it (1573 before the commit, 1594 after).
 
 ## Metrics
-- **Live: 8 fishing casts, all authorised, 6 catches (75%), 96 energy, 0
-  dungeon runs.** Ledgers agree at 20/20; 12/12 run-units unspent. 4 casts
-  consumed oil. 75% on n=8 is the highest batch on record and is **not**
-  evidence of a change.
-- Suite **1561 → 1573** (+12), 94 → 95 files. `assertionCoverage` 0 vacuous.
-- Corpus: 140 → **148 casts**, 799 → **839 response docs**, 591 → **613 play
-  turns**, 42 → **48 catches**. Oil-era casts 19 → 23.
-- Headroom across the batch: random 20.4→20.3, stay-put 23.7→24.2, actual
-  35.4→36.3, oracle 65.6→66.3, best-card 70.5→71.1. Aim-error spike at
-  distance 1: 48.0% → 48.0%.
-- Oil reachability: relaxing numerator **unmoved** at 13 casts / 15 points;
-  rate 9.286% → 8.784%. Lax-vs-strict gap 16 → 17 (`13041476`).
+- **Live: 4 juiced dungeon runs, all authorised, 12/12 run-units spent, 240
+  energy.** 22,656 Hard Core, 1,080 Dendren Root. Deaths at rooms 8, 3, 7, 7.
+  0/204 first-attempt failures. **0 fishing casts** — 20/20 already spent, and
+  the 11:00 PT rollover was 12.8h out.
+- Suite **1573 → 1594** (+21, all corpus-generated), 95 files, 0 vacuous.
+  **The 1573 baseline was a FRESH CLONE with 13 author-data skips**; locally
+  all tests run. Don't compare the two counts without that (rule 10).
+- Corpus: 63 → **67 dungeon attempts** (24 juiced), `OBSERVED_OFFERS` 181 →
+  **202**, `BOON_MODELS` 29 → **31**, distinct player loadouts +1 (`48/22`,
+  mid-run, not a starting loadout).
+- Boon coverage running total (sessions 60–82): **orb 8, priority 6.**
+- Per-run orbFallback: 5/7, 2/2, 5/6, 5/6 — **17 of 21 rewards**, `narrowed`
+  true on all of run 1's; the ranker was overridden on 9.
+- Perpetual filter: fired on **5 of 21** tier offers; `perpetualCostATier` on
+  **5** (run 4 room 2 dropped to tier **0** because every tier-2 was perpetual).
 
 ## Open questions for Claude
-1. **One crit on a base-6, base-8 or base-10 shot finishes the crit rule.**
-   Card 10 (crit 10) is in the deck: `×1.5`→15 vs `×1.6`→16. This is now a
-   cheap, well-defined target — it needs casts, not thought.
-2. **30.1pp of hit rate is on the table and nobody has proposed a mechanism.**
-   The miss is structured (48% at distance 1), which points at a better
-   tie-break rather than a new model. What is the smallest change worth
-   simulating, and what gate would it have to clear?
-3. **The 23 no-footprint plays (3.8%, 6 avoidable) are a live-policy bug.**
-   Fixing them is worth up to ~1pp of hit rate for no prediction improvement
-   at all. Rule 4 says it needs a gate — what should that gate be?
-4. **An oil consumed at a NON-ZERO focus meter settles add-2 vs restore-to-2.**
-   All 21 on record fired at 0. Nothing needs it today; it is one cast away.
-5. **12 run-units are unspent and one juiced dungeon run still seeds session
-   78's `evSupported` telemetry.** Needs a per-run go-ahead (rule 11). The
-   dungeon path has not executed since session 75.
+1. **`run_over` has never fired and the EV-support line lives inside it.** Is
+   the fix to move the reporting to the `run_ended_or_absent` path, to make
+   both paths converge, or to treat the `:1233` branch as dead? This is a
+   live-path edit on the function that ends a run, so it wants a gate, and I
+   did not invent one.
+2. **The pre-death ordering (STATUS_EFFECT 12/12 at 50% base rate) is n=4
+   runs.** Is that enough to reorder CAPTURE-1, or is the honest move to state
+   it as a hypothesis and set a run count that would settle it? Note the
+   frequency ordering and the death ordering disagree, so picking the wrong one
+   is not neutral.
+3. **Three Big Heal Juices did not save three of four runs**, and the heal is
+   now known to be exactly 20 against a 40 HP pool. M2 is blocked behind H2 —
+   is that still right, given the potion data is now the thing there is most of?
+4. **The crit rule still has two members** and needs one base-6/8/10 crit;
+   card 10 (crit 10) is in the deck. **Zero casts were possible this session**
+   — the cap was spent before it began. First fishing after 11:00 PT gets it.
+5. **12 run-units are spent and the next allowance is a fresh 12 at 11:00 PT.**
+   Worth noting the four runs cost 240 energy against ~1368/day generated —
+   energy was never close to binding, as rule 12 says.
 
 ## Files changed
 ```
- 3 commits (aa912662, e7dd1f97, 2981e4ea, + this recap).
+ 1 commit (6858f63d) + this recap.
 
-  NEW  src/sim/fishing/matcherHeadroom.ts      330  GATE 2, the scoreboard
-  NEW  scripts/matcherHeadroom.ts              105  GATE 2, the report
-  NEW  tests/fishing/matcherHeadroom.test.ts   190  GATE 2 + the budget model
-       src/sim/fishing/zoneAudit.ts            +60  RESOLUTION_READINGS
-       tests/fishing/zoneTemplate.test.ts      +45  GATE 1, all four readings
-       tests/fishing/stateFields.test.ts      +115  the third crit, falsified
-       scripts/damageEconomy.ts                +45  §2 margin column
-       scripts/auditZoneTemplate.ts            +18  the four readings
-       SPEC-fishing.md                        +115  §4d, §4e, CRIT_HIT
-       tests/fishing/oilReachability.test.ts   ~20  corpus pins moved
-       tests/sim/fishingCorpus.test.ts         ~15  corpus pins moved
-       fixtures/fishing-casts/live/            +8 casts (~40 docs)
+  M  src/sim/boons.ts             +154  TieWeak + VulnerableBlock models,
+                                        OBSERVED_OFFERS 181 -> 202
+  M  src/sim/enemyBuffs.ts         +21  the corrode-twin claim, corrected
+  M  src/strategy/boonCapture.ts   +20  two targets retired, two added
+  M  tests/boons.test.ts           +30  UNMODELLED_TYPES, room-1 count, healRooms
+  M  tests/boonCapture.test.ts     +28  example type swapped off TieWeak
+  M  tests/boonPriority.test.ts    +15  overlap 1 of 5 -> 0 of 5
+  M  tests/corrode.test.ts         +11  the prediction that held
+  M  tests/enemies.test.ts         +12  48/22, and the EMPTY gear diff recorded
+  M  tests/liveRun.test.ts         +19  capture-target fixture swapped
+  A  fixtures/dungeon-runs/        4 runs (~440 redacted state docs)
+  M  handoff/reports/              regenerated
 ```

@@ -1132,3 +1132,97 @@ produced it, written out in words in the test itself.** Byproduct worth
 keeping: implementing the brief's literal discard predicate cross-validated
 card identification against `play.handIndex` — 583 agree, **0 disagree**, the
 remaining 7 being refill boundaries.
+
+2026-08-22 (session 82 §1) — **The three unexercised mechanisms on the
+dungeon path all behave, and the arg guard is exercised for the first time
+ever.** Six commits had touched the code that spends a run-unit since the last
+live run and none had executed; the dry-run cost twenty seconds and zero
+run-units and cleared all three before anything was spent. `--bogus-flag` is
+refused with exit 1 and nothing sent (`d650e8e`, previously NEVER EXERCISED);
+`runActionTransaction` at `liveRun.ts:1052` is correctly NOT entered by a dry
+run, because the `dryRun` branch at `:997` fires the real gate
+(`assertCanStartRun`) and returns first; `raw()`'s 10s deadline ran on the
+path's GETs. **The deadline has still never been exercised on a POST** — the
+one part of `0f5d61a` a passing dry-run cannot reach.
+
+2026-08-22 (session 82 §2) — **`run_over` (`liveRun.ts:1233`) has NEVER FIRED,
+in any logged run, and session 78 §3's `EV support: n/m` line lives inside it.**
+All thirteen logged runs on record exit via `run_ended_or_absent` at `:1151`:
+on a death the server drops the run state, `getDungeonState()` returns null,
+and the loop returns before the reporting at `:1241`. The boon-coverage summary
+in the same branch (`firstEverCandidates`, `UNMODELLED_TYPES` size) has never
+printed either. **A telemetry line placed on a branch nothing reaches is not
+telemetry**, and it took a live session to find because the branch is
+unreachable in tests that construct their own terminal state. REPORTED, NOT
+FIXED — a live-path edit on the function that ends a run, and no gate was
+proposed for it. The `decision` records carry the data, so nothing was lost.
+
+2026-08-22 (session 82 §2) — **The pre-death reason ordering is NOT the
+frequency ordering, which is the whole point of CAPTURE-1 asking for it.**
+Across 4 juiced runs and 174 decisions, `EV support` is **0/174** — total, not
+merely high, as rule 8 predicts. `STATUS_EFFECT` is present on **12 of 12**
+decisions immediately preceding a death while being **50.0%** of decisions
+overall; `ENEMY_BUFF` has the identical 50.0% base rate and is present on
+**none** of them; `ARMOR_REDUCTION` is 6.9% overall but was on all three of run
+1's. `unmodelledBySide` splits cleanly and non-trivially: `ENEMY_BUFF` is
+always `run`, `ARMOR_REDUCTION` always `foe`, `BOON_TAKEN` always `me`. So
+ordering CAPTURE-1 by what is most COMMON and ordering it by what is present
+when the run ENDS give different answers, and picking the wrong one is not
+neutral. **n=4 runs — a hypothesis with a mechanism, not a settled ordering.**
+
+2026-08-22 (session 82 §5) — **`perpetual_corrosiveShield` appeared for the
+first time ever, and it VERIFIED session 63's prediction rather than falsifying
+it.** 4 fixture hits from run `25011957`'s room-2 offer, against zero across
+the whole prior corpus; `perpetual_corrosiveMagic` remains at zero. The twin
+arrived inline carrying its own `effects: [{ kind: onEnemyWinExchange_corrode,
+amount: 3, moveType: "paper" }]` and classified correctly **with no
+`ENEMY_BUFFS` entry** — field for field the synthetic wire-shaped case
+`tests/corrode.test.ts` wrote on a guess in session 63. **The table is still
+NOT completed and the assertions are unchanged**: the capture that would
+license completing it is the same capture showing the entry would add nothing.
+Only the corpus CLAIM was corrected (`src/sim/enemyBuffs.ts:121` said both
+twins appear zero times).
+
+2026-08-22 (session 82 §5) — **`TieWeak` and `VulnerableBlock` get first-ever
+pickup pairs, both LATENT, and the shipped rules are clearing the capture list
+on their own.** TieWeak came from the ORB FALLBACK, VulnerableBlock from
+BOON-PRIORITY 5 (Vulnerable family) — **orb 7→8, priority 5→6**. TieWeak was
+the most-offered unmodelled type on the entire record (11 offers since session
+03, never once taken), so it had sat at the top of `boonCoverage`'s gap list
+longer than anything else, and then landed TWICE in one day. Both retire from
+`DEFAULT_CAPTURE_TARGETS`, replaced by `WeakeningMastery` and
+`AddLifestealSword`. **Three of the original five capture targets are now
+modelled without `boonCapture` ever being armed**, which makes that module's
+own "27 runs to model five boons" estimate a cost attributed to the wrong
+mechanism. A related pin resolved itself: the boonCapture/priority overlap is
+now **0 of 5, not 1 of 5**, because the priority layer went and captured the
+one type they shared. `VulnerableBlock`'s `selectedVal1` 4 is NOT a flat add to
+the rolled `block` stat (10 → 10 across the pair) — the one reading the pair
+rules out. `LossEvasionUp` is a first-ever TYPE; `OBSERVED_OFFERS` 181 → 202.
+
+2026-08-22 (session 82) — **`scripts/boonCoverage.ts` cannot measure a live
+run's coverage delta, and a zero from it after a capture is never evidence.**
+It reads `OBSERVED_OFFERS`, a HAND-TRANSCRIBED constant in `src/sim/boons.ts`,
+not the fixtures. Removing the session's four new run directories and re-running
+gives byte-identical output. The session brief's §3 proposed it as the
+instrument for exactly this measurement and would have produced a false
+negative. The real delta needs the run's own `boon_choice` records diffed
+against `OBSERVED_OFFERS`, which is also what the transcription duty is.
+
+2026-08-22 (session 82) — **Big Heal Juice (itemId 131) heals exactly 20, and
+three of them did not save three of four runs.** `OnHeal value 20` on the wire,
+3 of 3 checked, against a 40 HP pool. All twelve potions loaded were spent, at
+HP 17/19/8, 20/16/12, 9/5/15 and 16/18/19 — and runs 1, 2 and 3 died anyway.
+The 5/40 is the most extreme case on record. M2 (potion timing) stays BLOCKED
+behind the H2 captures and `DEFAULT_POTION_THRESHOLD` is untouched, but the
+potion data is now the largest body of evidence bearing on it.
+
+2026-08-22 (session 82) — **`preflight.ts` must run AFTER committing new
+fixtures, not before.** It exports TRACKED files only, so it reported 1573
+tests before the session's four fixture directories were committed and 1594
+after — a 21-test corpus contribution invisible to the check that is supposed
+to prove the export behaves. Related and separate: the brief's 1573 baseline
+was a FRESH CLONE carrying 13 author-data skips (`logsProbe`, `romsProbe`,
+`emptyDirProbe`), which all run locally. Two different reasons for the same
+number to move, both environmental rather than behavioural — rule 10's trap in
+its non-logging form.

@@ -124,6 +124,15 @@ was rejected `HTTP 400 {"message":"Item not found in index"}`, and `index:
 one-off manual probe with a captured `actionToken` (second use, index 1) —
 see `scripts/probeUseItemIndex1.ts`.
 
+**[session 82] Big Heal Juice heals exactly 20.** The response's `events[]`
+carries `{ "type": "OnHeal", "value": 20 }` alongside the `use_item` event, 3
+of 3 checked on the 2026-08-23 juiced batch, against a 40 HP pool. Recorded
+because the amount was never stated anywhere — the loadout, the index protocol
+and the rejection behaviour were all confirmed while what the item DOES was
+left to inference. It is the raw material for M2 (potion timing), which stays
+blocked; all twelve potions loaded across four runs were spent and three of
+those four runs died anyway.
+
 **Confirmed NOT to cost a combat turn.** A successful `use_item` heals HP
 (flat, matching `GET /offchain/static`'s `gameItems[131].itemEffect`, capped
 at `hpMax`) with the enemy's HP/ARM and the opponent model's observation
@@ -803,9 +812,14 @@ pair:
 1. **Burn's `amount` is 2 here, not 3** — which breaks the coincidence §4f is
    held hostage by. See §4f.
 2. `corrosiveShield` is the same id as the room-1 **boon** `CorrosiveShield`
-   (`val1: 2`, unmodelled). Same effect kind, player side. A pointer for where
-   to look, **not** a model — the DECISIONS 2026-08-15 rule stands and it stays
-   unmodelled until a pickup pair exists.
+   (`val1: 2`). Same effect kind, player side. A pointer for where to look,
+   **not** a model — the DECISIONS 2026-08-15 rule stands.
+   **[CORRECTED session 82] This said "unmodelled", and that has been stale
+   since session 11**, which gave `CorrosiveShield` its pickup pair
+   (`run-2026-08-15-15-38-09 state-029→state-030`, LATENT). All three corrode
+   boons are modelled and all three are latent — the pickup pair showed no
+   player-field change in every case, so having a model here says only "the
+   pickup is accounted for", not that the combat effect is understood.
 3. `battleArmorReduction` ("semantics unknown" in `src/sim/coverage.ts`) is very
    likely the Miasmaguard counter.
 
