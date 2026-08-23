@@ -382,6 +382,39 @@ export interface CastOptions {
    * algorithm correctly exploit it" — which is what `scripts/
    * fishingContextualAblation.ts` uses this for. This is NOT a live
    * catch-rate promise about real Dendren; see that script's header.
+   *
+   * ── ⚠ [session 86 §1 / GATE 1] "REPRESENTATIVE OF REAL LIVE DENDREN PLAY"
+   * IS TRUE OF PATTERN IDENTIFICATION AND FALSE OF THE FOCUS METER ──────────
+   *
+   * That sentence is fourteen sessions old and load-bearing — it is why the
+   * blind arm gets used as a live proxy at all. On the dimension the last
+   * several sessions have actually been measuring, **an arm blind with no
+   * fallback distribution NEVER AIMS.** Measured directly, 400 casts,
+   * `REAL_DECK`, seed base 1:
+   *
+   *     BLIND (matcherPool: [])  w=0/w=3   0 moves / 1963 turns, 0 spent,
+   *                                        763 plays, ALL from (2,2)
+   *     BARE  (default pool)     w=0       752 moves / 1823 turns, 1047 spent
+   *
+   * The mechanism is the paragraph above: uniform makes EV identical at every
+   * focus cell of the same footprint, so the argmax never has a reason to
+   * prefer a different cell. Live spends **0.85 of its meter on the opening
+   * play alone** in today's era (`castEra.ts`), and 1.55 before it.
+   *
+   * ⚠ **The condition is UNIFORM, not BLIND, and the loose version is false.**
+   * `matcherPool: []` is necessary and not sufficient: supply `ringModel` and
+   * the same blind arm aims on 824 of 2492 turns, supply this very
+   * `blindFallback` and it aims on 838 of 2443. What never aims is an arm with
+   * no distribution at all — `damageEconomy.ts`'s `SIM blind` and
+   * `deckObjectiveSweep.ts`'s baseline (0 of 1944 turns on `castSim`'s own
+   * default params, so it is not an artefact of one param set).
+   *
+   * So this is a **no-aim** arm, not a weak-predictor arm. Session 14's claim
+   * stands where session 14 made it and **must not be extended to anything
+   * focus-related.** Probe: `src/sim/fishing/focusMovement.ts`; both arms
+   * pinned in `tests/fishing/focusMovement.test.ts`. Nothing here changes the
+   * arm's behaviour — the deck-sweep baselines measured on it stay comparable
+   * to each other.
    */
   blindFallback?: {
     contextMap: ReadonlyMap<string, ContextStats>;

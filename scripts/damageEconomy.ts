@@ -88,6 +88,7 @@ import { loadMinedPatterns } from "./liveFishing.js";
 import { printManaSlack } from "./redrawCounterfactual.js";
 import { profileArg, resolveProfile } from "../src/profile.js";
 import { REAL_DECK } from "../src/sim/fishing/rodDeck.js";
+import { measureFocusMovement, formatFocusMovement } from "../src/sim/fishing/focusMovement.js";
 import { buildFishMaxHpSampler, fishMaxHpCounts, meanFishMaxHp, meanOpeningRatio } from "../src/sim/fishing/fishMaxHp.js";
 
 /**
@@ -102,6 +103,15 @@ import { buildFishMaxHpSampler, fishMaxHpCounts, meanFishMaxHp, meanOpeningRatio
  * drift, which is why the drift is the gate and the catch rate is not.
  */
 const REAL_PARAMS = { fishMaxHp: 21, startFishHpRatio: 13 / 21, startMana: 10, handSize: 3, gridSize: 4 } as const;
+
+/**
+ * [session 86 §1] §4b's per-arm cast count. Deliberately NOT `--runs`: the
+ * focus probe answers a structural question (does this arm ever move its
+ * focus point) rather than estimating a rate, so it is pinned at the count
+ * `tests/fishing/focusMovement.test.ts` asserts on — a §4b table that moved
+ * with the flag could not be checked against the pin.
+ */
+const FOCUS_PROBE_RUNS = 400;
 
 /**
  * [session 85 §2 / GATE 2] See `scripts/focusProfileCheck.ts`'s constant of
@@ -245,7 +255,11 @@ function main(): void {
   // an assertion into a measurement. (The sweep's own baseline is a 23-card
   // deck, not REAL_DECK, so its 36.42% is not expected to reproduce to the
   // digit — the point is which BAND this arm sits in.)
-  const blind = arm("SIM — blind matcher (matcherPool: [], synthetic fish) — the deck sweep's arm", { deckIds: [...REAL_DECK], matcherPool: [] }, runs);
+  const blind = arm(
+    "SIM — blind matcher (matcherPool: [], synthetic fish) — the deck sweep's arm — ⚠ NEVER AIMS, see §4b",
+    { deckIds: [...REAL_DECK], matcherPool: [] },
+    runs,
+  );
   console.log("");
   printEconomy(blind.economy);
   printRedrawLine(blind);
@@ -292,7 +306,7 @@ function main(): void {
   const rows: { label: string; e: Economy }[] = [
     { label: "LIVE (corpus)", e: live },
     { label: "SIM bare", e: bare.economy },
-    { label: "SIM blind", e: blind.economy },
+    { label: "SIM blind (no-aim)", e: blind.economy },
     ...(liveArm ? [{ label: "SIM live-config", e: liveArm.economy }] : []),
   ];
   console.log(
@@ -362,6 +376,47 @@ function main(): void {
   avoid a miss is spending the abundant resource on the scarce one; whether any such policy
   is triggerable is a separate question and is not answered here.`);
 
+  // ── §4b  DOES THE ARM AIM? ──────────────────────────────────────────────
+  //
+  // [session 86 §1 / GATE 1] Session 85 noticed the blind row above is
+  // byte-identical at focus-reserve weight 0 and 3 and asked whether that is
+  // structural or a wiring bug. It is structural, and the reason is larger
+  // than the question: the blind arm never moves its focus point at all, so a
+  // term that prices focus MOVEMENT has nothing to price.
+  //
+  // Printed here rather than asserted in prose because the number that matters
+  // is a ZERO, and a zero is only evidence next to a control that reads
+  // non-zero on the same probe — which is what the bare rows are for.
+  console.log("\n── §4b  DOES THE ARM AIM? — the focus meter, measured directly ──");
+  console.log(`  ${FOCUS_PROBE_RUNS} casts per row, REAL_DECK, seed base 1. \`moved\` = turns where the meter fell;`);
+  console.log(`  \`aimed\` = plays whose chosen focus cell differed from the current one. Two independent readings.\n`);
+  for (const probe of [
+    measureFocusMovement("BLIND (matcherPool: [])", { deckIds: [...REAL_DECK], matcherPool: [] }, 0, FOCUS_PROBE_RUNS),
+    measureFocusMovement("BLIND (matcherPool: [])", { deckIds: [...REAL_DECK], matcherPool: [] }, 3, FOCUS_PROBE_RUNS),
+    measureFocusMovement("BARE  (default pool)", { deckIds: [...REAL_DECK] }, 0, FOCUS_PROBE_RUNS),
+    measureFocusMovement("BARE  (default pool)", { deckIds: [...REAL_DECK] }, 3, FOCUS_PROBE_RUNS),
+  ]) {
+    console.log(formatFocusMovement(probe));
+  }
+  console.log(`
+  **The blind arm is a NO-AIM arm, not a bad-predictor arm.** It places its focus at the cast's
+  opening cell (2,2) and leaves it there for the entire cast, at either weight. Live spends 0.85
+  of its meter on the OPENING PLAY ALONE in today's era, and 1.55 before it.
+
+  ⚠ THE CONDITION IS "UNIFORM", NOT "BLIND". \`matcherPool: []\` is necessary and not sufficient:
+  the same blind arm aims on 824 of 2492 turns once a \`ringModel\` supplies a distribution, and on
+  838 of 2443 with a \`blindFallback\`. So focusReserveAblation.ts's sweep is NOT vacuous — its
+  arm A is blind WITH a ring. The arms that never aim are the ones with no distribution at all:
+  this row, and deckObjectiveSweep.ts's baseline (0 of 1944 turns on castSim's default params).
+
+  Two consequences for the table above. Its margin clears zero for a reason live's does not —
+  no aiming means low damage per hit, which LIFTS its break-even — so session 84's "the blind
+  arm is the only one on live's side of zero" is a sign match with the mechanism inverted. And
+  \`castSim.ts\`'s note that \`matcherPool: []\` is "the condition session 14 established as
+  representative of real live Dendren play" is true of PATTERN IDENTIFICATION and false here;
+  it now carries this measurement beside it. **Do not read this arm as a live proxy on anything
+  focus-related.** Pinned in tests/fishing/focusMovement.test.ts, both arms.`);
+
   // The decomposition: hold two of the three terms at the live value and swap
   // in the sim's, one at a time. This says WHICH term carries the difference
   // rather than that there is one — the whole reason a drift beats an outcome
@@ -383,12 +438,12 @@ function main(): void {
     console.log(`    all three (its own drift)      ->  ${e.drift >= 0 ? "+" : ""}${e.drift.toFixed(3)}`);
   }
 
-  // ── §4b  THE VERDICT, COMPUTED ──────────────────────────────────────────
+  // ── §4c  THE VERDICT, COMPUTED ──────────────────────────────────────────
   //
   // Named by the arithmetic rather than by the author. The brief's §1b
   // eliminated hit geometry as a cause; if the dominant term below is the hit
   // rate, that elimination is wrong and the recap has to say so.
-  console.log("\n── §4b  VERDICT ──");
+  console.log("\n── §4c  VERDICT ──");
   for (const { label, e } of rows.slice(1)) {
     const missRate = (x: Economy) => 1 - x.hitRate;
     const driftWith = (h: number, d: number, m: number, mr: number) => h * -d + mr * m;
@@ -401,7 +456,7 @@ function main(): void {
     const dominant = terms.reduce((a, b) => (Math.abs(b.delta) > Math.abs(a.delta) ? b : a));
     const share = Math.abs(dominant.delta) / terms.reduce((a, t) => a + Math.abs(t.delta), 0);
     console.log(
-      `  ${label.padEnd(16)} drift ${e.drift >= 0 ? "+" : ""}${e.drift.toFixed(3)} against live's ` +
+      `  ${label.padEnd(18)} drift ${e.drift >= 0 ? "+" : ""}${e.drift.toFixed(3)} against live's ` +
         `+${live.drift.toFixed(3)}  —  dominant term: ${dominant.name} ` +
         `(${(share * 100).toFixed(0)}% of the total absolute term movement)`,
     );
