@@ -2158,8 +2158,15 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
   /**
    * A room-1 reward offer holding a Heal — which `pickBoon` takes with the
    * largest bonus in the ranker — alongside an unmodelled target. If the
-   * override works, TieWeak wins anyway; if it is off, Heal must win, and
-   * that contrast is the whole assertion.
+   * override works, AddBurnShield wins anyway; if it is off, Heal must win,
+   * and that contrast is the whole assertion.
+   *
+   * [session 82] The target moved off TieWeak, which is now MODELLED — it got
+   * a first-ever pickup pair from the 2026-08-23 juiced batch via the ordinary
+   * orb fallback — and is retired from DEFAULT_CAPTURE_TARGETS. AddBurnShield
+   * is the new head of that list (11 corpus offers, all room 1). The fixture
+   * has to name a genuinely unmodelled type or the override under test would
+   * retire itself by limit 3 and the assertion would pass vacuously.
    */
   function armedRewardScenario(capture: LiveRunDeps["boonCapture"]) {
     const offering = fakeRun({
@@ -2167,7 +2174,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
       rewardPathPhase: true,
       rewardPathOptions: [
         { index: 0, boon: boon("Heal", 8) },
-        { index: 1, boon: boon("TieWeak", 2) },
+        { index: 1, boon: boon("AddBurnShield", 2) },
       ],
       players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63", 30, 30)],
     });
@@ -2212,7 +2219,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
     // The pair is the entire justification for paying the run-quality cost.
     expect(capture.captures).toHaveLength(1);
     const pair = capture.captures[0]!;
-    expect(pair.type).toBe("TieWeak");
+    expect(pair.type).toBe("AddBurnShield");
     expect(pair.room).toBe(1);
     expect(pair.beforeTag).not.toBe(pair.afterTag);
     // Both halves must actually be on disk, or the "pair" is a claim about
@@ -2244,7 +2251,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
       rewardPathPhase: true,
       rewardPathOptions: [
         { index: 0, boon: boon("Heal", 8) },
-        { index: 1, boon: boon("TieWeak", 2) },
+        { index: 1, boon: boon("AddBurnShield", 2) },
       ],
       players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63", 30, 30)],
     });
@@ -2283,7 +2290,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
 
     // Both offers were decided; only the first was overridden.
     expect(posts.map((b) => b.action)).toEqual(["reward_two", "reward_one"]);
-    expect(capture.captures.map((c) => c.type)).toEqual(["TieWeak"]);
+    expect(capture.captures.map((c) => c.type)).toEqual(["AddBurnShield"]);
   });
 });
 

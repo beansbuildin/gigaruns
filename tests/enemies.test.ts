@@ -199,6 +199,16 @@ describe("player loadout matches the fixtures", () => {
     // session 61, which is why the assertion below is unchanged. The evidence
     // is in the SEQUENCE, not in a new pair of numbers.
     expect([...seen].sort()).toEqual([
+      // [session 82] ONE new combo from the four juiced runs of 2026-08-23,
+      // and it is NOT a new starting loadout: 48/22 is run 4 mid-run, after a
+      // single AddMaxHealth took hpMax 40 -> 48 on an unchanged armorMax 22.
+      //
+      // **The starting loadout is byte-identical to session 75's** — rock
+      // 25/8, paper 10/15, scissor 12/8, 40/22, block 10, read off run 1's own
+      // `start_run` and diffed against `enemies.ts` before run 2 as the brief
+      // required. So unlike session 75, all four runs here are ONE arm and may
+      // be read against each other. That is the useful output of this census
+      // on a session where nothing drifted: a stated negative, not silence.
       // [session 75] FIVE new combos from the four juiced runs of 2026-08-22,
       // and only ONE of them is a new starting loadout. 40/22 is the user's
       // armor re-spec, stated in chat between runs 3 and 4 and captured from
@@ -216,7 +226,7 @@ describe("player loadout matches the fixtures", () => {
       "40/21",
       "40/22", "40/25",
       "40/27",
-      "40/30", "42/16", "42/18", "42/26", "43/17", "43/25", "50/16", "54/17",
+      "40/30", "42/16", "42/18", "42/26", "43/17", "43/25", "48/22", "50/16", "54/17",
       "54/25",
       "54/27",
       "54/30",

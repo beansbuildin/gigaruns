@@ -99,17 +99,33 @@ import type { BoonOption } from "../sim/boons.js";
  * frequency over `OBSERVED_OFFERS` (TieWeak 11, AddBurnShield 10, Regen 7,
  * LossBlockUp 5, VulnerableBlock 4).
  *
+ * [session 82] **TWO MORE RETIRED — `TieWeak` and `VulnerableBlock` — and
+ * neither was captured by this module.** Both got their first-ever pickup
+ * pairs from the 2026-08-23 juiced batch through the ordinary rules: the orb
+ * fallback took TieWeak at room 1 (14 Hard Core out of [14, 12, 13]) and the
+ * BOON-PRIORITY Vulnerable family took VulnerableBlock at room 3. That is
+ * three of the original five targets now modelled without `boonCapture` ever
+ * being switched on, which is worth stating plainly: the shipped rules are
+ * clearing this list on their own, and the 27-runs-to-model-five estimate
+ * above was measuring the wrong mechanism's cost.
+ *
+ * Replacements follow the same rule as session 75's — next-ranked unmodelled
+ * types still offered in a permitted room: `WeakeningMastery` (5 offers, all
+ * room 1) and `AddLifestealSword` (4 offers, all room 1). Order remains offer
+ * frequency over `OBSERVED_OFFERS`: AddBurnShield 11, Regen 7, LossBlockUp 5,
+ * WeakeningMastery 5, AddLifestealSword 4.
+ *
  * **This changes nothing that runs.** `boonCapture` is settled OFF and needs
  * both a config flag and an explicit `--boon-capture` argument; keeping the
  * list coherent is bookkeeping so the module is not quietly dead code the day
  * someone turns it on.
  */
 export const DEFAULT_CAPTURE_TARGETS: readonly string[] = [
-  "TieWeak",
   "AddBurnShield",
   "Regen",
   "LossBlockUp",
-  "VulnerableBlock",
+  "WeakeningMastery",
+  "AddLifestealSword",
 ];
 
 /** See limit 1 above. */

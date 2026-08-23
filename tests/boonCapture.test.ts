@@ -53,7 +53,7 @@ const player = (hp: number, hpMax: number): Combatant =>
 
 describe("chooseCaptureBoon — the gate", () => {
   it("returns null when disabled, even on an offer full of targets", () => {
-    expect(call([opt("TieWeak"), opt("Regen")], 1, { config: BOON_CAPTURE_OFF })).toBeNull();
+    expect(call([opt("AddBurnShield"), opt("Regen")], 1, { config: BOON_CAPTURE_OFF })).toBeNull();
   });
 
   it("BOON_CAPTURE_OFF is off but still carries the real target list, so an armed caller cannot forget it", () => {
@@ -64,28 +64,28 @@ describe("chooseCaptureBoon — the gate", () => {
 
 describe("chooseCaptureBoon — the three limits", () => {
   it("limit 1: fires in room 1", () => {
-    const d = call([opt("AddLuck"), opt("TieWeak")], 1);
-    expect(d?.option.type).toBe("TieWeak");
+    const d = call([opt("AddLuck"), opt("AddBurnShield")], 1);
+    expect(d?.option.type).toBe("AddBurnShield");
     expect(d?.index).toBe(1);
   });
 
   it("limit 1: does NOT fire in rooms 2+, where a bad boon costs more", () => {
     for (const room of [2, 3, 4, 9]) {
-      expect(call([opt("AddLuck"), opt("TieWeak")], room)).toBeNull();
+      expect(call([opt("AddLuck"), opt("AddBurnShield")], room)).toBeNull();
     }
   });
 
   it("limit 2: does not fire twice in one run", () => {
-    expect(call([opt("TieWeak")], 1, { alreadyCaptured: true })).toBeNull();
+    expect(call([opt("AddBurnShield")], 1, { alreadyCaptured: true })).toBeNull();
   });
 
   it("limit 3: a target that already has a model retires itself", () => {
-    const d = call([opt("TieWeak"), opt("Regen")], 1, { isModelled: (t) => t === "TieWeak" });
+    const d = call([opt("AddBurnShield"), opt("Regen")], 1, { isModelled: (t) => t === "AddBurnShield" });
     expect(d?.option.type).toBe("Regen");
   });
 
   it("limit 3: when every target is modelled it stops firing entirely", () => {
-    expect(call([opt("TieWeak"), opt("Regen")], 1, { isModelled: () => true })).toBeNull();
+    expect(call([opt("AddBurnShield"), opt("Regen")], 1, { isModelled: () => true })).toBeNull();
   });
 });
 
@@ -95,10 +95,14 @@ describe("chooseCaptureBoon — selection", () => {
   });
 
   it("prefers the more frequently offered target when an offer holds two", () => {
-    // TieWeak (11 corpus offers) outranks VulnerableBlock (4) because it is
-    // earlier in DEFAULT_CAPTURE_TARGETS — modelling the common one first.
-    const d = call([opt("VulnerableBlock"), opt("TieWeak")], 1);
-    expect(d?.option.type).toBe("TieWeak");
+    // [session 82] The example moved off TieWeak/VulnerableBlock: both got
+    // first-ever pickup pairs from the 2026-08-23 juiced batch through the
+    // ORDINARY rules, so both are modelled and retired from the target list.
+    // AddBurnShield (11 corpus offers) outranks AddLifestealSword (4) because
+    // it is earlier in DEFAULT_CAPTURE_TARGETS — modelling the common one
+    // first. Same swap session 75 made when AddLifestealShield retired.
+    const d = call([opt("AddLifestealSword"), opt("AddBurnShield")], 1);
+    expect(d?.option.type).toBe("AddBurnShield");
   });
 
   it("reports the position within the offered array, and returns the offer's own object", () => {
@@ -112,7 +116,7 @@ describe("chooseCaptureBoon — selection", () => {
   });
 
   it("the reason names rule 8 explicitly, so a later reader does not 'fix' this as a rule-8 violation", () => {
-    expect(call([opt("TieWeak")], 1)?.reason).toMatch(/rule 8 does not apply/i);
+    expect(call([opt("AddBurnShield")], 1)?.reason).toMatch(/rule 8 does not apply/i);
   });
 });
 

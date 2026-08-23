@@ -119,13 +119,20 @@ export interface EnemyBuffModel {
  * **24 base ids and 22 `perpetual_` twins** — 46 entries, but NOT a mirror.
  * [session 63 CORRECTION: this said "23 plus 23", which implied a symmetry the
  * corpus does not have.] `perpetual_corrosiveShield` and
- * `perpetual_corrosiveMagic` are the two missing twins; they appear ZERO times
- * across `fixtures/`, where `perpetual_corrosiveSword` appears 24 times, so
- * they are absent because they were never observed, not by oversight. Do not
- * "complete" the table without a capture — that is exactly the inference rule 1
- * forbids, and it is not needed: the wire inlines each buff's own `effects[]`
- * (verified on `activeEnemyBuff`), so an unseen twin is handled correctly the
- * first time it arrives. `tests/corrode.test.ts` pins the gap.
+ * `perpetual_corrosiveMagic` are the two missing twins.
+ *
+ * [session 82 CORRECTION: `perpetual_corrosiveShield` no longer appears zero
+ * times — run `25011957` offered it in room 2 and it is now in `fixtures/` 4
+ * times. `perpetual_corrosiveMagic` is still at zero.] **The table is still
+ * NOT completed, and that is the finding rather than an omission.** The twin
+ * arrived exactly as this comment predicted it would: inline on the wire,
+ * carrying its own `effects: [{ kind: onEnemyWinExchange_corrode, amount: 3,
+ * moveType: "paper" }]`, and it classified correctly with no entry present. So
+ * the capture that would license "completing" the table is also the capture
+ * proving the entry buys nothing. Do not add it without a reason beyond
+ * symmetry — that is still the inference rule 1 forbids.
+ * `tests/corrode.test.ts` pins the gap, and its synthetic wire-shaped case
+ * turned out to match the real one field for field.
  *
  * The `perpetual_` prefix is a DELIVERY difference (the buff persists across the
  * run rather than sitting on one path) and not an effect difference, so the

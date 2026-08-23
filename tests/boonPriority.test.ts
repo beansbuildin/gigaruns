@@ -325,9 +325,20 @@ describe("against the corpus", () => {
     }
   });
 
-  it("the boonCapture overlap is 1 of 5 — the reason both layers still exist", () => {
+  it("the boonCapture overlap is 0 of 5 — the priority layer captured the one type they shared", () => {
+    // [session 82] Was 1 of 5, and the single overlapping type was
+    // `VulnerableBlock` — a boonCapture target that ALSO sat in the Vulnerable
+    // priority family. It is gone from the target list because the priority
+    // layer went and picked it live (run 3, room 3, BOON-PRIORITY 5 over
+    // ranked AddEvasion), giving it a first-ever pickup pair and a model.
+    //
+    // **So the overlap did not get tidied away; it got RESOLVED by the layer
+    // that owned it**, which is a stronger version of what the old title
+    // claimed. The two layers remain distinct — boonCapture reaches types no
+    // priority family names, and that is now true of all five targets rather
+    // than four of them.
     const subsumed = DEFAULT_CAPTURE_TARGETS.filter((t) => priorityOf(t, 1) !== null);
-    expect(subsumed).toEqual(["VulnerableBlock"]);
+    expect(subsumed).toEqual([]);
   });
 
   it("reaches unmodelled types the scorer never could — the by-product capture", () => {

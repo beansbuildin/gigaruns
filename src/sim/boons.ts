@@ -393,6 +393,47 @@ export const BOON_MODELS: Record<string, BoonModel> = {
   },
 
   // ─────────────────────────────────────────────────────────────────────────
+  // [session 82, LIVE] TWO first pairs from the day's four juiced runs, and
+  // they split across the two mechanisms exactly the way session 62's §5
+  // instrumentation asks them to be recorded.
+  //
+  // `TieWeak` came from the ORB FALLBACK (14 Hard Core out of [14, 12, 13],
+  // overriding ranked `AddIntuition`); `VulnerableBlock` came from BOON
+  // PRIORITY 5, the Vulnerable family, over ranked `AddEvasion`. Running total
+  // across sessions 60-82: **orb 8, priority 6.**
+  //
+  // `TieWeak` is the one worth naming. It was the most-offered unmodelled type
+  // on the entire record — 11 offers since session 03 and never once taken —
+  // so it had spent longer at the top of `boonCoverage`'s gap list than any
+  // other type. It then landed TWICE in one day (runs 2 and 4), which is the
+  // ordinary way a long-standing gap closes: not because anything sought it
+  // out, but because enough offers eventually went through the same rule.
+  TieWeak: {
+    // Same latent shape as every entry above it: the pair's ONLY difference is
+    // the boon appearing in `pickedBoons` — health, shield, all three moves and
+    // every rolled stat byte-identical across both recorded pickups. Per
+    // DECISIONS 2026-08-15 the effect is NOT inferred from the name; "Weak
+    // applied on a tie" is a plausible reading and it stays a reading.
+    // `Uncommon` (RARITY_CID 1), `selectedVal1` 1 on both pickups.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-23-05-35-28 state-005→state-006",
+    observed: "selectedVal1 1 → no change to any player field",
+  },
+
+  VulnerableBlock: {
+    // Latent on the same evidence, and the name is a two-part reading rather
+    // than one: neither "applies Vulnerable" nor "on a block" is confirmed.
+    // Note `block` was already 10 from gear before the pickup and stayed 10
+    // after, so `selectedVal1` 4 is NOT a flat add to the rolled `block` stat
+    // — the one reading the pair actually rules OUT. `Rare` (RARITY_CID 2).
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-23-05-45-51 state-005→state-006",
+    observed: "selectedVal1 4 → no change to any player field, block 10 → 10",
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
   // [session 62, LIVE] FIVE first pairs in one session, from two juiced runs.
   //
   // This is the largest single-session coverage gain this table has had, and
@@ -1757,6 +1798,119 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 7,
     source: "run-2026-08-22-04-27-03/state-115",
     options: [opt("UpgradeRock", 4), opt("Heal", 16), opt("AddEvasion", 1)],
+  },
+
+  // [session 82, LIVE] 21 offers from the day's FOUR juiced runs, taking the
+  // table 181 -> 202. Deaths at rooms 8, 3, 7 and 7, so no offer here is
+  // deeper than room 7 and the room-9 ceiling below is untouched.
+  //
+  // Two of these produced first-ever PICKUP pairs (TieWeak, VulnerableBlock —
+  // see BOON_MODELS), and one carries a first-ever TYPE: LossEvasionUp, which
+  // had never appeared in any offer at any depth before run 1.
+  {
+    room: 1,
+    source: "run-2026-08-23-05-18-39/state-007",
+    options: [opt("AddLuck", 1), opt("AddTenacity", 2), opt("AddMaxArmor", 8)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-23-05-18-39/state-017",
+    options: [opt("AddTenacity", 5), opt("UpgradeRock", 0, 8), opt("CorrosiveSword", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-23-05-18-39/state-031",
+    options: [opt("AddBlock", 12), opt("AddBlock", 3), opt("AddWeakShield", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-23-05-18-39/state-051",
+    options: [opt("CorrosiveMagic", 2), opt("AddEvasion", 1), opt("AddLuck", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-23-05-18-39/state-077",
+    options: [opt("AddBurnMagic", 3), opt("AddLuck", 5), opt("WeakeningMastery", 10)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-23-05-18-39/state-089",
+    options: [opt("AddLuck", 10), opt("BurningEvade", 8), opt("AddLuck", 1)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-23-05-18-39/state-105",
+    options: [opt("AddEvasion", 2), opt("LossEvasionUp", 5), opt("AddLifestealShield", 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-23-05-35-28/state-005",
+    options: [opt("TieWeak", 1), opt("AddIntuition", 1), opt("SecondWind", 5)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-23-05-35-28/state-039",
+    options: [opt("CorrosiveShield", 2), opt("UpgradePaper", 0, 4), opt("AddLifestealShield", 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-23-05-45-51/state-005",
+    options: [opt("WeakeningBlock", 4), opt("AddEvasion", 1), opt("VulnerableBlock", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-23-05-45-51/state-023",
+    options: [opt("AddLifestealShield", 2), opt("AddLuck", 1), opt("UpgradePaper", 8)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-23-05-45-51/state-045",
+    options: [opt("AddEvasion", 1), opt("UpgradeScissor", 0, 4), opt("AddTenacity", 7)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-23-05-45-51/state-079",
+    options: [opt("Vengeance", 25), opt("AddLuck", 5), opt("Heal", 50)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-23-05-45-51/state-097",
+    options: [opt("AddIntuition", 1), opt("AddTenacity", 2), opt("AddLuck", 4)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-23-05-45-51/state-119",
+    options: [opt("SecondWind", 10), opt("AddIntuition", 2), opt("AddLifestealShield", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-23-05-53-49/state-013",
+    options: [opt("AddLuck", 1), opt("AddIntuition", 1), opt("LossLuckUp", 5)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-23-05-53-49/state-021",
+    options: [opt("AddBurnMagic", 3), opt("SecondWind", 10), opt("AddEvasion", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-23-05-53-49/state-039",
+    options: [opt("AddLuck", 1), opt("AddMaxHealth", 8), opt("AddBlock", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-23-05-53-49/state-055",
+    options: [opt("TieWeak", 1), opt("CorrosiveShield", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-23-05-53-49/state-071",
+    options: [opt("AddBurnShield", 3), opt("AddBlock", 2), opt("AddLuck", 1)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-23-05-53-49/state-085",
+    options: [opt("BurningEvade", 8), opt("AddLuck", 2), opt("AddBlock", 12)],
   },
 ];
 

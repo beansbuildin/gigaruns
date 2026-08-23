@@ -103,6 +103,17 @@ describe("corrodeOnEnemyWin — the model", () => {
     // capture. Should one ever land on the wire, it will arrive with its own
     // `effects[]` inline and be handled correctly on sight — which is why the
     // absence is safe as well as honest.
+    //
+    // [session 82] **One of them landed, and the prediction held.** Run
+    // `25011957` offered `perpetual_corrosiveShield` in room 2 — the first of
+    // 4 appearances in `fixtures/`, against zero before. It arrived inline
+    // with `{ kind: CORRODE_KIND, amount: 3, moveType: "paper" }`, which is
+    // field-for-field the synthetic case written below on a guess in session
+    // 63. The assertions are UNCHANGED and still pass: the table entry is
+    // still absent, and the buff still classifies correctly without it. That
+    // is the point — a capture that licenses completing the table is the same
+    // capture showing the entry would add nothing. `perpetual_corrosiveMagic`
+    // is still at zero.
     expect(ENEMY_BUFFS["perpetual_corrosiveShield"]).toBeUndefined();
     expect(ENEMY_BUFFS["perpetual_corrosiveMagic"]).toBeUndefined();
     expect(corrodeOnEnemyWin({ id: "perpetual_corrosiveShield" }, "paper", true)).toBe(0);
