@@ -57,6 +57,10 @@ import {
   standardise,
   wilson,
   FOCUS_POOL,
+  assertOpeningFocusPinned,
+  openingOverspend,
+  openingOverspendByDay,
+  openingOverspendSplit,
 } from "../../src/sim/fishing/castEra.js";
 import {
   assertRedrawCounterfactualSound,
@@ -332,5 +336,118 @@ describe("§3's heldCoverage signal, re-run per era", () => {
     // is what turns the trigger's job from selection into detection.
     const k7 = today.sweep.find((r) => r.threshold === 7)!;
     expect([k7.fires, k7.rescues, k7.sacrifices, k7.manaSpent]).toEqual([9, 7, 0, 11]);
+  });
+});
+
+/**
+ * [session 85, brief §1 / GATE 1] The overspend control.
+ *
+ * Session 84 left the collapse's proximate mechanism as one number — first-play
+ * spend 1.553 -> 0.852 — which cannot tell *the fish got easier to reach* from
+ * *the bot aimed more cheaply*. These pin the second half.
+ *
+ * ⚠ Read the ORACLE caveat in `openingOverspend`'s docblock before quoting any
+ * of these figures. `optimal` uses the cell the fish actually resolved on, so
+ * neither arm's LEVEL is a policy target; only the era COMPARISON is sound, and
+ * it is sound precisely because the same oracle lens is applied to both.
+ *
+ * Unlike session 84's play counts — which failed to reproduce the brief three
+ * briefs running — every §1 figure here landed on the first run with no
+ * predicate search. That is recorded because it is the evidence that the
+ * measurement is the brief's, not a near-miss reconstruction of it.
+ */
+describe("§1 / GATE 1 — the bot stopped OVERSHOOTING; the target never moved", () => {
+  const over = openingOverspendSplit(traces, created);
+
+  it("pins the shared origin the whole control rests on: 147 of 147 RECORDED openings at (2,2)", () => {
+    // The claim is stronger than the brief's "147 of 148" and its exception has
+    // ONE cause, not two. See `assertOpeningFocusPinned`'s docblock.
+    expect(() => assertOpeningFocusPinned(traces)).not.toThrow();
+    expect(traces.filter((t) => t.hasStart).length).toBe(147);
+    const unrecorded = traces.filter((t) => !t.hasStart);
+    expect(unrecorded).toHaveLength(1);
+    expect(unrecorded[0]!.docId).toBe("12975152");
+    // Its turn 0 is a MID-CAST RESUME, which is why it opens at (3,2) with a
+    // partly-spent meter and a one-card hand...
+    expect(unrecorded[0]!.turns[0]!.focusPoint).toEqual({ x: 3, y: 2 });
+    expect(unrecorded[0]!.turns[0]!.focusMeter).toBe(2);
+    expect(unrecorded[0]!.turns[0]!.play).not.toBeNull();
+    // ...and it is ALSO the corpus's only cast with no covering focus at all.
+    // One cause, two apparent anomalies.
+    expect(openingOverspend(unrecorded[0]!, created)!.optimal).toBeNull();
+    expect(over.rows.filter((r) => r.optimal === null)).toHaveLength(1);
+  });
+
+  it("reproduces the brief's table cell for cell — and the optimal move is UNCHANGED", () => {
+    expect([over.before.casts, over.today.casts]).toEqual([94, 54]);
+
+    // The hands did not get wider.
+    expect(over.before.meanHandFootprint).toBeCloseTo(7.38, 2);
+    expect(over.today.meanHandFootprint).toBeCloseTo(7.20, 2);
+
+    // What the bot spent — and it must reproduce `focusEraSplit`'s own figure
+    // rather than merely resemble it, which is what the shared first-play
+    // predicate buys.
+    expect(over.before.meanActual).toBeCloseTo(1.553, 3);
+    expect(over.today.meanActual).toBeCloseTo(0.852, 3);
+    const eras = focusEraSplit(traces, created);
+    expect(over.before.meanActual).toBeCloseTo(eras.before.meanFirstPlaySpend, 10);
+    expect(over.today.meanActual).toBeCloseTo(eras.today.meanFirstPlaySpend, 10);
+
+    // THE CONTROL: the cheapest move that could have worked did not move.
+    expect(over.before.meanOptimal).toBeCloseTo(0.656, 3);
+    expect(over.today.meanOptimal).toBeCloseTo(0.648, 3);
+    expect(Math.abs(over.before.meanOptimal - over.today.meanOptimal)).toBeLessThan(0.01);
+
+    // So the entire difference is OVERSPEND.
+    expect(over.before.overspend).toBeCloseTo(0.897, 3);
+    expect(over.today.overspend).toBeCloseTo(0.204, 3);
+  });
+
+  it("matches on the whole optimal DISTRIBUTION, not just its mean", () => {
+    // A mean can agree while the shapes differ, and "the target never moved" is
+    // a claim about the distribution. Before: 41/43/9. Today: 26/21/7.
+    expect([...over.before.optimalHistogram.entries()].sort()).toEqual([[0, 41], [1, 43], [2, 9]]);
+    expect([...over.today.optimalHistogram.entries()].sort()).toEqual([[0, 26], [1, 21], [2, 7]]);
+    // The ACTUAL distributions, by contrast, are nothing alike — and the tell
+    // is the tail: 17 before-era casts spent the WHOLE meter on move one, and
+    // today's era has no such cast at all.
+    expect([...over.before.actualHistogram.entries()].sort()).toEqual([[0, 12], [1, 35], [2, 30], [3, 17]]);
+    expect([...over.today.actualHistogram.entries()].sort()).toEqual([[0, 21], [1, 20], [2, 13]]);
+    expect(over.today.actualHistogram.get(3) ?? 0).toBe(0);
+  });
+
+  it("§1a — the series STEPS, it does not trend, which is what bears on the cause", () => {
+    const days = openingOverspendByDay(over.rows);
+    const byDay = new Map(days.map((d) => [d.day, d]));
+    const at = (d: string): number => byDay.get(d)!.overspend;
+
+    expect(at("2026-08-15")).toBeCloseTo(1.0, 2);
+    expect(at("2026-08-16")).toBeCloseTo(0.8, 2);
+    expect(at("2026-08-17")).toBeCloseTo(1.15, 2);
+    expect(at("2026-08-19")).toBeCloseTo(0.84, 2);
+    expect(at("2026-08-20")).toBeCloseTo(-0.4, 2);
+    expect(at("2026-08-21")).toBeCloseTo(0.1, 2);
+    expect(at("2026-08-22")).toBeCloseTo(0.25, 2);
+    expect(at("2026-08-23")).toBeCloseTo(0.5, 2);
+
+    // 08-18 is the unscored single cast — the resumed one above. It carries no
+    // overspend because it has no optimal, and NaN is the honest value.
+    expect(byDay.get("2026-08-18")!.n).toBe(1);
+    expect(byDay.get("2026-08-18")!.scored).toBe(0);
+    expect(Number.isNaN(byDay.get("2026-08-18")!.overspend)).toBe(true);
+
+    // ⚠ THE DATING CAVEAT, pinned so it cannot be lost: the 08-20 casts already
+    // read the NEW regime, and they are stamped BEFORE sessions 61/62's
+    // commits. So the 20.3h empty gap is NOT a clean bracket, and a session
+    // spent replaying those two commits may be replaying the wrong side of the
+    // change. n=5 — a caveat, not a result.
+    expect(byDay.get("2026-08-20")!.n).toBe(5);
+    expect(at("2026-08-20")).toBeLessThan(at("2026-08-19"));
+
+    // And inside today's era it drifts back UP rather than continuing down,
+    // which is what argues against a still-sharpening learned model.
+    expect(at("2026-08-21")).toBeLessThan(at("2026-08-22"));
+    expect(at("2026-08-22")).toBeLessThan(at("2026-08-23"));
   });
 });

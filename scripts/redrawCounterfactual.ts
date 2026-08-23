@@ -66,6 +66,8 @@ import {
   focusEraSplit,
   firedOil,
   loadCastCreatedAt,
+  openingOverspendByDay,
+  openingOverspendSplit,
   playCount,
   POLICY_ERA_BOUNDARY,
   splitByEra,
@@ -223,6 +225,9 @@ function main(): void {
 
   // ── §7a  DOES THE TRIGGER SIGNAL SURVIVE THE ERA SPLIT? ─────────────────
   printEraSeparability(traces, created);
+
+  // ── §7b  [session 85 §1 / GATE 1] THE OVERSPEND CONTROL ─────────────────
+  printOverspend(traces, created);
 
   console.log("\n── §8  READ THIS BEFORE QUOTING ANY OF IT ──");
   console.log("  Redraw is CLOSED and nothing here reopens it. `redrawEnabled` ships false and is");
@@ -491,6 +496,66 @@ export function printManaSlack(traces: readonly import("../src/sim/fishing/castT
   );
   console.log(
     `    escapes ${m.meanWhenEscaped.toFixed(2)} left (n=${m.escaped})   catches ${m.meanWhenCaught.toFixed(2)} left (n=${m.caught})`,
+  );
+}
+
+/**
+ * §7b — [session 85 §1 / GATE 1] the opening-play overspend control, plus the
+ * daily series §1a turns on.
+ *
+ * The argument in one line: session 84 showed the bot's first-play focus spend
+ * fell 1.553 -> 0.852, and this shows the CHEAPEST MOVE THAT WOULD HAVE WORKED
+ * did not move at all (0.656 -> 0.648). So the collapse is overshoot
+ * disappearing, not targets getting easier.
+ *
+ * ⚠ ORACLE-LENSED. `optimal` uses the cell the fish actually resolved on. It is
+ * a control applied identically to both eras, never a policy target — same
+ * posture as `matcherHeadroom.ts`'s oracle rows.
+ */
+function printOverspend(
+  traces: readonly CastTrace[],
+  created: ReadonlyMap<string, string>,
+): void {
+  const over = openingOverspendSplit(traces, created);
+  console.log(`\n── §7b  THE OVERSPEND CONTROL — did the bot aim cheaper, or did the fish get closer? ──`);
+  console.log(`  ${"".padEnd(10)}${"casts".padStart(7)}${"hand fp".padStart(10)}${"actual".padStart(9)}${"optimal".padStart(9)}${"OVERSPEND".padStart(11)}`);
+  for (const arm of [over.before, over.today, over.all]) {
+    console.log(
+      `  ${arm.era.padEnd(10)}${String(arm.casts).padStart(7)}${arm.meanHandFootprint.toFixed(2).padStart(10)}` +
+        `${arm.meanActual.toFixed(3).padStart(9)}${arm.meanOptimal.toFixed(3).padStart(9)}` +
+        `${(arm.overspend >= 0 ? "+" : "") + arm.overspend.toFixed(2)}`.padStart(11),
+    );
+  }
+  const hist = (m: ReadonlyMap<number, number>, n: number): string =>
+    [...m.entries()].sort((a, b) => a[0] - b[0]).map(([d, c]) => `${d}:${c} (${((100 * c) / n).toFixed(0)}%)`).join("  ");
+  console.log(`\n  optimal move distance   before  ${hist(over.before.optimalHistogram, over.before.scored)}`);
+  console.log(`                          today   ${hist(over.today.optimalHistogram, over.today.scored)}`);
+  console.log(`  actual  move distance   before  ${hist(over.before.actualHistogram, over.before.casts)}`);
+  console.log(`                          today   ${hist(over.today.actualHistogram, over.today.casts)}`);
+  console.log(
+    `\n  THREE DOORS CLOSED AT ONCE. The targets did not get closer (optimal 0.656 vs 0.648, and the\n` +
+      `  whole distribution matches). The hands did not get wider (footprint 7.38 vs 7.20 cells). And the\n` +
+      `  opening focus is (2,2) on ALL 147 casts with a recorded start — assertOpeningFocusPinned. What\n` +
+      `  changed is how far the bot CHOOSES to move. It does NOT name what changed; rule 6.`,
+  );
+
+  console.log(`\n  §1a  THE DAILY SERIES — it STEPS, it does not trend`);
+  for (const d of openingOverspendByDay(over.rows)) {
+    const os = Number.isNaN(d.overspend) ? "     —" : `${(d.overspend >= 0 ? "+" : "") + d.overspend.toFixed(2)}`.padStart(6);
+    console.log(
+      `    ${d.day}  n=${String(d.n).padStart(3)}  actual ${d.meanActual.toFixed(2)}  ` +
+        `optimal ${Number.isNaN(d.meanOptimal) || d.scored === 0 ? " —  " : d.meanOptimal.toFixed(2)}  overspend ${os}` +
+        (d.scored === 0 ? "   (the one resumed cast — no recorded opening, no optimal)" : ""),
+    );
+  }
+  console.log(
+    `\n  A learned model sharpening as the mined corpus grew would DECLINE GRADUALLY. This steps, and\n` +
+      `  inside today's era it drifts back UP (+0.10 -> +0.25 -> +0.50). That argues for a DISCRETE change.\n` +
+      `\n  ⚠ AND IT BREAKS THE BRACKET. The five 08-20 casts already read the NEW regime (-0.40) and are\n` +
+      `  stamped BEFORE sessions 61/62's commits (11:27 PT vs 13:33 and 15:59 PT). At n=5 that is not\n` +
+      `  evidence, but the corpus cannot date the change closer than "between 08-19 and 08-21", so the\n` +
+      `  20.3h empty gap is NOT the clean bracket it looks like. Session 84's open question 1 proposes\n` +
+      `  replaying those two commits' policies — they may sit on the WRONG SIDE of the change.`,
   );
 }
 

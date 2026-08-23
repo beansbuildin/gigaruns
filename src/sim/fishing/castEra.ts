@@ -60,9 +60,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import type { CastTrace, CastTurn } from "./castTrace.js";
+import type { CastTrace, CastTurn, TraceCard } from "./castTrace.js";
 import { budgetBefore, cardCovers } from "./matcherHeadroom.js";
-import { manhattan } from "./geometry.js";
+import { allCells, cellKey, manhattan, zonesToCells } from "./geometry.js";
 
 /**
  * The date, UTC, on and after which a cast belongs to today's policy era.
@@ -559,4 +559,265 @@ export function deckCritFraction(t: CastTrace): number {
   const ids = [...new Set(first.fullDeck)].filter((id) => t.cards.has(id));
   if (ids.length === 0) return 0;
   return ids.filter((id) => t.cards.get(id)!.critZones.length > 0).length / ids.length;
+}
+
+// ── §6  THE OVERSPEND CONTROL ───────────────────────────────────────────────
+
+/**
+ * [session 85 §1 / GATE 1] **The bot stopped OVERSHOOTING; the target never
+ * moved.**
+ *
+ * Session 84 named the proximate mechanism of the 44.9% -> 1.5% collapse as
+ * mean first-play focus spend falling 1.553 -> 0.852. That is one number and
+ * it does not separate two very different stories: *the fish got easier to
+ * reach* from *the bot aimed more cheaply*. This is the second half.
+ *
+ * For each cast's OPENING play, three quantities measured the same way in both
+ * eras:
+ *
+ *  - **actual** — `manhattan(prev.focusPoint, cur.focusPoint)`, what the bot
+ *    spent. Identical to `FocusEraArm.meanFirstPlaySpend`'s per-cast term, and
+ *    it must reproduce it.
+ *  - **optimal** — the SMALLEST move distance from the opening focus at which
+ *    some card in the HELD hand covers the cell the fish actually resolved on.
+ *    The cheapest move that could have worked.
+ *  - **overspend** — actual minus optimal.
+ *
+ * `optimal` is ORACLE-LENSED: it uses `cur.fishPosition`, which no policy knows
+ * at decision time. That is deliberate and it is why it is a CONTROL and not a
+ * policy — it is applied identically to both eras, so the *comparison* is
+ * sound even though neither arm's level is achievable. Same posture as
+ * `matcherHeadroom.ts`'s oracles: a ceiling to score against, never a target.
+ *
+ * The measured answer, on the corpus as committed:
+ *
+ * ```
+ *            casts  hand footprint  actual  optimal  OVERSPEND
+ *   before      94      7.38 cells   1.553    0.656      +0.90
+ *   today       54      7.20 cells   0.852    0.648      +0.20
+ * ```
+ *
+ * **The optimal move is unchanged — 0.656 against 0.648** — and so is its
+ * whole distribution (distance 0 on 44% / 48%, 1 on 46% / 39%, 2 on 10% / 13%).
+ * What collapsed is the overspend, 0.90 -> 0.20.
+ *
+ * This closes three doors at once, which is more than intrinsic reach did:
+ * the targets did not get closer, the hands did not get wider (7.38 vs 7.20
+ * cells), and the opening focus point is pinned at (2,2) by
+ * `assertOpeningFocusPinned`. Whatever changed, it changed how far the bot
+ * CHOOSES to move — nothing about what it was moving toward.
+ *
+ * ⚠ **It still does not name the cause.** Rule 6. See `openingOverspendByDay`.
+ */
+export interface OverspendRow {
+  docId: string;
+  era: Era;
+  /** `YYYY-MM-DD` off `doc.createdAt`, for the daily series. */
+  day: string;
+  /** Move distance the bot actually spent on its first play. */
+  actual: number;
+  /**
+   * Cheapest move distance at which the held hand covers the resolution cell,
+   * or `null` when NO focus placement on the grid does. Null on exactly one
+   * corpus cast — see `assertOpeningFocusPinned` for why it is the same cast
+   * that fails the (2,2) pin, and why both have one cause.
+   */
+  optimal: number | null;
+  /** Distinct grid cells the held hand covers fired from the OPENING focus point. */
+  handFootprint: number;
+  /** `budgetBefore(prev, cur)` — reconstructed, never the stale pre-play meter. */
+  budget: number;
+}
+
+/**
+ * The opening-play row for one cast, or `null` when the cast records no play.
+ *
+ * The "first play" predicate is the FIRST turn bearing a `play`, matching
+ * `armOf`'s exactly so `meanActual` below reproduces
+ * `FocusEraArm.meanFirstPlaySpend` rather than merely resembling it.
+ */
+export function openingOverspend(
+  t: CastTrace,
+  created: ReadonlyMap<string, string>,
+): OverspendRow | null {
+  let i = -1;
+  for (let k = 1; k < t.turns.length; k++) {
+    if (t.turns[k]!.play) {
+      i = k;
+      break;
+    }
+  }
+  if (i < 0) return null;
+  const prev = t.turns[i - 1]!;
+  const cur = t.turns[i]!;
+  const grid = cur.gridSize;
+  const target = cur.fishPosition;
+  const hand = prev.hand.map((id) => t.cards.get(id)).filter((c): c is TraceCard => c !== undefined);
+
+  const footprint = new Set<string>();
+  for (const card of hand) {
+    for (const c of zonesToCells(prev.focusPoint, card.hitZones, grid)) footprint.add(cellKey(c));
+    for (const c of zonesToCells(prev.focusPoint, card.critZones, grid)) footprint.add(cellKey(c));
+  }
+
+  let optimal: number | null = null;
+  for (const f of allCells(grid)) {
+    if (!hand.some((card) => cardCovers(f, card, target, grid))) continue;
+    const d = manhattan(prev.focusPoint, f);
+    if (optimal === null || d < optimal) optimal = d;
+  }
+
+  return {
+    docId: t.docId,
+    era: eraOf(t.docId, created),
+    day: (created.get(t.docId) ?? "").slice(0, 10),
+    actual: manhattan(prev.focusPoint, cur.focusPoint),
+    optimal,
+    handFootprint: footprint.size,
+    budget: budgetBefore(prev, cur),
+  };
+}
+
+export interface OverspendArm {
+  era: Era | "all";
+  casts: number;
+  /** Casts with a covering focus somewhere on the grid — the denominator for `meanOptimal`. */
+  scored: number;
+  meanHandFootprint: number;
+  /** Reproduces `FocusEraArm.meanFirstPlaySpend`. Over ALL casts, not just scored ones. */
+  meanActual: number;
+  meanOptimal: number;
+  /** `meanActual - meanOptimal`. */
+  overspend: number;
+  /** Counts of `optimal`, keyed by distance. The distributions, not just their means. */
+  optimalHistogram: ReadonlyMap<number, number>;
+  actualHistogram: ReadonlyMap<number, number>;
+}
+
+function overspendArmOf(era: Era | "all", rows: readonly OverspendRow[]): OverspendArm {
+  const scored = rows.filter((r) => r.optimal !== null);
+  const mean = (xs: readonly number[]): number => (xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length);
+  const hist = (xs: readonly number[]): Map<number, number> => {
+    const m = new Map<number, number>();
+    for (const x of xs) m.set(x, (m.get(x) ?? 0) + 1);
+    return m;
+  };
+  const meanActual = mean(rows.map((r) => r.actual));
+  const meanOptimal = mean(scored.map((r) => r.optimal!));
+  return {
+    era,
+    casts: rows.length,
+    scored: scored.length,
+    meanHandFootprint: mean(rows.map((r) => r.handFootprint)),
+    meanActual,
+    meanOptimal,
+    overspend: meanActual - meanOptimal,
+    optimalHistogram: hist(scored.map((r) => r.optimal!)),
+    actualHistogram: hist(rows.map((r) => r.actual)),
+  };
+}
+
+/** The §1 table: opening overspend, before / today / pooled. */
+export function openingOverspendSplit(
+  traces: readonly CastTrace[],
+  created: ReadonlyMap<string, string>,
+): { rows: OverspendRow[]; before: OverspendArm; today: OverspendArm; all: OverspendArm } {
+  const rows = traces
+    .map((t) => openingOverspend(t, created))
+    .filter((r): r is OverspendRow => r !== null);
+  return {
+    rows,
+    before: overspendArmOf("before", rows.filter((r) => r.era === "before")),
+    today: overspendArmOf("today", rows.filter((r) => r.era === "today")),
+    all: overspendArmOf("all", rows),
+  };
+}
+
+/**
+ * [session 85 §1a] The overspend by calendar day — **and the reason this is
+ * reported rather than merely computed.**
+ *
+ * If the cause of the collapse were a learned model sharpening as the mined
+ * corpus grew, overspend should DECLINE GRADUALLY. It does not. It STEPS:
+ *
+ * ```
+ *   08-15 +1.00 (n=5)    08-19 +0.84 (n=38)   08-22 +0.25 (n=16)
+ *   08-16 +0.80 (n=5)    08-20 -0.40 (n=5)    08-23 +0.50 (n=8)
+ *   08-17 +1.15 (n=40)   08-21 +0.10 (n=30)
+ *   08-18  n=1, unscored
+ * ```
+ *
+ * and inside today's era it drifts back UP (+0.10 -> +0.25 -> +0.50) rather
+ * than continuing down, which is what a still-improving model would do. That
+ * argues against the learned state (`data/opponent-model.json`,
+ * `data/minedFishPatterns.json`) and FOR a discrete change.
+ *
+ * ⚠ **AND IT IS WHY THE 20.3-HOUR GAP IS NOT A CLEAN BRACKET.** `castEra.ts`'s
+ * header calls the boundary a bracket rather than a moment, and the daily
+ * series says something sharper: **the five 08-20 casts already read -0.40,
+ * i.e. the NEW regime, and they are stamped BEFORE sessions 61/62's commits**
+ * (11:27 PT against 13:33 and 15:59 PT). At n=5 that is not evidence. But it
+ * means the corpus **cannot date the change more precisely than "between 08-19
+ * and 08-21"**, and the 61/62 window is not as clean as the empty gap makes it
+ * look. Session 84's open question 1 proposes replaying those two commits'
+ * policies; **say this before spending a session on it** — the commits may sit
+ * on the wrong side of the change they are being asked to explain.
+ */
+export function openingOverspendByDay(
+  rows: readonly OverspendRow[],
+): { day: string; n: number; scored: number; meanActual: number; meanOptimal: number; overspend: number }[] {
+  const days = [...new Set(rows.map((r) => r.day))].sort();
+  return days.map((day) => {
+    const all = rows.filter((r) => r.day === day);
+    const scored = all.filter((r) => r.optimal !== null);
+    const mean = (xs: readonly number[]): number => (xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length);
+    const meanActual = mean(all.map((r) => r.actual));
+    const meanOptimal = mean(scored.map((r) => r.optimal!));
+    return {
+      day,
+      n: all.length,
+      scored: scored.length,
+      meanActual,
+      meanOptimal,
+      overspend: scored.length === 0 ? Number.NaN : meanActual - meanOptimal,
+    };
+  });
+}
+
+/**
+ * The whole overspend control rests on both eras opening from the SAME focus
+ * cell — if they did not, "optimal move distance" would be measured from two
+ * different origins and the comparison would be meaningless. So it is pinned
+ * rather than assumed.
+ *
+ * **The honest form of the claim is 147 of 147, not 147 of 148.** Every trace
+ * with a recorded `start_run` opens at (2,2) with a full `focusMeter` of 3 —
+ * no exceptions, both eras. The 148th trace (`12975152`) has `hasStart` false:
+ * its turn 0 is a MID-CAST RESUME, already bearing a `play`, with the meter at
+ * 2 and the hand down to a single card. It is not a counterexample to "casts
+ * open at (2,2)"; its opening was simply never recorded.
+ *
+ * That same cast is also the ONLY one in the corpus with no covering focus for
+ * its first play — a one-card hand cannot cover the fish wherever it went. Two
+ * apparent anomalies, one cause, and worth stating because a reader who meets
+ * them separately will look for two explanations.
+ */
+export function assertOpeningFocusPinned(traces: readonly CastTrace[]): void {
+  const recorded = traces.filter((t) => t.hasStart);
+  for (const t of recorded) {
+    const first = t.turns[0];
+    if (!first) throw new Error(`castEra: ${t.docId} claims hasStart but has no turns.`);
+    if (first.focusPoint.x !== 2 || first.focusPoint.y !== 2) {
+      throw new Error(
+        `castEra: ${t.docId} opens at (${first.focusPoint.x},${first.focusPoint.y}), not (2,2). ` +
+          `The overspend control measures optimal move DISTANCE from the opening focus and is only ` +
+          `era-comparable while that origin is shared — re-derive the control, do not rebase the numbers.`,
+      );
+    }
+    if (first.focusMeter !== FOCUS_POOL) {
+      throw new Error(
+        `castEra: ${t.docId} opens at focusMeter ${first.focusMeter}, not ${FOCUS_POOL}.`,
+      );
+    }
+  }
 }
