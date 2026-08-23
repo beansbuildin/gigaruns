@@ -58,7 +58,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // mechanism, more oils spent: the on-demand policy fired its focus trigger
     // repeatedly once the meter emptied. The CLAIM — regen 0 — is unmoved at
     // 569/569.
-    expect(r.oilSkipped).toBe(18);
+    // [session 81] 18 -> 21 across the eight-cast batch.
+    expect(r.oilSkipped).toBe(21);
   });
 
   /**
@@ -120,21 +121,78 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
    * these plays predate it.
    *
    * Pinned as an EXACT list, for the same reason it was before: a THIRD, novel
-   * exception should fail loudly here rather than be absorbed into a count. A
-   * third observation on a card with a hit amount that is not 3 or 5 would
-   * separate the three surviving rules — 4 gives 6/6/6, but 7 gives 11/11/11
-   * and 9 gives 14/14/15, so `floor(hit × 5/3)` separates first at hit 9.
+   * exception should fail loudly here rather than be absorbed into a count.
+   *
+   * ## [session 81] THE THIRD ANOMALY LANDED, AND IT FALSIFIES `floor(hit × 5/3)`
+   *
+   * Cast `13041474` turn 2, on this session's eight-cast batch — found exactly
+   * the way the exact-list pin was built to find it.
+   *
+   *     13041474 t2   card 38, CRIT zone hit, base 9   server FISH_HP_DIFF 14
+   *
+   *     ×1.5 round-half-up   9 -> 14 ✓
+   *     ×1.6 rounded         9 -> 14 ✓
+   *     floor(9 × 5/3)       9 -> 15 ✗   FALSIFIED
+   *
+   * **Two rules survive, not three.** Two details make this observation usable
+   * where a naive reading would have thrown it away:
+   *
+   *  - **It is LETHAL** (12 HP -> 0), so the clamped state delta is 12 and says
+   *    only "≥ 12", which separates nothing. The unclamped truth comes from the
+   *    server's own `FISH_HP_DIFF`, which reads **14**. The uncensored field is
+   *    what carries the information here.
+   *  - **The base is the card's CRIT amount, not its hit amount.** Card 38 hits
+   *    for 3 and crits for 9, and the shot landed in its `critZones`. Session
+   *    80 looked for a card whose HIT amount is 9, found none in the deck, and
+   *    concluded more casting could not settle this. The multiplier applies to
+   *    whatever the shot's base damage would have been — `hitEffects` on an
+   *    ordinary hit, `critEffects` on a crit-zone hit — so the reachable pool
+   *    was always much larger than the one being searched.
+   *
+   * **The remaining separator: a base of 6, 8 or 10** (9 vs 10, 12 vs 13, 15 vs
+   * 16). **Card 10 crits for 10 and is in the deck this account is playing**,
+   * so the last two rules are separable by ordinary casting. Still do not
+   * encode a multiplier until one of them is eliminated.
    */
   const KNOWN_CRIT_ANOMALIES = [
     "13022874 t4: card 76 hit=true crit=false predicted Δ-3, actual Δ-5 (5->0/19)",
     "13041046 t9: card 2 hit=true crit=false predicted Δ-5, actual Δ-8 (17->9/20)",
+    "13041474 t2: card 38 hit=true crit=true predicted Δ-9, actual Δ-12 (12->0/14)",
   ];
 
-  it("fishHp moves by exactly the played card's FISH_HP effect — two documented exceptions", () => {
+  it("fishHp moves by exactly the played card's FISH_HP effect — three documented exceptions", () => {
     const r = auditFishHp(traces);
     expect(r.scored).toBeGreaterThanOrEqual(308);
     expect(r.violations).toEqual(KNOWN_CRIT_ANOMALIES);
     expect(r.agree).toBe(r.scored - KNOWN_CRIT_ANOMALIES.length);
+  });
+
+  /**
+   * [session 81] The falsification, as arithmetic rather than prose, on the
+   * UNCLAMPED server figure. The clamped delta in the list above is 12; the
+   * `FISH_HP_DIFF` the server reported is 14, and only the latter separates.
+   */
+  it("the third crit eliminates floor(hit x 5/3) — on the server's unclamped FISH_HP_DIFF", () => {
+    const trace = traces.find((t) => t.docId === "13041474");
+    expect(trace).toBeDefined();
+    const turn = trace!.turns[2]!;
+    // Positive on a hit: this is damage dealt, before the clamp at 0.
+    expect(turn.play?.fishHpDiff).toBe(14);
+    // The clamped view really does lose the information — asserted so nobody
+    // "simplifies" this test onto the state delta.
+    expect(trace!.turns[1]!.fishHp - turn.fishHp).toBe(12);
+
+    const card = trace!.cards.get(38)!;
+    const base = card.critEffects.find((e) => e.amount > 0)!.amount;
+    expect(base).toBe(9);
+    // The shot landed in the crit zone, so the base is critEffects, not hitEffects.
+    expect(card.hitEffects.find((e) => e.amount > 0)!.amount).toBe(3);
+
+    const roundHalfUp = (x: number) => Math.floor(x + 0.5);
+    expect(roundHalfUp(base * 1.5)).toBe(14); // survives
+    expect(Math.round(base * 1.6)).toBe(14); // survives
+    expect(Math.floor((base * 5) / 3)).toBe(15); // FALSIFIED — 15 != 14
+    expect(Math.floor((base * 5) / 3)).not.toBe(turn.play!.fishHpDiff);
   });
 
   it("THE SEPARATION: an additive crit rule cannot fit both, a multiplicative one does", () => {
@@ -154,27 +212,26 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
 
   /**
    * [session 81] **Which hit amount would separate the three survivors — and
-   * the answer is NOT only 9.** Session 80 concluded that separating
-   * `hit×1.5` round-half-up, `hit×1.6` rounded and `floor(hit×5/3)` needs a
-   * crit on a hit-9 card, and DECISIONS then recorded that no Shroom-deck card
-   * deals 9, so "more casting alone will not get there".
+   * the answer is NOT only 9 — and the search space was wrong too.** Session
+   * 80 concluded that separating `hit×1.5` round-half-up, `hit×1.6` rounded and
+   * `floor(hit×5/3)` needs a crit on a hit-9 card, and DECISIONS then recorded
+   * that no Shroom-deck card deals 9, so "more casting alone will not get
+   * there". Both halves were too narrow:
    *
-   * The first half of that was too narrow. Enumerated over every hit amount
-   * the corpus's cards actually carry, **hit 6 and hit 8 also separate** — they
-   * split `×1.5` from the other two (9 vs 10, and 12 vs 13), where hit 9 splits
-   * `floor(5/3)` from the other two (15 vs 14).
+   *  - **more amounts separate than 9.** A base of 6 or 8 splits `×1.5` from
+   *    the other two (9 vs 10, 12 vs 13), where 9 splits `floor(5/3)` off;
+   *  - **and the base is not restricted to `hitEffects`.** The lure scales
+   *    whatever the shot's damage would have been, so a crit-zone hit is scaled
+   *    from `critEffects` — and base-9 crits are common (cards 38, 39, 40).
    *
-   * That matters because **card 75 deals 6 and is in the deck the account is
-   * playing right now** (as is card 7; card 21 deals 8). So a crit that
-   * eliminates one of the three IS reachable by ordinary casting, which is what
-   * the earlier conclusion said it was not. It does not finish the job — fully
-   * separating all three still needs a hit-9 crit as well — but it halves it
-   * with cards already in hand.
+   * A base-9 crit duly landed on session 81's batch and eliminated
+   * `floor(hit × 5/3)`. **Two rules survive**, and the remaining separator is a
+   * base of 6, 8 or 10; card 10 crits for 10 and is in the deck being played.
    *
    * Pinned as arithmetic so a reader cannot re-derive the wrong conclusion from
    * prose, and so the useful targets stay visible when the next crit lands.
    */
-  it("hit 6 and hit 8 separate the surviving crit rules — not only hit 9", () => {
+  it("several bases separate the crit rules, and critEffects counts as a base", () => {
     const roundHalfUp = (x: number) => Math.floor(x + 0.5);
     const rules = {
       "x1.5 round-half-up": (h: number) => roundHalfUp(h * 1.5),
@@ -200,19 +257,29 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     expect(predictions(9)).toEqual([14, 14, 15]);
     expect([6, 8, 9].every(separates)).toBe(true);
 
-    // And the reachability claim, checked against the corpus rather than
-    // asserted: a card dealing 6 is present in the decks actually played.
+    // **The reachability claim, and the correction that made it true.** Session
+    // 80 searched `hitEffects` for a 9, found none, and concluded casting could
+    // not settle this. The multiplier applies to the shot's base damage from
+    // WHICHEVER source resolved it, so `critEffects` counts too — and there,
+    // 9s are common. The base-9 crit duly landed on this session's batch.
     const hitAmounts = new Set<number>();
+    const critAmounts = new Set<number>();
     for (const t of traces) {
       for (const c of t.cards.values()) {
-        const amount = c.hitEffects.find((e) => e.amount > 0)?.amount;
-        if (amount !== undefined) hitAmounts.add(amount);
+        const hit = c.hitEffects.find((e) => e.amount > 0)?.amount;
+        if (hit !== undefined) hitAmounts.add(hit);
+        const crit = c.critEffects.find((e) => e.amount > 0)?.amount;
+        if (crit !== undefined) critAmounts.add(crit);
       }
     }
-    expect(hitAmounts.has(6)).toBe(true);
-    expect(hitAmounts.has(8)).toBe(true);
-    // Still no card dealing 9 anywhere in the corpus — DECISIONS' half that stands.
+    // The half of DECISIONS' claim that stands: no card HITS for 9.
     expect(hitAmounts.has(9)).toBe(false);
+    // The half that did not: cards CRIT for 9, and one of them settled it.
+    expect(critAmounts.has(9)).toBe(true);
+    // The next separator, between the two survivors: a base of 6, 8 or 10.
+    // Card 10 crits for 10 and is in the deck being played.
+    expect(critAmounts.has(10)).toBe(true);
+    expect(predictions(10).slice(0, 2)).toEqual([15, 16]);
   });
 
   it("identifies crits by critZone geometry — and that test discriminates the zone table", () => {
@@ -223,10 +290,17 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // inequality is asserted, not just the pass.
     const corrected = auditFishHp(traces, correctedZoneOffset);
     const transposed = auditFishHp(traces, transposedZoneOffset);
-    // Same TWO exceptions as above — neither is a crit BY GEOMETRY (card 76 has
-    // no `critZones` at all, and card 2's hit was not at a crit cell), which is
-    // exactly what makes them interesting: both come from the lure, not the card.
-    expect(corrected.agree).toBe(corrected.scored - 2);
+    // Same THREE exceptions as above. The first two are not crits BY GEOMETRY
+    // (card 76 has no `critZones` at all, and card 2's hit was not at a crit
+    // cell) — they come from the lure, not the card.
+    //
+    // **[session 81] The third is BOTH, and that is the new information.**
+    // Card 38's shot landed inside its translated `critZones`, so the card's
+    // own crit fired for 9 — and the lure then scaled THAT to 14. The two crit
+    // sources compose rather than exclude, which is why the multiplier's base
+    // is "whatever this shot's damage would have been" and not "the card's hit
+    // amount". `cardChoice.ts` still models only the card's half.
+    expect(corrected.agree).toBe(corrected.scored - 3);
     // [session 50] 8 → 10 across this session's live batch, every one again
     // exactly `critEffects` at a cell inside the card's TRANSLATED
     // `critZones`. The discrimination is now 391/391 with 10 crits for the
@@ -245,7 +319,9 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // [session 72] 22 -> 24 across the four-cast batch.
     // [session 79] 24 -> 25 across the three-cast batch.
     // [session 80] 25 -> 26 across the eight-cast batch.
-    expect(corrected.crits).toBe(26);
+    // [session 81] 26 -> 30 across the eight-cast batch, same pattern again:
+    // each is `critEffects` at a cell inside the card's TRANSLATED `critZones`.
+    expect(corrected.crits).toBe(30);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

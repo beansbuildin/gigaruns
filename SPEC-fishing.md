@@ -285,12 +285,49 @@ n=2 separates the FAMILIES, not the members: do not encode a specific
 multiplier either. What it does settle is that **a model adding a constant is
 wrong for every card whose hit amount is not 3**, which is most of them.
 
+### [session 81] THE THIRD OBSERVATION LANDED — `floor(hit × 5/3)` IS FALSIFIED
+
+*Live, 2026-08-22, cast `13041474` turn 2.* Card 38 landed inside its own
+translated `critZones`, so the card's crit fired for its base **9** — and the
+server reported `FISH_HP_DIFF` **14**.
+
+```
+  ×1.5 round-half-up   9 -> 14  ✓ survives
+  ×1.6 rounded         9 -> 14  ✓ survives
+  floor(9 × 5/3)       9 -> 15  ✗ FALSIFIED
+```
+
+**Two rules survive, not three.** Two details make this observation usable
+where a careless reading would discard it:
+
+- **It is LETHAL** (12 HP → 0), so the clamped state delta is 12 and says only
+  "≥ 12", which separates nothing. The unclamped truth is the server's own
+  `FISH_HP_DIFF`. **On a lethal blow, only the uncensored field carries the
+  information.**
+- **The base is the card's CRIT amount, not its hit amount.** Card 38 hits for
+  3 and crits for 9. Session 80 searched `hitEffects` for a 9, found none in
+  the deck, and concluded casting could not settle this — but **the lure scales
+  whatever the shot's damage would have been**, `hitEffects` on an ordinary hit
+  and `critEffects` on a crit-zone hit. Base-9 crits are common (cards 38, 39,
+  40), so the reachable pool was always far larger than the one being searched.
+
+**The two crit sources COMPOSE.** This shot was both a card crit and a lure
+crit; the card set the base and the lure scaled it. `cardChoice.ts` still
+models only the card's half.
+
+**The remaining separator is a base of 6, 8 or 10** (9 vs 10, 12 vs 13, 15 vs
+16). **Card 10 crits for 10 and is in the deck this account is playing**, so
+the last two rules are separable by ordinary casting. **Still do not encode a
+multiplier** until one of them is eliminated.
+
+---
+
 A third observation would separate the survivors, but only on the right card.
-**[session 81 — CORRECTED, and the correction makes this reachable.]** Session
-80 named hit 9 as the separator and DECISIONS then recorded that no Shroom-deck
-card deals 9, concluding that "more casting alone will not get there".
-Enumerated over every hit amount the corpus's cards actually carry, that was
-too narrow — **three amounts separate, not one**:
+**[session 81 — CORRECTED, and the correction is what made it reachable.]**
+Session 80 named hit 9 as the separator and DECISIONS then recorded that no
+Shroom-deck card deals 9, concluding that "more casting alone will not get
+there". Enumerated over every base amount the corpus's cards actually carry,
+that was too narrow — **three amounts separate, not one**:
 
 | hit | `×1.5` half-up | `×1.6` rounded | `floor(×5/3)` | verdict |
 |---|---|---|---|---|
@@ -302,11 +339,10 @@ too narrow — **three amounts separate, not one**:
 | 9 | 14 | 14 | **15** | **separates `floor(×5/3)`** |
 
 **Card 75 deals 6 and is in the deck this account is playing now** (so does
-card 7; card 21 deals 8). A crit eliminating one of the three is therefore
-reachable by ordinary casting. It does not finish the job — fully separating
-all three still needs a hit-9 crit, and no card in the corpus deals 9, which is
-the half of DECISIONS' claim that stands — but it halves it with cards already
-in hand. Pinned as arithmetic in `tests/fishing/stateFields.test.ts`.
+card 7; card 21 deals 8). No card HITS for 9 — the half of DECISIONS' claim
+that stands — but cards CRIT for 9, which is the half that did not, and that
+is the one that settled it. Pinned as arithmetic in
+`tests/fishing/stateFields.test.ts`.
 
 `tests/fishing/stateFields.test.ts` pins both anomalies as an exact list and
 re-derives the falsification arithmetic, so a third, novel exception fails
@@ -521,7 +557,7 @@ sure card-based kill is a legitimate spend), so the name is misleading but
 the mechanic is right where the brief expected it. "Mid Mana Oil" (docId
 939, not "Relaxing Oil") is the actual `FishingRestoreMana` item.
 
-## 4d. Shot resolution ordering — WHICH two states a card resolves between **[session 81 §3, CONFIRMED, 590/590]**
+## 4d. Shot resolution ordering — WHICH two states a card resolves between **[session 81 §3, CONFIRMED, 612/612]**
 
 A play is a transition between two consecutive state docs, and **both** of
 them carry a `focusPoint` and a `fishPosition`. So "did this card hit" has four
@@ -531,10 +567,10 @@ play in the corpus (`src/sim/fishing/zoneAudit.ts`, `RESOLUTION_READINGS`;
 
 | reading | agreement with the server |
 |---|---|
-| **`b.focusPoint` + `b.fishPosition`** | **590 / 590 — 100.0%** ✔ |
-| `a.focusPoint` + `b.fishPosition` | 467 / 590 — 79.2% |
-| `a.focusPoint` + `a.fishPosition` | 372 / 590 — 63.1% |
-| `b.focusPoint` + `b.previousFishPosition` | 369 / 590 — 62.5% |
+| **`b.focusPoint` + `b.fishPosition`** | **612 / 612 — 100.0%** ✔ |
+| `a.focusPoint` + `b.fishPosition` | 480 / 612 — 78.4% |
+| `a.focusPoint` + `a.fishPosition` | 385 / 612 — 62.9% |
+| `b.focusPoint` + `b.previousFishPosition` | 380 / 612 — 62.1% |
 
 **A card resolves against the focus point AFTER the move, and the fish's cell
 in the RESULTING state — never `previousFishPosition`.** The fish moves first
@@ -555,7 +591,7 @@ all four scores — **including that the pin FAILS under the
 `previousFishPosition` reading**, because a pin that does not fail the wrong
 reading has not tested anything.
 
-## 4e. The focus budget is NOT the pre-play `focusMeter` when an oil landed **[session 81, CONFIRMED, 590/590 accounted]**
+## 4e. The focus budget is NOT the pre-play `focusMeter` when an oil landed **[session 81, CONFIRMED, 612/612 accounted]**
 
 The budget available to a play is exactly:
 
@@ -564,8 +600,8 @@ budgetBefore = manhattan(a.focusPoint, b.focusPoint) + b.focusMeter
                (what the move spent)  +  (what remained after it)
 ```
 
-This identity recovers the pre-play `focusMeter` on **572 of 572** non-oil
-plays. It FAILS on exactly **18**, and every one of the 18 is an oil consume
+This identity recovers the pre-play `focusMeter` on **591 of 591** non-oil
+plays. It FAILS on exactly **21**, and every one of the 21 is an oil consume
 (`consumablesUsed` increments across the same transition) — not most of them,
 all of them, with no unexplained residue.
 
@@ -577,14 +613,14 @@ two consecutive recorded turns, and a reader reconstructing the budget
 turn-by-turn sees it rise with no local cause. That file's header already said
 so; §4e is what it costs downstream.
 
-**What it cost, concretely.** Under the naive `prev.focusMeter` budget, 10 of
-590 plays move the focus further than the model allows, and the same-card
-oracle in `matcherHeadroom.ts` calls **5 server-scored HITS unhittable** — a
+**What it cost, concretely.** Under the naive `prev.focusMeter` budget, 12 of
+612 plays move the focus further than the model allows, and the same-card
+oracle in `matcherHeadroom.ts` calls **6 server-scored HITS unhittable** — a
 ceiling below its own observed floor. Both invariants are now asserted and
 THROW (`assertHeadroomSelfConsistent`).
 
 **Restore-to-2 vs add-2 is NOT settled by the corpus**, and the reason is
-worth stating: all 18 consumes recover a budget of exactly 2 and all 18
+worth stating: all 21 consumes recover a budget of exactly 2 and all 21
 happened at a meter reading **0**, where the two models are the same event.
 §4a's static table points at add-2 — `FishingRestoreFocus` is an amount per
 tier (Lil 1 / Mid 2 / Big 3) and the bot spends the MID oil (942), whose

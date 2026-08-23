@@ -33,9 +33,9 @@ export const TRANSPOSED_ZONE_OFFSET: ZoneOffsetFn = (z) => [((z - 1) % 3) - 1, M
  *
  * `a` is the state BEFORE the play, `b` the state after. The server's reading
  * is `b.focusPoint` + `b.fishPosition` and it scores exceptionless; the other
- * three land between 62% and 80%, which is the range in which a convention
+ * three land between 62% and 79%, which is the range in which a convention
  * error looks like a working model. `previousFishPosition` is the trap
- * specifically: it reads as "where the fish was when you aimed", it is 62.5%
+ * specifically: it reads as "where the fish was when you aimed", it is 62.1%
  * accurate, and `movePathAudit.ts` uses it correctly for a different purpose.
  *
  * The fish moves FIRST and the card resolves against the cell it moved TO
@@ -107,8 +107,8 @@ function cellsVia(off: ZoneOffsetFn, focus: Cell, zones: readonly number[], grid
  * transition whose resulting state carries a `play`, whose `play.handIndex`
  * resolves to a card id in the PRE-play hand, and whose id is present in the
  * cast's `deckCardData`. Nothing else is filtered — not clean traces, not
- * terminal plays, not oil casts. On the committed corpus that is **590**
- * plays, of which 587 lie in clean traces and 3 in session 45's resumed cast.
+ * terminal plays, not oil casts. On the committed corpus that is **612**
+ * plays, of which 609 lie in clean traces and 3 in session 45's resumed cast.
  */
 export function auditZoneTemplate(
   traces: readonly CastTrace[],

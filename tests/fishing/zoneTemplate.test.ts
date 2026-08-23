@@ -35,9 +35,12 @@ describe("ZONE_OFFSET against the real corpus", () => {
     //
     // The count was `>= 282` for thirty-four sessions, which could not
     // distinguish "the corpus grew" from "the predicate silently narrowed".
-    // Now exact: 590 plays, of which 587 lie in clean traces and 3 in session
+    // Now exact: 612 plays, of which 609 lie in clean traces and 3 in session
     // 45's resumed cast. Recount on a corpus change, and say which.
-    expect(r.scored).toBe(590);
+    // [session 81] 590 -> 612 across this session's eight-cast batch, and the
+    // resolver stayed exceptionless over the 22 new plays — the ratchet
+    // holding on data it has never seen, which is the point of it.
+    expect(r.scored).toBe(612);
     expect(r.mismatches).toEqual([]);
     expect(r.correct).toBe(r.scored);
   });
@@ -59,28 +62,28 @@ describe("ZONE_OFFSET against the real corpus", () => {
    */
   it("resolves against the POST-move focus and the RESULTING fish cell — and no other reading fits", () => {
     const truth = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.truth);
-    expect(truth.correct).toBe(590);
-    expect(truth.scored).toBe(590);
+    expect(truth.correct).toBe(612);
+    expect(truth.scored).toBe(612);
 
     // The three wrong readings, pinned at their exact scores. `toBeLessThan`
     // alone would pass if a refactor made them all 589.
     const focusBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.focusBefore);
     const stateBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.stateBefore);
     const prevFish = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.previousFishPosition);
-    expect(focusBefore.correct).toBe(467);
-    expect(stateBefore.correct).toBe(372);
-    expect(prevFish.correct).toBe(369);
+    expect(focusBefore.correct).toBe(480);
+    expect(stateBefore.correct).toBe(385);
+    expect(prevFish.correct).toBe(380);
 
     // **The demonstration the gate asks for: the pin FAILS under the
     // `previousFishPosition` reading.** A pin that does not fail the wrong
-    // reading has not tested anything. 369/590 is 62.5% — a "mostly works"
+    // reading has not tested anything. 380/612 is 62.1% — a "mostly works"
     // number, which is the danger.
     expect(prevFish.correct).not.toBe(prevFish.scored);
-    expect(prevFish.mismatches.length).toBe(221);
+    expect(prevFish.mismatches.length).toBe(232);
 
     // All four score the same denominator: the reading changes which cells are
     // compared, never which plays are eligible.
-    for (const r of [truth, focusBefore, stateBefore, prevFish]) expect(r.scored).toBe(590);
+    for (const r of [truth, focusBefore, stateBefore, prevFish]) expect(r.scored).toBe(612);
   });
 
   it("zone numbering is row-major with x as the ROW", () => {
@@ -125,8 +128,12 @@ describe("cast-trace corpus reconciliation", () => {
     // one spent by an unguarded `--help` — see tests/cliArgs.test.ts). Clean
     // STILL trails traces by exactly one, the same long-standing incomplete
     // cast, now across four consecutive oil batches.
-    expect(traces.length).toBe(140);
-    expect(clean.length).toBe(139);
+    // [session 81] 140 -> 148 across an eight-cast batch (all authorised; the
+    // full remaining daily allowance). Clean STILL trails traces by exactly
+    // one, the same long-standing incomplete cast, now across five
+    // consecutive oil batches.
+    expect(traces.length).toBe(148);
+    expect(clean.length).toBe(147);
     // 480 play turns across the clean traces.
     //
     // [session 68] **The catch count now RECONCILES with the corpus view, and
@@ -138,10 +145,10 @@ describe("cast-trace corpus reconciliation", () => {
     // 26 and thereby visible. With the ITEM_MESSAGE branch fixed both views
     // say 26 — the reconciliation is the evidence, which is why it is asserted
     // against the corpus figure rather than against a literal.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(587); // [session 80] 548 -> 587 (+39 play turns over nine casts).
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(609); // [session 81] 587 -> 609 (+22 play turns over eight casts).
     // Still asserted against the corpus figure rather than a literal — the
     // reconciliation is the evidence, and it holds at 38.
-    expect(traces.filter((t) => t.caught).length).toBe(42); // [session 80] 38 -> 42 (+4 catches in nine casts).
+    expect(traces.filter((t) => t.caught).length).toBe(48); // [session 81] 42 -> 48 (+6 catches in eight casts — a 75% catch rate on the batch).
   });
 
   /**

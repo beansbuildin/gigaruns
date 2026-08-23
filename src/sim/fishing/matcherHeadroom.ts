@@ -8,13 +8,13 @@
  * and heal amounts are right to within a tenth on every arm, and the hit rate
  * carries 96% of the drift discrepancy (`damageEconomy.ts`). Session 81 then
  * eliminated the other half of the hit rate — the zone geometry resolves the
- * server's own hit/miss on 590 of 590 recorded plays, exceptionless
+ * server's own hit/miss on 612 of 612 recorded plays, exceptionless
  * (`zoneAudit.ts`). What is left is PREDICTION: the fish moves first and the
  * card resolves against the cell it moved to, so every point of the residual
  * belongs to guessing that cell.
  *
  * "The matcher could be better" is not actionable. This file makes it a
- * number, by scoring four policies on the SAME 590 plays with the SAME cards
+ * number, by scoring four policies on the SAME 612 plays with the SAME cards
  * and the SAME focus budget — only the choice of where to aim differs:
  *
  *  - **RANDOM** — uniform over the reachable focus set. The floor: what the
@@ -38,8 +38,8 @@
  * The reachable set is every cell within the focus budget's Manhattan reach of
  * the focus point the turn started on (`geometry.reachableCells`, confirmed
  * live session 13). The obvious budget is the pre-play state's `focusMeter` —
- * and it is WRONG on 10 of 590 plays, which move the focus FURTHER than that
- * meter allows. Under it the oracle calls 5 plays unhittable that the server
+ * and it is WRONG on 12 of 612 plays, which move the focus FURTHER than that
+ * meter allows. Under it the oracle calls 6 plays unhittable that the server
  * scored as HITS, i.e. a ceiling below the observed floor.
  *
  * The cause is not a rule violation, it is an OIL. `castTrace.ts` skips
@@ -54,7 +54,7 @@
  *     budgetBefore = manhattan(a.focusPoint, b.focusPoint) + b.focusMeter
  *                    (what the move spent)  +  (what remained after it)
  *
- * This holds on **572 of 572** non-oil plays, and on the 18 oil plays it
+ * This holds on **591 of 591** non-oil plays, and on the 21 oil plays it
  * recovers the restored budget rather than the stale one. It also makes the
  * measurement self-consistent by construction — the focus the bot actually
  * fired from is always inside the reachable set — and
@@ -65,7 +65,7 @@
  *
  * ## ⚠ What the oil turns do NOT settle
  *
- * All 18 oil consumes recover an implied budget of exactly 2, and on all 18
+ * All 21 oil consumes recover an implied budget of exactly 2, and on all 21
  * the pre-play meter read 0. **The CORPUS alone cannot distinguish restore-to-2
  * from add-2**, because a restore to 2 and an addition of 2 are the same event
  * at a meter of 0, and no oil has yet been consumed at a non-zero meter.
@@ -86,7 +86,7 @@
  * `aimError` is `null` when every zone of the played card translated OFF the
  * board — the shot had no on-grid footprint and could not have hit wherever
  * the fish went. That is not a mispredicted shot, it is a structurally wasted
- * one, and it happens on **23 of 590 plays (3.9%)**, all of them misses. Card
+ * one, and it happens on **23 of 612 plays (3.8%)**, all of them misses. Card
  * 1's `hitZones` are `[1,2,3]`, the whole top row of the 3×3 template, so
  * firing it from row 1 of the grid puts all three zones at row 0. In **6** of
  * the 23 a different reachable focus would have hit with the SAME card, so
@@ -193,13 +193,14 @@ export interface HeadroomResult {
  * cast's `deckCardData`. Nothing else is filtered — not clean traces, not
  * terminal plays, not oil casts. That is the identical predicate
  * `zoneAudit.ts` scores under, deliberately, so the two reports share a
- * denominator; on the committed corpus it is **590** plays.
+ * denominator; on the committed corpus it is **612** plays.
  *
  * Card identification is by `play.handIndex` into the pre-play hand. Session
  * 81 cross-validated that against the independent discard set-difference —
- * which card newly appears in `discard` — and they agree on 583 plays and
- * disagree on **none**, the remaining 7 being turns where the discard moved by
- * something other than exactly one card (a refill boundary).
+ * which card newly appears in `discard` — and they agreed on 583 of the 590
+ * plays then committed and disagreed on **none**, the remaining 7 being turns
+ * where the discard moved by something other than exactly one card (a refill
+ * boundary).
  */
 export function matcherHeadroom(traces: readonly CastTrace[]): HeadroomResult {
   const perPlay: HeadroomPlay[] = [];

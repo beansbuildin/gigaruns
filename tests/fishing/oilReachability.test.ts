@@ -214,22 +214,27 @@ describe("the committed corpus", () => {
   // is no later `play_cards` and no strict decision point. The reachability
   // view and the live firing view count different things, and the oil era
   // widens the gap between them every batch.
-  it("reports reachability over all 140 casts", () => {
+  it("reports reachability over all 148 casts", () => {
     const r = reachabilityReport(loadFishingCorpus());
-    expect(r.casts).toBe(140);
-    expect(r.totalDecisionPoints).toBe(608); // [session 80] 564 -> 608 across the nine-cast batch (+44).
-    expect(r.relaxingReachable).toBe(13); // [session 80] 12 -> 13: `13041058`, the first new lethal point in three batches.
-    expect(r.focusReachable).toBe(67); // [session 80] 65 -> 67 (`13041046`, `13041058` — the two long casts of the batch).
-    expect(r.eitherReachable).toBe(72); // [session 80] 70 -> 72.
-    expect(r.neitherReachable).toBe(68); // [session 80] 61 -> 68 — seven of the nine new casts reach neither trigger.
-    expect(r.totalRelaxingPoints).toBe(15); // [session 80] 14 -> 15.
-    expect(r.totalFocusPoints).toBe(205); // [session 80] 199 -> 205 across the nine-cast batch.
+    expect(r.casts).toBe(148);
+    expect(r.totalDecisionPoints).toBe(633); // [session 81] 608 -> 633 across the eight-cast batch (+25).
+    // [session 81] The relaxing NUMERATOR did NOT move this batch: still 13
+    // casts over 15 decision points, on 8 more casts. Session 80 retired "only
+    // the denominator grows" after one move; this batch is the denominator
+    // moving alone again, so the honest reading is that the numerator is noisy
+    // at this rate, not that it trends either way.
+    expect(r.relaxingReachable).toBe(13);
+    expect(r.focusReachable).toBe(70); // [session 81] 67 -> 70.
+    expect(r.eitherReachable).toBe(75); // [session 81] 72 -> 75.
+    expect(r.neitherReachable).toBe(73); // [session 81] 68 -> 73 — five of the eight new casts reach neither trigger.
+    expect(r.totalRelaxingPoints).toBe(15);
+    expect(r.totalFocusPoints).toBe(208); // [session 81] 205 -> 208.
   });
 
   it("shows the lax definition inflating Focus reachability on the real corpus", () => {
     const strict = reachabilityReport(loadFishingCorpus());
     const lax = reachabilityReport(loadFishingCorpus(), { requireTurnRemaining: false });
-    expect(lax.focusReachable).toBe(83); // [session 80] 81 -> 83; strict moved 65 -> 67, so the GAP is unmoved at 16.
+    expect(lax.focusReachable).toBe(87); // [session 81] 83 -> 87; strict moved 67 -> 70, so the GAP moved 16 -> 17 (see below).
     // 14 real casts whose only meter-zero state is the one the policy could
     // never have acted on. The error is in the flattering direction.
     // [session 64] Unchanged at 14 after the 6-cast batch: the batch added one
@@ -271,7 +276,8 @@ describe("the committed corpus", () => {
     // 12.9% membership rate ten casts were expected to add ~1.3. Two readings
     // in a row landing near the expectation is what a growing count looks
     // like; do not read the near-miss either way as structure.
-    expect(lax.focusReachable - strict.focusReachable).toBe(16);
+    // [session 81] 16 -> 17: `13041476`, from this session's eight-cast batch.
+    expect(lax.focusReachable - strict.focusReachable).toBe(17);
     // ── [session 64] THIS CLAIM WAS WRONG, AND LIVE PLAY FALSIFIED IT ──────
     //
     // It read: "The Relaxing trigger is unaffected: a lethal fish is never the
@@ -311,7 +317,8 @@ describe("the committed corpus", () => {
     // record where the on-demand policy WANTED a Relaxing oil and was refused
     // by the 3/3 per-cast consumable budget rather than by stock — a third way
     // for a wanted firing to leave no strict decision point.
-    expect(lax.relaxingReachable - strict.relaxingReachable).toBe(12);
+    // [session 81] 12 -> 13 across the eight-cast batch.
+    expect(lax.relaxingReachable - strict.relaxingReachable).toBe(13);
     expect(strict.relaxingReachable).toBe(13);
   });
 });
@@ -328,8 +335,8 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
   const rows = loadFishingCorpus().map((c) => castReachability(c, { requireTurnRemaining: true }));
   const reachable = rows.filter((r) => r.relaxingReachable);
 
-  it("finds the lethal trigger reachable on 13 of 140 casts, over 15 decision points", () => {
-    expect(rows).toHaveLength(140);
+  it("finds the lethal trigger reachable on 13 of 148 casts, over 15 decision points", () => {
+    expect(rows).toHaveLength(148);
     expect(reachable).toHaveLength(13);
     expect(rows.reduce((n, r) => n + r.relaxingPoints, 0)).toBe(15);
   });
@@ -357,12 +364,12 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
     // casts against this corpus's 11.0%. Trigger RATE, not oil value, and it
     // is why +4.47pp must not be quoted as the live cost of zero stock.
     // [session 69] 10.5 -> 9.7; [session 72] -> 9.375; [session 79] -> 9.160;
-    // [session 80] -> 9.286. **The numerator MOVED this batch, 12 -> 13, after
-    // being unmoved across three** — `13041058`, a 13-decision-point cast that
-    // reached the lethal band and was caught anyway. So the rate ticked UP for
-    // the first time, and the sentence this replaces ("only the denominator
-    // grows") is retired rather than re-quoted.
-    expect((100 * reachable.length) / rows.length).toBeCloseTo(9.286, 2);
+    // [session 80] -> 9.286, the first batch in which the NUMERATOR moved
+    // (12 -> 13). [session 81] -> 8.784, and the numerator did not move at all
+    // across eight casts. Session 80 retired "only the denominator grows" on
+    // one observation; two batches now say the numerator simply moves rarely,
+    // which is a weaker and better-supported claim than either version.
+    expect((100 * reachable.length) / rows.length).toBeCloseTo(8.784, 2);
     expect((100 * 1821) / 8000).toBeCloseTo(22.8, 1);
   });
 
@@ -374,7 +381,7 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
     // mechanism and calibrates no rate.
     const gained = reachable.filter((r) => !r.caught).length;
     expect(gained).toBe(2);
-    expect((100 * gained) / rows.length).toBeCloseTo(1.4286, 3); // [session 69] 1.75 -> 1.61; [session 72] -> 1.5625; [session 79] -> 1.5267; [session 80] -> 1.4286, all on the larger denominator; `gained` is STILL 2.
+    expect((100 * gained) / rows.length).toBeCloseTo(1.3514, 3); // [session 69] 1.75 -> 1.61; [session 72] -> 1.5625; [session 79] -> 1.5267; [session 80] -> 1.4286; [session 81] -> 1.3514, all on the larger denominator; `gained` is STILL 2, now across six batches.
   });
 });
 
@@ -419,6 +426,9 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
       // mechanism repeating, which is what turns "a caught cast CAN be in the
       // gap" from an exception into an ordinary consequence of the oil era.
       "13024562",
+      // [session 81] The eight-cast batch contributed exactly one new member.
+      // It is ESCAPED, so it does not disturb the caught-in-gap pair below.
+      "13041476",
     ]);
     // [session 79] **The newest batch contributed NO gap member, and this
     // assertion is now written to say that rather than to name one.** The
@@ -472,7 +482,7 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
    */
   it("a caught cast CAN be in the gap — one does, and only via an oil-ended cast", () => {
     const caught = corpus.filter((c) => c.responses.some((r) => r.caughtFish !== null));
-    expect(caught).toHaveLength(42); // [session 69] 26 -> 34; [session 72] -> 36; [session 79] -> 38; [session 80] -> 42 across the nine-cast batch.
+    expect(caught).toHaveLength(48); // [session 69] 26 -> 34; [session 72] -> 36; [session 79] -> 38; [session 80] -> 42; [session 81] -> 48 across the eight-cast batch (six catches).
     // [session 69] TWO caught casts are now gap members, both oil-ended. The
     // count matters: session 68 had one, which a reader could file as a freak.
     // A second, from an independent batch, says the oil era produces these
@@ -493,16 +503,16 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
     // Written as the explicit decomposition rather than patched to 15, so the
     // one exceptional member stays visible instead of being absorbed.
     const escaped = corpus.filter((c) => !c.responses.some((r) => r.caughtFish !== null));
-    expect(escaped).toHaveLength(98); // [session 69] 88 -> 90; [session 72] -> 92; [session 79] -> 93; [session 80] -> 98 (nine casts, four of them caught).
+    expect(escaped).toHaveLength(100); // [session 69] 88 -> 90; [session 72] -> 92; [session 79] -> 93; [session 80] -> 98; [session 81] -> 100 (eight casts, six of them caught).
     const terminalMeterZero = escaped.filter((c) => {
       const ordered = orderedResponses(c);
       const last = ordered[ordered.length - 1];
       return !!last && last.board.fishHp > 0 && last.board.focusMeter <= 0;
     });
-    expect(terminalMeterZero).toHaveLength(68); // [session 79] unmoved: the one escaped cast in the batch did not end with an empty meter.
+    expect(terminalMeterZero).toHaveLength(70); // [session 81] 68 -> 70 across the eight-cast batch.
     const alreadyStrict = terminalMeterZero.filter((c) => castReachability(c, { requireTurnRemaining: true }).focusReachable);
-    expect(alreadyStrict).toHaveLength(54); // [session 79] unmoved, with `terminalMeterZero`.
-    expect(terminalMeterZero.length - alreadyStrict.length).toBe(14);
+    expect(alreadyStrict).toHaveLength(55); // [session 81] 54 -> 55.
+    expect(terminalMeterZero.length - alreadyStrict.length).toBe(15); // [session 81] 14 -> 15, tracking the new gap member.
     // The whole gap is that residue PLUS the oil-ended caught casts — now two
     // of them, so the decomposition is written as a sum rather than as
     // "residue + 1", which would have read as a permanent property.

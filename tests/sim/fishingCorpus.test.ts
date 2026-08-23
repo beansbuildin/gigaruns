@@ -132,11 +132,16 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // closed in tests/cliArgs.test.ts and the cast is real data either way.
     // THREE of the nine consumed an oil, and `policyApproved` has been TRUE
     // since session 62 (the note above saying it is "still false" was stale).
-    expect(summary.casts).toBe(140);
-    expect(summary.responseDocs).toBe(799);
-    expect(summary.playTurns).toBe(591);
-    expect(summary.caught).toBe(42);
-    expect(summary.escaped).toBe(97);
+    // [session 81] Eight-cast batch — the full remaining daily allowance, all
+    // authorised: 140 -> 148, +40 responseDocs, +22 playTurns, +6 caught,
+    // +2 escaped, `incomplete` unchanged at 1. FOUR of the eight consumed an
+    // oil. Six catches in eight casts is the highest catch rate of any batch
+    // on record; it is a sample of eight and is not evidence of a change.
+    expect(summary.casts).toBe(148);
+    expect(summary.responseDocs).toBe(839);
+    expect(summary.playTurns).toBe(613);
+    expect(summary.caught).toBe(48);
+    expect(summary.escaped).toBe(99);
     expect(summary.incomplete).toBe(1);
   });
 
@@ -495,6 +500,12 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // cast on record where the on-demand policy WANTED a relaxing oil and was
       // refused by the 3/3 per-cast budget instead.
       "13041046", "13041055", "13041058",
+      // [session 81] +4 from the eight-cast batch: `13041473`, `13041480`,
+      // `13041482`, `13041483`. The Relaxing per-cast cap of 2 still has never
+      // bound. `13041480` is the batch's lethal-trigger consume (fish at 1/15,
+      // one Relaxing, CAUGHT) — the second such firing on record after session
+      // 65's, and it confirms the mechanism again without calibrating a rate.
+      "13041473", "13041480", "13041482", "13041483",
     ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;
