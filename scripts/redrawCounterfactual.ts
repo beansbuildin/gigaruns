@@ -53,7 +53,26 @@
  * Usage: npx tsx scripts/redrawCounterfactual.ts
  */
 
-import { loadCastTraces } from "../src/sim/fishing/castTrace.js";
+import { loadRingPredictions } from "./liveFishing.js";
+import { loadCastTraces, type CastTrace } from "../src/sim/fishing/castTrace.js";
+import {
+  assertCastEraSound,
+  budgetZeroDecomposition,
+  budgetZeroPlays,
+  budgetZeroPlaysWithoutRestore,
+  compareEraPredicates,
+  deckCritFraction,
+  deckIntrinsicReach,
+  focusEraSplit,
+  firedOil,
+  loadCastCreatedAt,
+  playCount,
+  POLICY_ERA_BOUNDARY,
+  splitByEra,
+  standardise,
+  wilson,
+  type Era,
+} from "../src/sim/fishing/castEra.js";
 import {
   assertRedrawCounterfactualSound,
   manaSlack,
@@ -188,10 +207,219 @@ function main(): void {
   console.log("\n── §4  THE MANA SLACK — what the 43.9 figure was priced against ──");
   printManaSlack(traces);
 
-  console.log("\n── §5  READ THIS BEFORE QUOTING ANY OF IT ──");
+  // ── §5  THE ERA SPLIT ───────────────────────────────────────────────────
+  //
+  // Everything above pools policy eras. §5 and §6 are session 84's correction
+  // to that, and §6 is the one that changes what §2 means.
+  const created = loadCastCreatedAt();
+  assertCastEraSound(traces, created);
+  printEraSplit(traces, created);
+
+  // ── §6  THE COUNTERFACTUAL, CONDITIONED ON THE ERA ──────────────────────
+  printEraConditionedCounterfactual(traces, created);
+
+  // ── §7  WHAT THE COLLAPSE IS MADE OF ────────────────────────────────────
+  printDecomposition(traces, created);
+
+  console.log("\n── §8  READ THIS BEFORE QUOTING ANY OF IT ──");
   console.log("  Redraw is CLOSED and nothing here reopens it. `redrawEnabled` ships false and is");
   console.log("  pinned false from both ends. This script measures a price; it does not license a");
   console.log("  policy, and rule 4 bars a live change on a sim result regardless.\n");
+  console.log("  And nothing above may be quoted WITHOUT its era. §5 measures why: the pooled corpus is");
+  console.log("  64% a bot that no longer exists, and §6's two arms disagree about the headline.\n");
+}
+
+const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
+
+/**
+ * §5 — plays fired at focus budget 0, before / today / pooled, plus the
+ * predicate comparison gate 1 asks for.
+ */
+function printEraSplit(traces: readonly CastTrace[], created: ReadonlyMap<string, string>): void {
+  const s = focusEraSplit(traces, created);
+  console.log(`\n── §5  THE ERA SPLIT — the corpus pools two bots, and one of them is gone ──`);
+  console.log(`  Era predicate: a cast belongs to TODAY when its doc.createdAt (constant across the`);
+  console.log(`  cast's states, 148/148) is on or after ${POLICY_ERA_BOUNDARY} UTC. Committed fixtures only.\n`);
+  console.log(`    ${"".padEnd(8)}${"casts".padStart(6)}${"plays".padStart(7)}${"budget 0".padStart(10)}${"rate".padStart(8)}${"1st-play spend".padStart(16)}${"catch".padStart(8)}`);
+  for (const a of [s.before, s.today, s.all]) {
+    console.log(
+      `    ${String(a.era).padEnd(8)}${String(a.casts).padStart(6)}${String(a.plays).padStart(7)}` +
+        `${String(a.budgetZero).padStart(10)}${pct(a.rate).padStart(8)}` +
+        `${`${a.meanFirstPlaySpend.toFixed(3)} (max ${a.maxFirstPlaySpend})`.padStart(16)}` +
+        `${(a.resolved ? pct(a.caught / a.resolved) : "—").padStart(8)}`,
+    );
+  }
+  console.log(
+    `\n    The focus meter is a non-regenerating pool, so budget 0 is ABSORBING in a cast with no`,
+  );
+  console.log(`    restore and TRANSIENT in one with it. That is why the effect is this large.`);
+  console.log(
+    `    Casts that ever froze: ${s.before.castsEverFrozen}/${s.before.casts} before, ` +
+      `${s.today.castsEverFrozen}/${s.today.casts} today.`,
+  );
+
+  // The predicate comparison. `todaysEraCastIds()` reads data/ringPrediction.jsonl,
+  // which is gitignored — so this arm is best-effort and says so when absent.
+  const other = matcherWeightEraCastIds();
+  if (other === null) {
+    console.log(`\n    todaysEraCastIds() comparison: SKIPPED — data/ringPrediction.jsonl is not present.`);
+    console.log(`    That absence is the point: it is gitignored, so it cannot be the era instrument a`);
+    console.log(`    committed test pins. The date above reads committed fixtures and always resolves.`);
+    return;
+  }
+  const cmp = compareEraPredicates(traces, created, other);
+  console.log(`\n    vs todaysEraCastIds() (scripts/focusProfileCheck.ts — matcherWeight, i.e. the`);
+  console.log(`    MATCHER-WEIGHTING boundary at 2026-08-20T18:27Z, a different boundary):`);
+  if (cmp.agree) {
+    console.log(`      AGREE on every cast. Either predicate would do; the date one is preferred`);
+    console.log(`      because it reads committed fixtures and classifies all 148 casts.`);
+  } else {
+    console.log(
+      `      DISAGREE: ${cmp.otherOnly.length} cast(s) it calls today and the date does not` +
+        `${cmp.dateOnly.length ? `, ${cmp.dateOnly.length} the other way` : ", 0 the other way"}.`,
+    );
+    console.log(
+      `      Those ${cmp.otherOnly.length} read ${cmp.otherOnlyBudgetZero}/${cmp.otherOnlyPlays} = ` +
+        `${pct(cmp.otherOnlyBudgetZero / Math.max(1, cmp.otherOnlyPlays))} at budget 0 — the OLD regime.`,
+    );
+    console.log(`      Folding them in takes today's rate to ${pct((s.today.budgetZero + cmp.otherOnlyBudgetZero) / (s.today.plays + cmp.otherOnlyPlays))}. THE DATE PREDICATE WINS, on evidence.`);
+  }
+}
+
+/**
+ * `todaysEraCastIds()`'s set, by the SAME predicate `scripts/focusProfileCheck.ts`
+ * and `scripts/oilArmCatchCheck.ts` use — a turn-0 ring-prediction row carrying
+ * `matcherWeight`. Re-derived here rather than imported because neither script
+ * exports it; the loader IS imported, so this file hard-codes no path.
+ *
+ * Returns null when the log yields nothing, which in a fresh clone is the
+ * normal case: `data/ringPrediction.jsonl` is gitignored. An empty log and an
+ * absent one are treated the same because they license the same conclusion —
+ * this comparison cannot be made here.
+ */
+function matcherWeightEraCastIds(): Set<string> | null {
+  const rows = loadRingPredictions();
+  if (rows.length === 0) return null;
+  const out = new Set<string>();
+  for (const r of rows as (typeof rows[number] & { focusMoveCost?: unknown; matcherWeight?: unknown })[]) {
+    if (r.turn === 0 && typeof r.focusMoveCost === "number" && r.matcherWeight !== undefined) out.add(r.castId);
+  }
+  return out;
+}
+
+/** §6 — §2's four-cell table, run once per era. */
+function printEraConditionedCounterfactual(traces: readonly CastTrace[], created: ReadonlyMap<string, string>): void {
+  const split = splitByEra(traces, created);
+  console.log(`\n── §6  §2's TABLE, CONDITIONED ON THE ERA — and it INVERTS ──`);
+  console.log(
+    `    ${"".padEnd(8)}${"n".padStart(5)}${"both".padStart(6)}${"sac".padStart(5)}${"rescue".padStart(8)}` +
+      `${"neither".padStart(9)}${"dead".padStart(7)}${"rescue rate".padStart(13)}${"cost".padStart(7)}${"availability".padStart(20)}`,
+  );
+  const arms: [string, readonly CastTrace[]][] = [
+    ["pooled", traces],
+    ["before", split.before],
+    ["today", split.today],
+  ];
+  for (const [label, ts] of arms) {
+    const r = redrawCounterfactual(ts);
+    assertRedrawCounterfactualSound(r);
+    const dead = r.rescue + r.neitherReaches;
+    const [lo, hi] = wilson(r.rescue, dead);
+    console.log(
+      `    ${label.padEnd(8)}${String(r.plays).padStart(5)}${String(r.bothReach).padStart(6)}` +
+        `${String(r.sacrifice).padStart(5)}${String(r.rescue).padStart(8)}${String(r.neitherReaches).padStart(9)}` +
+        `${String(dead).padStart(7)}${`${pct(dead ? r.rescue / dead : 0)}`.padStart(13)}` +
+        `${r.meanRescueCost.toFixed(2).padStart(7)}` +
+        `${`${pct(r.actualAvailability)} -> ${pct(r.redrawAvailability)}`.padStart(20)}`,
+    );
+    console.log(`    ${"".padEnd(8)}95% CI on the rescue rate: [${pct(lo)}, ${pct(hi)}]  (n = ${dead} dead hands)`);
+  }
+  console.log(`
+    THE READING. In today's era \`neither\` is ZERO: there is not one play where both the held
+    hand and the redrawn triple are dead. Every dead hand is rescued, at a mean 1.33 mana on
+    a pool that discards 5.85 per cast. Session 83's "the dead hands a signal finds are the
+    ones a redraw cannot fix" describes the BEFORE arm and nothing else.
+
+    ⚠ DO NOT READ 15/15 AS 100%. The interval above is the number; its lower bound is near
+      78%. And this is AVAILABILITY under an oracle lens, not hits — the same lens on both
+      arms, so the pairing is fair and the levels are not achievable. It is still not a
+      TRIGGER: three sacrifices remain and the bot cannot see the fish's next cell.
+
+    ⚠ Session 83's unexplained 389-vs-387 residual lives ENTIRELY in the before arm. Today's
+      arm reproduces the session-84 brief cell for cell, so the residual does not touch this.
+
+    This does not reopen the CLOSED verdict. It says the counterfactual that informs it
+    should be read on the era the bot actually plays in.`);
+}
+
+/** §7 — GATE 2: what the 44.9% -> 1.5% collapse is made of. */
+function printDecomposition(traces: readonly CastTrace[], created: ReadonlyMap<string, string>): void {
+  const d = budgetZeroDecomposition(traces, created);
+  const split = splitByEra(traces, created);
+  console.log(`\n── §7  THE COLLAPSE, DECOMPOSED — GATE 2 ──`);
+  console.log(`    before-era crude rate                                   ${pct(d.beforeRate).padStart(7)}`);
+  console.log(`      - cast LENGTH mix (direct standardisation)            ${`-${(100 * d.lengthTerm).toFixed(1)}pp`.padStart(7)}`);
+  console.log(`    = before-era rates at today's length mix                ${pct(d.standardisedRate).padStart(7)}`);
+  console.log(`      - focus PACING (today's spend, no restores)           ${`-${(100 * d.pacingTerm).toFixed(1)}pp`.padStart(7)}`);
+  console.log(`    = today's plays off an un-refilled pool                 ${pct(d.noRestoreRate).padStart(7)}`);
+  console.log(`      - focus OIL restores                                  ${`-${(100 * d.oilTerm).toFixed(1)}pp`.padStart(7)}`);
+  console.log(`    = today's crude rate                                    ${pct(d.todayRate).padStart(7)}`);
+  if (d.unmatchedPlays > 0) {
+    console.log(`    (${d.unmatchedPlays} today plays had no length-matched before-era stratum and are excluded from the standardisation.)`);
+  }
+
+  console.log(`\n    THE ORDER-FREE STATEMENT, which is the one to quote. The three terms above are`);
+  console.log(`    sequential and each takes the residual of the ones before it. These two do not`);
+  console.log(`    depend on that ordering:\n`);
+  for (const [label, ts] of [["no-oil", split.today.filter((t) => !firedOil(t))], ["oil", split.today.filter(firedOil)]] as [string, CastTrace[]][]) {
+    const st = standardise(split.before, ts);
+    let plays = 0, zero = 0, noRestore = 0;
+    for (const t of ts) { plays += playCount(t); zero += budgetZeroPlays(t); noRestore += budgetZeroPlaysWithoutRestore(t); }
+    console.log(
+      `      today ${label.padEnd(7)} ${String(ts.length).padStart(2)} casts / ${String(plays).padStart(3)} plays` +
+        `   observed ${pct(zero / plays).padStart(6)}` +
+        `   before-era length-standardised ${pct(st.rate).padStart(6)}` +
+        `   with restores stripped ${pct(noRestore / plays).padStart(6)}`,
+    );
+  }
+  console.log(`
+      - The NO-OIL arm never fired a restore, so its counterfactual equals its observation by
+        construction — that is the self-check, not a result. Its result is the gap to the
+        standardised column, and the oil cannot explain any of it.
+      - The OIL arm reverts almost exactly to the before-era standardised rate once the
+        restores are stripped. On that arm the oil does essentially all the work.
+      - Self-check on the control: run the no-restore counterfactual over the BEFORE era, which
+        fired no oils, and it must reproduce the observation.`);
+  const beforeNoRestore = split.before.reduce((s, t) => s + budgetZeroPlaysWithoutRestore(t), 0);
+  const beforeObserved = split.before.reduce((s, t) => s + budgetZeroPlays(t), 0);
+  console.log(`        before era: counterfactual ${beforeNoRestore} vs observed ${beforeObserved}.` +
+    ` The one difference is the single cast that opened at focusMeter 2.`);
+
+  // The gear control.
+  console.log(`\n    AND IT IS NOT THE GEAR. Deck intrinsic reach is policy-free and fish-free — over every`);
+  console.log(`    (focus, target) pair, the fraction one deck card covers:\n`);
+  for (const e of ["before", "today"] as Era[]) {
+    const ts = split[e];
+    const reach = ts.reduce((s, t) => s + deckIntrinsicReach(t), 0) / ts.length;
+    const crit = ts.reduce((s, t) => s + deckCritFraction(t), 0) / ts.length;
+    const size = ts.reduce((s, t) => s + t.turns[0]!.fullDeck.length, 0) / ts.length;
+    console.log(`      ${e.padEnd(7)} reach ${pct(reach)}   mean deck ${size.toFixed(1)} cards   crit-bearing ${pct(crit)}`);
+  }
+  console.log(`
+      The decks got bigger and much crit-richer — which plausibly drives the catch rate from
+      15.1% to 63.0% — and their REACH did not move. The era effect also survives deck-size
+      matching (11-12 cards: 45% -> 4%; 13-15: 51% -> 2%).
+
+    ⚠ WHAT THIS DOES NOT DO IS NAME A CAUSE FOR THE PACING TERM, and CLAUDE.md rule 6 says
+      say so. The corpus brackets the change to 2026-08-20T18:28:24Z -> 2026-08-21T14:46:17Z,
+      a 20.3-hour gap with no casts. The only code in it is sessions 61 and 62, whose
+      liveFishing.ts diff is oil plumbing and touches neither focus nor card selection;
+      focusReserveWeight defaults to 0 and costCap is documented inert. The proximate
+      mechanism IS identified — mean first-play focus spend fell 1.553 -> 0.852 and today
+      never reaches 3, where 17 of 94 before-era casts emptied the meter before their second
+      play. WHAT WOULD SETTLE THE CAUSE: replay the corpus's own decision points through the
+      session-60 and session-62 policies and compare the focus move each chooses.
+      scripts/offPolicyReplay.ts is the existing instrument for that shape.`);
 }
 
 /**

@@ -97,6 +97,13 @@ const SRC_ALLOWED = new Map<string, string>([
   ["src/sim/corpus.ts", "CORPUS_DIR — the shared, game-global fixture tree"],
   ["src/sim/fishingCorpus.ts", "fishing corpus root, same reason"],
   ["src/sim/fishing/castTrace.ts", "fishing corpus root, same reason"],
+  // [session 84 §1] Walks the SAME tree castTrace.ts does, for the same
+  // reason and with the same `raw/` exclusion — it reads each cast's
+  // `doc.createdAt` to date it. Deliberately not profile-resolved for
+  // `rodDeck.ts`'s reason: which policy era a committed cast belongs to is a
+  // fact about the recorded corpus, not something a --profile run redirects.
+  // `loadCastCreatedAt` takes the root as a parameter for callers that differ.
+  ["src/sim/fishing/castEra.ts", "fishing corpus root, same reason"],
   // [session 71 §2] Same fixture tree, same reason, and deliberately NOT
   // profile-resolved: this module answers "which rod is the ACCOUNT holding",
   // which is a fact about the recorded corpus itself and not something a
