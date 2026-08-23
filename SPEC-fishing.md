@@ -1151,6 +1151,34 @@ flag meets them rather than discovers them:**
    `MAX_REDRAWS_PER_CAST` is a fail-closed safety cap, not a policy — a real
    per-cast redraw budget is part of the recalibration.
 
+**[session 83] A THIRD blocker, and it is the one that decides whether the
+other two are worth paying.** `src/sim/fishing/redrawCounterfactual.ts`
+measures what a redraw would have been worth on the committed corpus, by
+reconstructing the hand a redraw would have drawn (the next triple the cast
+actually dealt — the pile is shuffled once per cast and drawn sequentially,
+§7's draw model, and the inference is checked before use rather than assumed).
+Over 389 qualifying plays: the held hand can reach the fish on 74.0% and the
+redrawn hand on 78.7%, and conditional on a DEAD hand — 101 plays, 26.0%, all
+of them guaranteed misses — a redraw restores reachability 44.6% of the time at
+a mean 1.60 mana, out of a pool that 89.8% of casts never exhaust (mean 5.85 of
+10 left over).
+
+**But no available signal usefully TRIGGERS it.** `heldCoverage` — the cells
+the hand can reach over every reachable focus, known at decision time —
+separates dead hands from live ones at AUC 0.922, and then inverts: the dead
+hands it finds are mostly ones a redraw cannot fix, because a dead hand is
+usually a hand firing from an EXHAUSTED focus meter (74 of 101) and **a redraw
+does not restore the meter**. Conditioned on `focusMeter >= 1` the picture
+flips — 26 of 27 dead hands rescued — so the candidate trigger is a
+CONJUNCTION with the meter and not a threshold on EV. That conjunction has
+never been evaluated against non-oracle labels.
+
+⚠ All of the above is an ORACLE measurement on committed fixtures with no
+held-out set, and **no redraw has ever been played live**. If one ever is, the
+first thing to check is whether the dealt triple is the one that module
+predicts. Redraw remains CLOSED (`handoff/DECISIONS.md`) and `redrawEnabled`
+remains false.
+
 ---
 
 ## 8. Strategy heuristics — user-stated, 2026-08-18, session 43
