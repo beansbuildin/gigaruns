@@ -1750,3 +1750,61 @@ it is exactly what session 68's oil shadow did, provably inert.
 the gate back; (b) not yet, redraw is CLOSED and instrumenting a closed policy
 is premature; (c) yes but only after the redraw verdict itself is revisited.
 **Nothing is written until one of them comes back.**
+
+---
+
+## §25 UPDATE [session 85] — recommendation is still DROP, and session 85 does not change its price
+
+Session 85 was asked to recommend §25 as a drop and does. Nothing measured
+this session bears on it: §25 needs ~8-12 juiced runs (2-3 full days of the
+12-unit cap, each run individually approved) to re-ask ONE retracted finding
+with a depth-matched control. The price has not moved and neither has the
+value. **Not dropped unilaterally — it stays parked until the user says.**
+
+---
+
+## §27 — session 84's open question 1 (the off-policy replay) is now WORSE-EVIDENCED, not better [session 85 §1a, OPEN — a recommendation, not a blocker]
+
+**Session 84 asked whether replaying the corpus's decision points through the
+session-60 and session-62 policies is worth a session.** Session 85 turned up
+two things that lower its expected value, and neither was available when the
+question was written.
+
+**1. The commits may sit on the wrong side of the change.** The proposal rests
+on the corpus's 20.3-hour empty gap (2026-08-20T18:28:24Z ->
+2026-08-21T14:46:17Z) being a clean bracket containing sessions 61/62. It is
+not. The overspend series (§1a) shows **the five 08-20 casts already reading
+the NEW regime at -0.40, stamped 11:27 PT — BEFORE both commits (13:33 and
+15:59 PT)**. At n=5 that is not evidence of anything, but it means the corpus
+cannot date the change closer than "between 08-19 and 08-21", so a replay of
+those two commits could compare two policies that are BOTH on the new side.
+
+**2. The one focus-related constant in the live path did not move in that
+window** — `git log -S` shows `DEFAULT_FOCUS_RESERVE_WEIGHT` touched by exactly
+one commit ever, session 45's.
+
+**But gate 2 opened a narrower question in its place, and it is cheap.** At the
+shipped weight w=3 the simulator's opening spend lands **0.004 outside** today's
+era's interval, against 0.207 outside at w=0. The sim at the live weight very
+nearly reproduces live's pacing. So the question worth asking next is not "what
+did sessions 61/62 change" but **"what makes live's EFFECTIVE focus-reserve
+behaviour differ from the sim's at the same nominal weight"** — and that is a
+much smaller search than replaying two whole policies.
+
+**Recommendation: hold the replay; ask the narrower question first.** Not a
+decision an agent should make alone, which is why it is here rather than in
+DECISIONS.md.
+
+---
+
+## §26 UPDATE [session 85] — still OPEN, still needs a yes/no, and gate 2 does not touch it
+
+Session 85 was asked to put §26 to the user and has. **Nothing has been
+written**: no shadow instrumentation, no `redrawEnabled` change, no
+`REDRAW_THRESHOLD` change. §7a's supporting figures are unchanged and re-pinned
+by this session's suite (`wasted` structurally zero at every K because
+`neither = 0`; K=7 fires 9, rescues 7, sacrifices 0, 11 mana).
+
+The three answers in §26 above are still the three answers. **(a) design it and
+bring the gate back, (b) not yet — redraw is CLOSED and instrumenting a closed
+policy is premature, (c) yes but only after the redraw verdict is revisited.**
