@@ -152,6 +152,69 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     expect(observed.every((o) => multiplicative(o.hit) === o.actual)).toBe(true);
   });
 
+  /**
+   * [session 81] **Which hit amount would separate the three survivors — and
+   * the answer is NOT only 9.** Session 80 concluded that separating
+   * `hit×1.5` round-half-up, `hit×1.6` rounded and `floor(hit×5/3)` needs a
+   * crit on a hit-9 card, and DECISIONS then recorded that no Shroom-deck card
+   * deals 9, so "more casting alone will not get there".
+   *
+   * The first half of that was too narrow. Enumerated over every hit amount
+   * the corpus's cards actually carry, **hit 6 and hit 8 also separate** — they
+   * split `×1.5` from the other two (9 vs 10, and 12 vs 13), where hit 9 splits
+   * `floor(5/3)` from the other two (15 vs 14).
+   *
+   * That matters because **card 75 deals 6 and is in the deck the account is
+   * playing right now** (as is card 7; card 21 deals 8). So a crit that
+   * eliminates one of the three IS reachable by ordinary casting, which is what
+   * the earlier conclusion said it was not. It does not finish the job — fully
+   * separating all three still needs a hit-9 crit as well — but it halves it
+   * with cards already in hand.
+   *
+   * Pinned as arithmetic so a reader cannot re-derive the wrong conclusion from
+   * prose, and so the useful targets stay visible when the next crit lands.
+   */
+  it("hit 6 and hit 8 separate the surviving crit rules — not only hit 9", () => {
+    const roundHalfUp = (x: number) => Math.floor(x + 0.5);
+    const rules = {
+      "x1.5 round-half-up": (h: number) => roundHalfUp(h * 1.5),
+      "x1.6 rounded": (h: number) => Math.round(h * 1.6),
+      "floor(h*5/3)": (h: number) => Math.floor((h * 5) / 3),
+    };
+    const predictions = (h: number) => Object.values(rules).map((f) => f(h));
+    const separates = (h: number) => new Set(predictions(h)).size > 1;
+
+    // The two observed crits cannot separate anything — all three rules agree
+    // on them, which is exactly why n=2 settled the FAMILY and not the member.
+    expect(separates(3)).toBe(false);
+    expect(separates(5)).toBe(false);
+    expect(predictions(3)).toEqual([5, 5, 5]);
+    expect(predictions(5)).toEqual([8, 8, 8]);
+
+    // Hit 7 is useless too — session 80 said so and it holds.
+    expect(separates(7)).toBe(false);
+
+    // These three do separate. 6 and 8 isolate x1.5; 9 isolates floor(5/3).
+    expect(predictions(6)).toEqual([9, 10, 10]);
+    expect(predictions(8)).toEqual([12, 13, 13]);
+    expect(predictions(9)).toEqual([14, 14, 15]);
+    expect([6, 8, 9].every(separates)).toBe(true);
+
+    // And the reachability claim, checked against the corpus rather than
+    // asserted: a card dealing 6 is present in the decks actually played.
+    const hitAmounts = new Set<number>();
+    for (const t of traces) {
+      for (const c of t.cards.values()) {
+        const amount = c.hitEffects.find((e) => e.amount > 0)?.amount;
+        if (amount !== undefined) hitAmounts.add(amount);
+      }
+    }
+    expect(hitAmounts.has(6)).toBe(true);
+    expect(hitAmounts.has(8)).toBe(true);
+    // Still no card dealing 9 anywhere in the corpus — DECISIONS' half that stands.
+    expect(hitAmounts.has(9)).toBe(false);
+  });
+
   it("identifies crits by critZone geometry — and that test discriminates the zone table", () => {
     // This is the point: `critEffects` damage at a `critZones` cell is a
     // second, independent check on session 47's ZONE_OFFSET correction, on a

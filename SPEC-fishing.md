@@ -285,8 +285,28 @@ n=2 separates the FAMILIES, not the members: do not encode a specific
 multiplier either. What it does settle is that **a model adding a constant is
 wrong for every card whose hit amount is not 3**, which is most of them.
 
-A third observation would separate the survivors, but only on the right card:
-hit 4 gives 6/6/6 and hit 7 gives 11/11/11, while **hit 9 gives 14/14/15**.
+A third observation would separate the survivors, but only on the right card.
+**[session 81 — CORRECTED, and the correction makes this reachable.]** Session
+80 named hit 9 as the separator and DECISIONS then recorded that no Shroom-deck
+card deals 9, concluding that "more casting alone will not get there".
+Enumerated over every hit amount the corpus's cards actually carry, that was
+too narrow — **three amounts separate, not one**:
+
+| hit | `×1.5` half-up | `×1.6` rounded | `floor(×5/3)` | verdict |
+|---|---|---|---|---|
+| 3 | 5 | 5 | 5 | observed; all agree |
+| 5 | 8 | 8 | 8 | observed; all agree |
+| 6 | **9** | 10 | 10 | **separates `×1.5`** |
+| 7 | 11 | 11 | 11 | useless |
+| 8 | **12** | 13 | 13 | **separates `×1.5`** |
+| 9 | 14 | 14 | **15** | **separates `floor(×5/3)`** |
+
+**Card 75 deals 6 and is in the deck this account is playing now** (so does
+card 7; card 21 deals 8). A crit eliminating one of the three is therefore
+reachable by ordinary casting. It does not finish the job — fully separating
+all three still needs a hit-9 crit, and no card in the corpus deals 9, which is
+the half of DECISIONS' claim that stands — but it halves it with cards already
+in hand. Pinned as arithmetic in `tests/fishing/stateFields.test.ts`.
 
 `tests/fishing/stateFields.test.ts` pins both anomalies as an exact list and
 re-derives the falsification arithmetic, so a third, novel exception fails
