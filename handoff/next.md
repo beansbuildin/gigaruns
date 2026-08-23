@@ -1,266 +1,308 @@
-# BRIEF — session 86 — the blind arm never aims
+# BRIEF — session 87 — spend the budget: twenty casts, then runs one at a time
 
-## 0. Verification, and three corrections taken
+**This is a LIVE session.** Sessions 85 and 86 were both offline by user
+directive and both were the right call. This one is not: the fishing batch is
+the only instrument that answers §19, the corpus is the only instrument that
+describes the bot, and **the budget that has now expired unspent twice is the
+whole point of the session.**
 
-Fresh clone at `c8a144d`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
+---
+
+## 0. Verification, the clock, and one thing that must land before the first cast
+
+Fresh clone at `69721b9c`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
 
 ```
-npx tsc --noEmit                     clean
-npx vitest run   Test Files  98 passed (98)
-                      Tests  1643 passed | 13 skipped (1656)
+npx tsc --noEmit                     expect clean
+npx vitest run                       expect 99 files / 1666 passed
 ```
 
-**Both gates hold.** Gate 2's result — 98% of the opening-spend miss closed at
-w=3, the per-turn profile and the drift margin both moving *away*, FAIL at both
-weights by four thousandths — is a better answer than either outcome I predicted,
-and the decision to change no default now has evidence behind it rather than
-caution.
+**Rule 9 applies to this whole brief.** I have opened `handoff/STATE.md`,
+`handoff/next.md` (session 86), `handoff/log/session-86.md`,
+`handoff/scratch-session-86.md`, `QUESTIONS.md` §19/§23/§28, `CLAUDE.md`,
+`PROTOCOL.md`, `config/bot.json` and both generated reports. **I have NOT opened
+`scripts/liveFishing.ts`, `scripts/liveRun.ts`, `scripts/matcherWeightReport.ts`
+or `src/strategy/fishing/matcherVerdict.ts`.** Every claim below about what those
+four do is second-hand from the recap and §19 — open them before acting on it.
+Session 86's brief broke rule 9 on `redrawCounterfactual.ts`, and session 81's on
+`policyApproved`, both on supporting claims rather than measurements. Naming my
+own unread files up front is the cheap version of not making it three.
 
-**Session 85's three corrections to me are all correct and one is bad.**
+### The clock
 
-- **`redrawCounterfactual.ts` is not a sim arm.** It calls
-  `makeMatcherFishPolicy` zero times; the `focusReserveWeight` I cited at `:460`
-  is inside a printed prose paragraph. **I asserted what a file does without
-  opening it** — the same failure as the `policyApproved` line in session 81, and
-  the rule session 74 §7 wrote to stop it. Twice now.
-- **"Nobody has asked what it reads at w=3" was wrong** —
-  `focusReserveAblation.ts` has swept `[0, 0.5, 1, 2, 3, 4, 6, 8, 12]` with a
-  live-config arm since session 45. The narrow true statement is the one gate 2
-  answered: nobody had asked what the *opening-spend gate* and the *drift margin*
-  read at w=3.
-- **(2,2) is 147 of 147 recorded openings.** The 148th trace has `hasStart` false
-  — a mid-cast resume — and it is also the corpus's only cast with no covering
-  focus. **Two anomalies, one cause**, which is a better fact than my number was.
+Session 86 ran **11:37 → 15:16 PT on 2026-08-23**, after that day's 11:00
+rollover, and spent **nothing**. So as this is written the ledgers hold **12
+run-units and 20 casts, fresh and unspent, and they expire at 11:00 PT on
+2026-08-24.** Unspent budget does not accumulate.
 
----
-
-## The clock and the ledger
-
-Written **2026-08-23, 11:32 PT**. The ledgers rolled at 11:00 and session 85 ended
-offline by your directive, so **12 run-units and 20 casts are fresh and unspent.**
-
-`doctor.ts` first. §1 and §2 need neither.
-
-*⚠ `preflight.ts` (~90s) after committing fixtures, before the push.*
-
----
-
-## 1. Open question 3, answered: the blind arm never moves its focus. Not once
-
-Session 85 noticed `SIM blind` was byte-identical at w=0 and w=3 and asked whether
-that is a real structural fact or a wiring bug. **It is structural, and it is
-larger than the question.**
-
-I reproduced the invariance first — same 7641 plays, same 3261 hits, same modes,
-same counts, to every printed digit, while the bare arm moved 80.8% → 85.1% hit
-and −3.437 → −3.783 drift. Then I instrumented the focus meter directly, 400 casts
-per arm through `observeTurn`:
+**That is a claim from the recap's wall clock, not from the server.** `doctor.ts`
+wins, and so do:
 
 ```
-  arm                        turns   turns that MOVED focus   total focus spent
-  BLIND (matcherPool: [])  w=0  2363          0    (0.0%)            0
-  BLIND (matcherPool: [])  w=3  2363          0    (0.0%)            0
-  BARE  (default pool)     w=0  2223        752   (33.8%)         1047
-  BARE  (default pool)     w=3  2069        713   (34.5%)          913
+npx tsx scripts/checkFishingCaps.ts      # dayDocs[pondId=2]
+npx tsx scripts/checkDungeonToday.ts     # dayProgressEntities
 ```
 
-**Zero. Not one focus move in 2,363 turns.** A term that prices focus *movement*
-cannot bind on a policy that never moves — so the invariance is a tautology, not a
-bug, and session 85's "away" readings on the other arms are unaffected by it.
-
-**The mechanism is in the repo's own comment** (`castSim.ts:370-374`): with
-`matcherPool: []` the sim "has always fallen back to UNIFORM regardless of any
-real transition data ... hardcoded". A uniform distribution makes EV identical at
-every focus of the same footprint, so the argmax never has a reason to move — and
-never does.
-
-### 1a. What that means beyond the question
-
-**`SIM blind` is a no-aim arm, not a bad-predictor arm, and its name says the
-wrong one.** "Blind matcher" reads as a bot with a weak predictor; this is a bot
-that places its focus at (2,2) and leaves it there for the entire cast. Live
-spends **0.85 on the opening play alone** in today's era, and 1.55 before it.
-
-Three things follow, and the third is the one that bites:
-
-1. **Every deck-sweep baseline was measured on a bot that never aims** — session
-   83's 36.42%, session 78's 41.06%. That is not wrong for a deck comparison, but
-   it is not a fishery anyone plays in.
-2. **It explains session 84's "the blind arm is the only one on live's side of
-   zero", and the explanation is the opposite of encouraging.** No aiming → low
-   damage per hit (3.66 against live's 5.06) → break-even lifted to 47.3% →
-   positive drift. **It matches live's sign for the reason live does not.**
-   Session 84 already flagged the sign-vs-mechanism trap; this is the mechanism.
-3. **`castSim.ts:370-372` records that `matcherPool: []` is "the condition
-   session 14 established as representative of real live Dendren play".** On the
-   dimension gate 2 measures, it is not: live moves its focus, this arm never
-   does. **That sentence is fourteen sessions old and load-bearing** — it is why
-   the blind arm gets used as a live proxy at all. It should carry the 0/2363
-   beside it.
+**Rule 6 obligation:** §19's own scheduling precondition is that a fishing batch
+is only schedulable in a session beginning after 11:00 PT on a day the caps have
+not already been spent. If the caps read spent at minute one, **say so at the top
+of the session and pivot to §5's offline item** — do not discover it at minute
+five, and do not report it before running `--dry-run` (rule 12).
 
 ---
 
-## 2. The redraw revisit — what §1 changes about it
+## 1. GATE 0 — freeze the memo's denominators BEFORE the first cast
 
-The user gated §26's shadow evaluation behind revisiting the CLOSED verdict, and
-session 85 is right that the content is already measured and this is **not**
-another counterfactual run. It is an argument put to the user. **§1 adds one thing
-to it, and it is not small.**
+**Offline, ~10 minutes, and it blocks everything live in this brief.**
 
-**There is no sim arm that could re-derive 43.9 honestly.** The two candidates:
+Session 86's own scratch names the hazard precisely: *"The memo's numbers are
+computed on the corpus AS IT STANDS (148 traces, 612 plays). That is a reason the
+offline choice was the clean one: new casts would have moved every pinned corpus
+figure in the same session the memo went out."*
+
+**QUESTIONS §28 is OPEN and the user has not answered it.** The moment a cast
+lands, the corpus is no longer 148/612/147, and every quantitative claim in
+`handoff/reports/session-86-redraw-revisit.md` — 89.8% pooled mana slack, today's
+88.9% / mean 6.26 / median 7, the 15/15 rescue at n=15, the 12.7% fire rate, the
+11.8% dead-hand rate — is silently measured against a denominator the memo does
+not describe. **A question asked on one corpus and read on another is not the
+same question**, and the user is being asked to re-price a verdict on exactly
+these numbers.
+
+**What to do, and it is bookkeeping, not analysis:**
+
+- Pin the corpus the memo was computed on as a **named snapshot** — the docId set
+  or an `as-of` predicate, whichever the existing corpus loader already supports.
+  Do not invent a new persistence path for it.
+- Add one header line to the memo **and** to §28 naming that snapshot: *computed
+  on 148 traces / 612 plays / 147 resolved, corpus as of 2026-08-23.*
+- Nothing is recomputed. **Do not re-run the counterfactual, do not touch a
+  number, do not "refresh" the memo.** The memo is delivered and awaiting an
+  answer; this is a label on it, exactly as gate 1 last session was a label and
+  not a fix.
+
+**Do not** import `todaysEraCastIds()` into a committed test to do this — that
+standing prohibition is unchanged and the snapshot lives beside the memo, not in
+the suite.
+
+---
+
+## 2. The fishing batch — 20 casts, and the one thing they buy that nothing else can
+
+Fishing is autonomous within budget (`dendren.maxCastsPerSession` 20). It does
+not need per-cast approval and never has.
+
+### 2a. §19, blocked five times, is now one command behind the batch
 
 ```
-  SIM bare    margin +41.9pp over its own break-even, ORACLE matcher (matcherPool
-              defaults to truePool — it can identify the true pattern by
-              construction), redraws 27-61% of turns
-  SIM blind   never aims (§1), 0 focus spent in 2363 turns, damage/hit 3.66
-              against live's 5.06
+npx tsx scripts/matcherWeightReport.ts --last-casts=20
 ```
 
-Neither is a fishery the live bot plays in, and they fail in opposite directions.
-**So "re-derive the price properly in sim" is not an available option** — the
-corpus is the only instrument that describes the bot. That is worth saying in the
-memo explicitly, because "we should just re-run it properly" is the obvious
-objection and the answer is that there is nothing to re-run it on.
+Everything except the twenty casts was built in session 55. §19 has been blocked
+by the daily cap in sessions 51, 53, 54, 55 and 85/86's offline directive — **five
+sessions, none of them on merit.** This session is the precondition.
 
-**What the memo should carry, each with its instrument and its distance from
-live:**
+Three things §19 already establishes, and each is a trap if forgotten:
 
-- **The verdict on record:** 43.9 mana per extra fish against a 10-mana pool.
-  Instrument: `SIM bare`, margin **+41.9pp**, redraw rate 27–61% against a shipped
-  threshold that wants one on ~3.5% of turns.
-- **Mana is not the binding resource.** 147 resolved casts, **89.8% end with mana
-  unspent**, mean 5.85, median 7. Instrument: the corpus. Distance from live:
-  none — it *is* live.
-- **The binding resource is fish-HP headroom** — 6.8 HP, heal 3, ~2.3 net misses —
-  and **a redraw takes no shot, so it cannot miss.**
-- **Today's era, the counterfactual:** dead hands 11.8% of plays, rescue **15 of
-  15**, `neither = 0`, mean cost **1.33 mana**, availability 88.2% → 97.6%.
-  **Uncertainty: n = 15, 95% CI [79.6%, 100.0%]** — the weak point, and it should
-  lead rather than trail.
-- **Still unpaid:** the two correctness gaps (the client discards the redraw's
-  `FISH_MOVED`; `MAX_REDRAWS_PER_CAST` is not the `MAX_TURNS` guarantee), both
-  live-path edits.
+- **`matcherWeight` is absent from all 129 pre-session-51 rows**, and
+  `matcherWeightOf()` back-fills the old fixed `0.9` when it is missing —
+  which reads as *"pi is high on every turn"*, **the exact conclusion §19 exists
+  to test.** `matcherVerdict.ts` reads the raw field and treats absence as NOT
+  MEASURED. **If the report returns `INSUFFICIENT_DATA`, that is the answer, not
+  a reason to widen the window.** Rule 10 in its purest form.
+- **Session 51's decision rule is CODE, not prose.** KEEP / DROP /
+  `EARNED_BUT_UNPAID` come out of `matcherVerdict.ts`. Record what it returns.
+  **Do not renegotiate the rule once the numbers are visible** — the honest answer
+  may well be "drop the thing two sessions built", and that is why the rule was
+  written down before the data existed.
+- **Record the library's support at batch time.** It was 3 de-aliased patterns
+  (perimeterWalk cw 4, ccw 4, bounce(2,0) 3), **11 of 88 clean casts**,
+  pi_0 ≈ 0.133. `supportingCastCount`'s denominator is CLEAN casts, not traces —
+  88, not 89.
 
-**The recommendation is the user's to accept or refuse, and the order is their
-directive: revisit first, instrument second.** Do not write shadow
-instrumentation before the answer comes back.
+### 2b. The oil capture: take it if it comes, do not arrange it
 
----
+Oils are authorised — `dendren.oils.policyApproved` is now **true**, items 942
+(Mid Focus) and 937 (Mid Relaxing), `maxPerCast` 3 with 937 capped at 2. Spending
+them inside that budget is not a blocker and not a question.
 
-## 3. Gate
+**The standing capture is an oil consumed at a NON-ZERO meter**, which settles
+add-2 versus restore-to-2. On-demand timing fires oils at meter-out, and today's
+bot reaches meter 0 on ~**1.5%** of plays — so twenty casts are unlikely to
+produce this by accident, and it is getting *harder*, not easier.
 
-**Offline, deterministic, no live budget, no `data/`.** Rule 6, predicates in code.
+**Do not arrange it.** Forcing an oil at a non-zero meter is a live-policy
+deviation and it is the user's call, not a setup an agent quietly performs. If it
+happens, dump the full response. If it does not, say so in one line and leave
+add-2-vs-restore-to-2 exactly where it is.
 
-1. **The blind arm's zero focus movement is pinned, and the arm is labelled for
-   what it is.** Reproduce **0 of 2363 turns / 0 points at both weights**, and
-   the bare arm's **1047 → 913** as the control that proves the instrument works.
-   Put the 0/2363 beside `castSim.ts:370-372`'s "representative of real live
-   Dendren play", and beside `damageEconomy.ts`'s printed label for that row.
-   **A pin that does not also record the bare arm's movement has not shown the
-   probe can see movement at all.**
-2. **The redraw memo exists and, for every quantitative claim in it, names the
-   instrument and that instrument's distance from live** (§2) — and states the
-   rescue rate as `15/15, 95% CI [79.6%, 100.0%], n = 15` wherever it appears,
-   never as a point. Delivered to the user as a recommendation, with the
-   two unpaid correctness gaps priced.
+### 2c. What the twenty casts are worth beyond §19
 
-Not gated, do if there is room: whether the blind arm's never-moving focus makes
-`focusReserveAblation.ts`'s session-45 sweep partly vacuous — its live-config arm
-is a different arm, but the sweep's framing should be checked against §1.
+Today's era is **54 casts**, and §2 of last session's memo rests on the **15 dead
+hands** inside it. Twenty more casts is roughly a **37% increase in the era that
+carries the whole redraw argument.** Session 86's own dead end — *"there is no sim
+arm that could re-derive 43.9 honestly"* — is the reason: bare is the oracle arm
+at +41.9pp, blind never aims, live-config is closest and still +4.0pp, and the two
+candidates fail in opposite directions. **The corpus is the only instrument that
+describes this bot.** Growing it is the highest-value thing 20 casts can do.
 
-**What would make these unmeetable:** nothing for gate 1. Gate 2 is a document,
-so its gate is its content, not its conclusion — **the memo may recommend keeping
-redraw closed and still meet it.**
+After the batch: `npx tsx scripts/regenerateReports.ts`, and if you re-read any
+era-split figure, **report it as a NEW row beside the frozen one from gate 0,
+never over it.**
 
----
+### 2d. Fishing do-nots, all standing
 
-## 4. The live budget — fresh, and the captures are unchanged
-
-12 run-units, 20 casts, all unspent. Each dungeon run needs its own go-ahead; rule
-11 terms unchanged; rule 13 after every one; `--dry-run` first — the dungeon path
-has not executed since session 82.
-
-- **`finishRun`'s `EV support: n/m` line has still never printed on a real run.**
-  It was built in session 78, found unreachable in session 82, fixed in session
-  84, and has not been exercised. One juiced run prints it.
-- **One base-6/8/10 crit** finishes the crit rule; card 10 (crit 10) is in the
-  deck — ×1.5 → 15 against ×1.6 → 16. `critEffects`, not `hitEffects`.
-- **An oil at a non-zero meter** settles add-2 vs restore-to-2, and it is getting
-  *harder*: today's bot reaches meter 0 on 1.5% of plays. If it matters it may
-  have to be arranged, and arranging it is a live-policy deviation — the user's
-  call, not something to quietly set up.
-- **Ordinary casts** still buy the most: today's era is 54 casts / 202 plays and
-  §2's whole case rests on 15 dead hands inside it.
+- **No shadow instrumentation.** §26 is blocked behind §28 and §28 is unanswered.
+  The order was the user's directive: revisit first, instrument second.
+- `redrawEnabled` stays false. `REDRAW_THRESHOLD` stays 0 and untouched.
+- Do not present 15/15 as 100%. n=15.
+- Do not shuffle the random-sample deck. `DEFAULT_POTION_THRESHOLD` and
+  `chooseNewCard` stay untouched.
 
 ---
 
-## 5. Do not
+## 3. The dungeon runs — after the fishing, one at a time, with two probes armed
 
-- **Do not read the blind arm as a live proxy on anything focus-related** (§1a).
-  Its 42.7% hit rate is card zones at a fixed point, with no aiming in it.
-- **Do not change any default**, including renaming the blind arm's *behaviour*.
-  Gate 1 is a pin and a label, not a fix.
-- **Do not write the shadow instrumentation** before the user answers §2. Their
-  directive is revisit first.
-- **Do not present §2's 15/15 as 100%.** n=15.
-- **Do not re-derive 43.9 on a sim arm** (§2) — there is no arm that could.
-- **Do not un-suspend +19.40pp.** §0a stands, and gate 2's FAIL at both weights
-  did not move it.
-- **Do not resume the off-policy replay** — session 85's §27 recommendation to
-  hold it stands, and §1 does not change it.
-- Standing, none re-opened: do not build H2's proc model; no M4 lines;
-  `DEFAULT_POTION_THRESHOLD` / `chooseNewCard` UNTOUCHED; `boonCapture` OFF; no
-  429 backoff without an observed 429; do not shuffle the random-sample deck; do
-  not complete the corrode perpetual table; do not import `todaysEraCastIds()`
-  into a committed test.
-- **Do not start a dungeon run without `--dry-run`, `doctor.ts` and a per-run
-  go-ahead**, and never chain runs.
+**Rule 11 governs every clause of this and none of it is an agent's to relax:**
+60-energy juiced Tier-3 entry (`--juiced --juiced-index=3`), 3× Big Heal Juice
+(item 131, already permanent in `config/bot.json`), `--runs=1`, **a separate human
+go-ahead for each run**, and stop and hand back when it finishes. Never chain.
+Twelve run-units is **4 juiced runs**, ceiling, and the server enforces it.
+
+**`--dry-run` first.** The dungeon path has not executed since session 82 — four
+sessions — and twenty seconds of dry run is the difference between a real blocker
+and an invented one (rule 12).
+
+### 3a. Two instruments that ride free on the first run, and both are the point
+
+**(1) `finishRun`'s `EV support: n/m` line has still never printed on a real
+run.** Built session 78, found unreachable session 82, fixed session 84, never
+exercised. One juiced run prints it.
+
+⚠ **If run 1 completes and the line does not print, that is a FINDING — stop and
+report it before asking for run 2.** A fix that was verified in test and stays
+silent on the third live attempt is worth more as a stopped session than as a
+retry.
+
+**(2) §23's `start_run_energy_probe` is BUILT, ARMED, and has never fired.** Two
+GETs around the `start_run` POST, zero energy, on every real run. Three
+consecutive juiced runs logged `observedDelta` exactly 1 less than
+`committedDelta`. Read `tightDelta`:
+
+- **−59** → the CHARGE is 59 and the 3× multiplier is the suspect (20×3 − 1).
+- **−60** → something inside the run credits 1 back — a different investigation.
+
+**Do not fix the drift before the probe says which it is.** The error is
+conservative in the safe direction; the guard enforces off committed spend.
+
+**(3) Opportunistic:** one **base-6/8/10 crit** finishes the crit rule. Card 10
+(crit 10) is in the deck — ×1.5 → 15 against ×1.6 → 16. `critEffects`, not
+`hitEffects`. Take it if it appears; do not chase it.
+
+### 3b. Rules that bind inside the run
+
+- **Rule 8** for in-room tiers: highest tier among **non-Perpetual** options; at
+  the **final room take no-modifiers**, keyed on the server's `maxRoom`
+  (Forbidden Woods 16), never a hard-coded number. `src/strategy/enemyTier.ts` is
+  the only call site that may choose a tier.
+- **Rule 13, after every single run, unconditionally.** If any live command
+  reports denied, blocked or interrupted, **read `checkDungeonToday.ts` before
+  saying it did not run.** The classifier's denial has already raced execution
+  once (run 24945829, found 25 minutes later by accident). Report any discrepancy
+  in the recap with both numbers — do not reconcile it quietly.
+- **Never allocate skill points.** The user does that between runs, and it is why
+  runs do not chain.
+
+### 3c. What a normal run looks like, so a bad one is not read as a regression
+
+67 recorded attempts, **58 deaths, 0 cleared, 22 juiced.** Deaths cluster at rooms
+3–5 (33 of 58). The four juiced runs on 08-23 died at rooms 8, 3, 7 and 7 for
+8112 / 1824 / 6384 / 6336 Hard Core. **A room-4 death is the modal outcome, not a
+failed session.** The gate below is on the instruments, not the depth.
 
 ---
 
-## 6. Corrections to me
+## 4. Gate
 
-- **I claimed what a file does without opening it, for the second time in five
-  sessions.** `redrawCounterfactual.ts` has no simulator in it and I put it in a
-  gate. Session 74 §7 wrote the rule — *any claim in a brief about what code does
-  gets the file opened before the sentence is written* — and I have now broken it
-  on `policyApproved` and on this. **The pattern is that I break it on the
-  supporting claims, never on the measurement**, because the measurement is the
-  part I actually run.
-- **"Nobody has asked" is a claim about the repo's history and I made it without
-  searching.** `focusReserveAblation.ts` has existed since session 45. The
-  narrow version was true and would have cost one grep.
-- **§1 is a case where I did run it**, and the finding is bigger than the question
-  because the probe was direct — instrument the meter rather than infer from
-  summary statistics. **That is the whole difference between this section and the
-  two above it.**
-- **Rule 9 applies.** §1's counts are from `c8a144d` with `npm ci` and no
-  `data/`; a run that disagrees wins.
+Live, so rule 6 applies twice over: state at the top if either half is unreachable.
+
+1. **FISHING.** Gate 0's corpus snapshot is pinned **before the first cast**;
+   the batch is spent (or the number spent and the reason for any shortfall is
+   stated); `matcherWeightReport.ts --last-casts=20` has been run and **its
+   verdict recorded exactly as the code returns it**, including
+   `INSUFFICIENT_DATA`. Support counts recorded at batch time.
+2. **DUNGEON.** At least one juiced run, `--dry-run` first, per-run go-ahead
+   obtained, and **both** the `EV support: n/m` line and the
+   `start_run_energy_probe` `tightDelta` reported — **present or absent, stated
+   either way.** A run that dies in room 2 meets this gate.
+
+**What would make these unmeetable:** the caps reading spent at session start.
+Nothing else — both halves are one command behind a budget that exists.
+
+**What does NOT meet the gate:** a §19 verdict argued around rather than
+reported; a second dungeon run started because the first was reported denied
+without reading the ledger; any dungeon run without its own go-ahead.
 
 ---
 
-## Your task (session 86)
+## 5. Not gated — offline, only if there is room, and only after the batch
 
-1. `doctor.ts` first. **12 run-units and 20 casts are fresh.**
-2. **§1 / gate 1** — pin the blind arm's zero focus movement with the bare arm as
-   its control, and label the arm where it is described as representative of live
-   play.
-3. **§2 / gate 2** — the redraw memo, every claim carrying its instrument and that
-   instrument's distance from live, the rescue rate always as an interval.
-   Deliver it and stop; the answer is the user's.
-4. **§4** — only with a go-ahead. One juiced run would print the `EV support` line
-   for the first time.
+Open question 2 from the recap: **does the shipped EV trigger fire on the SAME
+turns the dead hands occur on?** It fires at 12.7% against a dead-hand rate of
+11.8% and **nothing establishes those are the same turns.** One script, offline,
+no live spend.
+
+If you run it, **label whether it is on the frozen corpus or the grown one**, and
+prefer the frozen one so it is comparable to the memo §28 is asking about.
+
+This is also the fallback if the caps are already spent.
+
+---
+
+## 6. Do not
+
+- **Do not answer §28.** It is the user's to re-price, an agent must not answer
+  it, and `redrawEnabled` / `REDRAW_THRESHOLD` stay untouched until it comes back.
+- **Do not start the gate-1 re-audit** (the deck sweep's 36.42%, session 78's
+  41.06%, the noise floor, the −4.6pp drift margin, all measured on the no-aim
+  arm). It is real, it is bigger than one session, and this session's budget is
+  live rather than offline. The pin and the label already exist; they are what
+  make it possible later.
+- **Do not read `SIM blind` as a live proxy on anything focus-related**, and do
+  not restate session 86's finding without the word **UNIFORM** in it —
+  `matcherPool: []` is necessary and not sufficient, and `ringModel` and
+  `blindFallback` each restore aiming.
+- **Do not un-suspend +19.40pp.** §0a stands.
+- **Do not resume the off-policy replay** (§27 recommends holding it).
+- **§25 stays PARKED** — recommended drop, not dropped unilaterally.
+- Standing, none re-opened: no H2 proc model; no M4 lines; `boonCapture` OFF; no
+  429 backoff without an observed 429; do not complete the corrode perpetual
+  table; do not revert rule 8.
+- **`npx tsx` and `git` fail under the command sandbox. Run unsandboxed.**
+
+---
+
+## Your task (session 87)
+
+1. `doctor.ts`, `checkFishingCaps.ts`, `checkDungeonToday.ts`. **If the caps are
+   already spent, say so at the top and go to §5.**
+2. **§1 / gate 0** — freeze the memo's denominators. Before the first cast. It is
+   a label, not a recomputation.
+3. **§2 / gate 1** — the 20-cast batch, then `matcherWeightReport.ts
+   --last-casts=20`. Report the verdict as the code returns it. Take the oil
+   capture only if it arrives on its own.
+4. **§3 / gate 2** — dungeon runs, `--dry-run` first, **one go-ahead per run**,
+   never chained, rule 13 after each. Report the `EV support` line and the energy
+   probe's `tightDelta` whether or not they appear.
 5. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
-   commit, `assertionCoverage` at zero, **`preflight.ts` after committing
+   commit, `assertionCoverage` at zero vacuous, **`preflight.ts` after committing
    fixtures and before the push**, no test writes a real data path, secret scan.
 
-**Honest expectation.** §1 is a small pin sitting under a large fact: the arm this
-repo has used as its stand-in for live play since session 14 does not do the one
-thing the last three sessions have been measuring. **The satisfying version of
-this session is gate 1 landing and the memo going out clean.** The unsatisfying
-one is that gate 1 prompts a re-audit of every figure the blind arm has ever
-produced — the deck sweep, the noise floor, the drift margin — and that is a
-larger job than one session. **If that is where it goes, stop and hand it
-forward rather than half-doing it**; the pin and the label are what make the
-re-audit possible later, and they are cheap.
+**Honest expectation.** The satisfying version of this session is §19 answered
+after five blocked sessions and the `EV support` line printing for the first time
+in nine. The likely version is a `DROP` or an `INSUFFICIENT_DATA` and a room-4
+death — and that is still the best available use of a budget that has now expired
+unspent twice. **The one outcome that would waste the session is spending the
+casts before gate 0 lands**, because that quietly changes the denominators of the
+memo the user is currently being asked to rule on, and nothing in the recap would
+show it happened.
