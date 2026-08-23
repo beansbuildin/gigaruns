@@ -224,6 +224,19 @@ function numberArray(v: unknown): number[] | null {
  * Loads every committed fishing fixture under `root` into per-cast state
  * traces. Files are visited in sorted path order, which is chronological —
  * directories are timestamped and `state-NNN.json` is zero-padded.
+ *
+ * ⚠ **[session 84 §0b] FILE ORDER IS THE SEQUENCE. The server's timestamps
+ * are not, and sorting a cast's states by them REORDERS the cast** — within
+ * one cast they tie, so any sort on them is arbitrary. This nearly shipped as
+ * a published table: a focus-oil detector sorted on `createdAt` reported 140
+ * of 148 casts firing an oil where the file-ordered truth is 13, and what
+ * caught it was the number being implausible rather than a check.
+ *
+ * The one legitimate use of the timestamp is the opposite question — dating a
+ * WHOLE cast, where `doc.createdAt` is constant across its states (148/148)
+ * and is the only per-cast clock the committed fixtures carry. That is
+ * `src/sim/fishing/castEra.ts`'s `loadCastCreatedAt`, and it deliberately
+ * takes the FIRST state's value per `docId` rather than sorting on it.
  */
 export function loadCastTraces(root: string = join("fixtures", "fishing-casts")): CastTrace[] {
   const files = walkStateFiles(root).sort();
