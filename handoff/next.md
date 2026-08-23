@@ -1,157 +1,150 @@
-# BRIEF — session 85 — the sim has never run the shipped policy
+# BRIEF — session 86 — the blind arm never aims
 
-## 0. Verification
+## 0. Verification, and three corrections taken
 
-Fresh clone at `c52ebad`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
+Fresh clone at `c8a144d`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
 
 ```
 npx tsc --noEmit                     clean
 npx vitest run   Test Files  98 passed (98)
-                      Tests  1637 passed | 15 skipped (1652)
+                      Tests  1643 passed | 13 skipped (1656)
 ```
 
-**Both gates hold.** Session 84 is the best session in this run. Three things
-stand out and should be kept as method, not just as results:
+**Both gates hold.** Gate 2's result — 98% of the opening-spend miss closed at
+w=3, the per-turn profile and the drift margin both moving *away*, FAIL at both
+weights by four thousandths — is a better answer than either outcome I predicted,
+and the decision to change no default now has evidence behind it rather than
+caution.
 
-- **`todaysEraCastIds()` was preferred, tried, and rejected on evidence** — it
-  reads `data/`, sees 81 of 148 casts, names a different boundary, and the five
-  casts between the boundaries read the OLD regime. That is the right way to
-  handle a brief's suggestion.
-- **The decomposition ships with three controls and the cause of its largest
-  term is stated as unknown** rather than papered over.
-- **`finishRun`'s gate was demonstrated FAILING** on the regression it exists to
-  catch, and both run-end shapes replay offline.
+**Session 85's three corrections to me are all correct and one is bad.**
 
-Corrections to me taken: my 605/404/201 play counts do not reproduce (612/410/202
-is STATE.md's own documented figure); my "+2 exactly, 21 times" was read off raw
-fixtures including the `use_fishing_item` response, while `castTrace.ts` skips it
-— both right about different things, and the trace-level reading is the one an
-instrument should use.
+- **`redrawCounterfactual.ts` is not a sim arm.** It calls
+  `makeMatcherFishPolicy` zero times; the `focusReserveWeight` I cited at `:460`
+  is inside a printed prose paragraph. **I asserted what a file does without
+  opening it** — the same failure as the `policyApproved` line in session 81, and
+  the rule session 74 §7 wrote to stop it. Twice now.
+- **"Nobody has asked what it reads at w=3" was wrong** —
+  `focusReserveAblation.ts` has swept `[0, 0.5, 1, 2, 3, 4, 6, 8, 12]` with a
+  live-config arm since session 45. The narrow true statement is the one gate 2
+  answered: nobody had asked what the *opening-spend gate* and the *drift margin*
+  read at w=3.
+- **(2,2) is 147 of 147 recorded openings.** The 148th trace has `hasStart` false
+  — a mid-cast resume — and it is also the corpus's only cast with no covering
+  focus. **Two anomalies, one cause**, which is a better fact than my number was.
 
 ---
 
 ## The clock and the ledger
 
-Written **2026-08-23, ~10:00 PT**. Both ledgers spent; **they roll at 11:00 PT,
-about an hour out.** After the roll: 12 run-units, 20 casts.
+Written **2026-08-23, 11:32 PT**. The ledgers rolled at 11:00 and session 85 ended
+offline by your directive, so **12 run-units and 20 casts are fresh and unspent.**
 
-`doctor.ts` first. §1–§3 need neither.
+`doctor.ts` first. §1 and §2 need neither.
 
 *⚠ `preflight.ts` (~90s) after committing fixtures, before the push.*
 
 ---
 
-## 1. The pacing term: the bot stopped OVERSHOOTING, and the target never moved
+## 1. Open question 3, answered: the blind arm never moves its focus. Not once
 
-Session 84 identified the proximate mechanism as first-play focus spend
-**1.553 → 0.852, never 3**. That is one number; it does not separate *"the fish
-was easier to reach"* from *"the bot aimed more cheaply."*
+Session 85 noticed `SIM blind` was byte-identical at w=0 and w=3 and asked whether
+that is a real structural fact or a wiring bug. **It is structural, and it is
+larger than the question.**
 
-I computed the second half. For every cast's opening play: the **minimum** focus
-move distance from (2,2) at which **some card in the held hand** covers the fish's
-actual resolution cell — the cheapest move that could have worked, oracle-lensed
-identically in both eras.
-
-```
-              casts   opening-hand    actual first    optimal move    OVERSPEND
-                       footprint       move spend       distance
-  before        94      7.38 cells        1.553           0.66          +0.89
-  today         54      7.20 cells        0.852           0.65          +0.20
-```
-
-**The optimal move is unchanged — 0.66 against 0.65.** The distributions match
-too (distance 0 on 44% / 48%, distance 1 on 46% / 39%). What collapsed is the
-**overspend: 0.89 → 0.20.**
-
-This is a stronger control than intrinsic reach, and it closes three doors at
-once. The targets did not get closer, the hands did not get wider (7.38 vs 7.20
-cells), and the opening focus point is **(2,2) in 147 of 148 casts across both
-eras**. Whatever changed, it changed how far the bot *chooses* to move — nothing
-about what it was moving toward.
-
-### 1a. The series steps; it does not trend
-
-If the cause were a learned model sharpening as the mined corpus grew, overspend
-should decline gradually. Per day:
+I reproduced the invariance first — same 7641 plays, same 3261 hits, same modes,
+same counts, to every printed digit, while the bare arm moved 80.8% → 85.1% hit
+and −3.437 → −3.783 drift. Then I instrumented the focus meter directly, 400 casts
+per arm through `observeTurn`:
 
 ```
-  08-15 +1.00 (n=5)   08-17 +1.15 (n=40)   08-19 +0.84 (n=38)   08-21 +0.10 (n=30)
-  08-16 +0.80 (n=5)   08-18  n=1 (resumed) 08-20 −0.40 (n=5)    08-22 +0.25 (n=16)
-                                                                08-23 +0.50 (n=8)
+  arm                        turns   turns that MOVED focus   total focus spent
+  BLIND (matcherPool: [])  w=0  2363          0    (0.0%)            0
+  BLIND (matcherPool: [])  w=3  2363          0    (0.0%)            0
+  BARE  (default pool)     w=0  2223        752   (33.8%)         1047
+  BARE  (default pool)     w=3  2069        713   (34.5%)          913
 ```
 
-**It steps.** And today's era drifts back *up* (+0.10 → +0.25 → +0.50) rather
-than continuing down, which is what a still-improving model would do. **That
-argues against the learned state and for a discrete change** — the alternative
-session 84's open question 1 named as the fallback.
+**Zero. Not one focus move in 2,363 turns.** A term that prices focus *movement*
+cannot bind on a policy that never moves — so the invariance is a tautology, not a
+bug, and session 85's "away" readings on the other arms are unaffected by it.
 
-**One caution that matters for dating it:** the five 08-20 casts already read
-−0.40, i.e. the new regime, and they are stamped **before** sessions 61/62's
-commits (11:27 PT against 13:33 and 15:59 PT). At n=5 that is not evidence, but it
-means **the corpus cannot date the change more precisely than "between 08-19 and
-08-21"**, and the 61/62 window is not as clean as the 20.3h gap makes it look.
-Say so before spending a session replaying two commits.
+**The mechanism is in the repo's own comment** (`castSim.ts:370-374`): with
+`matcherPool: []` the sim "has always fallen back to UNIFORM regardless of any
+real transition data ... hardcoded". A uniform distribution makes EV identical at
+every focus of the same footprint, so the argmax never has a reason to move — and
+never does.
+
+### 1a. What that means beyond the question
+
+**`SIM blind` is a no-aim arm, not a bad-predictor arm, and its name says the
+wrong one.** "Blind matcher" reads as a bot with a weak predictor; this is a bot
+that places its focus at (2,2) and leaves it there for the entire cast. Live
+spends **0.85 on the opening play alone** in today's era, and 1.55 before it.
+
+Three things follow, and the third is the one that bites:
+
+1. **Every deck-sweep baseline was measured on a bot that never aims** — session
+   83's 36.42%, session 78's 41.06%. That is not wrong for a deck comparison, but
+   it is not a fishery anyone plays in.
+2. **It explains session 84's "the blind arm is the only one on live's side of
+   zero", and the explanation is the opposite of encouraging.** No aiming → low
+   damage per hit (3.66 against live's 5.06) → break-even lifted to 47.3% →
+   positive drift. **It matches live's sign for the reason live does not.**
+   Session 84 already flagged the sign-vs-mechanism trap; this is the mechanism.
+3. **`castSim.ts:370-372` records that `matcherPool: []` is "the condition
+   session 14 established as representative of real live Dendren play".** On the
+   dimension gate 2 measures, it is not: live moves its focus, this arm never
+   does. **That sentence is fourteen sessions old and load-bearing** — it is why
+   the blind arm gets used as a live proxy at all. It should carry the 0/2363
+   beside it.
 
 ---
 
-## 2. The finding: every sim arm runs a policy the live bot does not
+## 2. The redraw revisit — what §1 changes about it
 
-**`DEFAULT_FOCUS_RESERVE_WEIGHT = 3`** (`cardChoice.ts:133`), and it is passed by:
+The user gated §26's shadow evaluation behind revisiting the CLOSED verdict, and
+session 85 is right that the content is already measured and this is **not**
+another counterfactual run. It is an argument put to the user. **§1 adds one thing
+to it, and it is not small.**
 
-```
-  scripts/liveFishing.ts:1536      deps.focusReserveWeight ?? DEFAULT_FOCUS_RESERVE_WEIGHT   → 3
-  src/sim/fishing/offPolicyReplay.ts:577   opts.focusReserveWeight ?? DEFAULT_...            → 3
-```
-
-and **not** by any `castSim` arm:
+**There is no sim arm that could re-derive 43.9 honestly.** The two candidates:
 
 ```
-  makeMatcherFishPolicy(redrawThreshold, heuristicsEnabled = true, focusReserveWeight = 0)
-
-  scripts/focusProfileCheck.ts:220     makeMatcherFishPolicy(REDRAW_THRESHOLD, true)   → w = 0
-  scripts/damageEconomy.ts:108         makeMatcherFishPolicy(REDRAW_THRESHOLD, true)   → w = 0
-  scripts/redrawCounterfactual.ts      same                                            → w = 0
+  SIM bare    margin +41.9pp over its own break-even, ORACLE matcher (matcherPool
+              defaults to truePool — it can identify the true pattern by
+              construction), redraws 27-61% of turns
+  SIM blind   never aims (§1), 0 focus spent in 2363 turns, damage/hit 3.66
+              against live's 5.06
 ```
 
-**The live bot has run with a focus-reserve weight of 3 since session 45. Every
-simulator arm in this repo has run with 0.** The policy even names itself —
-`matcher-ev(redraw=0,w=0)` — and that label has been printed in every sim report
-for forty sessions.
+Neither is a fishery the live bot plays in, and they fail in opposite directions.
+**So "re-derive the price properly in sim" is not an available option** — the
+corpus is the only instrument that describes the bot. That is worth saying in the
+memo explicitly, because "we should just re-run it properly" is the obvious
+objection and the answer is that there is nothing to re-run it on.
 
-### 2a. What this does and does not explain
+**What the memo should carry, each with its instrument and its distance from
+live:**
 
-**It does NOT explain the era boundary.** `git log -S` shows one commit ever
-touching that constant — session 45's — so it did not change on 08-20/21 and
-session 84's conclusion stands.
+- **The verdict on record:** 43.9 mana per extra fish against a 10-mana pool.
+  Instrument: `SIM bare`, margin **+41.9pp**, redraw rate 27–61% against a shipped
+  threshold that wants one on ~3.5% of turns.
+- **Mana is not the binding resource.** 147 resolved casts, **89.8% end with mana
+  unspent**, mean 5.85, median 7. Instrument: the corpus. Distance from live:
+  none — it *is* live.
+- **The binding resource is fish-HP headroom** — 6.8 HP, heal 3, ~2.3 net misses —
+  and **a redraw takes no shot, so it cannot miss.**
+- **Today's era, the counterfactual:** dead hands 11.8% of plays, rescue **15 of
+  15**, `neither = 0`, mean cost **1.33 mana**, availability 88.2% → 97.6%.
+  **Uncertainty: n = 15, 95% CI [79.6%, 100.0%]** — the weak point, and it should
+  lead rather than trail.
+- **Still unpaid:** the two correctness gaps (the client discards the redraw's
+  `FISH_MOVED`; `MAX_REDRAWS_PER_CAST` is not the `MAX_TURNS` guarantee), both
+  live-path edits.
 
-**But the reason given for dismissing it does not.**
-`scripts/redrawCounterfactual.ts:460` reads *"focusReserveWeight defaults to 0 and
-costCap is documented inert"* — the **sim's** default, used to reason about the
-**live** path, in the file investigating live focus pacing. That is the fourth
-instance of this class in six sessions: name the arm, name the arm, name the era,
-and now **name the caller.** The right check reaches the same answer, which is
-luck rather than method.
-
-### 2b. Why it matters anyway — and it is free to test
-
-The term this parameter controls is *exactly* the quantity under investigation. It
-is a penalty on spending focus; live it is on at 3, and every sim arm has it off.
-So:
-
-- **§0a's focus-profile mismatch has a named, unexamined candidate.** Session 79
-  §2 found the live-config arm's per-turn focus profile "essentially closed" at
-  **w = 0**; nobody has asked what it reads at **w = 3**, the value live runs.
-- **Session 84's own decomposition** attributes −18.2pp to focus pacing. If the
-  sim's pacing is structurally different from live's by a shipped constant, every
-  focus-adjacent sim figure inherits it.
-- **The cost is one flag.** `makeMatcherFishPolicy(REDRAW_THRESHOLD, true,
-  DEFAULT_FOCUS_RESERVE_WEIGHT)` in the three scripts, run both ways, report the
-  delta.
-
-**Do not just switch it.** Run both arms and report both — w=0 is what every
-historical figure was computed on, and changing the default silently would move
-numbers this repo has spent forty sessions pinning. **The deliverable is the
-delta, not a new default.**
+**The recommendation is the user's to accept or refuse, and the order is their
+directive: revisit first, instrument second.** Do not write shadow
+instrumentation before the answer comes back.
 
 ---
 
@@ -159,136 +152,115 @@ delta, not a new default.**
 
 **Offline, deterministic, no live budget, no `data/`.** Rule 6, predicates in code.
 
-1. **The overspend control reproduces and ships as a metric.** Reproduce
-   **0.66 / 0.65 optimal, 1.553 / 0.852 actual, +0.89 / +0.20 overspend**, over
-   94 / 54 casts, with the predicate written out — and assert the opening focus
-   point is (2,2) on 147 of 148, since the whole control rests on it. **Report
-   the daily series (§1a) too**, because "it steps, it does not trend" is the part
-   that bears on open question 1.
-2. **Every sim arm is run at BOTH `w = 0` and `w = DEFAULT_FOCUS_RESERVE_WEIGHT`,
-   and the delta is reported** — `focusProfileCheck`, `damageEconomy`,
-   `redrawCounterfactual`. **Nothing's default changes.** The profile check's
-   verdict at w=3 against live's per-turn profile is the number that matters; if
-   it moves the arm toward live, say by how much, and if it moves it away, say
-   that instead.
+1. **The blind arm's zero focus movement is pinned, and the arm is labelled for
+   what it is.** Reproduce **0 of 2363 turns / 0 points at both weights**, and
+   the bare arm's **1047 → 913** as the control that proves the instrument works.
+   Put the 0/2363 beside `castSim.ts:370-372`'s "representative of real live
+   Dendren play", and beside `damageEconomy.ts`'s printed label for that row.
+   **A pin that does not also record the bare arm's movement has not shown the
+   probe can see movement at all.**
+2. **The redraw memo exists and, for every quantitative claim in it, names the
+   instrument and that instrument's distance from live** (§2) — and states the
+   rescue rate as `15/15, 95% CI [79.6%, 100.0%], n = 15` wherever it appears,
+   never as a point. Delivered to the user as a recommendation, with the
+   two unpaid correctness gaps priced.
 
-**What would make these unmeetable:** gate 2's profile check needs `data/` for
-the live-config arm. **If it cannot run in your tree, say so at the top and report
-the bare arm's delta explicitly labelled** — do not let a missing input become a
-silent w=0 result, which is the failure `requireInputs.ts` exists to stop.
+Not gated, do if there is room: whether the blind arm's never-moving focus makes
+`focusReserveAblation.ts`'s session-45 sweep partly vacuous — its live-config arm
+is a different arm, but the sweep's framing should be checked against §1.
 
-Not gated: §1a's dating caveat is worth one line in `castEra.ts`, since the next
-reader will otherwise take the 20.3h gap as a clean bracket.
+**What would make these unmeetable:** nothing for gate 1. Gate 2 is a document,
+so its gate is its content, not its conclusion — **the memo may recommend keeping
+redraw closed and still meet it.**
 
 ---
 
-## 4. Session 84's open questions
+## 4. The live budget — fresh, and the captures are unchanged
 
-- **§1 (the off-policy replay of the 61/62 policies).** §2 lowers its value:
-  those commits are oil plumbing, and the one focus-related constant in the path
-  did not move in that window. §1a lowers it further — five 08-20 casts already
-  read the new regime, before those commits. **I would run gate 2 first.** If the
-  sim at w=3 reproduces live's pacing, the question becomes "what set w's
-  *effective* value differently", which is a much narrower search than replaying
-  two whole policies. **If gate 2 moves nothing, then the replay is the next
-  step and it is worth its session.**
-- **§26 (the shadow evaluation).** §7a made it clearly worth asking for: `wasted`
-  is structurally zero, and K=7 gets 7 rescues for 0 sacrifices unconditioned.
-  **It needs a yes/no from the user** and nothing should be written until it
-  comes.
-- **§25 (the depth-matched pre-death control) — I agree with DROP.** Two to three
-  full days of the run cap, each run individually approved, to re-ask one
-  retracted finding. Recommend it as a drop and let the user overrule.
-- **The era split going into the next instrument.** `castEra.ts` exists;
-  gate 2's runs are the first chance to use it by default rather than as an
-  afterthought.
+12 run-units, 20 casts, all unspent. Each dungeon run needs its own go-ahead; rule
+11 terms unchanged; rule 13 after every one; `--dry-run` first — the dungeon path
+has not executed since session 82.
+
+- **`finishRun`'s `EV support: n/m` line has still never printed on a real run.**
+  It was built in session 78, found unreachable in session 82, fixed in session
+  84, and has not been exercised. One juiced run prints it.
+- **One base-6/8/10 crit** finishes the crit rule; card 10 (crit 10) is in the
+  deck — ×1.5 → 15 against ×1.6 → 16. `critEffects`, not `hitEffects`.
+- **An oil at a non-zero meter** settles add-2 vs restore-to-2, and it is getting
+  *harder*: today's bot reaches meter 0 on 1.5% of plays. If it matters it may
+  have to be arranged, and arranging it is a live-policy deviation — the user's
+  call, not something to quietly set up.
+- **Ordinary casts** still buy the most: today's era is 54 casts / 202 plays and
+  §2's whole case rests on 15 dead hands inside it.
 
 ---
 
 ## 5. Do not
 
-- **Do not change any default.** Gate 2's deliverable is a delta, not a new
-  `focusReserveWeight` (§2b). Forty sessions of figures were computed at w=0.
-- **Do not read §1 as identifying the cause.** It rules out the target, the hand
-  and the opening focus. It does not name what changed.
-- **Do not treat the 20.3h gap as a clean bracket** — the 08-20 casts sit on the
-  new side of it at n=5 (§1a).
-- **Do not un-suspend +19.40pp** whatever gate 2 shows. §0a stands.
-- **Do not flip `redrawEnabled`**, recalibrate `REDRAW_THRESHOLD`, or write the
-  shadow instrumentation before the user answers §26.
-- **Do not import `todaysEraCastIds()` into a committed test** — session 84
-  settled that it is not portable.
+- **Do not read the blind arm as a live proxy on anything focus-related** (§1a).
+  Its 42.7% hit rate is card zones at a fixed point, with no aiming in it.
+- **Do not change any default**, including renaming the blind arm's *behaviour*.
+  Gate 1 is a pin and a label, not a fix.
+- **Do not write the shadow instrumentation** before the user answers §2. Their
+  directive is revisit first.
+- **Do not present §2's 15/15 as 100%.** n=15.
+- **Do not re-derive 43.9 on a sim arm** (§2) — there is no arm that could.
+- **Do not un-suspend +19.40pp.** §0a stands, and gate 2's FAIL at both weights
+  did not move it.
+- **Do not resume the off-policy replay** — session 85's §27 recommendation to
+  hold it stands, and §1 does not change it.
 - Standing, none re-opened: do not build H2's proc model; no M4 lines;
   `DEFAULT_POTION_THRESHOLD` / `chooseNewCard` UNTOUCHED; `boonCapture` OFF; no
   429 backoff without an observed 429; do not shuffle the random-sample deck; do
-  not complete the corrode perpetual table; do not re-run the oil sweep on any
-  current arm.
+  not complete the corrode perpetual table; do not import `todaysEraCastIds()`
+  into a committed test.
 - **Do not start a dungeon run without `--dry-run`, `doctor.ts` and a per-run
   go-ahead**, and never chain runs.
 
 ---
 
-## 6. After 11:00 PT, with a go-ahead
+## 6. Corrections to me
 
-12 run-units, 20 casts.
-
-- **The crit rule** still has two members and needs one base-6/8/10 crit; card 10
-  (crit 10) is in the deck — ×1.5 → 15 against ×1.6 → 16. `critEffects`, not
-  `hitEffects`; the two sources compose.
-- **An oil at a NON-ZERO meter** settles add-2 vs restore-to-2, and §5 of session
-  84 is right that this is getting *harder*: today's bot reaches meter 0 on 1.5%
-  of plays. If it matters, it may need to be set up rather than waited for — and
-  that is a live-policy deviation, so it is the user's call, not a capture to
-  quietly arrange.
-- **Ordinary casts** still buy the most: today's era is 54 casts / 202 plays and
-  every result in the last two briefs rests on it.
-- **Dungeon runs** remain worth one go-ahead each for the `evSupported` telemetry
-  — now that `finishRun` exists, the `EV support: n/m` line will actually print.
-
----
-
-## 7. Corrections to me
-
-- **My play counts failed to reproduce for the third time** (605 against 612).
-  The cast counts agreed exactly, which is the tell that my play predicate is
-  wrong rather than my era predicate — and §0a of the last brief already found one
-  set-for-multiset bug in that same function. **I am no longer confident any play
-  count I produce is right, and gate 1 asks you to reproduce mine before using
-  it for that reason.**
-- **My "+2 exactly, 21 times" was read off raw fixtures including the
-  `use_fishing_item` response**, which `castTrace.ts` deliberately skips. Session
-  84's 11 casts / 16 jumps is the trace-level truth and mine was the wire-level
-  one; **I did not say which level I was reading, and that is the defect.**
-- **§2 is a finding I only reached because session 84 wrote its reasoning down.**
-  Its `redrawCounterfactual.ts:460` comment names the constant it dismissed, which
-  is what let me check it. **A dismissal with its reason attached is auditable; a
-  silent one is not** — worth keeping as a habit regardless of this instance.
-- **Rule 9 applies.** §1 and §2 are measurements over committed fixtures and code
-  at `c52ebad`; a live response or a run that disagrees wins.
+- **I claimed what a file does without opening it, for the second time in five
+  sessions.** `redrawCounterfactual.ts` has no simulator in it and I put it in a
+  gate. Session 74 §7 wrote the rule — *any claim in a brief about what code does
+  gets the file opened before the sentence is written* — and I have now broken it
+  on `policyApproved` and on this. **The pattern is that I break it on the
+  supporting claims, never on the measurement**, because the measurement is the
+  part I actually run.
+- **"Nobody has asked" is a claim about the repo's history and I made it without
+  searching.** `focusReserveAblation.ts` has existed since session 45. The
+  narrow version was true and would have cost one grep.
+- **§1 is a case where I did run it**, and the finding is bigger than the question
+  because the probe was direct — instrument the meter rather than infer from
+  summary statistics. **That is the whole difference between this section and the
+  two above it.**
+- **Rule 9 applies.** §1's counts are from `c8a144d` with `npm ci` and no
+  `data/`; a run that disagrees wins.
 
 ---
 
-## Your task (session 85)
+## Your task (session 86)
 
-1. `doctor.ts` first. Both ledgers roll at 11:00 PT; report them.
-2. **§1 / gate 1** — reproduce the overspend control and the daily series, pin
-   the (2,2) opening-focus assumption, and record §1a's dating caveat in
-   `castEra.ts`.
-3. **§2 / gate 2** — run every sim arm at both weights and report the delta. Do
-   not change a default. If `data/` blocks the live-config arm, say so at the top.
-4. **§4** — hold the off-policy replay behind gate 2's result; put §26 to the
-   user; recommend §25 as a drop.
-5. **§6** — only past 11:00 PT and only with a go-ahead.
-6. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
+1. `doctor.ts` first. **12 run-units and 20 casts are fresh.**
+2. **§1 / gate 1** — pin the blind arm's zero focus movement with the bare arm as
+   its control, and label the arm where it is described as representative of live
+   play.
+3. **§2 / gate 2** — the redraw memo, every claim carrying its instrument and that
+   instrument's distance from live, the rescue rate always as an interval.
+   Deliver it and stop; the answer is the user's.
+4. **§4** — only with a go-ahead. One juiced run would print the `EV support` line
+   for the first time.
+5. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
    commit, `assertionCoverage` at zero, **`preflight.ts` after committing
    fixtures and before the push**, no test writes a real data path, secret scan.
 
-**Honest expectation.** §2 is a two-line change with a large blast radius and I
-would not bet on the direction. **The satisfying version is that the sim at w=3
-moves visibly toward live's focus profile**, which would mean forty sessions of
-sim figures were computed on a policy the bot does not run, and §0a acquires its
-first named, fixable cause since the draw pile. **The unsatisfying version is that
-w=3 barely moves the sim at all** — which is also worth knowing, because it would
-mean the focus-reserve term is nearly inert in simulation while the live bot's
-pacing is the thing that collapsed at the era boundary, and those two facts
-together point somewhere neither this brief nor session 84 has looked.
+**Honest expectation.** §1 is a small pin sitting under a large fact: the arm this
+repo has used as its stand-in for live play since session 14 does not do the one
+thing the last three sessions have been measuring. **The satisfying version of
+this session is gate 1 landing and the memo going out clean.** The unsatisfying
+one is that gate 1 prompts a re-audit of every figure the blind arm has ever
+produced — the deck sweep, the noise floor, the drift margin — and that is a
+larger job than one session. **If that is where it goes, stop and hand it
+forward rather than half-doing it**; the pin and the label are what make the
+re-audit possible later, and they are cheap.
