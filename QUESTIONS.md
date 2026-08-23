@@ -1780,8 +1780,14 @@ cannot date the change closer than "between 08-19 and 08-21", so a replay of
 those two commits could compare two policies that are BOTH on the new side.
 
 **2. The one focus-related constant in the live path did not move in that
-window** — `git log -S` shows `DEFAULT_FOCUS_RESERVE_WEIGHT` touched by exactly
-one commit ever, session 45's.
+window.** Stated precisely, because the loose version of this claim is wrong:
+`git log -S DEFAULT_FOCUS_RESERVE_WEIGHT -- src/strategy/fishing/cardChoice.ts`
+returns **exactly one commit ever — session 45's `b103bf0e`, 2026-08-18 22:11**,
+which is where the constant is defined. Repo-wide the same `-S` also returns
+sessions 46, 47 and 50, but those are CALL-SITE changes that moved the symbol's
+occurrence count, not its value. **The last of them is 2026-08-19 15:20 and the
+next is this session's**, so nothing touched this symbol anywhere in the
+08-20/08-21 window.
 
 **But gate 2 opened a narrower question in its place, and it is cheap.** At the
 shipped weight w=3 the simulator's opening spend lands **0.004 outside** today's
