@@ -217,3 +217,184 @@ vacuous**, **`preflight.ts` PASSED** — 302 tracked files exported, 1641 passed
   M  handoff/DECISIONS.md               +6
   A  handoff/scratch-session-85.md    +100  surprises as they landed
 ```
+
+---
+
+# APPENDIX — session 85 verbose material
+
+## A. The full §7b report, as `redrawCounterfactual.ts` prints it
+
+```
+── §7b  THE OVERSPEND CONTROL — did the bot aim cheaper, or did the fish get closer? ──
+              casts   hand fp   actual  optimal  OVERSPEND
+  before         94      7.38    1.553    0.656      +0.90
+  today          54      7.20    0.852    0.648      +0.20
+  all           148      7.32    1.297    0.653      +0.64
+
+  optimal move distance   before  0:41 (44%)  1:43 (46%)  2:9 (10%)
+                          today   0:26 (48%)  1:21 (39%)  2:7 (13%)
+  actual  move distance   before  0:12 (13%)  1:35 (37%)  2:30 (32%)  3:17 (18%)
+                          today   0:21 (39%)  1:20 (37%)  2:13 (24%)
+
+  §1a  THE DAILY SERIES — it STEPS, it does not trend
+    2026-08-15  n=  5  actual 1.40  optimal 0.40  overspend  +1.00
+    2026-08-16  n=  5  actual 1.40  optimal 0.60  overspend  +0.80
+    2026-08-17  n= 40  actual 1.82  optimal 0.68  overspend  +1.15
+    2026-08-18  n=  1  actual 0.00  optimal  —    overspend      —   (the one resumed cast)
+    2026-08-19  n= 38  actual 1.47  optimal 0.63  overspend  +0.84
+    2026-08-20  n=  5  actual 0.60  optimal 1.00  overspend  -0.40
+    2026-08-21  n= 30  actual 0.87  optimal 0.77  overspend  +0.10
+    2026-08-22  n= 16  actual 0.75  optimal 0.50  overspend  +0.25
+    2026-08-23  n=  8  actual 1.00  optimal 0.50  overspend  +0.50
+```
+
+**The tell in the ACTUAL distributions**, which the means hide: 17 of 94
+before-era casts spent the WHOLE 3-point meter on move one. Today's era has no
+such cast at all — `actualHistogram.get(3)` is 0, pinned as a test.
+
+## B. The one anomalous trace, in full
+
+```
+  docId 12975152   hasStart=false  continuous=true  turns=4
+  createdAt 2026-08-18T22:59:56.627Z
+    idx=0 focus=(3,2) meter=2 fish=(4,3) hand=[4]     play=y
+    idx=1 focus=(3,2) meter=2 fish=(3,4) hand=[5,2,7] play=y
+    idx=2 focus=(2,3) meter=0 fish=(2,3) hand=[5,2]   play=y
+    idx=3 focus=(2,3) meter=0 fish=(3,4) hand=[5]     play=y
+```
+
+Turn 0 already bears a `play`, the meter is already down to 2, and the hand is
+a single card. It is a **mid-cast resume**, not an opening. That one fact
+explains BOTH of its apparent anomalies — the non-(2,2) opening focus and the
+absence of any covering focus (a one-card hand cannot cover (4,3)) — and it is
+why the honest form of the pin is **147 of 147 recorded openings**.
+
+## C. GATE 2 — the four runs, in full
+
+Command form (added this session; **defaults unchanged**):
+
+```
+npx tsx scripts/focusProfileCheck.ts --focus-reserve-weight=0   # and =3
+npx tsx scripts/damageEconomy.ts     --focus-reserve-weight=0   # and =3
+```
+
+### focusProfileCheck §4 verdict, w=0
+
+```
+  corpus, TODAY's era   0.83  95% CI [0.63, 1.03]  n=59   <- the gate
+  corpus, TODAY's era   0.85  95% CI [0.64, 1.06]  n=54   <- castEra.ts date boundary
+                        sim 1.27 is OUTSIDE that one too (0.207 past its top, against 0.235).
+  corpus, POOLED        1.31  95% CI [1.15, 1.46]  n=147
+  sim    opening spend  1.27  95% CI [1.24, 1.30]  n=4000
+  *** FAIL ***
+```
+
+### focusProfileCheck §4 verdict, w=3
+
+```
+  corpus, TODAY's era   0.83  95% CI [0.63, 1.03]  n=59   <- the gate
+  corpus, TODAY's era   0.85  95% CI [0.64, 1.06]  n=54   <- castEra.ts date boundary
+                        sim 1.07 is OUTSIDE that one too (0.004 past its top, against 0.033).
+  corpus, POOLED        1.31  95% CI [1.15, 1.46]  n=147
+  sim    opening spend  1.07  95% CI [1.04, 1.09]  n=4000
+  *** FAIL ***
+```
+
+### The sim arms, both weights
+
+```
+  SIM — live config (mined + contextual fallback, empirical fish)
+    w=0  focus 3.00 1.73 1.00 0.54 0.23 0.10 0.04 0.01 ...
+         fish-at-full 27.1%  catch 21.0%  opening spend 1.27  turns at focus 0 54.2%
+    w=3  focus 3.00 1.93 1.34 0.85 0.49 0.28 0.16 0.09 ...
+         fish-at-full 26.5%  catch 26.2%  opening spend 1.07  turns at focus 0 44.2%
+
+  SIM — bare default (synthetic fish, no fallback) — the oil sweeps' arm
+    w=0  fish-at-full 0.6%  catch 81.2%  opening spend 1.16  turns at focus 0 41.7%
+    w=3  fish-at-full 0.2%  catch 90.8%  opening spend 0.39  turns at focus 0 23.3%
+
+  CORPUS — today's policy era (matcherWeight predicate, n=59)
+         focus 3.00 2.17 1.52 0.97 0.90 0.69 0.45 0.88 ...
+         fish-at-full 32.2%  catch 59.3%  opening spend 0.83  turns at focus 0 19.3%
+```
+
+Note the bare arm moves the MOST (opening spend 1.16 → 0.39, a third of its
+w=0 value) and it is the arm OIL-POLICY §0a suspends. **§0a is not lifted and
+nothing here lifts it** — the arm moving is not the arm agreeing.
+
+### damageEconomy §4, both weights
+
+```
+                       plays     hit%     dmg    heal       h*    margin     drift
+  w=0
+  LIVE (corpus)          609     36.5    5.10    3.02     37.2    -0.7pp    +0.059
+  SIM bare             13294     80.8    5.01    3.20     38.9   +41.9pp    -3.437
+  SIM blind             7641     42.7    3.66    3.28     47.3    -4.6pp    +0.317
+  SIM live-config      16377     42.6    4.94    3.11     38.7    +4.0pp    -0.319
+  w=3
+  LIVE (corpus)          609     36.5    5.10    3.02     37.2    -0.7pp    +0.059
+  SIM bare             12988     85.1    5.00    3.17     38.8   +46.3pp    -3.783
+  SIM blind             7641     42.7    3.66    3.28     47.3    -4.6pp    +0.317
+  SIM live-config      17128     44.7    4.94    3.11     38.6    +6.1pp    -0.490
+```
+
+**`SIM blind` is identical to every printed digit at both weights, including
+its play count (7641).** That is the one loose thread this session leaves: a
+weight that moves `bare` by 4.3pp of hit rate and `live-config` by 2.1pp and
+this arm by literally nothing is either a real structural fact about the blind
+fallback (a uniform distribution making every focus placement EV-identical, so
+the reserve term never gets a tie to break) or a wiring bug. **One cheap check
+decides it, and it decides whether gate 2's two "away" readings generalise.**
+
+## D. Verification at the final commit
+
+```
+npx tsc --noEmit                    clean
+git diff --check                    clean
+npx vitest run                      Test Files  98 passed (98)
+                                          Tests  1656 passed (1656)
+npx tsx scripts/assertionCoverage.ts 1656 counted, every one called expect()
+npx vitest run tests/discoveredShipsClean.test.ts   8 passed
+npx tsx scripts/preflight.ts        PASSED
+    302 tracked files exported
+    doctor with empty HOME: exactly one ✗, the JWT — the expected state
+    stranger's tree: 1641 passed | 15 skipped (1656)
+    secret scan of the exported tree: clean
+```
+
+Secret scan of the session diff (`5d538a24..HEAD` plus untracked) for
+`0x[a-fA-F0-9]{4,}`, `noobId\s*\d+`, `eyJ`, `PRIVATE`: **no matches.**
+`.gitignore` still covers `.env`, `*.key`, `data/`, `logs/`, `profiles/`,
+`fixtures/**/raw/`, `fixtures/**/*.har`.
+
+## E. Server ledgers, read at 10:17 PT (rule 13 posture)
+
+```
+dungeon  DayCount#<ADDR>#Dungeon#5   UINT256_CID: 12      → 12 / 12
+fishing  dayDocs[pondId 1] = 0
+         dayDocs[pondId 2] = 20                            → 20 / 20
+         VERDICT: BLOCKED — cap spent. Next window 11:00 PT (0.78h).
+```
+
+Both spent before the session began. **Nothing was denied, blocked or
+interrupted this session**, so the ledgers were read because rule 13 says read
+them, not because a tool result needed checking. The user then declined the
+11:00 PT refresh, so the session ends with 12 run-units and 20 casts unspent.
+
+## F. Process notes worth keeping
+
+- **A dismissal with its reason attached is auditable.** The brief reached §2
+  only because session 84 wrote `focusReserveWeight defaults to 0` into
+  `redrawCounterfactual.ts:460` instead of silently discounting it. That the
+  brief then over-read the comment (it describes the SIM's default, and the
+  file has no sim) does not spoil the lesson — it sharpens it. **Name the
+  caller as well as the constant.**
+- **Reproduction on the first run is itself evidence.** Session 84's play
+  counts took six predicates and never landed; §1 landed cell for cell with
+  none. When a brief's number reproduces immediately, that is weak evidence the
+  brief and the corpus are measuring the same thing — and worth one line,
+  because the alternative (a long predicate search that eventually "works") is
+  how a near-miss reconstruction gets mistaken for a confirmation.
+- **Two anomalies with one cause are commoner than two causes.** The (3,2)
+  opening and the missing covering focus looked independent and were the same
+  `hasStart=false` trace.
