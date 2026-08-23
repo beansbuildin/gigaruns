@@ -46,3 +46,17 @@
 - At `REAL_PARAMS` the blind arm caught **0 of 400** casts (it redraws 61% of
   its turns and mana-outs). Noted, not chased — `deckObjectiveSweep` runs
   different params, so its 36.42% is not this number.
+
+- **§4 / live: OFFLINE BY USER DIRECTIVE, second session running.** Asked what
+  to do with the fresh 12 run-units and 20 casts, the user chose to stay
+  offline and recap. **Zero live spend.** Nothing was denied or interrupted, so
+  there is no rule-13 ledger discrepancy to reconcile. `doctor.ts` passed at
+  the top of the session (token valid 116h, ledgers 0/0 recorded locally).
+  Standing captures carry forward untouched: the base-6/8/10 crit, an oil at a
+  NON-ZERO meter, and `finishRun`'s `EV support: n/m` line, which has still
+  never printed on a real run.
+
+- **The memo's numbers are computed on the corpus AS IT STANDS** (148 traces,
+  612 plays). That is a reason the offline choice was the clean one: new casts
+  would have moved every pinned corpus figure in the same session the memo went
+  out.

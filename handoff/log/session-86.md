@@ -192,3 +192,124 @@ vacuous**, **`preflight.ts` PASSED** — 304 tracked files exported, 1651 passed
   M  handoff/DECISIONS.md                    +4
   A  handoff/scratch-session-86.md          +48  surprises as they landed
 ```
+
+---
+
+# Verbose appendix — session 86
+
+## The §4b table as it prints
+
+```
+── §4b  DOES THE ARM AIM? — the focus meter, measured directly ──
+  400 casts per row, REAL_DECK, seed base 1. `moved` = turns where the meter fell;
+  `aimed` = plays whose chosen focus cell differed from the current one. Two independent readings.
+
+  BLIND (matcherPool: [])   w=0  turns  1963  moved    0  spent     0  plays   763  aimed    0  cells used (2,2) ONLY
+  BLIND (matcherPool: [])   w=3  turns  1963  moved    0  spent     0  plays   763  aimed    0  cells used (2,2) ONLY
+  BARE  (default pool)      w=0  turns  1823  moved  752  spent  1047  plays  1328  aimed  752  cells used 15 of 16
+  BARE  (default pool)      w=3  turns  1669  moved  713  spent   913  plays  1284  aimed  713  cells used 15 of 16
+```
+
+## The §4 comparison table it sits under, re-run today
+
+```
+                       plays     hit%     dmg    heal       h*    margin     drift
+  LIVE (corpus)          609     36.5    5.10    3.02     37.2    -0.7pp    +0.059
+  SIM bare             13294     80.8    5.01    3.20     38.9   +41.9pp    -3.437
+  SIM blind (no-aim)    7641     42.7    3.66    3.28     47.3    -4.6pp    +0.317
+  SIM live-config      16377     42.6    4.94    3.11     38.7    +4.0pp    -0.319
+```
+
+Redraw shares of turns, same run: bare **27.3%** (2.58 mana/cast), blind
+**61.1%** (8.09), live-config **31.5%** (3.91). Live: **0**, structurally.
+
+## The boundary sweep in full — why the finding is about UNIFORM, not BLIND
+
+400 casts an arm, `REAL_DECK`. The three rows needing `data/` are measured but
+NOT test-pinned (a committed test may not read the gitignored corpus); the
+`ringModel` row is pinned on a synthetic table built inside the test.
+
+```
+  arm                                   w=0                     w=3
+  matcherPool: []                   0 / 1963              0 / 1963
+  matcherPool: [] + empiricalFish   0 / 1963              0 / 1963
+  matcherPool: [] + ringModel     824 / 2492            863 / 2426
+  matcherPool: [] + blindFallback 838 / 2443            855 / 2481
+  mined + blindFallback (live)    829 / 2346            821 / 2339
+```
+
+At `castSim`'s OWN default params — `deckObjectiveSweep.ts`'s configuration —
+`matcherPool: []` reads **0 moves in 1944 turns, 840 plays, all at (2,2)**, so
+the no-aim behaviour is not an artefact of `PROBE_PARAMS`.
+
+Recorded and not chased: at `REAL_PARAMS` the blind arm **caught 0 of 400**
+casts (it redraws 61% of its turns and mana-outs). `deckObjectiveSweep` runs
+different params, so its 36.42% baseline is not this number.
+
+## The era-conditioned redraw counterfactual, re-run today
+
+```
+             n  both  sac  rescue  neither   dead  rescue rate   cost   availability
+  pooled   389   261   27      45       56    101       44.6%    1.60   74.0% -> 78.7%
+                                            95% CI [35.2%, 54.3%], n = 101
+  before   262   152   24      30       56     86       34.9%    1.73   67.2% -> 69.5%
+                                            95% CI [25.7%, 45.4%], n = 86
+  today    127   109    3      15        0     15      15 / 15    1.33   88.2% -> 97.6%
+                                            95% CI [79.6%, 100.0%], n = 15
+```
+
+Reproduces session 84 cell for cell. **Never write 15/15 as 100%.**
+
+## Mana slack, era-split — new this session
+
+```
+  before  93 casts   mean 5.61  median 6   84/93 (90.3%) with mana to spare   9 mana-outs
+  today   54 casts   mean 6.26  median 7   48/54 (88.9%) with mana to spare   6 mana-outs
+  all    147 casts   mean 5.85  median 7  132/147 (89.8%) with mana to spare  15 mana-outs
+```
+
+`manaSlack()` over traces filtered by `eraOf(t.docId, created)`. The pooled row
+is the one 40 sessions have quoted; the era rows are the check session 84's
+discipline demands, and the argument holds on both.
+
+## The shipped trigger's live fire rate — the scan
+
+```
+  today's era   26 of 204 decisions   12.7%
+  before        93 of 245 decisions   38.0%
+  pooled       119 of 449 decisions   26.5%
+```
+
+Method: scan `logs/fishing-*.jsonl`, one `decision` record per turn, and count
+the UNION of `redraw_indicated_not_sent` (107, pre-session-70, reason "redraw
+action unconfirmed") and `redraw_suppressed` (12, post, reason "redrawEnabled is
+false"). Era by the record's own `ts` against 2026-08-21. Verified by reading a
+single file's sequence that `redraw_suppressed` precedes the `decision` on the
+same turn, so the wanted-events are a proper subset of the decisions.
+
+⚠ **Rule 10 is the reason for the union.** `redraw_suppressed` could not have
+appeared before session 70 renamed the event, so counting only it would date a
+policy change to an instrumentation change. `logs/` is gitignored, so this row
+is not reproducible in a stranger's clone and the memo says so.
+
+## Verification at the final commit
+
+```
+npx tsc --noEmit                        clean
+npx vitest run     Test Files  99 passed (99)
+                        Tests  1666 passed (1666)
+git diff --check                        clean
+assertionCoverage  1666 counted, every one called expect()
+discoveredShipsClean                    8/8
+preflight.ts                            PASSED — 304 files exported,
+                                        1651 passed / 15 author-data skips,
+                                        secret scan of the export clean
+```
+
+## Live ledger
+
+`doctor.ts` at the top of the session: token valid another 116.0h, config valid
+(dungeon 5, 12 runs), fishing configured (node 5), authenticated as the
+expected account. Local ledgers 0 runs / 0 casts recorded, rollover 20.1h out.
+**Nothing was spent, nothing was denied, nothing was interrupted** — no rule-13
+reconciliation applies.
