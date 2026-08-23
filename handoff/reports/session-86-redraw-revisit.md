@@ -1,5 +1,13 @@
 # Session 86 §2 — the redraw verdict, revisited
 
+**Computed on `CORPUS-2026-08-23A` — 148 traces / 612 plays / 147 resolved,
+the fishing corpus as of `createdAt <= 2026-08-23T00:20:47.236Z`.** The roster
+and every frozen denominator are in
+[`session-86-corpus-snapshot.md`](session-86-corpus-snapshot.md), pinned
+[session 87 §1] BEFORE that session's 20-cast batch. Casts landing after that
+cut are not in any number below; a figure re-read on the grown corpus is a NEW
+row beside these, never over them.
+
 **This is a memo, not a change.** `redrawEnabled` is still `false`,
 `REDRAW_THRESHOLD` is still `0` and untouched, and no live-path line moved this
 session. The user gated QUESTIONS §26's shadow evaluation behind this revisit

@@ -1858,6 +1858,14 @@ fail a cast, as session 68's oil shadow did.
 
 ## §28 — the REDRAW VERDICT REVISIT, delivered [session 86 §2 / GATE 2, OPEN — needs a yes/no, and it gates §26]
 
+**Every number below is computed on `CORPUS-2026-08-23A`** — 148 traces / 612
+plays / 147 resolved, the fishing corpus as of
+`createdAt <= 2026-08-23T00:20:47.236Z`, rostered in
+`handoff/reports/session-86-corpus-snapshot.md`. That snapshot was pinned in
+session 87 §1 **before** that session's 20-cast batch, precisely so this
+question keeps being asked about the corpus it was asked on. The corpus has
+grown since; **these figures have not been recomputed and must not be.**
+
 **The memo is `handoff/reports/session-86-redraw-revisit.md`.** It is the
 prerequisite the user set when answering §26: revisit the closed redraw verdict
 first, instrument second. It is delivered here rather than summarised, because
