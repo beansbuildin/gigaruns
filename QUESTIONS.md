@@ -1814,3 +1814,42 @@ by this session's suite (`wasted` structurally zero at every K because
 The three answers in §26 above are still the three answers. **(a) design it and
 bring the gate back, (b) not yet — redraw is CLOSED and instrumenting a closed
 policy is premature, (c) yes but only after the redraw verdict is revisited.**
+
+---
+
+## §26 ANSWERED [session 85, user directive 2026-08-23] — (c) YES, BUT ONLY AFTER THE REDRAW VERDICT IS REVISITED
+
+**The user picked option (c).** The shadow evaluation is wanted, and it is
+**gated behind reopening the CLOSED redraw verdict** — not behind another
+measurement of the trigger.
+
+**What this settles.** §26 is no longer an open yes/no. Nobody needs to ask
+again whether to instrument; the answer is yes.
+
+**What it does NOT authorise, and this is the part to hold.** Nothing about the
+shadow path may be written yet. The ORDER is the directive: revisit first,
+instrument second. An agent that finds the redraw revisit hard and writes the
+shadow instrumentation anyway has inverted the one thing the user specified.
+`redrawEnabled` stays false and `REDRAW_THRESHOLD` stays untouched throughout
+— revisiting a verdict is not flipping it, and only the user flips it.
+
+**So the prerequisite is now a task, and it is the next fishing task.** The
+redraw verdict was closed on a price of 43.9 mana against 10, and session 83
+§1c already found the denominator suspect: over 147 resolved casts the mana
+pool ends with a mean 5.85 spare, median 7, and **89.8% of casts end with mana
+left over** — the resource redraw was priced against is not the scarce one.
+Session 84 then found the counterfactual INVERTS on today's era (availability
+88.2% -> 97.6%, `neither = 0`, mean rescue cost 1.33). Neither of those was
+available when the verdict was taken.
+
+**What a revisit must NOT be.** It is not a re-run of the counterfactual — that
+is done, twice, and pinned. It is the argument about **which scarcity a redraw
+should be priced against**, assembled from what is already measured, put to the
+user as a recommendation with its own uncertainty stated (the rescue rate is
+`15/15`, 95% CI [79.6%, 100.0%], n=15 — an interval, never a point). The
+verdict is the user's to change, as it was the user's to set.
+
+**Standing constraints, unchanged by this answer:** rule 4 puts any live-path
+edit behind a sim gate; rule 5 requires it to fail closed; the shadow path when
+it is eventually written computes-and-logs inside a `try/catch` that can never
+fail a cast, as session 68's oil shadow did.
