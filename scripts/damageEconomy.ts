@@ -103,9 +103,21 @@ import { buildFishMaxHpSampler, fishMaxHpCounts, meanFishMaxHp, meanOpeningRatio
  */
 const REAL_PARAMS = { fishMaxHp: 21, startFishHpRatio: 13 / 21, startMana: 10, handSize: 3, gridSize: 4 } as const;
 
+/**
+ * [session 85 §2 / GATE 2] See `scripts/focusProfileCheck.ts`'s constant of
+ * the same name for the full argument. Short form: live runs at
+ * `DEFAULT_FOCUS_RESERVE_WEIGHT = 3`, every sim arm has always run at 0, and
+ * **0 stays the default here** so every drift and margin figure this script
+ * has published remains reproducible. `--focus-reserve-weight=3` reruns the
+ * arms under the shipped live weight for comparison only.
+ */
+const FOCUS_RESERVE_WEIGHT = Number(
+  process.argv.find((a) => a.startsWith("--focus-reserve-weight="))?.split("=")[1] ?? 0,
+);
+
 /** One arm, at the real board, under the shipped policy. Every arm below differs from this by its `extra` alone. */
 function arm(label: string, extra: Omit<CastOptions, "seed" | "policy">, runs: number): SimArm {
-  const a = simEconomy(label, { policy: makeMatcherFishPolicy(REDRAW_THRESHOLD, true), ...REAL_PARAMS, ...extra }, runs);
+  const a = simEconomy(label, { policy: makeMatcherFishPolicy(REDRAW_THRESHOLD, true, FOCUS_RESERVE_WEIGHT), ...REAL_PARAMS, ...extra }, runs);
   assertShotsAccountedFor(a);
   return a;
 }

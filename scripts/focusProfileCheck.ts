@@ -65,12 +65,14 @@
  *
  * Usage: npx tsx scripts/focusProfileCheck.ts [--runs=N] [--profile=NAME]
  *                                             [--sequential-pile]
+ *                                             [--focus-reserve-weight=N]
  */
 
 import { join } from "node:path";
 
 import { simulateCast, makeMatcherFishPolicy, REDRAW_THRESHOLD, type CastOptions, type CastOutcome } from "../src/sim/fishing/castSim.js";
 import { loadCastTraces, isCleanTrace, type CastTrace } from "../src/sim/fishing/castTrace.js";
+import { eraOf, loadCastCreatedAt, POLICY_ERA_BOUNDARY } from "../src/sim/fishing/castEra.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { buildCellOnlyMap, buildContextualMap } from "../src/strategy/fishing/contextualFallback.js";
 import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
@@ -216,8 +218,33 @@ function corpusProfile(label = "CORPUS (live)", keep: (t: CastTrace) => boolean 
  */
 const SEQUENTIAL_PILE = process.argv.includes("--sequential-pile");
 
+/**
+ * [session 85 §2 / GATE 2] The focus-reserve weight this script's SIM arms
+ * run under. **Defaults to 0, which is what every figure in this file's
+ * header and in forty sessions of reports was computed on** — nothing here
+ * changes a default; the deliverable is the DELTA between the two weights.
+ *
+ * Why the flag exists. `cardChoice.ts` exports
+ * `DEFAULT_FOCUS_RESERVE_WEIGHT = 3` and `scripts/liveFishing.ts` passes it,
+ * so the LIVE bot has run at w=3 since session 45. `makeMatcherFishPolicy`'s
+ * third parameter defaults to 0, so every sim arm has run at w=0. That
+ * divergence is deliberate and documented — `cardChoice.ts` says in as many
+ * words "NOT the default of `bestFocusForCard`/`chooseCard` ... so every
+ * pre-session-45 caller, test and sim script stays byte-for-byte unchanged" —
+ * but its SIZE had never been measured on this script's verdict, which is the
+ * opening-spend gate, i.e. the exact quantity the term controls.
+ *
+ * ⚠ Anything printed under a non-zero weight is NOT comparable to a figure in
+ * this file's header. The weight is echoed in the run header for that reason.
+ *
+ * Usage: --focus-reserve-weight=3
+ */
+const FOCUS_RESERVE_WEIGHT = Number(
+  process.argv.find((a) => a.startsWith("--focus-reserve-weight="))?.split("=")[1] ?? 0,
+);
+
 function simProfile(label: string, extra: Omit<CastOptions, "seed" | "policy">, runs: number, seed = 1): Profile {
-  const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, true);
+  const policy = makeMatcherFishPolicy(REDRAW_THRESHOLD, true, FOCUS_RESERVE_WEIGHT);
   const casts: { focus: number[]; caught: boolean; fishFull: boolean }[] = [];
   for (let i = 0; i < runs; i++) {
     const focus: number[] = [];
@@ -259,6 +286,12 @@ function main(): void {
   console.log(`\n▸ focusProfileCheck.ts — GATE 1 for the session-70 focus sweep`);
   console.log(`  n=${runs} per sim arm, seed base 1. Corpus is every clean trace on disk.`);
   console.log(`  profile ${profile.name}, transitions ${transitionsPath}`);
+  console.log(
+    `  focus-reserve weight ${FOCUS_RESERVE_WEIGHT}` +
+      (FOCUS_RESERVE_WEIGHT === 0
+        ? "  (the sim's historical default; live runs at DEFAULT_FOCUS_RESERVE_WEIGHT=3 — see --focus-reserve-weight)"
+        : "  ⚠ NOT the weight this file's header figures were computed on"),
+  );
   console.log(`  Both halves measure the SAME statistic: mean focusMeter over casts still alive at each turn.\n`);
 
   console.log("── §1  THE CORPUS, RECOMPUTED ──");
@@ -362,8 +395,35 @@ function main(): void {
   const cc = meanCi(corpus.openingSpends);
   const tc = meanCi(todaysEra.openingSpends);
   const sc = meanCi(live.openingSpends);
+  // [session 85 §2] THE GATE'S ERA SET IS BUILT ON THE BOUNDARY SESSION 84
+  // REJECTED, so the verdict is also computed on the one it accepted.
+  //
+  // `todaysEraCastIds()` above keys on `matcherWeight` out of
+  // `data/ringPrediction.jsonl`. Session 84 measured that predicate against
+  // `castEra.ts`'s date literal and rejected it on evidence: it reads a
+  // gitignored path, classifies only 81 of the corpus's 148 casts, and the
+  // five casts the two disagree about read the OLD regime. A gate interval
+  // computed on it is therefore computed on five casts today's policy did not
+  // play — AND it cannot be computed at all in a fresh clone.
+  //
+  // Reported ALONGSIDE rather than instead of, because the matcher-weight row
+  // is the number this file has published for fourteen sessions and it must
+  // stay traceable. If the two ever disagree about PASS/FAIL, the date row is
+  // the one to believe.
+  const created = loadCastCreatedAt();
+  const dateEra = corpusProfile(`CORPUS — today's era, castEra.ts date boundary`, (t) => eraOf(t.docId, created) === "today");
+  const dc = meanCi(dateEra.openingSpends);
   const inside = sc.mean >= tc.lo && sc.mean <= tc.hi;
   console.log(`  corpus, TODAY's era   ${tc.mean.toFixed(2)}  95% CI [${tc.lo.toFixed(2)}, ${tc.hi.toFixed(2)}]  n=${tc.n}   <- the gate`);
+  console.log(
+    `  corpus, TODAY's era   ${dc.mean.toFixed(2)}  95% CI [${dc.lo.toFixed(2)}, ${dc.hi.toFixed(2)}]  n=${dc.n}   ` +
+      `<- same era on castEra.ts's ${POLICY_ERA_BOUNDARY} boundary (portable; session 84 prefers it)`,
+  );
+  console.log(
+    `                        sim ${sc.mean.toFixed(2)} is ${sc.mean >= dc.lo && sc.mean <= dc.hi ? "INSIDE" : "OUTSIDE"} that one too` +
+      ` — the verdict does not turn on which boundary you take, but the margin does` +
+      ` (${Math.abs(sc.mean - dc.hi).toFixed(3)} past its top, against ${Math.abs(sc.mean - tc.hi).toFixed(3)}).`,
+  );
   console.log(`  corpus, POOLED        ${cc.mean.toFixed(2)}  95% CI [${cc.lo.toFixed(2)}, ${cc.hi.toFixed(2)}]  n=${cc.n}   <- session 70 used this`);
   console.log(`  sim    opening spend  ${sc.mean.toFixed(2)}  95% CI [${sc.lo.toFixed(2)}, ${sc.hi.toFixed(2)}]  n=${sc.n}`);
   console.log("");
