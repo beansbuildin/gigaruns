@@ -85,6 +85,7 @@ import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fish
 import { buildCellOnlyMap, buildContextualMap } from "../src/strategy/fishing/contextualFallback.js";
 import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
 import { loadMinedPatterns } from "./liveFishing.js";
+import { printManaSlack } from "./redrawCounterfactual.js";
 import { profileArg, resolveProfile } from "../src/profile.js";
 import { REAL_DECK } from "../src/sim/fishing/rodDeck.js";
 import { buildFishMaxHpSampler, fishMaxHpCounts, meanFishMaxHp, meanOpeningRatio } from "../src/sim/fishing/fishMaxHp.js";
@@ -318,6 +319,36 @@ function main(): void {
   closer and still on the wrong side of the line, so it would produce a different unsupported
   number rather than a supported one. **An arm becomes admissible when its margin brackets
   live's within a stated band. None currently does.**`);
+
+  // ── §4a  THE OTHER RESOURCE, AND WHY IT SITS HERE ───────────────────────
+  //
+  // [session 83, brief §1c / GATE 2] The margin column above says the fishery
+  // is decided at the fish's HP — the drift is a knife-edge and the shipped
+  // bot sits on the wrong side of it. This block is the same argument from the
+  // other end: the resource the bot is NOT short of.
+  //
+  // It lives beside the margin column deliberately, and is printed by
+  // `scripts/redrawCounterfactual.ts`'s exported helper rather than
+  // re-implemented, so the two reports cannot drift apart. Together they say
+  // which scarcity a policy should be priced against — and the price that
+  // closed redraw (43.9 mana per extra fish, DECISIONS 2026-08-22) was quoted
+  // against the abundant one.
+  console.log("\n── §4a  THE MANA SLACK — the resource that is NOT scarce ──");
+  // Unfiltered on purpose, and it is the ONE block here that is: every other
+  // figure on this page needs a replayable trajectory and so takes
+  // `isCleanTrace`, but "how much mana was left when the cast ended" needs
+  // only the terminal doc. A cast that broke position continuity half way
+  // through still ended where it ended, and dropping it would answer a
+  // narrower question than the one asked. Same predicate as
+  // `scripts/redrawCounterfactual.ts` §3, which is the point of sharing the
+  // printer.
+  printManaSlack(loadCastTraces());
+  console.log(`
+  The pool is not what ends casts: ${live.misses} of ${live.plays} plays are misses and a miss HEALS the
+  fish, against an opening headroom of ${mean(headroom).toFixed(1)} HP. Mana is what a cast has left over.
+  **Read this next to the MARGIN column, not instead of it.** A policy that spends mana to
+  avoid a miss is spending the abundant resource on the scarce one; whether any such policy
+  is triggerable is a separate question and is not answered here.`);
 
   // The decomposition: hold two of the three terms at the live value and swap
   // in the sim's, one at a time. This says WHICH term carries the difference
