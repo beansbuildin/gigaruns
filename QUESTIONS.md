@@ -1679,3 +1679,74 @@ so there is no offline experiment that would answer it.
 **Not widened unilaterally**, per the session-57 brief: *"If the tie rate turns
 out to be low, do not widen the rule to make it fire. The user's directive is
 tie-break only."* One sentence from the user either way closes this.
+
+---
+
+## §25 — the depth-matched pre-death control is a CAPTURE REQUEST, and here is its price [session 84 §4, PARKED]
+
+**This is named as a capture, not set as a gate, because CLAUDE.md rule 6 says
+to say which.** Session 82's pre-death ordering was retracted in session 83
+under a within-room control: all three pre-death decisions of a run carry the
+identical unmodelled set (effective n = 4, not 12), the decisions EARLIER in
+the same room already read `STATUS_EFFECT` 17/24 and `ENEMY_BUFF` 0/24, and a
+depth confound sits underneath — `STATUS_EFFECT`'s base rate climbs 23% (room
+1) → 75% (room 8) while `ENEMY_BUFF` collapses 100% (room 6) → 0% (room 8).
+
+**The honest replacement question** is depth-matched: does a death fight's
+unmodelled set differ from a NON-death fight at the SAME room number? At the
+current death distribution — rooms 7–8 in 3 of 4 recorded deaths — the controls
+have to come from runs that SURVIVE past room 7, and **the corpus has none.**
+
+**What it would cost, stated so a hard task can be told from an impossible
+one.** Every dungeon run is a 60-energy juiced entry charging 3 of the daily 12
+run-units (rule 11), so the ceiling is 4 runs/day. Recent juiced runs die at
+rooms 7–8; to get even 8 control fights at rooms 7–8 from runs that survive
+them needs on the order of **8–12 runs, i.e. 2–3 full days of the run cap**,
+and that is before any of them is required to reach room 9+. Each one also
+needs its own human go-ahead.
+
+**The recommendation is to DROP it unless the user wants that spend.** It buys
+one retracted finding re-asked, on a question nothing downstream is waiting on;
+the same 2–3 days of run cap spent on `evSupported` telemetry or the crit rule
+(§6, one base-6/8/10 crit still outstanding) buys more. **Not dropped
+unilaterally** — one sentence either way closes this.
+
+---
+
+## §26 — should the redraw trigger be SHADOW-EVALUATED live? [session 84 §4, OPEN — needs a go-ahead, it is a live-path change]
+
+**Session 84 makes this designable for the first time, and it needs the user's
+answer before anything is written.**
+
+**What changed.** Session 83's candidate trigger was `heldCoverage <= K AND
+focusBudget >= 1`, aimed at a population of 101 dead hands (26.0% of plays) of
+which only 44.6% were rescuable. Conditioned on today's policy era (§1), the
+target is smaller and completely different in character: **15 dead hands, 11.8%
+of plays, and `neither = 0` — every one of them is rescued by a redraw**, at a
+mean 1.33 mana against a pool that discards 5.85 per cast. So the trigger's job
+is no longer SELECTION (pick the rescuable dead hands out of the dead ones); it
+is DETECTION (notice a dead hand at all). That is a much easier problem, and it
+is the reason to ask now rather than later.
+
+**What is being asked for, precisely.** Log what the trigger WOULD have fired
+on, live, and send nothing — no redraw action, `redrawEnabled` stays false,
+`REDRAW_THRESHOLD` untouched. One extra field per logged decision.
+
+**Why it cannot be done offline.** §3's thresholds are fitted to this corpus
+with ORACLE labels (they use where the fish actually went) and no held-out set,
+n=15 in the conditioned arm. A shadow evaluation is the only way to get
+NON-oracle labels — the trigger firing on information the bot actually has at
+decision time, scored afterwards against what happened.
+
+**The costs and the risks, stated.** It is a live-path instrumentation change
+to `scripts/liveFishing.ts`, so CLAUDE.md rule 4 puts it behind a sim gate
+first and rule 5 requires it to fail closed. It spends no extra casts — it
+rides on casts already being played. Its risk is the ordinary one for a live
+edit: a bug in the shadow path can throw inside a real cast. That is
+containable (compute-and-log inside a try/catch that never fails the cast) and
+it is exactly what session 68's oil shadow did, provably inert.
+
+**The three answers this could get, all fine:** (a) yes, design it and bring
+the gate back; (b) not yet, redraw is CLOSED and instrumenting a closed policy
+is premature; (c) yes but only after the redraw verdict itself is revisited.
+**Nothing is written until one of them comes back.**
