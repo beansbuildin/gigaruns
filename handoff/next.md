@@ -1,330 +1,337 @@
-# BRIEF — session 81 — the matcher, costed
+# BRIEF — session 82 — the dungeon, after six sessions of unexercised change
 
-## 0. Verification, and my error first
+## 0. Verification, and three corrections to me
 
-Fresh clone at `4ba97c8`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
+Fresh clone at `1c18de1`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
 
 ```
 npx tsc --noEmit                     clean
-npx vitest run   Tests  1548 passed | 13 skipped (1561)   94 files
+npx vitest run   Test Files  95 passed (95)
+                      Tests  1560 passed | 13 skipped (1573)
 ```
 
-**Both gates hold.** The shared scorer, the rename proven inert by running three
-reports either side of it, the `fishMaxHp` sampler on its own salted stream with
-the default pinned byte-for-byte, the arg guard — all correct.
+**Both gates hold**, and the two instruments were pinned *before* the live batch
+and held on 22 plays they had never seen. That ordering is the strongest thing in
+session 81 and it is worth keeping as a habit.
 
-**And session 80 caught a real methodological error of mine.** My §1b eliminated
-hit geometry by putting live's 35.2% next to "the sim's shuffled baseline" of
-36.42%. That figure is `deckObjectiveSweep.ts`'s baseline — a **different arm**,
-blind, on a different deck. The arms that produce §0a's figures land shots at
-80.8% and 42.1%. **I compared two arms and carried the conclusion across.** The
-conclusion happens to be true — §1 below proves it properly — but the reasoning
-was invalid and the session was right to say so and to say so loudly.
+**Session 81 corrected me three times and was right each time.**
 
-I also gated the session on reproducing 543 plays. Session 80 reproduced every
-substantive number exactly and got **548** for the denominator under a predicate
-I did not record. **That is my fault, not a discrepancy**: a gate that pins a
-count without pinning the predicate that produced it is unmeetable by
-construction, which is rule 6 turned on its author. The session's response —
-state the predicate in full in the script — is the right permanent fix. **Drop
-the 543 question.**
+- **My 581 does not reproduce. The true count was 590.** I gated a session on a
+  number I had not re-derived, for the second time. The session hunted four
+  neighbouring predicates, found none, and time-boxed it. **Correct call.** The
+  permanent fix — every count ships with the filter that produced it — is now in
+  place and I should have shipped it, not asked for it.
+- **My oracle had a real bug and an assertion I asked for is what caught it.**
+  `prev.focusMeter` is the wrong focus budget: `castTrace.ts` skips
+  `use_fishing_item`, so an oil restores the meter between recorded turns, and my
+  ceiling called **6 server-scored hits unhittable** — a ceiling below its own
+  floor. Reconstructing it as `spent + remaining` is right.
+- **The resolver test I asked for already existed, from session 47.** What was
+  actually missing was the other axis — *which two states* a shot resolves
+  between. The session found that and pinned all four readings. **I asked for a
+  test that existed and would have learned so by opening the file.**
 
 ---
 
 ## The clock and the ledger
 
-Written **2026-08-22, 16:46 PT**. **8 casts and 12 run-units remain, expiring
-11:00 PT tomorrow (~18h).** `doctor.ts` first. §1–§3 need neither.
+Written **2026-08-22, 22:03 PT**.
+
+```
+  fishing      20 / 20 spent          rolls 11:00 PT
+  dungeon      12 / 12 run-units UNSPENT, expiring 11:00 PT
+```
+
+**Twelve run-units is FOUR juiced runs** (rule 11: 60-energy juiced = 3 units).
+If this session opens before 11:00 PT they are the ones about to expire; if after,
+they are a fresh twelve. **Either way the number is four, and it is not eight** —
+do not straddle the rollover to get a second allowance.
+
+`doctor.ts` first, both ledgers, report them verbatim. This paragraph is
+arithmetic; rule 13 exists because arithmetic about ledgers is not authority.
 
 *⚠ `preflight.ts` (~90s) before the push. `npx tsx` and `git` fail under the
-command sandbox.*
+command sandbox — run unsandboxed.*
 
 ---
 
-## 1. Open question 1, answered: the geometry is EXACT, and the matcher is costed
+## USER DIRECTIVE — the dungeon programme is this session
 
-### 1a. The zone geometry is right — 581 of 581, against ground truth
+**The user has authorised the dungeon runs for this session.** That settles
+*whether*; it does not settle *each*.
 
-The corpus contains everything needed to test the hit resolver in isolation from
-the matcher: the card played, the focus point, the fish's cell, and the observed
-outcome. The matcher's job is predicting *where the fish will be*; the geometry's
-job is, *given where it actually is and where you aimed*, hit or miss. **The
-second can be tested with the true cell substituted in, and then the matcher does
-not enter at all.**
+**Rule 11 is unchanged and is not relaxed by a session-level authorisation:
+60-energy juiced, `--juiced-index=3`, 3× Big Heal Juice, `--runs=1`, stop and
+hand back. Each run needs its own go-ahead. Approval for one is never approval
+for the next.** Rule 13 after every run — read `checkDungeonToday.ts` and confirm
+`dayProgressEntities` moved by exactly 3, **including after a run the harness
+reports as denied**.
 
-Reimplementing `zoneToCell`'s closed form (`dx = ⌊(z−1)/3⌋−1`, `dy = (z−1)%3−1`,
-off-grid dropped, 4×4) and scoring every live play:
-
-```
-581 live plays with complete geometry data
-  predicted outcome == observed outcome     581 / 581      100.0%
-```
-
-**Zero errors.** Not one card, one focus, one cell in the whole corpus where the
-shipped resolver disagrees with the server.
-
-**So hit geometry IS eliminated — this time on evidence.** Every point of the
-residual belongs to the matcher. My §1b reached the right destination illegally;
-this is the same destination with a receipt.
-
-*(The test also fixes the wire semantics — see §3. Reading them wrongly gives
-62.8%, which is what a plausible-looking convention error costs.)*
-
-### 1b. The matcher, costed — the thing open question 1 says nobody has done
-
-Same 581 plays. For each, the reachable focus set is every cell within
-`focusMeter` Manhattan of the current focus point — exactly what the server
-enforces:
+Redirect and `tail`; never pipe a live run to a truncating reader.
 
 ```
-  RANDOM   same card, uniform over reachable focus        19.3%
-  ACTUAL   what the shipped bot did                       35.8%
-  ORACLE   same card, best reachable focus                66.1%
-  ORACLE   best card in hand + best reachable focus       71.1%
+npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1 > logs/run-82-1.log 2>&1
 ```
-
-**The matcher captures (35.8 − 19.3) / (66.1 − 19.3) = 35% of the available
-prediction headroom.** It is doing real work — nearly double random — and
-**30.3 percentage points of hit rate remain on the table with the cards and the
-focus budget the bot already holds.** No new cards, no change to card selection,
-no live-policy change: purely better prediction of the fish's next cell.
-
-Card choice is worth a further 5.0pp (66.1 → 71.1) and is the smaller prize.
-
-**This is the tractable target, and it is now costed.** Anything that improves
-next-cell prediction is scored against a 66.1% ceiling and a 19.3% floor.
 
 ---
 
-## 2. The reframing that makes all four arms one equation — and one correction
+## 1. §1a — the dry-run, and it matters more than it did in session 75
 
-Drift is fully determined by three numbers, and every arm's sign is decided by a
-single threshold:
-
-```
-drift = h·(−damage) + (1−h)·(+heal)        zero when   h* = heal / (damage + heal)
-```
-
-Applied to session 80's own table, reproducing all four drifts to the third
-decimal:
+**The dungeon path has not executed since session 75. Six commits have touched
+the code that spends run-units since, and four of them are structural.**
 
 ```
-  arm             hit%    dmg   heal    break-even h*    margin      drift
-  LIVE            35.6   5.06   3.02        37.4%        −1.8pp      +0.145
-  SIM blind       42.7   3.66   3.28        47.3%        −4.6pp      +0.317
-  SIM live-cfg    42.1   4.94   3.11        38.6%        +3.5pp      −0.282
-  SIM bare        80.8   5.01   3.20        39.0%       +41.8pp      −3.437
+  d650e8e  session 80 §5   arg guard on liveRun.ts   — recap says NEVER EXERCISED
+  4e20e91  session 78 §2c  combat moves join the transaction protocol
+  774ab76  session 78 §5/6 L1–L4 (capture.ts — the shared FixtureWriter/RunLog)
+  e248303  session 78 §3   probeDecision wired into every decision record
+  a12e6b3  session 78 §2   runActionTransaction — start_run + reward/path
+  0f5d61a  session 78 §1   raw() gains a 10s deadline, AbortController + race
 ```
 
-**The fishery is a knife-edge, and the bot is sitting 1.8 points on the wrong
-side of it.** Break-even is 37.4%; the bot hits 35.6%. That is the whole of
-"catch 29.2% versus 81%" — not a seventy-point chasm, a **two-point** one, on a
-threshold. It also explains why catch rate has been such an unstable instrument:
-near h* it is a step function.
+Verified in the tree: `runActionTransaction` has **three dungeon call sites** —
+`liveRun.ts:727` (`postWithVerifiedRetry`), **`:1052` (`start_run`)** and
+`:1371` (combat moves). **None has ever run against a live dungeon.** Neither has
+the request deadline on this path, nor `capture.ts`'s extracted writer, nor the
+arg guard.
 
-**And it corrects a reading in session 80's own recap.** STATE.md says *"the
-blind arm is the only one on live's side of zero."* True, and **not for live's
-reason.** The blind arm clears zero because its **damage is 3.66 against live's
-5.06**, which lifts its break-even to 47.3%; its hit rate (42.7%) is *seven points
-above* live's. Two different errors producing the same sign.
+**Session 75's brief called the dry-run "the item most likely to surprise" after
+twelve sessions of drift, and the surprise was that nothing had rotted.** That is
+not the situation now. Then, the intervening work was elsewhere and the dungeon
+path was merely stale. **This time the intervening work is ON it, on the exact
+function that commits a run-unit.**
 
-> **Matching the sign of the drift is not evidence of matching the mechanism.**
-> The margin column is the diagnostic, not the drift column.
+**Do this first and report what it prints. If it fails, that is the session's
+finding and the runs wait.** `--dry-run` runs every guard, spends nothing, and
+takes twenty seconds.
 
-### 2a. Open question 2 — is the bare arm worth keeping as §0a's instrument?
-
-**No, and §2 says exactly why rather than as a matter of taste.** Its margin is
-**+41.8pp**. An arm whose hit rate clears its own break-even by forty-two points
-is not a noisy model of this fishery; it is a different fishery, in which the
-fish essentially cannot escape. Every §0a figure — +19.40pp included — was
-computed there.
-
-**But do not delete it and do not silently re-home the oil work onto another
-arm.** The live-config arm is +3.5pp over break-even against live's −1.8pp: it is
-much closer and still on the wrong side of the line, so it would produce a
-different unsupported number rather than a supported one. **The margin is the
-gate.** State it: an arm is admissible as §0a's instrument when its margin
-brackets live's within some stated band, and none currently does. That is a
-gate on something measurable, which is more than §0a has had.
+**One thing to check by eye in the dry-run output, because it is new since the
+last one:** `start_run` now returns a transaction outcome rather than throwing.
+Confirm the dry-run path still reports `would POST start_run` and exits 0 without
+entering the transaction at all — a dry run that *enters* the reconciliation
+would mean the guard moved.
 
 ---
 
-## 3. Wire semantics, settled by the same test
+## 2. What the runs are FOR — the `evSupported` telemetry is the deliverable
 
-The 100% fit only appears under one interpretation, and the alternatives are far
-away:
+**This is the primary purpose and it should shape the reporting, not be a
+by-product of it.**
 
-```
-  b.focusPoint  + b.fishPosition          581/581   100.0%    ← the truth
-  a.focusPoint  + b.fishPosition          460/581    79.2%
-  a.focusPoint  + a.fishPosition          365/581    62.8%
-  b.focusPoint  + b.previousFishPosition  374/581    64.4%
-```
+Session 78 §3 wired `probeDecision` into every decision record
+(`liveRun.ts:1283`). Each `event: "decision"` now carries `evSupported`,
+`unmodelled` and `unmodelledBySide`, **in the same record as the EV** — and a
+per-run `EV support: n/m decisions were fully supported` line at `:1241`.
 
-**A card resolves against the focus point AFTER the move and the fish's cell in
-the RESULTING state — not `previousFishPosition`.** The fish moves and the shot
-lands at its new cell, so the bot is predicting one step ahead, which is what
-makes 66.1% a ceiling rather than 100%.
+**It has never run.** Four juiced runs are the first real data it would produce.
 
-`previousFishPosition` is currently used only by `movePathAudit.ts`, correctly,
-for path continuity. **Nothing depends on the wrong reading** — but nothing writes
-the right one down either, and a 62.8% agreement rate is exactly the kind of
-"mostly works" that survives review. **Record it in SPEC-fishing, and pin it with
-the 581/581 assertion**, which is a genuine ratchet: it fails the moment either
-the resolver or the wire semantics drift.
+**Why it matters:** the coverage layer marks **617 of 622** non-Safe paths
+unscorable on `ROLLED_STATS`, and rule 8 deliberately selects exactly those
+fights. Today CAPTURE-1's implementation ordering — *which* of evasion, block,
+lck, tenacity, intuition, Weak, Vulnerable, Burn, Regen, lifesteal to capture
+first — is **guessed**, inherited from the Codex review's suggested order.
 
----
+**These runs turn that ordering into a measurement.** Report:
 
-## 4. Gate
+1. **`EV support: n/m` per run**, and pooled across the four. A high unsupported
+   fraction is EXPECTED — say so in the recap so nobody reads it as a regression.
+2. **The co-occurrence table of `unmodelled` reasons** — which reasons appear
+   together, and how often. `unmodelledBySide` splits me/foe/run, which is the
+   part that says whether the gap is in the player's state or the enemy's.
+3. **The reasons present on the decisions immediately preceding a death.** That
+   is the ordering CAPTURE-1 wants: not which mechanic is most common, but which
+   is present when the run ends.
 
-**Offline, deterministic, no live budget, no `data/`.** Rule 6 — and per §0's
-lesson, each gate names its predicate, not just its number.
-
-1. **The resolver is pinned against the corpus at 581/581**, under the predicate
-   *"every state-to-state transition where exactly one card left the hand into
-   the discard, and both states carry `focusPoint`, `fishPosition` and
-   `fishHp`"* — that predicate stated in the test, in those words. The test must
-   fail under the `previousFishPosition` reading, demonstrated by running it both
-   ways. **A pin that does not fail the wrong reading has not tested anything.**
-2. **The matcher's headroom is a reported metric, not a one-off.** A script
-   emitting the four rows of §1b — random floor, actual, same-card oracle,
-   best-card oracle — over the corpus, so any change to the matcher is scored
-   against a fixed ceiling. Reproduce **19.3 / 35.8 / 66.1 / 71.1** as the check
-   that the harness is right before it is used to judge anything.
-
-Not gated, do if there is room: **§2's margin column added to
-`scripts/damageEconomy.ts`'s output** — it is `heal/(damage+heal)` and one
-subtraction, and it turns that report from four unrelated drifts into one
-equation; §3's SPEC-fishing entry.
-
-**What would make these unmeetable:** nothing. Both run on committed fixtures and
-shipped code. If either number fails to reproduce, that is the finding and it
-belongs at the top of the session, not in the recap.
+**Do not build H2's proc model.** Unchanged and not reopened. This is the
+capture that would eventually justify one; it is not one.
 
 ---
 
-## 5. Where the matcher work would go, if the session gets that far
+## 3. The other capture value, in the order I would rank it
 
-**Not gated — this is a research direction, and it needs the corpus more than it
-needs a plan.** §1b says the ceiling is 66.1% and the bot is at 35.8%. Two
-questions that are cheap and would shape any attempt:
+- **Boon coverage.** Orb **7** / priority **5** since session 75, frozen for six
+  sessions. Record first-ever pickup pairs and the `UNMODELLED_TYPES` delta. Diff
+  the full player object across each `reward_*` POST, before → after, and **treat
+  every zero as a measurement only if a control moved in the same run** — that is
+  what made session 75's four latent models credible.
+- **§23's `(elapsed, drift)` pair.** The predictor is passive regen ticks,
+  `drift ∈ {floor(x), ceil(x)}` with `x = elapsed/3.33`, **11/11** at n=11. Four
+  runs takes it to n=15 and is the cheapest increment available to it.
+- **The in-loop tier gate.** `auditTierChoice` re-derives rule 8's answer from the
+  raw offer and halts on disagreement. Last exercised **38/38**. Report the count.
+- **Hard Cores per run and as a total.** It is the currency. Session 75's four
+  runs returned 27,552 HC / 1,491 DR; run 3's 8,688 is the highest juiced run on
+  record.
+- **Potion use and at what HP.** M2 (potion timing) is recorded as blocked behind
+  the H2 captures; the HP at each potion is the raw material for it. Session 75
+  saw potions at 14/40, 3/40, 15/40 — the 3/40 is the case M2 exists for.
 
-- **How much of the headroom is reachable without prediction at all?** Compute a
-  "stay-put oracle": the best hit rate achievable if focus never moves from its
-  opening cell. If that is near 35.8%, the matcher's movement decisions are
-  adding nothing and the problem is the focus budget, not the prediction. If it
-  is far below, prediction is genuinely load-bearing.
-- **Is the miss structured or diffuse?** For each miss, the Manhattan distance
-  from the fired focus to the fish's actual cell. A distribution concentrated at
-  1 means the matcher is nearly right and a better tie-break wins points; a flat
-  distribution means it is not tracking at all. **This is the single most
-  informative plot available from the corpus and it costs one script.**
-
-Both are offline, both are one pass over the same 581 plays.
+**Per-run report** (unchanged from session 75): tier offered vs taken per room;
+Perpetual filter rate; `orbFallback` fire count and `narrowed`; orb sum; loot;
+rooms; potion use and at what HP; first-attempt action failures; 429s; unknown
+enums; guard trips.
 
 ---
 
-## 6. The live budget — 8 casts, 12 run-units
+## 4. The gear trap — read this before run 1, not after
 
-Every item needs its own go-ahead. Rule 11 terms unchanged; rule 13 after every
-run; `--dry-run` first — the dungeon path has not executed since session 75.
+**`src/sim/enemies.ts`'s `PLAYER` was captured from session 75's run 4**
+(cid 24983279, 2026-08-22 04:27 PT): rock 25/8, paper 10/15, scissor 12/8,
+armorMax 22, block 10.
 
-- **A hit-9 crit separates the three surviving crit rules** (`hit × 1.5`
-  round-half-up, `hit × 1.6` rounded, `floor(hit × 5/3)` — 14/14/15 at hit 9).
-  Casts are the only source. Worth asking for.
-- **Ordinary casts still tighten §1b's 581** at no extra cost, and that number is
-  now gate 2's fixture.
-- **One juiced dungeon run** still seeds session 78's `evSupported` telemetry,
-  unchanged.
+**If the user's gear or level has changed since, `tests/enemies.test.ts` will go
+RED on the first new capture — and that is the test working, not breaking.** It
+pins to the NEWEST capture precisely so gear drift cannot go silent. Session 75
+hit this and the recap's own extracted rule is the one to keep in front of you:
 
-**And read the `--help` incident as the standing lesson it is.** A cast was spent
-by an unguarded arg parser, and the same defect sat in `liveRun.ts` where the
-default is a plain 20-energy run — a run-unit and a rule-11 violation, never
-exercised. §5's guard closed both. The general form is worth keeping in front of
-the next reader: **a script that spends something must not have a default that
-spends it.**
+> **A test about a MODEL must not read the user's current gear.**
+
+Session 75 also learned the harder half: a re-spec **mid-batch** splits the
+batch. Runs 1–3 and run 4 of that session are not the same arm and nothing may
+read run 4's depth or Hard Core against the others.
+
+**So:** capture `PLAYER` from **run 1's own `start_run`**, diff it against
+`enemies.ts` before run 2, and **report the diff whether or not it is empty.** If
+it is non-empty, update the model once, before run 2, and say plainly that runs
+under the old model are a different arm. **Do not let a re-spec land between runs
+unremarked.**
+
+**And do not present any of these runs as evidence about rule 8.** That programme
+is CLOSED (DECISIONS 2026-08-21). Do not re-run the 4-vs-4, do not propose a new
+comparison.
+
+---
+
+## 5. Fishing — secondary, and only if the rollover has happened
+
+Casts are 20/20 spent until 11:00 PT. If the session runs past it and the user
+gives a go-ahead, two targets are cheap and well-defined:
+
+- **One crit on a base-6, base-8 or base-10 shot finishes the crit rule.** Two
+  members survive: `hit × 1.5` round-half-up and `hit × 1.6` rounded. **Card 10
+  crits for 10 and is in the deck** — ×1.5 → 15, ×1.6 → 16. Session 81 learned the
+  method the hard way: the base is the card's **crit** amount, not its hit amount,
+  and the two crit sources **compose**. Watch `critEffects`, not `hitEffects`.
+- **An oil consumed at a NON-ZERO focus meter settles add-2 vs restore-to-2.**
+  All 21 on record fired at meter 0, where the two are the same event.
+
+Both are captures, not policy. Neither is gated.
+
+---
+
+## 6. Gate
+
+**Rule 6: a gate must be set on something the agent controls. Live runs depend on
+a per-run human go-ahead and on the server, so neither gate below is "four runs
+played" — that would be a capture request wearing a gate's clothes.**
+
+1. **The dry-run is executed BEFORE any live run and its output is reported
+   verbatim**, including an explicit statement of whether the transaction
+   protocol, the request deadline and the arg guard behaved as designed on the
+   dungeon path (§1). **A dry-run failure IS this gate being met** — it is the
+   finding, and the runs wait. *Meetable with zero run-units and no go-ahead.*
+2. **For every run that is authorised and played, `EV support: n/m` and the
+   `unmodelled` co-occurrence table are reported** (§2), plus rule 13's ledger
+   check. **If no run is authorised, this gate is met by reporting that** — and
+   by saying what the telemetry would have shown, i.e. nothing, because it has
+   never run. *Unmeetable only if a run is played and the telemetry is not
+   reported, which is entirely in your hands.*
+
+Not gated: §3's capture list, §4's gear diff (do it regardless), §5.
 
 ---
 
 ## 7. Do not
 
-- **Do not read a matching drift SIGN as a matching mechanism** (§2). Use the
-  margin.
-- **Do not re-home §0a's figures onto the live-config arm.** It is +3.5pp over
-  break-even against live's −1.8pp — closer, still wrong-side, still unsupported
-  (§2a).
-- **Do not delete the bare arm.** Mark it with its margin so nobody quotes it
-  again by accident.
-- **Do not treat §1b's 30.3pp headroom as a licence to change live policy.** It
-  is a ceiling computed with knowledge no bot has at decision time. Rule 4.
-- **Do not encode a crit multiplier** — n=2 separates the families, not the
-  members (session 80).
-- **Do not re-run the oil sweep on any current arm. Do not quote +19.40pp.**
-- **Do not treat `mana -= card.manaCost` as confirmed** — 587/587 plays were
-  manaCost-1 cards.
-- **Do not start a dungeon run without `--dry-run`, `doctor.ts` and a per-run
-  go-ahead**, and never chain runs.
-- Standing, none re-opened: do not build H2's proc model; do not write M4's
-  lines; `chooseNewCard`, `DEFAULT_POTION_THRESHOLD` untouched; redraw CLOSED on
-  price; `boonCapture` OFF; no 429 backoff without an observed 429; do not
-  shuffle the random-sample deck path.
+- **Do not start a run before the dry-run passes** (§1), and **never chain
+  runs** — each needs its own go-ahead, and the user's session-level
+  authorisation is not that.
+- **Do not straddle the 11:00 PT rollover to spend two allowances.**
+- **Do not present these runs as evidence about rule 8**, and do not read runs
+  either side of a gear change against each other (§4).
+- **Do not "fix" a red `enemies.test.ts` by loosening it** — it is pinned to the
+  newest capture on purpose (§4).
+- **Do not build H2's proc-branch model.** These runs are the capture that would
+  justify one; they are not one (§2).
+- **Do not hard-code corrode's amount or complete its perpetual twin table** —
+  `perpetual_corrosiveShield` and `perpetual_corrosiveMagic` still have zero
+  observed appearances.
+- **Do not report energy as a blocker** (rule 12). Do not claim a blocker without
+  running `--dry-run` first.
+- **Do not touch `DEFAULT_POTION_THRESHOLD`** — M2 stays blocked; these runs feed
+  it, they do not resolve it.
+- Standing, none re-opened: `chooseNewCard` UNTOUCHED; redraw CLOSED on price;
+  **+19.40pp SUSPENDED, do not quote**; do not re-run the oil sweep on any
+  current arm; `boonCapture` OFF; do not write M4's lines; no 429 backoff without
+  an observed 429; do not shuffle the random-sample deck path.
 
 ---
 
-## 8. Corrections to me
+## 8. Carried, unchanged
 
-- **§1b of the last brief was invalid reasoning that reached a true conclusion,
-  which is the worst kind to leave standing.** I compared live's hit rate to a
-  number from a different arm and wrote "eliminated". Session 80 caught it. The
-  lesson it extracted — *always name the arm* — is the right one, and I would add
-  the reason it bit: **I took the nearest available number that matched instead
-  of the one that belonged.** 36.42% was in front of me because I had quoted it
-  the session before.
-- **My gate 1 pinned a count without pinning its predicate.** 543 is unmeetable
-  without the filter that produced it, and I made the session chase it. Rule 6
-  says a gate must be set on something the agent controls; a number whose
-  definition lives only in my scratch buffer is not that.
-- **I said `dendren.oils.policyApproved` ships FALSE. It has been TRUE since
-  session 62** and I repeated a stale line from a previous STATE without opening
-  `config/bot.json`. **That is exactly the failure session 74's §7 rule was
-  written to stop** — *any claim in a brief about what code does gets the file
-  opened before the sentence is written* — and I broke it on a config value that
-  takes one grep. Session 80 caught and retracted it.
-- **Three errors in one brief, all of the same shape: I trusted a number I had
-  already written down instead of re-deriving it.** The corpus work in that same
-  brief was right because I ran it. The prose around it was wrong wherever I did
-  not.
-- **Rule 9 applies to this document.** §1's 581/581, §1b's four rates and §2's
-  table are measurements over committed fixtures; a live response that disagrees
-  wins.
+- **30.1pp of hit rate is on the table** with today's cards and budget, the miss
+  is **structured** (48.0% at distance 1, stable across two batches), and nobody
+  has proposed a mechanism. The headroom instrument now scores any attempt
+  against a fixed ceiling — **ACTUAL is the only row a code change can move.**
+- **The 23 no-footprint plays** (3.8%, 6 avoidable) are a live-policy bug worth
+  ~1pp for no prediction improvement at all. Reported, not fixed; rule 4 says it
+  needs a gate and nobody has proposed one.
+- `play_cards`, redraw and `use_fishing_item` remain unrouted — blocked on a
+  capture (session 65), not on effort.
+- §0a is NOT lifted. `mana -= card.manaCost` still unconfirmed. H2's proc model
+  does not exist. Shrinkage re-fit unstable. Per-cast vs per-draw shuffle
+  undistinguished; reshuffle-at-wrap unobserved.
 
 ---
 
-## Your task (session 81)
+## 9. Corrections to me
 
-1. `doctor.ts` first, both ledgers. **8 casts, 12 run-units, expiring 11:00 PT.**
-2. **§1a / gate 1** — pin the resolver at 581/581 with the predicate written out,
-   and demonstrate the test failing under the `previousFishPosition` reading.
-3. **§1b / gate 2** — the matcher headroom as a reported metric; reproduce
-   19.3 / 35.8 / 66.1 / 71.1 first.
-4. **§2** — the margin column in `damageEconomy.ts`; mark the bare arm with its
-   +41.8pp.
-5. **§3** — SPEC-fishing entry for the resolution ordering.
-6. **§5** — if there is room, the stay-put oracle and the miss-distance
-   distribution. Both are one pass over the same plays.
-7. **§6** — with a go-ahead: casts, ideally reaching a hit-9 crit; one juiced run
-   for the `evSupported` telemetry.
-8. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
+- **Twice now I have gated a session on a count I did not re-derive**, and both
+  times the session spent real effort failing to reproduce it. 543, then 581,
+  against a true 590. **The rule I keep breaking is not about counts — it is that
+  I quote my own previous output as though it were a measurement.** Session 80
+  named it once; session 81 paid for it again.
+- **I asked for a test that had existed since session 47.** One `grep` would have
+  told me. This is the same failure as the `policyApproved` line: a claim about
+  what the repo contains, written without opening it.
+- **My oracle was wrong in the direction that matters** — a ceiling below its own
+  floor — and it was found by the assertion I asked for rather than by me running
+  it. **An instrument I hand over should come with the invariant that would catch
+  me.**
+- **This brief is deliberately thinner on measurement than the last four**, and
+  that is the right shape: the session's value is a live capture, and the useful
+  contribution is making sure the capture is not wasted — the dry-run first, the
+  gear diff before run 2, and the telemetry reported in a form CAPTURE-1 can use.
+- **Rule 9 applies.** Every claim above about the tree was checked at `1c18de1`;
+  a live response that disagrees wins, and the correction goes in the recap.
+
+---
+
+## Your task (session 82)
+
+1. `doctor.ts` first. Report both ledgers verbatim.
+2. **§1 / gate 1** — `--dry-run`, before anything. Report what it prints and
+   whether the three unexercised mechanisms behaved. If it fails, stop; that is
+   the session.
+3. **§4** — capture `PLAYER` from run 1's `start_run`, diff against
+   `enemies.ts`, report the diff either way, and update once before run 2 if it
+   is non-empty.
+4. **§ runs** — up to four juiced runs, **one at a time, each stopping for its
+   own go-ahead**. Full per-run report (§3); rule 13 after each.
+5. **§2 / gate 2** — `EV support: n/m` per run and pooled, plus the `unmodelled`
+   co-occurrence table and the reasons present before each death.
+6. **§5** — only past 11:00 PT and only with a go-ahead: casts aimed at a base-6/
+   8/10 crit, and an oil at a non-zero meter.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
    commit, `assertionCoverage` at zero, **`preflight.ts` before the push**, no
    test writes a real data path, secret scan before handoff.
 
-**Honest expectation.** The useful thing here is that a seventy-point catch-rate
-mystery turns out to be a **two-point hit-rate threshold**, and the bot is on the
-wrong side of it by less than the width of most of the effects this project has
-spent sessions arguing about. **The satisfying version of this session is gate 2
-landing and §5's miss-distance distribution showing a spike at distance 1** — the
-matcher nearly right, a tie-break away. **The unsatisfying version is a flat
-distribution**, meaning the matcher is not tracking the fish at all and 35.8%
-against a 19.3% floor is coming from the card zones being large rather than from
-prediction. That would be a harder result and a more important one, and it is one
-script either way.
+**Honest expectation.** The dry-run is the item most likely to surprise, and
+unlike session 75 there is a specific reason to expect one: three mechanisms that
+commit a run-unit have been rewritten since the last live run and none has
+executed. **The most valuable outcome of this session might be a twenty-second
+dry-run that fails**, because the alternative way to discover that is with a
+run-unit. If it passes, the runs are worth having for the `evSupported` telemetry
+alone — six sessions of fishing work have left the dungeon model's biggest known
+gap measured only in a coverage script nobody runs mid-session, and four runs turn
+CAPTURE-1's ordering from a guess into a table.
