@@ -1,350 +1,297 @@
-# BRIEF — session 83 — redraw, priced off the corpus
+# BRIEF — session 84 — name the era
 
-## 0. Verification, and where this brief comes from
+## 0. Verification, and I found my own bug
 
-Fresh clone at `2b8d02e`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
+Fresh clone at `984fdae`, `npm ci`, no `data/`, `logs/` or `~/.secrets`.
 
 ```
 npx tsc --noEmit                     clean
-npx vitest run   Test Files  95 passed (95)
-                      Tests  1581 passed | 13 skipped (1594)
+npx vitest run   Test Files  96 passed (96)
+                      Tests  1599 passed | 15 skipped (1614)
 ```
 
-**Both gates hold.** Session 82 was a good session: the dry-run went first and
-found the arg guard's first real exercise, the gear diff was reported empty as a
-positive, `EV support: 0/174` is a cleaner result than any fraction would have
-been, and **finding that the line printing it has never executed** is worth more
-than the number.
+**Both gates hold.** Session 83 is the best-audited session in this stretch: the
+triple reconstruction pinned *before* it was used, the vacuous-clause note, the
+"exactly one card moved" trap recorded as a test, and the pre-death retraction
+under a within-room control. The retraction in particular is a better result than
+the finding it replaces.
 
-**This brief has two jobs.** It assesses the redraw plan you were given, and it
-**executes the plan's step 2** — because that step is offline, spends nothing, and
-turned out to be computable in one pass. The session should start from a result,
-not a method.
+### 0a. Why my n=386 did not reproduce — one of the two causes is mine
+
+`played()` in my script was `[c for c in db if c not in da]` — a **set**
+membership test on a **multiset**. The corpus has decks with duplicate card ids
+(135 states with two copies of some id, 26 with three) and 3 states whose discard
+carries a duplicate. When a second copy of a card moved to the discard, `c not in
+da` was already false, my list came out empty, and **I silently dropped the
+play.**
+
+Re-run with a multiset difference: **386 → 387.** Every cell holds except one
+rescue. So one row of the three-row gap is mine, and named. The other two are not
+explained and I did not find them; session 83 time-boxed the hunt correctly and
+its 389 is the number to use. **The same set-for-multiset defect is in my
+triple-matching line too** (`all(c in t for c in hand)`), which is why the
+predicate belongs in code rather than in prose — the point session 83 made.
+
+### 0b. A corpus-handling hazard I nearly published
+
+Sorting a cast's states by `createdAt` instead of by file order reorders them —
+the timestamps tie — and my focus-oil detector then reported **140** casts where
+the file-ordered truth is **13**. Caught only because 140 of 148 was implausible.
+**Within a cast, `state-NNN.json` order is the sequence; the server timestamps are
+not.** Worth a line in `castTrace.ts` if it is not already load-bearing there.
 
 ---
 
 ## The clock and the ledger
 
-Written **2026-08-23, 00:25 PT**.
+Written **2026-08-23, ~08:45 PT**. Both ledgers were spent before session 83 and
+**roll at 11:00 PT — about two hours out.** After the roll: 12 run-units, 20 casts.
 
-```
-  fishing    20 / 20 spent      rolls 11:00 PT (~10.5h out)
-  dungeon    12 / 12 spent      rolls 11:00 PT
-```
+`doctor.ts` first. §1–§3 need neither.
 
-**Both allowances are exhausted. Before 11:00 PT this is an offline session by
-arithmetic**, which suits §1–§3 exactly — none of them needs a cast.
-
-`doctor.ts` first anyway; rule 13's point is that arithmetic about ledgers is not
-authority.
-
-*⚠ `preflight.ts` (~90s) before the push — and per session 82, **after**
-committing new fixtures, since it exports tracked files only.*
+*⚠ `preflight.ts` (~90s) after committing fixtures, before the push.*
 
 ---
 
-## 1. The redraw plan — endorsed, with the order reversed
+## 1. The finding: session 83's §3 inversion is a pre-2026-08-21 artifact
 
-**The diagnosis is right and the "name the arm" catch is the important part.**
-43.9 mana per extra fish was computed on an arm that redraws 27–61% of its turns
-against a shipped threshold that wants one on ~3.5%. That is the third instance
-of the same error class in this project and the plan is correct to lead with it.
+### 1a. The measurement
 
-Four amendments.
+Session 83's sharpest result was that a decision-time signal separates dead hands
+at AUC 0.922 — **but the dead hands it finds are ones a redraw cannot fix**,
+because **74 of 101 are firing from an exhausted focus meter** and a redraw does
+not restore the meter.
 
-### 1a. Do step 2 FIRST, not step 1
+That is true of the pooled corpus. It is not true of the bot that exists now.
 
-The plan puts the two correctness fixes ahead of the corpus pricing, on the
-grounds that they are not policy and cannot be validated by calibration. **True,
-and it is still the wrong order** — because pricing is not calibration either.
-
-Step 2 is **free**: offline, no casts, no budget, no live-path edit. Steps 1 and 2
-of the plan's correctness list are **live-path surgery on the cast loop under a
-ship-nothing posture**. If the corpus price says no, that surgery was spent on a
-dead end; if it says yes, it is done with a number behind it.
-
-**Measure first. It costs nothing and it decides whether the rest happens.**
-
-### 1b. The `3.5% of turns` figure needs its provenance attached
-
-12 of 347 comes from `logs/`, which is **gitignored and LOSSY** — this repo's own
-rule 10, in the second form session 75 wrote up. That is what *survives*, not what
-happened, and the project has already been bitten by exactly this once
-(session 74's "1 / 373", corrected in session 75's STATE).
-
-It is also the demand of an **uncalibrated** threshold (`REDRAW_THRESHOLD = 0`,
-the plan's own blocker #3), so it is a bound on one particular policy, not on the
-mechanic. **Label it both ways and it is still useful.** Do not let it become a
-quoted constant.
-
-### 1c. The price was computed against the wrong scarce resource
-
-"43.9 mana per extra fish **against a 10-mana pool**" only bites if the pool is
-scarce. **Measured over the committed corpus, 147 completed casts:**
+Plays firing at focus budget 0 (`spent + remaining` = 0), split at the date the
+focus-oil policy went live:
 
 ```
-  playerHp (mana) REMAINING at the terminal doc
-
-     0 left : 15 casts       5 left : 16        mean   5.85
-     1 left :  2             6 left : 17        median 7
-     2 left :  4             7 left : 27
-     3 left :  6             8 left : 49
-     4 left :  6             9 left :  5
-
-  132 of 147 casts (89.8%) ended with mana to spare.
-  mana-out: 15 casts (10.2%)      escapes 5.42 left   catches 6.73 left
+  BEFORE 2026-08-21   94 casts   404 plays   178 at budget 0   44.1%
+  2026-08-21 ONWARD   54 casts   201 plays     3 at budget 0    1.5%
+  ALL (what §3 pooled)          605 plays   181              29.9%
 ```
 
-**The average cast throws away 5.85 of its 10 mana.** The pool is not what ends
-casts — the fish healing to full is, at 62%. At the measured cost of a redraw
-(§2, mean 1.57 mana) **the discarded mana alone funds ~3.7 redraws per cast.**
+**A thirtyfold drop.** The focus meter is non-regenerating, so meter-zero is an
+**absorbing state** in a cast with no restore and a **transient** one in a cast
+with it — which is why the effect is this large and does not need a subtle
+control.
 
-And a redraw does not touch the resource that *is* scarce. Fish-HP headroom is
-**6.8 HP** and a miss heals **3**, so a cast tolerates ~2.3 net misses. A redraw
-deals no damage and no heal (user-confirmed, session 74) — it takes no shot, so it
-**cannot miss**. **A redraw spends the abundant resource to avoid spending the
-scarce one.** That is the argument the 43.9 figure never made, and it is the one
-worth testing.
+The Focus oil is directly visible: `focusMeter` increases by **exactly +2, 21
+times, in 13 casts**, and every one fires **0 → 2**. (So add-2 and restore-to-2
+remain indistinguishable, confirming session 81 §4e. Those 21 are the same 21 that
+break `prev.focusMeter`.) All 13 casts are 2026-08-21 or later; the policy went
+`policyApproved: true` in session 62 on 08-20.
 
-### 1d. Blocker #1 is not just a correctness gap — it is where the value lives
+### 1b. What it does to the redraw counterfactual
 
-Session 75 found the sim's old redraw was not merely time-free but
-**information-free**, and that the information term was the larger one. The live
-redraw response carries the fish's new position; **blocker #1 is the client
-throwing that information away before the matcher sees it.**
+Re-running session 83's table with the era split, multiset predicate:
 
-So #1 is not housekeeping ahead of the interesting work. **It is the mechanism the
-value case depends on**, and it should be framed that way when it is fixed:
-without it, a live redraw buys a fresh hand and *loses* an observation, which is a
-worse trade than the sim's.
+```
+                            n     both  sac  rescue  neither | dead      rescue-rate  cost
+  ALL (session 83 pooled)  387     262   26      43      56  |  99 25.6%    43.4%     1.58
+  before 2026-08-21        260     153   23      28      56  |  84 32.3%    33.3%     1.71
+  2026-08-21 ONWARD        127     109    3      15       0  |  15 11.8%   100.0%     1.33
+```
+
+**In today's era there is not one play where both the held hand and the redrawn
+hand are dead.** `neither = 0`. Every dead hand — all 15 — is rescued by a
+redraw, at a mean **1.33 mana**, on a pool that discards **5.85 per cast**.
+
+Hit-availability, today's era: **88.2% held → 97.6% redrawn, +9.4pp.**
+
+**Session 83's conclusion inverts back.** "The dead hands a signal finds are the
+ones a redraw cannot fix" describes the pre-era corpus. With a live focus budget,
+a fresh triple can always reach — that is what `neither = 0` says, and it is
+structural, not statistical.
+
+### 1c. The three things this does NOT say
+
+1. **n = 15 dead hands.** 15/15 has a 95% lower bound near **78%**, not 100%.
+   Report the interval, never the point.
+2. **Availability, not hits, and oracle-lensed** — the same lens on both arms, so
+   the pairing is fair and the levels are not achievable.
+3. **Still not a trigger.** Three sacrifices remain, and the bot cannot see the
+   fish's next cell. §3's `heldCoverage` signal is still the candidate; what
+   changed is which population it has to work on.
+
+**This does not reopen the CLOSED verdict.** It says the counterfactual that
+informs it should be read on the era the bot plays in.
+
+### 1d. And the error class is one this project has now hit three times
+
+"Name the arm" — my §1b, session 80. "Name the arm" again — the 43.9 figure,
+session 83. **Now: name the era.** `focusProfileCheck.ts` has carried a
+`todaysEraCastIds()` split since session 71, precisely because *"the corpus pools
+THREE policy eras and the oldest two are 88 of its 123 casts."* **The redraw
+counterfactual did not use it**, and neither did I when I handed the method over.
 
 ---
 
-## 2. Step 2, executed — the counterfactual is computable, and here it is
+## 2. The part I cannot explain, and it is the better question
 
-### 2a. Why it is computable, and the check that it is
-
-Session 79 established the pile is shuffled **once per cast** and drawn
-sequentially; the shuffled order is never on the wire. **But the actual timeline
-reveals it.** The bot plays a hand down, the server deals the next three, and
-those three are recorded. A redraw discards the held hand and draws three — from
-the same untouched pile. **So the hand a redraw would have produced at turn *t* is
-exactly the next triple the cast actually drew.**
-
-Verified before using it, over 148 casts:
+The drop is **not** attributable to the focus oil alone. Within the post-08-21
+period:
 
 ```
-  nextCardIndex deltas when it advances:  {+3: 137,  −7: 3,  −8: 4}
-  draws whose new hand contains previously-unheld cards:  144 / 144
+  casts that fired a focus oil     13 casts   87 plays   1 at budget 0   1.1%
+  casts that did NOT               41 casts  114 plays   2 at budget 0   1.8%
 ```
 
-Every draw is a clean triple; the seven negatives are session 79's pile wraps.
+**The same rate.** So something *besides* the oil changed at that boundary and
+41 casts never needed a restore at all.
 
-### 2b. The measurement
+Candidates, none costed: session 69's oil-gate hoist changed the decision ORDER
+(the oil decision now sits above the card choice); the matcher-weighting era
+boundary the repo already dates at **2026-08-20T18:27Z**; the focus-reserve
+weight. **`todaysEraCastIds()` already computes a split on that boundary** and is
+the instrument to attribute this with.
 
-**Predicate, stated in full because I have now twice shipped a count without
-one:** every play transition where exactly one card moved from hand to discard;
-both states carry `focusPoint` and `fishPosition`; every card in the held hand
-belongs to one revealed draw-triple; the **next** triple was drawn later in the
-same cast; and a further play exists in that cast. **n = 386.**
-
-Both arms are scored with session 81's validated semantics — resolution against
-the post-move focus and the resulting-state cell, reachable focus from
-`spent + remaining` (session 81 §4e, not `prev.focusMeter`). The redraw arm is
-scored against the **next** turn's cell, because a redraw burns the fish's move.
-
-```
-  actual hand can reach the fish     redrawn hand can reach it      n      share
-        yes                                 yes                    262    67.9%
-        yes                                 no                      26     6.7%   ← sacrifice
-        no                                  yes                     42    10.9%   ← rescue
-        no                                  no                      56    14.5%
-
-  hit-availability, actual hand    74.6%
-  hit-availability, redrawn hand   78.8%
-
-  mana a rescuing redraw would have cost:  mean 1.57   {1: 24, 2: 12, 3: 6}
-```
-
-### 2c. What it says, stated carefully
-
-**Conditional on the held hand having no reachable hit — 98 of 386 plays,
-25.4% — a redraw restores hit-availability 42.9% of the time, at a mean 1.57
-mana out of a pool that routinely wastes 5.85.**
-
-Those 98 plays are **guaranteed misses**: no card, no reachable focus, no
-outcome but +3 fish HP against a 6.8 headroom. **One avoided guaranteed miss is
-worth 44% of the entire headroom budget of a cast.**
-
-**Three things this does NOT say, and the session must not let them blur:**
-
-1. **It is availability, not hits.** Both arms use an oracle lens that knows where
-   the fish went. The bot converts roughly half of available hits into actual ones
-   (session 81: ACTUAL 36.3% against a 71.1% best-card ceiling). **The oracle bias
-   is the same on both sides, so the paired comparison is fair — the absolute
-   levels are not achievable.**
-2. **It is not a trigger.** The bot cannot know at decision time that its hand is
-   dead. The 26 sacrifices are what a bad trigger costs, and a trigger keyed on
-   `bestEv < 0` is not the same predicate as "no reachable hit". **§3 is about
-   that gap.**
-3. **It does not convert to mana-per-fish.** Doing so needs an availability→hit
-   rate and a hits→fish rate, and inventing either is how 43.9 happened.
-   **Report the measured quantities; let the conversion be an explicit, separate
-   step with its assumptions named.**
-
-**The honest headline: the number on record does not describe the candidate
-policy, and the corpus-derived quantities are an order of magnitude friendlier —
-but "friendlier" is not "affordable", and nothing here reopens the decision.**
+**This matters beyond redraw.** If a change around 08-21 took focus exhaustion
+from 44.1% to 1.5% of plays, it is the largest live behavioural improvement in
+this project's record and **nobody has attributed it or written it down.** It is
+also independent live support for the *mechanism* under OIL-POLICY's largest
+suspended term — `focus-when-empty-only`, +17.74pp of the +19.40pp, justified as
+*"at zero the policy is frozen onto whichever cell it last occupied"*. **The
+mechanism now has live evidence the number never had. The number stays
+SUSPENDED** — it was computed on the bare arm and §0a is not lifted by this.
 
 ---
 
-## 3. What the trigger would have to be, and it is not `bestEv < 0`
+## 3. Gate
 
-§2's rescue set is defined by *no reachable hit*. The shipped trigger is
-`bestEv < redrawThreshold && mana > redrawCost` — a different predicate, and the
-26 sacrifices show the two come apart.
+**Offline, deterministic, no live budget, no `data/`.** Rule 6, and every count
+ships with its predicate.
 
-The plan's blocker #3 is right that `REDRAW_THRESHOLD = 0` is uncalibrated, and
-the one historical calibration produced casts averaging 1.29 turns with 78%
-`escaped_mana`. **That failure is legible now in a way it was not then:** a
-threshold that fires often burns the pool *and* the fish's patience, and it was
-tuned on an arm where mana never binds. §1c says the pool has 5.85 of slack —
-so a trigger firing at the §2 rate (25.4% of plays, ~1.57 mana each) spends about
-**0.4 mana per play**, well inside it, while a trigger firing at 61% does not.
+1. **The era split reproduces and is wired into the counterfactual report.**
+   Reproduce **44.1% / 1.5% / 29.9%** over 404 / 201 / 605 plays, and the
+   era-split table of §1b, **with the era predicate written out** — and prefer
+   `todaysEraCastIds()` to my date literal if it agrees, saying so either way.
+   Pin **`neither = 0` in today's era** and report the rescue rate as an
+   interval, not a point (§1c).
+2. **The 44.1% → 1.5% drop is attributed.** How much is the focus oil, how much
+   is whatever else changed at that boundary (§2)? A decomposition, or — if the
+   corpus cannot separate them — **that stated as the finding**, with what would
+   separate them. Rule 6: say which it is.
 
-**The tractable design question, and it is measurable offline:** how well does
-any available signal — `bestEv`, the best card's reachable-cell count, hand size,
-the matcher's spread — separate the 98 dead-hand plays from the 288 live ones?
-That is a classification problem over a labelled corpus, and **the labels now
-exist.**
+Not gated, do if there is room: re-run §3's `heldCoverage` separability on
+today's era alone. Its dominant class was the budget-0 hands; with those gone,
+whether the signal survives at all is unknown and is the thing a shadow design
+needs.
 
----
-
-## 4. Session 82's open questions
-
-- **`run_over` has never fired and the EV line lives inside it.** The fix I would
-  argue for is **making both exit paths converge** rather than duplicating the
-  reporting: two exits that print different things is how this happened. But it is
-  a live-path edit on the function that ends a run, and it should carry a gate —
-  *the reporting executes on a replayed run of each shape, demonstrated, before it
-  is trusted live.* Note the same class as §1d: **a line nobody has watched
-  execute is a line that does not exist.**
-- **The pre-death ordering at n=4 runs.** `STATUS_EFFECT` on 12/12 pre-death
-  decisions at a 50% base rate is striking and it is four runs. **State it as a
-  hypothesis with a run count that would settle it**, and say the frequency and
-  death orderings disagree so the choice is not neutral. Do not reorder CAPTURE-1
-  on n=4.
-- **M2 and the potions.** Three Big Heals at exactly 20 each against a 40 pool did
-  not save three of four runs. **M2 is blocked behind H2, and I think that is
-  still right** — the fix on the table is `hp <= credibleNextExchangeHpDamage`,
-  which needs the model H2 cannot build yet. But the potion data is now the thing
-  there is most of, and **a threshold sweep on the corpus is not the same as
-  changing the constant.** Worth recording as a capture-backed item rather than a
-  blocked one.
-- **The crit rule** needs one base-6/8/10 crit; card 10 is in the deck. First
-  fishing after 11:00 PT.
+**What would make these unmeetable:** nothing. Both run on committed fixtures.
+**If §1's table does not reproduce, that is the finding** — mine has now failed to
+reproduce three times, and one cause is named in §0a.
 
 ---
 
-## 5. Gate
+## 4. Session 83's open questions
 
-**Offline, deterministic, no live budget, no `data/`.** Rule 6.
-
-1. **§2 reproduces, with its predicate in the code.** A script and a test that
-   recompute the four-cell table from committed fixtures and assert
-   **262 / 26 / 42 / 56 at n=386**, plus the 1.57 mean rescue cost, **with the
-   predicate of §2b written out in the test in those words.** The triple
-   reconstruction must be pinned separately by the §2a check (`+3: 137`, wraps 7,
-   `144/144`) so a corpus change that breaks the method fails loudly rather than
-   shifting the table.
-2. **The mana-slack table is a reported metric** (§1c): mana remaining at cast
-   end, mean/median/distribution, split by caught and escaped. Reproduce
-   **mean 5.85, median 7, 15 mana-out of 147** first, then wire it into
-   `damageEconomy.ts` beside the margin column — it is the same argument about
-   which resource is scarce.
-
-Not gated, do if there is room: §3's separability check — how well `bestEv` and
-its neighbours classify the 98 dead-hand plays.
-
-**What would make these unmeetable:** nothing. Both run on committed fixtures and
-shipped code. **If §2's table does not reproduce, that is the finding** and it
-belongs at the top of the session — my counts have failed to reproduce twice now
-and the possibility is real.
+- **`run_over`'s convergence.** Extracting one `finishRun(reason, room)` that both
+  exits call is right, and the gate — demonstrate the reporting on a replayed run
+  of each shape, offline, before trusting it live — is well-formed and meetable
+  with existing fixtures. **I would take it.**
+- **The depth-matched pre-death control needs runs that survive past room 7, and
+  the corpus has none.** That is a capture request, and rule 6 says name it as one
+  rather than gate on it. **I would state the run count and park it**; the
+  question is real but it is not this session's.
+- **The shadow evaluation.** §1 changes its design: the candidate population is
+  now 11.8% of plays, not 26%, and `neither = 0` means the trigger's job is
+  detection, not selection. That is a **live-path instrumentation change** and
+  needs the user's go-ahead; it is worth asking for now that the target is this
+  much cleaner.
+- **Whether §2 changes the CLOSED verdict remains the user's call**, and §1
+  strengthens the case without settling it: the price was quoted against a
+  resource 89.8% of casts do not exhaust, and on today's era the rescue set is
+  small, cheap, and complete.
 
 ---
 
-## 6. Do not
+## 5. Do not
 
-- **Do not flip `redrawEnabled`.** Nothing here authorises it. `DECISIONS.md`
-  records redraw CLOSED on price; reopening it is the user's call, and rule 4 bars
-  a live change on a sim result regardless.
-- **Do not fix the two correctness gaps yet** (§1a). They are live-path edits and
-  the free measurement decides whether they are worth making.
-- **Do not convert §2's availability numbers into mana-per-fish** without naming
-  every assumption in the conversion (§2c). That is how 43.9 happened.
-- **Do not quote 3.5% without its provenance** — `logs/` is lossy and the
-  threshold is uncalibrated (§1b).
-- **Do not recalibrate `REDRAW_THRESHOLD` on any sim arm.** Session 81: the arms
-  clear their own break-even by up to +41.9pp against live's −1.8pp.
-- **Do not reorder CAPTURE-1 on n=4 runs** (§4).
-- **Do not touch `DEFAULT_POTION_THRESHOLD`**, `chooseNewCard`, or the necessity
-  thresholds.
-- Standing, none re-opened: **+19.40pp SUSPENDED, do not quote**; §0a not lifted;
-  do not build H2's proc model; `boonCapture` OFF; no 429 backoff without an
-  observed 429; do not shuffle the random-sample deck path; do not complete the
-  corrode perpetual table (session 82 showed the capture that would license it is
-  the capture proving it buys nothing).
+- **Do not read §1b's 100% as 100%** (§1c). n=15.
+- **Do not flip `redrawEnabled`**, recalibrate `REDRAW_THRESHOLD`, or fix the two
+  correctness gaps yet. The verdict is the user's and the measurement is still
+  offline-only.
+- **Do not treat §2's drop as proven to be the focus oil.** Post-era casts that
+  fired no oil read the same rate.
+- **Do not un-suspend +19.40pp.** The mechanism gained live support; the number
+  did not. §0a stands, **do not quote it**.
+- **Do not sort a cast's states by `createdAt`** (§0b).
+- **Do not reorder CAPTURE-1** — dead as posed, and the replacement needs a
+  capture (§4).
+- Standing, none re-opened: do not build H2's proc model; no M4 lines;
+  `DEFAULT_POTION_THRESHOLD` / `chooseNewCard` UNTOUCHED; `boonCapture` OFF; no
+  429 backoff without an observed 429; do not shuffle the random-sample deck; do
+  not complete the corrode perpetual table; do not re-run the oil sweep on any
+  current arm.
+- **Do not start a dungeon run without `--dry-run`, `doctor.ts` and a per-run
+  go-ahead**, and never chain runs.
+
+---
+
+## 6. After 11:00 PT, if the user gives a go-ahead
+
+12 run-units and 20 casts. Unchanged in priority:
+
+- **The crit rule still has two members** and needs one base-6/8/10 crit; card 10
+  (crit 10) is in the deck — ×1.5 → 15 against ×1.6 → 16. Watch `critEffects`,
+  not `hitEffects`, and remember the two crit sources compose.
+- **An oil consumed at a NON-ZERO focus meter** settles add-2 vs restore-to-2. All
+  22 on record fired at 0. §1a says today's bot reaches meter 0 on 1.5% of plays,
+  so this capture is getting *harder*, not easier — worth saying out loud.
+- **Ordinary casts now buy more than they did**: every one adds to a 127-play
+  today's-era sample that §1b's whole result rests on, and that sample is the
+  smallest thing in this brief.
+- **Dungeon runs** remain worth one go-ahead each for the `evSupported` telemetry.
 
 ---
 
 ## 7. Corrections to me
 
-- **This brief hands over numbers, so it hands over the predicate with them**
-  (§2b) and asks the session to reproduce them before using them (§5). I have
-  shipped a bare count twice — 543, then 581 against a true 590 — and both times
-  a session spent real effort failing to reproduce it. **The fix is not care, it
-  is that a number without its filter is not a measurement.**
-- **§2's method could be wrong in a way I would not see.** The triple
-  reconstruction assumes a redraw draws from the same pile position the played-out
-  hand would have, which follows from the per-cast shuffle but is **inferred, not
-  observed** — no redraw has ever been played live. §2a's check is the strongest
-  evidence available and it is indirect. **If a live redraw ever happens, the
-  first thing to check is whether the dealt triple is the one this method
-  predicts.**
-- **I am the third opinion on a plan I did not write, and the plan is good.** The
-  amendments are ordering and framing, not disagreement — except §1a, which is a
-  real disagreement about sequence, and §1c, which is an argument the plan does
-  not make and that I think is the strongest one available.
-- **Rule 9 applies.** §1c and §2 are measurements over committed fixtures at
-  `2b8d02e`; a live response that disagrees wins, and the correction goes in the
+- **I shipped a method with a set-for-multiset bug in two places and a count with
+  no predicate.** Session 83 paid for both — a session spent failing to reproduce
+  386, and a trap ("exactly one card moved") that my English sentence created.
+  **§0a is me finding one cause; two rows remain unexplained and I am not
+  claiming otherwise.**
+- **I handed over a corpus-wide measurement without splitting the era**, on a
+  corpus this repo has known pools three policy eras since session 71, using an
+  instrument (`todaysEraCastIds`) that already exists. That is the third instance
+  of the same class in five sessions, and the first two were mine as well.
+- **§0b is a near-miss I want on the record**: I had a table of 140 focus-oil
+  casts ready to publish and it was an artifact of my own sort order. What caught
+  it was 140 of 148 being implausible, not a check. **The check should not be
+  incredulity.**
+- **Rule 9 applies.** §1 and §2 are measurements over committed fixtures at
+  `984fdae`; a live response that disagrees wins, and the correction goes in the
   recap.
 
 ---
 
-## Your task (session 83)
+## Your task (session 84)
 
-1. `doctor.ts` first. Both ledgers are spent until 11:00 PT; report them anyway.
-2. **§2 / gate 1** — reproduce the four-cell table and the 1.57 mean, pin the
-   predicate and the triple-reconstruction check.
-3. **§1c / gate 2** — the mana-slack table, reproduced and wired beside
-   `damageEconomy.ts`'s margin column.
-4. **§3** — if there is room, how well any available signal separates the 98
-   dead-hand plays from the 288 live ones.
-5. **§4** — `run_over`'s convergence with a gate; the pre-death ordering stated
-   as a hypothesis with the run count that would settle it.
-6. **Report to the user, do not decide:** whether §2 changes the CLOSED verdict is
-   theirs. Give them the measured quantities, the three things §2c says it does
-   not say, and the cost of the two correctness fixes.
-7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
+1. `doctor.ts` first. Both ledgers roll at 11:00 PT; report them.
+2. **§1 / gate 1** — reproduce the era split and the era-conditioned table, with
+   the predicate in code and `todaysEraCastIds()` preferred to a date literal.
+   Report the rescue rate as an interval.
+3. **§2 / gate 2** — attribute the 44.1% → 1.5% drop, or state that the corpus
+   cannot and what would.
+4. **§4** — `finishRun` with its offline gate; park the depth-matched control as
+   a named capture; put the shadow design to the user now that the target is
+   cleaner.
+5. **§6** — only past 11:00 PT and only with a go-ahead.
+6. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the final
    commit, `assertionCoverage` at zero, **`preflight.ts` after committing
    fixtures and before the push**, no test writes a real data path, secret scan.
 
-**Honest expectation.** The useful thing here is not that redraw might be
-affordable — it is that **the number that closed it was priced against a resource
-the corpus says is not scarce.** 89.8% of casts end with mana unspent, averaging
-5.85 of 10. **The satisfying version of this session is gate 1 reproducing and §3
-finding a signal that separates the dead hands**, which would make a shadow
-evaluation worth designing. **The unsatisfying version is that no available signal
-separates them** — the bot cannot tell a dead hand from a live one at decision
-time — and then redraw stays closed for a better reason than the one on record:
-not that it costs too much, but that **nothing tells you when to use it.**
+**Honest expectation.** §1 is the useful half and it cuts both ways: it revives
+the redraw's rescue case on the era that matters, **and** it says the corpus this
+project has been measuring for twenty sessions is 64% a bot that no longer exists.
+**The satisfying version of this session is gate 2 finding what changed on
+2026-08-21** — a thirtyfold drop in the dominant failure mode, currently
+unattributed and unwritten-down, is a larger result than anything redraw can
+offer. **The unsatisfying version is that the corpus cannot separate the oil from
+whatever else moved**, and then the finding is that the biggest live improvement
+on record happened without anyone noticing, and the era split has to go into every
+instrument before the next one does.
