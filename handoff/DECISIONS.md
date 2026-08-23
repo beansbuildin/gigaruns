@@ -1019,3 +1019,116 @@ re-raise a settled approval. Also stale in the same brief: the claim that
 session 79 consumed no oil "because policyApproved is still false" — it did not
 consume oil, but not for that reason. This session's batch consumed oil on 3 of
 9 casts.
+
+2026-08-22 (session 81 §1/§3) — **A card resolves against the POST-move
+`focusPoint` and the fish's cell in the RESULTING state, never
+`previousFishPosition` — 612/612, and the other three readings are pinned at
+their exact scores.** A play is a transition between two states and BOTH carry
+a `focusPoint` and a `fishPosition`, so "did this card hit" has four defensible
+readings; the audit had used the right one since session 47 but nothing said it
+was a choice, and a reading implicit in a call site is one nobody can check.
+`b+b` scores exceptionless; `a.focusPoint + b.fishPosition` 480/612 (78.4%),
+`a+a` 385/612 (62.9%), `b.focusPoint + b.previousFishPosition` 380/612 (62.1%).
+**The wrong readings are dangerous for WHERE THEY LAND, not for failing** —
+62-79% is the band in which a convention error looks like a working model and
+survives review, and `movePathAudit.ts` uses `previousFishPosition` CORRECTLY
+for path continuity, so its presence is not itself a smell. The pin now FAILS
+under the `previousFishPosition` reading, asserted explicitly: a pin that does
+not fail the wrong reading has not tested anything. Also closed here: `scored`
+was `>= 282` for thirty-four sessions, an assertion that cannot distinguish
+"the corpus grew" from "the predicate silently narrowed" — now exact, with the
+predicate written out in words in the test. SPEC-fishing §4d.
+
+2026-08-22 (session 81 §1b) — **The matcher captures 34.6% of its available
+prediction headroom, and 30.1pp of hit rate remain with the cards and focus
+budget the bot already holds.** `matcherHeadroom.ts` scores four policies over
+the same 612 plays, same cards, same budget, differing only in where they aim:
+RANDOM 20.3% (exact expectation, not sampled), STAY-PUT 24.2%, ACTUAL 36.3%,
+ORACLE same-card 66.3%, ORACLE best-card 71.1%. Card SELECTION is worth 4.7pp
+on top and is the smaller prize; focus MOVEMENT is worth 12.1pp over never
+moving, which answers "is prediction load-bearing" with a measurement rather
+than an intuition — had stay-put landed near 35%, the matcher's movement
+decisions would have been adding nothing. **ACTUAL is the only row a code
+change can move**, which is what makes this a scoreboard rather than a
+snapshot; a change that moves a ceiling is a harness bug. The oracles use
+knowledge no policy has at decision time and are a ceiling to score against,
+never a policy to ship (rule 4). Also settled from the same pass: the miss is
+STRUCTURED, not diffuse — 48.0% of misses land ONE cell from the shot's
+footprint and 86% within two, before AND after the live batch, which points at
+a better tie-break rather than a new model.
+
+2026-08-22 (session 81) — **The focus budget is NOT the pre-play `focusMeter`,
+and the obvious model produced a ceiling BELOW its own observed floor.** Under
+`prev.focusMeter`, 12 of 612 plays fire from a focus outside the modelled reach
+and the same-card oracle calls 6 server-scored HITS unhittable. Diagnosed to
+completion rather than filtered: the identity `spent + remaining ==
+prev.focusMeter` holds on 591 of 591 non-oil plays and fails on exactly 21,
+every one of which is an oil consume, **zero residue**. The cause is a capture
+convention, not a game rule — `castTrace.ts` skips `use_fishing_item`
+responses, so a Focus Oil restores the meter BETWEEN two recorded turns and the
+trace shows it rise with no local cause; that file's header already said so and
+this is what it costs downstream. Budget is now reconstructed from the
+transition and both invariants THROW. **Restore-to-2 vs add-2 is NOT settled by
+the corpus** — all 21 consumes fired at a meter of 0, where the two are the same
+event — but §4a's static table points at add-2, since `FishingRestoreFocus` is
+an AMOUNT per tier (Lil 1 / Mid 2 / Big 3) and the bot spends the MID oil (942)
+whose amount is exactly the 2 observed; under restore-to-2 the tiering would
+carry no meaning. Neither is encoded: reading the budget off the transition
+never needs to know. SPEC-fishing §4e.
+
+2026-08-22 (session 81) — **23 of 612 plays (3.8%) fired a card with NO on-grid
+footprint — a structurally guaranteed miss, and 6 of them were avoidable.**
+Every zone of the played card translated off the board, so the shot could not
+have hit whatever the fish did; all 23 are misses, as they must be. Card 1's
+`hitZones` are `[1,2,3]`, the whole top row of the template, so firing it from
+grid row 1 puts every zone at row 0. **A wasted play is invisible in the hit
+rate: it looks exactly like a bad prediction and is not one.** 6 were avoidable
+with the SAME card from a different reachable focus, so they are not forced by
+the hand. REPORTED, NOT FIXED — a live-policy change, rule 4. Found because the
+measurement asserted "every play has a footprint" instead of tolerating a null.
+
+2026-08-22 (session 81 §6) — **THE CRIT RULE IS DOWN TO TWO MEMBERS:
+`floor(hit × 5/3)` IS FALSIFIED.** Cast `13041474` t2, on this session's
+eight-cast batch: card 38's shot landed inside its own translated `critZones`,
+so the card's crit fired for base 9, and the server reported `FISH_HP_DIFF`
+**14**. `×1.5` round-half-up gives 14 ✓, `×1.6` rounded gives 14 ✓,
+`floor(9×5/3)` gives 15 ✗. Two details make the observation usable where a
+careless reading discards it: **it is LETHAL** (12 → 0), so the clamped state
+delta is 12 and says only "≥ 12" — only the server's uncensored `FISH_HP_DIFF`
+separates anything, and on a lethal blow the clamped view is useless; and **the
+base is the card's CRIT amount, not its hit amount.** Session 80 searched
+`hitEffects` for a 9, found none in the deck, and DECISIONS recorded that "more
+casting alone will not get there" — the wrong field. The lure scales whatever
+the shot's damage would have been (`hitEffects` on an ordinary hit,
+`critEffects` on a crit-zone hit) and base-9 crits are common (cards 38, 39,
+40), so the reachable pool was always far larger than the one being searched.
+**The two crit sources COMPOSE** — card sets the base, lure scales it — and
+`cardChoice.ts` still models only the card's half. The remaining separator is a
+base of 6, 8 or 10 (9 vs 10, 12 vs 13, 15 vs 16); **card 10 crits for 10 and is
+in the deck being played**, so the last two are separable by ordinary casting.
+**Still do not encode a multiplier.** Found because session 68 pinned the
+anomaly as an EXACT list rather than a tolerance — the third time that decision
+has paid. General lesson worth keeping: when a search comes up empty, check the
+SEARCH SPACE before concluding the thing is unreachable.
+
+2026-08-22 (session 81 §6) — **Session 80's retirement of "only the denominator
+grows" is itself SOFTENED.** Session 80 moved the relaxing-oil reachability
+numerator 12 → 13 and retired the sentence on that one observation. This
+session's eight casts moved it by ZERO (still 13 casts / 15 decision points),
+with the rate falling 9.286% → 8.784% on the denominator alone. Two batches now
+support the weaker and better-founded claim: the numerator moves RARELY. The
+`gained` figure is STILL 2, now across six consecutive batches. The lax-vs-
+strict GAP moved 16 → 17 (`13041476`, escaped, so the caught-in-gap pair is
+undisturbed).
+
+2026-08-22 (session 81) — **A brief's pinned COUNT is unmeetable without its
+predicate, and this is the second consecutive session to lose time to one.**
+The brief gated on 581 plays. The true count is 590 (now 612); neighbours it is
+not are 587 (clean traces), 583 (the brief's OWN stated discard predicate), 461
+(non-terminal). The hunt was time-boxed and abandoned per session 80's lesson
+rather than repeated at length. The permanent fix is now in code rather than in
+a resolution: **every count in the new modules ships with the filter that
+produced it, written out in words in the test itself.** Byproduct worth
+keeping: implementing the brief's literal discard predicate cross-validated
+card identification against `play.handIndex` — 583 agree, **0 disagree**, the
+remaining 7 being refill boundaries.
