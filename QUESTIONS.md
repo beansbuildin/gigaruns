@@ -1853,3 +1853,101 @@ verdict is the user's to change, as it was the user's to set.
 edit behind a sim gate; rule 5 requires it to fail closed; the shadow path when
 it is eventually written computes-and-logs inside a `try/catch` that can never
 fail a cast, as session 68's oil shadow did.
+
+---
+
+## §28 — the REDRAW VERDICT REVISIT, delivered [session 86 §2 / GATE 2, OPEN — needs a yes/no, and it gates §26]
+
+**The memo is `handoff/reports/session-86-redraw-revisit.md`.** It is the
+prerequisite the user set when answering §26: revisit the closed redraw verdict
+first, instrument second. It is delivered here rather than summarised, because
+every quantitative claim in it carries its instrument and that instrument's
+distance from live, and stripping those is what produced the verdict being
+revisited.
+
+**Nothing changed.** `redrawEnabled` is false, `REDRAW_THRESHOLD` is 0 and
+untouched, no live-path line moved.
+
+### The recommendation, in one line
+
+**Re-price the verdict; do not reverse it.** Keep redraw CLOSED, retire "43.9
+mana per extra fish against a cast holding 10" as the stated reason, and restate
+the reason as **no validated trigger + two unpaid correctness gaps**.
+
+### Why the old reason should be retired
+
+- **43.9 was derived on `castSim`'s `SIM bare` arm** — margin **+41.9pp** over
+  its own break-even against live's **−0.7pp**, an ORACLE matcher
+  (`matcherPool` defaults to `truePool`), redrawing 27.3% of turns where the
+  live bot redraws 0. `OIL-POLICY.md` §0a suspends that arm for this fishery.
+- **It prices redraw against mana, which the corpus says is not scarce.**
+  Pooled 132/147 (89.8%) of resolved casts end with mana to spare, mean 5.85;
+  **today's era 48/54 (88.9%), mean 6.26, median 7** — the era split is new in
+  this memo and the argument holds on both sides of it. Instrument: the corpus.
+  Distance from live: none.
+- **The binding resource is fish-HP headroom** — 6.8 HP opening, 3.02 heal per
+  miss, ~2.3 net misses — **and a redraw takes no shot, so it cannot miss.** Its
+  entire cost is mana plus a fish step; `fishHp` does not move in either
+  direction (SPEC-fishing §7a, user-confirmed from their own play).
+- **[session 86 §1] No sim arm could re-derive the price honestly.** `SIM bare`
+  is the oracle arm above; `SIM blind` **never aims** — 0 focus moves in 1963
+  turns, all 763 plays from (2,2), damage/hit 3.66 against live's 5.10;
+  `SIM live-config` is closest and still +4.0pp. They fail in OPPOSITE
+  directions, so there is nothing to average. **"Re-run it properly in sim" is
+  not an available option.**
+
+### Why it should NOT be reversed
+
+- The rescue evidence is **`15/15`, 95% CI [79.6%, 100.0%], n = 15** — never to
+  be written as 100% — and it is AVAILABILITY under an ORACLE lens, not hits.
+- **No trigger has been validated out-of-sample.** `heldCoverage` separates at
+  AUC 0.922 but is fitted to this corpus with oracle labels, n=27 in the
+  conditioned arm.
+- **Two unpaid correctness gaps**, both live-path, both blocking:
+  **(1)** `liveFishing.ts:2471` — a redraw fires `FISH_MOVED` and the branch
+  does not observe it, so the matcher's history keeps a hole; the fix is a
+  choice between two unmeasured semantics, not a repair.
+  **(2)** `liveFishing.ts:1526` — `MAX_REDRAWS_PER_CAST = 5` is a fail-closed
+  `GuardTrip` that ABORTS the cast, and since a redraw does not advance `turn`
+  it is the only bound there is. A real per-cast budget with a fall-through to a
+  play does not exist.
+
+### Measured for this memo, and it corrects the session-86 brief
+
+**How often the shipped trigger actually wants a redraw**, from the bot's own
+live logs (union of `redraw_indicated_not_sent` and `redraw_suppressed` —
+counting only the newer event would date a policy change to the session that
+renamed it, rule 10):
+
+```
+  today's era   26 of 204 decisions   12.7%
+  before        93 of 245 decisions   38.0%
+  pooled       119 of 449 decisions   26.5%
+```
+
+The brief says the shipped threshold wants one on "~3.5% of turns". **That is
+not supported** — the measured rate is 12.7% in today's era. It is still
+affordable (~1 mana per cast against 6.26 spare), and it says nothing about
+whether the trigger fires on the RIGHT turns: it fires at about the rate dead
+hands occur (12.7% against 11.8%) and **nothing establishes they are the same
+turns.** That overlap is cheap and unmeasured.
+
+### THE QUESTION
+
+**Do you accept re-pricing the verdict — redraw stays CLOSED, "43.9 against 10"
+stops being the stated reason, and the reason becomes "no validated trigger plus
+two unpaid correctness gaps"?**
+
+- **(a) Yes.** Then §26's shadow evaluation is unblocked and becomes the next
+  fishing task in its own right — it is the instrument that produces the
+  out-of-sample trigger evidence the restated reason names, and it spends
+  nothing live beyond a log line.
+- **(b) No — the original price stands as the reason.** Redraw stays closed
+  either way; this memo becomes a record of why the price is weak.
+- **(c) Something else** — including "closed, and stop revisiting it", which is
+  a legitimate answer and would retire the whole line of work.
+
+**An agent must not answer this.** The verdict was the user's to set and is the
+user's to re-price. Until an answer comes back, `redrawEnabled` stays false,
+`REDRAW_THRESHOLD` stays untouched, and **no shadow instrumentation gets
+written** — the order was the directive.
