@@ -1,4 +1,4 @@
-# STATE — session 87 — 2026-08-23/24 (PT) — code at commit a040172b
+# STATE — session 87 — 2026-08-23/24 (PT) — code at commit 5a5adb81 (the recap commit; this line stamped by its child)
 
 ## Status
 **GATE 0 PASS. GATE 1 (fishing) PASS. GATE 2 (dungeon) PASS.**
