@@ -1,4 +1,4 @@
-# STATE — session 92 — 2026-08-24 (PT) — code at commit 9ec24567
+# SESSION 92 LOG — 2026-08-24 (PT) — GATE PASS
 
 ## Status
 **GATE PASS — both items delivered.** §1 (the §32 ruling: era predicate
@@ -201,3 +201,189 @@ now the SOLE blocker on `assertionCoverage` and `preflight` — see below.
   M  handoff/reports/{fishing-casts,dungeon-runs}.md
   M  handoff/STATE.md, handoff/log/session-92.md
 ```
+
+---
+
+# Verbose appendix
+
+## §1 — how the boundary was actually found (the path, not just the answer)
+
+The brief proposed two boundaries, both anchored on the double-lethal wiring,
+and explicitly said not to force either. The route to rejecting them was:
+
+1. **`openingOverspendByDay` already existed** (session 85) and gave the daily
+   series immediately. `meanOptimal` bounces 0.400 → 1.000 across days with no
+   trend — the first sign that a 0.01 bound on a difference of two such means
+   was measuring nothing.
+2. **Computing the standard error settled the `meanOptimal` half in one step.**
+   sd ≈ 0.65, n = 93 and 62 → SE(diff) = 0.112. The 0.01 bound is 1/10 of one
+   SE. Session 89's 0.0062 is gap/SE = 0.06; session 91's 0.0250 is 0.25. Both
+   consistent with identical difficulty. The premise was never falsified.
+3. **The budget-zero rate by DAY is what broke the era open:**
+   `08-21 1.8% / 08-22 1.4% / 08-23 0.0% / 08-24 25.9%`. One day, inside
+   "today's era", reading twenty times the rest.
+4. **Splitting 08-24 by deck nearly sent this the wrong way.** The 00:0x cluster
+   is 17 base-deck / 3 rod, and base read 23.0% against rod's 0.0% — which looks
+   exactly like the §29 durability window explaining everything. It does not:
+   the 19:1x cluster is **all rod-dealt** and reads **36.5%**.
+5. **`oil_trigger_no_stock` carries `itemId`.** 36 refusals on 08-24, **all
+   942**. That named the mechanism. Cross-checked against
+   `use_fishing_item` POSTs per day: Focus 13 / 7 / 3 / 3, then zero.
+6. **The instant is bracketed to 5.6 seconds** — last 942 POST
+   `00:02:51.543Z`, first refusal `00:02:57.148Z`.
+
+**What made this findable was field-level log data, not reasoning.** Neither
+proposed boundary could have been rejected from the summary tables alone.
+
+## §1 — the exact three-era recomputation (188-cast corpus)
+
+```
+  arm           casts plays  bz    rate    1stSpend max frozen  res/caught
+  preOil          94   410  184  0.4488     1.5532   3     56      93/14
+  oilSupplied     62   235    4  0.0170     0.8065   2      3      62/39
+  focusDry        32   130   37  0.2846     0.9063   3     10      32/16
+  all            188   775  225  0.2903     1.1968   3     69     187/69
+
+  ratio preOil/oilSupplied = 26.3659    absolute drop = 0.4318
+  rod-dealt: oilSupplied 3/215 (1.40%)   focusDry 21/76 (27.6%)
+
+  decomposition: before 0.4488  standardised 0.3933  noRestore 0.2128
+                 today 0.0170   length 0.0555 (12.9% of the drop)  unmatched 0
+
+  redrawCounterfactual   plays both  sac  rescue neither  cost  aAvail rAvail
+    preOil                 262  152   24      30      56  1.73   0.672  0.695
+    oilSupplied            149  124    3      21       1  1.43   0.852  0.973
+    focusDry                82   51    7      10      14  1.50   0.707  0.744
+  wilson(21, 22) = [0.7820, 0.9919]
+
+  overspend      casts scored   fp    actual optimal    sd   overspend
+    preOil          94     93  7.383  1.5532  0.6559  0.651   0.8973
+    oilSupplied     62     62  7.194  0.8065  0.6452  0.704   0.1613
+    focusDry        32     32  7.094  0.9063  0.6250  0.660   0.2813
+
+  meanOptimalGap(preOil, oilSupplied): gap 0.01075  SE 0.11198  gap/SE 0.096
+  pairwise gap/SE: preOil~oilSupplied 0.10, preOil~focusDry 0.46,
+                   oilSupplied~focusDry 0.35   — all indistinguishable
+  overspend gap 0.7360, i.e. 68.4x the difficulty gap
+```
+
+## §2 — the batch, cast by cast
+
+```
+  docId      created                   deck era       turns caught lastHp oils(trace)
+  13071770   2026-08-24T22:33:48.871Z  rod  focusDry     2   true      4   0  <- DL #1
+  13071774   2026-08-24T22:34:03.717Z  rod  focusDry     6   false    20   0
+  13071780   2026-08-24T22:34:20.690Z  rod  focusDry     3   true      0   0
+  13071782   2026-08-24T22:34:34.887Z  rod  focusDry     7   false    14   0
+  13071784   2026-08-24T22:34:52.933Z  rod  focusDry     3   false    17   0
+  13071790   2026-08-24T22:35:06.099Z  rod  focusDry     2   true      4   0  <- DL #2
+  13071792   2026-08-24T22:35:22.174Z  rod  focusDry     3   false    17   0
+  13071794   2026-08-24T22:35:34.372Z  rod  focusDry     3   true      4   0  <- DL #3
+  13071800   2026-08-24T22:35:50.831Z  rod  focusDry     3   false    17   0  <- §34, uncharged
+  13071804   2026-08-24T22:36:03.790Z  rod  focusDry     2   true      2   0  <- on-demand lethal
+```
+
+`lastHp` 4 / 4 / 4 / 2 with `caught: true` and `oils 0` is §33 visible in one
+column: the trace ends before the oil that landed the kill. `13071780` is the
+one genuine card kill (lastHp 0).
+
+### The seven `use_fishing_item` POSTs
+
+```
+  22:33:51.520  item 937 slot 0   \ DL #1  (fish 4 -> 2 -> 0, CAUGHT)
+  22:33:52.911  item 937 slot 1   /
+  22:35:08.923  item 937 slot 0   \ DL #2
+  22:35:10.402  item 937 slot 1   /
+  22:35:38.683  item 937 slot 0   \ DL #3
+  22:35:39.985  item 937 slot 1   /
+  22:36:06.648  item 937 slot 0     on-demand lethal (single)
+```
+
+Events: `oil_double_lethal_fired` × 3, `oil_trigger_no_stock` (942) × 2,
+`oil_skipped_cast_complete` × 1, `oil_shadow` × 28. Zero `oil_trigger_threw`.
+
+### §2c-2 — the redraw shadow, per-turn
+
+```
+  per-turn records                     24
+  coverageBelowK true                   6/24
+  conditionMet   true                  22/24
+  BOTH true (a fire)                    4/24  = 16.7%   in-sample 2.7%
+  budget == 0                           2/24
+  coverageBelowK AND budget 0           2/6    <- session 91 had 14/14
+  liveRedrawEnabled                     false on all 24
+
+  budget among coverageBelowK turns:  {1: 4, 0: 2}
+  budget overall:                     {3: 13, 1: 6, 2: 3, 0: 2}
+
+  P(>= 4 fires in 24 | p = 0.027) = 0.0037
+  P(0 fires in 52   | p = 0.027) = 0.241     <- session 91 could not refute
+  combined 4/76 = 5.3%
+  Fisher exact, 4/24 vs 0/52: p = 0.0083
+```
+
+Session 91's anti-correlation was a property of long grinding casts (5.2
+decisions/cast), not of the candidate. At 2.4 decisions/cast the meter rarely
+empties, so `conditionMet` (which needs budget > 0) is true on 22 of 24 turns
+and the conjunction can fire. **The candidate fires MORE in short casts than
+long ones, which is backwards for a dead-hand trigger** — that, not the rate,
+is the thing worth the next batch.
+
+### The batch summary event session 91 never ran
+
+`redraw_shadow_batch` fired after every cast (cumulative):
+```
+  cast  1: decisions  1 fires 0 blind 1     cast  6: decisions 17 fires 4 blind 2
+  cast  2: decisions  6 fires 3 blind 1     cast  7: decisions 19 fires 4 blind 2
+  cast  3: decisions  8 fires 3 blind 1     cast  8: decisions 21 fires 4 blind 3
+  cast  4: decisions 14 fires 4 blind 1     cast  9: decisions 23 fires 4 blind 3
+  cast  5: decisions 16 fires 4 blind 1     cast 10: decisions 24 fires 4 blind 4
+```
+All three fires landed in casts 2–4; nothing fired in the last six.
+
+## §34 — the uncharged cast, in full
+
+```
+  fishing_ledger_reconciled, taken BEFORE each cast:
+    22:33:47  game 10  repo 10  agreed
+    22:34:02  game 11  repo 11  agreed
+    22:34:19  game 12  repo 12  agreed
+    22:34:33  game 13  repo 13  agreed
+    22:34:51  game 14  repo 14  agreed
+    22:35:04  game 15  repo 15  agreed
+    22:35:20  game 16  repo 16  agreed
+    22:35:32  game 17  repo 17  agreed
+    22:35:49  game 18  repo 18  agreed
+    22:36:02  game 18  repo 19  LOWERED   <- cast 9 (13071800) never charged
+```
+10 `start_run` POSTs, 10 distinct docIds, 10 fixture dirs, 0 `action_failed`.
+Post-batch ledger check minutes later: **game 19 / repo 19, agreeing**. Not lag.
+
+## Card 35 — the new guaranteed-miss card
+
+```
+  noFootprint plays by card: 1:10  3:5  4:7  6:4  35:1
+  card 35 zones: hitZones [1,4,7]  critZones [2]      <- the LEFT COLUMN
+  instance: cast 13071774, turn 5, reachable 3, budget 1,
+            actualHit false, aimError null, NOT avoidable
+  noFootprintAvoidable UNCHANGED at 6
+```
+Cast 8's loot offer was `(35, 30, 31)` and `chooseNewCard` picked **35** — a
+second copy. `TASKS.md` §13 (deck-composition scoring) is NOT STARTED.
+
+## Verification at the final commit
+
+```
+  npx tsc --noEmit                 clean
+  npx vitest run                   1 failed | 1749 passed (1750)
+                                   session start: 2 failed | 1744 passed (1746)
+  git diff --check                 clean
+  secret scan (diff + exported)    clean
+  tests/discoveredShipsClean       8 passed (8)
+  raw/ files committed             0
+  scripts/preflight.ts             FAILS — 1 failed | 1733 passed | 16 skipped,
+                                   one expected JWT ✗, secret scan clean
+  scripts/assertionCoverage.ts     BLOCKED — fails closed on a red suite
+```
+Sole failure: `tests/boons.test.ts > OBSERVED_OFFERS is exactly what the corpus
+recorded, room and all`. Carried since session 89, verified inert three times.
