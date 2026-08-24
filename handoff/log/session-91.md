@@ -1,4 +1,4 @@
-# STATE — session 91 — 2026-08-24 (PT) — code at commit <RECAP_SHA>
+# SESSION 91 LOG — 2026-08-24 (PT)
 
 ## Status
 **GATE PASS — all three brief items delivered, plus the pin regeneration the
@@ -199,3 +199,229 @@ staleness that sessions 89 and 90 verified inert and declined. Not re-opened.
   A  fixtures/fishing-casts/live/cast-2026-08-24-19-1*  (10 new casts)
   M  handoff/STATE.md, handoff/log/session-91.md
 ```
+
+---
+
+# APPENDIX — the verbose half
+
+## A. The two double-lethal firings, in full
+
+Console, cast 4 of 10 (`13068171`) and cast 8 of 10 (`13068190`):
+
+```
+  ★ on-demand LETHAL trigger: fish at 4/29 HP (57 Relaxing Oil held) — using one.
+  ✓ use_fishing_item (937): fish now 2/29, focus 2/3, mana 6 -> 6
+  ★★★ UNKNOWN FIELD(S) on use_fishing_item's returned doc: data.nextPosition, data.nextMovePath
+  ★ on-demand LETHAL trigger: fish at 2/29 HP (56 Relaxing Oil held) — using one.
+  ✓ use_fishing_item (937): fish now 0/29, focus 2/3, mana 6 -> 6
+  ▸ cast over: caught after 4 turns — CAUGHT!
+
+  ★ on-demand LETHAL trigger: fish at 4/17 HP (55 Relaxing Oil held) — using one.
+  ✓ use_fishing_item (937): fish now 2/17, focus 1/3, mana 7 -> 7
+  ★ on-demand LETHAL trigger: fish at 2/17 HP (54 Relaxing Oil held) — using one.
+  ✓ use_fishing_item (937): fish now 0/17, focus 1/3, mana 7 -> 7
+  ▸ cast over: caught after 3 turns — CAUGHT!
+```
+
+POST bodies, from `logs/fishing-2026-08-24-19-16-38.jsonl`:
+
+```
+  idx 185  use_fishing_item  {"cards":[],"nodeId":"","focusPoint":[],"itemId":937,"slotIndex":0,"tierId":0}
+  idx 188  use_fishing_item  {"cards":[],"nodeId":"","focusPoint":[],"itemId":937,"slotIndex":1,"tierId":0}
+  idx 380  use_fishing_item  {"cards":[],"nodeId":"","focusPoint":[],"itemId":937,"slotIndex":0,"tierId":0}
+  idx 382  use_fishing_item  {"cards":[],"nodeId":"","focusPoint":[],"itemId":937,"slotIndex":1,"tierId":0}
+```
+
+`oil_shadow` at each decision confirms the band and the stock:
+
+```
+  turn 4  fishHp 4  heldAtDecision {focus:0, relaxing:57}  liveWanted []  handSize 2  mana 6
+  turn 3  fishHp 4  heldAtDecision {focus:0, relaxing:55}  liveWanted []  handSize 3  mana 7
+```
+
+**`liveWanted: []` is the key line.** That is `on-demand`'s own read, and it
+wanted NOTHING at `fishHp 4` — correctly, since single-lethal needs
+`fishHp <= fishDamage = 2`. The pair came from `doubleLethalTriggers`' band
+(`2 < 4 <= 4`), stock >= 2, and `bestKillProbability` under threshold.
+
+### ⚠ THE REPORTING DEFECT, and why it is worth a rule
+
+Both firings printed as **`on-demand LETHAL trigger`** — the policy the
+double-lethal arm OVERRIDES. The string was hardcoded per consume at what was
+`liveFishing.ts:2389`, so the first-ever live firing of a user-overridden
+policy was logged under the name of the policy it overrode, and the structured
+log carried no event distinguishing them either. Anyone auditing this batch
+from the console alone would conclude `on-demand` fired twice and that the
+double-lethal wiring had never been exercised.
+
+Fixed: `oilTriggerSource` is derived (`>= 2` relaxings can only come from the
+double-lethal arm — an on-demand turn can never want two, because its single
+relaxing is lethal by construction and ends the cast), the console names it,
+and `oil_double_lethal_fired` is written **before any POST** so a firing is on
+the record even if the first consume then fails. Labels and logging only.
+
+**The general rule to carry: when a policy is wired to OVERRIDE another, the
+log line has to name which one decided.** Session 90 wired the override and
+tested the POST sequence exhaustively; nobody checked what the console would
+call it, and that is the half a human reads.
+
+## B. The redraw shadow's first live output, and why 0 is not a refutation
+
+```
+  decisions 52   fires 0   blind 2   sanityOrError 0     live rate 0.0%
+  in-sample (K=6 with budget): 12 fires / 444 plays = 2.7%
+```
+
+At p=2.7% over 52 decisions, **P(0 fires) = (1-0.027)^52 ≈ 0.24**. A quarter of
+the time this run produces exactly what it produced. It could not have refuted
+the candidate and does not.
+
+**The informative part is the conjunction, not the count:**
+
+```
+  conditionMet        true on 33 of 52
+  coverageBelowK      true on 14 of 52
+  BOTH true            0 of 52          <- wouldRedraw = coverageBelowK && conditionMet
+  budget on all 14 coverageBelowK rows: {0}
+```
+
+Every low-coverage turn in the batch arrived with the focus budget already at
+zero, and `conditionMet` requires budget > 0. So the candidate's two halves
+were perfectly anti-correlated across this batch. That is a statement about
+**when bad hands happen** — they happen when the meter is spent — and it is the
+thing worth re-measuring on a bigger batch, more than the firing rate is.
+
+`liveRedrawEnabled` was `false` on all 52 rows. The bot did not redraw.
+
+### The batch-summary defect
+
+`batchRedrawShadowDecisions/Fires/Blind/Sanity` and the `redraw_shadow_batch`
+event all sit inside `if (args.oilBatch)` at `scripts/liveFishing.ts`. The brief
+expected `--casts=10` to print them; it does not set `oilBatch`, so **none of
+that code ran**. The per-turn `redraw_shadow` records are written
+unconditionally, so the counts above were recomputed from the log and nothing
+was lost. **Pass `--oil-batch` if the summary is wanted.**
+
+## C. The deck-split forensics, in full
+
+Three distinct opening prefixes exist in the corpus and nothing else:
+
+```
+  [1,2,3,4,5,6,7,76,77,79]   Makeshift grant   81 casts
+  [1,2,3,4,5,6,7,8,9,10]     BASE_DECK         44 casts
+  [1,2,3,4,5,6,74,75,76,78]  Shroom grant      42 casts
+                                              --- 167 clean
+```
+
+Validation done **before** anything was pinned on the classifier:
+
+- every trace's granted prefix is **identical across all of its own turns** —
+  0 of 167 vary, so reading turn 0 is equivalent to reading any turn, and turn
+  0 is the one that cannot change tomorrow;
+- `splitByDealtDeck` leaves **0 casts** in the `unknown` bucket;
+- all 44 base traces have the raw prefix literally `[1..10]`, so sorting is not
+  doing hidden work.
+
+By date:
+
+```
+  2026-08-15  rod 5
+  2026-08-16  rod 5
+  2026-08-17  rod 13   base 27     <- window 1 (Makeshift era)
+  2026-08-19  rod 38
+  2026-08-20  rod 5
+  2026-08-21  rod 30
+  2026-08-22  rod 16
+  2026-08-23  rod 8
+  2026-08-24  rod 3    base 17     <- window 2 (Shroom era), then the repair
+```
+
+Session 90's base row (22 casts / 74 plays / 18.9% / +1.568) matches **neither**
+window: the play count 74 belongs only to 2026-08-24 (which reads 50.0% hit and
+−0.797), while the hit rate and drift belong only to 2026-08-17 (83 plays,
+15.7%, +1.735). No single classification reproduces it, which is why it is
+recorded as not-reproducing rather than explained.
+
+## D. The eight crit anomalies, and the interval that did not move
+
+```
+  13022874 t4  card 76  crit=false  Δ-3 -> Δ-5   (12->7/18 shape)
+  13041046 t9  card  2  crit=false  Δ-5 -> Δ-8
+  13041474 t2  card 38  crit=TRUE   Δ-9 -> Δ-12
+  13055873 t3  card  5  crit=false  Δ-5 -> Δ-8
+  13055892 t1  card  7  crit=false  Δ-6 -> Δ-9   <- the separator, base 6
+  13055941 t5  card  9  crit=false  Δ-2 -> Δ-3
+  13068154 t4  card 76  crit=false  Δ-3 -> Δ-5   <- [session 91]
+  13068176 t8  card  6  crit=false  Δ-5 -> Δ-8   <- [session 91]
+```
+
+Solved as an interval (`round-half-up(base × m) == actual`):
+**[1.5, 19/12) = [1.5, 1.58333)**, `lo` set by every 1.5 row and `hi` by the
+lone base-6 row. **Both new observations duplicate bases already present, so the
+interval moved by exactly nothing** — two independent chances to falsify "one
+multiplier fits them all", both survived, no narrowing.
+
+**Consequence for whoever wants the multiplier pinned: more observations at
+bases 3 and 5 are worth nothing. A new BASE is what narrows it.** Card 7 (base
+6) is the only source of the upper bound and exists **only in `BASE_DECK`** —
+so, awkwardly, the next narrowing observation most likely arrives during the
+next rod-durability window.
+
+## E. Pin regeneration — what was checked, and what turned out not to be drift
+
+The batch grew the corpus 168 → 178 and broke **59 assertions across 8 files**.
+Each file was checked individually (session 90's discipline), never bulk-bumped.
+
+Pure census, regenerated with old values kept beside each pin:
+
+```
+  zoneTemplate         699 -> 751 plays; STILL exceptionless over 52 unseen plays
+  matcherHeadroom      every ceiling held inside 2/3 of a point; `actual` did
+                       NOT climb this batch (0.375 -> 0.374)
+  oilReachability      775 decision points; focusReachable 76 -> 81
+  redrawCounterfactual 14 numeric pins + 4 histogram/object pins
+  castEra              8 array/count pins
+```
+
+**Three were findings, not drift, and are called out where they occur:**
+
+1. `stateFields` — see §D above.
+2. `fishingCorpus` — the two new oil casts **are** the two double-lethal
+   firings, which **answers** the "known-unchecked" session 90 left in that
+   file: the Relaxing per-cast cap of 2 was **REACHED for the first time on
+   record and still did not BIND**.
+3. `oilReachability` — the strict relaxing numerator is **still 13** across a
+   third consecutive batch (+30 casts), while the lax/strict gap widened
+   22 → 24. Every new lethal moment arrived with no later turn to act on. The
+   falling percentage (8.78% → 7.74% → 7.30%) is **denominator only**.
+
+**One was refused**: `castEra`'s `meanOptimal` control. See STATE.md.
+
+## F. Commands run, for reproduction
+
+```
+  npx tsc --noEmit
+  npx vitest run
+  npx tsx scripts/checkFishingCaps.ts          # BEFORE: 0/20.  AFTER: 10/20.
+  npx tsx scripts/liveFishing.ts --dry-run --casts=10
+  npx tsx scripts/liveFishing.ts --casts=10    # the authorized batch
+  npx tsx scripts/damageEconomy.ts --runs=200
+  npx tsx scripts/assertionCoverage.ts         # BLOCKED — fails closed on red suite
+  npx tsx scripts/preflight.ts
+```
+
+`npx tsx` and `git` fail under the command sandbox; every command above was run
+unsandboxed, as every prior session has noted.
+
+## G. A note on how the user's question changed this session
+
+Before the batch the user asked, unprompted: *"will 2 relaxing oils be taken
+with each cast?"* That is the right question and the answer was **no — 2 is a
+per-cast CEILING, not a consumption**, with the realistic spend ~0.70/cast under
+`on-demand` and the double-lethal band a low single-digit percent of decisions.
+Actual outcome: **4 oils over 10 casts**, two casts spending two each and eight
+spending none.
+
+Worth recording because the config's `perItemMaxPerCast: {"937": 2}` reads like
+a quota to anyone who has not read `oilTiming.ts`, and this is the second time
+a ceiling in `config/bot.json` has been mistaken for a target.
