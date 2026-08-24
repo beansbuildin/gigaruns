@@ -1,4 +1,4 @@
-# SESSION 92 LOG — 2026-08-24 (PT) — GATE PASS
+# SESSION 92 LOG — 2026-08-24 (PT) — GATE PASS — code at 9ec24567, recap 52d15571
 
 ## Status
 **GATE PASS — both items delivered.** §1 (the §32 ruling: era predicate

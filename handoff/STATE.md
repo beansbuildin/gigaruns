@@ -1,4 +1,4 @@
-# STATE — session 92 — 2026-08-24 (PT) — code at commit 9ec24567
+# STATE — session 92 — 2026-08-24 (PT) — code at commit 9ec24567 (recap 52d15571)
 
 ## Status
 **GATE PASS — both items delivered.** §1 (the §32 ruling: era predicate
