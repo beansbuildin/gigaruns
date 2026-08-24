@@ -1,4 +1,4 @@
-# STATE — session 89 — 2026-08-23 (PT) — code at commit e034a49e (this commit; line stamped by its child)
+# STATE — session 89 — 2026-08-23 (PT) — code at commit 9dbb5919 (recap commit)
 
 ## Status
 **GATE PASS — all six brief items delivered. No live spend, by design.** No
