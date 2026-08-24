@@ -1310,3 +1310,97 @@ reach.** The user said "stop at 10 casts" mid-batch and it could not land: the
 20 casts had been issued as ONE backgrounded command and had already completed.
 Four `--casts=5` invocations would have given the instruction four places to
 land. The lesson is about the shape of the command, not about the instruction.
+
+2026-08-23 (session 88, §1 / GATE) — **THREE JUICED RUNS, ONE PAUSE EACH, GATE
+PASS — AND THE DAY'S DUNGEON BUDGET IS NOW CLOSED AT 12/12.** Runs `25036015`
+(death @ room 7, 5952 HC, 309 orbs), `25036128` (room 5, 4176, 141) and
+`25036263` (room 9, 8160, 546). `dayProgressEntities` **3 → 6 → 9 → 12**, every
+read moving by exactly 3, read after each run per rule 13; **nothing was denied,
+blocked or interrupted, so there is no discrepancy to reconcile** — stated
+explicitly because rule 13 requires the negative too. Each run was issued as its
+own `--runs=1` command with a separate human go-ahead and a real stop between,
+per rule 11; **no two were chained**, which was the one outcome the brief said
+would waste the session. Session 87's dead end was applied rather than
+re-learned: each run backgrounded separately so a stop had three places to land.
+First-attempt failures **0/162** across all three. Rule 8 held on **18/18
+TIER-CHECKs**, with the never-a-Perpetual clause load-bearing **4 times** (run 1
+rooms 5+6, run 3 rooms 7+9) — at run 1 room 6 the offer was `[0,2,2]` with
+`eligibleTop=0`, both tier-2 options Perpetual, so the pick fell to tier 0. Deaths
+at rooms 7/5/9 are all inside the documented juiced spread (3–10). **Fishing was
+not touched, by design** — it was already 20/20 before the session began, and a
+fourth run was neither available nor attempted.
+
+2026-08-23 (session 88, §3) — **§23'S REMAINING HALF IS SUBSTANTIALLY ANSWERED
+AND IT IS REGEN, NOT A ROM CLAIM — OBSERVED, NOT INFERRED.** The question was
+what credits energy back DURING a run. Three converging pieces, all from runs
+being made anyway. **(1) ROM claim is FALSIFIED as the cause:** run `25036128`
+made no claim (pool 148 already covered 60) and still drifted −1, so the drift
+warning's own suggested culprit — *"Possible external balance change (e.g. a ROM
+claim) landed mid-run"* — is wrong. **(2) The pool was caught ticking mid-run,
+directly:** run `25036263`'s `energy_accounting` opened at `before: 90` while its
+own `start_run_energy_probe`, seconds later, read `energyBefore: 91` — **+1
+between two reads inside one run's startup, no claim in between.** **(3) Drift
+tracks wall-clock duration in the right direction:** 2m43s → 1, 3m25s → 1, 4m06s
+→ 2; at 18/hr an integer pool ticks once per ~200s, and windows of 163/205/246s
+hold 0–1 / 1–2 / 1–2 ticks, so 1/1/2 is consistent under phase dependence.
+⚠ **NOT proven — n=3 and the tick phase is unmeasured.** **The drift was still
+NOT fixed**, per §23. What IS now established is that the warning STRING names
+the wrong suspect; rewording it is a separate tiny change nobody has authorised.
+Also recorded: `tightDelta -60, matchesCommitted true` on all three, which with
+session 87 makes **four consecutive runs** — the 3x multiplier stays exonerated.
+
+2026-08-23 (session 88) — **TWO MORE FIRST-EVER BOON PAIRS LANDED FREE, AND
+THERE ARE NOW THREE UNMODELLED PAIRS ON DISK ACROSS TWO SESSIONS.** Run
+`25036263` picked **`AddVulnerableSword`** (state-105→106) and **`AddBurnShield`**
+(state-123→124), both with a recorded pair and no entry in `BOON_MODELS`;
+`boon_run_coverage` recorded it independently and agrees (`firstEverCandidates:
+2`, runs 1 and 2 at `firstEver 0`). With session 87's `WeakeningMastery` that is
+three. **All three have a before→after state pair, so modelling them is a pure
+offline read costing no run-unit** — the cheapest real work available, and it
+shrinks the red suite by 3 legitimately, without renegotiating any pinned claim.
+⚠ **A trap for the next reader, hit and corrected in-session: read the assertion,
+not the `describe` name.** These fail under a block titled *"every modelled boon
+reproduces its recorded delta"*, which reads like a model mismatch; the assertion
+that actually fires is `has a pair but no model`. They are missing models, not
+wrong ones. **`boonCapture` stayed OFF** — this arrived without arming it.
+
+2026-08-23 (session 88) — **THE SUITE WENT 70 → 72 FAILURES AND THE +2 WAS
+ATTRIBUTED, NOT ASSUMED.** Final 72 failed / 1618 passed / 1 skipped (1691), 11
+failed files of 99, against an inherited 70 / 1602 / 1673. The delta is entirely
+this session's three dungeon fixtures, established by **moving the three new
+fixture dirs aside and re-running** `boons.test.ts` + `enemies.test.ts`: 4
+failures without them, 6 with. **The six session-87 reversals were not touched**
+and remain the user's to rule on. Recorded because "the suite got redder" is the
+kind of line a later session can mistake for a regression it caused.
+
+2026-08-23 (session 88) — **`scripts/assertionCoverage.ts` CANNOT RUN WHILE THE
+SUITE IS RED, so the "zero vacuous" recap check is BLOCKED, not passed.** It
+fails closed: *"the suite did not pass. Fix that first — counts from a partial
+run mean nothing."* This is correct behaviour and was not worked around. The
+consequence to carry: **every recap check that depends on a green suite is
+unavailable for as long as the user's leave-it-red directive stands**, so a brief
+should not ask for one as if it were free.
+
+2026-08-23 (session 88) — **Rule 9, two corrections to the session-88 brief,
+both minor and both pre-run.** The brief expects `1603 passed / 70 failed`; the
+real inherited shape is **1602 passed + 1 SKIPPED** (1673 total) — same failure
+count, the skip folded into the pass column. And the brief allowed that the day
+might have rolled over to a fresh 12; **it had not** — session 87 recapped ~17:30
+PT and this session started 17:45 PT the same day, confirmed against the server
+rather than assumed.
+
+2026-08-23 (session 88) — **THE LEAVE-IT-RED DIRECTIVE NOW HAS A COST NOBODY HAD
+STATED: `scripts/preflight.ts` FAILS AND THE REPO IS NOT SHAREABLE.** Preflight
+exports the 304 tracked files to a clean tree, runs `npm install` + vitest there,
+and gets **72 failed / 1604 passed / 15 skipped (1691)** — the same 72 as the
+working tree. Its own verdict: *"RED in a stranger's tree. Fix it or tell friends
+before they run it — a red suite on first contact is the single most likely
+reason someone quietly gives up."* **Everything else in preflight is green** —
+exactly one `✗` in the empty-HOME `doctor.ts` run, and it is the expected missing
+JWT, with the exported tree's secret scan clean. Recorded because the red suite
+was accepted in session 87 as a bookkeeping choice about pinned claims, and this
+is the first time its distribution consequence has been measured and named. **It
+is the user's to weigh; it does not license an agent to rewrite pins to go
+green.** Together with `assertionCoverage.ts` (also blocked by the red), two
+distinct recap-time instruments are now unavailable for as long as the red
+stands.
