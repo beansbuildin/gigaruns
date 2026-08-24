@@ -118,13 +118,15 @@ const CLASSIFIED = new Map<string, FileEntry>([
   [
     "src/strategy/fishing/oilTiming.ts",
     {
-      sites: 8,
+      sites: 9,
       note:
-        "LEVEL throughout, and LIVE. `killProbabilityWith`/`bestKillProbability` and " +
+        "LEVEL throughout. `killProbabilityWith`/`bestKillProbability` and " +
         "`bestConnectProbabilityFromFrozenCell` fold pHit/pCrit into a single probability that " +
         "`meetsThreshold` then compares against a derived constant. The `Math.max` inside " +
         "`bestConnectProbabilityFromFrozenCell` is a rank, but its RESULT is used as a level, " +
-        "which is what the classification follows.",
+        "which is what the classification follows. [session 89] 8 -> 9: the ninth is " +
+        "`doubleLethalTriggers`, which is derived-not-shipped, so this file is no longer LIVE " +
+        "throughout — see the entry for it below.",
     },
   ],
   [
@@ -232,6 +234,18 @@ const LEVEL_SITES: { file: string; contains: string; live: boolean; why: string 
       "The RELAXING OIL necessity gate. Same shape, same direction, one step further derived: " +
       "`killProbabilityWith` keeps only the pHit/pCrit mass whose damage would finish the fish, " +
       "so it is a connect probability with a lethality filter over it.",
+  },
+  {
+    file: "src/strategy/fishing/oilTiming.ts",
+    contains: "if (bestKillProbability(s) >= relaxingThreshold) return base;",
+    live: false,
+    why:
+      "[session 89] The DOUBLE-LETHAL band gate. Same level-based read as the relaxing necessity " +
+      "gate above and the same constant, applied in the band where one oil cannot finish the fish " +
+      "but two can. NOT LIVE — `scripts/liveFishing.ts` calls `onDemandTriggers`, and " +
+      "`handoff/OIL-DOUBLE-LETHAL.md` recommends against wiring it (140.9 oils per extra fish " +
+      "against a bar of ~12). Listed because a derived-not-shipped consumer is still a consumer, " +
+      "and the whole point of this inventory is that nothing reads pConnect unclassified.",
   },
   {
     file: "src/strategy/fishing/oilShadow.ts",

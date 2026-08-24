@@ -628,6 +628,108 @@ export function conservingOil(t: OilNecessityThresholds): OilTimingPolicy {
 /** The conserving arm at the recommended thresholds — the candidate the sweep scores. */
 export const conserving: OilTimingPolicy = conservingOil(RECOMMENDED_NECESSITY_THRESHOLDS);
 
+// ---------------------------------------------------------------------------
+// [session 89 §6] THE DOUBLE-LETHAL BAND — derived, NOT SHIPPED.
+// ---------------------------------------------------------------------------
+
+/**
+ * **The gap this closes.** `onDemandTriggers` fires the Relaxing Oil exactly
+ * when `fishHp <= fishDamage` — when ONE oil already finishes the fish. At
+ * `fishHp` 3 or 4 (with the payload's +2) it fires ZERO times: one oil leaves
+ * the fish alive, and nothing has ever asked for a second to finish it.
+ *
+ * `config/bot.json`'s `dendren.oils.perItemMaxPerCast["937"] = 2` has permitted
+ * two Relaxing-Oil spends per cast since **session 69**, on the user's own
+ * directive. The budget plumbing was built twenty sessions before a trigger
+ * that would use it.
+ *
+ * **The rule, and it is conditional rather than a default.** In the band
+ * `fishDamage < fishHp <= 2 * fishDamage`, holding at least two Relaxing Oils,
+ * fire BOTH in the same turn **only when the bot is not already certain of
+ * landing the fish this turn on its own**. The certainty read is
+ * `bestKillProbability` — the same function the necessity gate uses, reused
+ * rather than reinvented, exactly as `onDemand` and `conservingOil` share
+ * `onDemandTriggers` instead of each restating the lethal condition.
+ *
+ * **The cutoff is `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` and NOT a new
+ * fitted number.** At 1 the rule reads back as the directive's own sentence
+ * with no free parameter: *if the bot can guarantee the kill without the oils,
+ * don't spend them.* `oilTiming.ts`'s standing rule against tuning the
+ * necessity thresholds applies here unchanged, and inventing a second constant
+ * for the same question would be the failure that rule exists to prevent.
+ *
+ * ⚠ **NOT SHIPPED, and deliberately reachable-but-uncalled**, the same status
+ * `conservingOil` has held since session 67. `scripts/liveFishing.ts` still
+ * calls `onDemandTriggers`. CLAUDE.md rule 4 requires the user to see the
+ * derived policy before its timing goes live, and `dendren.oils.policyApproved`
+ * authorises a BUDGET, never a timing.
+ *
+ * ## The live executor CAN do this — verified, not assumed [session 89]
+ *
+ * `scripts/liveFishing.ts`'s consume loop is `for (const kind of oilWanted)`
+ * and issues one `use_fishing_item` per entry, in order. It does NOT dedupe or
+ * short-circuit on a repeated kind, and every piece of per-consume state is
+ * updated INSIDE the loop: `doc` is replaced by the response (so `fishHp`,
+ * `COMPLETE_CID` and the `fishingConsumableSlotUsed` cursor are fresh),
+ * `oilHeld[kind]`, `oilsUsedThisCast` and `oilsUsedThisCastOf[kind]` all
+ * decrement/increment per iteration, and `mayConsumeOil` is re-called with the
+ * updated counts. So `["relaxing", "relaxing"]` issues two authorised POSTs
+ * against `perItemMaxPerCast` 2, taking consumable slots 0 and 1.
+ *
+ * Two properties of that loop matter to this trigger specifically:
+ *
+ *  - **Session 68's `COMPLETE_CID` break does not bite here, by construction.**
+ *    That break exists because a LETHAL first consume ends the cast and the
+ *    second consume is then rejected against a finished cast — which cost a
+ *    cast live. In this band the first oil provably cannot kill (`fishHp >
+ *    fishDamage`), so the fish is alive at 1..fishDamage HP when the second is
+ *    sent. The band's own definition is what makes the pair safe.
+ *  - **The decision is committed BEFORE the first oil's result is seen.**
+ *    `oilWanted` is evaluated once per turn from the pre-consume state, so this
+ *    returns both entries up front rather than re-deciding after the first
+ *    lands. That is sound here for the same reason — the first consume's
+ *    outcome in this band is arithmetic, not a roll — and it would NOT be sound
+ *    for a band where the first oil might finish the fish.
+ */
+export function doubleLethalTriggers(
+  s: OilDecisionState,
+  e: OilEffects,
+  relaxingThreshold: number = RECOMMENDED_NECESSITY_THRESHOLDS.relaxing,
+): OilTimingDecision {
+  const base = onDemandTriggers(s, e);
+  // Today's single-lethal case is UNCHANGED. If it fired, one oil ends the
+  // cast and a second could not be spent on a finished fish anyway.
+  if (base.includes("relaxing")) return base;
+  if (s.fishHp <= e.fishDamage) return base;
+  if (s.fishHp > 2 * e.fishDamage) return base;
+  if (s.relaxingOilHeld < 2) return base;
+  if (bestKillProbability(s) >= relaxingThreshold) return base;
+  // Order matters to the live loop, which sends these in sequence. Relaxing
+  // first: the pair is the point, and a focus consume between them would be
+  // sent against a state the second relaxing then acts on.
+  return ["relaxing", "relaxing", ...base];
+}
+
+/**
+ * The double-lethal arm, scored beside the existing roster. `on-demand` is the
+ * comparison that matters — it is what ships live.
+ */
+export function doubleLethal(relaxingThreshold: number): OilTimingPolicy {
+  return {
+    name: `double-lethal(r=${relaxingThreshold})`,
+    thesis:
+      "as on-demand, plus: in the band where ONE Relaxing Oil cannot finish the fish but TWO can, and the bot's " +
+      "own best affordable card cannot guarantee the kill this turn, spend both in the same turn to make it certain.",
+    decide: (s, e) => doubleLethalTriggers(s, e, relaxingThreshold).filter((k, i, all) => {
+      // Stock check per POSITION, not per kind: the second "relaxing" needs a
+      // second oil, which is the whole condition. Counting occurrences before
+      // this index is what `heldOf` alone cannot express.
+      const needed = all.slice(0, i + 1).filter((x) => x === k).length;
+      return heldOf(s, k) >= needed;
+    }),
+  };
+}
+
 /** The Focus half of the conserving policy alone, so the decomposition matches `focus-when-empty-only`'s. */
 export function conservingFocusOnly(focusThreshold: number): OilTimingPolicy {
   const inner = conservingOil({ relaxing: NEVER_FIRES_THRESHOLD, focus: focusThreshold });
@@ -649,4 +751,6 @@ export const OIL_TIMING_POLICIES: readonly OilTimingPolicy[] = [
   heuristicC,
   conserving,
   conservingFocusOnly(RECOMMENDED_NECESSITY_THRESHOLDS.focus),
+  // [session 89 §6] Derived, not shipped — see `doubleLethalTriggers`.
+  doubleLethal(RECOMMENDED_NECESSITY_THRESHOLDS.relaxing),
 ];
