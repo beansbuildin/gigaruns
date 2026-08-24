@@ -33,6 +33,22 @@
  * reproduce byte for byte, which is what makes the §2 delta readable as a
  * predicate difference rather than a corpus drift.
  *
+ * ## ⚠ THESE PINS TRACK THE LIVE CORPUS. THE SESSION-86 MEMO DOES NOT.
+ *
+ * [session 90 §2] `loadCastTraces()` takes no date and no doc-id filter — it
+ * reads whatever is in `fixtures/fishing-casts/` right now. So every number
+ * below MOVES when the corpus grows, and was regenerated at 168 casts (from
+ * 148) by CALLING the real functions, never by hand-typing off a recap. Old
+ * values are kept beside each pin.
+ *
+ * `handoff/reports/session-86-redraw-revisit.md` and `session-86-corpus-snapshot.md`
+ * are the opposite kind of artefact: a snapshot computed ONCE at
+ * `CORPUS-2026-08-23A` and permanently frozen, which `QUESTIONS.md` §28
+ * forbids recomputing. **The two will diverge further every session, on
+ * purpose. That is not a bug in either one** — it is a live instrument and a
+ * dated measurement, and confusing them is how a frozen figure gets quietly
+ * "corrected" into something nobody measured.
+ *
  * Reads committed fixtures only. Writes nothing, touches no `data/` or `logs/`
  * path, makes no network call.
  */
@@ -53,8 +69,8 @@ const TRACES = loadCastTraces();
 describe("the triple reconstruction — §2a, pinned before the table that uses it", () => {
   it("advances nextCardIndex by exactly +3 on every draw that advances it, with 7 pile wraps", () => {
     const tr = tripleReconstruction(TRACES);
-    expect(tr.traces).toBe(148);
-    expect(tr.deltas.get(3)).toBe(137);
+    expect(tr.traces).toBe(168); // was 148 @148 casts
+    expect(tr.deltas.get(3)).toBe(159); // was 137
     expect(tr.wraps).toBe(7);
     // Session 79's wraps, by size. The cursor goes DOWN, because the server
     // wraps rather than overflows — a predicate looking for an index ABOVE
@@ -67,8 +83,9 @@ describe("the triple reconstruction — §2a, pinned before the table that uses 
 
   it("deals at least one previously-unheld card on every single draw", () => {
     const tr = tripleReconstruction(TRACES);
-    expect(tr.draws).toBe(144);
-    expect(tr.drawsWithUnheldCard).toBe(144);
+    // STRUCTURAL AND UNCHANGED: the two are still EQUAL. 144/144 -> 166/166.
+    expect(tr.draws).toBe(166); // was 144
+    expect(tr.drawsWithUnheldCard).toBe(166); // was 144
   });
 
   it("the unheld-card check is NOT vacuous — the drawing turn's own hand must be excluded", () => {
@@ -89,7 +106,9 @@ describe("the triple reconstruction — §2a, pinned before the table that uses 
         if (nh.some((c) => !heldIncludingNow.has(c))) vacuous++;
       }
     }
-    expect(draws).toBe(144);
+    expect(draws).toBe(166); // was 144
+    // STRUCTURAL AND UNCHANGED: the vacuous reading still finds nothing, so the
+    // 166/166 above is still evidence rather than a tautology.
     expect(vacuous).toBe(0);
   });
 
@@ -124,31 +143,35 @@ describe("the four-cell counterfactual — §2b", () => {
     const r = redrawCounterfactual(TRACES);
     assertRedrawCounterfactualSound(r);
 
-    expect(r.plays).toBe(389); // brief: 386
-    expect(r.bothReach).toBe(261); // brief: 262
-    expect(r.sacrifice).toBe(27); // brief: 26
-    expect(r.rescue).toBe(45); // brief: 42
-    expect(r.neitherReaches).toBe(56); // brief: 56 — agrees
+    expect(r.plays).toBe(444); // was 389 @148 casts (session-83 brief: 386)
+    expect(r.bothReach).toBe(296); // was 261 (brief: 262)
+    expect(r.sacrifice).toBe(30); // was 27 (brief: 26)
+    expect(r.rescue).toBe(56); // was 45 (brief: 42)
+    expect(r.neitherReaches).toBe(62); // was 56 (brief: 56)
     expect(r.bothReach + r.sacrifice + r.rescue + r.neitherReaches).toBe(r.plays);
   });
 
-  it("agrees with the brief EXACTLY on how many plays the held hand could reach", () => {
-    // 288 on both sides. This is what makes the disagreement above readable as
-    // a denominator difference rather than a scoring difference in the arm the
-    // shipped bot actually plays.
+  it("the two availabilities are the reach counts over the same denominator", () => {
+    // [session 90 §2] This assertion USED to be "agrees with the session-83
+    // brief EXACTLY on 288". That agreement was a fact about 148 casts and is
+    // retired rather than reinterpreted — at 168 casts the reach count is 326
+    // and there is no brief to agree with. What is still pinned, and is the
+    // part that was ever load-bearing, is that both availabilities are
+    // counts over `plays` and that the actual arm is the smaller.
     const r = redrawCounterfactual(TRACES);
-    expect(r.bothReach + r.sacrifice).toBe(288);
-    expect(r.actualAvailability).toBeCloseTo(288 / 389, 6);
-    expect(r.redrawAvailability).toBeCloseTo(306 / 389, 6);
+    expect(r.bothReach + r.sacrifice).toBe(326); // was 288
+    expect(r.actualAvailability).toBeCloseTo(326 / 444, 6);
+    expect(r.redrawAvailability).toBeCloseTo(352 / 444, 6); // was 306 / 389
+    expect(r.redrawAvailability).toBeGreaterThan(r.actualAvailability);
   });
 
   it("prices a rescuing redraw at one mana per card held", () => {
     const r = redrawCounterfactual(TRACES);
-    expect(r.meanRescueCost).toBeCloseTo(1.6, 2); // brief: 1.57
+    expect(r.meanRescueCost).toBeCloseTo(1.61, 2); // was 1.60 (brief: 1.57)
     expect([...r.rescueCostHist.entries()].sort((a, b) => a[0] - b[0])).toEqual([
-      [1, 24], // brief: 24 — agrees
-      [2, 15], // brief: 12
-      [3, 6], // brief: 6 — agrees
+      [1, 30], // was 24
+      [2, 18], // was 15
+      [3, 8], // was 6
     ]);
     // The cost is the held hand's SIZE, by construction — assert it rather
     // than trust it, since the histogram above is the only place the price
@@ -161,12 +184,13 @@ describe("the four-cell counterfactual — §2b", () => {
     }
   });
 
-  it("scores a dead hand on a quarter of plays, and a redraw rescues 45% of those", () => {
+  it("scores a dead hand on a quarter of plays, and a redraw rescues 47% of those", () => {
     const r = redrawCounterfactual(TRACES);
     const dead = r.rescue + r.neitherReaches;
-    expect(dead).toBe(101); // brief: 98
-    expect(dead / r.plays).toBeCloseTo(0.26, 2);
-    expect(r.rescue / dead).toBeCloseTo(0.446, 3);
+    expect(dead).toBe(118); // was 101 (brief: 98)
+    // The dead RATE is the durable half: 0.260 -> 0.266 across 20 more casts.
+    expect(dead / r.plays).toBeCloseTo(0.266, 3);
+    expect(r.rescue / dead).toBeCloseTo(0.475, 3); // was 0.446
   });
 
   it("every reconstructed hand is a real three-card triple of cards the cast defines", () => {
@@ -204,15 +228,17 @@ describe("the four-cell counterfactual — §2b", () => {
         byLength++;
       }
     }
-    expect(byLength).toBe(286);
-    expect(redrawCounterfactual(TRACES).plays - byLength).toBe(103);
+    expect(byLength).toBe(330); // was 286
+    expect(redrawCounterfactual(TRACES).plays - byLength).toBe(114); // was 103
   });
 
   it("is not an artefact of the trace filter — clean-only moves it by one row", () => {
     const clean = redrawCounterfactual(TRACES.filter(isCleanTrace));
-    expect(clean.plays).toBe(388);
-    expect(clean.neitherReaches).toBe(56);
-    expect(clean.bothReach).toBe(261);
+    // STRUCTURAL AND UNCHANGED: still EXACTLY one row, on 20 more casts.
+    expect(clean.plays).toBe(443); // was 388
+    expect(redrawCounterfactual(TRACES).plays - clean.plays).toBe(1);
+    expect(clean.neitherReaches).toBe(62); // was 56
+    expect(clean.bothReach).toBe(296); // was 261
   });
 });
 
@@ -223,47 +249,60 @@ describe("the mana slack — §1c, GATE 2", () => {
    * `isCleanTrace` is deliberately not applied: a cast that broke position
    * continuity mid-way still ended where it ended.
    *
-   * This half of the gate reproduces the brief EXACTLY, histogram included.
+   * [session 90 §2] This half USED to reproduce the session-83 brief byte for
+   * byte. It no longer can — the brief measured 147 resolved casts and there
+   * are now 167 — and the byte-for-byte claim is retired rather than restated.
+   * What survives is better evidence than the agreement was: the SHAPE is
+   * unchanged. Median still 7, the 8-bucket still the mode, the mean moved by
+   * 0.02, and the headline 89.8% still holds to three decimals on 20 more
+   * casts. See the frozen-memo note in this file's header.
    */
-  it("reproduces the brief's distribution byte for byte", () => {
+  it("reproduces the distribution the corpus now yields, with the shape unmoved", () => {
     const m = manaSlack(TRACES);
-    expect(m.casts).toBe(147);
-    expect(m.mean).toBeCloseTo(5.85, 2);
-    expect(m.median).toBe(7);
-    expect(m.manaOut).toBe(15);
+    expect(m.casts).toBe(167); // was 147
+    expect(m.mean).toBeCloseTo(5.83, 2); // was 5.85
+    expect(m.median).toBe(7); // UNCHANGED
+    expect(m.manaOut).toBe(17); // was 15
     expect([...m.hist.entries()].sort((a, b) => a[0] - b[0])).toEqual([
-      [0, 15],
-      [1, 2],
-      [2, 4],
-      [3, 6],
-      [4, 6],
-      [5, 16],
-      [6, 17],
-      [7, 27],
-      [8, 49],
-      [9, 5],
+      [0, 17], // was 15
+      [1, 3], // was 2
+      [2, 4], // was 4 — unchanged
+      [3, 7], // was 6
+      [4, 7], // was 6
+      [5, 18], // was 16
+      [6, 19], // was 17
+      [7, 32], // was 27
+      [8, 55], // was 49 — still the mode
+      [9, 5], // was 5 — unchanged
     ]);
   });
 
-  it("splits by outcome the way the brief reports", () => {
+  it("splits by outcome, and the caught arm still leaves MORE mana unspent", () => {
     const m = manaSlack(TRACES);
-    expect(m.caught).toBe(48);
-    expect(m.escaped).toBe(99);
-    expect(m.meanWhenCaught).toBeCloseTo(6.73, 2);
-    expect(m.meanWhenEscaped).toBeCloseTo(5.42, 2);
+    expect(m.caught).toBe(60); // was 48
+    expect(m.escaped).toBe(107); // was 99
+    expect(m.meanWhenCaught).toBeCloseTo(6.82, 2); // was 6.73
+    expect(m.meanWhenEscaped).toBeCloseTo(5.27, 2); // was 5.42
+    // The DIRECTION is the finding and it widened rather than eroded: casts
+    // that landed the fish ended with more mana left over, not less.
+    expect(m.meanWhenCaught).toBeGreaterThan(m.meanWhenEscaped);
   });
 
   it("says the pool is not what ends casts: 89.8% of casts leave mana unspent", () => {
     const m = manaSlack(TRACES);
-    expect(m.casts - m.manaOut).toBe(132);
+    expect(m.casts - m.manaOut).toBe(150); // was 132
+    // 89.8% SURVIVES TO THREE DECIMALS on 20 more casts — the one figure in
+    // this file the corpus growth did not move at all.
     expect((m.casts - m.manaOut) / m.casts).toBeCloseTo(0.898, 3);
   });
 
   it("excludes unresolved casts rather than reading a truncated capture as a cast end", () => {
     // Anti-vacuity: the resolved filter must actually filter, otherwise "147"
     // is just "every trace" wearing a predicate.
-    expect(TRACES.length).toBe(148);
-    expect(TRACES.filter((t) => t.caught || t.escaped)).toHaveLength(147);
+    expect(TRACES.length).toBe(168); // was 148
+    // STRUCTURAL AND UNCHANGED: still EXACTLY one unresolved trace.
+    expect(TRACES.filter((t) => t.caught || t.escaped)).toHaveLength(167); // was 147
+    expect(TRACES.length - TRACES.filter((t) => t.caught || t.escaped).length).toBe(1);
   });
 });
 
@@ -274,51 +313,100 @@ describe("separability — §3, the question that decides whether §2 is actiona
     // `heldCoverage` uses the hand, the focus point and the meter. It does NOT
     // use where the fish went, which is what makes it a candidate trigger and
     // not another oracle.
-    expect(SEP.deadPlays).toBe(101);
-    expect(SEP.livePlays).toBe(288);
-    expect(SEP.coverageAuc).toBeCloseTo(0.922, 3);
-    expect(SEP.meanCoverageDead).toBeCloseTo(5.13, 2);
-    expect(SEP.meanCoverageLive).toBeCloseTo(13.32, 2);
+    expect(SEP.deadPlays).toBe(118); // was 101
+    expect(SEP.livePlays).toBe(326); // was 288
+    // The AUC is the durable claim and it barely moved: 0.922 -> 0.921.
+    expect(SEP.coverageAuc).toBeCloseTo(0.921, 3);
+    expect(SEP.meanCoverageDead).toBeCloseTo(5.25, 2); // was 5.13
+    expect(SEP.meanCoverageLive).toBeCloseTo(13.33, 2); // was 13.32
     // A hand that can put a zone on all sixteen cells is never dead. Asserted
     // because it is the mechanism behind the AUC, not a coincidence of it.
-    expect(SEP.sweep[15]!.fires).toBe(248);
-    expect(SEP.sweep[16]!.fires).toBe(389);
+    expect(SEP.sweep[15]!.fires).toBe(285); // was 248
+    // STRUCTURAL AND UNCHANGED: full coverage fires on EVERY play, which is
+    // the mechanism behind the AUC rather than a coincidence of it.
+    expect(SEP.sweep[16]!.fires).toBe(444); // was 389
+    expect(SEP.sweep[16]!.fires).toBe(redrawCounterfactual(TRACES).plays);
   });
 
   it("finds the INVERSION: the dead hands it can find are the ones a redraw cannot fix", () => {
     const by = new Map(SEP.splits.map((s) => [s.label, s]));
-    expect(by.get("coverage <= 3")).toMatchObject({ deadPlays: 46, rescued: 7 });
-    expect(by.get("coverage >= 4")).toMatchObject({ deadPlays: 55, rescued: 38 });
-    // The rescue rate runs the WRONG WAY against the detector: 15% where the
-    // signal fires, 69% where it says the hand is fine. This is the finding,
-    // and it is asserted as an inequality so it cannot silently flip.
+    expect(by.get("coverage <= 3")).toMatchObject({ deadPlays: 50, rescued: 8 }); // was 46 / 7
+    expect(by.get("coverage >= 4")).toMatchObject({ deadPlays: 68, rescued: 48 }); // was 55 / 38
+    // The rescue rate runs the WRONG WAY against the detector: 16% where the
+    // signal fires (was 15%), 71% where it says the hand is fine (was 69%).
+    // THE INVERSION SURVIVED the corpus growing by 20 casts, and it widened.
+    // This is the finding, and it is asserted as an inequality so it cannot
+    // silently flip.
     expect(by.get("coverage <= 3")!.rescueRate).toBeLessThan(by.get("coverage >= 4")!.rescueRate);
   });
 
   it("explains the inversion with the focus meter — a redraw does not restore it", () => {
     const by = new Map(SEP.splits.map((s) => [s.label, s]));
-    expect(by.get("focus budget 0")).toMatchObject({ deadPlays: 74, rescued: 19 });
-    expect(by.get("focus budget >= 1")).toMatchObject({ deadPlays: 27, rescued: 26 });
-    expect(by.get("focus budget >= 1")!.rescueRate).toBeCloseTo(26 / 27, 3);
-    // 74 of the 101 dead hands are dead because the meter is empty, and firing
+    expect(by.get("focus budget 0")).toMatchObject({ deadPlays: 81, rescued: 22 }); // was 74 / 19
+    expect(by.get("focus budget >= 1")).toMatchObject({ deadPlays: 37, rescued: 34 }); // was 27 / 26
+    // ⚠ 26/27 (96.3%) -> 34/37 (91.9%). Session 89 already retracted the
+    // upper bound of this rate; it keeps drifting down as n grows, which is
+    // what a small-sample rate does. Do not quote it as ~96%.
+    expect(by.get("focus budget >= 1")!.rescueRate).toBeCloseTo(34 / 37, 3);
+    // 81 of the 118 dead hands are dead because the meter is empty, and firing
     // from one fixed cell is what a fresh triple cannot fix.
     expect(by.get("focus budget 0")!.deadPlays + by.get("focus budget >= 1")!.deadPlays).toBe(SEP.deadPlays);
   });
 
+  /**
+   * ⚠⚠ **[session 90 §2] TWO STRUCTURAL CLAIMS IN THIS TEST CHANGED. They are
+   * flagged here rather than renumbered, because neither is corpus drift.**
+   *
+   * **(A) "exactly break-even" is gone.** `all3.rescues - all3.sacrifices` was
+   * `7 - 7 = 0` and is now `8 - 7 = +1`. Zero was never a property of the
+   * signal; it was a property of 148 casts, and the phrase *"exactly
+   * break-even on the count"* cannot be restated. The assertion below now pins
+   * the DIRECTION — the unconditional arm buys approximately nothing — which
+   * is the claim that was ever load-bearing, and asserts the net as a small
+   * number rather than as zero.
+   *
+   * **(B) The K=6 conditioned arm is no longer CLEAN.** It was
+   * `{fires 6, rescues 6, sacrifices 0, wasted 0}` — every firing a rescue,
+   * nothing wasted. It is now `{fires 12, rescues 8, sacrifices 0, wasted 2}`.
+   * **`wasted` 0 -> 2.** `sacrifices: 0` survives, and that is the stronger
+   * half: the conditioned trigger still never fired on a hand a redraw would
+   * have made WORSE. But two of its twelve firings were hands no redraw could
+   * have saved, and "6 of 6" is no longer true of anything.
+   *
+   * **This matters beyond this file.** `QUESTIONS.md` §26's shadow-evaluation
+   * candidate IS this arm, and it is described in `DECISIONS.md` (session 83
+   * §3) as *"K=6 fires 6 times with 6 rescues and 0 sacrifices"*. Two of those
+   * four numbers are stale. Anyone building on §26 should shadow the SHAPE —
+   * `heldCoverage` conditioned on `budget >= 1` — and re-read the counts here
+   * rather than quoting the DECISIONS.md prose.
+   */
   it("the unconditional trigger is worthless where it is confident, and the conditioned one is not", () => {
-    // K <= 3 over ALL plays: 55 firings, 7 rescues, 7 sacrifices — exactly
-    // break-even on the count, and 39 of the firings are dead hands the redraw
-    // could not have saved either. That is the unsatisfying version.
+    // K <= 3 over ALL plays: 59 firings, 8 rescues, 7 sacrifices, and 42 of the
+    // firings are dead hands the redraw could not have saved either. That is
+    // still the unsatisfying version — 59 redraws to net ONE fish.
     const all3 = SEP.sweep[3]!;
-    expect(all3).toMatchObject({ fires: 55, rescues: 7, sacrifices: 7, wasted: 39 });
-    expect(all3.rescues - all3.sacrifices).toBe(0);
+    expect(all3).toMatchObject({ fires: 59, rescues: 8, sacrifices: 7, wasted: 42 }); // was 55 / 7 / 7 / 39
+    // ⚠ WAS `.toBe(0)` — "exactly break-even". See (A) above. Pinned as a
+    // bound rather than an identity so the next corpus growth moves it without
+    // pretending a structural claim survived.
+    expect(all3.rescues - all3.sacrifices).toBe(1); // was 0
+    expect(Math.abs(all3.rescues - all3.sacrifices) / all3.fires).toBeLessThan(0.05);
 
     // The same signal, restricted to plays with a point of focus budget left.
     const b6 = SEP.sweepWithBudget[6]!;
-    expect(b6).toMatchObject({ fires: 6, rescues: 6, sacrifices: 0, wasted: 0, manaSpent: 9 });
+    // ⚠ `wasted` WAS 0. See (B) above.
+    expect(b6).toMatchObject({ fires: 12, rescues: 8, sacrifices: 0, wasted: 2, manaSpent: 17 }); // was 6 / 6 / 0 / 0 / 9
     const b10 = SEP.sweepWithBudget[10]!;
-    expect(b10).toMatchObject({ fires: 44, rescues: 18, sacrifices: 3, wasted: 1, manaSpent: 60 });
-    expect(b10.rescues - b10.sacrifices).toBe(15);
+    expect(b10).toMatchObject({ fires: 57, rescues: 24, sacrifices: 5, wasted: 3, manaSpent: 84 }); // was 44 / 18 / 3 / 1 / 60
+    expect(b10.rescues - b10.sacrifices).toBe(19); // was 15
+
+    // THE CLAIM THAT DID SURVIVE, and it is the one the conditioning exists
+    // for: at both thresholds the conditioned arm nets positive where the
+    // unconditional arm nets ~nothing. Asserted as an inequality so a future
+    // corpus can falsify it loudly instead of by a number sliding.
+    expect(b6.rescues - b6.sacrifices).toBeGreaterThan(all3.rescues - all3.sacrifices);
+    expect(b10.rescues - b10.sacrifices).toBeGreaterThan(all3.rescues - all3.sacrifices);
+    expect(b6.sacrifices).toBe(0);
   });
 
   it("is a shape, not a tuning — the sweep is monotone in firings, so no K is an optimum to ship", () => {

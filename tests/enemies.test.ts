@@ -222,12 +222,39 @@ describe("player loadout matches the fixtures", () => {
       // **The re-spec means runs 1-3 and run 4 are not comparable**, and any
       // baseline quoted across that boundary needs re-measuring — which is
       // exactly what this census exists to make visible.
-      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/11", "40/14", "40/17",
+      // [session 90] SIX new combos across sessions 83-89's runs, and — checked
+      // rather than assumed — **not one of them is a new starting loadout.**
+      // The starting set is unchanged at ten (32/15, 32/16, 34/16, 36/16,
+      // 38/16, 38/17, 40/17, 40/22, 42/16, 43/17), 40/22 is still the newest,
+      // and NO combo left the list. So this whole batch is one arm and may be
+      // read against session 82's, which is the useful output of a census on a
+      // session where the loadout did not drift.
+      //
+      // **Two of the six are DECREASES, and they land exactly on the corrode
+      // amount.** 40/19 is 40/22 minus 3 — one `onEnemyWinExchange_corrode`
+      // application at the documented amount 3 — and 40/16 is minus 6, two of
+      // them within a room. That is the mechanic described at the top of this
+      // block reproducing on new data at the right size, which is stronger
+      // evidence for the model than the original observation was.
+      //
+      // The other four are ordinary max pickups on the 40/22 loadout: 40/32
+      // (AddMaxArmor), 48/32 and 54/22 and 54/26 (AddMaxHealth, alone or with
+      // armor) — the same shape as 34/20 above.
+      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/11", "40/14",
+      "40/16",
+      "40/17",
+      "40/19",
       "40/21",
       "40/22", "40/25",
       "40/27",
-      "40/30", "42/16", "42/18", "42/26", "43/17", "43/25", "48/22", "50/16", "54/17",
+      "40/30",
+      "40/32",
+      "42/16", "42/18", "42/26", "43/17", "43/25", "48/22",
+      "48/32",
+      "50/16", "54/17",
+      "54/22",
       "54/25",
+      "54/26",
       "54/27",
       "54/30",
       "54/32",

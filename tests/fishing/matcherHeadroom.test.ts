@@ -44,8 +44,11 @@ describe("matcher headroom — the scoreboard the matcher is scored against", ()
     // is NOT: 609 is the play total over CLEAN traces only
     // (`zoneTemplate.test.ts`), and the remaining 3 lie in session 45's
     // resumed cast, which has no `start_run` but whose plays resolve fine.
-    expect(result.plays).toBe(612);
-    expect(result.casts).toBe(148);
+    // [session 90] 612 -> 699 plays, 148 -> 168 casts. The neighbouring count
+    // this is still NOT: 696 is the play total over CLEAN traces only
+    // (`zoneTemplate.test.ts`), the remaining 3 in session 45's resumed cast.
+    expect(result.plays).toBe(699); // was 612
+    expect(result.casts).toBe(168); // was 148
   });
 
   it("reproduces the four rates — floor, actual, and both ceilings", () => {
@@ -55,17 +58,24 @@ describe("matcher headroom — the scoreboard the matcher is scored against", ()
     // notably STABLE across +22 plays — 20.4->20.3, 35.4->36.3, 65.6->66.3,
     // 70.5->71.1 — which is what a ceiling that depends on the board rather
     // than on the bot should do.
-    expect(result.random).toBeCloseTo(0.203, 3);
-    expect(result.stayPut).toBeCloseTo(0.242, 3);
-    expect(result.actual).toBeCloseTo(0.363, 3);
-    expect(result.oracleSameCard).toBeCloseTo(0.663, 3);
-    expect(result.oracleBestCard).toBeCloseTo(0.711, 3);
+    // [session 90] Re-measured at 168 casts, and the STABILITY claim above
+    // holds a second time on a much bigger step (+87 plays, not +22): the two
+    // ceilings moved by less than 0.002 (0.663 -> 0.662, 0.711 -> 0.710) and
+    // the floor by 0.004. **What moved is `actual`, 0.363 -> 0.375** — the
+    // bot's own rate, which is the one number here that is supposed to be able
+    // to move. A board-dependent ceiling holding still while the bot's rate
+    // climbs is exactly the shape this instrument was built to show.
+    expect(result.random).toBeCloseTo(0.199, 3); // was 0.203
+    expect(result.stayPut).toBeCloseTo(0.239, 3); // was 0.242
+    expect(result.actual).toBeCloseTo(0.375, 3); // was 0.363
+    expect(result.oracleSameCard).toBeCloseTo(0.662, 3); // was 0.663
+    expect(result.oracleBestCard).toBeCloseTo(0.710, 3); // was 0.711
 
     // The derived readings the report prints, pinned so a change to the
     // arithmetic is caught rather than the inputs alone.
-    expect(result.capturedFraction).toBeCloseTo(0.346, 3);
-    expect(result.headroomRemaining).toBeCloseTo(0.301, 3);
-    expect(result.cardSelectionValue).toBeCloseTo(0.047, 3);
+    expect(result.capturedFraction).toBeCloseTo(0.380, 3); // was 0.346
+    expect(result.headroomRemaining).toBeCloseTo(0.288, 3); // was 0.301
+    expect(result.cardSelectionValue).toBeCloseTo(0.047, 3); // UNCHANGED to 3dp
   });
 
   it("orders floor <= stay-put <= actual <= same-card oracle <= best-card oracle", () => {
@@ -103,7 +113,7 @@ describe("the focus budget, reconstructed rather than read off the stale meter",
         else fails.push({ docId: t.docId, turn: i, consumed: cur.consumablesUsed > prev.consumablesUsed });
       }
     }
-    expect(holds).toBe(591);
+    expect(holds).toBe(675); // was 591
     // **Every** failure is an oil consume — not most, all. This is the
     // assertion that makes the reconstruction legitimate rather than a fudge
     // that happens to fit: if a play ever breaks the identity WITHOUT an oil,
@@ -111,7 +121,10 @@ describe("the focus budget, reconstructed rather than read off the stale meter",
     // 18 -> 21 across the batch, and the "every failure is an oil" claim
     // survived three NEW oil consumes with no residue. That is the assertion
     // doing work, not the count.
-    expect(fails.length).toBe(21);
+    // [session 90] 21 -> 24, and **the claim survived a FOURTH time**: all
+    // three new failures are oil consumes and there is still no residue.
+    // Verified, not carried over.
+    expect(fails.length).toBe(24); // was 21
     expect(fails.filter((f) => !f.consumed)).toEqual([]);
   });
 
@@ -138,9 +151,14 @@ describe("the focus budget, reconstructed rather than read off the stale meter",
         }
       }
     }
-    expect(oil.length).toBe(21);
-    expect(oil.every((o) => o.budget === 2)).toBe(true);
-    expect(oil.every((o) => o.prevMeter === 0)).toBe(true);
+    // [session 90] 24/24, up from 21/21. **Every one of the three new consumes
+    // fired at meter 0 again**, so the corpus STILL does not separate
+    // restore-to-2 from add-2 — the standing capture request (an oil consumed
+    // at a NON-ZERO meter) is unmet across 24 observations now, and cannot be
+    // met while Focus Oil stock is 0.
+    expect(oil.length).toBe(24); // was 21
+    expect(oil.every((o) => o.budget === 2)).toBe(true); // STRUCTURAL, still true
+    expect(oil.every((o) => o.prevMeter === 0)).toBe(true); // STRUCTURAL, still true
   });
 
   it("the naive prev.focusMeter budget breaks BOTH invariants — which is how the oil restore was found", () => {
@@ -164,8 +182,8 @@ describe("the focus budget, reconstructed rather than read off the stale meter",
         if (cur.play.hit && !hittable) impossibleHits++;
       }
     }
-    expect(outsideReach).toBe(12);
-    expect(impossibleHits).toBe(6);
+    expect(outsideReach).toBe(14); // was 12
+    expect(impossibleHits).toBe(6); // UNCHANGED across +87 plays
   });
 });
 
@@ -180,15 +198,19 @@ describe("the aim-error distribution — is the miss structured or diffuse?", ()
     const total = [...h.values()].reduce((a, b) => a + b, 0);
     // [session 81] 358 -> 367 misses across the batch, and the SHAPE is
     // unmoved: distance 1 held at exactly 48.0%.
-    expect(total).toBe(367);
-    expect(h.get(1)).toBe(176);
-    expect(h.get(2)).toBe(140);
-    expect(h.get(3)).toBe(42);
-    expect(h.get(4)).toBe(9);
+    // [session 90] 367 -> 412, and the shape is unmoved a THIRD time:
+    // distance 1 at 48.3% (199/412), against 48.0% and 48.0% before it. The
+    // spike is the finding and it has now survived two corpus widenings.
+    expect(total).toBe(412); // was 367
+    expect(h.get(1)).toBe(199); // was 176
+    expect(h.get(2)).toBe(156); // was 140
+    expect(h.get(3)).toBe(46); // was 42
+    expect(h.get(4)).toBe(11); // was 9
     // Nothing further out, and nothing at 0 — a footprint containing the fish
     // is a hit by definition, so a 0 here would mean the resolver and this
     // measurement disagree about what a hit is.
-    expect(h.get(0)).toBeUndefined();
+    expect(h.get(0)).toBeUndefined(); // STRUCTURAL, still true
+    // 86.2%, down from 86.1%... i.e. unmoved. Still comfortably over the bound.
     expect((h.get(1)! + h.get(2)!) / total).toBeGreaterThan(0.85);
   });
 
@@ -199,20 +221,26 @@ describe("the aim-error distribution — is the miss structured or diffuse?", ()
     // the fish did: 23 of 612 plays, 3.8%, and **all 23 are misses** — which
     // they must be, since a shot with no footprint cannot land. The eight-cast
     // batch added NONE, and no new offending card.
+    // [session 90] 23 -> 25 of 699 plays (3.6%, was 3.8%), and every
+    // structural half held: all 25 are misses, the AVOIDABLE count is
+    // UNCHANGED at 6, and **no new offending card appeared** — still exactly
+    // cards 1, 3, 4 and 6. Two more instances of a known shape, not a new one.
     const none = result.perPlay.filter((p) => p.aimError === null);
-    expect(none.length).toBe(23);
-    expect(result.noFootprint).toBe(23);
-    expect(none.filter((p) => p.actualHit)).toEqual([]);
-    // 6 of the 23 were AVOIDABLE: a different reachable focus would have hit
+    expect(none.length).toBe(25); // was 23
+    expect(result.noFootprint).toBe(25); // was 23
+    expect(none.filter((p) => p.actualHit)).toEqual([]); // STRUCTURAL, still true
+    // 6 of the 25 were AVOIDABLE: a different reachable focus would have hit
     // with the same card. So this is not a forced cost of the hand.
-    expect(result.noFootprintAvoidable).toBe(6);
+    expect(result.noFootprintAvoidable).toBe(6); // UNCHANGED
     // Card 1's hitZones are the whole top row of the template ([1,2,3]), so
     // firing it from grid row 1 puts every zone off-board. Pinned to the
     // cards actually implicated, so a new offender is a visible change.
     expect([...new Set(none.map((p) => p.cardId))].sort((a, b) => a - b)).toEqual([1, 3, 4, 6]);
-    // The histogram therefore covers 612 - 23 plays, and the miss histogram
-    // 390 - 23. Asserted so a silent change in what gets counted is caught.
-    expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(589);
-    expect(result.perPlay.filter((p) => !p.actualHit).length).toBe(390);
+    // The histogram therefore covers 699 - 25 plays, and the miss histogram
+    // 437 - 25. Asserted so a silent change in what gets counted is caught,
+    // and as identities rather than literals so the relationship is the pin.
+    expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(674); // was 589
+    expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(result.plays - result.noFootprint);
+    expect(result.perPlay.filter((p) => !p.actualHit).length).toBe(437); // was 390
   });
 });

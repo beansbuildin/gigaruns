@@ -2126,3 +2126,69 @@ first must report the full response pair in detail — both `use_fishing_item`
 POSTs, both slots, the `fishHp` trajectory, and whether `COMPLETE_CID` landed
 on the second — not a line item. This is the first time real oil stock moves
 through a path nothing has exercised live.
+
+---
+
+## §31 — THE LIVE DAMAGE DRIFT CHANGED SIGN, AND IT IS A DECK-POOLING ARTEFACT [session 90 §3, OPEN — needs a ruling, three tests are RED until it comes]
+
+**What happened.** Session 90 was authorized to regenerate six files of
+"ordinary corpus-count drift", each to be checked first. Five were drift.
+`tests/fishing/damageEconomy.test.ts` was not, and it is **left failing on
+purpose** rather than folded into the mechanical batch.
+
+`LIVE.drift` — the quantity two of its tests call **THE FINDING** — was
+positive (asserted `> 0.05`, docblock cites `+0.19`) and is now **−0.0316**.
+
+**The cause, measured not guessed.** Split the 167 clean traces by the deck
+they were actually DEALT — the split session 89 §2 found, and which
+DECISIONS 2026-08-23 says to always state:
+
+```
+ dealt deck        casts  plays   hitRate   meanDmg  meanHeal    drift
+ base [1..10]         22     74    18.9%      4.571     3.000   +1.568
+ non-base            145    622    39.9%      5.210     3.086   -0.222
+ POOLED (= LIVE)     167    696    37.6%      5.176     3.074   -0.032
+```
+
+**The two arms have OPPOSITE drift signs and nearly cancel.** So *"the fish
+gains HP in expectation"* was never a fact about the fishery — it is what
+pooling a low-hit-rate base-deck window into a rod-deck corpus produces. Held
+to one deck the live fish LOSES HP, the **same sign** as the sim's bare arm.
+Seen by batch instead of by deck: the 146 older clean traces drift **+0.079**,
+the 21 newest **−0.787** (hit rate 47.2% vs 36.2%). One batch flipped it.
+
+**Three published claims are affected, each differently:**
+
+1. *"the fish gains HP in expectation"* — false as stated, and **meaningless**
+   on the pooled corpus, which is two fisheries.
+2. *"the clamp is real but small"* — the unclamped drift is **−0.0014**,
+   indistinguishable from zero. The clamp claim survives; its `> 0` term does not.
+3. *"the bare arm's drift is NEGATIVE where live's is positive"* — the
+   CONTRAST breaks. Both are negative. Magnitudes still differ by an order of
+   magnitude (−0.222 vs < −2), so **"not the same fishery" survives; "opposite
+   signs" does not.**
+
+**Why this needs the user.** It bears on `OIL-POLICY.md` §0a. The suspension of
++19.40pp rests partly on live and sim being different fisheries, and the single
+cleanest expression of that was the opposite drift sign. That argument now
+needs the MAGNITUDE. **§0a is not lifted and nothing here argues it should be**
+— but the reason it stands has changed, and a reason that changes silently is
+worse than one that fails loudly.
+
+**The question, and it is a choice between two real edits to a published
+claim:**
+
+- **(a)** Re-pin this file on the **deck-conditioned** figures — measure the
+  non-base arm and the base arm separately, and retire the pooled `LIVE`
+  constant. Most honest; changes what the file measures, and re-baselines
+  anything downstream that quotes `LIVE`.
+- **(b)** Keep the pooled measurement and **re-state the findings around
+  magnitude** rather than sign — "live's fish is destroyed an order of
+  magnitude slower than the sim's" instead of "live's drift is positive".
+  Smaller edit; keeps a pooled number that mixes two regimes.
+- **(c)** Something else, including leaving it red until the deck question
+  (§29) is answered — the base-deck window is still unexplained, and if it
+  turns out to be a bug or a transient the right split may change.
+
+⚠ **§29 is upstream of this.** Until it is known why casts get dealt the base
+deck, it is not certain the base arm is a legitimate population at all.

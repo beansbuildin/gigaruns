@@ -137,12 +137,20 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // +2 escaped, `incomplete` unchanged at 1. FOUR of the eight consumed an
     // oil. Six catches in eight casts is the highest catch rate of any batch
     // on record; it is a sample of eight and is not evidence of a change.
-    expect(summary.casts).toBe(148);
-    expect(summary.responseDocs).toBe(839);
-    expect(summary.playTurns).toBe(613);
-    expect(summary.caught).toBe(48);
-    expect(summary.escaped).toBe(99);
-    expect(summary.incomplete).toBe(1);
+    // [session 90] 148 -> 168 across the sessions 82-89 batches: +131
+    // responseDocs, +87 playTurns, +12 caught, +8 escaped. `incomplete` is
+    // UNCHANGED at 1 — the same long-standing truncated cast, now unmoved
+    // across six consecutive oil batches, which is the structural half of this
+    // pin and the reason it is asserted separately from the counts.
+    expect(summary.casts).toBe(168); // was 148
+    expect(summary.responseDocs).toBe(970); // was 839
+    expect(summary.playTurns).toBe(700); // was 613
+    expect(summary.caught).toBe(60); // was 48
+    expect(summary.escaped).toBe(107); // was 99
+    expect(summary.incomplete).toBe(1); // UNCHANGED
+    // The three outcomes partition, asserted as an identity so a future
+    // regeneration cannot quietly lose a cast into an unclassified state.
+    expect(summary.caught + summary.escaped + summary.incomplete).toBe(summary.casts);
   });
 
   /**
@@ -506,7 +514,24 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // one Relaxing, CAUGHT) — the second such firing on record after session
       // 65's, and it confirms the mechanism again without calibrating a rate.
       "13041473", "13041480", "13041482", "13041483",
-    ]);
+      // [session 90] +10 from session 87's twelve-cast batch — the largest
+      // single addition of oil casts on record, taking the oil arm from 23
+      // casts to 33. TWELVE oils across the ten: nine casts spent one each,
+      // and `13055883` walked ALL THREE slots — the FOURTH cast ever to do so
+      // (after `13024476`, `13041058`, and session 69's pair), and this is now
+      // a recurring shape rather than the curiosity it was at n=1.
+      //
+      // ⚠ **Not re-verified for this batch: whether the Relaxing per-cast cap
+      // of 2 ever bound.** Every earlier note here asserts it never has. This
+      // corpus view carries `consumablesUsed` and `slotsUsed` but NOT item
+      // ids, so the claim cannot be checked from here, and it is left as a
+      // known-unchecked rather than restated on the strength of the batches
+      // before it. It matters more now than it did: session 90 wired
+      // `doubleLethalTriggers`, which is the first policy that can ever want
+      // two Relaxing Oils in one cast.
+      "13055873", "13055879", "13055883", "13055886", "13055892",
+      "13055896", "13055900", "13055915", "13055924", "13055929",
+]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;
       expect(c.consumablesUsed).toBe(used);

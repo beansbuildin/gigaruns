@@ -63,6 +63,67 @@ const REAL_PARAMS = { fishMaxHp: 21, startFishHpRatio: 13 / 21, startMana: 10, h
  */
 const RUNS = 400;
 
+/* ===========================================================================
+ * ⚠⚠⚠ [session 90 §3] THREE TESTS IN THIS FILE ARE RED, AND THEY ARE RED
+ *     ON PURPOSE. DO NOT REGENERATE THEM.
+ * ===========================================================================
+ *
+ * Session 90's brief authorised regenerating six files of "ordinary corpus-
+ * count drift" and required each to be checked first. Five were drift. **This
+ * one is not.** `LIVE.drift` — the quantity two tests here call THE FINDING —
+ * **changed sign**: it was positive (the band asserts > 0.05, and the docblock
+ * above cites +0.19) and is now **-0.0316**. A sign flip on a headline claim
+ * is not a number to bump.
+ *
+ * ## The cause, measured rather than guessed
+ *
+ * Split the 167 clean traces by the deck they were actually DEALT — the split
+ * session 89 §2 discovered and DECISIONS 2026-08-23 says to always state:
+ *
+ *     dealt deck        casts  plays   hitRate   meanDmg  meanHeal    drift
+ *     base [1..10]         22     74    18.9%      4.571     3.000   +1.568
+ *     non-base            145    622    39.9%      5.210     3.086   -0.222
+ *     POOLED (=LIVE)      167    696    37.6%      5.176     3.074   -0.032
+ *
+ * **The two arms have OPPOSITE drift signs, and the pooled figure sits near
+ * zero because they nearly cancel.** So "the fish gains HP in expectation" was
+ * never a fact about the fishery — it is what pooling a low-hit-rate base-deck
+ * window into a rod-deck corpus produces. Held to one deck, the live fish
+ * LOSES HP, which is the SAME SIGN as the sim's bare arm rather than the
+ * opposite of it.
+ *
+ * By batch, the same thing seen from the other side: the 146 older clean
+ * traces drift **+0.079** and the 21 newest drift **-0.787** (hit rate 47.2%
+ * against 36.2%). One batch moved the pooled sign.
+ *
+ * ## Why this is the user's call and not a fix
+ *
+ * Three of this file's claims rest on the sign, and each fails differently:
+ *
+ *   1. *"THE FINDING: the fish gains HP in expectation"* — false as stated on
+ *      the pooled corpus, and MEANINGLESS on it, since the pooled corpus is
+ *      two fisheries.
+ *   2. *"the clamp is real but small"* — the unclamped drift is **-0.0014**,
+ *      i.e. indistinguishable from zero. The clamp claim survives; the
+ *      `> 0` term in it does not.
+ *   3. *"THE FINDING: the bare arm's drift is NEGATIVE where live's is
+ *      positive"* — the CONTRAST is what breaks. Both are negative now. The
+ *      magnitudes still differ by an order of magnitude (-0.222 against
+ *      < -2), so "not the same fishery" survives; "opposite signs" does not.
+ *
+ * **This bears on OIL-POLICY §0a.** The suspension of +19.40pp rests partly on
+ * live and sim being different fisheries, and the single cleanest number
+ * expressing that was the opposite drift sign. That argument now needs the
+ * magnitude, not the sign. §0a is NOT lifted and nothing here argues that it
+ * should be — but the reason it stands has changed, and a reason that changed
+ * silently is worse than one that failed loudly.
+ *
+ * The choice is between pinning the deck-conditioned figures (which changes
+ * what this file measures) and re-stating the findings around magnitude. Both
+ * are real edits to a published claim, so both are the account owner's.
+ * `QUESTIONS.md` §31 asks. Until then these three stay red.
+ * ========================================================================= */
+
 function armOf(label: string, extra: Omit<CastOptions, "seed" | "policy">) {
   return simEconomy(label, { policy: makeMatcherFishPolicy(REDRAW_THRESHOLD, true), ...REAL_PARAMS, ...extra }, RUNS);
 }
