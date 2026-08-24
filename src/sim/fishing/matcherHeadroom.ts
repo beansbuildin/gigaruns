@@ -108,7 +108,17 @@ import { cellKey, manhattan, reachableCells, zonesToCells, type Cell } from "./g
  * event type (session 47), which is the same convention `zoneAudit.ts` scores
  * under and `castSim.ts` resolves under.
  */
-export function cardCovers(focus: Cell, card: Pick<TraceCard, "hitZones" | "critZones">, cell: Cell, gridSize: number): boolean {
+// [session 90 §4] The card parameter is the READ-ONLY structural minimum, not
+// `Pick<TraceCard, ...>`. `coverageOfCards` calls this with a `FishingCardLike`
+// — the live hand's type, whose zone arrays are `readonly` — so the narrower
+// signature would have forced either a cast or a second implementation of the
+// coverage geometry. This function only reads the arrays.
+export function cardCovers(
+  focus: Cell,
+  card: { readonly hitZones: readonly number[]; readonly critZones: readonly number[] },
+  cell: Cell,
+  gridSize: number,
+): boolean {
   const key = cellKey(cell);
   for (const c of zonesToCells(focus, card.hitZones, gridSize)) if (cellKey(c) === key) return true;
   for (const c of zonesToCells(focus, card.critZones, gridSize)) if (cellKey(c) === key) return true;

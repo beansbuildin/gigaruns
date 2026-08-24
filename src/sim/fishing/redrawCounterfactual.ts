@@ -78,6 +78,7 @@
 import type { CastTrace, CastTurn } from "./castTrace.js";
 import { budgetBefore, cardCovers } from "./matcherHeadroom.js";
 import { cellKey, reachableCells, type Cell } from "./geometry.js";
+import type { FishingCardLike } from "../../strategy/fishing/cardChoice.js";
 
 /** A triple the server revealed: the opening hand, or a `NEW_HAND` payload. */
 export interface DrawTriple {
@@ -322,10 +323,36 @@ export function coverageCells(
   reach: readonly Cell[],
   gridSize: number,
 ): number {
-  const covered = new Set<string>();
+  const cards = [];
   for (const id of ids) {
     const card = t.cards.get(id);
-    if (!card) continue;
+    if (card) cards.push(card);
+  }
+  return coverageOfCards(cards, reach, gridSize);
+}
+
+/**
+ * `coverageCells` with the cards passed directly instead of looked up in a
+ * `CastTrace`.
+ *
+ * **[session 90 §4] Extracted so the LIVE redraw shadow and this file's
+ * offline `separability` compute the SAME quantity from the same code.** That
+ * is the whole reason it exists: the shadow's entire claim is that it shadows
+ * the candidate session 83 validated on the corpus, and a re-implementation —
+ * however careful — would make it a shadow of something slightly else, with no
+ * test able to tell. `coverageCells` above is now a thin adapter over this, so
+ * the two cannot drift apart even in principle.
+ *
+ * Ids that do not resolve to a card are dropped by the caller, exactly as
+ * before; this function has no id concept at all.
+ */
+export function coverageOfCards(
+  cards: readonly FishingCardLike[],
+  reach: readonly Cell[],
+  gridSize: number,
+): number {
+  const covered = new Set<string>();
+  for (const card of cards) {
     for (const f of reach) {
       for (let x = 1; x <= gridSize; x++) {
         for (let y = 1; y <= gridSize; y++) {

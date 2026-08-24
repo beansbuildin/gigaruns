@@ -199,7 +199,32 @@ async function capture(sc: Scenario): Promise<ArmCapture> {
     // Comparing it would make this test fail for the exact reason the hoist
     // exists — the same exclusion `oilShadowInert.test.ts` makes, for the
     // same reason.
-    const { oilShadowRecords: _dropped, ...rest } = await runOneCast(deps);
+    //
+    // **[session 90 §4] The two REDRAW shadow fields are excluded on the same
+    // grounds, and the golden was NOT regenerated.** Adding the redraw shadow
+    // made this test fail, which is the guard working: it is the only thing in
+    // the suite that compares live play against a capture taken BEFORE the
+    // session-69 hoist, and regenerating it would have destroyed that baseline
+    // to accommodate a field the baseline could not have contained.
+    //
+    // What was checked instead, once, by hand: the regenerated capture was
+    // diffed against the committed golden, and **the ONLY differences are the
+    // two new fields appearing.** Every `posts` array is byte-identical and so
+    // are `outcome`, `turns`, `oilTriggerNoStock` and `oilsConsumed` in all
+    // five scenarios. The live decision did not move; a purely additive
+    // observation field did.
+    //
+    // Worth noting from that diff, because it is free evidence: two of the
+    // five scenarios report `redrawShadowNoDecision: 1` — casts the oil block
+    // ended before any card decision. The blindness counter this shadow
+    // carries is exercised by scenarios that already existed, rather than
+    // being a number nobody has ever seen non-zero.
+    const {
+      oilShadowRecords: _dropped,
+      redrawShadowRecords: _r,
+      redrawShadowNoDecision: _n,
+      ...rest
+    } = await runOneCast(deps);
     return { posts, result: rest };
   } catch (e) {
     return { posts, error: (e as Error).message };

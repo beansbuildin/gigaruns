@@ -160,6 +160,11 @@ import {
   snapshotOilDecision,
   type OilShadowRecord,
 } from "../src/strategy/fishing/oilShadow.js";
+import {
+  evaluateRedrawShadow,
+  snapshotRedrawDecision,
+  type RedrawShadowRecord,
+} from "../src/strategy/fishing/redrawShadow.js";
 import { groupByCast, isCleanCast, loadTransitionRecords } from "../src/sim/fishing/transitionCorpus.js";
 import { supportingCastCount } from "../src/sim/fishing/patternMining.js";
 import {
@@ -1422,6 +1427,19 @@ export interface LiveFishingDeps {
    */
   shadowOil?: boolean;
   /**
+   * [session 90 §4, QUESTIONS.md §26] Evaluate the REDRAW candidate in shadow
+   * at every card decision. Defaults TRUE.
+   *
+   * **This is not `redrawEnabled` and cannot become it.** `redrawEnabled`
+   * makes the bot actually redraw and is still false; this one asks a pure
+   * function what it would have done and logs the answer.
+   * `src/strategy/fishing/redrawShadow.ts` cannot throw and returns a record
+   * with no field the live loop reads;
+   * `tests/fishing/redrawShadowInert.test.ts` proves the POST sequence is
+   * byte-identical with it on and off.
+   */
+  shadowRedraw?: boolean;
+  /**
    * [session 45, brief §3] Weight on `cardChoice.ts`'s focus-reserve
    * continuation term — the fix for SPEC-fishing.md §4c's focus-budget
    * exhaustion. See `DEFAULT_FOCUS_RESERVE_WEIGHT` for where the value comes
@@ -1479,6 +1497,22 @@ export interface CastRunResult {
    * that is SUPPOSED to differ between shadow-on and shadow-off.
    */
   oilShadowRecords: OilShadowRecord[];
+  /**
+   * [session 90 §4, QUESTIONS.md §26] The redraw candidate's verdict at every
+   * CARD decision of this cast. **Logging only — nothing reads it back**, and
+   * `redrawEnabled` is untouched and still false. Surfaced on the result for
+   * the same reason `oilShadowRecords` is: so a batch can report a firing rate
+   * without parsing its own log back.
+   */
+  redrawShadowRecords: RedrawShadowRecord[];
+  /**
+   * [session 90 §4] Turns on which this cast reached NO card decision because
+   * the oil block ended the cast first, so the redraw shadow could write no
+   * record. **Counted rather than absorbed** — `oilShadow.ts`'s header records
+   * what it cost to discover a shadow that reported its own blindness as a run
+   * of quiet records, and this is the cheap version of not repeating it.
+   */
+  redrawShadowNoDecision: number;
   /**
    * [session 64 §2b] Oils actually consumed on this cast. Already tracked
    * internally (`oilsUsedThisCast`) for the OIL-POLICY-DRY record; surfaced
@@ -1541,6 +1575,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // [session 70 §1] Redraw. Defaults FALSE and `main()` never sets it — see
   // `LiveFishingDeps.redrawEnabled`.
   const redrawEnabled = deps.redrawEnabled ?? false;
+  // [session 90 §4] The redraw SHADOW, which is a different thing entirely and
+  // is deliberately declared next to `redrawEnabled` so the difference is
+  // visible at a glance: this one defaults ON and cannot redraw anything.
+  const shadowRedrawEnabled = deps.shadowRedraw ?? true;
   let redrawsThisCast = 0;
   // [session 30] Set when the PRIOR turn's response revealed a non-null
   // `nextPosition` — validated against the NEXT turn's actual position, then
@@ -1657,7 +1695,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     log.write({ event: "dry_run_start_run_intended", nodeId: dendren.nodeId, tierId: dendren.tierId });
     console.log(`  [dry-run] would POST start_run (nodeId ${dendren.nodeId}, tierId ${dendren.tierId})`);
     console.log(`  · no active cast — nothing further to decide against, stopping.`);
-    return { outcome: "dry_run", turns: 0, oilTriggerNoStock: [], oilsConsumed: 0, oilShadowRecords: [] };
+    return { outcome: "dry_run", turns: 0, oilTriggerNoStock: [], oilsConsumed: 0, oilShadowRecords: [], redrawShadowRecords: [], redrawShadowNoDecision: 0 };
   } else {
     guards.assertCanStartRun(dendren.energyCostPerCast);
     const body = buildFishingEnvelope("start_run", client.getFishingActionToken(), {
@@ -1919,6 +1957,8 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   // Write-only from the loop's point of view — nothing in `runOneCast` reads
   // this back, which is half of what makes the shadow inert.
   const oilShadowRecords: OilShadowRecord[] = [];
+  const redrawShadowRecords: RedrawShadowRecord[] = [];
+  let redrawShadowNoDecision = 0;
   // [session 61 §4c] Consumables spent this cast, for `mayConsumeOil`'s
   // per-cast budget, and the itemIds spent, for the per-turn record. The
   // board state's own `consumablesUsed` counts them too and is what
@@ -1939,7 +1979,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     if (deps.shutdownSignal?.requested) {
       log.write({ event: "shutdown_requested", turn });
       console.log(`  ▸ SIGINT — stopping before the next card (turn boundary), cast left in progress at turn ${turn}.`);
-      return { outcome: "shutdown", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords };
+      return { outcome: "shutdown", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords, redrawShadowRecords, redrawShadowNoDecision };
     }
 
     // ---- [session 62 §1] THE OIL DECISION -----------------------------------
@@ -2433,11 +2473,72 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
     // A lethal Relaxing Oil ends the cast outright. Re-check before spending a
     // turn on a fish that is already dead.
-    if (doc.COMPLETE_CID) continue;
+    if (doc.COMPLETE_CID) {
+      // [session 90 §4] **The redraw shadow's blindness, counted rather than
+      // absorbed.** This turn reached no card decision, so there was no redraw
+      // decision to shadow — correct, and precisely what session 68 believed
+      // about the oil shadow before measuring it. The count makes the number
+      // of turns this instrument cannot see visible instead of absent.
+      if (shadowRedrawEnabled) {
+        redrawShadowNoDecision += 1;
+        log.write({ event: "redraw_shadow_no_decision", turn, reason: "cast_ended_in_oil_block" });
+      }
+      continue;
+    }
 
     const hand = buildHand(doc);
     const mana = doc.data.playerHp;
     const fishHp = doc.data.fishHp;
+
+    // ---- [session 90 §4, QUESTIONS.md §26] THE REDRAW SHADOW ---------------
+    //
+    // **`redrawEnabled` is false and stays false. This block cannot redraw.**
+    // It asks the session-83 candidate — `heldCoverage <= 6` conditioned on a
+    // focus budget of at least 1 — what it WOULD have done at this card
+    // decision, and logs the answer. `redrawShadow.ts` carries the reasoning;
+    // the two things that matter at the call site are:
+    //
+    //   - **The PHASE is deliberate and is NOT the oil shadow's.** This sits
+    //     BELOW the oil block, because the candidate conditions on the focus
+    //     budget and the offline definition of budget includes an oil restore
+    //     taken this turn (`budgetBefore`, and 24 of 24 observed consumes
+    //     restore 2 from a meter reading 0). Evaluating above the block would
+    //     read the pre-oil meter and shadow a different signal from the one
+    //     the corpus validated — on exactly the turns where the oil mattered.
+    //   - **It is inert by construction, not by review.** The snapshot is a
+    //     frozen deep copy, `evaluateRedrawShadow` cannot throw, and nothing
+    //     between here and the `play_cards` POST reads `redrawShadowRecord`.
+    //     `tests/fishing/redrawShadowInert.test.ts` is the proof.
+    if (shadowRedrawEnabled) {
+      const redrawShadowRecord = evaluateRedrawShadow(
+        snapshotRedrawDecision(
+          {
+            turn,
+            // Post-oil, pre-play — the phase note above is about this line.
+            budget: doc.data.focusMeter,
+            focusCell: { x: doc.data.focusPoint[0] ?? 1, y: doc.data.focusPoint[1] ?? 1 },
+            mana,
+            fishHp,
+          },
+          { hand, gridSize },
+        ),
+        redrawEnabled,
+      );
+      redrawShadowRecords.push(redrawShadowRecord);
+      log.write({ event: "redraw_shadow", ...redrawShadowRecord });
+      if (redrawShadowRecord.error) {
+        console.log(`  · redraw shadow THREW (recorded, cast unaffected): ${redrawShadowRecord.error}`);
+      } else if (redrawShadowRecord.sanity.length > 0) {
+        console.log(`  \u2605\u2605\u2605 redraw shadow SANITY VIOLATION on turn ${turn}: ${redrawShadowRecord.sanity.join(", ")}`);
+      } else if (redrawShadowRecord.wouldRedraw) {
+        console.log(
+          `  · shadow(${redrawShadowRecord.shadowPolicy}) on turn ${turn}: WOULD REDRAW ` +
+            `(coverage ${redrawShadowRecord.heldCoverage} over ${redrawShadowRecord.reachable} reachable cells, ` +
+            `budget ${redrawShadowRecord.budget}, hand ${redrawShadowRecord.handSize}). ` +
+            `Observational only; the bot does not redraw and \`redrawEnabled\` is false.`,
+        );
+      }
+    }
     // [session 46, brief §1b] The paired baseline, computed on this same
     // turn but NEVER consumed by the policy — it exists only to be scored
     // against the live distribution above. This is deliberately the plain
@@ -2636,7 +2737,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
 
     if (dryRun) {
       console.log(`  [dry-run] would POST play_cards`);
-      return { outcome: "dry_run", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords };
+      return { outcome: "dry_run", turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords, redrawShadowRecords, redrawShadowNoDecision };
     }
 
     const body = buildFishingEnvelope("play_cards", client.getFishingActionToken(), {
@@ -2895,7 +2996,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     );
   }
 
-  return { outcome, turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords };
+  return { outcome, turns: turn, oilTriggerNoStock, oilsConsumed: oilsUsedThisCast, oilShadowRecords, redrawShadowRecords, redrawShadowNoDecision };
 }
 
 // ---------------------------------------------------------------------------
@@ -3106,6 +3207,12 @@ async function main() {
   // Counted across the whole batch, because one blind firing is already the
   // finding.
   let batchShadowBlindRelaxing = 0;
+  // [session 90 §4] The redraw shadow's batch tallies. Reported, never read
+  // back into a decision — see `redrawShadow.ts`.
+  let batchRedrawShadowDecisions = 0;
+  let batchRedrawShadowFires = 0;
+  let batchRedrawShadowBlind = 0;
+  let batchRedrawShadowSanity = 0;
   // The zero-streak tripwire, seeded from the committed corpus and extended by
   // this batch's own casts. Seeded rather than started at zero because the
   // streak spans sessions by design (`zeroStreak.ts`: it deliberately does not
@@ -3217,6 +3324,18 @@ async function main() {
       batchShadowBlindRelaxing += (result?.oilShadowRecords ?? []).filter(
         (r) => r.liveWanted.includes("relaxing") && r.bestKillProbability === null,
       ).length;
+      // [session 90 §4] **The out-of-sample firing rate, which is the whole
+      // point of §26.** In sample the candidate fires on 12 of 444 plays
+      // (2.7%); a live rate wildly unlike that refutes it as a calibrated rule
+      // before any outcome question is asked. `blind` is counted BESIDE the
+      // rate rather than folded into it — the denominator has to exclude turns
+      // that never reached a card decision, or the rate flatters itself.
+      batchRedrawShadowDecisions += (result?.redrawShadowRecords ?? []).length;
+      batchRedrawShadowFires += (result?.redrawShadowRecords ?? []).filter((r) => r.wouldRedraw).length;
+      batchRedrawShadowSanity += (result?.redrawShadowRecords ?? []).filter(
+        (r) => r.sanity.length > 0 || r.error !== undefined,
+      ).length;
+      batchRedrawShadowBlind += result?.redrawShadowNoDecision ?? 0;
       // `turn_cap` is not an outcome about the fishery any more than an
       // incomplete cast is, so only a real terminal result extends the streak.
       if (result?.outcome === "caught" || result?.outcome === "escaped") {
@@ -3258,6 +3377,23 @@ async function main() {
         `  · batch state: cast ${i + 1}, oils consumed ${batchOilsConsumed}, clean ${batchCleanCasts}, ` +
           `ledger ${ledgerRemaining} left, held Focus ${focusHeld} / Relaxing ${relaxingHeld}`,
       );
+      if (batchRedrawShadowDecisions > 0 || batchRedrawShadowBlind > 0) {
+        const rate = batchRedrawShadowDecisions === 0 ? 0 : (100 * batchRedrawShadowFires) / batchRedrawShadowDecisions;
+        console.log(
+          `  · redraw shadow: ${batchRedrawShadowFires}/${batchRedrawShadowDecisions} card decisions would redraw ` +
+            `(${rate.toFixed(1)}%, in-sample 2.7%), ${batchRedrawShadowBlind} turn(s) reached no card decision` +
+            `${batchRedrawShadowSanity > 0 ? `, \u2605\u2605\u2605 ${batchRedrawShadowSanity} SANITY/ERROR row(s)` : ""}. ` +
+            `Observational only; \`redrawEnabled\` is false and the bot did not redraw.`,
+        );
+        log.write({
+          event: "redraw_shadow_batch",
+          cast: i + 1,
+          decisions: batchRedrawShadowDecisions,
+          fires: batchRedrawShadowFires,
+          blind: batchRedrawShadowBlind,
+          sanityOrError: batchRedrawShadowSanity,
+        });
+      }
       log.write({ event: "batch_verdict", cast: i + 1, oilsConsumed: batchOilsConsumed, cleanCasts: batchCleanCasts, ledgerRemaining, focusHeld, relaxingHeld, verdict });
       if (verdict.stop) {
         console.log(`\n▸ BATCH HALT (${verdict.reason}) — ${verdict.detail}`);
