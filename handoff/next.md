@@ -1,17 +1,18 @@
-# BRIEF — session 89 — the user's rulings on the red suite, 3 boon-pair captures, and a new (unshipped) oil trigger
+# BRIEF — session 90 — wire double-lethal oil live (user override), finish the pin sweep, build §26's redraw shadow eval
 
-**No live spend this session, by design.** Everything below is code, tests,
-and documentation — record the user's rulings, close what can legitimately be
-closed, and derive-but-don't-ship the new oil trigger, per rule 4.
+**One live-path change this session, three documentation/test-hygiene passes.**
+Read §1 fully before touching any code — it's the one item that spends real
+oil stock the moment it's live, and it's going live specifically because the
+user overrode the sim's own recommendation, which has to be recorded plainly
+rather than smoothed over.
 
-**Where the rulings below came from.** The user was walked through session
-88's STATE.md "What's broken" section and asked, item by item, what should
-happen to it. Four answers came back and are recorded verbatim in each
-section below. Two things did **not** come up and are **not** in scope: §26's
-shadow evaluation (now unblocked by §28's answer, but a big enough piece of
-work that it belongs in its own brief rather than bolted onto this one — see
-§7's honest expectation), and anything about `policyApproved` or a live oil
-call site.
+**Where everything below came from.** Session 89's STATE.md was walked
+through with the user item by item. Four rulings came back, all in this
+brief. A research pass (this session, offline) then re-verified every code
+claim in this brief directly against the current files rather than trusting
+STATE.md's one-line summaries — three of STATE.md's characterizations turned
+out to be imprecise in ways that change what to actually do; each is called
+out where it matters.
 
 ---
 
@@ -19,383 +20,321 @@ call site.
 
 ```
 npx tsc --noEmit                     expect clean
-npx vitest run                       baseline 99 files / 72 failed / 1618 passed / 1 skipped (1691)
+npx vitest run                       baseline 8 failed files / 42 failed / 1673 passed / 1 skipped (1716)
 ```
 
-Expect the failure count to drop across this session as §§1-5 land — **verify
-the real number after each piece, don't assume an arithmetic total.**
+**Rule 9 applies to this whole brief, and it mattered this time.** Before
+writing this, a read-only pass confirmed against the actual current code
+(not against STATE.md's summary) `handoff/OIL-DOUBLE-LETHAL.md` in full,
+`src/strategy/fishing/oilTiming.ts`'s double-lethal additions
+(`doubleLethalTriggers`, `doubleLethal`, ~lines 630-757),
+`scripts/liveFishing.ts`'s oil consume loop (~lines 2177-2308) and its
+surrounding "THREE gates" comment (~lines 1944-1975), `tests/fishing/oilDoubleLethal.test.ts`
+in full, `src/strategy/fishing/oilShadow.ts` (the shadow-evaluation
+precedent), current `QUESTIONS.md` §26 and §28, `src/sim/fishing/redrawCounterfactual.ts`,
+`tests/fishing/redrawCounterfactual.test.ts`, and `src/sim/fishing/castTrace.ts`'s
+`loadCastTraces`. **Not opened**: `tests/fishing/oilShadowInert.test.ts`,
+`tests/fishing/oilStockExhaustion.test.ts` (referenced as a pattern to
+follow, not read directly), or the six other files behind §3's remaining 24
+failures (`oilReachability`, `matcherHeadroom`, `damageEconomy`,
+`zoneTemplate`, `fishingCorpus`, `enemies` test files) — open each before
+touching it.
 
-**Rule 9 applies to this whole brief.** I have read `handoff/STATE.md`
-(session 88), `QUESTIONS.md` §26 and §28 in full, the DECISIONS.md entries
-covering the boon-pair captures (sessions 82, 87, 88), `src/sim/boons.ts` in
-full, `src/strategy/fishing/oilTiming.ts` and `oilPolicy.ts` in full,
-`handoff/OIL-POLICY.md`, `handoff/OIL-CONSERVE.md`, `config/bot.json`'s
-`dendren.oils` block, `handoff/reports/session-86-redraw-revisit.md`,
-`tests/fishing/castEra.test.ts`, `tests/fishing/rodDeck.test.ts`, and
-`SPEC-fishing.md`'s `FISH_HP_DIFF` row and its surrounding section. **I have
-NOT opened** `tests/boons.test.ts`, `tests/fishing/stateFields.test.ts` (only
-referenced by what `SPEC-fishing.md` says about it), `scripts/oilConserveSweep.ts`,
-`scripts/oilTimingSweep.ts`, `scripts/liveFishing.ts`'s oil call site, or
-`src/sim/fishing/castEra.ts` (the module `castEra.test.ts` actually tests).
-Every claim below about what any of these do or contain is inferred from
-what surrounds them, not read directly — open them before acting on a claim
-that turns out to matter.
+**Three corrections to how STATE.md described things, found by this pass:**
 
----
-
-## 1. §28 — record the user's ruling
-
-**The user's answer: accept the re-pricing.** Quoted in full: *"Accept the
-re-pricing — keep redraw closed, but retire '43.9 mana per extra fish' as the
-stated reason and restate it as 'no validated trigger + two unpaid
-correctness gaps.'"*
-
-This is a documentation task, not a code task — nothing about `redrawEnabled`
-or `REDRAW_THRESHOLD` changes (both stay as they are: false / untouched).
-
-1. In `QUESTIONS.md`, close out §28: mark it ANSWERED, quote the user's
-   ruling verbatim (the way §26's answer was recorded above it), and note
-   that §26's shadow evaluation is now unblocked as a consequence — but see
-   this brief's own §7 on why it isn't being started here.
-2. Add one dated `DECISIONS.md` entry recording the answer, in the file's own
-   style (see the 2026-08-23 session-87/88 entries for the shape): what was
-   asked, what was answered, and what it changes (the STATED REASON for
-   keeping redraw closed) versus what it does not (the verdict itself, which
-   was never in question).
-3. **Retire "43.9 mana per extra fish against a cast holding 10" everywhere
-   it is cited as the live reason redraw is closed**, replacing it with "no
-   validated trigger + two unpaid correctness gaps (both fixable offline,
-   neither fixed)." Search beyond `QUESTIONS.md` — check `SPEC-fishing.md`,
-   `CLAUDE.md`, and any handoff report that states the closure reason rather
-   than merely reporting the 43.9 figure as a historical measurement. A
-   number that is being reported as *"this is what session 75 measured"*
-   stays; a sentence that is doing the job of *justifying why redraw is
-   closed today* gets replaced.
-
-**Do not** write any shadow instrumentation, and do not touch
-`redrawEnabled` or `REDRAW_THRESHOLD`. The user answered "yes, re-price it" —
-they did not answer "yes, ship the shadow eval this session."
+1. **`OIL-DOUBLE-LETHAL.md` has no "what approving this would mean" section**
+   the way `OIL-POLICY.md` §3 does. §1 below writes the wiring steps from
+   scratch — there's no precedent text to lift.
+2. **Nothing tests the live executor's double-consume behavior end to end.**
+   All 19 assertions in `oilDoubleLethal.test.ts` are against the pure
+   decision function; none exercise `liveFishing.ts`'s actual consume loop
+   with a live-shaped mocked request/response sequence. §1 adds this before
+   the switch flips.
+3. **`redrawCounterfactual.test.ts` is NOT pinned to the frozen `CORPUS-2026-08-23A`
+   snapshot in code** — `loadCastTraces()` has no date or doc-id filter and
+   reads whatever's currently in `fixtures/fishing-casts/`. So there was never
+   an architectural "frozen vs. live" conflict to resolve — the test was
+   always live-computed, exactly like `castEra.test.ts`, and simply went
+   stale the same way when the corpus grew. §2 below is a straightforward
+   regeneration, not a design decision. (The **memo**,
+   `session-86-redraw-revisit.md`, stays frozen regardless — it's a static
+   document, not code, and nothing here touches it.)
 
 ---
 
-## 2. REAL_DECK — verify the actual failure before touching anything
+## 1. Wire the double-lethal oil trigger live — the user's explicit override
 
-**The user's answer: yes, update it** — but read this section before doing
-so, because what STATE.md describes and what `tests/fishing/rodDeck.test.ts`
-already contains don't obviously line up, and rule 9 says check before
-fixing.
+**Record this precisely, because it's not the sim's recommendation.**
+`OIL-DOUBLE-LETHAL.md` recommends AGAINST shipping this: **140.9 marginal
+oils per extra fish against a bar of roughly 12** — more than 11x over. The
+user reviewed that finding and chose to authorize it anyway. Quote them
+exactly, in both `QUESTIONS.md` and `DECISIONS.md`: *"I want to authorize
+the bot to use 2x relaxing oil if it will be lethal and it is not confident
+in catching with mana."* State the sim result in the same entry, beside the
+override, so nobody reading it later mistakes this for the sim's
+endorsement — it is the user's conscious choice to value a guaranteed catch
+in the 3-4 `fishHp` band over the oils-per-fish ratio the sim priced it on.
 
-`rodDeck.test.ts` (session 71) already carries `ROD_CARD_GRANTS[SHROOM_ROD] =
-[1, 2, 3, 4, 5, 6, 74, 75, 76, 78]` — the exact array STATE.md's session-87
-recap says the corpus now yields. That test reads the *latest* cast's rod
-live (`latestRodObservation()`) and fails loudly, by design, if `CURRENT_ROD`
-or `REAL_DECK` drifts from what the account actually holds. So it is not
-obvious that *this* file is where the described mismatch lives — STATE.md's
-"grant table expected `[1..10]`" doesn't match either rod's grant array in
-this table, which suggests the stale assumption may be in a **different,
-older** test or script that predates the SHROOM_ROD repoint and still assumes
-something closer to a plain sequential deck.
+### 1a. Add the missing coverage before flipping anything
 
-**Before changing anything:** run the suite, find the actual failing
-assertion(s) that correspond to STATE.md's "REAL_DECK no longer matches the
-account's rod," and confirm which file it's really in. If it turns out to be
-`rodDeck.test.ts` itself failing (e.g. on the "grant table agrees with PLAY"
-check), fix it there. If it's a different, older hardcoded assumption
-elsewhere, fix that one and say so — don't assume STATE.md's one-line summary
-named the right file.
+Nothing currently proves the live loop actually issues two separate
+`use_fishing_item` POSTs for a repeated `"relaxing"` entry — the claim in
+`OIL-DOUBLE-LETHAL.md` §3 that it does is a code-reading claim, not a test.
+Before wiring, write an integration-style test against `liveFishing.ts`'s
+consume loop (mocked fetch, following the pattern
+`tests/fishing/oilStockExhaustion.test.ts` already establishes for
+stock-related loop behavior — read that file first) that puts a cast in the
+double-lethal band and asserts: two `use_fishing_item` POSTs are sent, into
+two different slots; `oilHeld.relaxing` decrements by 2; `oilsUsedThisCastOf.relaxing`
+reaches 2; and — the case worth being paranoid about — if the SECOND
+relaxing consume ends the cast (it will: first oil takes `fishHp` 3or4 → 1or2,
+survives; second takes it to ≤0, and the cast completes), confirm the loop's
+existing `doc.COMPLETE_CID` break (line ~2209) correctly stops before
+attempting any further consume in the same decision array (e.g. a trailing
+`"focus"` entry from `doubleLethalTriggers`'s `[...base]` spread) rather than
+sending a third POST against an already-finished cast. That exact failure
+mode cost a real live cast once before (the comment at `liveFishing.ts`
+~1969-1975 documents it) — the reasoning that double-lethal is safe from it
+is sound, but it has never been exercised, live-shaped or otherwise.
 
----
+### 1b. Retire the not-wired guard, don't just break it
 
-## 3. SPEC-fishing §4 — characterize before updating
+`oilDoubleLethal.test.ts` lines ~161-168 currently assert
+`liveFishing.ts` calls `onDemandTriggers` and does **not** contain
+`doubleLethalTriggers(` — a text-grep guard that exists specifically to keep
+this feature from shipping by accident. The moment §1c wires it, this test
+fails **by design**, not as a regression. Replace it with the opposite
+assertion (the live path DOES call `doubleLethalTriggers`) rather than just
+deleting it — the guard's job (catch a future silent revert or a future
+silent re-addition of a different unshipped trigger) is worth keeping in the
+positive direction.
 
-**The user's answer:** *"review the three exceptions then update the spec if
-the live data really establishes a new rule."* Not a blanket yes — read this
-as two steps, and only do the second if the first earns it.
+### 1c. The wiring itself
 
-The `FISH_HP_DIFF` rule (`SPEC-fishing.md`, the Events table around line 168:
-`fishHp -= value`, positive on a hit, negative on a miss) has its exceptions
-pinned as an exact list in `tests/fishing/stateFields.test.ts` — that file's
-own docblock is what SPEC-fishing.md cites for "a third, novel exception
-fails loudly rather than being absorbed into a tolerance." Session 87's
-20-cast batch apparently produced three more (the count going 3 → 6 per
-`scratch-session-87.md`), uncharacterized.
+At `scripts/liveFishing.ts` line ~2177, replace:
 
-1. Open `stateFields.test.ts`, find the newly-failing exception entries, and
-   read each one — what state, what field, what value, what a naive
-   application of the `fishHp -= value` rule would have predicted instead.
-2. **Only update `SPEC-fishing.md`'s rule text if the three new exceptions
-   share a common, nameable cause** — the way the original three did (a
-   lethal-blow clamping issue, a crit-vs-hit base amount, etc.). If they're
-   three unrelated one-offs, or if the corpus doesn't clearly support a new
-   general statement, say so and leave the rule's prose as it is — updating
-   the *exception list* pin (a mechanical count) is not the same act as
-   updating the *rule* (a claim about mechanics), and the user asked for the
-   second only if warranted.
-3. Either way, the test pin itself (the exact list, now six rather than
-   three) should end up matching the current corpus — that part is
-   mechanical regardless of what the prose ends up saying.
+```ts
+const oilWanted = onDemandTriggers({ ... }, PAYLOAD_OIL_EFFECTS);
+```
 
----
+with
 
-## 4. The three boon-pair models — offline, no live spend
+```ts
+const oilWanted = doubleLethalTriggers({ ... }, PAYLOAD_OIL_EFFECTS);
+```
 
-All three source states are already on disk. No new capture needed.
+— same context object, same call shape; `doubleLethalTriggers` already calls
+`onDemandTriggers` internally as its base case, so every existing single-oil
+behavior is preserved unchanged and the double case only fires in the 3-4
+band under the existing derived threshold
+(`RECOMMENDED_NECESSITY_THRESHOLDS.relaxing = 1`, the same zero-tuned-constant
+the necessity gate already uses — nothing to invent here). Update the import
+at line ~153 accordingly, and update the "THREE gates" comment block at
+~1944-1975 — it currently names `onDemandTriggers` as gate 1; say what
+actually gates the spend now.
 
-| type | run | states (approx.) | first sighted | picked |
-|---|---|---|---|---|
-| `WeakeningMastery` | `25035508` | 059→060 | session 12 (room 1, offered not picked) | session 87 |
-| `AddVulnerableSword` | `25036263` | ~105→106 | session 25 (room 1, offered not picked) | session 88 |
-| `AddBurnShield` | `25036263` | ~123→124 | session 19 (room 1, offered not picked) | session 88 |
+**Do not** route this through `doubleLethal(...).decide(...)` (the
+`OilTimingPolicy` wrapper) instead of the raw trigger function — the wrapper
+adds a positional stock filter that's redundant with what the loop already
+does per-iteration via live `mayConsumeOil` checks, and `doubleLethalTriggers`
+itself already guards on `relaxingOilHeld >= 2` before firing the double
+case. Using the raw function keeps parity with how `onDemandTriggers` is
+called today.
 
-*(State numbers for the two session-88 pairs are read off `STATE.md`'s
-summary, not independently re-verified — confirm against
-`fixtures/dungeon-runs/run-2026-08-24-01-04-21` before using them.)*
+### 1d. After wiring
 
-Follow the pattern every existing `BOON_MODELS` entry and its adjoining
-comment already establishes (`WeakeningTenacity`/`BurningBlock` session 60,
-`TieWeak`/`VulnerableBlock` session 82, `AddMaxHealth` session 17, etc.): read
-the before-state and after-state pair, diff the player's stat block against
-the boon option's `selectedVal1`/`selectedVal2`, and classify:
-
-- A flat stat change → `{kind: "rolled", stat: ...}` — but **let the diff
-  decide which stat and whether it's flat**, not the boon's name.
-  `VulnerableBlock`'s session-82 pair is the standing warning here: its
-  `selectedVal1` of 4 was **not** a flat add to the rolled `block` stat (10→10
-  across the pair) — the model that would have matched the name was wrong,
-  and only reading the actual pair caught it.
-- A zero-delta pickup with an effect that fires later (a combat trigger, not
-  a stat change at pickup) → `{kind: "latent"}`, same shape as the six latent
-  types already modelled.
-- If a pair doesn't cleanly fit either shape, **say so and leave it
-  unmodelled** rather than forcing a guess. SPEC §4d's standing rule — do not
-  infer an effect from what a boon's name suggests — governs this exactly as
-  it has for every prior capture.
-
-Do this three times, one diff per type, each written as its own change. After
-all three: run the suite and report the real before/after failure count.
-
----
-
-## 5. The four corpus pins in `tests/fishing/castEra.test.ts` — the biggest single item
-
-**The user's answer: yes, update all four now.** Read this section fully
-before starting — it's larger than "change four numbers."
-
-**These are NOT the frozen §28 memo figures.** `handoff/reports/session-86-redraw-revisit.md`
-and `session-86-corpus-snapshot.md` are pinned to `CORPUS-2026-08-23A` on
-purpose, and §28's own text says plainly: *"the corpus has grown since; these
-figures have not been recomputed and must not be."* **Do not touch either of
-those two files.** What's being updated here is a *different* thing:
-`castEra.test.ts` recomputes its assertions against whatever fixtures are
-actually on disk each time the suite runs (`redrawCounterfactual(split.today)`,
-`focusEraSplit(traces, created)`, `budgetZeroDecomposition(...)`), so its pins
-went stale the moment session 87's 20 casts landed — not because a memo was
-recomputed, but because the corpus underneath a live-computed test grew.
-
-What's actually pinned in this one file, found by direct read:
-
-- **GATE 1a** (~line 140-150): `focusEraSplit` — today's `[casts, plays,
-  budgetZero]` triple (was `[54, 202, 3]`), the "thirtyfold drop" framing, and
-  the rate assertions (`toBeCloseTo(0.0149, 3)` etc.).
-- **GATE 2** (~line 222-276): `budgetZeroDecomposition` — the three-term
-  decomposition (`beforeRate`, `standardisedRate`, `noRestoreRate`,
-  `todayRate`), the no-oil/oiled cast-count splits (41/13), and every rate
-  derived from them. **If today's era's cast count changed, these
-  sub-splits may have changed too** — a bigger today-era doesn't just move
-  `todayRate`, it can move how many casts land in the no-oil vs. oiled
-  buckets, which moves several downstream numbers together.
-- **The redraw-counterfactual pins** (~lines 188-338): `neither = 0` → 6,
-  dead-hands count 15 → (STATE.md says 32; verify), the Wilson CI bounds on
-  the rescue rate, and `wasted` structurally zero at every threshold (now
-  non-zero — STATE.md says 3).
-
-**How to do this safely:** regenerate every number from the actual instrument
-functions (`focusEraSplit`, `budgetZeroDecomposition`, `redrawCounterfactual`,
-`separability`, all imported at the top of `castEra.test.ts` from
-`src/sim/fishing/castEra.ts`) run against the current corpus — do not
-hand-type new numbers based on STATE.md's summary figures. STATE.md's numbers
-are a recap, not a source; the source is the code that produces them.
-
-**Record the old values, don't erase them.** Either in a comment beside each
-updated assertion or in the `DECISIONS.md` entry from §1 above (a second
-entry, or a shared one — your call), note what each pin moved from and to,
-the way `scratch-session-87.md` §6 already did once. A future reader should
-be able to see this drift happened without archaeology.
-
-**If this turns out to be substantially bigger than the rest of the
-session** (e.g. the today-era cast-count change cascades into re-deriving
-numbers this file doesn't currently print), **say so and stop rather than
-rushing it** — see §7's honest expectation on why that's a legitimate
-outcome here.
+- `dendren.oils.policyApproved` is already `true` (session 62) — no config
+  change needed; this is a trigger-selection change, not a budget-approval
+  one.
+- Append a short "WIRED LIVE" section to `OIL-DOUBLE-LETHAL.md`: the date,
+  the user's override quote, and what to watch for on the first live firing
+  (both POSTs land, `EV`/held counts move as expected, no `COMPLETE_CID`
+  double-send).
+- **The first live double-fire hasn't happened yet and won't necessarily
+  happen this session** — nothing here forces a fishing batch. Whenever
+  fishing next runs autonomously and the band condition arises (sim
+  estimate: the band arises on 8.27% of decisions, the trigger itself fires
+  on 3.48%), that recap should report the full response pair in detail, not
+  just a line item — this is the first time real oil stock moves through a
+  path nothing has exercised live before.
 
 ---
 
-## 6. Design (not ship) a double-Relaxing-Oil trigger for the 3–4 `fishHp` band
+## 2. `redrawCounterfactual.test.ts` — regenerate, cross-reference the frozen memo
 
-*(Unchanged from the original request — this is net-new work, not red-suite
-cleanup, and it's still the least certain piece of this brief.)*
+Simpler than STATE.md's summary made it sound (see §0's correction #3): this
+test was never snapshot-pinned in code, so there's no architectural choice to
+make. Regenerate its ~17 assertions from the real functions
+(`redrawCounterfactual`, `separability`, `manaSlack`, etc. — all imported at
+its top from `src/sim/fishing/redrawCounterfactual.ts`) against the current
+corpus, the same discipline session 89 already applied to `castEra.test.ts`:
+don't hand-type numbers, keep the old values noted (comment or the
+`DECISIONS.md` entry below), don't touch anything in
+`handoff/reports/session-86-redraw-revisit.md` or
+`session-86-corpus-snapshot.md` — those two files are static prose and stay
+frozen at `CORPUS-2026-08-23A` regardless of what this test now reads.
 
-### The gap, precisely
-
-`onDemandTriggers` (`src/strategy/fishing/oilTiming.ts:180`) fires the
-Relaxing Oil exactly once, exactly when `fishHp <= fishDamage` (2 at the
-current payload) — i.e. only when a single oil is already lethal. At `fishHp`
-3 or 4 it fires **zero**: one oil (−2) would leave the fish alive, and
-nothing in the current trigger ever considers spending a second to finish
-it. `config/bot.json`'s `dendren.oils.perItemMaxPerCast["937"]: 2` already
-permits up to two Relaxing-Oil spends in one cast — set in **session 69**
-per the user's own directive ("then only use 2x Relaxing oil per fishing
-run") — but no trigger has ever asked for the second one. The budget
-plumbing was built five sessions before a trigger that would use it.
-
-### What's wanted, restated as a rule
-
-Not a default, not "always spend two at 3-4 HP" — a **conditional**: at
-`fishHp` 3 or 4, if the bot is **not confident** of landing the fish with the
-mana and cards it has, fire both Relaxing Oils in the same turn to guarantee
-the kill.
-
-### The confidence signal already exists — reuse it, don't reinvent it
-
-`bestKillProbability` (`oilTiming.ts:370`) is already exactly "the best
-chance the bot has of finishing the fish THIS TURN with a card it can
-actually afford" — built session 67 for the (derived-but-unshipped) necessity
-gate. It is the natural "confidence of catching" read for this new trigger
-too, and reusing it is the same discipline `onDemand` and `conservingOil`
-already follow by sharing `onDemandTriggers` instead of each restating the
-lethal condition.
-
-### The shape to build
-
-A new trigger function — e.g. `doubleLethalTriggers`, or a variant of
-`onDemandTriggers` — with today's single-lethal case **unchanged** and one
-new case added:
-
-- `fishHp <= fishDamage` (today's case): fire one relaxing, exactly as now.
-- `fishDamage < fishHp <= 2 * fishDamage` (the 3–4 band at the current +2
-  payload) **and** `relaxingOilHeld >= 2` **and** `bestKillProbability(...)`
-  is below the confidence cutoff: fire relaxing **twice** —
-  `OilTimingDecision` returns `["relaxing", "relaxing"]`.
-
-Two things to verify before this is scorable as a real policy, not assumed:
-
-1. **Whether the live executor can actually consume the same oil kind twice
-   inside one turn's decision.** `mayConsumeOil` (`oilPolicy.ts`) is called
-   per-consume and already supports two 937s in one CAST via
-   `perItemMaxPerCast`, but nothing in this repo has ever asked for two in
-   one TURN specifically. Open `scripts/liveFishing.ts`'s oil-consumption
-   call site and confirm the loop that walks an `OilTimingDecision` array
-   issues one `use_fishing_item` per entry, in order, each re-checked by
-   `mayConsumeOil`, rather than deduping or short-circuiting on a repeated
-   kind. **If it dedupes, that is a second, separate piece of work — say so,
-   don't work around it quietly.**
-2. **Whether `1` is the right confidence cutoff, or whether the 3-4 band
-   needs its own derivation.** The existing necessity gate's
-   `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing = 1` (fire unless the bot's own
-   best card already guarantees the kill — no free parameter) is the
-   principled, zero-tuned-constant starting point, matching this file's
-   standing "do not tune the necessity thresholds" rule
-   (`oilTiming.ts:427-450`). **Do not invent a new fitted number for "not
-   confident."** If `1` produces a degenerate result in the 3-4 band (always
-   fires, or never does), report that plainly rather than tuning around it.
-
-### Score it in sim before writing anything else down
-
-Add the new trigger to a comparison alongside the existing roster (extend
-`OIL_TIMING_POLICIES` or follow `oilConserveSweep.ts`'s shape in a dedicated
-script) and run the same `n=8000` paired-seed sweep `OIL-POLICY.md` and
-`OIL-CONSERVE.md` both use. Report, in the same units those two documents
-use: catch %, Δ **vs `on-demand`** (the currently-shipped live policy), oils
-spent, oils per extra fish; the **§0a suspension caveat**, verbatim, if
-scored on `castSim`'s bare default arm; how often the band actually arises
-(`fishHp` 3-4, `relaxingOilHeld >= 2`, low confidence, all three at once);
-and oils-per-extra-fish against `MEASURED_RELAXING_OILS_PER_EXTRA_FISH`
-(~6 oils per extra fish, [1.5, 20]) — a double-spend needs to clear roughly
-**twice** that bar per fish saved, and the write-up should say so explicitly.
-
-### Write it up, do not wire it live
-
-A new `handoff/OIL-DOUBLE-LETHAL.md` (or a new section in `OIL-POLICY.md`),
-following `OIL-CONSERVE.md`'s shape. **Nothing here gets a live call site
-this session.** `dendren.oils.policyApproved` stays as it is,
-`liveFishing.ts`'s existing trigger call is untouched, and the new function
-stays reachable-but-uncalled, exactly as `conservingOil` has been since
-session 67 — rule 4 requires the user to see the derived policy before its
-timing goes live.
+Add **one** comment near the top of the test file, once, explaining this
+plainly for the next reader: these pins track the live corpus and will keep
+moving; the `CORPUS-2026-08-23A` figures in the session-86 memo are a
+permanently frozen historical snapshot computed once and never recomputed
+(per `QUESTIONS.md` §28); the two will diverge over time on purpose, and
+that's not a bug in either one.
 
 ---
 
-## 7. Gate
+## 3. The other 24 mechanical pins
 
-1. §28 recorded in `QUESTIONS.md` and `DECISIONS.md`, and "43.9 mana per
-   extra fish" retired everywhere it was doing the job of a live reason.
-2. `REAL_DECK` — the real failing assertion identified and fixed, not
-   guessed at from STATE.md's summary.
-3. SPEC-fishing §4's three new exceptions characterized; the spec's rule
-   text updated only if they share a nameable cause, with the reasoning
-   stated either way.
-4. All three boon pairs modelled (or explicitly left unmodelled with a
-   stated reason).
-5. `castEra.test.ts`'s four flagged pins regenerated from the real instrument
-   functions against the current corpus, with old values recorded, not
-   erased.
-6. The double-lethal oil trigger exists as a pure function, scored in sim,
-   written up for approval — with **no live call site**.
-
-**What does NOT meet the gate:** any change to `policyApproved`,
-`liveFishing.ts`'s oil call site, `redrawEnabled`, or `REDRAW_THRESHOLD`; a
-boon pair modelled by guessing from its name; a corpus pin hand-typed rather
-than regenerated from its instrument; a SPEC-fishing rule change built on
-three exceptions that don't actually share a cause; any shadow
-instrumentation for §26.
+`oilReachability` (8), `matcherHeadroom` (7), `damageEconomy` (3),
+`zoneTemplate` (3), `fishingCorpus` (2), `enemies` (1). STATE.md
+characterized all 24 as ordinary corpus-count drift, and the user authorized
+regenerating them on that basis — **but verify each file before regenerating
+it**, the same way this session's research pass found `redrawCounterfactual.test.ts`'s
+situation was subtly different from its one-line description. Read the
+actual failing assertions in each of the six files; if all six really are
+mechanical corpus counts (a number that moved because the corpus grew, not a
+claim that reversed), regenerate them from their real instrument functions
+and note old values, same as §2. **If any one of them turns out to be a
+structural claim — a "there is exactly one X" or "never observed Y" kind of
+assertion, the way `neither = 0` was — stop on that one specifically and
+report it rather than folding it into the mechanical batch.** That's the
+standing rule this whole project has followed since session 87; this session
+doesn't get to skip it just because the user pre-authorized the bucket.
 
 ---
 
-## 8. Do not
+## 4. §26 — build the redraw shadow evaluation
 
-- **Do not touch `dendren.oils.policyApproved`, `liveFishing.ts`'s oil call
-  site, `redrawEnabled`, or `REDRAW_THRESHOLD`.** Derive-and-present only.
-- **Do not start §26's shadow evaluation.** It's unblocked by §28's answer,
-  but it's a big enough piece of work to deserve its own brief — flag it as
-  ready, don't build it here.
-- **Do not run any live fishing casts or dungeon runs this session.**
+**Authorized, and now the natural next step**: §28's restated reason for
+keeping redraw closed names "no validated trigger" as (half of) the blocker,
+and this is the instrument that produces out-of-sample evidence for one.
+**`redrawEnabled` stays `false` and `REDRAW_THRESHOLD` stays untouched
+throughout** — this is a logging-only addition, never an actual redraw
+action. That constraint is unconditional and doesn't get relaxed by anything
+in this brief.
+
+### The precedent to follow, and the mistake it already made once
+
+`src/strategy/fishing/oilShadow.ts` is the shape to copy, not reinvent. Three
+structural properties, all required:
+
+1. **Deep-copy isolation** — `snapshotOilDecision` rebuilds every input into
+   fresh frozen objects before the shadow touches it, so the shadow never
+   holds a reference the live path reads again. The redraw-shadow equivalent
+   needs the same: whatever state it evaluates against must be a snapshot,
+   not a shared reference.
+2. **Cannot throw** — the entire evaluation body sits inside one
+   `try { ... } catch (e) { return { ...base, error: e.message, sanity: [...] } }`.
+   A shadow failure degrades to a logged record with an `error` field; it
+   never propagates and never touches the live decision.
+3. **Inert by type** — the record type it returns has no field the live loop
+   reads back. It gets pushed to an array and logged, nothing more.
+
+**The mistake to not repeat**: session 68 placed the oil shadow's evaluation
+in the wrong phase of the turn (after the consume block), so it was blind to
+exactly the turns a lethal consume ended — the decisions that mattered most.
+Session 69 fixed it by hoisting the evaluation earlier. `oilShadow.ts`'s own
+header states the lesson: *"a shadow evaluated in the wrong phase of a turn
+is blind to exactly the decisions that end the turn, and it reports that
+blindness as an ordinary run of quiet records."* For redraw specifically:
+evaluate whether a redraw would have been indicated **before** the turn's
+card gets played — evaluating after would make the question moot for
+exactly the turns worth logging.
+
+### What to shadow
+
+Don't derive a new trigger candidate — reuse the one this project already
+has. Session 83's `heldCoverage`-conditioned-on-focus-budget candidate is the
+existing, pre-registered shape (separates dead hands at AUC 0.922; clean
+when conditioned on `budget >= 1`: K=6 fires 6 times with 6 rescues and 0
+sacrifices, K=10 fires 44 times with 18 rescues and 3 sacrifices, in the
+sample it was fitted on). **Verify its exact current definition in code
+before using it** — it was described in `DECISIONS.md`'s 2026-08-23 (session
+83, §3) entry as "fitted to this corpus with oracle labels and no held-out
+set, n=27 in the conditioned arm — a shape, not a tuning," so find wherever
+it actually lives in `src/` now (search for `heldCoverage`) rather than
+re-deriving it from the DECISIONS.md prose.
+
+### What "one extra field per logged decision" means
+
+§26's original ask (session 84 §4) was specific: log what the trigger would
+have fired on, live, and send nothing. Follow that shape — the shadow record
+rides beside the existing per-turn log entry, not a separate stream, the
+same way the oil shadow's record does.
+
+---
+
+## 5. Gate
+
+1. §1: the override is recorded verbatim in `QUESTIONS.md` and
+   `DECISIONS.md`, beside the sim's own negative number. The missing
+   integration test exists and passes. The not-wired guard is replaced with
+   its positive equivalent. `liveFishing.ts` calls `doubleLethalTriggers`.
+   Nothing forces a live fishing batch this session.
+2. §2: `redrawCounterfactual.test.ts`'s pins regenerated from the real
+   functions, old values noted, the frozen-memo cross-reference comment
+   added. The two frozen session-86 report files untouched.
+3. §3: each of the six files checked individually before regenerating; any
+   structural (not mechanical) finding reported separately rather than
+   folded in.
+4. §4: the shadow evaluator exists, follows all three of `oilShadow.ts`'s
+   structural properties, evaluates at the correct turn phase, and shadows
+   the existing `heldCoverage`-conditioned candidate. `redrawEnabled` false,
+   `REDRAW_THRESHOLD` untouched, verified in the diff, not just asserted.
+
+**What does NOT meet the gate:** any live redraw action, however gated; a
+double-lethal wiring with no integration test for the two-consume path; a
+"mechanical" pin fix that was actually a structural reversal, folded in
+without being flagged; a shadow evaluator that can throw, that holds a live
+reference, or that's wired to influence the actual card played.
+
+---
+
+## 6. Do not
+
+- **Do not touch `redrawEnabled` or `REDRAW_THRESHOLD`.** The shadow eval is
+  additive logging only.
 - **Do not touch `session-86-redraw-revisit.md` or `session-86-corpus-snapshot.md`.**
-  Those stay frozen at `CORPUS-2026-08-23A` permanently.
-- **Do not invent a fitted confidence threshold** for the new oil trigger.
-  Start from the existing necessity-gate constant; report a plateau if
-  that's what's there.
-- **Do not hand-type any of `castEra.test.ts`'s new pinned numbers.**
-  Regenerate them from the instrument functions.
+  Frozen permanently.
+- **Do not force a live fishing batch** to test the double-lethal wiring.
+  Let it fire naturally; report carefully whenever it does.
+- **Do not present the double-lethal wiring as sim-recommended.** It isn't —
+  say so every time it's mentioned, the way this brief does.
+- **Do not fold a structural finding into the "24 mechanical pins" bucket**
+  without flagging it separately.
 - **`npx tsx` and `git` fail under the command sandbox. Run unsandboxed.**
 
 ---
 
-## Your task (session 89)
+## Your task (session 90)
 
-1. §28: record the ruling in `QUESTIONS.md` and `DECISIONS.md`; retire the
-   43.9-mana reason wherever it's cited as a live justification.
-2. `REAL_DECK`: find the real failing assertion, fix it there, say where it
-   actually was.
-3. SPEC-fishing §4: characterize the three new exceptions; update the rule
-   prose only if warranted; update the test's exception list either way.
-4. Model the three boon pairs in `BOON_MODELS`.
-5. Regenerate `castEra.test.ts`'s four flagged pins from the real instrument
-   functions against the current corpus; record old values.
-6. Build the double-lethal oil trigger, verify the live-executor question,
-   score it in sim, write it up. No live call site.
-7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
-   final commit, `assertionCoverage` (check whether it's unblocked — it
-   fails closed on any red suite), `preflight.ts`, secret scan.
+1. Record the double-lethal override in `QUESTIONS.md`/`DECISIONS.md`.
+2. Write the missing live-loop integration test for the double-consume path,
+   including the `COMPLETE_CID` mid-sequence case.
+3. Replace `oilDoubleLethal.test.ts`'s not-wired guard with its positive
+   equivalent.
+4. Wire `liveFishing.ts` to `doubleLethalTriggers`; update the surrounding
+   gate comment.
+5. Regenerate `redrawCounterfactual.test.ts`'s pins; add the frozen-memo
+   cross-reference comment.
+6. Check and regenerate the other 24 mechanical pins, file by file.
+7. Build the §26 redraw shadow evaluator on the `oilShadow.ts` pattern,
+   shadowing the existing `heldCoverage`-conditioned candidate, correct turn
+   phase, `redrawEnabled`/`REDRAW_THRESHOLD` untouched.
+8. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+   final commit, `assertionCoverage`, `preflight.ts`, secret scan. Report the
+   real final failure count — this session should get the suite very close
+   to green, but say the actual number, not the arithmetic guess.
 
-**Honest expectation and sequencing.** Items 1-4 are close to mechanical —
-record a decision, verify one assertion, characterize a short exception
-list, follow five sessions of precedent for a boon diff. Item 5 is the
-biggest known quantity in the session: it may be four number changes or it
-may cascade into re-deriving sub-splits this file doesn't currently print —
-if it does, that's a legitimate place to stop and report rather than a
-reason to rush. Item 6 is the biggest unknown quantity: the confidence
-threshold may degenerate the way earlier necessity thresholds did, or the
-live executor may not support two same-kind consumes in one turn. **If the
-session runs out of room, item 6 is the one to defer** — it's net-new work,
-not red-suite debt, and nothing else in this brief depends on it landing
-today.
+**Honest expectation and sequencing.** Items 1-3 are close to mechanical —
+verified, low-risk, precedent-following. Item 4 (the shadow eval) is
+genuinely new build work and the one most likely to reveal something this
+brief didn't anticipate, the way the "not actually frozen" finding did for
+item 2. **If the session runs out of room, item 4 is what carries to session
+91** — unlike the other three, nothing else in this brief depends on it
+landing today, and it's explicitly logging-only, so a half-finished attempt
+left unwired is safe to leave for next time. Item 1, by contrast, should not
+be left half-done: either the wiring lands with its test coverage complete,
+or it doesn't land at all this session — a double-lethal trigger wired
+without the integration test, or with the guard test just deleted rather
+than replaced, is worse than not wiring it yet.
