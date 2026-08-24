@@ -399,10 +399,14 @@ export interface ManaSlack {
 /**
  * How much of the 10-mana pool a cast throws away.
  *
- * This exists because the price that CLOSED redraw — 43.9 mana per extra fish
+ * This exists because the price that closed redraw — 43.9 mana per extra fish
  * "against a cast holding 10" — only bites if the pool is scarce, and the
  * corpus says it is not: the average cast ends with well over half of it
- * unspent. The resource that ends casts is the fish's HP headroom, and a
+ * unspent. **[session 89] That argument was accepted: QUESTIONS §28 ANSWERED
+ * retires the price as the stated reason. Redraw is still CLOSED**, now on
+ * *no validated trigger + two unpaid correctness gaps* — so this function
+ * measures a settled point rather than an open one, and stays because the
+ * settlement rests on it. The resource that ends casts is the fish's HP headroom, and a
  * redraw does not touch it: a redraw takes no shot, so it cannot miss, and a
  * miss is what heals the fish.
  *

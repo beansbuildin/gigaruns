@@ -4,8 +4,11 @@
  *
  * ## The question
  *
- * Redraw is CLOSED (`handoff/DECISIONS.md`, 2026-08-22) on a price: **43.9
- * mana per extra fish against a cast holding 10.** Two things about that
+ * Redraw is CLOSED (`handoff/DECISIONS.md`, 2026-08-22). It was closed on a
+ * price — **43.9 mana per extra fish against a cast holding 10** — and
+ * **[session 89, QUESTIONS §28 ANSWERED] that price has been retired as the
+ * reason, by user directive**, in favour of *no validated trigger + two unpaid
+ * correctness gaps*. This script is a large part of why. Two things about the
  * number are worth knowing before it is quoted again.
  *
  *  - It was measured on a SIM ARM that redraws on 27–61% of its turns

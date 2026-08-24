@@ -2505,9 +2505,12 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         //       accept that the matcher's history has a hole where a real
         //       movement happened. What ships today.
         //
-        // Session 75's measured figures, for whoever does the recalibration —
-        // these price the feature and they are the reason it stays off, which
-        // is a separate question from which semantics is right:
+        // Session 75's measured figures, for whoever does the recalibration.
+        // [session 89, QUESTIONS §28 ANSWERED] These are NO LONGER the reason
+        // it stays off — that reason is now `no validated trigger + two unpaid
+        // correctness gaps`, one of which is the very hole described above at
+        // :2471 and the other the abort at :1526. The figures still price the
+        // feature, which is a separate question from which semantics is right:
         //
         //   never redraw           catch 24.9%
         //   derived trigger        catch 32.5%   ~43.9 extra mana per extra fish

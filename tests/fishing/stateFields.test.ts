@@ -59,7 +59,10 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // repeatedly once the meter emptied. The CLAIM — regen 0 — is unmoved at
     // 569/569.
     // [session 81] 18 -> 21 across the eight-cast batch.
-    expect(r.oilSkipped).toBe(21);
+    // [session 89] 21 -> 24 across session 87's twenty-cast batch. Attributed,
+    // not assumed: re-running this audit with those 20 traces excluded returns
+    // 21 exactly, so the whole move is new corpus and none of it is drift.
+    expect(r.oilSkipped).toBe(24);
   });
 
   /**
@@ -153,14 +156,59 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
    * 16). **Card 10 crits for 10 and is in the deck this account is playing**,
    * so the last two rules are separable by ordinary casting. Still do not
    * encode a multiplier until one of them is eliminated.
+   *
+   * ## [session 89] THE BASE-6 SEPARATOR ARRIVED, AND ×1.6 IS FALSIFIED
+   *
+   * Session 87's 20-cast batch produced three more exceptions, and — this is
+   * the part that matters — **they are not three unrelated one-offs. All six
+   * fit ONE rule**, and one of them is exactly the separator asked for above:
+   *
+   *     13055873 t3   card 5, hit 5   FISH_HP_DIFF 8    not lethal
+   *     13055892 t1   card 7, hit 6   FISH_HP_DIFF 9    not lethal   <- base 6
+   *     13055941 t5   card 9, hit 2   FISH_HP_DIFF 3    not lethal
+   *
+   *     base 6:   ×1.5 round-half-up -> 9  ✓
+   *               ×1.6 rounded       -> 10 ✗   FALSIFIED
+   *               floor(6 × 5/3)     -> 10 ✗   (already dead, re-falsified)
+   *
+   * **One of the three candidate rules now survives: ×1.5, round half up.** It
+   * fits all six observations, hit-based and crit-based, lethal and not.
+   *
+   * **It is a narrowed FAMILY, not a proven constant** — and saying otherwise
+   * is the mistake this docblock has avoided twice already. Solving
+   * `actual − 0.5 ≤ base × m < actual + 0.5` on all six pins the multiplier to
+   * **m ∈ [1.5, 1.5833)**. 1.5 sits exactly on the lower endpoint, which is
+   * suggestive and is not a proof; 1.55 also survives. What is eliminated,
+   * cleanly, is 1.6 and everything at or above 1.5833.
+   *
+   * **The next separator is a base of 12 or more** (12 → 18 under 1.5, 19 under
+   * 1.55). No card in any known deck has a base that large, so this is where
+   * ordinary casting stops paying and only a `/offchain/static` read of the
+   * lure would settle it.
+   *
+   * ⚠ **Card 7 exists only in `BASE_DECK`.** The base-6 observation was
+   * reachable at all because the account spent session 87's tail in a
+   * base-deck window (`rodDeck.ts`, `QUESTIONS.md` §29) — the Shroom grant
+   * has no base-6 card. The window that broke `rodDeck.test.ts` is the same
+   * window that paid for this.
+   *
+   * **Still do not encode the multiplier in live card choice.** SPEC §4d and
+   * rule 4 both bar it, `cardChoice.ts` models only the card's half, and one
+   * surviving family member is not a measured constant.
    */
   const KNOWN_CRIT_ANOMALIES = [
     "13022874 t4: card 76 hit=true crit=false predicted Δ-3, actual Δ-5 (5->0/19)",
     "13041046 t9: card 2 hit=true crit=false predicted Δ-5, actual Δ-8 (17->9/20)",
     "13041474 t2: card 38 hit=true crit=true predicted Δ-9, actual Δ-12 (12->0/14)",
+    // [session 89] Session 87's batch. Δ here is the CLAMPED state delta; the
+    // arithmetic below runs on the server's unclamped `FISH_HP_DIFF`, which is
+    // the same number on all three because none of them was lethal.
+    "13055873 t3: card 5 hit=true crit=false predicted Δ-5, actual Δ-8 (10->2/28)",
+    "13055892 t1: card 7 hit=true crit=false predicted Δ-6, actual Δ-9 (19->10/30)",
+    "13055941 t5: card 9 hit=true crit=false predicted Δ-2, actual Δ-3 (9->6/17)",
   ];
 
-  it("fishHp moves by exactly the played card's FISH_HP effect — three documented exceptions", () => {
+  it("fishHp moves by exactly the played card's FISH_HP effect — six documented exceptions", () => {
     const r = auditFishHp(traces);
     expect(r.scored).toBeGreaterThanOrEqual(308);
     expect(r.violations).toEqual(KNOWN_CRIT_ANOMALIES);
@@ -193,6 +241,62 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     expect(Math.round(base * 1.6)).toBe(14); // survives
     expect(Math.floor((base * 5) / 3)).toBe(15); // FALSIFIED — 15 != 14
     expect(Math.floor((base * 5) / 3)).not.toBe(turn.play!.fishHpDiff);
+  });
+
+  it("the base-6 hit eliminates x1.6 — and pins the multiplier to [1.5, 1.5833)", () => {
+    // [session 89] The separator the docblock above asked for, delivered by a
+    // card that only exists in BASE_DECK. Not lethal (19 -> 10 of 30), so the
+    // state delta is the true damage and no unclamped read is needed — but it
+    // is taken off `FISH_HP_DIFF` anyway, because that is the field that
+    // carries the truth in general and a test should exercise the general path.
+    const trace = traces.find((t) => t.docId === "13055892");
+    expect(trace, "cast 13055892 is the base-6 observation; without it this proves nothing").toBeDefined();
+    const turn = trace!.turns.find((t) => t.index === 1)!;
+    expect(turn.play?.fishHpDiff).toBe(9);
+    expect(turn.fishHp).toBeGreaterThan(0); // not lethal, so nothing is clamped
+
+    const card = trace!.cards.get(7)!;
+    const base = card.hitEffects.find((e) => e.type === "FISH_HP" && e.amount > 0)!.amount;
+    expect(base).toBe(6);
+
+    const roundHalfUp = (x: number) => Math.floor(x + 0.5);
+    expect(roundHalfUp(base * 1.5)).toBe(9); // survives
+    expect(Math.round(base * 1.6)).toBe(10); // FALSIFIED — 10 != 9
+    expect(Math.round(base * 1.6)).not.toBe(turn.play!.fishHpDiff);
+    expect(Math.floor((base * 5) / 3)).not.toBe(turn.play!.fishHpDiff);
+  });
+
+  it("all six exceptions fit ONE multiplier, and that interval is [1.5, 1.5833)", () => {
+    // The claim the SPEC-fishing §4 rule text now rests on: these are not six
+    // one-offs, they are one rule seen six times. Solved as an interval rather
+    // than asserted as a constant — round-half-up(base x m) == actual is
+    // equivalent to actual - 0.5 <= base * m < actual + 0.5.
+    const observed: { base: number; actual: number }[] = [
+      { base: 3, actual: 5 },
+      { base: 5, actual: 8 },
+      { base: 9, actual: 14 }, // crit base
+      { base: 5, actual: 8 },
+      { base: 6, actual: 9 }, // the separator
+      { base: 2, actual: 3 },
+    ];
+    expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
+
+    let lo = -Infinity;
+    let hi = Infinity;
+    for (const o of observed) {
+      lo = Math.max(lo, (o.actual - 0.5) / o.base);
+      hi = Math.min(hi, (o.actual + 0.5) / o.base);
+    }
+    expect(lo).toBeCloseTo(1.5, 6);
+    expect(hi).toBeCloseTo(19 / 12, 6); // 1.58333..., set by the base-6 row
+    expect(lo).toBeLessThan(hi); // a non-empty interval IS the "one rule" claim
+
+    const fits = (m: number) => observed.every((o) => Math.floor(o.base * m + 0.5) === o.actual);
+    expect(fits(1.5)).toBe(true);
+    expect(fits(1.55)).toBe(true); // still not a proven constant
+    expect(fits(1.6)).toBe(false);
+    expect(fits(5 / 3)).toBe(false);
+    expect(fits(1.4)).toBe(false);
   });
 
   it("THE SEPARATION: an additive crit rule cannot fit both, a multiplicative one does", () => {
@@ -300,7 +404,9 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // sources compose rather than exclude, which is why the multiplier's base
     // is "whatever this shot's damage would have been" and not "the card's hit
     // amount". `cardChoice.ts` still models only the card's half.
-    expect(corrected.agree).toBe(corrected.scored - 3);
+    // [session 89] 3 -> 6: this subtrahend IS `KNOWN_CRIT_ANOMALIES.length`, not
+    // an independent constant, so it moves with that list by construction.
+    expect(corrected.agree).toBe(corrected.scored - KNOWN_CRIT_ANOMALIES.length);
     // [session 50] 8 → 10 across this session's live batch, every one again
     // exactly `critEffects` at a cell inside the card's TRANSLATED
     // `critZones`. The discrimination is now 391/391 with 10 crits for the
@@ -321,7 +427,9 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // [session 80] 25 -> 26 across the eight-cast batch.
     // [session 81] 26 -> 30 across the eight-cast batch, same pattern again:
     // each is `critEffects` at a cell inside the card's TRANSLATED `critZones`.
-    expect(corrected.crits).toBe(30);
+    // [session 89] 30 -> 36 across session 87's twenty-cast batch — same
+    // attribution as `oilSkipped` above: excluding those 20 traces returns 30.
+    expect(corrected.crits).toBe(36);
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

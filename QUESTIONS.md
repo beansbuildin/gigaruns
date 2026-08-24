@@ -1856,7 +1856,7 @@ fail a cast, as session 68's oil shadow did.
 
 ---
 
-## §28 — the REDRAW VERDICT REVISIT, delivered [session 86 §2 / GATE 2, OPEN — needs a yes/no, and it gates §26]
+## §28 — the REDRAW VERDICT REVISIT, delivered [session 86 §2 / GATE 2, **ANSWERED 2026-08-23 — see §28 ANSWERED below**]
 
 **Every number below is computed on `CORPUS-2026-08-23A`** — 148 traces / 612
 plays / 147 resolved, the fishing corpus as of
@@ -1959,3 +1959,118 @@ two unpaid correctness gaps"?**
 user's to re-price. Until an answer comes back, `redrawEnabled` stays false,
 `REDRAW_THRESHOLD` stays untouched, and **no shadow instrumentation gets
 written** — the order was the directive.
+
+---
+
+## §28 ANSWERED [session 89, user directive 2026-08-23] — (a) ACCEPT THE RE-PRICING
+
+**The user's ruling, verbatim:**
+
+> *"Accept the re-pricing — keep redraw closed, but retire '43.9 mana per extra
+> fish' as the stated reason and restate it as 'no validated trigger + two
+> unpaid correctness gaps.'"*
+
+**What this changes: the STATED REASON, and only that.** From this point the
+reason redraw is closed is **no validated trigger + two unpaid correctness gaps
+(both fixable offline, neither fixed)**. "43.9 mana per extra fish against a
+cast holding 10" is retired as a justification wherever it was doing that job.
+
+**What it does NOT change, and this is the half a later reader will get wrong.**
+The verdict itself was never in question in either direction. `redrawEnabled`
+stays **false**, `REDRAW_THRESHOLD` stays **0 and untouched**, and no live-path
+line moved in session 89 any more than it did in session 86. Re-pricing a
+verdict is not weakening it — under the restated reason the two correctness gaps
+at `scripts/liveFishing.ts:2471` and `:1526` are now the *named* blockers rather
+than a supporting detail, which if anything makes the closure more concrete.
+
+**43.9 is retired as a REASON, not deleted as a MEASUREMENT.** Session 75
+measured it and session 86 dissected it; every sentence reporting it as
+*"this is what session 75 measured, on `castSim`'s suspended `SIM bare` arm"*
+stays exactly as written. What gets replaced is any sentence using it to answer
+*"why is redraw closed today?"*
+
+**§26's shadow evaluation is now UNBLOCKED.** The prerequisite the user set when
+answering §26 — revisit the verdict first, instrument second — is met. The
+shadow evaluation is the instrument that would produce the out-of-sample trigger
+evidence the restated reason names as missing, so it is the natural next fishing
+task. **It was deliberately NOT started in session 89**, per that session's
+brief: it is a large enough piece of work to deserve its own brief rather than
+being bolted onto a cleanup session, and starting it badly is worse than
+starting it next.
+
+**Unchanged standing constraints:** rule 4 puts any live-path edit behind a sim
+gate; rule 5 requires it to fail closed; the shadow path, when written, computes
+and logs inside a `try/catch` that can never fail a cast, as session 68's oil
+shadow did.
+
+---
+
+## §29 — a cast can be dealt the BASE DECK with the rod still equipped, and nothing in this repo knows why [session 89 §2, OPEN — needs one live read, not a run]
+
+**Found while fixing what STATE.md called "`REAL_DECK` no longer matches the
+account's rod". That description was wrong**, and the way it was wrong is the
+finding: `REAL_DECK` matches the rod fine. What broke is the independent
+PLAY-side assertion in `tests/fishing/rodDeck.test.ts`, and the claim it encoded
+— *"every cast's `fullDeck` opens with exactly the granted set"* — is false.
+
+### The counterexample, which is about as tight as a corpus can produce
+
+Two consecutive casts, **15 seconds apart**, with a **byte-identical
+`GEAR_CID_array`** — same instances, same mint stamps:
+
+```
+  2026-08-24T00:01:31.205Z   fullDeck [74,75,76,78,1,2,3,4,5,6,29]   Shroom grant
+  2026-08-24T00:01:46.915Z   fullDeck [ 1,2, 3, 4,5,6,7,8,9,10,29]   BASE_DECK
+```
+
+Same node (5), same `LEVEL_CID` (20), same `day` (20688), same juice, same
+multiplier, same looted tail card (`29`). Nothing on the doc distinguishes them.
+
+### What is established
+
+- **It is not a third rod.** All eight rods in `/offchain/static` were checked
+  (49 Wood, 50 Stone, 336 Phin's, 811 Shroom, 812 Golkan, 922 Makeshift, 923
+  Dendren, 924 Puppeteer's). **None grants `[1..10]`.**
+- **`[1..10]` is the un-bonused deck.** 7/8/9/10 cover exactly the hit zones
+  74/75/76/78 do — `[1,3,7,9]`, `[2,4,6,8]`, the eight-cell ring, and the
+  centre-crit card — with strictly worse hit and miss numbers. The rod grant
+  upgrades four cards in place; a base window is those four un-upgraded.
+- **It has happened twice and the first window ENDED.** 2026-08-17T05:57:37.799Z
+  (also gear-identical across the flip, 21 casts, Makeshift era) and
+  2026-08-24T00:01:46.915Z (17 casts, current). The 2026-08-17 window ended and
+  the rod deck came back on 2026-08-18. **So this is an intermittent STATE, not
+  a rod change** — which is why `REAL_DECK` was NOT repointed to it.
+- **`GEAR_CID_array` never identified the active rod.** It carries Stone Rod
+  (50) alongside Shroom Rod (811) on every recent cast. The old test only ever
+  saw one rod because `latestRodObservation` filters to `ROD_CARD_GRANTS`, which
+  lists two of the eight.
+- **38 of the corpus's 149 casts were dealt `BASE_DECK`** and no figure in this
+  repo has ever said so. They are neither Makeshift-era nor Shroom-era traces.
+
+### What is NOT established, and is not guessed at
+
+The cause. Durability or charges running out, a per-day grant allowance, a
+server-side equip that `GEAR_CID_array` does not reflect, and a plain server bug
+are all consistent with the above, and **nothing in the fixtures separates
+them**. SPEC §4d's standing rule applies: do not infer a mechanic from what it
+resembles.
+
+### THE QUESTION — and it is cheap
+
+**When you are next in the game, is the Shroom Rod still equipped and does it
+show durability, charges, or a per-day limit?** One look at the rod in the
+fishing UI answers this at zero cost and would separate every hypothesis above.
+
+Failing that, the offline half — **does a base window start at a fixed cast
+count into a day?** — is measurable from the corpus now (2026-08-17 flipped 4
+casts in, 2026-08-24 flipped 3 casts in) but n=2 establishes nothing, so it is
+recorded as an observation rather than run as an analysis.
+
+### Consequence to carry meanwhile
+
+**A sim figure quoted against recent live play is quoted against the wrong
+deck.** `REAL_DECK` is the Shroom grant; the account's most recent 17 casts were
+dealt `BASE_DECK`. This is the Makeshift/Shroom break a second time, and it has
+the same rule: **say which deck a comparison used.** `rodDeck.test.ts` now
+asserts out loud which window the corpus's latest cast is in, so the fact is
+recorded rather than inferred.

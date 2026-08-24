@@ -358,7 +358,10 @@ function main(): void {
   // re-implemented, so the two reports cannot drift apart. Together they say
   // which scarcity a policy should be priced against — and the price that
   // closed redraw (43.9 mana per extra fish, DECISIONS 2026-08-22) was quoted
-  // against the abundant one.
+  // against the abundant one. **[session 89] The user accepted that argument:
+  // QUESTIONS §28 ANSWERED retires the price as the stated reason. Redraw is
+  // still closed, now on `no validated trigger + two unpaid correctness
+  // gaps`.**
   console.log("\n── §4a  THE MANA SLACK — the resource that is NOT scarce ──");
   // Unfiltered on purpose, and it is the ONE block here that is: every other
   // figure on this page needs a replayable trajectory and so takes

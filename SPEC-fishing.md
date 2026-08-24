@@ -165,7 +165,7 @@ Observed types, one array per response, describing what happened that turn:
 | `FISH_MOVED` | every turn | `data.path`: array of the cell(s) traversed, encoded as a single 1-based **column-major** index over the grid (`(x-1)*gridSize + y`, verified against `fishPosition` on every turn of the real cast — e.g. `[4,3]` on a 4×4 grid ⇒ `(4-1)*4+3 = 15`, matching the captured `value` exactly) |
 | `CARD_PLAYED` | every turn | `value`: **the hand index played** (**[CORRECTED 2026-08-15, session 12]** — NOT "0 (miss) or 1 (hit)" as this row previously said; refuted directly by the real cast, where the one genuine hit has `value: 0` and three of the four misses have `value: 1`, tracking the played hand index exactly), `data.result`: **1 on a hit, 0 on a miss** (this is the actual hit/miss flag this row's `value` was wrongly assumed to be) |
 | `HIT` | on a hit only | `value`: damage dealt, `data.result`: catch meter after |
-| `FISH_HP_DIFF` | every turn | `value`: the effect amount applied this turn (`hitEffects[0].amount`, positive, on a hit; `missEffects[0].amount`, negative, on a miss) — **[CORRECTED]** applied as `fishHp -= value`, not `fishHp += value`: a hit's positive value *subtracts* (meter falls toward 0, the catch condition), a miss's negative value *subtracts a negative* (meter rises toward `fishMaxHp`, the escape condition). Verified turn-by-turn against the real cast's own `fishHp` field: `13→16→19→14→17→20`, exactly matching `old − value` at every step. `data.result`: meter after. |
+| `FISH_HP_DIFF` | every turn | `value`: the effect amount applied this turn (`hitEffects[0].amount`, positive, on a hit; `missEffects[0].amount`, negative, on a miss) — **[CORRECTED]** applied as `fishHp -= value`, not `fishHp += value`: a hit's positive value *subtracts* (meter falls toward 0, the catch condition), a miss's negative value *subtracts a negative* (meter rises toward `fishMaxHp`, the escape condition). Verified turn-by-turn against the real cast's own `fishHp` field: `13→16→19→14→17→20`, exactly matching `old − value` at every step. `data.result`: meter after. **[session 89] The rule has SIX documented exceptions, not three, and they are all one rule** — a lure crit scaling the shot's base damage by `m ∈ [1.5, 1.5833)`, round half up; see §4's crit-anomaly sections. |
 | `NEW_HAND` | when the hand is played down to empty | `value`: the new hand array (**[CORRECTED]** not "when the hand changes" generally — in the real cast this fired exactly once, the turn the hand reached 0 cards, not on every card played; the hand refills to its starting size from `fullDeck` via `nextCardIndex` on empty, not per turn and not tied to hit/miss) |
 | `FISH_ESCAPED` | cast-ending escape | no payload. **[CORRECTED]** fires when `fishHp` reaches `fishMaxHp` (confirmed: the real cast escaped at `fishHp 20/20`, `playerHp` still 5/10) — not when mana reaches zero, which `SPEC.md §5` wrongly claimed before this session; see `SPEC.md §5`'s own correction. |
 | `FISH_DIED` | cast-ending catch — **[CONFIRMED 2026-08-16, session 15, live]**, resolves the row below | fires the turn `fishHp` reaches 0. `value`: the caught fish's `gameItemId`. `data.fish`: the full `caughtFish` object (see below) duplicated. **NOT** `FISH_CAUGHT` as the naming-symmetry guess below assumed — corrected now that a catch has actually been observed. |
@@ -319,6 +319,58 @@ models only the card's half.
 16). **Card 10 crits for 10 and is in the deck this account is playing**, so
 the last two rules are separable by ordinary casting. **Still do not encode a
 multiplier** until one of them is eliminated.
+
+### [session 89] THE BASE-6 SEPARATOR ARRIVED — `×1.6` IS FALSIFIED, AND ALL SIX EXCEPTIONS ARE ONE RULE
+
+*Live, 2026-08-24, session 87's twenty-cast batch, three more exceptions.* The
+question this session was asked was whether the three new ones share a nameable
+cause or are unrelated one-offs. **They share one, and it is the same cause as
+the original three** — which is why the rule text below changes and the
+exception list is not merely lengthened.
+
+```
+  13055873 t3   card 5, hit 5   FISH_HP_DIFF 8    not lethal
+  13055892 t1   card 7, hit 6   FISH_HP_DIFF 9    not lethal   <- the separator
+  13055941 t5   card 9, hit 2   FISH_HP_DIFF 3    not lethal
+```
+
+**The base-6 row is the one that was being waited for**, and it settles the
+question the section above left open:
+
+```
+  base 6:   ×1.5 round-half-up  ->  9   ✓ survives
+            ×1.6 rounded        -> 10   ✗ FALSIFIED
+            floor(6 × 5/3)      -> 10   ✗ (already dead; re-falsified)
+```
+
+**One of the three candidate rules survives: `×1.5`, round half up.** It fits
+all six observations — hit-based and crit-based, lethal and not — which is the
+claim that makes these six exceptions to one rule rather than six accidents.
+
+⚠ **It is a NARROWED FAMILY, not a proven constant.** Solving
+`actual − 0.5 ≤ base × m < actual + 0.5` across all six pins the multiplier to
+**m ∈ [1.5, 1.5833)**. 1.5 sits exactly on the lower endpoint — suggestive, not
+a proof — and **1.55 survives too**. What is cleanly eliminated is 1.6 and
+everything at or above 1.5833. Do not write "the lure multiplies damage by 1.5"
+as a measured fact; write the interval.
+
+**The next separator is a base of 12 or more** (12 → 18 under 1.5, 19 under
+1.55). No card in any deck this repo knows carries a base that large, so
+ordinary casting has stopped paying here; only a `/offchain/static` read of the
+lure itself would close the interval further.
+
+**Card 7 exists only in `BASE_DECK`.** This observation was reachable at all
+because the account spent session 87's tail in a base-deck window — the Shroom
+grant has no base-6 card. The anomaly that broke `tests/fishing/rodDeck.test.ts`
+(`QUESTIONS.md` §29) is the same anomaly that paid for this result.
+
+**Still do not encode the multiplier in live card choice.** §4d and CLAUDE.md
+rule 4 both bar it, and one surviving family member is not a measured constant.
+`cardChoice.ts` continues to model only the card's half.
+
+Pinned in `tests/fishing/stateFields.test.ts` — the six-entry exact list, the
+base-6 falsification on the unclamped `FISH_HP_DIFF`, and the interval solved
+from the six rows rather than typed in.
 
 ---
 
@@ -685,6 +737,42 @@ comparison against recent live play must state which deck it used**, and a deck
 sweep should re-run `fishingEmpiricalAblation.ts` §3 with the Shroom set before
 its verdict is quoted.
 (DECISIONS.md 2026-08-14).
+
+### ⚠ [session 89] THE STRONGER READING OF THIS IS FALSIFIED — A ROD IN `GEAR_CID_array` DOES NOT MEAN ITS GRANT IS DEALT
+
+The claim above that survives is *a rod grants a starting card set*. The claim
+that does not is the one this section leant on to confirm it against play —
+**"every cast's `fullDeck` matched the rod's list"**. It does not. Two
+consecutive casts **15 seconds apart** with a **byte-identical
+`GEAR_CID_array`** (same instances, same mint stamps) were dealt different
+decks:
+
+```
+  2026-08-24T00:01:31.205Z   fullDeck [74,75,76,78,1,2,3,4,5,6,29]   Shroom grant
+  2026-08-24T00:01:46.915Z   fullDeck [ 1,2, 3, 4,5,6,7,8,9,10,29]   BASE_DECK
+```
+
+Same node, same level, same `day`, same juice, same looted tail. What follows:
+
+- **`[1..10]` is the UN-BONUSED deck, not a ninth rod.** All eight rods in
+  `/offchain/static` were checked (49, 50, 336, 811, 812, 922, 923, 924) and
+  none grants it. Cards 7/8/9/10 cover exactly the hit zones 74/75/76/78 do —
+  `[1,3,7,9]`, `[2,4,6,8]`, the eight-cell ring, the centre-crit card — with
+  strictly worse numbers. A rod upgrades four cards in place.
+- **It is intermittent, not a rod change.** It happened twice
+  (2026-08-17, 21 casts; 2026-08-24, 17 casts) and the first window ENDED, the
+  rod deck returning on 2026-08-18. `REAL_DECK` is therefore NOT repointed.
+- **`GEAR_CID_array` never identified the ACTIVE rod.** It carries Stone Rod
+  (50) alongside Shroom Rod (811) on every recent cast.
+- **38 of the corpus's 149 casts were dealt `BASE_DECK`** and no figure in this
+  repo has ever said so — they are neither Makeshift-era nor Shroom-era traces.
+  This is the Makeshift/Shroom caveat a second time, with the same obligation:
+  **say which deck a comparison used.**
+
+**The cause is UNKNOWN and is not guessed at** — durability, a per-day grant
+allowance, an equip the array does not reflect and a server bug all fit, and the
+fixtures separate none of them. `QUESTIONS.md` §29 asks the user for the one
+cheap live read that would.
 
 ---
 
@@ -1094,11 +1182,18 @@ everything below it, not the one thing you were thinking about.** The audit
 enumerated three charges and checked each; it did not enumerate what else the
 statement jumped over.
 
-**REDRAW IS STILL CLOSED** and this does not reopen it — 43.9 mana per extra
-fish against a cast holding 10 in total is unaffordable at either figure, and
-CLAUDE.md rule 4 bars a live change on a sim result regardless. What changed is
-the recorded REASON: the old write-up called the gain "not distinguishable from
-zero", which was true at |t| = 1.4 and is false at |t| = 7.6.
+**REDRAW IS STILL CLOSED** and this does not reopen it. CLAUDE.md rule 4 bars a
+live change on a sim result regardless. What changed is the recorded REASON: the
+old write-up called the gain "not distinguishable from zero", which was true at
+|t| = 1.4 and is false at |t| = 7.6.
+
+⚠ **[session 89] The REASON was re-priced again, by user directive, and 43.9 is
+no longer it.** Redraw is closed on **no validated trigger + two unpaid
+correctness gaps** (`scripts/liveFishing.ts:2471` and `:1526`, both fixable
+offline, neither fixed) — QUESTIONS §28 ANSWERED. The 43.9 figure above and in
+the table remains a correct RECORD of what session 75 measured on `castSim`'s
+`SIM bare` arm, which OIL-POLICY.md §0a suspends for this fishery; it is simply
+not the answer to "why is redraw closed today?" any more.
 
 Note this is the same missing step already recorded as unresolved item 1 below
 (the matcher observation), seen from the sim side rather than the live side.

@@ -831,9 +831,12 @@ export function simulateCast(opts: CastOptions): CastResult {
       // the mana, and that term is the larger one. Hit rate per shot
       // 35.6% -> 45.4% between the arms under the fix.
       //
-      // **Redraw stays CLOSED, but on PRICE, not on effect** — 43.9 mana
-      // against a cast holding 10 in total is unaffordable at either figure,
-      // and CLAUDE.md rule 4 bars a live change on a sim result regardless.
+      // **Redraw stays CLOSED, and NOT on effect** — CLAUDE.md rule 4 bars a
+      // live change on a sim result regardless. It used to be closed on PRICE
+      // (43.9 mana against a cast holding 10); **[session 89, QUESTIONS §28
+      // ANSWERED] the price is retired as the reason** in favour of *no
+      // validated trigger + two unpaid correctness gaps*. The number below is
+      // still what was measured — it is just no longer what is being argued.
       // What is retracted is the old recorded REASON: the gain was written up
       // as "not distinguishable from zero", true at |t| = 1.4 and false at
       // |t| = 7.6. SPEC-fishing §7a carries the retraction and the full table.
