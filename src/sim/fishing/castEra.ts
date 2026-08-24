@@ -17,11 +17,111 @@
  * So the era split is a module rather than a line in a report: it is the thing
  * that has to go into the next instrument too.
  *
- * ## The era predicate, and why it is a date off the FIXTURES
+ * ## The era predicate — THREE eras, and the middle boundary is a SUPPLY event
  *
- * A cast belongs to today's era when its `doc.createdAt` falls on or after
- * `POLICY_ERA_BOUNDARY` (2026-08-21, UTC). Three things justify that reading
- * over the alternatives, all of them measured rather than assumed:
+ * [session 92, QUESTIONS.md §32 ANSWERED — option (b), user directive
+ * 2026-08-24] **This module used to carry two eras, `before` and `today`, and
+ * the second one was wrong in a way that took three batches to see.** Four
+ * era-conditioned claims in `castEra.test.ts` degraded monotonically across
+ * three consecutive batches — the budget-zero ratio ~30x -> 6.48x -> 3.92x,
+ * the redraw rescue rate 15/15 -> 26/32 -> 30/42, `wasted` {0} -> {0,3,4,5,6}
+ * -> {0,3,6,7,9,10,11,12}. §32 offered two readings: converging small-sample
+ * estimates, or a predicate that had stopped naming one population. **It is
+ * the second, and the pooled thing is not a policy — it is the FOCUS OIL
+ * STOCK.**
+ *
+ * The three eras, and what each one IS:
+ *
+ *  - **`preOil`** — before `POLICY_ERA_BOUNDARY` (2026-08-21, UTC, day
+ *    precision). No oil policy at all; fires zero oils, which is what makes it
+ *    the restore-free control `assertCastEraSound` pins.
+ *  - **`oilSupplied`** — on/after that boundary and before `FOCUS_DRY_BOUNDARY`.
+ *    The oil policy is live AND Focus Oil (itemId 942) is in stock.
+ *  - **`focusDry`** — on/after `FOCUS_DRY_BOUNDARY`. The oil policy is still
+ *    live and unchanged; **Focus Oil stock is zero**, so the meter-restoring
+ *    half of it cannot fire.
+ *
+ * ## Why the second boundary is where it is — measured, to 5.6 seconds
+ *
+ * `logs/fishing-*.jsonl` records every `use_fishing_item` POST and every
+ * `oil_trigger_no_stock` refusal with its itemId. The last Focus Oil (942)
+ * POST that succeeded is **2026-08-24T00:02:51.543Z**; the first
+ * `oil_trigger_no_stock` for 942 is **2026-08-24T00:02:57.148Z**, 5.6 seconds
+ * later, and 942 never fires again — 36 further no-stock refusals follow, 17
+ * in that batch and 19 in the next. The boundary literal is that first
+ * refusal. This is a far tighter bracket than the first boundary's 20.3-hour
+ * gap, which is why it is stated to the millisecond and why `eraOf` compares
+ * the FULL timestamp here rather than the date.
+ *
+ * ⚠ **Day precision genuinely cannot express this boundary** — it falls inside
+ * a single 20-cast batch (2026-08-24T00:01:04 -> 00:05:48), splitting it 8/12.
+ * That is why the second comparison is a full-string one. The first boundary
+ * stays at day precision because its 20.3-hour empty gap makes every literal
+ * inside it equivalent; nothing is gained by pretending to more resolution
+ * than the corpus has.
+ *
+ * ## The evidence that the cut is real, and it is DECK-CONTROLLED
+ *
+ * The budget-zero rate against Focus Oil supply is a clean dose-response, and
+ * the last row is the one that carries the causal claim:
+ *
+ * ```
+ *   era / cluster              Focus POSTs   plays   budget-0   rate
+ *   preOil (no oil policy)               0     410        184   44.9%
+ *   2026-08-21                          13     110          2    1.8%
+ *   2026-08-22                           7      70          1    1.4%
+ *   2026-08-23                           3      22          0    0.0%
+ *   2026-08-24 00:0x (dries mid-batch)   3      87         17   19.5%
+ *   2026-08-24 19:1x (dry throughout)    0      52         19   36.5%
+ * ```
+ *
+ * **`focusDry` is not a new policy behaving worse; it is the OLD regime
+ * returning because the consumable ran out.** 33.0% against `preOil`'s 44.9%.
+ *
+ * The confound has to be named: 12 of `focusDry`'s 22 casts are BASE-DECK
+ * casts from the §29 rod-durability window, and a base deck could explain a
+ * worse budget on its own. **It does not explain this one, because the
+ * comparison survives holding the deck fixed** — restricted to rod-dealt casts
+ * only, `oilSupplied` reads 3 budget-zero plays of 215 (**1.4%**) and
+ * `focusDry` reads 19 of 52 (**36.5%**), a factor of 26 with the same deck,
+ * the same policy and the same code. The 2026-08-24 19:1x cluster is that
+ * comparison on its own: ten rod-dealt casts, zero Focus Oil, 19 no-stock
+ * refusals, old-regime budget-zero.
+ *
+ * ## What the corrected split does to the four §32 claims
+ *
+ * Every one of them was contaminated rather than converging — session 89's
+ * "~30x" was RIGHT for the oil-supplied era and decayed only because dry casts
+ * were being pooled into it:
+ *
+ * ```
+ *   claim                          2-era `today`      3-era `oilSupplied`
+ *   budget-zero ratio                     3.92x                  26.37x
+ *   budget-zero rate                      11.4%                    1.7%
+ *   redraw rescue rate                30/42 71%              21/22 95.5%
+ *   redrawCounterfactual.neither             12                       1
+ * ```
+ *
+ * ⚠ **The `meanOptimal` bound is a SEPARATE defect and this split does not fix
+ * it — see `openingOverspendSplit`.** Do not read the table above as rescuing
+ * that assertion too.
+ *
+ * ## Why the predicate is still a DATE LITERAL and not a stock reading
+ *
+ * The supply itself is not in the committed fixtures — it is in gitignored
+ * `logs/`. So the module does what it already did for the first boundary: it
+ * commits the INSTANT as a literal, justified by evidence cited here, and
+ * classifies casts using only `doc.createdAt`, which is committed and constant
+ * within a cast. A fresh clone reproduces every era-conditioned number in this
+ * file without `logs/` present. **The literal is a measurement, not a
+ * preference; if the user restocks Focus Oil, that opens a FOURTH era and a
+ * new boundary — do not silently widen `focusDry` to cover it.**
+ *
+ * ## Why it is a date off the FIXTURES (the first boundary's original case)
+ *
+ * A cast belongs to a post-`preOil` era when its `doc.createdAt` falls on or
+ * after `POLICY_ERA_BOUNDARY` (2026-08-21, UTC). Three things justify that
+ * reading over the alternatives, all of them measured rather than assumed:
  *
  *  1. **`doc.createdAt` is constant across a cast's states** — 148 of 148 on
  *     the corpus as committed — so it dates the CAST, not the response. This
@@ -47,8 +147,8 @@
  *     `assertEraPredicatesAgree` below states the comparison so a future
  *     session re-checks it instead of re-litigating it.
  *
- * ⚠ **The boundary is a bracket, not a moment.** The corpus's last old-regime
- * cast is 2026-08-20T18:28:24Z and its first new-regime cast is
+ * ⚠ **The FIRST boundary is a bracket, not a moment.** The corpus's last
+ * `preOil` cast is 2026-08-20T18:28:24Z and its first oil-era cast is
  * 2026-08-21T14:46:17Z — a 20.3-hour gap with no casts in it. Any date literal
  * inside that gap gives identical answers. 2026-08-21 is chosen because it is
  * the one the session-84 brief used and because a date is legible; nothing
@@ -65,10 +165,23 @@ import { budgetBefore, cardCovers } from "./matcherHeadroom.js";
 import { allCells, cellKey, manhattan, zonesToCells } from "./geometry.js";
 
 /**
- * The date, UTC, on and after which a cast belongs to today's policy era.
- * See the header: it is a bracket midpoint, not a measured instant.
+ * The date, UTC, on and after which the oil policy is live. Day precision.
+ * See the header: it is a bracket midpoint, not a measured instant — the
+ * corpus has a 20.3-hour hole around it.
  */
 export const POLICY_ERA_BOUNDARY = "2026-08-21";
+
+/**
+ * [session 92] The INSTANT, UTC, at and after which Focus Oil (itemId 942) is
+ * out of stock, so the meter-restoring half of the oil policy cannot fire.
+ *
+ * Unlike `POLICY_ERA_BOUNDARY` this is a measured moment, not a bracket
+ * midpoint: it is the first `oil_trigger_no_stock` for 942 in
+ * `logs/fishing-*.jsonl`, 5.6 seconds after the last 942 POST that succeeded
+ * (2026-08-24T00:02:51.543Z). It is compared at FULL timestamp precision
+ * because it falls inside a single 20-cast batch, which a date cannot split.
+ */
+export const FOCUS_DRY_BOUNDARY = "2026-08-24T00:02:57.148Z";
 
 /**
  * The focus meter's per-cast pool. `focusMeterMax` reads 3 on **all 148**
@@ -78,7 +191,16 @@ export const POLICY_ERA_BOUNDARY = "2026-08-21";
  */
 export const FOCUS_POOL = 3;
 
-export type Era = "before" | "today";
+/**
+ * [session 92] Three eras, not two. `preOil` fires no oils at all;
+ * `oilSupplied` has the oil policy AND Focus Oil stock; `focusDry` has the
+ * same policy with the stock exhausted. The old two-era `"before" | "today"`
+ * model pooled the last two and that pooling is what §32 was about.
+ */
+export type Era = "preOil" | "oilSupplied" | "focusDry";
+
+/** The eras in chronological order — for iteration and table rendering. */
+export const ERAS: readonly Era[] = ["preOil", "oilSupplied", "focusDry"] as const;
 
 /**
  * Every cast's `doc.createdAt`, off the committed fixtures.
@@ -133,7 +255,10 @@ export function eraOf(docId: string, created: ReadonlyMap<string, string>): Era 
         `Do not default it — find the timestamp or exclude the cast explicitly.`,
     );
   }
-  return at.slice(0, 10) < POLICY_ERA_BOUNDARY ? "before" : "today";
+  if (at.slice(0, 10) < POLICY_ERA_BOUNDARY) return "preOil";
+  // Full-timestamp comparison, deliberately: this boundary falls INSIDE one
+  // batch and day precision would put all 20 of its casts on the same side.
+  return at < FOCUS_DRY_BOUNDARY ? "oilSupplied" : "focusDry";
 }
 
 /** Split traces into the two eras, preserving order within each. */
@@ -141,7 +266,7 @@ export function splitByEra(
   traces: readonly CastTrace[],
   created: ReadonlyMap<string, string>,
 ): Record<Era, CastTrace[]> {
-  const out: Record<Era, CastTrace[]> = { before: [], today: [] };
+  const out: Record<Era, CastTrace[]> = { preOil: [], oilSupplied: [], focusDry: [] };
   for (const t of traces) out[eraOf(t.docId, created)].push(t);
   return out;
 }
@@ -240,15 +365,23 @@ export interface FocusEraArm {
   caught: number;
 }
 
-/** The §1a table: plays at focus budget 0, before / today / pooled. */
+/**
+ * The §1a table: plays at focus budget 0, one arm per era plus pooled.
+ *
+ * [session 92] Three arms now. `oilSupplied` is the arm that answers "how does
+ * the bot play when the policy can actually fire"; `focusDry` is the same
+ * policy starved of Focus Oil, and it reverts most of the way to `preOil`.
+ * **Quoting `all` as "the bot today" pools all three and is what §32 was.**
+ */
 export function focusEraSplit(
   traces: readonly CastTrace[],
   created: ReadonlyMap<string, string>,
-): { before: FocusEraArm; today: FocusEraArm; all: FocusEraArm } {
+): { preOil: FocusEraArm; oilSupplied: FocusEraArm; focusDry: FocusEraArm; all: FocusEraArm } {
   const split = splitByEra(traces, created);
   return {
-    before: armOf("before", split.before),
-    today: armOf("today", split.today),
+    preOil: armOf("preOil", split.preOil),
+    oilSupplied: armOf("oilSupplied", split.oilSupplied),
+    focusDry: armOf("focusDry", split.focusDry),
     all: armOf("all", traces),
   };
 }
@@ -371,13 +504,17 @@ export function budgetZeroDecomposition(
   created: ReadonlyMap<string, string>,
 ): EraDecomposition {
   const split = splitByEra(traces, created);
-  const before = armOf("before", split.before);
-  const today = armOf("today", split.today);
+  const before = armOf("preOil", split.preOil);
+  // [session 92] The decomposition explains the IMPROVEMENT, so its second arm
+  // is `oilSupplied`, not every post-boundary cast. `focusDry` is the same
+  // policy with the consumable exhausted — it is the improvement being
+  // WITHDRAWN, and folding it in here would net the two against each other.
+  const today = armOf("oilSupplied", split.oilSupplied);
 
-  const { rate: standardisedRate, unmatchedPlays } = standardise(split.before, split.today);
+  const { rate: standardisedRate, unmatchedPlays } = standardise(split.preOil, split.oilSupplied);
 
   let noRestore = 0;
-  for (const t of split.today) noRestore += budgetZeroPlaysWithoutRestore(t);
+  for (const t of split.oilSupplied) noRestore += budgetZeroPlaysWithoutRestore(t);
   const noRestoreRate = today.plays === 0 ? 0 : noRestore / today.plays;
 
   return {
@@ -474,13 +611,13 @@ export function assertCastEraSound(
     }
   }
   const split = splitByEra(traces, created);
-  const oiledBefore = split.before.filter(firedOil);
+  const oiledBefore = split.preOil.filter(firedOil);
   if (oiledBefore.length > 0) {
     throw new Error(
       `castEra: ${oiledBefore.length} before-era cast(s) fired an oil (${oiledBefore
         .slice(0, 5)
         .map((t) => t.docId)
-        .join(", ")}). The before era is the restore-free control the no-restore counterfactual is ` +
+        .join(", ")}). The preOil era is the restore-free control the no-restore counterfactual is ` +
         `validated against; it no longer is.`,
     );
   }
@@ -502,7 +639,11 @@ export function compareEraPredicates(
   otherEraCastIds: ReadonlySet<string>,
 ): { agree: boolean; dateOnly: string[]; otherOnly: string[]; otherOnlyPlays: number; otherOnlyBudgetZero: number } {
   const byId = new Map(traces.map((t) => [t.docId, t]));
-  const dateEra = new Set(traces.filter((t) => eraOf(t.docId, created) === "today").map((t) => t.docId));
+  // [session 92] The matcherWeight comparison is about the FIRST boundary only,
+  // so the date arm is "not preOil" — both post-boundary eras. Keying it on
+  // `=== "oilSupplied"` would silently move 22 focusDry casts into the
+  // disagreement set and break a comparison that has nothing to do with them.
+  const dateEra = new Set(traces.filter((t) => eraOf(t.docId, created) !== "preOil").map((t) => t.docId));
   const other = new Set([...otherEraCastIds].filter((d) => byId.has(d)));
   const dateOnly = [...dateEra].filter((d) => !other.has(d)).sort();
   const otherOnly = [...other].filter((d) => !dateEra.has(d)).sort();
@@ -592,20 +733,58 @@ export function deckCritFraction(t: CastTrace): number {
  * The measured answer, on the corpus as committed:
  *
  * ```
- *            casts  hand footprint  actual  optimal  OVERSPEND
- *   before      94      7.38 cells   1.553    0.656      +0.90
- *   today       54      7.20 cells   0.852    0.648      +0.20
+ *                 casts  hand footprint  actual  optimal  OVERSPEND
+ *   preOil           94      7.38 cells   1.553    0.656      +0.90
+ *   oilSupplied      62            —      0.807    0.645      +0.16
+ *   focusDry         22            —      0.864    0.591      +0.27
  * ```
  *
- * **The optimal move is unchanged — 0.656 against 0.648** — and so is its
- * whole distribution (distance 0 on 44% / 48%, 1 on 46% / 39%, 2 on 10% / 13%).
- * What collapsed is the overspend, 0.90 -> 0.20.
+ * **The optimal move is unchanged across all three eras** — 0.656 / 0.645 /
+ * 0.591 — and so is its whole distribution. What collapsed is the overspend.
  *
  * This closes three doors at once, which is more than intrinsic reach did:
  * the targets did not get closer, the hands did not get wider (7.38 vs 7.20
  * cells), and the opening focus point is pinned at (2,2) by
  * `assertOpeningFocusPinned`. Whatever changed, it changed how far the bot
  * CHOOSES to move — nothing about what it was moving toward.
+ *
+ * ## ⚠ [session 92] HOW "unchanged" MAY AND MAY NOT BE TESTED
+ *
+ * This premise used to be pinned as `|preOil.meanOptimal − today.meanOptimal|
+ * < 0.01`, and §32 opened because that assertion went red (0.0062 -> 0.0250).
+ * **The assertion was the defect, not the premise, and re-specifying the era
+ * predicate does not fix it** — on the corrected split the gap is 0.0108,
+ * which still fails a 0.01 bound.
+ *
+ * `optimal` is a per-cast integer in {0, 1, 2} with a standard deviation of
+ * about 0.66. At n≈94 and n≈62 the standard error of each arm's mean is ~0.07
+ * to ~0.09, so **the standard error of the DIFFERENCE is ~0.11**. A 0.01 bound
+ * is one tenth of one standard error: it asserts agreement roughly twenty
+ * times finer than this corpus can resolve. Session 89's 0.0062 reading was
+ * therefore not evidence of anything — it was a coincidence with a ~7% chance
+ * of landing that small — and calling it "the single most important thing in
+ * the file that did NOT move" over-read it. It was always going to break.
+ *
+ * The premise itself is in excellent shape, and holds pairwise across all
+ * three eras rather than merely across two:
+ *
+ * ```
+ *   comparison                  gap     SE(diff)   gap/SE   verdict
+ *   preOil vs oilSupplied    0.0108      0.1120     0.10    indistinguishable
+ *   preOil vs focusDry       0.0650      0.1428     0.46    indistinguishable
+ *   oilSupplied vs focusDry  0.0543      0.1543     0.35    indistinguishable
+ * ```
+ *
+ * So the test is stated at the resolution the data has: the gap must sit
+ * inside the 95% interval around zero (|gap| < 1.96·SE). **That is NOT a
+ * widened bound, and the distinction is the whole point.** A widened bound is
+ * a constant chosen after the fact to admit the reading you got; this one is
+ * derived from the corpus's own dispersion, TIGHTENS automatically as the
+ * corpus grows, and still fails loudly if difficulty genuinely diverges — a
+ * half-move shift would land at gap/SE ≈ 2.7 and go red. What the syllogism
+ * needs is also asserted directly and separately: the overspend gap must
+ * DWARF the optimal gap (0.736 against 0.011, a factor of ~68), because that
+ * ratio is the actual claim — "the difference is overspend, not difficulty".
  *
  * ⚠ **It still does not name the cause.** Rule 6. See `openingOverspendByDay`.
  */
@@ -687,6 +866,13 @@ export interface OverspendArm {
   /** Reproduces `FocusEraArm.meanFirstPlaySpend`. Over ALL casts, not just scored ones. */
   meanActual: number;
   meanOptimal: number;
+  /**
+   * [session 92] Sample standard deviation of `optimal` over the scored rows.
+   * Carried because `meanOptimalGap` needs it: the era-difficulty premise has
+   * to be tested against this corpus's own dispersion, never a fixed literal.
+   * `NaN` when fewer than two rows are scored.
+   */
+  optimalSd: number;
   /** `meanActual - meanOptimal`. */
   overspend: number;
   /** Counts of `optimal`, keyed by distance. The distributions, not just their means. */
@@ -704,10 +890,16 @@ function overspendArmOf(era: Era | "all", rows: readonly OverspendRow[]): Oversp
   };
   const meanActual = mean(rows.map((r) => r.actual));
   const meanOptimal = mean(scored.map((r) => r.optimal!));
+  const sd = (xs: readonly number[]): number => {
+    if (xs.length < 2) return Number.NaN;
+    const m = xs.reduce((a, b) => a + b, 0) / xs.length;
+    return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length - 1));
+  };
   return {
     era,
     casts: rows.length,
     scored: scored.length,
+    optimalSd: sd(scored.map((r) => r.optimal!)),
     meanHandFootprint: mean(rows.map((r) => r.handFootprint)),
     meanActual,
     meanOptimal,
@@ -721,16 +913,56 @@ function overspendArmOf(era: Era | "all", rows: readonly OverspendRow[]): Oversp
 export function openingOverspendSplit(
   traces: readonly CastTrace[],
   created: ReadonlyMap<string, string>,
-): { rows: OverspendRow[]; before: OverspendArm; today: OverspendArm; all: OverspendArm } {
+): {
+  rows: OverspendRow[];
+  preOil: OverspendArm;
+  oilSupplied: OverspendArm;
+  focusDry: OverspendArm;
+  all: OverspendArm;
+} {
   const rows = traces
     .map((t) => openingOverspend(t, created))
     .filter((r): r is OverspendRow => r !== null);
   return {
     rows,
-    before: overspendArmOf("before", rows.filter((r) => r.era === "before")),
-    today: overspendArmOf("today", rows.filter((r) => r.era === "today")),
+    preOil: overspendArmOf("preOil", rows.filter((r) => r.era === "preOil")),
+    oilSupplied: overspendArmOf("oilSupplied", rows.filter((r) => r.era === "oilSupplied")),
+    focusDry: overspendArmOf("focusDry", rows.filter((r) => r.era === "focusDry")),
     all: overspendArmOf("all", rows),
   };
+}
+
+/**
+ * [session 92] The `meanOptimal` comparison between two overspend arms, stated
+ * at the resolution the corpus actually has.
+ *
+ * Returns the gap, the standard error of that gap, and `indistinguishable` —
+ * `|gap| < z·SE`. See `openingOverspendSplit`'s header for why a fixed 0.01
+ * bound was the wrong instrument and why this is not merely a wider one: the
+ * threshold here is derived from the arms' own dispersion, so it tightens as
+ * the corpus grows instead of being re-chosen whenever it goes red.
+ *
+ * ⚠ **`optimalSd` is the sample sd of the SCORED rows**, so an arm with fewer
+ * than two scored casts has no defined error and this throws rather than
+ * returning a comparison that cannot mean anything.
+ */
+export function meanOptimalGap(
+  a: OverspendArm,
+  b: OverspendArm,
+  z = 1.96,
+): { gap: number; se: number; ratio: number; halfWidth: number; indistinguishable: boolean } {
+  for (const arm of [a, b]) {
+    if (arm.scored < 2) {
+      throw new Error(
+        `castEra: arm ${arm.era} has ${arm.scored} scored cast(s); a mean-optimal gap needs at least 2 ` +
+          `to have a standard error at all. Do not compare it — say the arm is too thin.`,
+      );
+    }
+  }
+  const se = Math.sqrt(a.optimalSd ** 2 / a.scored + b.optimalSd ** 2 / b.scored);
+  const gap = Math.abs(a.meanOptimal - b.meanOptimal);
+  const halfWidth = z * se;
+  return { gap, se, ratio: se === 0 ? Number.POSITIVE_INFINITY : gap / se, halfWidth, indistinguishable: gap < halfWidth };
 }
 
 /**

@@ -2437,3 +2437,167 @@ it stays red.
 `castEra.test.ts` feeds no live decision. Urgent in the sense that it is one
 test away from being bumped silently by whoever next runs a batch, which is how
 the "thirtyfold" claim survived three sessions past its evidence.
+
+---
+
+## §32 ANSWERED [session 92, user directive 2026-08-24] — (b) RE-SPECIFY THE ERA PREDICATE. IT IS A CONSUMABLE-SUPPLY BOUNDARY, NOT A POLICY DATE, AND THE FOUR DEGRADING CLAIMS WERE DILUTED RATHER THAN DYING
+
+**The choice.** Session 91's STATE.md was walked through with the user in chat.
+§32 offered three options; the user was shown all three (plus "leave it open,
+it isn't gating anything") and chose **(b) — re-specify the era predicate**.
+Recorded as a choice made among options offered, per the §31 convention.
+
+**The brief's two candidate boundaries were both WRONG, and the corpus said so
+before anything was implemented.** `handoff/next.md` §1b proposed cutting at
+the double-lethal oil trigger — either at a timestamp near session 91's first
+live firing, or at the next calendar day — and told this session not to force
+either if neither held up. Neither does: the double-lethal wiring is a change
+in what the bot does with *Relaxing* oil (937), and it has no visible effect on
+any of the four degrading claims, all of which are about the **focus budget**.
+
+### The actual boundary — Focus Oil ran out, and it is bracketed to 5.6 seconds
+
+`logs/fishing-*.jsonl` records every `use_fishing_item` POST and every
+`oil_trigger_no_stock` refusal with its `itemId`:
+
+```
+  last successful Focus Oil (942) POST   2026-08-24T00:02:51.543Z
+  first oil_trigger_no_stock for 942     2026-08-24T00:02:57.148Z   <- FOCUS_DRY_BOUNDARY
+  further 942 refusals, no more POSTs    36 (17 that batch, 19 the next)
+```
+
+`FOCUS_DRY_BOUNDARY` is that first refusal. **Focus Oil is the meter-restoring
+half of the oil policy**, so when it hit zero the budget-zero rate reverted
+toward the pre-oil regime while the policy, the code and the deck were all
+unchanged.
+
+### The dose-response, and the row that carries the causal claim
+
+```
+  era / cluster              Focus POSTs   plays   budget-0   rate
+  preOil (no oil policy)               0     410        184   44.9%
+  2026-08-21                          13     110          2    1.8%
+  2026-08-22                           7      70          1    1.4%
+  2026-08-23                           3      22          0    0.0%
+  2026-08-24 00:0x (dries mid-batch)   3      87         17   19.5%
+  2026-08-24 19:1x (dry throughout)    0      52         19   36.5%
+```
+
+**The confound is named and controlled.** 12 of `focusDry`'s 22 casts are
+BASE-DECK casts from the §29 rod-durability window, and a base deck could
+explain a worse budget on its own. It does not explain this one: holding the
+deck fixed to rod-dealt casts, `oilSupplied` reads **3 budget-zero plays of 215
+(1.4%)** and `focusDry` reads **19 of 52 (36.5%)** — a factor of 26 with the
+same deck, the same policy and the same code. The 2026-08-24 19:1x cluster is
+that comparison standing alone.
+
+### ⚠ Day precision genuinely cannot express this boundary
+
+It falls **inside** a single 20-cast batch (2026-08-24T00:01:04 → 00:05:48),
+splitting it **8 supplied / 12 dry**. `eraOf` therefore compares the FULL
+timestamp for this boundary and keeps day precision for the first one, whose
+20.3-hour empty gap makes every literal inside it equivalent. Both choices are
+pinned in `castEra.test.ts` and stated in `castEra.ts`'s header — the brief's
+resolution 2 ("treat it as starting the next calendar day") was rejected
+because it would misclassify 12 casts that demonstrably had no Focus Oil.
+
+### What the corrected split does — all four claims reverse
+
+Every one was **contaminated, not converging**. Session 89's "~30x" was RIGHT
+for the oil-supplied era and decayed only because starved casts were pooled in:
+
+```
+  claim                          s84/86      s89        s91       s92 (corrected)
+  budget-zero ratio                ~30x      6.48x     3.92x            26.37x
+  budget-zero rate, later era      1.49%     6.92%     11.4%              1.7%
+  redraw rescue rate           15/15 100%  26/32 81%  30/42 71%     21/22 95.5%
+  redrawCounterfactual.neither         0         6        12                  1
+  `wasted` across the sweep          {0}  {0,3,4,5,6}  {0,3,6,…,12}       {0, 1}
+```
+
+The rescue rate's Wilson lower bound is now **0.782**, within 0.001 of the 0.78
+session 84 published for 15/15.
+
+⚠ **This does NOT make sessions 89 and 91 wrong to have retracted.** Each
+retraction was correct given a two-era model, and neither session could see the
+dilution from one batch. What is now forbidden is **restating the degrading
+sequence as evidence about the redraw or the policy** — it was evidence about
+the predicate. `neither = 1` also means the retraction is not fully rescinded:
+the claim is "negligible while the policy can fire", never "structural".
+
+### ⚠ THE FIFTH CLAIM IS A SEPARATE DEFECT AND OPTION (b) DOES NOT FIX IT
+
+The red assertion — `|before.meanOptimal − today.meanOptimal| < 0.01` — **still
+fails on the corrected split, at 0.0108.** So there were two defects, not one.
+
+`optimal` is a per-cast integer in {0,1,2} with sd ≈ 0.65; at n = 93 and 62 the
+standard error of the **difference** is **0.112**. A 0.01 bound is one tenth of
+one standard error — it demanded agreement about twenty times finer than this
+corpus can resolve. **Session 89's 0.0062 was a coincidence** (roughly a 7%
+chance of landing that small), not the "single most important thing in the file
+that did NOT move". It was always going to break.
+
+It is replaced by `meanOptimalGap`, which compares against 1.96 standard errors
+derived from the arms' own dispersion. **That is not a widened bound**: it is
+not a constant, it TIGHTENS as the corpus grows, and a half-move divergence
+still fails it at gap/SE ≈ 2.7 — asserted non-vacuously in the test itself. The
+premise is confirmed and now holds pairwise across all three eras (gap/SE 0.10,
+0.46, 0.35). The syllogism's real claim is asserted directly beside it: the
+overspend gap (0.736) dwarfs the difficulty gap (0.011) ~68-fold.
+
+**Suite: 2 failed / 1744 passed → 1 failed / 1749 passed.** The only remaining
+failure is the carried, inert `boons.test.ts` staleness.
+
+---
+
+## §33 — `firedOil`/`oilsConsumed` CANNOT SEE AN OIL THAT FIRES ON A CAST'S LAST TURN, AND THE NEW DOUBLE-LETHAL POLICY FIRES EXACTLY THERE [session 92 §1, OPEN — needs a ruling before `castTrace` is "fixed"]
+
+**Found while re-specifying the era, not looked for.** The corpus oil census
+reads **15 casts / 24 oils**. The truth is **17 / 28**.
+
+`castTrace` deliberately skips `use_fishing_item` responses (they re-report
+their predecessor's move fields, which breaks position continuity — a
+documented, correct decision). `oilsConsumed` reads the first-to-last
+`consumablesUsed` delta over the surviving turns. When an oil fires on the
+**closing** turn there is no later real turn to carry the incremented count, so
+the trace simply ends before it.
+
+Session 91's two double-lethal firings are exactly this shape:
+
+```
+  cast 13068171  raw states: cu 0,0,0,0,0,1,2,2   fishHp 18,13,16,9,4,2,0,0
+                 trace:      5 turns, cu all 0, last fishHp 4, firedOil FALSE
+  cast 13068190  raw states: cu 0,0,0,0,1,2,2     fishHp 11,6,9,4,2,0,0
+                 trace:      4 turns, cu all 0, last fishHp 4, firedOil FALSE
+```
+
+Both were CAUGHT, and `trace.caught` is **correct** on both — it is computed
+from events across all states, so catch accounting is unaffected. What is lost
+is the oil count and the last two HP transitions.
+
+**Why this is a question and not a fix.** A LETHAL trigger fires on the closing
+turn *by construction*, so this blind spot is not a rare edge — it will hit
+every double-lethal cast from here on, and the policy that produces them was
+only wired in session 90. But repairing `castTrace` changes turn counts on an
+unknown number of casts and would move numbers in several pinned files at once.
+
+**It contaminates nothing currently pinned, which is why there is time to
+decide.** Both casts are in `focusDry`; `budgetZeroDecomposition`'s oil term
+reads `oilSupplied`, and `assertCastEraSound`'s restore-free control reads
+`preOil`. `castEra.test.ts` now pins the defect explicitly, at its
+wrong-but-actual value, so a repair fails loudly rather than silently shifting
+figures elsewhere.
+
+### THE QUESTION
+
+- **(a)** Repair `castTrace` to carry `consumablesUsed` (and the terminal HP
+  transitions) forward from skipped `use_fishing_item` states without
+  reinstating them as turns, then re-pin every affected file in one pass.
+- **(b)** Leave the trace alone and give `oilsConsumed` a separate source that
+  reads the raw states directly, keeping turn semantics untouched.
+- **(c)** Leave both, treat the census as a known undercount, and rely on the
+  live logs for oil accounting — cheapest, and it keeps the pin as the record.
+
+**Not blocking anything.** Live oil spend is ledgered from `logs/` and
+`config/bot.json`, not from the corpus, so no decision the bot makes depends on
+this.

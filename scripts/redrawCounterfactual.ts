@@ -72,6 +72,7 @@ import {
   openingOverspendByDay,
   openingOverspendSplit,
   playCount,
+  FOCUS_DRY_BOUNDARY,
   POLICY_ERA_BOUNDARY,
   splitByEra,
   standardise,
@@ -248,13 +249,14 @@ const pct = (x: number) => `${(100 * x).toFixed(1)}%`;
  */
 function printEraSplit(traces: readonly CastTrace[], created: ReadonlyMap<string, string>): void {
   const s = focusEraSplit(traces, created);
-  console.log(`\n── §5  THE ERA SPLIT — the corpus pools two bots, and one of them is gone ──`);
-  console.log(`  Era predicate: a cast belongs to TODAY when its doc.createdAt (constant across the`);
-  console.log(`  cast's states, 148/148) is on or after ${POLICY_ERA_BOUNDARY} UTC. Committed fixtures only.\n`);
-  console.log(`    ${"".padEnd(8)}${"casts".padStart(6)}${"plays".padStart(7)}${"budget 0".padStart(10)}${"rate".padStart(8)}${"1st-play spend".padStart(16)}${"catch".padStart(8)}`);
-  for (const a of [s.before, s.today, s.all]) {
+  console.log(`\n── §5  THE ERA SPLIT — the corpus pools THREE bots, and the newest is starved ──`);
+  console.log(`  [session 92] Era predicate: preOil before ${POLICY_ERA_BOUNDARY} UTC (day precision);`);
+  console.log(`  oilSupplied until ${FOCUS_DRY_BOUNDARY} (full timestamp — it splits one batch);`);
+  console.log(`  focusDry after it, when Focus Oil (942) stock hit zero. Committed fixtures only.\n`);
+  console.log(`    ${"".padEnd(12)}${"casts".padStart(6)}${"plays".padStart(7)}${"budget 0".padStart(10)}${"rate".padStart(8)}${"1st-play spend".padStart(16)}${"catch".padStart(8)}`);
+  for (const a of [s.preOil, s.oilSupplied, s.focusDry, s.all]) {
     console.log(
-      `    ${String(a.era).padEnd(8)}${String(a.casts).padStart(6)}${String(a.plays).padStart(7)}` +
+      `    ${String(a.era).padEnd(12)}${String(a.casts).padStart(6)}${String(a.plays).padStart(7)}` +
         `${String(a.budgetZero).padStart(10)}${pct(a.rate).padStart(8)}` +
         `${`${a.meanFirstPlaySpend.toFixed(3)} (max ${a.maxFirstPlaySpend})`.padStart(16)}` +
         `${(a.resolved ? pct(a.caught / a.resolved) : "—").padStart(8)}`,
@@ -265,9 +267,14 @@ function printEraSplit(traces: readonly CastTrace[], created: ReadonlyMap<string
   );
   console.log(`    restore and TRANSIENT in one with it. That is why the effect is this large.`);
   console.log(
-    `    Casts that ever froze: ${s.before.castsEverFrozen}/${s.before.casts} before, ` +
-      `${s.today.castsEverFrozen}/${s.today.casts} today.`,
+    `    Casts that ever froze: ${s.preOil.castsEverFrozen}/${s.preOil.casts} preOil, ` +
+      `${s.oilSupplied.castsEverFrozen}/${s.oilSupplied.casts} oilSupplied, ` +
+      `${s.focusDry.castsEverFrozen}/${s.focusDry.casts} focusDry.`,
   );
+  console.log(
+    `    focusDry is the SAME policy with the consumable gone — it reverts most of the way to`,
+  );
+  console.log(`    preOil, and that is the evidence the middle boundary is a supply event, not a policy.`);
 
   // The predicate comparison. `todaysEraCastIds()` reads data/ringPrediction.jsonl,
   // which is gitignored — so this arm is best-effort and says so when absent.
@@ -286,14 +293,15 @@ function printEraSplit(traces: readonly CastTrace[], created: ReadonlyMap<string
     console.log(`      because it reads committed fixtures and classifies all 148 casts.`);
   } else {
     console.log(
-      `      DISAGREE: ${cmp.otherOnly.length} cast(s) it calls today and the date does not` +
+      `      DISAGREE: ${cmp.otherOnly.length} cast(s) it calls post-boundary and the date does not` +
         `${cmp.dateOnly.length ? `, ${cmp.dateOnly.length} the other way` : ", 0 the other way"}.`,
     );
     console.log(
       `      Those ${cmp.otherOnly.length} read ${cmp.otherOnlyBudgetZero}/${cmp.otherOnlyPlays} = ` +
         `${pct(cmp.otherOnlyBudgetZero / Math.max(1, cmp.otherOnlyPlays))} at budget 0 — the OLD regime.`,
     );
-    console.log(`      Folding them in takes today's rate to ${pct((s.today.budgetZero + cmp.otherOnlyBudgetZero) / (s.today.plays + cmp.otherOnlyPlays))}. THE DATE PREDICATE WINS, on evidence.`);
+    const postB = { z: s.oilSupplied.budgetZero + s.focusDry.budgetZero, p: s.oilSupplied.plays + s.focusDry.plays };
+    console.log(`      Folding them in takes the post-boundary rate to ${pct((postB.z + cmp.otherOnlyBudgetZero) / (postB.p + cmp.otherOnlyPlays))}. THE DATE PREDICATE WINS, on evidence.`);
   }
 }
 
@@ -328,8 +336,8 @@ function printEraConditionedCounterfactual(traces: readonly CastTrace[], created
   );
   const arms: [string, readonly CastTrace[]][] = [
     ["pooled", traces],
-    ["before", split.before],
-    ["today", split.today],
+    ["before", split.preOil],
+    ["today", split.oilSupplied],
   ];
   for (const [label, ts] of arms) {
     const r = redrawCounterfactual(ts);
@@ -377,7 +385,7 @@ function printEraSeparability(traces: readonly CastTrace[], created: ReadonlyMap
     `    ${"".padEnd(8)}${"dead".padStart(6)}${"live".padStart(6)}${"AUC".padStart(8)}` +
       `${"mean cov dead".padStart(15)}${"live".padStart(8)}`,
   );
-  for (const [label, ts] of [["pooled", traces], ["before", split.before], ["today", split.today]] as [string, readonly CastTrace[]][]) {
+  for (const [label, ts] of [["pooled", traces], ["before", split.preOil], ["today", split.oilSupplied]] as [string, readonly CastTrace[]][]) {
     const sp = separability(redrawCounterfactual(ts));
     console.log(
       `    ${label.padEnd(8)}${String(sp.deadPlays).padStart(6)}${String(sp.livePlays).padStart(6)}` +
@@ -385,7 +393,7 @@ function printEraSeparability(traces: readonly CastTrace[], created: ReadonlyMap
         `${sp.meanCoverageLive.toFixed(2).padStart(8)}`,
     );
   }
-  const today = separability(redrawCounterfactual(split.today));
+  const today = separability(redrawCounterfactual(split.oilSupplied));
   console.log(`\n    today's era, \`heldCoverage <= K\` as a trigger over ALL its plays:`);
   console.log(`      ${"K".padStart(3)}${"fires".padStart(7)}${"rescues".padStart(9)}${"sacrifices".padStart(12)}${"wasted".padStart(8)}${"mana".padStart(7)}`);
   for (const row of today.sweep) {
@@ -422,8 +430,8 @@ function printDecomposition(traces: readonly CastTrace[], created: ReadonlyMap<s
   console.log(`\n    THE ORDER-FREE STATEMENT, which is the one to quote. The three terms above are`);
   console.log(`    sequential and each takes the residual of the ones before it. These two do not`);
   console.log(`    depend on that ordering:\n`);
-  for (const [label, ts] of [["no-oil", split.today.filter((t) => !firedOil(t))], ["oil", split.today.filter(firedOil)]] as [string, CastTrace[]][]) {
-    const st = standardise(split.before, ts);
+  for (const [label, ts] of [["no-oil", split.oilSupplied.filter((t) => !firedOil(t))], ["oil", split.oilSupplied.filter(firedOil)]] as [string, CastTrace[]][]) {
+    const st = standardise(split.preOil, ts);
     let plays = 0, zero = 0, noRestore = 0;
     for (const t of ts) { plays += playCount(t); zero += budgetZeroPlays(t); noRestore += budgetZeroPlaysWithoutRestore(t); }
     console.log(
@@ -441,20 +449,20 @@ function printDecomposition(traces: readonly CastTrace[], created: ReadonlyMap<s
         restores are stripped. On that arm the oil does essentially all the work.
       - Self-check on the control: run the no-restore counterfactual over the BEFORE era, which
         fired no oils, and it must reproduce the observation.`);
-  const beforeNoRestore = split.before.reduce((s, t) => s + budgetZeroPlaysWithoutRestore(t), 0);
-  const beforeObserved = split.before.reduce((s, t) => s + budgetZeroPlays(t), 0);
+  const beforeNoRestore = split.preOil.reduce((s, t) => s + budgetZeroPlaysWithoutRestore(t), 0);
+  const beforeObserved = split.preOil.reduce((s, t) => s + budgetZeroPlays(t), 0);
   console.log(`        before era: counterfactual ${beforeNoRestore} vs observed ${beforeObserved}.` +
     ` The one difference is the single cast that opened at focusMeter 2.`);
 
   // The gear control.
   console.log(`\n    AND IT IS NOT THE GEAR. Deck intrinsic reach is policy-free and fish-free — over every`);
   console.log(`    (focus, target) pair, the fraction one deck card covers:\n`);
-  for (const e of ["before", "today"] as Era[]) {
+  for (const e of ["preOil", "oilSupplied", "focusDry"] as Era[]) {
     const ts = split[e];
     const reach = ts.reduce((s, t) => s + deckIntrinsicReach(t), 0) / ts.length;
     const crit = ts.reduce((s, t) => s + deckCritFraction(t), 0) / ts.length;
     const size = ts.reduce((s, t) => s + t.turns[0]!.fullDeck.length, 0) / ts.length;
-    console.log(`      ${e.padEnd(7)} reach ${pct(reach)}   mean deck ${size.toFixed(1)} cards   crit-bearing ${pct(crit)}`);
+    console.log(`      ${e.padEnd(12)} reach ${pct(reach)}   mean deck ${size.toFixed(1)} cards   crit-bearing ${pct(crit)}`);
   }
   console.log(`
       The decks got bigger and much crit-richer — which plausibly drives the catch rate from
@@ -522,22 +530,26 @@ function printOverspend(
   const over = openingOverspendSplit(traces, created);
   console.log(`\n── §7b  THE OVERSPEND CONTROL — did the bot aim cheaper, or did the fish get closer? ──`);
   console.log(`  ${"".padEnd(10)}${"casts".padStart(7)}${"hand fp".padStart(10)}${"actual".padStart(9)}${"optimal".padStart(9)}${"OVERSPEND".padStart(11)}`);
-  for (const arm of [over.before, over.today, over.all]) {
+  for (const arm of [over.preOil, over.oilSupplied, over.focusDry, over.all]) {
     console.log(
-      `  ${arm.era.padEnd(10)}${String(arm.casts).padStart(7)}${arm.meanHandFootprint.toFixed(2).padStart(10)}` +
+      `  ${arm.era.padEnd(12)}${String(arm.casts).padStart(7)}${arm.meanHandFootprint.toFixed(2).padStart(10)}` +
         `${arm.meanActual.toFixed(3).padStart(9)}${arm.meanOptimal.toFixed(3).padStart(9)}` +
         `${(arm.overspend >= 0 ? "+" : "") + arm.overspend.toFixed(2)}`.padStart(11),
     );
   }
   const hist = (m: ReadonlyMap<number, number>, n: number): string =>
     [...m.entries()].sort((a, b) => a[0] - b[0]).map(([d, c]) => `${d}:${c} (${((100 * c) / n).toFixed(0)}%)`).join("  ");
-  console.log(`\n  optimal move distance   before  ${hist(over.before.optimalHistogram, over.before.scored)}`);
-  console.log(`                          today   ${hist(over.today.optimalHistogram, over.today.scored)}`);
-  console.log(`  actual  move distance   before  ${hist(over.before.actualHistogram, over.before.casts)}`);
-  console.log(`                          today   ${hist(over.today.actualHistogram, over.today.casts)}`);
+  console.log(`\n  optimal move distance   preOil       ${hist(over.preOil.optimalHistogram, over.preOil.scored)}`);
+  console.log(`                          oilSupplied  ${hist(over.oilSupplied.optimalHistogram, over.oilSupplied.scored)}`);
+  console.log(`                          focusDry     ${hist(over.focusDry.optimalHistogram, over.focusDry.scored)}`);
+  console.log(`  actual  move distance   preOil       ${hist(over.preOil.actualHistogram, over.preOil.casts)}`);
+  console.log(`                          oilSupplied  ${hist(over.oilSupplied.actualHistogram, over.oilSupplied.casts)}`);
+  console.log(`                          focusDry     ${hist(over.focusDry.actualHistogram, over.focusDry.casts)}`);
   console.log(
-    `\n  THREE DOORS CLOSED AT ONCE. The targets did not get closer (optimal 0.656 vs 0.648, and the\n` +
-      `  whole distribution matches). The hands did not get wider (footprint 7.38 vs 7.20 cells). And the\n` +
+    `\n  THREE DOORS CLOSED AT ONCE. The targets did not get closer (optimal 0.656 vs 0.645, a gap of\n` +
+      `  0.011 against a standard error of 0.112 — indistinguishable, and see openingOverspendSplit on\n` +
+      `  why the old 0.01 point bound was never a test of that; the whole distribution matches too). The\n` +
+      `  hands did not get wider (footprint 7.38 vs 7.20 cells). And the\n` +
       `  opening focus is (2,2) on ALL 147 casts with a recorded start — assertOpeningFocusPinned. What\n` +
       `  changed is how far the bot CHOOSES to move. It does NOT name what changed; rule 6.`,
   );

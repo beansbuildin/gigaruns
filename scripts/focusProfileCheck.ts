@@ -411,7 +411,11 @@ function main(): void {
   // stay traceable. If the two ever disagree about PASS/FAIL, the date row is
   // the one to believe.
   const created = loadCastCreatedAt();
-  const dateEra = corpusProfile(`CORPUS — today's era, castEra.ts date boundary`, (t) => eraOf(t.docId, created) === "today");
+  // [session 92] `!== "preOil"`, not `=== "oilSupplied"`. This gate is about the
+  // POLICY's opening spend, and the policy did not change at the focus-dry
+  // boundary — only the Focus Oil stock did (castEra.ts's header). Keying it on
+  // `oilSupplied` would drop 22 casts the current policy really did play.
+  const dateEra = corpusProfile(`CORPUS — post-boundary era, castEra.ts date boundary`, (t) => eraOf(t.docId, created) !== "preOil");
   const dc = meanCi(dateEra.openingSpends);
   const inside = sc.mean >= tc.lo && sc.mean <= tc.hi;
   console.log(`  corpus, TODAY's era   ${tc.mean.toFixed(2)}  95% CI [${tc.lo.toFixed(2)}, ${tc.hi.toFixed(2)}]  n=${tc.n}   <- the gate`);
