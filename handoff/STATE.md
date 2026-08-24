@@ -1,4 +1,4 @@
-# STATE — session 91 — 2026-08-24 (PT) — code at commit <RECAP_SHA>
+# STATE — session 91 — 2026-08-24 (PT) — code at commit b5d59393
 
 ## Status
 **GATE PASS — all three brief items delivered, plus the pin regeneration the

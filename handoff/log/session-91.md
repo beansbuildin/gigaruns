@@ -1,4 +1,4 @@
-# SESSION 91 LOG — 2026-08-24 (PT)
+# SESSION 91 LOG — 2026-08-24 (PT) — code at commit b5d59393
 
 ## Status
 **GATE PASS — all three brief items delivered, plus the pin regeneration the
