@@ -1,14 +1,14 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-24T01:08:31.974Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-24T19:19:15.630Z.
 
-168 recorded casts — 60 caught (35.7%).
+178 recorded casts — 64 caught (36.0%).
 
 ## Fish caught, by name
 
-- Finley: 17
+- Finley: 19
 - Barnaboo: 17
-- Plankton: 7
+- Plankton: 8
 - Ollie: 5
 - Zombo: 2
 - Kelpkin: 2
@@ -18,6 +18,7 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 - Podge: 2
 - Gulp: 1
 - Glimmer: 1
+- Globbo: 1
 
 ## Per-cast detail
 
@@ -191,3 +192,13 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 | 13055933 | no | — |
 | 13055941 | no | — |
 | 13055949 | yes | Finley (rarity 0) |
+| 13068149 | yes | Finley (rarity 0) |
+| 13068154 | yes | Globbo (rarity 3) |
+| 13068162 | no | — |
+| 13068171 | yes | Finley (rarity 0) |
+| 13068176 | no | — |
+| 13068184 | no | — |
+| 13068188 | no | — |
+| 13068190 | yes | Plankton (rarity 0) |
+| 13068194 | no | — |
+| 13068199 | no | — |

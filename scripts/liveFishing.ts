@@ -2278,6 +2278,18 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       relaxingOilHeld: oilHeld.relaxing,
     };
     let oilWanted: OilKind[];
+    /**
+     * [session 91 §3] Which trigger actually produced `oilWanted` — recorded
+     * because the FIRST live double-lethal firing was reported on the console
+     * as `on-demand LETHAL`, the policy it overrides.
+     *
+     * `doubleLethalTriggers` returns `onDemandTriggers`' own array unchanged in
+     * every case but one, so "the double-lethal arm decided this" is exactly
+     * "it returned two relaxings". Derived rather than guessed: an on-demand
+     * turn can never want two, because its single relaxing is lethal by
+     * construction and ends the cast.
+     */
+    let oilTriggerSource: "on-demand" | "double-lethal" | "on-demand (fallback after throw)" = "on-demand";
     try {
       oilWanted = doubleLethalTriggers(
         {
@@ -2293,11 +2305,33 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       // strictly smaller spend, never a larger one.
       const detail = e instanceof Error ? e.message : String(e);
       oilWanted = onDemandTriggers(oilTimingState, PAYLOAD_OIL_EFFECTS);
+      oilTriggerSource = "on-demand (fallback after throw)";
       log.write({ event: "oil_trigger_threw", turn, error: detail, fellBackTo: "on-demand", wanted: oilWanted });
       console.log(
         `  \u2605\u2605\u2605 double-lethal trigger THREW on turn ${turn} (${detail}) \u2014 falling back to ` +
           `on-demand for this turn, which wants [${oilWanted.join(",") || "none"}]. The cast CONTINUES. ` +
           `Worth reporting: \`bestKillProbability\` is new on the live path as of session 90.`,
+      );
+    }
+    if (oilWanted.filter((k) => k === "relaxing").length >= 2) {
+      if (oilTriggerSource === "on-demand") oilTriggerSource = "double-lethal";
+      // The event §30 asks to be able to find after the fact. Emitted at the
+      // DECISION, before any POST, so a firing is on the record even if the
+      // first consume then fails.
+      log.write({
+        event: "oil_double_lethal_fired",
+        turn,
+        wanted: oilWanted,
+        fishHp: doc.data.fishHp,
+        fishMaxHp: doc.data.fishMaxHp,
+        relaxingHeld: oilHeld.relaxing,
+        source: oilTriggerSource,
+      });
+      console.log(
+        `  \u2605\u2605\u2605 DOUBLE-LETHAL trigger (NOT on-demand): fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP — ` +
+          `one oil cannot finish it and two can, and the best affordable card could not guarantee the kill. ` +
+          `Sending ${oilWanted.filter((k) => k === "relaxing").length} Relaxing Oils this turn. ` +
+          `User override, QUESTIONS.md §30 — the sim does NOT recommend this.`,
       );
     }
     for (const kind of oilWanted) {
@@ -2380,13 +2414,13 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           // refusal nobody can see is indistinguishable from a trigger that
           // never fired.
           log.write({ event: "oil_spend_refused", turn, kind, itemId, reason: auth.reason });
-          console.log(`  · on-demand wanted a ${kind} oil here — NOT spending: ${auth.reason}`);
+          console.log(`  · ${oilTriggerSource} wanted a ${kind} oil here — NOT spending: ${auth.reason}`);
         }
         continue;
       }
       console.log(
         kind === "relaxing"
-          ? `  ★ on-demand LETHAL trigger: fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP (${held} Relaxing Oil held) — using one.`
+          ? `  ★ ${oilTriggerSource} LETHAL trigger: fish at ${doc.data.fishHp}/${doc.data.fishMaxHp} HP (${held} Relaxing Oil held) — using one.`
           : `  ★ on-demand METER trigger: focus meter at ${doc.data.focusMeter}/${doc.data.focusMeterMax} (${held} Focus Oil held) — using one.`,
       );
       // [session 65] THE SLOT IS A CURSOR, NOT A CONSTANT. Read off the live

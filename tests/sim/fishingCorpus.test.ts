@@ -142,11 +142,15 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // UNCHANGED at 1 — the same long-standing truncated cast, now unmoved
     // across six consecutive oil batches, which is the structural half of this
     // pin and the reason it is asserted separately from the counts.
-    expect(summary.casts).toBe(168); // was 148
-    expect(summary.responseDocs).toBe(970); // was 839
-    expect(summary.playTurns).toBe(700); // was 613
-    expect(summary.caught).toBe(60); // was 48
-    expect(summary.escaped).toBe(107); // was 99
+    // [session 91] 168 -> 178 across the ten-cast batch: +70 responseDocs,
+    // +52 playTurns, +4 caught, +6 escaped. `incomplete` is UNCHANGED at 1 for
+    // the SEVENTH consecutive oil batch — the structural half of this pin, and
+    // the reason it is asserted separately from the counts.
+    expect(summary.casts).toBe(178); // was 168
+    expect(summary.responseDocs).toBe(1040); // was 970
+    expect(summary.playTurns).toBe(752); // was 700
+    expect(summary.caught).toBe(64); // was 60
+    expect(summary.escaped).toBe(113); // was 107
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -531,6 +535,19 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // two Relaxing Oils in one cast.
       "13055873", "13055879", "13055883", "13055886", "13055892",
       "13055896", "13055900", "13055915", "13055924", "13055929",
+      // [session 91] +2 from the ten-cast batch, and they are exactly the
+      // session's TWO DOUBLE-LETHAL FIRINGS — `13068171` (fish 4/29) and
+      // `13068190` (fish 4/17), each spending two Relaxing Oils in a single
+      // turn. Every other oil trigger in the batch was a Focus one against
+      // zero stock, so it recorded OIL-POLICY-DRY and spent nothing.
+      //
+      // ✅ **This ANSWERS the known-unchecked flagged directly above.** The
+      // Relaxing per-cast cap of 2 was REACHED for the first time on record —
+      // and it still did not BIND: `doubleLethalTriggers` wanted exactly two,
+      // never three, so the cap refused nothing. Both casts show
+      // `consumablesUsed` 2 across slots 0 and 1, which is the shape session
+      // 90's `oilDoubleLethalLive.test.ts` predicted from mocks, now seen live.
+      "13068171", "13068190",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

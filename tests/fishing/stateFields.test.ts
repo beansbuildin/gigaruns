@@ -206,6 +206,15 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     "13055873 t3: card 5 hit=true crit=false predicted Δ-5, actual Δ-8 (10->2/28)",
     "13055892 t1: card 7 hit=true crit=false predicted Δ-6, actual Δ-9 (19->10/30)",
     "13055941 t5: card 9 hit=true crit=false predicted Δ-2, actual Δ-3 (9->6/17)",
+    // [session 91] Session 91's 10-cast batch. Two more, and both are the SAME
+    // family rather than anything new — `crit=false` with the actual damage
+    // exceeding the card's own effect, i.e. the lure's half firing alone. The
+    // first is pattern-identical to `13022874` at the top of this list: card
+    // 76, Δ-3 predicted, Δ-5 actual. Ratios across all eight now run 1.33–1.67
+    // (−9→−12, −6→−9, −5→−8, −3→−5, −2→−3), which is consistent with the ~1.55
+    // the docblock above cites and still short of pinning a multiplier.
+    "13068154 t4: card 76 hit=true crit=false predicted Δ-3, actual Δ-5 (12->7/18)",
+    "13068176 t8: card 6 hit=true crit=false predicted Δ-5, actual Δ-8 (17->9/21)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — six documented exceptions", () => {
@@ -266,11 +275,20 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     expect(Math.floor((base * 5) / 3)).not.toBe(turn.play!.fishHpDiff);
   });
 
-  it("all six exceptions fit ONE multiplier, and that interval is [1.5, 1.5833)", () => {
-    // The claim the SPEC-fishing §4 rule text now rests on: these are not six
-    // one-offs, they are one rule seen six times. Solved as an interval rather
+  it("all eight exceptions fit ONE multiplier, and that interval is STILL [1.5, 1.5833)", () => {
+    // The claim the SPEC-fishing §4 rule text now rests on: these are not eight
+    // one-offs, they are one rule seen eight times. Solved as an interval rather
     // than asserted as a constant — round-half-up(base x m) == actual is
     // equivalent to actual - 0.5 <= base * m < actual + 0.5.
+    //
+    // **[session 91] Two new observations moved the interval by NOTHING**, and
+    // that is the result worth reading. The batch added a (3 -> 5) and a
+    // (5 -> 8); both shapes were already present, so each independently
+    // re-confirms the rule without tightening it. Two more chances to falsify
+    // "one multiplier fits them all", both survived. The bounds are still set
+    // by the same two rows they always were — `lo` by every 1.5 row, `hi` by
+    // the lone base-6 separator — so the way to NARROW this is still a new
+    // base, not more of the bases already seen.
     const observed: { base: number; actual: number }[] = [
       { base: 3, actual: 5 },
       { base: 5, actual: 8 },
@@ -278,6 +296,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       { base: 5, actual: 8 },
       { base: 6, actual: 9 }, // the separator
       { base: 2, actual: 3 },
+      { base: 3, actual: 5 }, // [session 91] 13068154, card 76 — same shape as row 1
+      { base: 5, actual: 8 }, // [session 91] 13068176, card 6
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 

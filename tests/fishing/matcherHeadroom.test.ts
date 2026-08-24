@@ -47,8 +47,9 @@ describe("matcher headroom — the scoreboard the matcher is scored against", ()
     // [session 90] 612 -> 699 plays, 148 -> 168 casts. The neighbouring count
     // this is still NOT: 696 is the play total over CLEAN traces only
     // (`zoneTemplate.test.ts`), the remaining 3 in session 45's resumed cast.
-    expect(result.plays).toBe(699); // was 612
-    expect(result.casts).toBe(168); // was 148
+    // [session 91] 699 -> 751 plays, 168 -> 178 casts.
+    expect(result.plays).toBe(751); // was 699
+    expect(result.casts).toBe(178); // was 168
   });
 
   it("reproduces the four rates — floor, actual, and both ceilings", () => {
@@ -65,17 +66,24 @@ describe("matcher headroom — the scoreboard the matcher is scored against", ()
     // bot's own rate, which is the one number here that is supposed to be able
     // to move. A board-dependent ceiling holding still while the bot's rate
     // climbs is exactly the shape this instrument was built to show.
-    expect(result.random).toBeCloseTo(0.199, 3); // was 0.203
-    expect(result.stayPut).toBeCloseTo(0.239, 3); // was 0.242
-    expect(result.actual).toBeCloseTo(0.375, 3); // was 0.363
-    expect(result.oracleSameCard).toBeCloseTo(0.662, 3); // was 0.663
-    expect(result.oracleBestCard).toBeCloseTo(0.710, 3); // was 0.711
+    // [session 91] The ceilings held AGAIN across ten more casts — `random`
+    // 0.199 -> 0.200, `stayPut` 0.239 -> 0.245, the two oracle ceilings
+    // 0.662 -> 0.666 and 0.710 -> 0.711 — every one inside two thirds of a
+    // point. Third consecutive widening with the board-dependent floor and
+    // both ceilings effectively unmoved. **`actual` did NOT climb this time**
+    // (0.375 -> 0.374): the bot's own rate is the one number here that is
+    // supposed to move, and over these ten casts it did not.
+    expect(result.random).toBeCloseTo(0.2, 3); // was 0.199
+    expect(result.stayPut).toBeCloseTo(0.245, 3); // was 0.239
+    expect(result.actual).toBeCloseTo(0.374, 3); // was 0.375
+    expect(result.oracleSameCard).toBeCloseTo(0.666, 3); // was 0.662
+    expect(result.oracleBestCard).toBeCloseTo(0.711, 3); // was 0.710
 
     // The derived readings the report prints, pinned so a change to the
     // arithmetic is caught rather than the inputs alone.
-    expect(result.capturedFraction).toBeCloseTo(0.380, 3); // was 0.346
-    expect(result.headroomRemaining).toBeCloseTo(0.288, 3); // was 0.301
-    expect(result.cardSelectionValue).toBeCloseTo(0.047, 3); // UNCHANGED to 3dp
+    expect(result.capturedFraction).toBeCloseTo(0.373, 3); // [session 91] was 0.380
+    expect(result.headroomRemaining).toBeCloseTo(0.292, 3); // [session 91] was 0.288 // was 0.301
+    expect(result.cardSelectionValue).toBeCloseTo(0.045, 3); // [session 91] was 0.047 — held to 3dp across three widenings before this
   });
 
   it("orders floor <= stay-put <= actual <= same-card oracle <= best-card oracle", () => {
@@ -113,7 +121,7 @@ describe("the focus budget, reconstructed rather than read off the stale meter",
         else fails.push({ docId: t.docId, turn: i, consumed: cur.consumablesUsed > prev.consumablesUsed });
       }
     }
-    expect(holds).toBe(675); // was 591
+    expect(holds).toBe(727); // [session 91] was 675
     // **Every** failure is an oil consume — not most, all. This is the
     // assertion that makes the reconstruction legitimate rather than a fudge
     // that happens to fit: if a play ever breaks the identity WITHOUT an oil,
@@ -201,10 +209,13 @@ describe("the aim-error distribution — is the miss structured or diffuse?", ()
     // [session 90] 367 -> 412, and the shape is unmoved a THIRD time:
     // distance 1 at 48.3% (199/412), against 48.0% and 48.0% before it. The
     // spike is the finding and it has now survived two corpus widenings.
-    expect(total).toBe(412); // was 367
-    expect(h.get(1)).toBe(199); // was 176
-    expect(h.get(2)).toBe(156); // was 140
-    expect(h.get(3)).toBe(46); // was 42
+    // [session 91] 412 -> 445, and the shape is unmoved a FOURTH time:
+    // distance 1 at 49.4% (220/445), against 48.3%, 48.0% and 48.0%. Three
+    // corpus widenings and the spike has not shifted more than 1.4 points.
+    expect(total).toBe(445); // [session 91] was 412
+    expect(h.get(1)).toBe(220); // [session 91] was 199
+    expect(h.get(2)).toBe(164); // [session 91] was 156
+    expect(h.get(3)).toBe(50); // [session 91] was 46
     expect(h.get(4)).toBe(11); // was 9
     // Nothing further out, and nothing at 0 — a footprint containing the fish
     // is a hit by definition, so a 0 here would mean the resolver and this
@@ -239,8 +250,8 @@ describe("the aim-error distribution — is the miss structured or diffuse?", ()
     // The histogram therefore covers 699 - 25 plays, and the miss histogram
     // 437 - 25. Asserted so a silent change in what gets counted is caught,
     // and as identities rather than literals so the relationship is the pin.
-    expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(674); // was 589
+    expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(726); // [session 91] was 674
     expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(result.plays - result.noFootprint);
-    expect(result.perPlay.filter((p) => !p.actualHit).length).toBe(437); // was 390
+    expect(result.perPlay.filter((p) => !p.actualHit).length).toBe(470); // [session 91] was 437
   });
 });

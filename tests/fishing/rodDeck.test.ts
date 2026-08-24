@@ -95,18 +95,32 @@ describe("REAL_DECK tracks the rod the account actually holds", () => {
     // exists so the fact is asserted somewhere rather than inferred, because a
     // sim figure quoted against a base window is a Makeshift/Shroom-class
     // mistake and nothing else in the suite would catch it.
+    //
+    // ## [session 91] THIS TRIPWIRE FIRED, AND IT FIRED FOR THE RIGHT REASON
+    //
+    // Session 89 pinned `true` — the account's then-latest 17 casts were
+    // base-deck — and wrote "if this flips, the rod grant came back; note when,
+    // it is §29 evidence." It flipped, and the note is: **the window ended
+    // between 2026-08-24T00:01 and 2026-08-24T19:16**, when the user repaired
+    // the rod. §29 is ANSWERED (durability) and the timing of this flip is
+    // consistent with the answer rather than merely compatible with it: all 10
+    // casts of session 91's live batch were dealt the Shroom grant.
+    //
+    // The pin is now `false`, and it is a REAL ratchet in this direction too.
+    // §29's answer says to expect another base window when the repair runs out
+    // — the user's own estimate was ~40 casts from 2026-08-24. When that
+    // happens this flips back and the failure message below is the instruction.
     const dealt = grantedPrefix(latest!.fullDeck, REAL_DECK.length);
     const onBase = JSON.stringify(dealt) === JSON.stringify(sorted(BASE_DECK));
-    // As of the corpus this test was last regenerated against, the account's
-    // most recent 17 casts are base-deck. If this flips, the rod grant came
-    // back — update the constant below and re-read §29, which may have its
-    // answer in the timing of the flip.
     expect(
       onBase,
       onBase
-        ? "the latest cast is BASE_DECK — REAL_DECK is the rod's grant and does NOT describe current play"
-        : "the latest cast is the rod's grant again — the base window ended; note when, it is §29 evidence",
-    ).toBe(true);
+        ? "the latest cast is BASE_DECK — the rod has run out of durability again (§29 ANSWERED). This is " +
+          "EXPECTED, not a bug: tell the user the rod needs repairing, note the date, and flip this pin to " +
+          "`true`. REAL_DECK stays pointed at the rod; `splitByDealtDeck` is what keeps the window out of " +
+          "the headline damage figures."
+        : "the latest cast is the rod's grant again — the rod is working. Pinned false 2026-08-24 (session 91).",
+    ).toBe(false);
   });
 });
 
