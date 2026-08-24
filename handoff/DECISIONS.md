@@ -1404,3 +1404,150 @@ is the user's to weigh; it does not license an agent to rewrite pins to go
 green.** Together with `assertionCoverage.ts` (also blocked by the red), two
 distinct recap-time instruments are now unavailable for as long as the red
 stands.
+
+2026-08-23 (session 89, §1 / QUESTIONS §28 ANSWERED) — **THE REDRAW VERDICT IS
+RE-PRICED, BY USER DIRECTIVE: KEEP IT CLOSED, RETIRE THE PRICE AS THE REASON.**
+The user chose option (a), verbatim: *"Accept the re-pricing — keep redraw
+closed, but retire '43.9 mana per extra fish' as the stated reason and restate
+it as 'no validated trigger + two unpaid correctness gaps.'"* **What changes is
+the STATED REASON and only that.** `redrawEnabled` stays false,
+`REDRAW_THRESHOLD` stays 0 and untouched, no live-path line moved. Re-pricing a
+verdict is not weakening it — under the restated reason the two gaps at
+`liveFishing.ts:2471` and `:1526` become the NAMED blockers rather than a
+supporting detail. **43.9 is retired as a REASON, not deleted as a
+MEASUREMENT:** every sentence reporting it as what session 75 measured on
+`castSim`'s suspended `SIM bare` arm stays verbatim; what was replaced is the
+seven sites where it was answering *"why is redraw closed today?"* —
+`SPEC-fishing.md`, `pConnectConsumers.test.ts`, `liveFishing.ts`'s recalibration
+comment, `scripts/redrawCounterfactual.ts`, `src/sim/fishing/redrawCounterfactual.ts`,
+`src/sim/fishing/castSim.ts`, `scripts/damageEconomy.ts`. **§26's shadow
+evaluation is now UNBLOCKED** — the prerequisite is met — and was deliberately
+NOT started, per the brief: it deserves its own brief rather than being bolted
+onto a cleanup session.
+
+2026-08-23 (session 89, §2) — **"A ROD GRANTS THE STARTING DECK" IS TRUE; "EVERY
+CAST'S `fullDeck` OPENS WITH THE GRANTED SET" IS FALSIFIED. STATE.md NAMED THE
+WRONG THING.** Session 87 recorded this as *"`REAL_DECK` no longer matching the
+account's rod"*. `REAL_DECK` matches the rod fine — four of the five assertions
+in `rodDeck.test.ts` pass. What failed is the INDEPENDENT PLAY-side check, and
+the claim it encoded is false. **The counterexample is about as tight as a
+corpus can produce: two consecutive casts 15 seconds apart with a BYTE-IDENTICAL
+`GEAR_CID_array`** (same instances, same mint stamps) dealt different decks —
+`[74,75,76,78,1,2,3,4,5,6,29]` then `[1,2,3,4,5,6,7,8,9,10,29]` — same node,
+level, `day`, juice and looted tail. Established: **it is not a third rod** (all
+eight rods in `/offchain/static` checked — 49, 50, 336, 811, 812, 922, 923, 924
+— none grants `[1..10]`); **`[1..10]` is the UN-BONUSED deck** (7/8/9/10 cover
+exactly the hit zones 74/75/76/78 do, with worse numbers — a rod upgrades four
+cards in place); **it is intermittent, not a rod change** (2026-08-17 for 21
+casts, ended; 2026-08-24 for 17 casts, current); **`GEAR_CID_array` never
+identified the ACTIVE rod** — it carries Stone Rod (50) beside Shroom (811) on
+every recent cast, and the old test saw one rod only because
+`latestRodObservation` filters to the two in `ROD_CARD_GRANTS`; and **38 of 149
+casts were dealt `BASE_DECK`**, which no figure in this repo has ever said.
+**`REAL_DECK` was deliberately NOT repointed** — the base window is intermittent
+and repointing would silently re-baseline every pinned sim number in
+`tests/fishing/`. The ratchet now guards the half that survives: an
+UNRECOGNISED deck is a finding. **The cause is UNKNOWN and not guessed at** —
+durability, a per-day allowance, an equip the array does not reflect and a
+server bug all fit; `QUESTIONS.md` §29 asks the user for one cheap live read.
+Carry the consequence: this is the Makeshift/Shroom break a second time, so
+**say which deck a comparison used.**
+
+2026-08-23 (session 89, §3) — **SPEC-fishing §4's THREE NEW `fishHp` EXCEPTIONS
+SHARE ONE CAUSE, AND THE BASE-6 SEPARATOR ARRIVED — `×1.6` IS FALSIFIED.** The
+user asked for the exceptions to be reviewed and the spec updated *only if the
+live data really establishes a new rule*. It does. `13055892 t1` is a base-6
+NON-LETHAL hit with `FISH_HP_DIFF` 9: `×1.5` round-half-up gives 9 ✓, `×1.6`
+rounded gives 10 ✗, `floor(6×5/3)` gives 10 ✗. That is exactly the separator
+session 81's docblock said was needed. **All six exceptions fit one rule** —
+hit-based and crit-based, lethal and not — which is what makes them exceptions
+to a rule rather than six accidents, and is why the PROSE changed and not only
+the pin. ⚠ **It is a NARROWED FAMILY, not a proven constant:** solving
+`actual − 0.5 ≤ base × m < actual + 0.5` over all six pins **m ∈ [1.5, 1.5833)**
+— 1.5 sits exactly on the lower endpoint, which is suggestive and is not a
+proof, and **1.55 survives too.** Cleanly eliminated: 1.6 and everything ≥
+1.5833. The next separator is a base of 12+, which no known deck carries, so
+ordinary casting has stopped paying here. **Card 7 exists only in `BASE_DECK`**
+— the anomaly that broke `rodDeck.test.ts` is the same anomaly that paid for
+this result. **The multiplier is still NOT encoded in `cardChoice.ts`** (§4d,
+rule 4). Two other pins in the same file moved and were ATTRIBUTED rather than
+assumed: `oilSkipped` 21→24 and `crits` 30→36 both return to their old values
+exactly when session 87's 20 traces are excluded.
+
+2026-08-23 (session 89, §4) — **THREE BOON PAIRS MODELLED OFFLINE AT ZERO LIVE
+COST, AND `boonCapture`'s ORIGINAL TARGET LIST IS NOW ENTIRELY MODELLED.**
+`WeakeningMastery` (s87, val1 10, Rare), `AddVulnerableSword` (s88, val1 2,
+Rare) and `AddBurnShield` (s88, val1 3, Uncommon), all `latent`. **Latent here
+is MEASURED, not a fallback:** the check was stricter than `tests/boons.test.ts`
+applies — a recursive diff of the ENTIRE raw `players[0]` object across each
+pair, not the six fields `toCombatant` projects — and on all three the only
+difference in the whole object is the boon's own `pickedBoons` append. Two of
+the three are precisely the trap DECISIONS 2026-08-15 exists for
+(`AddBurnShield` reads as the sibling of modelled `AddBurnSword`,
+`AddVulnerableSword` as the sibling of modelled `AddVulnerableShield`) and
+neither model was copied across. **`UNMODELLED_TYPES` 24 → 21: three moved OUT
+and NONE moved IN**, the first un-offset coverage gain in five recorded
+sessions — verified independently of the stale offer table, since the
+offered-type SET is identical between the corpus (227 offers) and
+`OBSERVED_OFFERS` (202), 55 both ways. **Consequence, the module's own rule
+firing: `AddBurnShield` and `WeakeningMastery` were capture targets BECAUSE they
+were unmodelled, so both retire — 5 of the original 5 targets are now modelled
+without `boonCapture` ever being switched on.** Replacements per the same rule:
+`BurningEvade` 4, `WeakeningBlock` 4. ⚠ **The ranking is now computed over the
+CORPUS rather than `OBSERVED_OFFERS`**, which is 25 offers stale and disagrees
+on the ORDER (Regen 7 vs 8, AddLifestealSword 4 vs 5, BurningTenacity 1 vs 2).
+`boonCapture` stays OFF.
+
+2026-08-23 (session 89, §5) — **`castEra.test.ts` REGENERATED AGAINST 168 CASTS
+BY USER DIRECTIVE, AND FOUR STRUCTURAL CLAIMS CHANGED.** Every pin regenerated
+by CALLING `focusEraSplit`, `budgetZeroDecomposition`, `redrawCounterfactual`,
+`separability` and `openingOverspendSplit` against the current corpus — nothing
+hand-typed off a recap — with old values kept beside each pin, not erased.
+**The BEFORE arm is unchanged at 94 casts / 410 plays / 184 budget-zero /
+0.449**, which is the control showing the instrument did not drift; today's era
+went 54 → 74. The four: **(1) the "THIRTYFOLD drop" is ~6.5x** — today's rate
+1.49% → 6.92%; the collapse survives at 38 points, the magnitude word does not;
+**(2) `neither = 0` → 6, RETRACTED as structural** — it was true of 54 casts and
+is not a property of the era; **(3) `wasted` is no longer structurally zero**
+(takes 0,3,4,5,6), which IS (2) restated and costs the argument that the
+trigger's job is detection rather than selection — now asserted as the identity
+`max(wasted) === neitherReaches` so the two facts cannot drift apart; **(4) the
+rescue rate is 26/32, 95% CI [64.7%, 91.1%]**, the upper bound no longer at 1.
+**What did NOT move is the more interesting half: THE CONTROL HOLDS** —
+`meanOptimal` before 0.656 / today 0.662, still agreeing inside the 0.01 bound
+on 37% more casts, so the target still never moved. Also unmoved: not one cast
+in 74 spent the whole meter on move one; the GEAR null got STRONGER (arms agree
+to 0.00003, was 0.002); `heldCoverage` separation SURVIVES (AUC today 0.925, was
+0.907); strip the restores and oil casts still revert to within 7pp of the old
+regime. A NEW DAY 08-24 at overspend 0.10 undoes the within-era 0.10→0.25→0.50
+climb — the band separation is durable, the climb was four points of noise.
+**`session-86-redraw-revisit.md` and `session-86-corpus-snapshot.md` were NOT
+touched** and stay frozen at `CORPUS-2026-08-23A` per §28; that they now
+disagree with a live-computed test is the point of pinning them, and whoever
+takes up §26 should know the rescue evidence moves on newer data.
+
+2026-08-23 (session 89, §6) — **THE DOUBLE-LETHAL OIL TRIGGER IS BUILT, SCORED,
+AND RECOMMENDED AGAINST — 140.9 OILS PER EXTRA FISH AGAINST A BAR OF ~12.**
+Derived, not shipped: `liveFishing.ts` still calls `onDemandTriggers`,
+`policyApproved` still false, no live call site. A clean negative — the band is
+real, the rule implementable, the executor supports it, and the arithmetic does
+not pay: **+0.13pp catch for 1409 extra oils** across 8000 casts. **Both things
+the brief said to verify came back YES, and both are findings in their own
+right. (1) The live executor CAN consume the same kind twice in one turn** —
+`for (const kind of oilWanted)` issues one POST per entry and does NOT dedupe;
+`doc`, `oilHeld[kind]`, `oilsUsedThisCast` and `oilsUsedThisCastOf[kind]` all
+update INSIDE the loop, `mayConsumeOil` is re-called with updated counts, and
+`nextConsumableSlot` re-reads the fresh doc. Session 68's `COMPLETE_CID` break
+cannot bite here BY CONSTRUCTION, since in this band the first oil provably
+cannot kill. **(2) The cutoff of 1 is NOT degenerate** — it withholds the pair
+on 58% of the band turns it could fire on (1084 of 2580), and
+`bestKillProbability` at band turns is bimodal exactly as session 67 found it
+elsewhere (36.20% exactly 0, 57.98% exactly 1, 5.81% between). No new fitted
+constant. The band is not rare either — 8.27% of decisions — so the null is not
+an inert arm's. Sweep at n=8000, paired seeds, **`held = 2`, the one harness
+change and not optional**: at `held = 1` the trigger is identically inert, so
+`on-demand` was re-run at the same stock rather than compared against its
+published `held = 1` numbers. **`double-lethal(r=0)` reproduces `on-demand` byte
+for byte**, which is the arm validating itself. Free re-verification along the
+way: `conserve` still matches `on-demand`'s catch on 2089 fewer oils at
+`held = 2`, a stock `OIL-CONSERVE.md` had not been run at. `handoff/OIL-DOUBLE-LETHAL.md`.
