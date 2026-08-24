@@ -24,6 +24,8 @@
  * that `doubleLethalTriggers` agrees with `onDemandTriggers` everywhere the
  * band does not apply, rather than only checking the new branch fires.
  */
+import { existsSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -37,6 +39,12 @@ import {
   onDemandTriggers,
 } from "../../src/strategy/fishing/oilTiming.js";
 import { board, card, distAt, oilState } from "../helpers/oilDecisionState.js";
+import { announceMissingAuthorData, probeAuthorData } from "../helpers/authorData.js";
+
+const memoProbe = probeAuthorData("handoff/OIL-DOUBLE-LETHAL.md", () => {
+  if (!existsSync("handoff/OIL-DOUBLE-LETHAL.md")) throw new Error("absent (pruned from a distributed tree)");
+});
+announceMissingAuthorData("tests/fishing/oilDoubleLethal.test.ts (memo recommendation pin)", memoProbe);
 
 const E = PAYLOAD_OIL_EFFECTS; // fishDamage 2, so the band is fishHp 3..4
 const FISH = { x: 2, y: 2 };
@@ -194,7 +202,15 @@ describe("it IS wired live — [session 90 §1b] the guard, turned around rather
     expect(src).toContain("oilWanted = onDemandTriggers(oilTimingState, PAYLOAD_OIL_EFFECTS)");
   });
 
-  it("the sim's own recommendation is still AGAINST, and the memo still says so", async () => {
+  /**
+   * **[session 90] The memo lives under `handoff/`, which `scripts/preflight.ts`
+   * PRUNES from a distributed tree.** So this assertion has to be probed like
+   * any other author-data test — the first version of it was not, and it
+   * turned a green suite red in a stranger's clone on first contact, which
+   * `preflight.ts` calls "the single most likely reason someone quietly gives
+   * up". Caught by preflight, which is exactly what preflight is for.
+   */
+  it.skipIf(!memoProbe.ok)("the sim's own recommendation is still AGAINST, and the memo still says so", async () => {
     const { readFileSync } = await import("node:fs");
     const memo = readFileSync("handoff/OIL-DOUBLE-LETHAL.md", "utf8");
     // Wiring it did NOT make it a good trade on the sweep's own terms. If a
