@@ -19,10 +19,14 @@ import {
   REAL_DECK,
   ROD_CARD_GRANTS,
   SHROOM_ROD,
+  dealtDeck,
   gearItemIds,
   grantedPrefix,
   latestRodObservation,
+  splitByDealtDeck,
+  traceDealtDeck,
 } from "../../src/sim/fishing/rodDeck.js";
+import { isCleanTrace, loadCastTraces } from "../../src/sim/fishing/castTrace.js";
 
 const sorted = (xs: readonly number[]) => [...xs].sort((a, b) => a - b);
 
@@ -146,5 +150,88 @@ describe("gearItemIds", () => {
     expect(gearItemIds(["GearInstance#109_1752766722"])).toEqual([109]);
     expect(gearItemIds(undefined)).toEqual([]);
     expect(gearItemIds(["nonsense"])).toEqual([]);
+  });
+});
+
+describe("dealtDeck — [session 91 §2] the base/rod split, on hand-built decks", () => {
+  // Pure-function half. The corpus half is below; this half is what says the
+  // classifier is right rather than merely self-consistent, because these
+  // inputs are constructed to be unambiguous.
+  const loot = [29, 31];
+
+  it("names the un-bonused deck, in the order the server actually sends it", () => {
+    expect(dealtDeck([...BASE_DECK])).toBe("base");
+    expect(dealtDeck([...BASE_DECK, ...loot])).toBe("base");
+  });
+
+  it("names every rod grant it knows, and does not care about grant ORDER", () => {
+    for (const grant of Object.values(ROD_CARD_GRANTS)) {
+      expect(dealtDeck([...grant, ...loot])).toBe("rod");
+      // The Shroom grant arrives upgraded-cards-first on the wire
+      // (`[74,75,76,78,1,2,3,4,5,6,...]`), so a classifier that compared the
+      // raw prefix would miss it. Reversing is the cheapest proof it sorts.
+      expect(dealtDeck([...[...grant].reverse(), ...loot])).toBe("rod");
+    }
+  });
+
+  it("refuses to guess — an unseen deck, a short deck and a missing deck are all `unknown`", () => {
+    // This is the assertion that keeps the split fail-closed. A new rod must
+    // NOT be silently folded into either arm; it must show up as a third
+    // bucket a caller has to deal with.
+    expect(dealtDeck([11, 12, 13, 14, 15, 16, 17, 18, 19, 20])).toBe("unknown");
+    expect(dealtDeck([1, 2, 3])).toBe("unknown");
+    expect(dealtDeck([])).toBe("unknown");
+    expect(dealtDeck(undefined)).toBe("unknown");
+  });
+
+  it("reads the OPENING state, not the trace — the field lives on the turn", () => {
+    // `fullDeck` is a field of `CastTurn`, not of `CastTrace`; a split written
+    // against `trace.fullDeck` classifies nothing and does it silently, because
+    // the property is `undefined` rather than absent-and-loud. Session 91's
+    // brief made exactly that mistake.
+    const trace = { turns: [{ fullDeck: [...BASE_DECK, ...loot] }, { fullDeck: [...BASE_DECK, ...loot, 40] }] };
+    expect(traceDealtDeck(trace)).toBe("base");
+    expect(traceDealtDeck({ turns: [] })).toBe("unknown");
+    expect(traceDealtDeck({ turns: [{}] })).toBe("unknown");
+  });
+
+  it("splitByDealtDeck partitions — every item lands in exactly one bucket", () => {
+    const mk = (deck: readonly number[]) => ({ turns: [{ fullDeck: [...deck] }] });
+    const items = [mk(BASE_DECK), mk(REAL_DECK), mk(ROD_CARD_GRANTS[MAKESHIFT_ROD]!), mk([90, 91, 92, 93, 94, 95, 96, 97, 98, 99])];
+    const out = splitByDealtDeck(items);
+    expect(out.base).toHaveLength(1);
+    expect(out.rod).toHaveLength(2);
+    expect(out.unknown).toHaveLength(1);
+    expect(out.base.length + out.rod.length + out.unknown.length).toBe(items.length);
+  });
+});
+
+describe("dealtDeck — against the corpus itself", () => {
+  const traces = loadCastTraces().filter(isCleanTrace);
+  const split = splitByDealtDeck(traces);
+
+  it("classifies every clean trace, leaving nothing unknown", () => {
+    // The ratchet, at the point the split is used: a non-empty `unknown` means
+    // a new rod or a new mechanic, and no figure computed off `rod` or `base`
+    // is trustworthy until someone has looked at it.
+    expect(traces.length).toBeGreaterThan(100);
+    expect(split.unknown).toHaveLength(0);
+    expect(split.base.length + split.rod.length).toBe(traces.length);
+  });
+
+  it("both arms are non-empty — the split is doing work, not passing vacuously", () => {
+    expect(split.base.length).toBeGreaterThan(0);
+    expect(split.rod.length).toBeGreaterThan(split.base.length);
+  });
+
+  it("a cast's dealt deck never changes mid-cast", () => {
+    // Measured at 0 of 167 in session 91, and it is the assumption that makes
+    // reading turn 0 equivalent to reading any other turn. If a cast could
+    // switch decks partway — a rod expiring mid-cast, say — every per-cast
+    // figure in `damageEconomy.test.ts` would need re-deriving per PLAY.
+    for (const t of traces) {
+      const seen = new Set(t.turns.map((turn) => dealtDeck(turn.fullDeck)));
+      expect(seen.size, `trace ${t.docId} changed deck mid-cast`).toBe(1);
+    }
   });
 });

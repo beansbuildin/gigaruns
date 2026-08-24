@@ -1649,3 +1649,88 @@ else. Fixed with the mechanism the repo already had — `probeAuthorData` +
 its handoff-prose sweep — so the skip announces itself and cannot pass for a
 pass. **Carry the general rule: a new test that reads anything under `handoff/`,
 `data/` or `logs/` needs an author-data probe, or it ships broken.**
+
+2026-08-24 (session 91) — **§29 ANSWERED BY THE USER: THE BASE-DECK CASTS WERE A
+ROD THAT HAD RUN OUT OF DURABILITY.** Verbatim: *"Casts were dealt the base deck
+because my shroom rod ran out of durability and I didnt notice. Rod has been
+repaired and will be good for another 40 casts."* This eliminates the other
+three hypotheses §29 refused to choose between (a per-day grant allowance, a
+server-side equip desync, a plain bug) and explains why two casts 15 seconds
+apart with a byte-identical `GEAR_CID_array` were dealt different decks:
+durability is a property of the ROD INSTANCE, not of the equip state, so the
+gear array was never wrong — it was answering a different question. **It will
+recur**, on the user's own ~40-cast horizon from 2026-08-24. **Nothing in this
+repo can see durability**: no durability, charge or uses-remaining field exists
+anywhere in the fixtures or the live doc shape, so this repo can only detect a
+base window AFTER the fact, by the deck dealt. **The account owner is the only
+durability sensor that exists, and "~40 casts" is their report about their own
+equipment, not a repo measurement — do not restate it as one.**
+
+2026-08-24 (session 91) — **§31 RULED (a), NARROWED: EXCLUDE THE BASE-DECK CASTS
+FROM THE HEADLINE `LIVE` FIGURE AS A CLOSED EQUIPMENT-FAILURE POPULATION; KEEP
+THEIR NUMBERS AS A DATED NOTE; DO NOT STAND UP A SECOND TRACKED LINE.** A choice
+among three options put to the user, not spontaneous user language. Not quite
+§31's original (a), which treated the base arm as a possible second LEGITIMATE
+fishery worth tracking side by side — §29's durability answer removes that
+framing. **Excluding it is not a judgement that the data is bad**; it is real
+play, dealt a worse deck for a known reason. The split is ONE implementation —
+`dealtDeck` / `traceDealtDeck` / `splitByDealtDeck` on `rodDeck.ts` — called by
+both `tests/fishing/damageEconomy.test.ts` and `scripts/damageEconomy.ts` so the
+test and the report it backs cannot drift apart.
+
+2026-08-24 (session 91) — **THE HEADLINE DAMAGE FINDING IS REVERSED, NOT
+RETIRED: THE LIVE FISH LOSES HP IN EXPECTATION.** On the rod-dealt arm
+`LIVE.drift` is **−0.1985** (123 casts, 539 plays, 39.3% hit, 5.146 damage,
+3.009 heal) against the sim bare arm's **−3.4925**. "The fish gains HP in
+expectation" was carried ENTIRELY by the excluded base-deck windows. **"Not the
+same fishery" survives on the MAGNITUDE (a factor of ~17.6), not on the sign —
+both arms are negative now.** Two consequences recorded so they are not
+rediscovered as bugs: the clamp claim came out **STRONGER** (clamped −0.1985
+against unclamped −0.2078, agreeing to within a hundredth, where pooled they
+were −0.0316 and −0.0014 — a factor of twenty apart and both indistinguishable
+from zero); and **`scripts/damageEconomy.ts`'s "the BLIND arm reproduces live's
+SIGN" claim is RETIRED** — the arm matching live's sign today is the BARE one,
+which is the arm the same script spends its length showing is not the same
+fishery. Read that as a warning about sign-matching as evidence.
+
+2026-08-24 (session 91) — **SESSION 90's OWN SPLIT TABLE (§31, and the
+`damageEconomy.test.ts` docblock) DOES NOT REPRODUCE AND MUST NOT BE
+RESTATED.** It read base 22 casts / 74 plays and non-base 145 / 622;
+recomputed through `splitByDealtDeck` the split is **44 / 157 and 123 / 539**.
+The POOLED totals agree exactly (167 casts, 696 plays), so the SPLIT was wrong,
+not the corpus, and session 90's base row is internally inconsistent with any
+single classification — its play count matches only the 2026-08-24 window while
+its hit rate and drift match only the 2026-08-17 one. The session-91
+classification was validated before anything was pinned on it: exactly three
+distinct opening prefixes exist (Makeshift 81, base 44, Shroom 42), every
+trace's prefix is identical across all of its own turns (0 of 167 vary), and 0
+casts land in the `unknown` bucket. **Second correction, and it matters more:
+the base arm is not one population either** — 2026-08-17 reads 27 casts / 15.7%
+hit / drift **+1.735** and 2026-08-24 reads 17 casts / 50.0% hit / drift
+**−0.797**. So "the base deck drifts positive" is a pooling artefact one level
+down, and the later window landed shots MORE often than the rod-dealt corpus
+does. **`BASE_ARM.drift` may not be quoted as a property of playing without a
+rod bonus.**
+
+2026-08-24 (session 91) — **`CastTrace.fullDeck` DOES NOT EXIST; `fullDeck` IS A
+FIELD OF `CastTurn`.** The session-91 brief located it on the trace (citing
+`castTrace.ts` line 107, which is inside the `CastTurn` interface) and a split
+written that way classifies **0 of 167** traces, silently, because the property
+is `undefined` rather than absent-and-loud. The split reads it off the OPENING
+state (`trace.turns[0].fullDeck`), which is also the right place on the merits —
+loot is appended to `fullDeck`'s tail during a cast. Verified as safe: every
+trace's granted prefix is identical across all of its own turns, so the choice
+of turn changes nothing today, and turn 0 is the one that cannot change
+tomorrow.
+
+2026-08-24 (session 91) — **`OIL-POLICY.md` §0a NEEDED NO EDIT, AND CHECKING
+THAT WAS THE POINT.** Session 90 warned §0a's "different fisheries" argument
+would need restating around magnitude once the drift sign question was ruled on.
+Checked against §0a's actual text: **it never cited the drift at all** — the
+words "drift", "damageEconomy", "gains HP" and "opposite sign" appear nowhere in
+the file. §0a rests entirely on meter-out (1.0% sim against 64.2% live) and
+catch (~70% against 27.6%), untouched by this ruling. **§0a is NOT lifted,
++19.40pp still MAY NOT BE QUOTED.** The general lesson is the same one rule 9
+encodes: a brief's claim about what another file says is a hypothesis, and
+"restate §0a's argument" would have edited a document to fix a problem it did
+not have.

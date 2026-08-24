@@ -1,7 +1,8 @@
 /**
- * tests/fishing/damageEconomy.test.ts — [session 80 §1, GATE 1] **the live
- * fish GAINS HP in expectation and the simulator's LOSES it, and the term that
- * carries the difference is the hit rate.**
+ * tests/fishing/damageEconomy.test.ts — [session 80 §1, GATE 1; re-pointed
+ * session 91 §2] **the live fish LOSES HP in expectation, the simulator's loses
+ * it an order of magnitude faster, and the term that carries the difference is
+ * the hit rate.**
  *
  * Session 48 wrote the decision table (`scripts/lossDecomposition.ts`):
  * meter-outs dominating with the focus meter INTACT selects the damage
@@ -12,13 +13,23 @@
  *
  *     E[Δ fishHp per play] = P(hit) × (−damage) + P(miss) × (+heal)
  *
+ * ## ⚠ WHAT `LIVE` MEASURES, AND WHY IT IS NOT EVERY TRACE ON DISK
+ *
+ * `LIVE` is the **rod-dealt** corpus — casts where a rod's card grant was
+ * actually applied. The casts dealt the un-bonused `BASE_DECK` are excluded and
+ * measured separately, because the account's rod had **run out of durability**
+ * (`QUESTIONS.md` §29 ANSWERED) and those casts are an equipment-failure
+ * interval rather than a second fishery. The ruling is `QUESTIONS.md` §31
+ * ANSWERED / `DECISIONS.md` 2026-08-24 (session 91).
+ *
  * Four things are pinned below, in the order they matter:
  *
- *   1. **The corpus fact**, re-derived from the fixtures on every run and
- *      never pasted in. The live drift is POSITIVE: every cast is a race
- *      against a rising floor.
- *   2. **The simulator's is NEGATIVE** in the arm `OIL-POLICY.md` §0a
- *      suspends, and by a wide margin.
+ *   1. **The corpus fact**, re-derived from the fixtures on every run and never
+ *      pasted in. The live drift is NEGATIVE — the fish loses ground on
+ *      average — but only just, at roughly a fifth of an HP per play.
+ *   2. **The simulator's is negative too, and seventeen times larger.** The sign
+ *      does NOT separate the two arms; the MAGNITUDE does, and that is the
+ *      whole of the "not the same fishery" claim now.
  *   3. **The hit rate carries it.** The per-card AMOUNTS are read from a real
  *      capture and every arm reproduces live's to within a tenth, so a
  *      decomposition that swaps one term at a time names the hit rate — which
@@ -47,81 +58,94 @@ import {
 } from "../../src/sim/fishing/damageEconomy.js";
 import { makeMatcherFishPolicy, REDRAW_THRESHOLD, type CastOptions } from "../../src/sim/fishing/castSim.js";
 import { isCleanTrace, loadCastTraces } from "../../src/sim/fishing/castTrace.js";
-import { REAL_DECK } from "../../src/sim/fishing/rodDeck.js";
+import { REAL_DECK, splitByDealtDeck } from "../../src/sim/fishing/rodDeck.js";
 
-const TRACES = loadCastTraces().filter(isCleanTrace);
-const LIVE = corpusEconomy(TRACES);
+const ALL_TRACES = loadCastTraces().filter(isCleanTrace);
+
+/**
+ * The one split, from `rodDeck.ts` — `scripts/damageEconomy.ts` calls the same
+ * function for its printed report, so the test and the report cannot drift
+ * apart. `unknown` is a deck outside `KNOWN_DEALT_DECKS`; it is asserted empty
+ * below rather than quietly folded into either arm.
+ */
+const BY_DECK = splitByDealtDeck(ALL_TRACES);
+const TRACES = BY_DECK.rod;
+
+const LIVE = corpusEconomy(TRACES, "LIVE — every clean ROD-DEALT trace on disk");
+
+/**
+ * The base-deck arm. **Never named `LIVE`, never feeds a THE FINDING
+ * assertion.** See the closed-historical `describe` block at the bottom of the
+ * live section for what it is and why it is kept.
+ */
+const BASE_ARM = corpusEconomy(BY_DECK.base, "BASE-DECK WINDOWS — closed equipment-failure population");
 
 /** The board `scripts/damageEconomy.ts` and `scripts/focusProfileCheck.ts` both fix. */
 const REAL_PARAMS = { fishMaxHp: 21, startFishHpRatio: 13 / 21, startMana: 10, handSize: 3, gridSize: 4 } as const;
 
 /**
  * 400 casts, not the scripts' 4000. The quantities under test are separated by
- * whole HP points — live +0.19 against the bare arm's −3.4 — so n=400 resolves
+ * whole HP points — live −0.20 against the bare arm's −3.49 — so n=400 resolves
  * them with room to spare, and a test suite is not the place to spend eight
  * seconds re-deriving a figure the script prints.
  */
 const RUNS = 400;
 
 /* ===========================================================================
- * ⚠⚠⚠ [session 90 §3] THREE TESTS IN THIS FILE ARE RED, AND THEY ARE RED
- *     ON PURPOSE. DO NOT REGENERATE THEM.
+ * [session 91 §2] RESOLVED — the three tests session 90 left RED ON PURPOSE
  * ===========================================================================
  *
- * Session 90's brief authorised regenerating six files of "ordinary corpus-
- * count drift" and required each to be checked first. Five were drift. **This
- * one is not.** `LIVE.drift` — the quantity two tests here call THE FINDING —
- * **changed sign**: it was positive (the band asserts > 0.05, and the docblock
- * above cites +0.19) and is now **-0.0316**. A sign flip on a headline claim
- * is not a number to bump.
+ * Session 90 found `LIVE.drift` had **changed sign** — positive (asserted
+ * `> 0.05`, docblock citing +0.19) and then −0.0316 — and refused to bump it,
+ * because a sign flip on a headline claim is not a number to bump. It left
+ * three tests failing and asked `QUESTIONS.md` §31 for a ruling.
  *
- * ## The cause, measured rather than guessed
+ * **Two answers landed, and together they resolve it:**
  *
- * Split the 167 clean traces by the deck they were actually DEALT — the split
- * session 89 §2 discovered and DECISIONS 2026-08-23 says to always state:
+ *  - **§29 ANSWERED** — the base-deck casts happened because the rod had run
+ *    out of DURABILITY, unnoticed. Not a per-day allowance, not an equip
+ *    desync, not a server bug. So those casts are an equipment-failure
+ *    interval, not a second fishery.
+ *  - **§31 ANSWERED** — exclude them from the headline figure as a distinct,
+ *    now-closed population; keep their numbers as a dated note; do not stand up
+ *    a second permanently-tracked line.
  *
- *     dealt deck        casts  plays   hitRate   meanDmg  meanHeal    drift
- *     base [1..10]         22     74    18.9%      4.571     3.000   +1.568
- *     non-base            145    622    39.9%      5.210     3.086   -0.222
- *     POOLED (=LIVE)      167    696    37.6%      5.176     3.074   -0.032
+ * `LIVE` is therefore the rod-dealt arm, and **the correction does not shrink
+ * the old claim toward zero, it reverses it.** "The fish gains HP in
+ * expectation" was carried entirely by the base-deck windows; held to the casts
+ * a rod was actually working on, the live fish LOSES HP — the same sign as the
+ * sim's bare arm, not the opposite of it. All three tests below are rewritten
+ * around that, titles and claims, not just comparators.
  *
- * **The two arms have OPPOSITE drift signs, and the pooled figure sits near
- * zero because they nearly cancel.** So "the fish gains HP in expectation" was
- * never a fact about the fishery — it is what pooling a low-hit-rate base-deck
- * window into a rod-deck corpus produces. Held to one deck, the live fish
- * LOSES HP, which is the SAME SIGN as the sim's bare arm rather than the
- * opposite of it.
+ * ## ⚠ TWO CORRECTIONS TO SESSION 90's OWN TABLE — do not restate it
  *
- * By batch, the same thing seen from the other side: the 146 older clean
- * traces drift **+0.079** and the 21 newest drift **-0.787** (hit rate 47.2%
- * against 36.2%). One batch moved the pooled sign.
+ * Session 90's split (`QUESTIONS.md` §31, and the docblock this replaces) read
+ * `base 22 casts / 74 plays / 18.9% / drift +1.568` against
+ * `non-base 145 / 622 / 39.9% / −0.222`. **Recomputed here through
+ * `splitByDealtDeck`, the split is 44 / 157 and 123 / 539.** The pooled totals
+ * agree exactly (167 casts, 696 plays), so it is the SPLIT that was wrong, not
+ * the corpus. Session 90's base row is also internally inconsistent with any
+ * single classification: its play count (74) matches only the 2026-08-24
+ * window, while its hit rate and drift match only the 2026-08-17 one.
  *
- * ## Why this is the user's call and not a fix
+ * The second correction is the one that matters more. **The base arm is not one
+ * population either** — measured by date it is two windows that barely resemble
+ * each other:
  *
- * Three of this file's claims rest on the sign, and each fails differently:
+ *     window        casts  plays  hitRate    drift
+ *     2026-08-17       27     83    15.7%   +1.735   (Makeshift era)
+ *     2026-08-24       17     74    50.0%   −0.797   (Shroom era)
+ *     base, pooled     44    157    31.8%   +0.541
  *
- *   1. *"THE FINDING: the fish gains HP in expectation"* — false as stated on
- *      the pooled corpus, and MEANINGLESS on it, since the pooled corpus is
- *      two fisheries.
- *   2. *"the clamp is real but small"* — the unclamped drift is **-0.0014**,
- *      i.e. indistinguishable from zero. The clamp claim survives; the
- *      `> 0` term in it does not.
- *   3. *"THE FINDING: the bare arm's drift is NEGATIVE where live's is
- *      positive"* — the CONTRAST is what breaks. Both are negative now. The
- *      magnitudes still differ by an order of magnitude (-0.222 against
- *      < -2), so "not the same fishery" survives; "opposite signs" does not.
+ * So "the base deck drifts positive" is itself a pooling artefact one level
+ * down, and the 2026-08-24 window landed shots MORE often than the rod-dealt
+ * corpus does. **Do not quote `BASE_ARM.drift` as a property of playing without
+ * a rod bonus.** It is kept as a closed historical record, nothing more.
  *
- * **This bears on OIL-POLICY §0a.** The suspension of +19.40pp rests partly on
- * live and sim being different fisheries, and the single cleanest number
- * expressing that was the opposite drift sign. That argument now needs the
- * magnitude, not the sign. §0a is NOT lifted and nothing here argues that it
- * should be — but the reason it stands has changed, and a reason that changed
- * silently is worse than one that failed loudly.
- *
- * The choice is between pinning the deck-conditioned figures (which changes
- * what this file measures) and re-stating the findings around magnitude. Both
- * are real edits to a published claim, so both are the account owner's.
- * `QUESTIONS.md` §31 asks. Until then these three stay red.
+ * One thing §29's answer does NOT cover: the user's words are about the Shroom
+ * rod, which dates the 2026-08-24 window. The 2026-08-17 window is the same
+ * signature one rod earlier and is consistent with the same mechanism, but that
+ * is inference, not the answer. Nothing here depends on it.
  * ========================================================================= */
 
 function armOf(label: string, extra: Omit<CastOptions, "seed" | "policy">) {
@@ -146,18 +170,27 @@ describe("the live damage economy, re-derived from the corpus", () => {
     expect(LIVE.plays).toBeGreaterThan(500);
   });
 
-  it("THE FINDING: the fish gains HP in expectation — the drift is positive", () => {
-    expect(LIVE.drift).toBeGreaterThan(0);
+  it("THE FINDING: the fish LOSES HP in expectation, but barely — a fifth of an HP per play", () => {
+    // Reversed in session 91 from "gains HP". The old positive reading was
+    // carried entirely by the base-deck windows now excluded above; on the
+    // casts a rod was actually working on, the fish loses ground.
+    expect(LIVE.drift).toBeLessThan(0);
     // A band, not a pin. The corpus grows every session it plays; what must not
-    // drift is the sign and the order of magnitude, because a positive drift is
-    // what makes a cast a race against a rising floor.
-    expect(LIVE.drift).toBeGreaterThan(0.05);
-    expect(LIVE.drift).toBeLessThan(0.4);
+    // drift is the sign and the order of magnitude. −0.20 at 123 casts. The
+    // magnitude is the whole point: a fifth of an HP per play against a fish
+    // that heals 3 on a miss means a cast is very nearly a fair fight, which is
+    // what "an order of magnitude smaller than the sim's" means concretely.
+    expect(LIVE.drift).toBeLessThan(-0.05);
+    expect(LIVE.drift).toBeGreaterThan(-0.6);
   });
 
   it("lands roughly a third of its shots, for ~5 damage, against ~3 heal on a miss", () => {
-    expect(LIVE.hitRate).toBeGreaterThan(0.3);
-    expect(LIVE.hitRate).toBeLessThan(0.4);
+    // [session 91] Widened from (0.3, 0.4) with the population, not to
+    // accommodate a failure: excluding the low-hit-rate 2026-08-17 base window
+    // raises the rate from 37.6% pooled to 39.3%, which the old upper bound
+    // would have clipped. The band is set around the new arm's value.
+    expect(LIVE.hitRate).toBeGreaterThan(0.34);
+    expect(LIVE.hitRate).toBeLessThan(0.45);
     expect(LIVE.meanDamage).toBeGreaterThan(4.5);
     expect(LIVE.meanDamage).toBeLessThan(5.5);
     expect(LIVE.meanHeal).toBeGreaterThan(2.7);
@@ -169,17 +202,86 @@ describe("the live damage economy, re-derived from the corpus", () => {
     expect(modeOf(LIVE.healHist).value).toBe(3);
   });
 
-  it("the clamp is real but small — the unclamped reading agrees in sign and within a tenth", () => {
+  it("the clamp is real but small — the unclamped reading agrees in sign and within a hundredth", () => {
     // The server clamps `fishHp` at `fishMaxHp`, so a terminal miss shows a
     // smaller state delta than the card's own `FISH_HP_DIFF`. Both readings are
     // reported by the script; this is the check that they do not tell two
     // different stories.
-    const unclamped = corpusEconomyUnclamped(TRACES);
+    //
+    // [session 91] This claim came out of the re-pointing STRONGER, which is
+    // worth saying because the other two came out reversed. On the pooled
+    // corpus the two readings were −0.0316 and −0.0014 — the same side of zero
+    // but a factor of twenty apart, both indistinguishable from nothing. On the
+    // rod-dealt arm they are −0.1985 and −0.2078: same sign, agreeing to within
+    // a hundredth of an HP, on a quantity large enough for the agreement to
+    // mean something.
+    const unclamped = corpusEconomyUnclamped(TRACES, "LIVE rod-dealt — UNCLAMPED");
     expect(unclamped.plays).toBe(LIVE.plays);
     expect(unclamped.hits).toBe(LIVE.hits);
-    expect(unclamped.drift).toBeGreaterThan(0);
+    expect(unclamped.drift).toBeLessThan(0);
+    expect(Math.abs(unclamped.drift - LIVE.drift)).toBeLessThan(0.05);
+    // The clamp hides damage, so the unclamped mean damage is the larger one.
     expect(unclamped.meanDamage - LIVE.meanDamage).toBeGreaterThan(0);
     expect(unclamped.meanDamage - LIVE.meanDamage).toBeLessThan(0.5);
+  });
+});
+
+describe("the BASE-DECK windows — a closed population, kept as a dated record", () => {
+  /**
+   * ## Why this block exists at all
+   *
+   * §31's ruling was *exclude, and keep the numbers* — not *exclude and
+   * delete*. These are real casts, really played, dealt a worse deck for a
+   * known reason (`QUESTIONS.md` §29: the rod ran out of durability). Dropping
+   * them from `LIVE` is a statement about which population the headline figure
+   * describes, **not** a judgement that the data is bad.
+   *
+   * ## What it is NOT
+   *
+   * Not a second tracked fishery. Nothing downstream should grow a base-deck
+   * line beside its rod-deck one. §29's answer says to expect this to recur —
+   * the user's own estimate was roughly 40 casts of headroom after the repair —
+   * and when it does, the right response is to keep excluding it here, not to
+   * start reporting it as a parallel series.
+   *
+   * The assertions are therefore deliberately loose: they pin that the arm
+   * exists, that it is small, and that it is genuinely unlike the rod-dealt
+   * arm. They do NOT pin its drift to a band, because the docblock above shows
+   * that number is itself a pooling artefact across two very different windows
+   * and a band would give it a credibility it has not earned.
+   */
+  it("is a real, small, closed population — recomputed, never hand-typed", () => {
+    expect(BASE_ARM.casts).toBeGreaterThan(0);
+    expect(BASE_ARM.plays).toBeGreaterThan(0);
+    // Every clean trace lands in exactly one arm and nothing is lost.
+    expect(BASE_ARM.casts + LIVE.casts).toBe(ALL_TRACES.length);
+    expect(BASE_ARM.plays + LIVE.plays).toBe(corpusEconomy(ALL_TRACES).plays);
+    // A minority of the corpus, and shrinking as a share every session that
+    // plays with a working rod.
+    expect(BASE_ARM.casts).toBeLessThan(LIVE.casts);
+  });
+
+  it("no clean trace was dealt a deck this repo does not know", () => {
+    // The ratchet, restated at the point of use: `splitByDealtDeck` returns a
+    // third bucket, and a non-empty one means a new rod or a new mechanic, not
+    // a rounding difference. It must never be silently folded into either arm.
+    expect(BY_DECK.unknown).toHaveLength(0);
+  });
+
+  it("is genuinely a different population from the rod-dealt arm — the hit rate says so", () => {
+    // The one comparison worth making, and it is about the DECK doing its job:
+    // an un-bonused deck's cards cover the same zones with worse numbers
+    // (`rodDeck.ts`), so the arm that had no rod bonus lands fewer of its shots.
+    // Pooled across both windows it does — 31.8% against 39.3%. Stated as a
+    // strict inequality only; see the docblock for why the magnitude is not
+    // pinned.
+    expect(BASE_ARM.hitRate).toBeLessThan(LIVE.hitRate);
+    // The per-card AMOUNTS are the same cards' worth of damage either way — the
+    // deck changes which cards are held, not what a 5 is. This is what
+    // distinguishes "a worse deck" from "a different game".
+    expect(Math.abs(BASE_ARM.meanDamage - LIVE.meanDamage)).toBeLessThan(0.5);
+    expect(modeOf(BASE_ARM.damageHist).value).toBe(5);
+    expect(modeOf(BASE_ARM.healHist).value).toBe(3);
   });
 });
 
@@ -212,14 +314,19 @@ describe("the simulator's economy, same predicate", () => {
     expect(bare.redrawMana).toBeGreaterThan(0);
   });
 
-  it("THE FINDING: the bare arm's drift is NEGATIVE where live's is positive", () => {
+  it("THE FINDING: both drifts are negative — it is the MAGNITUDE, not the sign, that says they are different fisheries", () => {
     // This is OIL-POLICY §0a's arm — every oil Δ in this repo was computed in
-    // it. Live's fish heals faster than it is damaged; this arm's fish is
-    // destroyed at over three HP per play. The two are not the same fishery,
-    // and the drift says so in one number where catch rate needed a paragraph.
-    expect(bare.economy.drift).toBeLessThan(0);
+    // it. [session 91] The old title claimed OPPOSITE SIGNS, and that contrast
+    // did not survive excluding the base-deck windows: both arms are negative
+    // now. What survives, and is the entire claim, is the gap in magnitude.
+    // This arm's fish is destroyed at ~3.5 HP per play; live's loses ~0.2. The
+    // "not the same fishery" conclusion is unchanged; the one number expressing
+    // it is a ratio rather than a sign, so it takes a sentence where it used to
+    // take a word.
     expect(bare.economy.drift).toBeLessThan(-2);
-    expect(LIVE.drift).toBeGreaterThan(0);
+    expect(LIVE.drift).toBeLessThan(0);
+    // Over an order of magnitude apart — ~17x at the time of writing.
+    expect(bare.economy.drift / LIVE.drift).toBeGreaterThan(10);
   });
 
   it("reproduces live's per-card AMOUNTS in every arm — they are read from a real capture", () => {

@@ -49,17 +49,29 @@
  * ## ⚠ The brief's four numbers, and where this disagrees with them
  *
  * The session-80 brief measured 543 plays / 191 hits / 35.2% / 5.05 / 3.00 /
- * drift +0.166 and gated the session on reproducing them. This script measures
+ * drift +0.166 and gated the session on reproducing them. This script measured
  * **548 plays / 191 hits / 34.9% / 5.05 / 2.99 / drift +0.192** on the corpus
- * as committed. Reproduced EXACTLY: the hit count (191), the damage histogram
- * (mode 5 at n=89, range 1–13), the heal mode and range (3, range 1–6), 130
- * casts, 38 catches. What differs is the denominator — five misses — under a
- * predicate the brief did not record and that no variant tried here reproduces
- * (dropping the unresolved cast, the terminal play, oil casts, or plays after
- * an oil all move it further). CLAUDE.md rule 9: the corpus wins, the number
- * this script prints is the number, and the finding is unchanged in sign and
- * very nearly in size — the live fish gains HP in expectation, at roughly a
- * fifth of a point per play.
+ * as committed at the time. Reproduced EXACTLY: the hit count (191), the damage
+ * histogram (mode 5 at n=89, range 1–13), the heal mode and range (3, range
+ * 1–6), 130 casts, 38 catches. What differed was the denominator — five misses
+ * — under a predicate the brief did not record. CLAUDE.md rule 9: the corpus
+ * wins and the number this script prints is the number.
+ *
+ * ## ⚠ [session 91 §2] THE SIGN OF THAT FINDING IS REVERSED, ON A CORRECTED
+ * ## POPULATION — do not quote +0.192 or "the live fish gains HP"
+ *
+ * Both the brief's figure and this script's own were computed by POOLING every
+ * clean trace, including the casts dealt the un-bonused `BASE_DECK`. Those
+ * happened because the account's rod had run out of DURABILITY, unnoticed
+ * (`QUESTIONS.md` §29 ANSWERED) — an equipment-failure interval, not a second
+ * fishery — and pooling them in is the entire reason the drift read positive.
+ *
+ * §2 below now measures the ROD-DEALT arm, and the correction does not shrink
+ * the old claim toward zero: **it reverses it.** The live fish LOSES HP in
+ * expectation, at roughly a fifth of a point per play — the SAME sign as the
+ * simulator's bare arm, at about a seventeenth of its size. "Not the same
+ * fishery" survives on the MAGNITUDE; it no longer survives on the sign.
+ * Ruling: `QUESTIONS.md` §31 ANSWERED / `DECISIONS.md` 2026-08-24 (session 91).
  *
  * Offline and deterministic: fixtures plus the shipped simulator, no network,
  * no live budget, and nothing written anywhere.
@@ -87,7 +99,7 @@ import { buildStepClassTable } from "../src/strategy/fishing/stepClass.js";
 import { loadMinedPatterns } from "./liveFishing.js";
 import { printManaSlack } from "./redrawCounterfactual.js";
 import { profileArg, resolveProfile } from "../src/profile.js";
-import { REAL_DECK } from "../src/sim/fishing/rodDeck.js";
+import { REAL_DECK, splitByDealtDeck } from "../src/sim/fishing/rodDeck.js";
 import { measureFocusMovement, formatFocusMovement } from "../src/sim/fishing/focusMovement.js";
 import { buildFishMaxHpSampler, fishMaxHpCounts, meanFishMaxHp, meanOpeningRatio } from "../src/sim/fishing/fishMaxHp.js";
 
@@ -216,8 +228,23 @@ function main(): void {
   console.log(`      the meter hits 0 and the cast CONTINUES, and 53% of CAUGHT casts end with it at 0.`);
 
   // ── §2  THE TWO ECONOMIES ───────────────────────────────────────────────
+  //
+  // [session 91 §2] `live` is the ROD-DEALT arm, not every clean trace. The
+  // base-deck casts are excluded as a closed equipment-failure population — the
+  // rod had run out of durability (`QUESTIONS.md` §29 ANSWERED), and pooling
+  // them in is what made the old headline read "the fish gains HP in
+  // expectation" (§31 ANSWERED). The split comes from `rodDeck.ts` so this
+  // report and `tests/fishing/damageEconomy.test.ts` cannot drift apart.
   console.log("\n── §2  THE LIVE ECONOMY ──");
-  const live = corpusEconomy(traces);
+  const byDeck = splitByDealtDeck(traces);
+  const live = corpusEconomy(byDeck.rod, "LIVE — every clean ROD-DEALT trace on disk");
+  console.log(
+    `    deck split: ${byDeck.rod.length} rod-dealt (the headline), ` +
+      `${byDeck.base.length} base-deck EXCLUDED, ${byDeck.unknown.length} unknown.`,
+  );
+  if (byDeck.unknown.length > 0) {
+    console.log(`    ⚠ ${byDeck.unknown.length} casts were dealt a deck outside KNOWN_DEALT_DECKS. Investigate before quoting anything below.`);
+  }
   printEconomy(live);
   // The histograms are printed for the live half and only the live half: gate 1
   // asks for §1c's four numbers to be REPRODUCED before the sim half is quoted,
@@ -226,9 +253,18 @@ function main(): void {
   console.log(`    damage histogram   ${histLine(live.damageHist)}`);
   console.log(`    heal histogram     ${histLine(live.healHist)}`);
   console.log("");
-  printEconomy(corpusEconomyUnclamped(traces));
+  printEconomy(corpusEconomyUnclamped(byDeck.rod, "LIVE rod-dealt — UNCLAMPED (server's FISH_HP_DIFF)"));
 
-  const headroom = traces
+  // The excluded arm, printed rather than dropped (§31: exclude, keep the
+  // numbers). NOT a second tracked fishery — it pools two windows that barely
+  // resemble each other, so read it as a record, not as a measurement of
+  // "playing without a rod bonus". See the test file's docblock.
+  if (byDeck.base.length > 0) {
+    console.log("");
+    printEconomy(corpusEconomy(byDeck.base, "BASE-DECK WINDOWS — closed equipment-failure population, EXCLUDED above"));
+  }
+
+  const headroom = byDeck.rod
     .filter((t) => t.turns.length > 0)
     .map((t) => t.turns[0]!.fishMaxHp - t.turns[0]!.fishHp);
   console.log(
@@ -460,28 +496,31 @@ function main(): void {
     const share = Math.abs(dominant.delta) / terms.reduce((a, t) => a + Math.abs(t.delta), 0);
     console.log(
       `  ${label.padEnd(18)} drift ${e.drift >= 0 ? "+" : ""}${e.drift.toFixed(3)} against live's ` +
-        `+${live.drift.toFixed(3)}  —  dominant term: ${dominant.name} ` +
+        `${live.drift >= 0 ? "+" : ""}${live.drift.toFixed(3)}  —  dominant term: ${dominant.name} ` +
         `(${(share * 100).toFixed(0)}% of the total absolute term movement)`,
     );
   }
   console.log("");
   console.log("  The per-card AMOUNTS are not the fault and cannot be: they are read from");
   console.log("  fixtures/fishing-casts/cards.json, a real capture, and every arm reproduces live's");
-  console.log("  5.05 damage / 2.99 heal to within a tenth. What differs is HOW OFTEN A SHOT LANDS.");
+  console.log(`  ${live.meanDamage.toFixed(2)} damage / ${live.meanHeal.toFixed(2)} heal to within a tenth. What differs is HOW OFTEN A SHOT LANDS.`);
   console.log("");
   console.log("  ⚠ THE SESSION-80 BRIEF'S §1b IS WRONG, AND THIS IS THE MEASUREMENT THAT SAYS SO.");
   console.log("  It eliminated hit geometry by putting live's 35.2% next to \"the sim's shuffled");
   console.log("  baseline\" of 36.42%. That figure is deckObjectiveSweep.ts's baseline, which runs");
   console.log("  matcherPool: [] on a 23-card deck — the BLIND row above. The arms that produce");
-  console.log("  OIL-POLICY §0a's catch and meter-out figures are the other two, and they land shots");
-  console.log("  at 80.8% and 42.1% against a live 34.9%. Two different arms were compared and the");
+  console.log(`  OIL-POLICY §0a's catch and meter-out figures are the other two, and they land shots`);
+  console.log(`  at 80.8% and 42.1% against a live ${(live.hitRate * 100).toFixed(1)}%. Two different arms were compared and the`);
   console.log("  conclusion was carried across. Hit geometry is NOT eliminated; on this evidence it");
   console.log("  is the whole gap.");
   console.log("");
-  console.log("  The BLIND arm is the one that reproduces live's SIGN (+0.317 against +0.192), and it");
-  console.log("  is also the arm that redraws 61% of its turns and therefore plays half as many cards");
-  console.log("  per cast as the others. Do not read it as \"the good arm\" on the strength of one");
-  console.log("  matching scalar — read it as where the next question is.");
+  console.log("");
+  console.log("  ⚠ [session 91] THE BLIND ARM NO LONGER REPRODUCES LIVE'S SIGN, AND THAT CLAIM IS RETIRED.");
+  console.log("  This script used to say the BLIND arm was the one matching live (+0.317 against +0.192).");
+  console.log("  Both halves of that moved: live is now measured on the ROD-DEALT arm and is NEGATIVE, and");
+  console.log("  the blind arm remains positive. So the arm that matches live's sign today is the BARE one —");
+  console.log("  the arm this file spends the rest of its length showing is NOT the same fishery. Read that");
+  console.log("  as a warning about sign-matching as evidence, not as a promotion for the bare arm.");
 
   // ── §5  fishMaxHp: A DISTRIBUTION LIVE, A CONSTANT IN THE SIM ───────────
   console.log("\n── §5  fishMaxHp ──");
@@ -501,7 +540,7 @@ function main(): void {
     printEconomy(sampled.economy);
     console.log(
       `\n  drift ${bare.economy.drift.toFixed(3)} -> ${sampled.economy.drift.toFixed(3)} against live's ` +
-        `+${live.drift.toFixed(3)}. Sampling the max HP is a PER-CAST change and the drift is a PER-PLAY`,
+        `${live.drift >= 0 ? "+" : ""}${live.drift.toFixed(3)}. Sampling the max HP is a PER-CAST change and the drift is a PER-PLAY`,
     );
     console.log(`  quantity, so it barely moves — which is the point of running it: §0a's gap is not here.`);
   } else {

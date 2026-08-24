@@ -35,8 +35,29 @@
  * **`BASE_DECK` is not any rod's grant.** All eight rods in `/offchain/static`
  * were checked (49, 50, 336, 811, 812, 922, 923, 924) and none carries
  * `[1..10]`, so this is not a third rod being read — it is the rod bonus not
- * applying. The cause is UNKNOWN and deliberately not guessed at; see
- * `QUESTIONS.md` §29.
+ * applying.
+ *
+ * ## ✅ [session 91] THE CAUSE IS NOW KNOWN: THE ROD RAN OUT OF DURABILITY
+ *
+ * User answer, 2026-08-24 (`QUESTIONS.md` §29 ANSWERED): *"my shroom rod ran
+ * out of durability and I didnt notice. Rod has been repaired and will be good
+ * for another 40 casts."* That eliminates the other three candidates §29 listed
+ * — a per-day grant allowance, a server-side equip desync, a plain bug — and
+ * explains the counterexample above exactly: durability belongs to the ROD
+ * INSTANCE, not to the equip state, so `GEAR_CID_array` was never wrong. It was
+ * answering "is this rod equipped", and the deck answers "does it still have
+ * charges".
+ *
+ * Two things follow, both load-bearing:
+ *
+ * - **It will recur**, on the user's own ~40-cast horizon from 2026-08-24.
+ *   `BASE_DECK` stays an intermittent STATE, so `REAL_DECK` stays pointed at
+ *   the rod.
+ * - **Nothing here can SEE durability.** No durability, charge, or
+ *   uses-remaining field exists in the fixtures or the live doc shape, so this
+ *   repo detects a base window only AFTER the fact, by the deck dealt. The
+ *   account owner is the only durability sensor that exists, and "~40 casts" is
+ *   their report about their own equipment — not a repo measurement.
  *
  * Two smaller corrections fall out of the same read, both of which made the old
  * claim look better-supported than it was:
@@ -45,9 +66,13 @@
  *   Stone Rod (50) and Shroom Rod (811). The array therefore never identified
  *   the ACTIVE rod; `latestRodObservation`'s `known` filter hid that, because
  *   50 is absent from `ROD_CARD_GRANTS`.
- * - **38 of the corpus's 149 casts were dealt `BASE_DECK`**, in two windows
- *   (21 on 2026-08-17, 17 on 2026-08-24). Those are neither Makeshift-era nor
- *   Shroom-era traces, and no figure in this repo has ever said so.
+ * - **44 of the corpus's 167 clean casts were dealt `BASE_DECK`**, in two
+ *   windows (27 on 2026-08-17, 17 on 2026-08-24). [session 91] These counts are
+ *   recomputed through `splitByDealtDeck` below; session 89's "38 of 149 (21 +
+ *   17)" and session 90's "22" were both counted by hand and neither
+ *   reproduces. Those casts are neither Makeshift-era-with-a-rod nor
+ *   Shroom-era-with-a-rod traces, and until session 91 no figure in this repo
+ *   said so.
  *
  * ## Why a CONSTANT and not a per-cast read
  *
@@ -227,4 +252,88 @@ export function latestRodObservation(
  */
 export function grantedPrefix(fullDeck: readonly number[], grantSize: number): number[] {
   return [...fullDeck.slice(0, grantSize)].sort((a, b) => a - b);
+}
+
+/**
+ * Which of the two known regimes a cast was actually DEALT — the split
+ * `QUESTIONS.md` §29 opened and §31 ruled on.
+ *
+ * - `"base"` — the un-bonused `[1..10]`. **[session 91] The cause is now known:
+ *   the account's Shroom Rod had run out of DURABILITY, unnoticed.** It is an
+ *   equipment-failure interval, not a second fishery, and it is expected to
+ *   recur every time the rod runs dry again (see `QUESTIONS.md` §29 ANSWERED).
+ * - `"rod"` — any grant in `ROD_CARD_GRANTS`. Deliberately not split further
+ *   into Makeshift and Shroom: that break is real and is stated separately (see
+ *   THE MAKESHIFT/SHROOM BREAK above), but it is a different question from
+ *   "was a rod bonus applying at all", which is the one this answers.
+ * - `"unknown"` — a prefix outside `KNOWN_DEALT_DECKS`, INCLUDING a cast whose
+ *   opening state carried no `fullDeck` at all. Genuinely new; the ratchet in
+ *   `tests/fishing/rodDeck.test.ts` fails on it. Callers must not silently fold
+ *   this into either arm, which is why the third case is a named value and not
+ *   a `null` that a filter would drop by accident.
+ *
+ * ONE definition, shared by `tests/fishing/damageEconomy.test.ts` and
+ * `scripts/damageEconomy.ts`, for the same reason `REAL_DECK` is one
+ * definition: three scripts carrying their own copy of the deck is how the
+ * stale Makeshift value survived 110 traces.
+ */
+export type DealtDeck = "base" | "rod" | "unknown";
+
+const sameSet = (a: readonly number[], b: readonly number[]): boolean =>
+  a.length === b.length && a.every((v, i) => v === b[i]);
+
+const SORTED_BASE_DECK: readonly number[] = [...BASE_DECK].sort((a, b) => a - b);
+
+/**
+ * `fullDeck`'s opening grant, classified. `grantSize` defaults to the current
+ * rod's grant length — every known deck, base included, is that long, so a
+ * caller has no reason to pass it and the parameter exists only so a future rod
+ * with a different grant size does not need this function rewritten.
+ */
+export function dealtDeck(
+  fullDeck: readonly number[] | undefined,
+  grantSize: number = REAL_DECK.length,
+): DealtDeck {
+  if (!fullDeck || fullDeck.length < grantSize) return "unknown";
+  const prefix = grantedPrefix(fullDeck, grantSize);
+  if (sameSet(prefix, SORTED_BASE_DECK)) return "base";
+  for (const grant of Object.values(ROD_CARD_GRANTS)) {
+    if (sameSet(prefix, [...grant].sort((a, b) => a - b))) return "rod";
+  }
+  return "unknown";
+}
+
+/**
+ * ⚠ **`fullDeck` lives on the TURN, not on the trace.** The session-91 brief
+ * placed it on `CastTrace` (citing `castTrace.ts` line 107, which is inside the
+ * `CastTurn` interface); `loadCastTraces` populates it on **0 of 167** traces
+ * because no such trace field exists. Read it off the OPENING state, before any
+ * loot has been appended to the tail.
+ *
+ * Structurally typed rather than taking `CastTrace` so `rodDeck.ts` keeps
+ * importing nothing from this repo — the sim/api separation stays intact and
+ * there is no cycle to reason about.
+ */
+export interface HasOpeningDeck {
+  turns: readonly { fullDeck?: readonly number[] }[];
+}
+
+/** The deck a recorded cast was dealt, read off its opening state. */
+export function traceDealtDeck(trace: HasOpeningDeck, grantSize: number = REAL_DECK.length): DealtDeck {
+  return dealtDeck(trace.turns[0]?.fullDeck, grantSize);
+}
+
+/**
+ * Partition recorded casts by the deck they were dealt. The one implementation
+ * of the split — `tests/fishing/damageEconomy.test.ts` and
+ * `scripts/damageEconomy.ts` both call this rather than each filtering their
+ * own way, so the test and the report it backs cannot drift apart.
+ */
+export function splitByDealtDeck<T extends HasOpeningDeck>(
+  traces: readonly T[],
+  grantSize: number = REAL_DECK.length,
+): Record<DealtDeck, T[]> {
+  const out: Record<DealtDeck, T[]> = { base: [], rod: [], unknown: [] };
+  for (const t of traces) out[traceDealtDeck(t, grantSize)].push(t);
+  return out;
 }

@@ -2192,3 +2192,167 @@ claim:**
 
 ⚠ **§29 is upstream of this.** Until it is known why casts get dealt the base
 deck, it is not certain the base arm is a legitimate population at all.
+
+---
+
+## §29 ANSWERED [session 91, user 2026-08-24] — THE ROD RAN OUT OF DURABILITY
+
+**The user's own words, unprompted by any options put in front of them:**
+
+> "Casts were dealt the base deck because my shroom rod ran out of
+> durability and I didnt notice. Rod has been repaired and will be good for
+> another 40 casts."
+
+### What this establishes
+
+**Durability.** Of the four hypotheses §29 listed and refused to choose
+between — durability/charges, a per-day grant allowance, a server-side equip
+`GEAR_CID_array` does not reflect, and a plain server bug — it is the first.
+The other three are eliminated.
+
+This also explains the shape of the evidence that made §29 confusing. A
+durability counter is a property of the ROD INSTANCE, not of the equip state,
+which is exactly why two casts 15 seconds apart with a byte-identical
+`GEAR_CID_array` could be dealt different decks. The gear array was never wrong;
+it was answering a different question ("is this rod equipped") from the one the
+deck answers ("does this rod still have charges").
+
+**It will recur.** This is not a one-off to be written off. The rod has been
+repaired, so the current base-deck window is closed, but the mechanism is
+standing and the next window arrives when the repair is used up. The user's own
+estimate is **~40 casts** of headroom from 2026-08-24.
+
+### What is still NOT tracked, and this is the part to carry forward
+
+**Nothing in this repo can see durability.** There is no durability, charge, or
+uses-remaining field anywhere in the fixtures or in the live doc shape —
+`GEAR_CID_array` carries instance ids and mint stamps, `fullDeck` carries the
+dealt deck, and neither carries a counter. So this repo **cannot predict the
+next base-deck window before it happens**; it can only detect one after the
+fact, by the deck it was dealt.
+
+**The account owner is currently the only durability sensor that exists.** The
+"~40 casts" figure is the user's report about their own equipment, not a repo
+measurement, and it must not be restated as one.
+
+The detection side is in place and needs no changes: `KNOWN_DEALT_DECKS` already
+treats a `BASE_DECK` deal as a legitimate, ratchet-passing state (session 89),
+and `rodDeck.ts`'s `dealtDeck` / `splitByDealtDeck` (session 91) name the split
+so any script can exclude a base window rather than pool it. That was the right
+shape independent of the cause and it stays right now the cause is known.
+
+### One thing the answer does not literally cover
+
+The user's words are about the **Shroom** rod, which dates the 2026-08-24
+window. The corpus holds a **second** base window, 27 casts on 2026-08-17, in
+the **Makeshift** era. Same signature, one rod earlier, and consistent with the
+same mechanism — but that is inference and is recorded as inference. Nothing in
+session 91's work depends on it: the split classifies on the deck actually
+dealt, which is observable, rather than on a cause, which is not.
+
+---
+
+## §31 ANSWERED [session 91, user directive 2026-08-24] — (a), NARROWED: EXCLUDE THE BASE-DECK CASTS AS A CLOSED EQUIPMENT-FAILURE POPULATION
+
+**Recorded as a choice made among options, not as spontaneous user language.**
+Three options were put in front of the user, tracking §31's own (a)/(b)/(c)
+reworded to fold in §29's answer. The choice:
+
+> **Exclude the base-deck casts from the headline figure as a distinct,
+> now-closed equipment-failure population; keep their numbers as a dated
+> historical note; do not stand up a second permanently-tracked line.**
+
+(b) — keep pooled and restate around magnitude — was not chosen. (c) — formally
+re-pin two permanent tracked figures — was not chosen.
+
+### This is NOT quite §31's original option (a), and the difference is §29
+
+Option (a) as written treated the base-deck arm as a possible second
+**legitimate fishery**, worth tracking side by side indefinitely. §29's
+durability answer removes that framing: the base-deck window is not a second
+fishery, it is an **equipment-failure interval** — real casts dealt a worse deck
+because the rod had run dry. So the treatment is "drop it from the corpus this
+file measures, keep the number as a dated closed note, and expect it to recur"
+rather than "track two fisheries forever."
+
+**Excluding it is not a judgement that the data is bad.** It is real play. It is
+excluded because it is a different, closed population.
+
+### ⚠ TWO CORRECTIONS TO SESSION 90's OWN TABLE — do not restate it
+
+§31's table above was recomputed this session through `splitByDealtDeck`, and it
+does not reproduce.
+
+```
+                     session 90 said        session 91 measures
+  base                22 casts /  74 plays   44 casts / 157 plays
+  non-base           145 casts / 622 plays  123 casts / 539 plays
+  POOLED             167 casts / 696 plays  167 casts / 696 plays   (agrees)
+```
+
+The pooled totals agree exactly, so it is the **split** that was wrong, not the
+corpus. Session 90's base row is also internally inconsistent with any single
+classification: its play count (74) matches only the 2026-08-24 window, while
+its hit rate (18.9%) and drift (+1.568) match only the 2026-08-17 one.
+
+The classification used this session is deterministic and was validated before
+anything was pinned on it: exactly **three** distinct opening prefixes exist in
+the corpus (Makeshift grant 81 casts, base 44, Shroom grant 42), every trace's
+prefix is **identical across all of its own turns** (0 of 167 vary), and
+`splitByDealtDeck` leaves **0 casts unclassified**.
+
+**The second correction matters more: the base arm is not one population
+either.** Measured by date it is two windows that barely resemble each other:
+
+```
+  window        casts  plays  hitRate    drift
+  2026-08-17       27     83    15.7%   +1.735   (Makeshift era)
+  2026-08-24       17     74    50.0%   -0.797   (Shroom era)
+  base, pooled     44    157    31.8%   +0.541
+```
+
+So "the base deck drifts positive" is itself a pooling artefact one level down,
+and the 2026-08-24 window landed shots **more** often than the rod-dealt corpus
+does (50.0% against 39.3%). **`BASE_ARM.drift` may not be quoted as a property
+of playing without a rod bonus.**
+
+### THE CORRECTED FIGURES, and the reversal they carry
+
+```
+  arm                          casts  plays  hitRate  meanDmg  meanHeal    drift
+  LIVE (rod-dealt)               123    539    39.3%    5.146     3.009   -0.1985
+  LIVE rod-dealt, UNCLAMPED      123    539    39.3%    5.434     3.180   -0.2078
+  SIM bare arm (n=400)             —      —    81.6%    5.012     3.225   -3.4925
+```
+
+**The correction does not shrink the old claim toward zero — it reverses it.**
+"The fish gains HP in expectation" was carried entirely by the base-deck
+windows. Held to the casts a rod was actually working on, the live fish LOSES
+HP, the **same sign** as the sim's bare arm.
+
+Effect on the three claims §31 listed:
+
+1. *"the fish gains HP in expectation"* — **reversed**, not merely retired. The
+   live fish loses ~0.20 HP per play.
+2. *"the clamp is real but small"* — **survives, and came out STRONGER.** Pooled,
+   the clamped and unclamped readings were −0.0316 and −0.0014: same side of
+   zero but a factor of twenty apart, both indistinguishable from nothing. On
+   the rod-dealt arm they are −0.1985 and −0.2078 — agreeing to within a
+   hundredth of an HP, on a quantity large enough for the agreement to mean
+   something.
+3. *"the bare arm's drift is NEGATIVE where live's is positive"* — the CONTRAST
+   is gone; both are negative. **"Not the same fishery" survives on the
+   MAGNITUDE**: −3.49 against −0.20, a factor of ~17.6.
+
+### `OIL-POLICY.md` §0a — verified, and it needs NO edit
+
+Session 90's docblock warned §0a's "different fisheries" argument would need
+restating around magnitude rather than sign. **Checked against §0a's actual
+text: it never cited the drift at all** — the words "drift", "damageEconomy",
+"gains HP" and "opposite sign" appear nowhere in `OIL-POLICY.md`. §0a rests
+entirely on meter-out (1.0% sim against 64.2% live) and catch (~70% against
+27.6%), both of which are untouched by this ruling.
+
+**§0a is NOT lifted, +19.40pp still MAY NOT BE QUOTED.** The reason it stands is
+the same reason it always stood, and the worry that it had silently changed was
+itself the thing that needed checking rather than acting on.
