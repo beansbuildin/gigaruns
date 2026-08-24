@@ -1,4 +1,4 @@
-# STATE — session 90 — 2026-08-24 (PT) — code at commit <RECAP_SHA>
+# STATE — session 90 — 2026-08-24 (PT) — code at commit a8d1669d (recap commit)
 
 ## Status
 **GATE PASS — all four brief items delivered. No live spend, by design.** No
