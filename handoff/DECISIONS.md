@@ -1587,3 +1587,65 @@ against a live-shaped mocked request/response sequence in
 `tests/fishing/oilDoubleLethalLive.test.ts`, and `oilDoubleLethal.test.ts`'s
 not-wired guard was **replaced by its positive equivalent** rather than deleted,
 so a future silent revert still fails a test.
+
+2026-08-24 (session 90, §2/§3) — **SEVEN PIN FILES REGENERATED FROM THEIR REAL
+INSTRUMENTS, AND ONE STRUCTURAL REVERSAL REFUSED.** Suite 42 failed → 4. Every
+pin computed by CALLING the instrument at 168 casts, old values kept beside each
+one; nothing hand-typed and nothing loosened. **`damageEconomy.test.ts` is the
+refusal and it is the session's most important finding: `LIVE.drift` CHANGED
+SIGN**, +0.19 (band asserted > 0.05) → **−0.0316**. Split by the deck actually
+DEALT: base `[1..10]` **22 casts, drift +1.568, hit 18.9%**; non-base **145
+casts, drift −0.222, hit 39.9%**; pooled **−0.032**. **The arms have OPPOSITE
+signs and nearly cancel, so "the fish gains HP in expectation" is a POOLING
+ARTEFACT, not a fact about the fishery** — held to one deck the live fish LOSES
+HP, the SAME sign as the sim's bare arm. Consequence for OIL-POLICY §0a: the
+"different fisheries" argument now rests on MAGNITUDE (−0.222 vs < −2), not on
+sign. **§0a is NOT lifted.** Three tests left RED with a docblock; `QUESTIONS.md`
+§31 asks the ruling and records that **§29 is upstream** — until the base-deck
+window is explained, the base arm may not be a legitimate population.
+**Two structural claims in `redrawCounterfactual.test.ts` also changed and were
+FLAGGED rather than renumbered:** `all3.rescues − all3.sacrifices` was exactly 0
+("exactly break-even") and is now +1; and the K=6 conditioned arm was
+`{6,6,0,0}` and is now `{12,8,0,2}` — **`wasted` 0 → 2, `sacrifices` 0
+survives.** That arm IS §26's shadow candidate, so **`DECISIONS.md`'s own
+session-83 §3 description of it is now stale in two of four numbers; shadow the
+SHAPE, never quote the prose.** What survived is recorded with equal weight:
+`zoneTemplate` still EXCEPTIONLESS at 699/699; `matcherHeadroom`'s three claims
+a fourth time (24/24 failures are oil consumes, budget always 2, meter always
+0); `oilReachability`'s relaxing numerator **unmoved across TWENTY casts** —
+same 13 casts, same 15 points, same two uncaught docIds, seven batches running;
+the redraw INVERSION widened; 89.8% mana slack unmoved to 3dp; clean traces
+still trail traces by exactly one. `enemies` gained six loadouts, **none a new
+starting loadout**, two of them decreases landing exactly on the corrode amount 3.
+
+2026-08-24 (session 90, §4) — **THE REDRAW SHADOW EVALUATOR IS BUILT, INERT, AND
+DELIBERATELY IN A DIFFERENT TURN PHASE FROM THE OIL SHADOW.** `redrawEnabled`
+false and `REDRAW_THRESHOLD` 0, verified in the diff and pinned by a test;
+nothing here redraws. Built on `oilShadow.ts`'s three structural properties.
+**The phase is the part the brief did not anticipate:** it evaluates BELOW the
+oil block, not above it where session 69 hoisted the oil shadow, because the
+candidate conditions on the focus BUDGET and the offline definition
+(`budgetBefore`) is the pre-play meter INCLUDING an oil restore taken that turn
+— evaluating above would shadow a DIFFERENT signal from the validated one, on
+exactly the turns where the oil mattered. **The blindness that buys is COUNTED**
+(`redrawShadowNoDecision`), and the hoist golden already shows it non-zero in 2
+of 5 scenarios. **`coverageOfCards` was EXTRACTED so live and offline compute
+`heldCoverage` from ONE implementation** — the test reproduces the corpus's own
+values through the live path on 400+ plays and pins the firing count as an
+IDENTITY against the offline sweep. K=6 is pre-registered from session 83, and
+raw coverage is recorded so any other K is reconstructable offline for free.
+**A guard fired and the golden was NOT regenerated:** `hoistInvariant.test.ts`
+compares live play to a capture taken BEFORE the session-69 hoist, so
+regenerating would have destroyed that baseline; the capture was diffed by hand
+(only the two new fields appear — every POST body and every other result field
+byte-identical across all five scenarios) and the fields excluded instead.
+
+2026-08-24 (session 90) — **PREFLIGHT CAUGHT A TEST THAT GOES RED IN A
+STRANGER'S CLONE, WHICH IS THE ARGUMENT FOR RUNNING IT BEFORE THE RECAP.** The
+new memo pin reads `handoff/OIL-DOUBLE-LETHAL.md` and `preflight.ts` PRUNES
+`handoff/`, so it passed for the author and failed on first contact for everyone
+else. Fixed with the mechanism the repo already had — `probeAuthorData` +
+`announceMissingAuthorData` + `it.skipIf`, as `tests/api/redact.test.ts` guards
+its handoff-prose sweep — so the skip announces itself and cannot pass for a
+pass. **Carry the general rule: a new test that reads anything under `handoff/`,
+`data/` or `logs/` needs an author-data probe, or it ships broken.**
