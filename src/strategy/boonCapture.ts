@@ -119,13 +119,36 @@ import type { BoonOption } from "../sim/boons.js";
  * both a config flag and an explicit `--boon-capture` argument; keeping the
  * list coherent is bookkeeping so the module is not quietly dead code the day
  * someone turns it on.
+ *
+ * [session 89] **TWO MORE RETIRED — `AddBurnShield` and `WeakeningMastery` —
+ * and again neither was captured by this module.** Both got their first-ever
+ * pickup pairs from the ordinary rules during sessions 87 and 88, and both were
+ * modelled OFFLINE in session 89 from states already on disk, at no run-unit
+ * cost. That is **five of the original five targets now modelled without
+ * `boonCapture` ever being switched on** — the list this module was built to
+ * clear has been cleared entirely by other mechanisms. The 27-runs-to-model-five
+ * estimate was measuring the wrong mechanism's cost, and this is the second
+ * session in a row to say so.
+ *
+ * Replacements follow the same rule: next-ranked unmodelled types still offered
+ * in a permitted room — `BurningEvade` (4 offers, all room 1) and
+ * `WeakeningBlock` (4, all room 1).
+ *
+ * ⚠ **The ranking is now computed over the CORPUS, not over `OBSERVED_OFFERS`.**
+ * Every comment above ranks by offer frequency in that table, which is currently
+ * **25 offers stale** (202 entries against the corpus's 227) — it disagrees on
+ * Regen (7 vs 8), AddLifestealSword (4 vs 5) and BurningTenacity (1 vs 2). The
+ * type SET is identical either way, so nothing derived from it moved; the
+ * ORDER is what the stale table gets wrong, and the order is what this list is.
+ * Current corpus ranking: Regen 8, LossBlockUp 5, AddLifestealSword 5 (tied —
+ * the prior relative order is kept), BurningEvade 4, WeakeningBlock 4.
  */
 export const DEFAULT_CAPTURE_TARGETS: readonly string[] = [
-  "AddBurnShield",
   "Regen",
   "LossBlockUp",
-  "WeakeningMastery",
   "AddLifestealSword",
+  "BurningEvade",
+  "WeakeningBlock",
 ];
 
 /** See limit 1 above. */

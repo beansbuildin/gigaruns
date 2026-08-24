@@ -2158,15 +2158,21 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
   /**
    * A room-1 reward offer holding a Heal — which `pickBoon` takes with the
    * largest bonus in the ranker — alongside an unmodelled target. If the
-   * override works, AddBurnShield wins anyway; if it is off, Heal must win,
+   * override works, Regen wins anyway; if it is off, Heal must win,
    * and that contrast is the whole assertion.
    *
    * [session 82] The target moved off TieWeak, which is now MODELLED — it got
    * a first-ever pickup pair from the 2026-08-23 juiced batch via the ordinary
-   * orb fallback — and is retired from DEFAULT_CAPTURE_TARGETS. AddBurnShield
-   * is the new head of that list (11 corpus offers, all room 1). The fixture
-   * has to name a genuinely unmodelled type or the override under test would
-   * retire itself by limit 3 and the assertion would pass vacuously.
+   * orb fallback — and is retired from DEFAULT_CAPTURE_TARGETS.
+   *
+   * [session 89] And it has had to move AGAIN, for the same reason: its
+   * replacement `AddBurnShield` was modelled offline this session from a
+   * session-88 pair, so it too is retired. `Regen` is the new head of the list
+   * (8 corpus offers, all room 1). The fixture has to name a genuinely
+   * unmodelled type or the override under test would retire itself by limit 3
+   * and the assertion would pass vacuously — which is exactly what happened
+   * here when the model landed, and is why this test failed rather than
+   * silently going green.
    */
   function armedRewardScenario(capture: LiveRunDeps["boonCapture"]) {
     const offering = fakeRun({
@@ -2174,7 +2180,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
       rewardPathPhase: true,
       rewardPathOptions: [
         { index: 0, boon: boon("Heal", 8) },
-        { index: 1, boon: boon("AddBurnShield", 2) },
+        { index: 1, boon: boon("Regen", 2) },
       ],
       players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63", 30, 30)],
     });
@@ -2219,7 +2225,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
     // The pair is the entire justification for paying the run-quality cost.
     expect(capture.captures).toHaveLength(1);
     const pair = capture.captures[0]!;
-    expect(pair.type).toBe("AddBurnShield");
+    expect(pair.type).toBe("Regen");
     expect(pair.room).toBe(1);
     expect(pair.beforeTag).not.toBe(pair.afterTag);
     // Both halves must actually be on disk, or the "pair" is a claim about
@@ -2246,12 +2252,15 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
     // They must differ, or the stall guard ends the run before the second
     // decision is ever reached — which would make this test pass for the
     // wrong reason.
+    // [session 89] offerA's target moved AddBurnShield -> LossBlockUp, since
+    // AddBurnShield was modelled this session and retired from the target
+    // list. It must stay different from offerB's `Regen` for the reason above.
     const offerA = fakeRun({
       DUNGEON_ID_CID: 7,
       rewardPathPhase: true,
       rewardPathOptions: [
         { index: 0, boon: boon("Heal", 8) },
-        { index: 1, boon: boon("AddBurnShield", 2) },
+        { index: 1, boon: boon("LossBlockUp", 2) },
       ],
       players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63", 30, 30)],
     });
@@ -2290,7 +2299,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
 
     // Both offers were decided; only the first was overridden.
     expect(posts.map((b) => b.action)).toEqual(["reward_two", "reward_one"]);
-    expect(capture.captures.map((c) => c.type)).toEqual(["AddBurnShield"]);
+    expect(capture.captures.map((c) => c.type)).toEqual(["LossBlockUp"]);
   });
 });
 

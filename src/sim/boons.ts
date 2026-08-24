@@ -515,6 +515,64 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-20-22-46-26 state-087→state-088",
     observed: "selectedVal1 15 → no change to any player field",
   },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // [session 89] THREE first-ever pairs, from sessions 87 and 88, modelled
+  // OFFLINE at zero live cost — every source state was already on disk.
+  //
+  // All three are `latent`, and that is a MEASURED result rather than a
+  // fallback. The check run here was stricter than the one `tests/boons.test.ts`
+  // applies: a recursive diff of the ENTIRE raw `players[0]` object across each
+  // pair, not just the fields `toCombatant` projects. On all three the only
+  // difference in the whole object is the boon's own append to `pickedBoons` —
+  // health, shield, armor, all three moves, every rolled stat and every field
+  // this repo does not model, byte-identical. A zero delta found that way is a
+  // finding; a zero delta found by checking six fields would not have been.
+  //
+  // Per DECISIONS 2026-08-15 the effect is NOT inferred from the name, and two
+  // of these three are exactly the trap that rule exists for: `AddBurnShield`
+  // reads as the Shield sibling of the modelled `AddBurnSword`, and
+  // `AddVulnerableSword` as the Sword sibling of the modelled
+  // `AddVulnerableShield`. Neither model is copied across — they land here for
+  // the same reason their siblings did, because their own pair says so.
+  // `VulnerableBlock` (session 82) is the standing warning: its `selectedVal1`
+  // of 4 was NOT a flat add to the rolled `block` stat, and only reading the
+  // pair caught it.
+  //
+  // `contaminates: ["STATUS_EFFECT"]` on all three, the convention every latent
+  // model uses, and conservative rather than a claim: it says this project
+  // cannot score the exchanges after the pickup, not that the boon does nothing.
+  WeakeningMastery: {
+    // [session 87, LIVE] `Rare` (RARITY_CID 2), val1 10 — the largest val1 of
+    // the three, and the pair moves nothing at all. First sighted session 12,
+    // room 1, offered and declined; picked 75 sessions later.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-24-00-14-01 state-059→state-060",
+    observed: "selectedVal1 10 → no change to any player field (whole-object diff: pickedBoons append only)",
+  },
+  AddVulnerableSword: {
+    // [session 88, LIVE] `Rare` (RARITY_CID 2), val1 2. The Sword member of the
+    // Vulnerable family, whose Shield, Magic and Evade members are all already
+    // modelled latent at val1 2 — so this is the fourth independent pair
+    // agreeing, not a fourth copy of one reading. First sighted session 25,
+    // room 1, declined.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-24-01-04-21 state-105→state-106",
+    observed: "selectedVal1 2 → no change to any player field (whole-object diff: pickedBoons append only)",
+  },
+  AddBurnShield: {
+    // [session 88, LIVE] `Uncommon` (RARITY_CID 1), val1 3 — the only Uncommon
+    // of the three. Same run as `AddVulnerableSword`, 18 states later. Reads as
+    // the Shield sibling of `AddBurnSword` (val1 3, also latent) and the numbers
+    // even match; the model still comes from this pair, because agreeing with a
+    // sibling is not the same as being derived from one.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-24-01-04-21 state-123→state-124",
+    observed: "selectedVal1 3 → no change to any player field (whole-object diff: pickedBoons append only)",
+  },
 };
 
 /**

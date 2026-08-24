@@ -211,9 +211,17 @@ describe("fail-closed on unmodelled types", () => {
       // Note how long some of them waited: SecondWind was first SIGHTED in
       // session 16 and AddBurnMagic in session 12, so a sighting is not a
       // pair and the gap between them can be dozens of sessions.
-      "AddBurnShield", // session 19: first sighting, live room-1 offer (orchestrator smoke test), not picked // session 11: first sighting, room-1 offer, not picked; offered again session 14, still not picked
+      // [session 89] THREE moved OUT, and none of them cost a run-unit —
+      // WeakeningMastery (session 87's run), AddVulnerableSword and
+      // AddBurnShield (session 88's third run) all arrived with their pairs
+      // already on disk and were modelled offline, all three LATENT and all
+      // three checked by a whole-object diff rather than a field list. NONE
+      // moved IN: session 87 and 88 together offered no type this list had
+      // never seen, which is the first time in five recorded sessions that a
+      // coverage gain was not partly offset. Their waits were the longest yet
+      // — AddBurnShield first sighted session 19, AddVulnerableSword session
+      // 25, WeakeningMastery session 08.
       "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
-      "AddVulnerableSword", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked // session 11: first sighting, room-1 offer, not picked
       "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
@@ -234,7 +242,6 @@ describe("fail-closed on unmodelled types", () => {
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
       "WeakeningBlock",
       "WeakeningEvade", // session 09: first sighting, room-1 offers, not picked
-      "WeakeningMastery", // session 08: same offer, not picked
     ]);
   });
 });
