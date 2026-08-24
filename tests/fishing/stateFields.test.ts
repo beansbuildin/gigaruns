@@ -449,7 +449,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // each is `critEffects` at a cell inside the card's TRANSLATED `critZones`.
     // [session 89] 30 -> 36 across session 87's twenty-cast batch — same
     // attribution as `oilSkipped` above: excluding those 20 traces returns 30.
-    expect(corrected.crits).toBe(36);
+    expect(corrected.crits).toBe(39);  /* [session 92] was 36 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

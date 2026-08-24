@@ -73,20 +73,31 @@
  *   2026-08-23                           3      22          0    0.0%
  *   2026-08-24 00:0x (dries mid-batch)   3      87         17   19.5%
  *   2026-08-24 19:1x (dry throughout)    0      52         19   36.5%
+ *   2026-08-24 22:3x (dry throughout)    0      24          2    8.3%
  * ```
  *
  * **`focusDry` is not a new policy behaving worse; it is the OLD regime
- * returning because the consumable ran out.** 33.0% against `preOil`'s 44.9%.
+ * returning because the consumable ran out.** 28.5% against `preOil`'s 44.9%.
  *
- * The confound has to be named: 12 of `focusDry`'s 22 casts are BASE-DECK
+ * The confound has to be named: 12 of `focusDry`'s 32 casts are BASE-DECK
  * casts from the §29 rod-durability window, and a base deck could explain a
  * worse budget on its own. **It does not explain this one, because the
  * comparison survives holding the deck fixed** — restricted to rod-dealt casts
  * only, `oilSupplied` reads 3 budget-zero plays of 215 (**1.4%**) and
- * `focusDry` reads 19 of 52 (**36.5%**), a factor of 26 with the same deck,
- * the same policy and the same code. The 2026-08-24 19:1x cluster is that
- * comparison on its own: ten rod-dealt casts, zero Focus Oil, 19 no-stock
- * refusals, old-regime budget-zero.
+ * `focusDry` reads 21 of 76 (**27.6%**), a factor of ~20 with the same deck,
+ * the same policy and the same code.
+ *
+ * ⚠ **`focusDry` IS ITSELF HETEROGENEOUS, and the last row above is why.**
+ * [session 92 §2] The 2026-08-24 22:3x batch was Focus-dry throughout — two
+ * `oil_trigger_no_stock` refusals for 942, zero 942 POSTs — and still read only
+ * **8.3%**, against the 19:1x batch's 36.5% under identical supply. The
+ * difference is CAST LENGTH: 22:3x averaged 2.4 card decisions per cast against
+ * 19:1x's 5.2, because five of its ten casts were killed early (three by the
+ * double-lethal oil trigger). A meter that is never drawn down cannot reach
+ * zero. **So "Focus-dry" sets the CEILING on budget-zero, not its level** —
+ * quote the arm's rate as a range across batches, never as a constant, and do
+ * not read a low focusDry rate as the supply having been restored. Check the
+ * 942 POST count, which is the actual predicate.
  *
  * ## What the corrected split does to the four §32 claims
  *
@@ -101,6 +112,15 @@
  *   redraw rescue rate                30/42 71%              21/22 95.5%
  *   redrawCounterfactual.neither             12                       1
  * ```
+ *
+ * ✅ **[session 92 §2] CONFIRMED OUT OF SAMPLE, and this is the strongest
+ * evidence the re-specification is right.** A ten-cast batch landed after the
+ * ruling was written. All ten classified as `focusDry`, and **every figure
+ * above is byte-identical afterwards** — the ratio is still 26.3659, the
+ * rescue interval still [0.782, 0.992], `neither` still 1, `wasted` still
+ * {0, 1}. Under the old two-era model those ten casts would have diluted
+ * `today` for a FOURTH consecutive batch. The predicate now puts new casts
+ * where they belong instead of into the arm that describes the policy.
  *
  * ⚠ **The `meanOptimal` bound is a SEPARATE defect and this split does not fix
  * it — see `openingOverspendSplit`.** Do not read the table above as rescuing
@@ -735,12 +755,12 @@ export function deckCritFraction(t: CastTrace): number {
  * ```
  *                 casts  hand footprint  actual  optimal  OVERSPEND
  *   preOil           94      7.38 cells   1.553    0.656      +0.90
- *   oilSupplied      62            —      0.807    0.645      +0.16
- *   focusDry         22            —      0.864    0.591      +0.27
+ *   oilSupplied      62      7.19 cells   0.807    0.645      +0.16
+ *   focusDry         32      7.09 cells   0.906    0.625      +0.28
  * ```
  *
  * **The optimal move is unchanged across all three eras** — 0.656 / 0.645 /
- * 0.591 — and so is its whole distribution. What collapsed is the overspend.
+ * 0.625 — and so is its whole distribution. What collapsed is the overspend.
  *
  * This closes three doors at once, which is more than intrinsic reach did:
  * the targets did not get closer, the hands did not get wider (7.38 vs 7.20

@@ -2601,3 +2601,91 @@ figures elsewhere.
 **Not blocking anything.** Live oil spend is ledgered from `logs/` and
 `config/bot.json`, not from the corpus, so no decision the bot makes depends on
 this.
+
+---
+
+## §33 UPDATE [session 92 §2] — THE BATCH MADE IT WORSE, BROKE A SECOND INSTRUMENT, AND ANSWERED ITS OWN OPTION (b)
+
+The ten-cast batch run after §33 was written changes three things about it.
+
+**1. The incidence is not rare — it is 40% of casts in the current regime.**
+Four of the ten new casts fired an oil on their closing turn and all four read
+`firedOil === false`: `13071770` (2 oils), `13071790` (2), `13071794` (2),
+`13071804` (1). Corpus-wide the census now reads **15 casts / 24 oils where the
+truth is 21 / 35**. Session 91's two were not a curiosity; a lethal trigger
+fires on the closing turn by construction, so this is the steady state.
+
+**2. ✅ OPTION (b) ALREADY EXISTS AND WORKS — this is the finding that should
+decide §33.** `src/sim/fishingCorpus.ts` reads the raw states directly rather
+than through `castTrace`'s turn filter, and it gets **every one of the six
+missed casts right**: `consumablesUsed` reads 2, 2, 2, 1, 2, 2 exactly as the
+fixtures show, and all six are flagged `oilEra`. So the repo already has a
+correct oil source; only the `castTrace`-derived path in `castEra.ts` is blind.
+Option (b) is therefore not "write a new reader" but "point `oilsConsumed` at
+the reader that is already right", which is much cheaper than option (a) and
+does not disturb turn semantics at all. `tests/sim/fishingCorpus.test.ts` pins
+all six.
+
+**3. ⚠ A SECOND INSTRUMENT BROKE ON THE SAME ROOT CAUSE, AND THIS IS THE PART
+THAT GENERALISES.** `tests/fishing/oilReachability.test.ts` carried a structural
+claim about the 16-cast gap: `lax.decisionPoints === strict.decisionPoints + 1`
+and `lax.focusPoints === 1`, on **every** member. `13071770` reads lax 3 /
+strict 1 and `focusPoints` 2. Both clauses fail on it and on nothing else.
+
+The cause is the same one behind the oil blindness: **the double-lethal trigger
+is the first policy in this repo's history that sends two `use_fishing_item`
+POSTs in one turn**, so a cast can now end with TWO un-actionable trailing
+states where every earlier shape appended at most one. The `+1` was derived
+from the definition *given one trailing state*; that premise changed, not the
+definition. The test now exempts `13071770` explicitly and asserts `+2` for it,
+so the exception stays visible rather than being absorbed into a loosened bound.
+
+**The generalisation, which is worth more than either instance: any instrument
+that walks the END of a cast should be checked against a double-lethal cast.**
+Two have now broken this way within two sessions of the policy going live.
+Session 90 wired it, session 91 fired it twice, session 92 fired it three more
+times — and each session found a new instrument that had quietly assumed the
+old tail shape.
+
+**Still not blocking.** Live oil spend is ledgered from `logs/` and
+`config/bot.json`, and `trace.caught` remains correct on all six casts, so
+catch accounting is unaffected. The recommendation is now (b), on the evidence
+above, but it is still the user's call.
+
+---
+
+## §34 — TEN `start_run` POSTs, TEN CASTS, NINE CHARGED AGAINST THE DAILY CAP [session 92 §2, OPEN — an observation, needs no action]
+
+**What happened.** The session-92 batch sent exactly **10** `start_run` POSTs,
+produced **10** distinct docIds and 10 fixture directories, recorded 0
+`action_failed` events, and the game's `dayDocs[pondId 2]` advanced from **10 to
+19** — nine, not ten.
+
+The bot noticed by itself. `fishing_ledger_reconciled` runs before every cast:
+
+```
+  before cast  1  game 10  repo 10  agreed
+  ...
+  before cast  9  game 18  repo 18  agreed
+  before cast 10  game 18  repo 19  LOWERED   <- cast 9 was never charged
+```
+
+So `13071800` (started 22:35:49Z, escaped after 3 turns, nothing unusual about
+it) did not increment the server's counter. The final ledger check, taken
+minutes later, still read 19 — so this is not lag.
+
+**Why this is filed as an observation and not a defect.** The repo's guard
+deferred to the game and lowered itself, which is the safe direction: the bot
+spent exactly the ten casts it was authorized to spend and the two ledgers now
+agree at 19 with 1 cast left. Nothing was overspent and nothing needs undoing.
+
+**Why it is filed at all.** It is the first recorded instance of the server and
+the client disagreeing about whether a completed cast happened, and the
+reconciliation only caught it because it runs per-cast. If the direction ever
+reverses — the game counting a cast the repo did not — the same mechanism would
+raise the repo's counter and lose a cast of allowance silently. Worth knowing
+the disagreement is possible before assuming a ledger mismatch is a repo bug.
+
+**No question attached.** Nothing to decide unless it recurs; if it does, the
+thing to capture is the `start_run` RESPONSE body for the uncharged cast, which
+this batch did not single out at the time.

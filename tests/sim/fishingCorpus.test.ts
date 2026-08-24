@@ -146,11 +146,11 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // +52 playTurns, +4 caught, +6 escaped. `incomplete` is UNCHANGED at 1 for
     // the SEVENTH consecutive oil batch — the structural half of this pin, and
     // the reason it is asserted separately from the counts.
-    expect(summary.casts).toBe(178); // was 168
-    expect(summary.responseDocs).toBe(1040); // was 970
-    expect(summary.playTurns).toBe(752); // was 700
-    expect(summary.caught).toBe(64); // was 60
-    expect(summary.escaped).toBe(113); // was 107
+    expect(summary.casts).toBe(188); // was 178
+    expect(summary.responseDocs).toBe(1086); // was 1040
+    expect(summary.playTurns).toBe(776); // [session 92] was 752
+    expect(summary.caught).toBe(69); // [session 92] was 64
+    expect(summary.escaped).toBe(118); // [session 92] was 113
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -548,6 +548,26 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // `consumablesUsed` 2 across slots 0 and 1, which is the shape session
       // 90's `oilDoubleLethalLive.test.ts` predicted from mocks, now seen live.
       "13068171", "13068190",
+      // [session 92] +4 from the ten-cast batch, and they are the session's
+      // THREE double-lethal firings plus one ordinary on-demand lethal:
+      // `13071770` (2), `13071790` (2), `13071794` (2), `13071804` (1).
+      // Seven oils, all Relaxing (937) — Focus (942) stock was zero throughout
+      // and refused twice, so every Focus trigger recorded OIL-POLICY-DRY.
+      //
+      // ✅ The Relaxing per-cast cap of 2 was REACHED three times and **still
+      // did not BIND** — `doubleLethalTriggers` wanted exactly two on each,
+      // never three. That is the second consecutive batch to reach it without
+      // binding, so "reached but never binding" is now a repeated observation
+      // rather than session 91's single one.
+      //
+      // ⚠⚠ **ALL FOUR ARE INVISIBLE TO `castEra.ts`'s `firedOil`/
+      // `oilsConsumed`** — see QUESTIONS.md §33. The oils landed the kill, so
+      // `castTrace` (which skips `use_fishing_item` responses) ends the trace
+      // before the increment. **This corpus view reads the raw states and gets
+      // all four right**, which is the finding that matters for §33: the
+      // correct source already exists in this repo, and only the trace-derived
+      // path is blind.
+      "13071770", "13071790", "13071794", "13071804",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

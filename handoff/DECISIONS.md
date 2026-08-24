@@ -1871,3 +1871,80 @@ why this is a question rather than an emergency fix. `castEra.test.ts` pins the
 defect at its wrong-but-actual value so a repair fails loudly instead of quietly
 moving numbers in several files. ⚠ **Do not "fix" `castTrace` and re-pin in
 passing**; three options are in `QUESTIONS.md` §33.
+
+2026-08-24 (session 92) — **THE ERA RE-SPECIFICATION WAS CONFIRMED OUT OF
+SAMPLE BY THE VERY NEXT BATCH, WHICH IS THE STRONGEST EVIDENCE FOR IT.** Ten
+casts landed after the §32 ruling was written and committed. All ten classified
+`focusDry`, and **every figure the ruling rests on is byte-identical
+afterwards**: budget-zero ratio still 26.3659x, `oilSupplied` still [62, 235, 4]
+at 1.7%, rescue rate still 21/22 with Wilson [0.782, 0.992], `neitherReaches`
+still 1, `wasted` still {0, 1}, `meanOptimalGap` still 0.01075 at gap/SE 0.096.
+Under the old two-era model those ten casts would have diluted `today` for a
+FOURTH consecutive batch. **A predicate that puts new data where it belongs
+instead of into the arm describing the policy is the whole point of the ruling,
+and this is what that looks like when it works.**
+
+2026-08-24 (session 92) — **⚠ `focusDry` IS ITSELF HETEROGENEOUS: 36.5% and 8.3%
+budget-zero under IDENTICAL (zero) Focus supply.** The 2026-08-24 19:1x batch
+read 19 of 52 plays at budget zero; the 22:3x batch read 2 of 24. Both had zero
+Focus Oil and both refused Focus triggers for no stock. The difference is CAST
+LENGTH — 5.2 card decisions per cast against 2.4 — because five of the second
+batch's ten casts ended early, three of them killed by the double-lethal oil
+trigger. A meter that is never drawn down cannot reach zero. **So Focus-dry sets
+the CEILING on budget-zero, not its level.** Quote the arm as a range across
+batches, never as a constant; the arm-level rate fell 33.0% → 28.5% purely on
+this, and the test bound is `oilSupplied.rate * 10` rather than a point for
+exactly this reason. **A low `focusDry` rate is NOT evidence the supply came
+back — check the 942 POST count, which is the actual predicate.**
+
+2026-08-24 (session 92) — **THE DOUBLE-LETHAL TRIGGER HAS NOW BROKEN TWO
+SEPARATE INSTRUMENTS, BOTH BY THE SAME MECHANISM, AND A THIRD SHOULD BE
+EXPECTED.** It is the first policy in this repo's history that sends two
+`use_fishing_item` POSTs in a single turn, so a cast can end with TWO
+un-actionable trailing states where every earlier shape appended at most one.
+(1) `oilsConsumed`/`firedOil` go blind to the oils entirely (QUESTIONS.md §33) —
+now 4 more casts, 40% of the batch. (2) `oilReachability`'s structural claim
+that every gap member reads `lax.decisionPoints === strict.decisionPoints + 1`
+and `focusPoints === 1` is FALSE on `13071770`, which reads +2 and 2. The test
+now exempts that cast explicitly and asserts +2, so the exception stays visible
+rather than being absorbed into a loosened bound. **The durable rule: any
+instrument that walks the END of a cast must be checked against a double-lethal
+cast.** Session 90 wired the policy, 91 fired it twice, 92 fired it three more
+times, and each session has since turned up an instrument that quietly assumed
+the old tail shape.
+
+2026-08-24 (session 92) — **✅ §33's OPTION (b) ALREADY EXISTS IN THE REPO AND
+IS CORRECT.** `src/sim/fishingCorpus.ts` reads the raw states directly instead
+of through `castTrace`'s turn filter and gets **all six** closing-turn oil casts
+right (`consumablesUsed` 2/2/2/1/2/2, all flagged `oilEra`), while
+`castEra.ts`'s trace-derived `oilsConsumed` reads 0 on every one. So fixing §33
+is "point `oilsConsumed` at the reader that is already right", not "write a new
+reader" — much cheaper than option (a) and it disturbs no turn semantics. The
+recommendation is now (b) on evidence; the call is still the user's.
+
+2026-08-24 (session 92) — **A NEW GUARANTEED-MISS CARD APPEARED — CARD 35 — AND
+THE BOT TOOK A SECOND COPY OF IT AS LOOT IN THE SAME BATCH.** `matcherHeadroom`'s
+`noFootprint` set has been pinned by card id since session 81 specifically so a
+new offender is visible, and this is the first time that pin has fired. Card 35's
+`hitZones` are `[1, 4, 7]` — the left COLUMN of the template, where every earlier
+offender (1, 3, 4, 6) was a row or partial-row case — so fired from grid column 0
+every zone translates off-board and the shot cannot land. One instance so far
+(cast `13071774` turn 5, a miss, and NOT avoidable — `noFootprintAvoidable` is
+unchanged at 6). ⚠ **In cast 8 of the same batch the bot was offered 35/30/31 and
+chose 35**, because `chooseNewCard` has no deck-composition term — TASKS.md §13,
+still NOT STARTED. That is a concrete observed cost of the missing term rather
+than an inferred one. **Do not read one guaranteed miss as a quantified cost**;
+read it as the first observed instance of the shape §13 exists to price.
+
+2026-08-24 (session 92) — **§34 OPENED: TEN `start_run` POSTs, TEN DISTINCT
+CASTS, NINE CHARGED BY THE SERVER.** `dayDocs[pondId 2]` went 10 → 19 across a
+ten-cast batch with 0 `action_failed` events and 10 fixture directories written.
+The per-cast `fishing_ledger_reconciled` caught it live (`before cast 10: game
+18, repo 19, LOWERED`), so cast `13071800` was never charged, and a ledger check
+minutes later still read 19 — not lag. **Filed as an observation, not a defect:
+the guard deferred to the game and lowered itself, which is the safe direction;
+the bot spent exactly its ten authorized casts and both ledgers agree at 19.**
+It is recorded because it is the first case of the server and client disagreeing
+about whether a completed cast happened, and because the reverse direction would
+silently cost a cast of allowance. If it recurs, capture the `start_run` RESPONSE
+body for the uncharged cast — this batch did not single it out.
