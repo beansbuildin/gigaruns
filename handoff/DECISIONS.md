@@ -1262,3 +1262,51 @@ its non-logging form.
 2026-08-23 (session 86, §1 / GATE 1) — **THE BLIND SIM ARM NEVER AIMS, AND THE CONDITION IS "UNIFORM", NOT "BLIND".** Session 85 asked whether `SIM blind`'s byte-identical readings at `focusReserveWeight` 0 and 3 are structural or a wiring bug. Structural, and larger than the question: measured two independent ways over 400 casts on `REAL_DECK` — the meter through `observeTurn`, and the DECISION by wrapping the policy and comparing the chosen focus cell against `focusBudget.current` — the arm reads **0 focus moves in 1963 turns, 0 points spent, 763 plays ALL fired from the opening cell (2,2)**, at both weights. The bare arm is the control that proves the probe can see movement: **752 moves / 1047 points at w=0, 713 / 913 at w=3**, 15 of the grid's 16 cells. Meter moves and aimed plays agree exactly on all four arms. A term that prices focus MOVEMENT cannot bind on a policy that never moves, so the invariance is a TAUTOLOGY and session 85's "away" readings on the other arms are unaffected. ⚠ **THE OBVIOUS GENERALISATION IS FALSE AND WAS NEARLY SHIPPED:** `matcherPool: []` is necessary and NOT sufficient — the same blind arm aims on **824 of 2492** turns with a `ringModel`, **838 of 2443** with a `blindFallback`, and **0 of 1963** with `empiricalFish` alone. What suppresses aiming is having NO distribution, which makes EV identical at every focus cell of the same footprint. **So `scripts/focusReserveAblation.ts`'s session-45 sweep is NOT vacuous** (its arm A is blind WITH a ring); the arms that never aim are `damageEconomy.ts`'s `SIM blind` and `deckObjectiveSweep.ts`'s baseline — the latter reading 0 of 1944 turns on `castSim`'s own default params, so it is not an artefact of one param set. The ring boundary is pinned PORTABLY on a synthetic step-class table, because a committed test may not read the gitignored corpus. Recorded in passing: at uniform the arm's whole decision sequence is fish-blind — turning `empiricalFish` on changes hits 313 -> 353 of 763 and moves the turn, play and redraw counts by ZERO. **Correction to the session-86 brief: its "2363 turns" is a STATE count** — `observeTurn` emits one per turn taken PLUS the terminal state — so the turn count is 1963, exactly 400 lower, and the same offset applies to 2223/2069. Every movement figure reproduced the brief EXACTLY, which is what identifies this as the same measurement with a different denominator rather than a near miss; pinned as the identity `states === turns + casts`. **Labelled, not fixed.** `castSim.ts`'s "the condition session 14 established as representative of real live Dendren play" now carries the 0/1963 beside it — true of PATTERN IDENTIFICATION, false of focus behaviour, and live spends 0.85 of its meter on the opening play alone in today's era. `damageEconomy.ts` prints §4b DOES THE ARM AIM? (its old §4b verdict block is now §4c) and its row reads `SIM blind (no-aim)`. **No default, arm or baseline changed** — the deck-sweep figures stay comparable to each other.
 
 2026-08-23 (session 86, §2 / GATE 2) — **THE REDRAW REVISIT IS DELIVERED: RE-PRICE THE VERDICT, DO NOT REVERSE IT — AND THE DECISION IS THE USER'S (QUESTIONS §28, OPEN).** The prerequisite the user set when answering §26. Recommendation: redraw stays **CLOSED**, "43.9 mana per extra fish against a cast holding 10" is **retired as the stated REASON**, and the reason becomes **"no validated trigger + two unpaid correctness gaps"**. The verdict survives; the argument behind it does not. `handoff/reports/session-86-redraw-revisit.md` carries every claim with its instrument and that instrument's distance from live; the rescue rate appears only as **15/15, 95% CI [79.6%, 100.0%], n = 15**. Why the price is weak: 43.9 came from `SIM bare` — margin **+41.9pp** against live's −0.7pp, an ORACLE matcher (`matcherPool` defaults to `truePool`), redrawing 27.3% of turns where live redraws 0 — and it prices redraw against MANA, which the corpus says is not scarce. **The mana-slack argument is now ERA-SPLIT and holds on both sides: pooled 132/147 (89.8%) mean 5.85; TODAY 48/54 (88.9%) mean 6.26 median 7; before 84/93 (90.3%) mean 5.61.** The binding resource is fish-HP headroom (6.8 opening, 3.02 heal per miss, ~2.3 net misses) and **a redraw takes no shot, so it cannot miss** — its whole cost is mana plus a fish step, `fishHp` unmoved in either direction (SPEC-fishing §7a, user-confirmed from their own play; no BOT cast has ever played one). §1 is load-bearing: **no sim arm could re-derive the price honestly** — bare is the oracle arm, blind never aims (damage/hit 3.66 against live's 5.10), live-config is closest and still +4.0pp, and the two candidates fail in OPPOSITE directions, so "re-run it properly in sim" is not an available option. **Measured for the memo: how often the shipped trigger actually wants a redraw, from the bot's own live logs — today 26/204 decisions (12.7%), before 93/245 (38.0%), pooled 119/449 (26.5%),** counted on the UNION of `redraw_indicated_not_sent` and `redraw_suppressed` because the newer event first appears at session 70 (rule 10). ⚠ **The brief's "~3.5% of turns" is unsupported.** At 12.7% the trigger costs ~1 mana/cast against 6.26 spare — affordable, and silent on whether it fires on the RIGHT turns: it fires at about the rate dead hands occur (12.7% vs 11.8%) and **nothing establishes those are the same turns** (cheap, unmeasured). The two unpaid gaps, priced: `liveFishing.ts:2471` — a redraw fires `FISH_MOVED` and the branch does not observe it, so the matcher's history keeps a hole, and the fix is a choice between two UNMEASURED semantics rather than a repair; and `liveFishing.ts:1526` — `MAX_REDRAWS_PER_CAST = 5` is a fail-closed `GuardTrip` that ABORTS the cast, and since a redraw does not advance `turn` it is the ONLY bound there is. **Nothing was flipped:** `redrawEnabled` false, `REDRAW_THRESHOLD` untouched, no live-path line moved, and **no shadow instrumentation written** — the order was the directive.
+
+2026-08-23 (session 87 §1 / GATE 0) — **The memo's corpus is frozen as
+`CORPUS-2026-08-23A` BEFORE the batch that grows it.** 148 traces / 612 plays /
+147 resolved, `{ docId : createdAt <= "2026-08-23T00:20:47.236Z" }` — the
+corpus MAXIMUM, not a round number, because a date-granularity cut cannot
+separate casts made later the same day. A label, not a recomputation: no memo
+number moved and nothing was re-run. Justified within hours — the batch went on
+to falsify the memo §5 structural claim `neither = 0`, and without the freeze
+the two effects would have been indistinguishable in the recap.
+
+2026-08-23 (session 87 §2 / GATE 1) — **§19 ANSWERED: `KEEP`, one turn short of
+powered.** 31 instrumented matcher turns against `MIN_INSTRUMENTED_TURNS` = 32;
+pi crossed 0.5 on 2 of 20 casts and both beat the 34.5% base rate. Reported as
+the code returns it and NOT renegotiated — the rule was encoded in a zero-cast
+session precisely so it could not be tuned after the numbers were visible, and
+missing the bar by one turn is exactly the case that tempts a renegotiation.
+The whole-file scope (95 turns) returns KEEP *powered*, so both agree on
+direction. **Also settled: the brief's premise was wrong** — the turns had
+already accrued in sessions 60–85, so §19 was one command behind someone
+running it, not behind this session's casts.
+
+2026-08-23 (session 87 §3 / GATE 2) — **§23 ANSWERED: the 3x multiplier is
+EXONERATED.** The tight probe read `tightDelta -60` against a committed 60 on
+run 25035508 — §23's own pre-registered SECOND branch. The charge at
+`start_run` is exactly 60 and the standing −1 is credited back DURING the run
+(run-level 86 → 27, observed 59). Regen at 18/hr against an integer pool is the
+leading candidate, NOT asserted. The drift was deliberately NOT fixed, per §23.
+
+2026-08-23 (session 87) — **The `EV support` line printed on a real run for the
+first time** (built s78, unreachable s82, fixed s84): 0/49 decisions fully
+modelled, 49 (100.0%) unsupported. 100% is EXPECTED under rule 8, which selects
+modified enemies. The session-84 fix is now verified live, not only in test.
+
+2026-08-23 (session 87) — **The suite is left RED (70 failed / 1603 passed) by
+user directive**, having been offered mechanical-counts-only, update-everything,
+or leave-red-and-recap. Most failures are corpus counts moving. Some are not:
+`neither = 0` → 6, dead hands 15 → 32, the "thirtyfold" budget-zero drop → 6.5x,
+SPEC-fishing §4's fishHp exceptions 3 → 6, `REAL_DECK` no longer matching the
+account's rod, and a first-ever `WeakeningMastery` boon pair with no model.
+**Rewriting a pinned STRUCTURAL claim to match new data is renegotiation and
+belongs to the user, not an agent** — the same principle `matcherVerdict.ts`
+encodes. Session 88 inherits a red suite by design, not by neglect.
+
+2026-08-23 (session 87) — **A live batch must be issued in chunks a stop can
+reach.** The user said "stop at 10 casts" mid-batch and it could not land: the
+20 casts had been issued as ONE backgrounded command and had already completed.
+Four `--casts=5` invocations would have given the instruction four places to
+land. The lesson is about the shape of the command, not about the instruction.
