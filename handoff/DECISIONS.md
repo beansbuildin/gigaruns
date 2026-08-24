@@ -1734,3 +1734,68 @@ catch (~70% against 27.6%), untouched by this ruling. **§0a is NOT lifted,
 encodes: a brief's claim about what another file says is a hypothesis, and
 "restate §0a's argument" would have edited a document to fix a problem it did
 not have.
+
+2026-08-24 (session 91) — **THE FIRST-EVER LIVE DOUBLE-LETHAL OIL FIRINGS: TWO
+OF THEM, BOTH CONVERTED TO CATCHES, BOTH EXACTLY THE SHAPE SESSION 90 PREDICTED
+FROM MOCKS.** Casts `13068171` (fish 4/29) and `13068190` (fish 4/17). Each sent
+**two `use_fishing_item(937)` POSTs in one turn at DISTINCT slots 0 and 1**,
+took the fish 4 → 2 → 0, and ended the cast CAUGHT. No third POST was possible —
+`oilWanted` is evaluated once per turn and returned exactly two elements. **No
+`oil_trigger_threw`**: `bestKillProbability`/`buildHand` ran on the live path
+across all 52 card decisions without once hitting the session-90 try/catch
+fallback. The Relaxing per-cast cap of 2 was **REACHED for the first time on
+record and still did not BIND** — the policy wanted two, never three, which
+answers the known-unchecked session 90 left in `tests/sim/fishingCorpus.test.ts`.
+⚠ **A REPORTING DEFECT, now fixed:** both firings printed to the console as
+`on-demand LETHAL trigger` — the policy the double-lethal arm OVERRIDES — because
+that string was hardcoded per consume. `liveFishing.ts` now names the deciding
+trigger and emits `oil_double_lethal_fired` before any POST. Labels and logging
+only; no behaviour changed.
+
+2026-08-24 (session 91) — **THE REDRAW SHADOW'S FIRST LIVE OUTPUT: 52 decisions,
+0 fires, 2 blind, 0 sanity/error — and the ZERO IS EXPLAINED, not merely
+reported.** A 0.0% live rate against the in-sample 2.7% is NOT evidence against
+the candidate: at 2.7% over 52 decisions, P(zero fires) ≈ 0.24, so this run
+could not have refuted it either way. What the per-turn records DO show is
+mechanical: `coverageBelowK` fired on 14 of 52 turns and `conditionMet` on 33 of
+52, but **on ZERO turns together** — every one of the 14 low-coverage turns had
+`budget: 0`, and `conditionMet` requires budget > 0. The candidate is a
+conjunction whose two halves were anti-correlated across this entire batch.
+`liveRedrawEnabled` was `false` on all 52 rows; the bot did not redraw.
+⚠ **THE BATCH SUMMARY NEVER RAN.** All four `batchRedrawShadow*` accumulators
+and the `redraw_shadow_batch` event sit inside `if (args.oilBatch)`, which
+`--casts=10` does not set — so the session-91 brief's expectation that the batch
+would report them was wrong. The per-turn `redraw_shadow` records are written
+unconditionally, so nothing was lost; the counts above were computed from the
+log. **A future batch wanting the summary must pass `--oil-batch`.**
+
+2026-08-24 (session 91) — **§32 OPENED: `castEra.test.ts` HAS THREE CLAIMS
+DEGRADING MONOTONICALLY ACROSS THREE CONSECUTIVE BATCHES, AND ITS LOAD-BEARING
+CONTROL HAS BROKEN. ONE TEST IS RED ON PURPOSE.** The budget-zero ratio has gone
+~30x → 6.48x → 3.92x, the redraw rescue rate 15/15 (100%) → 26/32 (81%) → 30/42
+(71%), and `wasted` {0} → {0,3,4,5,6} → {0,3,6,7,9,10,11,12}. Each was already
+retracted once by session 89 and each moved further the same way. The fourth is
+the one left failing: `|before.meanOptimal − today.meanOptimal|` went 0.0062 →
+**0.0250 against a 0.01 bound**. Session 89 called that "the single most
+important thing in the file that did NOT move", and it is a PREMISE, not a
+description — the section argues the eras do not differ in difficulty, therefore
+the entire difference is overspend. **Widening the bound would convert a
+falsified premise into a passing test**, which is what session 90 refused on
+`damageEconomy.test.ts`. Hypothesis recorded but not implemented: `today` is a
+frozen-vs-accumulating split whose "today" arm has grown 54 → 84 casts and now
+spans the oil era, the double-lethal wiring, and the rod durability window, so
+it may no longer be a policy era at all — the same pooling problem §31 just
+ruled on, one file over. Three options in `QUESTIONS.md` §32.
+
+2026-08-24 (session 91) — **THE ROD-DURABILITY TRIPWIRE FIRED AND WAS REPINNED,
+NOT DELETED.** Session 89 pinned `rodDeck.test.ts`'s "the account is currently
+IN a base-deck window" at `true` and wrote "if this flips, the rod grant came
+back; note when, it is §29 evidence." It flipped. The note: the window closed
+between 2026-08-24T00:01 and 2026-08-24T19:16, when the user repaired the rod,
+and **all 10 casts of session 91's batch were dealt the Shroom grant — zero
+base-deck**, consistent with the repair and with the user's ~40-cast estimate.
+The pin is now `false` and is a REAL ratchet in this direction too: when the
+repair runs out it flips back, and the failure message is written as the
+instruction (tell the user, note the date, flip the pin, leave `REAL_DECK`
+alone). Do not delete this test to stop it alternating — the alternation IS the
+durability sensor this repo otherwise does not have.

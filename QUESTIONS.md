@@ -2356,3 +2356,84 @@ entirely on meter-out (1.0% sim against 64.2% live) and catch (~70% against
 **§0a is NOT lifted, +19.40pp still MAY NOT BE QUOTED.** The reason it stands is
 the same reason it always stood, and the worry that it had silently changed was
 itself the thing that needed checking rather than acting on.
+
+---
+
+## §32 — THREE CLAIMS IN `castEra.test.ts` ARE DEGRADING MONOTONICALLY WITH EVERY BATCH, AND ONE HAS NOW BROKEN A LOAD-BEARING CONTROL [session 91 §3, OPEN — needs a ruling, one test is RED until it comes]
+
+**What happened.** Session 91's authorized ten-cast batch grew the corpus 168 →
+178. Most pin files moved by pure census drift and were regenerated after
+individual checks. `tests/fishing/castEra.test.ts` did not behave like the
+others, and the way it differs is the finding.
+
+### The pattern — three separate claims, one direction, three consecutive batches
+
+```
+  claim                                 s84/86      s89        s91
+  budget-zero ratio before/today        ~30x        6.48x      3.92x
+  redraw rescue rate, today's era       15/15 100%  26/32 81%  30/42 71%
+  `wasted` values across the sweep      {0}         {0,3,4,5,6} {0,3,6,7,9,10,11,12}
+  meanOptimal gap between eras          —           0.0062     0.0250  ⚠ BOUND 0.01
+```
+
+Each of these was **retracted or weakened once already** (session 89 retired
+"THIRTYFOLD", retired `neither = 0`, retired `wasted` being structurally zero,
+and replaced 15/15 with an interval). Session 91 finds every one of them moved
+further in the same direction. **That is not four coincidences; it is one fact
+about the era predicate showing up in four places.**
+
+### The likely mechanism, stated as a hypothesis and not implemented
+
+`before` is frozen history. `today` is an era that keeps absorbing every new
+batch. Every claim above was first pinned when `today` held 54 casts; it now
+holds 84. So the pattern is consistent with **the original pins having been
+small-sample artefacts of a young era**, with each batch pulling them toward
+their true values. Under that reading nothing is wrong and the numbers are
+simply converging — but that is exactly the reading that would justify bumping
+them forever, so it is the one that most needs checking rather than assuming.
+
+The competing reading is that "today's era" is no longer one policy era at all.
+It has spanned the oil era, the session-90 double-lethal wiring, the rod
+durability window (§29) and its repair. A predicate that was a policy boundary
+when it was written may now just mean "recent", which would make every
+era-conditioned number in this file a pooled quantity of the same kind §31 just
+ruled on.
+
+### ⚠ THE ONE THAT IS RED, and why it was not bumped
+
+```
+  expect(Math.abs(over.before.meanOptimal - over.today.meanOptimal)).toBeLessThan(0.01);
+  // before 0.656, today 0.662 -> 0.631.  gap 0.0062 -> 0.0250.
+```
+
+Session 89 called this **"the single most important thing in the file that did
+NOT move."** It has moved, and it is load-bearing rather than descriptive. The
+section's argument is: the cheapest move that COULD have worked is the same in
+both eras → the eras do not differ in difficulty → **the entire difference is
+OVERSPEND** (the assertion immediately below it). That syllogism needs the two
+`meanOptimal`s to agree.
+
+**The conclusion is probably not overturned** — an 0.025 gap is small beside the
+overspend gap it explains (0.897 against 0.176). But widening the bound to 0.03
+would convert a falsified premise into a passing test, which is precisely what
+session 90 refused to do on `damageEconomy.test.ts` and what rule 9 forbids. So
+it stays red.
+
+### THE QUESTION
+
+- **(a)** Re-pin all four on the current corpus and accept that these are
+  converging small-sample estimates. Cheapest; treats the era predicate as
+  sound. Requires someone to say out loud that the bound was descriptive, not
+  load-bearing — which contradicts how session 89 described it.
+- **(b)** Re-specify the era predicate, on the same logic §31 was ruled on: cut
+  "today" at a policy boundary that is still meaningful (the oil era, or the
+  double-lethal wiring) rather than letting it accumulate everything recent.
+  Most honest; re-baselines every number in this file.
+- **(c)** Something else, including splitting the control out as a standing
+  tracked series rather than a bound, so its drift is visible without gating
+  the suite.
+
+**Not urgent in the sense that anything downstream is spending on it** —
+`castEra.test.ts` feeds no live decision. Urgent in the sense that it is one
+test away from being bumped silently by whoever next runs a batch, which is how
+the "thirtyfold" claim survived three sessions past its evidence.
