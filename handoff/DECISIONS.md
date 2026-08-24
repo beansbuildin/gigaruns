@@ -1551,3 +1551,39 @@ published `held = 1` numbers. **`double-lethal(r=0)` reproduces `on-demand` byte
 for byte**, which is the arm validating itself. Free re-verification along the
 way: `conserve` still matches `on-demand`'s catch on 2089 fewer oils at
 `held = 2`, a stock `OIL-CONSERVE.md` had not been run at. `handoff/OIL-DOUBLE-LETHAL.md`.
+
+2026-08-24 (session 90, §1) — **THE DOUBLE-LETHAL OIL TRIGGER IS WIRED LIVE BY
+USER OVERRIDE, AGAINST THE SIM'S OWN RECOMMENDATION — RECORD BOTH.** The user,
+verbatim: *"I want to authorize the bot to use 2x relaxing oil if it will be
+lethal and it is not confident in catching with mana."* `handoff/OIL-DOUBLE-LETHAL.md`
+recommends **AGAINST** and that recommendation is unchanged: **+0.13pp catch
+(95.03% vs 94.90%) for 1409 extra oils at n=8000 paired seeds — 140.9 marginal
+oils per extra fish against a bar of ~12**, more than 11x over. The wiring is
+the account owner buying **certainty in the 3–4 `fishHp` band** on turns where
+`bestKillProbability < 1`, which the sweep never priced; it is a preference, not
+a correction to the arithmetic. **Never present this as sim-recommended.**
+Scope: trigger SELECTION only — `scripts/liveFishing.ts` calls
+`doubleLethalTriggers` instead of `onDemandTriggers`. No budget change
+(`policyApproved` true since session 62, `perItemMaxPerCast["937"] = 2` since
+session 69 §4), no new constant (the cutoff is
+`RECOMMENDED_NECESSITY_THRESHOLDS.relaxing = 1`, reused), no forced live batch.
+**Two things the brief got wrong and the wiring had to fix, both rule 9 catches:**
+**(1) it is NOT a same-shape drop-in.** `doubleLethalTriggers` takes an
+`OilDecisionState`, which extends `OilTimingState` with `focusCell` and `board`;
+the old call site passed eight scalars and a literal substitution does not
+compile. The board is now built at the decision site exactly as the oil shadow
+already builds it (`buildHand(doc)`, `dist`, `gridSize`) — **session 69's hoist
+of the distribution pipeline above the oil block is the only reason `dist` is in
+scope there**, so that hoist paid for this wiring twenty sessions early.
+**(2) this puts `bestKillProbability` on the LIVE path for the first time.** It
+has only ever run inside `evaluateOilShadow`, whose entire body is wrapped in
+try/catch *because it can throw* — and on the live path an uncaught throw aborts
+a cast already in flight. The trigger evaluation is therefore wrapped so a throw
+**degrades to `onDemandTriggers`** — the exact policy that shipped yesterday,
+and strictly the less-spending arm — and logs `oil_trigger_threw` loudly rather
+than silently. Verified end to end, not by code-reading: the two-consume path,
+the two distinct slots, and the mid-sequence `COMPLETE_CID` break are exercised
+against a live-shaped mocked request/response sequence in
+`tests/fishing/oilDoubleLethalLive.test.ts`, and `oilDoubleLethal.test.ts`'s
+not-wired guard was **replaced by its positive equivalent** rather than deleted,
+so a future silent revert still fails a test.

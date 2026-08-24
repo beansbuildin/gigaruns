@@ -2,14 +2,20 @@
  * tests/fishing/oilDoubleLethal.test.ts — [session 89 §6] the double-lethal
  * band trigger, pinned as a pure function.
  *
- * ## Status: DERIVED, NOT SHIPPED — and the sweep says do not ship it
+ * ## Status: SHIPPED LIVE [session 90 §1] — and the sweep STILL says it is a bad trade
  *
- * `scripts/liveFishing.ts` calls `onDemandTriggers` and this file does not
- * change that. `handoff/OIL-DOUBLE-LETHAL.md` carries the sweep: the trigger
- * works, its confidence cutoff is non-degenerate, and it costs **140.9 oils
- * per extra fish** against a bar of ~12. The recommendation is to leave it
- * uncalled. These assertions exist so the derivation is reproducible and so
- * `doubleLethalTriggers` cannot silently stop being what the memo scored.
+ * **Both halves are true at once and neither cancels the other.**
+ * `scripts/liveFishing.ts` calls `doubleLethalTriggers` as of 2026-08-24, on
+ * the account owner's explicit override (`QUESTIONS.md` §30). And
+ * `handoff/OIL-DOUBLE-LETHAL.md`'s recommendation is unchanged and unretracted:
+ * the trigger works, its confidence cutoff is non-degenerate, and it costs
+ * **140.9 oils per extra fish** against a bar of ~12. The user is buying
+ * certainty in the 3-4 `fishHp` band, which the sweep never priced.
+ *
+ * **Never describe this trigger as sim-recommended.** These assertions exist
+ * so the derivation stays reproducible and so `doubleLethalTriggers` cannot
+ * silently stop being what the memo scored — which matters MORE now that it
+ * ships, not less.
  *
  * ## The load-bearing assertion is that TODAY'S CASE IS UNCHANGED
  *
@@ -158,11 +164,43 @@ describe("the policy wrapper respects stock POSITIONALLY, not just by kind", () 
   });
 });
 
-describe("it is NOT wired live — the status the memo depends on", () => {
-  it("liveFishing.ts calls onDemandTriggers and not doubleLethalTriggers", async () => {
+describe("it IS wired live — [session 90 §1b] the guard, turned around rather than deleted", () => {
+  /**
+   * **This assertion used to say the opposite, and that is the point.**
+   * From session 89 to session 90 it read `expect(src).not.toContain(
+   * "doubleLethalTriggers(")` — a text grep whose whole job was to stop this
+   * feature shipping by accident while the memo recommended against it.
+   *
+   * The user's override (`QUESTIONS.md` §30) made it fail BY DESIGN. Deleting
+   * it would have been the easy move and the wrong one: the guard's real job
+   * is to make the wiring status of this trigger a thing a test knows, in
+   * whichever direction it currently points. Inverted, it catches a silent
+   * revert — someone "cleaning up" the live call site back to
+   * `onDemandTriggers` and quietly withdrawing a decision the account owner
+   * made.
+   *
+   * **A grep is a weak instrument and is not carrying this alone.**
+   * `tests/fishing/oilDoubleLethalLive.test.ts` runs the actual consume loop
+   * and fails if the wiring is reverted — verified by mutation, not assumed.
+   * This one exists so the FAILURE MESSAGE names the decision.
+   */
+  it("liveFishing.ts calls doubleLethalTriggers, and still falls back to onDemandTriggers", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("scripts/liveFishing.ts", "utf8");
-    expect(src).toContain("const oilWanted = onDemandTriggers(");
-    expect(src).not.toContain("doubleLethalTriggers(");
+    expect(src).toContain("oilWanted = doubleLethalTriggers(");
+    // `onDemandTriggers` must STILL be called — it is the throw fallback, and
+    // the reason every out-of-band behaviour is preserved. Its disappearance
+    // would mean the degrade path went with it.
+    expect(src).toContain("oilWanted = onDemandTriggers(oilTimingState, PAYLOAD_OIL_EFFECTS)");
+  });
+
+  it("the sim's own recommendation is still AGAINST, and the memo still says so", async () => {
+    const { readFileSync } = await import("node:fs");
+    const memo = readFileSync("handoff/OIL-DOUBLE-LETHAL.md", "utf8");
+    // Wiring it did NOT make it a good trade on the sweep's own terms. If a
+    // future session softens the memo to match the shipped behaviour, that is
+    // the record being rewritten to agree with the code, and this catches it.
+    expect(memo).toContain("140.9");
+    expect(memo).toContain("the recommendation is DO NOT SHIP");
   });
 });

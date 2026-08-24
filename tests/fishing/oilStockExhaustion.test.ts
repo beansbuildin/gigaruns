@@ -25,13 +25,13 @@ import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
 
 import { runOneCast, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
-import { oilState } from "../helpers/oilDecisionState.js";
+import { board, card, oilState } from "../helpers/oilDecisionState.js";
 import { GuardState } from "../../src/orchestrator/guards.js";
 import type { BotConfig } from "../../src/orchestrator/config.js";
 import type { GigaverseClient } from "../../src/api/client.js";
 import {
+  doubleLethalTriggers,
   heuristicC,
-  onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
 } from "../../src/strategy/fishing/oilTiming.js";
 import {
@@ -206,28 +206,71 @@ describe("GATE 2 — the shipped live trigger is on-demand's, not heuristic (c)'
    * fraction-of-max rule and a lethality rule differ exactly on fish where the
    * fraction exceeds the oil's damage; this finds such a fish by asking the
    * policies, so it keeps discriminating if either threshold is ever retuned.
+   *
+   * **[session 90 §1] It now asks the SHIPPED trigger, which is no longer
+   * `onDemandTriggers`.** This test failed the moment `liveFishing.ts` was
+   * wired to `doubleLethalTriggers`, and it failed CORRECTLY: against a
+   * 20-HP fish the separating hp was 3, which is exactly the bottom of the
+   * new double-lethal band, so the live loop really does spend there now. The
+   * fix is not to loosen the assertion — GATE 2's claim is *"the live trigger
+   * is not (c)'s fraction-of-max rule"*, and that claim is still true and
+   * still worth pinning. It just has to be asked about the trigger that
+   * actually ships.
+   *
+   * **The separation is made BOARD-INDEPENDENT on purpose.** `doubleLethalTriggers`
+   * consults `bestKillProbability` inside the band, so inside the band whether
+   * it fires depends on the hand and the fish distribution — which this mock
+   * does not control. So the search accepts a fish only when the shipped
+   * trigger declines it *while holding a board that cannot possibly kill* —
+   * the case most likely to make it fire. A fish it refuses under those
+   * conditions it refuses under all of them, which is what makes the live
+   * assertion below sound rather than lucky.
    */
   function discriminatingFishHp(fishMaxHp: number): number {
-    const base = oilState({ turn: 1, fishHp: 0, fishMaxHp, mana: 5, focusRemaining: 3, focusMax: 3 });
     for (let hp = 1; hp <= fishMaxHp; hp++) {
-      const s = { ...base, fishHp: hp };
+      const s = oilState({
+        turn: 1,
+        fishHp: hp,
+        fishMaxHp,
+        mana: 5,
+        focusRemaining: 3,
+        focusMax: 3,
+        // Mirrors the live mock's ample stock: with fewer than two held the
+        // double case cannot fire and the search would flatter itself.
+        relaxingOilHeld: 5,
+        focusOilHeld: 5,
+        // A hand whose only card cannot reach this fish's HP — the adversarial
+        // board described above.
+        board: board({ hand: [card({ hitZones: [5], critZones: [], hitEffects: [{ amount: Math.max(1, hp - 1) }] })] }),
+      });
       const cFires = heuristicC.decide(s, PAYLOAD_OIL_EFFECTS).includes("relaxing");
-      const onDemandFires = onDemandTriggers(s, PAYLOAD_OIL_EFFECTS).includes("relaxing");
-      if (cFires && !onDemandFires) return hp;
+      const shippedFires = doubleLethalTriggers(s, PAYLOAD_OIL_EFFECTS).includes("relaxing");
+      if (cFires && !shippedFires) return hp;
     }
-    throw new Error("no fish HP separates heuristic (c) from the lethal trigger — the domination claim is void");
+    throw new Error("no fish HP separates heuristic (c) from the SHIPPED trigger — the domination claim is void");
   }
+
+  /**
+   * **20 was enough until session 90 and is not any more, which is itself the
+   * finding.** (c) fires at `fishHp <= 0.15 * fishMaxHp`; the shipped trigger
+   * now reaches up to `2 * fishDamage = 4`. At `fishMaxHp` 20 that is 3 vs 4 —
+   * the shipped trigger's reach SWALLOWS (c)'s entire firing range and no
+   * separating fish exists. The double-lethal band did not just move the
+   * boundary, it inverted which rule is more eager on a small fish. 40 restores
+   * a gap (c fires to 6, the band stops at 4).
+   */
+  const GATE2_FISH_MAX_HP = 40;
 
   it("such a fish EXISTS — the two rules really do differ, which is the premise of replacing one with the other", () => {
     // If this ever stops holding, OIL-POLICY.md's "44% more oil for
     // indistinguishable benefit" has lost its mechanism and the replacement
     // needs re-arguing rather than re-asserting.
-    expect(discriminatingFishHp(20)).toBeGreaterThan(PAYLOAD_OIL_EFFECTS.fishDamage);
+    expect(discriminatingFishHp(GATE2_FISH_MAX_HP)).toBeGreaterThan(2 * PAYLOAD_OIL_EFFECTS.fishDamage);
   });
 
-  it("on a fish where heuristic (c) WOULD spend and lethality would not, the live loop spends NOTHING", async () => {
+  it("on a fish where heuristic (c) WOULD spend and the shipped trigger would not, the live loop spends NOTHING", async () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-oil-heuristic-c-"));
-    const fishMaxHp = 20;
+    const fishMaxHp = GATE2_FISH_MAX_HP;
     const fishHp = discriminatingFishHp(fishMaxHp);
     // Stock is deliberately AMPLE and the budget approved, so the only thing
     // that can hold the spend back is the trigger itself. Meter kept full so

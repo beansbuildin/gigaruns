@@ -2074,3 +2074,55 @@ dealt `BASE_DECK`. This is the Makeshift/Shroom break a second time, and it has
 the same rule: **say which deck a comparison used.** `rodDeck.test.ts` now
 asserts out loud which window the corpus's latest cast is in, so the fact is
 recorded rather than inferred.
+
+---
+
+## §30 ANSWERED [session 90, user directive 2026-08-24] — WIRE THE DOUBLE-LETHAL OIL TRIGGER LIVE, OVERRIDING THE SIM'S OWN RECOMMENDATION
+
+**This is not the sim's recommendation. It is the account owner overruling it,
+knowingly, on a value the sim does not price.** Both halves are recorded here
+so that nobody reading this later mistakes the wiring for an endorsement.
+
+**The user, verbatim:**
+
+> "I want to authorize the bot to use 2x relaxing oil if it will be lethal and
+> it is not confident in catching with mana."
+
+**What `handoff/OIL-DOUBLE-LETHAL.md` concluded, unchanged and not softened:**
+**RECOMMENDED AGAINST.** At n=8000 paired seeds, `held = 2`,
+`double-lethal(r=1)` catches **95.03%** against `on-demand`'s **94.90%** —
+**+0.13pp for 1409 extra oils, i.e. 140.9 marginal oils per extra fish against
+a bar of roughly 12.** More than 11x over the bar. Nothing about that number
+has been re-run, revised, or re-interpreted; it stands exactly as session 89
+published it.
+
+**The two claims are not actually in conflict, which is the point.** The sim
+prices oils-per-fish. The user is buying something the sweep never scored: a
+**guaranteed** catch in the 3–4 `fishHp` band on turns when the bot's own best
+affordable card cannot guarantee one. `bestKillProbability` at those turns is
+bimodal (36.20% exactly 0, 57.98% exactly 1 — session 89 §6), so the trigger
+withholds on 58% of band turns and fires on the turns where the alternative is
+genuinely a coin-flip rather than a near-certainty. Valuing certainty over
+throughput is a preference, not an arithmetic error, and it is the account
+owner's to hold.
+
+**What this authorizes, precisely.** Trigger SELECTION only:
+`scripts/liveFishing.ts` now calls `doubleLethalTriggers` where it called
+`onDemandTriggers`. It is **not** a budget change — `dendren.oils.policyApproved`
+was already `true` (session 62) and `perItemMaxPerCast["937"] = 2` has been set
+since session 69 §4 on the user's own earlier directive. Every existing
+single-oil behaviour is preserved byte-for-byte, because `doubleLethalTriggers`
+calls `onDemandTriggers` internally as its base case and returns it unchanged
+on every state outside the band.
+
+**What it does NOT authorize:** any change to the Focus arm, any second oil
+outside the band, any new fitted constant (the cutoff is
+`RECOMMENDED_NECESSITY_THRESHOLDS.relaxing = 1`, reused, not invented), and no
+forced live fishing batch to exercise it.
+
+**⚠ The first live firing has not happened yet.** Sim estimate: the band arises
+on 8.27% of decisions and the trigger fires on 3.48%. Whichever session sees it
+first must report the full response pair in detail — both `use_fishing_item`
+POSTs, both slots, the `fishHp` trajectory, and whether `COMPLETE_CID` landed
+on the second — not a line item. This is the first time real oil stock moves
+through a path nothing has exercised live.

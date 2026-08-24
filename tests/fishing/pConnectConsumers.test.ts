@@ -156,12 +156,15 @@ const CLASSIFIED = new Map<string, FileEntry>([
   [
     "scripts/liveFishing.ts",
     {
-      sites: 10,
+      sites: 11,
       note:
         "REPORT — every site is a log field or a console line (`pHitPredicted`, the `P_hit x.xx` " +
-        "shot line, the shadow's `bestConnect`/`bestKill` strings). The live loop reads no " +
-        "connect probability to decide anything; its decisions come from `chooseCard` and " +
-        "`oilTiming`, both classified above.",
+        "shot line, the shadow's `bestConnect`/`bestKill` strings, and [session 90] the " +
+        "`oil_trigger_threw` console line). This file still reads no connect probability to " +
+        "DECIDE anything — its decisions come from `chooseCard` and `oilTiming`, both classified " +
+        "above. What changed in session 90 is upstream of this count and is recorded on the " +
+        "`oilTiming.ts` double-lethal row: that gate is now LIVE, so a connect probability now " +
+        "reaches real oil stock through `oilTiming`, not through a read in this file.",
     },
   ],
 ]);
@@ -238,14 +241,17 @@ const LEVEL_SITES: { file: string; contains: string; live: boolean; why: string 
   {
     file: "src/strategy/fishing/oilTiming.ts",
     contains: "if (bestKillProbability(s) >= relaxingThreshold) return base;",
-    live: false,
+    live: true,
     why:
-      "[session 89] The DOUBLE-LETHAL band gate. Same level-based read as the relaxing necessity " +
-      "gate above and the same constant, applied in the band where one oil cannot finish the fish " +
-      "but two can. NOT LIVE — `scripts/liveFishing.ts` calls `onDemandTriggers`, and " +
-      "`handoff/OIL-DOUBLE-LETHAL.md` recommends against wiring it (140.9 oils per extra fish " +
-      "against a bar of ~12). Listed because a derived-not-shipped consumer is still a consumer, " +
-      "and the whole point of this inventory is that nothing reads pConnect unclassified.",
+      "[session 89, WENT LIVE session 90] The DOUBLE-LETHAL band gate. Same level-based read as " +
+      "the relaxing necessity gate above and the same constant, applied in the band where one oil " +
+      "cannot finish the fish but two can. **This entry was `live: false` for exactly one session.** " +
+      "`scripts/liveFishing.ts` now calls `doubleLethalTriggers` on the user's explicit override " +
+      "(`QUESTIONS.md` §30) — and `handoff/OIL-DOUBLE-LETHAL.md` still recommends AGAINST it " +
+      "(140.9 oils per extra fish against a bar of ~12), which is a fact about the trade, not " +
+      "about the wiring. What this inventory cares about is narrower and now sharper: a " +
+      "miscalibrated connect probability can reach REAL OIL STOCK through this line, which was " +
+      "not true yesterday.",
   },
   {
     file: "src/strategy/fishing/oilShadow.ts",
@@ -300,15 +306,22 @@ describe("the level-based sites — the only ones a miscalibrated level can reac
     ).toContain(site.contains.replace(/\s+/g, " "));
   });
 
-  it("the live level-based set is exactly the four gates it should be", () => {
+  it("the live level-based set is exactly the gates it should be", () => {
     // Named as a set, not a count, so a site moving between live and not-live
-    // is a loud change. These four are where a fitted correction would apply
-    // and nowhere else — which is the whole point of the inventory.
+    // is a loud change. These are where a fitted correction would apply and
+    // nowhere else — which is the whole point of the inventory.
+    //
+    // **[session 90] This set GREW, and the growth is the record.** The
+    // double-lethal band gate sat here as `live: false` for exactly one
+    // session; the user's override (`QUESTIONS.md` §30) wired it, and this
+    // assertion is the thing that made that a visible change rather than a
+    // quiet one. It fired on the wiring commit, which is what it is for.
     expect(LEVEL_SITES.filter((s) => s.live).map((s) => s.contains).sort()).toEqual(
       [
         "if (pAnyHit < 0.999999) return false;",
         "meetsThreshold(bestConnectProbabilityFromFrozenCell(d), t.focus)",
         "meetsThreshold(bestKillProbability(d), t.relaxing)",
+        "if (bestKillProbability(s) >= relaxingThreshold) return base;",
         "(r.bestConnectProbability ?? 0) >= 1",
         "(r.bestKillProbability ?? 0) >= 1",
       ].sort(),

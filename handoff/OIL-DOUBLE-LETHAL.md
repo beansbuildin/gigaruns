@@ -218,3 +218,93 @@ lost. 1409 oils bought 10 fish because ~1399 of those spends changed nothing.
 `OIL_TIMING_POLICIES` so it keeps being scored by anything that sweeps the
 roster. That is deliberate: a declined policy that stops being measured is how a
 declined policy quietly becomes an unexamined one.
+
+---
+
+# WIRED LIVE — 2026-08-24 (session 90 §1), BY USER OVERRIDE
+
+**Everything above this line stands unchanged and unretracted.** §0's
+recommendation is still DO NOT SHIP, and the number it rests on is still
+**140.9 marginal oils per extra fish against a bar of ~12**. Nothing was
+re-run, re-scored, or re-interpreted. This section records that the account
+owner read that finding and chose otherwise.
+
+**The user, verbatim:**
+
+> "I want to authorize the bot to use 2x relaxing oil if it will be lethal and
+> it is not confident in catching with mana."
+
+**Why the two are not in contradiction.** The sweep prices throughput — oils
+per extra fish. The user is buying **certainty** in the 3–4 `fishHp` band on
+turns where the bot's own best affordable card cannot guarantee the catch.
+`bestKillProbability` at band turns is bimodal (36.20% exactly 0, 57.98%
+exactly 1), so the trigger withholds on 58% of the band turns it could fire on
+and spends on the turns where the alternative really is a coin-flip. Preferring
+a guaranteed catch there is a value, not an arithmetic error. **It is still not
+what this memo recommends, and nobody should cite the wiring as evidence that
+it is.**
+
+## What changed in code
+
+`scripts/liveFishing.ts`'s oil decision calls `doubleLethalTriggers` instead of
+`onDemandTriggers`. That is the entire behavioural change. No budget change
+(`policyApproved` true since session 62; `perItemMaxPerCast["937"] = 2` since
+session 69 §4), no new constant, no Focus-arm change.
+
+**Two things §3's code-reading claim did not anticipate, both found while
+wiring:**
+
+1. **It was not a same-shape drop-in.** `doubleLethalTriggers` takes an
+   `OilDecisionState`, which extends `OilTimingState` with `focusCell` and
+   `board` — it needs the board because its confidence read is
+   `bestKillProbability`. The old call site passed eight scalars. The site now
+   builds the board exactly as the oil shadow above it does
+   (`buildHand(doc)`, `dist`, `gridSize`). **Session 69 §1's hoist of the
+   distribution pipeline above the oil block is the only reason `dist` is in
+   scope there** — a move made for the shadow, which paid for this wiring
+   twenty sessions later.
+2. **This puts `bestKillProbability` on the live path for the first time
+   ever.** It has only ever run inside `evaluateOilShadow`, whose whole body is
+   wrapped in try/catch *because it can throw*; `buildHand` throws by design on
+   a hand id missing from `deckCardData`. In the shadow a throw becomes a
+   logged record. Live it would abort a cast already in flight. The trigger
+   evaluation is therefore wrapped: a throw **degrades to `onDemandTriggers`**
+   — the exact policy that shipped yesterday, and strictly the less-spending
+   arm — logs `oil_trigger_threw` loudly, and the cast continues.
+
+## What was proven before the switch flipped, not after
+
+§3 above argued from code-reading that the executor can consume the same kind
+twice in one turn. That argument was never run. It is now:
+`tests/fishing/oilDoubleLethalLive.test.ts` drives `runOneCast` against a
+live-shaped mocked request/response sequence and asserts two
+`use_fishing_item` POSTs, two **distinct** slots (0 and 1 — a hard-coded 0
+throws HTTP 400 in the mock, as it did live on cast 13019682),
+`oilsConsumed === 2` against a per-item cap of exactly 2, and no refusal.
+
+**The case §3 did not cover is covered now.** §3 argues the band is safe from
+session 68's `COMPLETE_CID` trap because the FIRST oil provably cannot kill.
+True, and it says nothing about the third entry: `doubleLethalTriggers` returns
+`["relaxing", "relaxing", ...base]`, and `base` carries `"focus"` whenever the
+meter is empty — so a lethal SECOND relaxing followed by a wanted focus consume
+is on this trigger's happy path, not an edge. That sequence now runs in the
+test: exactly two POSTs, one `oil_skipped_cast_complete` naming the focus oil,
+zero `action_failed`. The break was verified firing, not assumed reachable.
+
+Both integration assertions were confirmed non-vacuous by mutation: reverting
+the call site to `onDemandTriggers` fails both.
+
+## What to watch for on the first live firing
+
+It has not happened yet, and nothing this session forced a fishing batch. Sim
+estimate: the band arises on **8.27%** of decisions, the trigger fires on
+**3.48%**. Whichever session sees it first should report the **full response
+pair**, not a line item:
+
+- both `use_fishing_item` POSTs land, item 937 twice, slots 0 and 1;
+- `fishHp` goes 3or4 → 1or2 → ≤0, and `COMPLETE_CID` lands on the **second**;
+- `oilHeld.relaxing` drops by exactly 2 and no third POST is attempted;
+- if a trailing focus entry was in the array, exactly one
+  `oil_skipped_cast_complete` and no HTTP 400;
+- **any `oil_trigger_threw` line at all is a finding** — it means
+  `bestKillProbability` threw on real wire data, which nothing has yet seen.

@@ -150,6 +150,7 @@ import {
   type OverrideDisarmRecord,
 } from "../src/strategy/fishing/nextPositionArm.js";
 import {
+  doubleLethalTriggers,
   onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
   type OilKind,
@@ -1953,15 +1954,33 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     //
     // THREE gates, and they answer three different questions:
     //
-    //   1. `onDemandTriggers` — is now the MOMENT? Evaluated with no reference
-    //      to stock, deliberately (see its doc comment), so that a trigger
-    //      firing against an empty bag is observable rather than silent.
+    //   1. `doubleLethalTriggers` — is now the MOMENT, and is it a ONE-oil or a
+    //      TWO-oil moment? **[session 90 §1] This gate CHANGED, and it is the
+    //      only thing in this block that did.** It was `onDemandTriggers` from
+    //      session 62 to session 89; it now wraps it, returning it byte-for-byte
+    //      outside the 3-4 `fishHp` band and returning `["relaxing","relaxing",
+    //      ...base]` inside it when `bestKillProbability < 1`. USER OVERRIDE
+    //      against the sim's own recommendation — see the block at the call
+    //      site and `QUESTIONS.md` §30. Still evaluated with no reference to
+    //      stock for the FOCUS arm, deliberately (see its doc comment), so that
+    //      a trigger firing against an empty bag is observable rather than
+    //      silent; the double-relaxing case is the one exception and guards on
+    //      `relaxingOilHeld >= 2` inside the trigger, because "spend two" is
+    //      not a question you can ask without knowing you have two.
     //   2. `mayConsumeOil`    — is spending AUTHORIZED at all? Budget,
     //      approval, balance, per-cast cap. Every condition passed IN, so this
-    //      call site and the resolver cannot drift apart.
+    //      call site and the resolver cannot drift apart. **This is what bounds
+    //      the double case in practice**: `perItemMaxPerCast["937"] = 2`, set on
+    //      the user's directive in session 69 §4, and re-called per iteration
+    //      with updated counts — so a third relaxing entry could never be sent
+    //      even if a future trigger asked for one.
     //   3. stock              — is there one to spend? An empty bag is an
     //      EXPECTED state, not an unexpected one, so it degrades to ordinary
     //      play (CLAUDE.md rule 5 governs the unexpected; this is not that).
+    //
+    // A FOURTH thing now sits in front of gate 1 and is not a gate: the trigger
+    // evaluation can THROW (it reads the board now), and a throw degrades to
+    // `onDemandTriggers` rather than killing the cast. See the call site.
     //
     // The user has a few oils, fewer than a batch needs, and the sweep spends
     // ~0.70 oils per cast — so stock runs out MID-batch, not between batches.
@@ -2174,19 +2193,73 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       }
     }
 
-    const oilWanted = onDemandTriggers(
-      {
-        turn,
-        fishHp: doc.data.fishHp,
-        fishMaxHp: doc.data.fishMaxHp,
-        mana: doc.data.playerHp,
-        focusRemaining: doc.data.focusMeter,
-        focusMax: doc.data.focusMeterMax,
-        focusOilHeld: oilHeld.focus,
-        relaxingOilHeld: oilHeld.relaxing,
-      },
-      PAYLOAD_OIL_EFFECTS,
-    );
+    // ---- [session 90 §1] THE LIVE TRIGGER IS `doubleLethalTriggers` --------
+    //
+    // **USER OVERRIDE 2026-08-24, and it is NOT the sim's recommendation.**
+    // `handoff/OIL-DOUBLE-LETHAL.md` recommends AGAINST this trigger — 140.9
+    // marginal oils per extra fish against a bar of ~12 — and that number is
+    // unchanged. The account owner overruled it to buy CERTAINTY in the 3-4
+    // `fishHp` band: *"I want to authorize the bot to use 2x relaxing oil if it
+    // will be lethal and it is not confident in catching with mana."*
+    // `QUESTIONS.md` §30 carries both halves. Do not describe this line as
+    // sim-endorsed.
+    //
+    // **Every single-oil behaviour is preserved BY CONSTRUCTION**, not by
+    // review: `doubleLethalTriggers` calls `onDemandTriggers` as its base case
+    // and returns it unchanged on every state outside the band.
+    //
+    // **The call is NOT the same shape the old one was, and the difference is
+    // the whole risk.** `onDemandTriggers` reads eight scalars.
+    // `doubleLethalTriggers` takes an `OilDecisionState` — it needs the BOARD,
+    // because its confidence read is `bestKillProbability`. So this site now
+    // builds `focusCell`/`board` exactly the way the oil shadow above builds
+    // them. **Session 69 §1's hoist of the distribution pipeline above this
+    // block is the only reason `dist` and `gridSize` are in scope here**; that
+    // move was made for the shadow and paid for this twenty sessions later.
+    //
+    // **THE TRY/CATCH IS LOAD-BEARING, not defensive habit.**
+    // `bestKillProbability` has never run on the live path before today — it
+    // existed only inside `evaluateOilShadow`, whose entire body is wrapped
+    // *because it can throw* (`oilShadow.ts` structural property 2), and
+    // `buildHand` throws BY DESIGN when a hand id is missing from
+    // `deckCardData`. In the shadow a throw becomes a logged record. Here it
+    // would abort a cast that is already in flight and has already spent its
+    // energy. So a throw degrades to `onDemandTriggers` — **the exact policy
+    // that shipped before this line changed, and strictly the less-spending
+    // arm** — and is logged loudly rather than swallowed.
+    const oilTimingState = {
+      turn,
+      fishHp: doc.data.fishHp,
+      fishMaxHp: doc.data.fishMaxHp,
+      mana: doc.data.playerHp,
+      focusRemaining: doc.data.focusMeter,
+      focusMax: doc.data.focusMeterMax,
+      focusOilHeld: oilHeld.focus,
+      relaxingOilHeld: oilHeld.relaxing,
+    };
+    let oilWanted: OilKind[];
+    try {
+      oilWanted = doubleLethalTriggers(
+        {
+          ...oilTimingState,
+          focusCell: { x: doc.data.focusPoint[0] ?? 1, y: doc.data.focusPoint[1] ?? 1 },
+          board: { hand: buildHand(doc), dist, gridSize },
+        },
+        PAYLOAD_OIL_EFFECTS,
+      );
+    } catch (e) {
+      // Degrade, do not die. The fallback is yesterday's shipped policy, so the
+      // worst case of a throw is that this turn is decided by `on-demand` — a
+      // strictly smaller spend, never a larger one.
+      const detail = e instanceof Error ? e.message : String(e);
+      oilWanted = onDemandTriggers(oilTimingState, PAYLOAD_OIL_EFFECTS);
+      log.write({ event: "oil_trigger_threw", turn, error: detail, fellBackTo: "on-demand", wanted: oilWanted });
+      console.log(
+        `  \u2605\u2605\u2605 double-lethal trigger THREW on turn ${turn} (${detail}) \u2014 falling back to ` +
+          `on-demand for this turn, which wants [${oilWanted.join(",") || "none"}]. The cast CONTINUES. ` +
+          `Worth reporting: \`bestKillProbability\` is new on the live path as of session 90.`,
+      );
+    }
     for (const kind of oilWanted) {
       // ---- [session 68 §2] A LETHAL CONSUME ENDS THE CAST MID-LOOP --------
       //
