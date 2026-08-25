@@ -1,4 +1,4 @@
-# STATE — session 93 — 2026-08-24 (PT) — code at commit 84f4d796
+# STATE — session 93 — 2026-08-24 (PT) — code at commit 84f4d796 (recap c31531bc)
 
 ## Status
 **GATE PASS — all four items delivered, one with a scope the ledger forced.**
