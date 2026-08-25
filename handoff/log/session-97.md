@@ -152,3 +152,152 @@ done; §1d done; §2a done (**brief refuted**); §2b done; §2c done; §2d done
        oilPerItemCap,oilShadowExchangeArm,oilShadowRelaxingArm,
        oilStockExhaustion}.test.ts           CANNOT_FINISH_CARD, one line each
 ```
+
+---
+---
+
+# VERBOSE APPENDIX — session 97
+
+## A. `scripts/liveGateFiringRates.ts` — the §1a re-derivation, verbatim
+
+```
+── §2  THE REPLAY — 'WOULD IT FIRE', PAIRED AT THE TURN ──
+
+  era only — 405 turns
+    turns where the trigger wanted ANY oil      101
+    RELAXING gate   evaluated    6   held (fired)    0   0.0%
+    FOCUS    gate   evaluated   98   held (fired)    0   0.0%
+    bestKillProbability    0.050 .. 0.868   exactly 1: 0
+
+  whole clean corpus — 684 turns
+    turns where the trigger wanted ANY oil      141
+    RELAXING gate   evaluated   18   held (fired)    0   0.0%
+    FOCUS    gate   evaluated  127   held (fired)    0   0.0%
+    bestKillProbability    0.050 .. 0.990   exactly 1: 0
+
+── §3  THE LIVE RECORD — 'DID IT FIRE' ──
+  RELAXING arm evaluated live                         20   at >= 1: 0   max 0.991
+  FOCUS    arm evaluated live                         73   at >= 1: 0   max 0.991
+  Union of every Relaxing observation ever recorded: 24, at >= 1: 0, max 0.991.
+
+── §3b  THE BIMODALITY THAT JUSTIFIED THE THRESHOLD, RE-ASKED ──
+    replay  bestKillProbability     n  18   exactly 0   0 0.0%   exactly 1   0 0.0%
+    live    bestKillProbability     n  20   exactly 0   0 0.0%   exactly 1   0 0.0%
+
+  THE UPPER SPIKE IS A castSim ARTEFACT. Two independent sources that resolve
+  against REAL fish trajectories put no mass at 1 at all.
+
+  NOTE THE DIRECTION. `pConnect` is OPTIMISTIC, so a fitted correction moves
+  these inputs DOWN, i.e. further from the only boundary they are compared
+  against. Correcting the estimator cannot make these gates fire; it can only
+  make them fire less. That is a stronger statement than "they never fired on
+  this corpus" and it does not depend on the sample size.
+```
+
+**Note for the next reader:** `OIL-POLICY.md` §0a ALREADY recorded "the
+certainty gate is a proven live no-op (0 of 9 Relaxing firings held)" — known
+since session 70, at n=9. **Nobody ever connected it to `OIL-CONSERVE.md`'s
+recommendation**, which went on being described as a −21% oil saving for 29
+sessions. The failure was not measurement, it was two documents not being read
+against each other.
+
+## B. `scripts/eraCatchRate.ts` — the §2b measurement that had never been run
+
+```
+── §1  CATCH RATE BY ERA ──
+  segment                caught/n      rate  95% Wilson         oils  oils/cast
+  preOil                 14/93        15.1%  [9.2%, 23.7%]         1  0.01
+  oilSupplied            39/62        62.9%  [50.5%, 73.8%]       39  0.63
+  focusDry               20/43        46.5%  [32.5%, 61.1%]       19  0.44
+  ALL                    73/198       36.9%  [30.5%, 43.8%]       59  0.30
+
+── §2  THE MECHANICAL HYPOTHESIS: does `focusDry` catch LESS? ──
+  focusDry 46.5% vs oilSupplied 62.9% — -16.4pp, intervals OVERLAP.
+  ⇒ NOT SUPPORTED at this n.
+
+── §3  SESSION 96'S BATCH IN CONTEXT (§2c) ──
+  session 96: 3/10 = 30.0%   EXACT binomial 95% CI [6.7%, 65.2%]
+    bare-arm real (§0a)     27.6%  INSIDE      all-time corpus  36.9%  INSIDE
+    live-config pooled      28.3%  INSIDE      focusDry era     46.5%  INSIDE
+    dead-era-excluded       25.9%  INSIDE
+
+── §5  THE §2c TRIPWIRE, RE-REGISTERED AGAINST THE LIVE RATE (§1c) ──
+  live CLEAN-cast rate   focusDry 30/43 = 69.8%   all-time 157/198 = 79.3%
+  P(>= 9 clean of 10):
+    under the sim's ~0.70 oils/cast   P(clean)=49.7%   =>   1.02%  (~1 in 98)
+    under the LIVE focusDry rate      P(clean)=69.8%   =>  14.6%   (~1 in 7)
+```
+
+## C. Two bugs I introduced and caught, recorded so the next reader trusts the rest
+
+1. **`FishingCast.oilEra` is a BOOLEAN, not a count** (`consumablesUsed > 0 ||
+   slotsUsed.some(...)`). My first `eraCatchRate` run summed it as an oil count
+   and tested `=== 0` for a clean cast — which never matches a boolean `false`,
+   so it reported **clean 0/198**, an obviously impossible number that is what
+   made me look. The count lives on `FishingCast.consumablesUsed`. The field
+   name reads like a count; it is not.
+2. **I inverted the necessity endpoints in the first draft of the composition
+   test.** `NEVER_FIRES_THRESHOLD = 0` means the gate ALWAYS SKIPS, so the oil
+   is never spent — it does not mean "the gate never intervenes". Two tests
+   went red and the corrected semantics are now written into the test file so
+   the next reader does not re-derive them.
+
+## D. Why the composition was proved instead of swept — the argument in full
+
+The brief asked for a sweep of the composed policy against (a) shipped
+double-lethal and (b) the gate alone. The two layers partition on `fishHp`
+with `D = e.fishDamage`:
+
+| `fishHp` | `onDemandTriggers` relaxing? | gate can act? | band can act? |
+|---|---|---|---|
+| `<= 0` | no (guarded `fishHp > 0`) | no | no |
+| `0 < hp <= D` | **yes** | **yes** | no — guard 2 returns base |
+| `D < hp <= 2D` | no | nothing to remove | **yes** |
+| `hp > 2D` | no | nothing to remove | no — guard 3 returns base |
+
+Two facts close it: `conservingTriggers` only ever REMOVES entries (pinned as a
+subsequence property over the whole partition), and the band's own guard
+`fishHp <= D` returns the base untouched precisely where the gate acted. So the
+band can never re-add an oil the gate skipped, and the gate can never remove one
+the band added. **The difference is exactly zero at every HP, not
+approximately zero.**
+
+This is why a sweep would have been worse rather than merely slower: it would
+have reported a near-zero difference with a confidence interval, and
+"near-zero with a CI" is indistinguishable from a real interaction the sample
+was too small to resolve. `tests/fishing/oilNecessityComposition.test.ts`
+enumerates `[-1, 0, 1, D, D+1, 2D, 2D+1, 5, 18]` against stock `0..3` and both
+certainty regimes.
+
+## E. The full test-fallout account (16 failures, all resolved)
+
+Changing the shipped trigger turned 16 tests red across 11 files. Categorised:
+
+**Group A — source-text pins that SHOULD fire on this change (5).**
+`pConnectConsumers.test.ts` ×3 (the level-based-consumer inventory: two
+expressions moved into `conservingTriggers`, one changed `>=` →
+`meetsThreshold`), `oilDoubleLethal.test.ts` ×1 (the wiring grep). These are
+the tests doing their job; updated with the reason recorded inline.
+
+**Group B — behavioural tests whose FIXTURES present a certain kill (11).**
+`fakeCard`'s default is a FULL 3×3 template (`hitZones: [1..9]`) dealing 5,
+against the `fishHp: 2` these tests use to arm the lethal trigger — so
+`bestKillProbability` is exactly 1 and the new gate correctly withholds. Every
+one of these files pins DOWNSTREAM machinery (the consume loop, the per-cast
+cap, the dry path, shadow inertness) GIVEN a trigger fires; which trigger fires
+is the composition test's question, not theirs. Fixed with one shared,
+documented `CANNOT_FINISH_CARD` (`hitAmount: 1`) rather than nine local edits.
+
+**This is not weakening tests to match new code, and the argument is a
+measurement:** session 97 §1a found `bestKillProbability` never exceeds 0.991
+on any real board, so a certain-kill fixture describes a state the fishery has
+never produced and `CANNOT_FINISH_CARD` describes the one it always produces.
+
+`oilShadowInert.test.ts` needed real thought rather than the shared card: its
+whole point is that the shadow DISAGREES with live, and shipping the gate made
+them agree on the relaxing arm. An 8-of-9 template was tried and failed (the
+distribution concentrates on the covered cell, so `p` stays exactly 1). The fix
+moves the disagreement to the FOCUS arm by emptying the meter — the shadow's
+exchange thresholds carry `focus: 1` while live carries `ALWAYS_FIRES`, so at a
+certain connect the shadow skips and live spends. Real, live-relevant, forced
+by construction.
