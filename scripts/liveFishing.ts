@@ -1557,8 +1557,47 @@ const MAX_TURNS = 60;
  * (the hand is three cards) and exists to turn a runaway into a fail-closed
  * GuardTrip instead of a mana-burning spin. A real per-cast redraw BUDGET is
  * part of the recalibration `redrawEnabled` is waiting on.
+ *
+ * ## [session 95 §F2] The budget now exists, and the abort is gone
+ *
+ * QUESTIONS.md §28 named this one of the two unpaid correctness gaps: hitting
+ * the cap threw a `GuardTrip` and ABORTED the cast, so a policy ceiling — an
+ * expected state — was being handled as a rule-5 unexpected one. A cast is a
+ * unit of a capped daily allowance; throwing one away because the redraw
+ * policy wanted a sixth redraw destroys more than it protects.
+ *
+ * ⚠ **The comparison the fix is modelled on was CHECKED, not assumed.** The
+ * per-cast OIL cap at `oilTriggerNoStock` / `reason: "per_cast_cap"` does
+ * exactly this: it logs the third state, prints "playing on without it", and
+ * `continue`s the cast. Its own comment says why — *"The cast CONTINUES and the
+ * batch does NOT halt. A ceiling reached is an expected state, not a rule-5
+ * unexpected one."* That is the same sentence this gap needed.
+ *
+ * So the single constant splits in two, because it was doing two jobs:
+ *
+ *  - `REDRAW_BUDGET_PER_CAST` — the POLICY ceiling. On exhaustion the cast
+ *    falls through and PLAYS the card it had already chosen (`best` is already
+ *    computed at that point), which both keeps the cast alive and advances
+ *    `turn`, so the spin `MAX_TURNS` could not bound is bounded structurally
+ *    rather than by an abort.
+ *  - `REDRAW_RUNAWAY_GUARD` — the fail-closed backstop, which under the
+ *    fall-through is UNREACHABLE BY CONSTRUCTION. It is kept, at the same
+ *    number as the budget, precisely because it is unreachable: if it ever
+ *    fires, the fall-through itself is broken, and that is a genuine
+ *    unexpected state that rule 5 says to stop on. An assertion is the right
+ *    shape for an invariant, and it costs nothing while the invariant holds.
+ *
+ * The NUMBER is unchanged at 5 and is still not calibrated — that remains the
+ * recalibration's job. What changed is what happens when it is reached.
+ *
+ * ⚠ This path never executes live: `redrawEnabled` is false and stays false
+ * (QUESTIONS.md §28 ANSWERED). Its tests exercise it directly, and unit
+ * coverage of a dead path is not live validation.
  */
-const MAX_REDRAWS_PER_CAST = 5;
+const REDRAW_BUDGET_PER_CAST = 5;
+
+/** See `REDRAW_BUDGET_PER_CAST` — the unreachable-by-construction backstop. */
+const REDRAW_RUNAWAY_GUARD = REDRAW_BUDGET_PER_CAST;
 
 export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> {
   const { client, config, guards, fixtures, log, address, dryRun } = deps;
@@ -2673,7 +2712,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // happened: `redraw_sent` when one really went to the wire, and
     // `redraw_suppressed` when the policy wanted one and this flag refused.
     if (best && shouldRedraw(best, hand.length, mana, REDRAW_THRESHOLD)) {
-      if (redrawEnabled && !dryRun) {
+      if (redrawEnabled && !dryRun && redrawsThisCast < REDRAW_BUDGET_PER_CAST) {
         // ── THE LOOP GUARD, and it is not optional ────────────────────────
         //
         // A redraw does NOT increment `turn` — `turn++` happens only after a
@@ -2686,10 +2725,25 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         // `turn` is deliberately NOT incremented instead, because the matcher
         // indexes its observations by turn and a redraw supplies no card
         // placement to validate against — see the UNRESOLVED note below.
+        //
+        // [session 95 §F2] The bound is now in this branch's own CONDITION
+        // (`redrawsThisCast < REDRAW_BUDGET_PER_CAST`) rather than in a throw
+        // below it. Exhausting the budget falls out of the branch and plays
+        // `best`, which advances `turn` — so the spin is bounded by
+        // MAX_TURNS x REDRAW_BUDGET_PER_CAST without any cast being aborted.
+        // See the constant's docblock for why the abort was the wrong shape.
         redrawsThisCast++;
-        if (redrawsThisCast > MAX_REDRAWS_PER_CAST) {
-          log.write({ event: "action_failed", reason: "redraw cap exceeded", turn, redrawsThisCast });
-          throw new GuardTrip("fishing: redraw cap exceeded for this cast", { turn, redrawsThisCast, cap: MAX_REDRAWS_PER_CAST });
+        if (redrawsThisCast > REDRAW_RUNAWAY_GUARD) {
+          // Unreachable by construction — the branch condition above already
+          // refused entry at the budget. Kept as a fail-closed assertion: if
+          // this fires, the fall-through is broken, which IS a rule-5
+          // unexpected state.
+          log.write({ event: "action_failed", reason: "redraw runaway guard", turn, redrawsThisCast });
+          throw new GuardTrip("fishing: redraw runaway guard tripped — the per-cast budget fall-through did not hold", {
+            turn,
+            redrawsThisCast,
+            budget: REDRAW_BUDGET_PER_CAST,
+          });
         }
         const redrawBody = buildRedrawEnvelope(client.getFishingActionToken(), [turnFocusBudget.current.x, turnFocusBudget.current.y]);
         log.write({ event: "post", body: redrawBody });
@@ -2707,7 +2761,35 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         // Logged with the mana it cost, because that is the number the
         // recalibration will be judged on and it is not recoverable later:
         // 1 per card HELD, so the hand size at the moment of the redraw.
-        log.write({ event: "redraw_sent", turn, handSize: hand.length, manaBefore: mana, ev: best.ev });
+        //
+        // [session 95 §F1] `fishFrom` / `fishTo` are RECORDED here and fed to
+        // NOTHING. That is the whole point, and it is deliberately not the
+        // three-line fix the note below refuses.
+        //
+        // The gap QUESTIONS.md §28 names is that the redraw's `FISH_MOVED` is
+        // never observed, so the matcher's history skips a real step. Closing
+        // it means choosing between semantics (a) and (b) below, and neither
+        // has been measured — that choice is still not this line's to make and
+        // is not made here. The matcher is untouched; `turn` is untouched.
+        //
+        // What IS wrong today is that the movement is not even WRITTEN DOWN,
+        // so the recalibration that must choose between (a) and (b) would have
+        // to generate its own data from scratch. Recording the cell costs
+        // nothing, changes no behaviour, and is the only part of this gap that
+        // can be paid offline. When redraw is next armed, the log will carry
+        // what the decision needs.
+        const redrawFishFrom = fishCell(doc);
+        const redrawFishTo = fishCell(redrawResp.data.doc);
+        log.write({
+          event: "redraw_sent",
+          turn,
+          handSize: hand.length,
+          manaBefore: mana,
+          ev: best.ev,
+          fishFrom: redrawFishFrom,
+          fishTo: redrawFishTo,
+          observedByMatcher: false,
+        });
         log.write({ event: "post_response", resp: redrawResp });
         fixtures.write(redrawResp);
         doc = redrawResp.data.doc;
@@ -2751,6 +2833,14 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         //       accept that the matcher's history has a hole where a real
         //       movement happened. What ships today.
         //
+        // [session 95 §F1] Still (b), and still undecided. The only thing that
+        // changed is that the movement is now RECORDED on the `redraw_sent`
+        // line (`fishFrom`, `fishTo`, `observedByMatcher: false`) so the
+        // recalibration has the data in front of it. Recording is not
+        // choosing: nothing reads those fields, and a reader who takes their
+        // presence as a lean toward (a) has it backwards — they exist so (a)
+        // and (b) can be compared on evidence instead of on feel.
+        //
         // Session 75's measured figures, for whoever does the recalibration.
         // [session 89, QUESTIONS §28 ANSWERED] These are NO LONGER the reason
         // it stays off — that reason is now `no validated trigger + two unpaid
@@ -2776,14 +2866,44 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
         // play the card it just decided against.
         continue;
       }
-      log.write({
-        event: "redraw_suppressed",
-        turn,
-        handSize: hand.length,
-        mana,
-        ev: best.ev,
-        reason: "redrawEnabled is false — REDRAW_THRESHOLD is uncalibrated for the confirmed action (cardChoice.ts §5)",
-      });
+      // [session 95 §F2] THREE distinct reasons the policy wanted a redraw and
+      // did not get one, and they must never share a log line. Session 62's
+      // oil work is the precedent for why: an unflagged reason gets averaged
+      // into a rate that then means nothing, and it took 40 casts to notice.
+      //
+      //  - budget exhausted — the policy was ARMED and a policy ceiling
+      //    withheld the redraw. The cast plays on, exactly as an oil per-cast
+      //    cap does. This is the state that used to abort the whole cast.
+      //  - everything else — `redrawEnabled` false, or a dry run. These keep
+      //    the EXISTING `redraw_suppressed` line and its existing reason
+      //    string, unchanged: rule 10 says an instrumentation edit that moves
+      //    a field creates a false discontinuity in this repo's own history,
+      //    and the 449 decisions QUESTIONS.md §28 counts are keyed on it.
+      if (redrawEnabled && !dryRun && redrawsThisCast >= REDRAW_BUDGET_PER_CAST) {
+        log.write({
+          event: "redraw_budget_exhausted",
+          turn,
+          handSize: hand.length,
+          mana,
+          ev: best.ev,
+          redrawsThisCast,
+          budget: REDRAW_BUDGET_PER_CAST,
+        });
+        console.log(
+          `  · redraw wanted at turn ${turn} but the PER-CAST BUDGET is spent ` +
+            `(${redrawsThisCast}/${REDRAW_BUDGET_PER_CAST}) — playing the chosen card instead. ` +
+            `The cast continues; a ceiling reached is an expected state, not a fail-closed one.`,
+        );
+      } else {
+        log.write({
+          event: "redraw_suppressed",
+          turn,
+          handSize: hand.length,
+          mana,
+          ev: best.ev,
+          reason: "redrawEnabled is false — REDRAW_THRESHOLD is uncalibrated for the confirmed action (cardChoice.ts §5)",
+        });
+      }
     }
     if (!best) {
       log.write({ event: "no_affordable_card", turn, hand, mana });

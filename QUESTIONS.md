@@ -1217,7 +1217,24 @@ itself in five casts, which is the outcome its own design was betting on.
 
 ---
 
-## §19 — Should the matcher tier be DROPPED rather than mixed? [session 51 §3, OPEN — STILL UNMEASURED, blocked a FIFTH time; but the live half is now ONE COMMAND]
+## §19 — Should the matcher tier be DROPPED rather than mixed? [session 51 §3, **CLOSED — see the closing pointer immediately below**]
+
+> **[session 95 §I] CLOSING POINTER — this section's body is history, not an
+> open question.** The header read `OPEN` through session 94 and a backlog
+> sweep had to re-derive its status from `DECISIONS.md`; this pointer exists so
+> nobody does that again. The text below is left exactly as written.
+>
+> **§19 is ANSWERED: `KEEP`.** Closed first at `DECISIONS.md` 2026-08-21
+> (session 65 §2) as a **POWERED KEEP at n=35** against
+> `MIN_INSTRUMENTED_TURNS` = 32, pre-registered in that session's brief before
+> the batch ran. Re-confirmed independently at `DECISIONS.md` 2026-08-23
+> (session 87 §2 / GATE 1) — `KEEP`, one turn short of powered at 31, reported
+> as the code returned it and explicitly **not** renegotiated; the whole-file
+> scope (95 turns) returns KEEP *powered*, so both agree on direction.
+>
+> **Do not budget casts for §19 and do not report turn accrual** — session 66
+> §4 retired the batch shape as history rather than a standing authorization.
+> If a brief asks for §19 turns, this pointer is the answer.
 
 **[session 55] Nothing measured — session 55 was offline by construction (caps
 spent; both ledgers verified agreeing at 20/20, see below). What changed is
@@ -1536,7 +1553,28 @@ silently dropped.
 
 ---
 
-## §23 — juiced runs under-report energy spend by exactly 1, every time [session 53, OPEN — needs a cheap read, not a run]
+## §23 — juiced runs under-report energy spend by exactly 1, every time [session 53, **CLOSED — see the closing pointer immediately below**]
+
+> **[session 95 §I] CLOSING POINTER — this section's body is history, not an
+> open question.** Same story as §19: the header read `OPEN` through session
+> 94 while the answer had been in `DECISIONS.md` since session 87. The text
+> below is left exactly as written.
+>
+> **§23 is ANSWERED: the 3x multiplier is EXONERATED** (`DECISIONS.md`
+> 2026-08-23, session 87 §3 / GATE 2). The tight probe read `tightDelta -60`
+> against a committed 60 on run 25035508 — §23's own pre-registered SECOND
+> branch. The charge at `start_run` is exactly 60, and the standing −1 is
+> credited back DURING the run. **In-run regen at 18/hr against an integer
+> pool is the LEADING CANDIDATE, NOT asserted**, and the drift was
+> deliberately NOT fixed because the guard enforces off committed spend
+> (CODEXREVIEW #8), which is the conservative direction.
+>
+> **[session 95 §C2] The DIAGNOSTIC TEXT was wrong and is now fixed** —
+> a separate thing from the drift itself, which stays unfixed as §23 directed.
+> `describeEnergyAccounting` blamed *"possible external balance change (e.g. a
+> ROM claim) landed mid-run"* and fired on 4 of 4 of session 94's runs with no
+> ROM claim during any of them. It now names in-run passive regen as the
+> leading candidate, matching this section's hedge exactly.
 
 Three consecutive juiced Tier-3 runs have logged `energy_accounting` with
 `observedDelta` one LESS than `committedDelta`, always in the same direction:
@@ -2002,6 +2040,75 @@ starting it next.
 gate; rule 5 requires it to fail closed; the shadow path, when written, computes
 and logs inside a `try/catch` that can never fail a cast, as session 68's oil
 shadow did.
+
+---
+
+## §28 UPDATE [session 95 §F] — one of the two correctness gaps is PAID, the other is capped as far as it can be offline
+
+**`redrawEnabled` is still `false` and `REDRAW_THRESHOLD` is still `0` and
+untouched.** Neither was edited, under any framing. The restated reason for the
+closure — *no validated trigger + two unpaid correctness gaps* — becomes **no
+validated trigger + one unpaid correctness gap**, and the trigger half is
+untouched, so **the verdict does not move.**
+
+### GAP 2 (`MAX_REDRAWS_PER_CAST`, the abort) — PAID
+
+The cap threw a `GuardTrip` and ABORTED the cast, which handled a policy
+ceiling — an expected state — as a rule-5 unexpected one. A cast is a unit of a
+capped daily allowance; discarding one because the policy wanted a sixth redraw
+destroys more than it protects.
+
+**The comparison this brief suggested was checked before being leaned on, and
+it holds.** The per-cast OIL cap (`reason: "per_cast_cap"`) logs the third
+state, prints *"playing on without it"*, and continues the cast; its own comment
+says *"The cast CONTINUES and the batch does NOT halt. A ceiling reached is an
+expected state, not a rule-5 unexpected one."*
+
+The one constant was doing two jobs and is now two:
+
+- `REDRAW_BUDGET_PER_CAST` (5, **number unchanged and still uncalibrated**) —
+  the policy ceiling. It is now part of the redraw branch's own CONDITION, so
+  exhausting it falls through and PLAYS the already-chosen card. That keeps the
+  cast alive AND advances `turn`, so the spin `MAX_TURNS` could not bound is
+  bounded structurally rather than by an abort.
+- `REDRAW_RUNAWAY_GUARD` — the fail-closed backstop, **unreachable by
+  construction** under the fall-through, kept as an assertion: if it ever fires,
+  the fall-through is broken, and that IS a rule-5 unexpected state.
+
+A distinct `redraw_budget_exhausted` event carries the reason, never folded into
+`redraw_suppressed` — session 62's lesson about an unflagged reason poisoning a
+rate for 40 casts. ⚠ **`redraw_suppressed`'s existing reason string was left
+byte-identical on purpose** (rule 10): the 449 decisions this memo counts are
+keyed on it, and moving it would date a policy change to the session that
+renamed the field.
+
+### GAP 1 (`FISH_MOVED` unobserved) — NOT CLOSED, and deliberately not
+
+**The two candidate semantics were already named concretely**, in the code
+itself, by session 78 §6 — this brief's request to articulate them turned out
+to be already satisfied:
+
+  **(a)** redraw is a turn the predictor learns from — observe the moved cell
+  with no placement, increment `turn`. Matches the sim's bookkeeping; changes
+  how the predictor is fed.
+  **(b)** redraw is a turn the predictor SKIPS — leave both alone, accept the
+  hole. **What ships, still.**
+
+Neither has been measured and session 95 did **not** choose. What it did is the
+only part of this gap that can be paid offline: the `redraw_sent` log line now
+carries `fishFrom`, `fishTo` and `observedByMatcher: false`. **Recording is not
+choosing** — nothing reads those fields, the matcher is untouched, `turn` is
+untouched, and a reader who takes their presence as a lean toward (a) has it
+backwards. They exist so the recalibration can compare (a) and (b) on evidence
+instead of on feel, rather than having to generate that evidence from scratch.
+
+**What would actually close gap 1:** the §26 shadow evaluation, or the
+recalibration itself. Both need live casts with redraw armed or shadowed, which
+is why neither happened in a zero-spend session.
+
+⚠ **Everything above is unit-tested against a path that NEVER RUNS LIVE.** The
+tests reach it only by forcing the dep on. That is coverage, not live
+validation, and `tests/fishing/redraw.test.ts` says so in its own text.
 
 ---
 

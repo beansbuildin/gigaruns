@@ -225,14 +225,93 @@ describe("the wire — redraw is off by default and works when forced on", () =>
     expect(posts.some((p) => p.action === "play_cards" && p.cards.length > 0)).toBe(true);
   });
 
-  it("FAILS CLOSED on a runaway rather than spinning — a redraw does not advance `turn`", async () => {
+  // ─── [session 95 §F2] The runaway bound is now a BUDGET, not an abort ────
+  //
+  // ⚠ These tests exercise a path that NEVER RUNS LIVE — `redrawEnabled` is
+  // false and stays false (QUESTIONS.md §28 ANSWERED), and they reach it only
+  // by forcing the dep on. Unit coverage of a dead path is not live
+  // validation, and nothing here should be read as evidence that redraw
+  // behaves this way in a real cast.
+
+  it("spends the per-cast budget and then PLAYS — a ceiling reached does not abort the cast", async () => {
     // MAX_TURNS cannot bound the redraw branch, because `turn++` only happens
-    // after a card is played. Without the cap this cast redraws forever and
+    // after a card is played. Without a bound this cast redraws forever and
     // burns mana, which is exactly cardChoice.ts §5's 1.29-turn failure.
-    const { deps, posts, cleanup } = redrawWorthyCast({ redrawEnabled: true, alwaysRedrawWorthy: true });
-    await expect(runOneCast(deps)).rejects.toThrow(/redraw cap/i);
+    //
+    // WAS: the bound threw a GuardTrip and aborted the cast — one of the two
+    // unpaid correctness gaps QUESTIONS.md §28 names. A cast is a unit of a
+    // capped daily allowance, and throwing one away because the policy wanted
+    // a sixth redraw destroys more than it protects. The per-cast OIL cap was
+    // already doing this correctly (`reason: "per_cast_cap"` — log, print,
+    // play on), and this now matches it.
+    const { deps, posts, logLines, cleanup } = redrawWorthyCast({ redrawEnabled: true, alwaysRedrawWorthy: true });
+    await expect(runOneCast(deps)).resolves.toBeDefined();
     cleanup();
-    expect(posts.filter((p) => p.cards.length === 0).length).toBeLessThanOrEqual(6);
+
+    // Exactly the budget, and not one more.
+    const redraws = posts.filter((p) => p.action === "play_cards" && p.cards.length === 0);
+    expect(redraws.length).toBe(5);
+
+    // The cast SURVIVED and played a real card. This is the whole fix.
+    expect(posts.some((p) => p.action === "play_cards" && p.cards.length > 0)).toBe(true);
+
+    // And the reason is on its own event, never folded into `redraw_suppressed`
+    // — session 62's lesson about unflagged reasons poisoning a rate.
+    const exhausted = logLines.filter((l) => l.event === "redraw_budget_exhausted");
+    expect(exhausted.length).toBeGreaterThan(0);
+    expect(exhausted[0]?.budget).toBe(5);
+    expect(exhausted[0]?.redrawsThisCast).toBe(5);
+    expect(logLines.some((l) => l.event === "action_failed" && String(l.reason).includes("redraw"))).toBe(false);
+  });
+
+  it("the runaway backstop is unreachable by construction, and is kept as an assertion", () => {
+    // The branch condition itself refuses entry at the budget, so the throw
+    // below it cannot fire while the fall-through holds. It stays because a
+    // firing backstop would mean the fall-through is BROKEN, which is a
+    // genuine rule-5 unexpected state — not because it is expected to run.
+    const src = readFileSync(join("scripts", "liveFishing.ts"), "utf8");
+    expect(src).toContain("redrawsThisCast < REDRAW_BUDGET_PER_CAST");
+    expect(src).toMatch(/redrawsThisCast > REDRAW_RUNAWAY_GUARD/);
+    expect(src).toContain("REDRAW_RUNAWAY_GUARD = REDRAW_BUDGET_PER_CAST");
+  });
+
+  it("records the redraw's fish movement WITHOUT feeding it to the matcher — §F1 capture, not a choice", () => {
+    // QUESTIONS.md §28's other unpaid gap: the redraw's FISH_MOVED is never
+    // observed, so the matcher's history skips a real step. Closing it means
+    // choosing between two unmeasured semantics, and session 95 did NOT
+    // choose. What it did is write the movement down, so the recalibration
+    // that must choose has data instead of nothing.
+    //
+    // Asserted at source level as well as in the log below, because the
+    // load-bearing half is the NEGATIVE: `observe` must still not be called
+    // on this path.
+    const src = readFileSync(join("scripts", "liveFishing.ts"), "utf8");
+    expect(src).toContain("observedByMatcher: false");
+    // Comments in this branch QUOTE the three-line fix they refuse
+    // (`matcher = observe(matcher, toCell); doc = ...; turn++;`), so the
+    // negative assertion has to look at CODE. Strip line comments first — the
+    // first draft of this test matched the quotation and passed for the wrong
+    // reason in reverse.
+    const branch = src
+      .slice(src.indexOf("const redrawFishFrom"), src.indexOf("continue;", src.indexOf("const redrawFishFrom")))
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("//"))
+      .join("\n");
+    expect(branch).not.toContain("matcher = observe(");
+    expect(branch).not.toContain("turn++");
+    // …and the guard is real: the code slice is not empty.
+    expect(branch).toContain("observedByMatcher: false");
+  });
+
+  it("logs fishFrom/fishTo on a real redraw", async () => {
+    const { deps, logLines, cleanup } = redrawWorthyCast({ redrawEnabled: true });
+    await runOneCast(deps);
+    cleanup();
+    const sent = logLines.filter((l) => l.event === "redraw_sent");
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent[0]?.fishFrom).toBeDefined();
+    expect(sent[0]?.fishTo).toBeDefined();
+    expect(sent[0]?.observedByMatcher).toBe(false);
   });
 });
 
