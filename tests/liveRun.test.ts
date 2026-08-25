@@ -2158,7 +2158,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
   /**
    * A room-1 reward offer holding a Heal — which `pickBoon` takes with the
    * largest bonus in the ranker — alongside an unmodelled target. If the
-   * override works, Regen wins anyway; if it is off, Heal must win,
+   * override works, the target wins anyway; if it is off, Heal must win,
    * and that contrast is the whole assertion.
    *
    * [session 82] The target moved off TieWeak, which is now MODELLED — it got
@@ -2173,6 +2173,15 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
    * and the assertion would pass vacuously — which is exactly what happened
    * here when the model landed, and is why this test failed rather than
    * silently going green.
+   *
+   * [session 95] **THIRD move, and it failed loudly again rather than passing
+   * vacuously — which is the point of writing it this way.** `Regen` was
+   * modelled offline this session (the wide orb rule took it at room 7 of
+   * session 94's run 4, at zero deliberate cost) and is retired.
+   * `LossBlockUp` is the new head of the list. There is no need to re-learn
+   * this lesson a fourth time: the fixture must name a type that is
+   * ACTUALLY still in DEFAULT_CAPTURE_TARGETS and actually unmodelled, and
+   * limit 3 turns any drift into a red test rather than a green vacuum.
    */
   function armedRewardScenario(capture: LiveRunDeps["boonCapture"]) {
     const offering = fakeRun({
@@ -2180,7 +2189,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
       rewardPathPhase: true,
       rewardPathOptions: [
         { index: 0, boon: boon("Heal", 8) },
-        { index: 1, boon: boon("Regen", 2) },
+        { index: 1, boon: boon("LossBlockUp", 2) },
       ],
       players: [fakeSide("player", 10, 30), fakeSide("Enemy Room 63", 30, 30)],
     });
@@ -2225,7 +2234,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
     // The pair is the entire justification for paying the run-quality cost.
     expect(capture.captures).toHaveLength(1);
     const pair = capture.captures[0]!;
-    expect(pair.type).toBe("Regen");
+    expect(pair.type).toBe("LossBlockUp");
     expect(pair.room).toBe(1);
     expect(pair.beforeTag).not.toBe(pair.afterTag);
     // Both halves must actually be on disk, or the "pair" is a claim about
@@ -2269,7 +2278,7 @@ describe("runOnce — boon-capture override (session 55, brief §3)", () => {
       rewardPathPhase: true,
       rewardPathOptions: [
         { index: 0, boon: boon("Heal", 8) },
-        { index: 1, boon: boon("Regen", 3) },
+        { index: 1, boon: boon("AddLifestealSword", 3) },
       ],
       players: [fakeSide("player", 12, 30), fakeSide("Enemy Room 63", 30, 30)],
     });

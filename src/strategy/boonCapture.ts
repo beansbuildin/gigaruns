@@ -142,13 +142,38 @@ import type { BoonOption } from "../sim/boons.js";
  * ORDER is what the stale table gets wrong, and the order is what this list is.
  * Current corpus ranking: Regen 8, LossBlockUp 5, AddLifestealSword 5 (tied —
  * the prior relative order is kept), BurningEvade 4, WeakeningBlock 4.
+ *
+ * [session 95] **`Regen` RETIRED — and again it was not captured by this
+ * module.** The wide ORB rule took it at room 7 of session 94's run 4, for 28
+ * Hard Core out of [22, 28, 19], over the ranked `AddBlock` — i.e. at zero
+ * deliberate quality cost, which is the whole thing this module pays for. It
+ * was modelled offline in session 95 (`latent`) from a state already on disk.
+ * That is **SIX of the original five targets** now modelled without
+ * `boonCapture` ever being switched on: three sessions in a row have now
+ * written that the 27-runs-to-model-five estimate measures the wrong
+ * mechanism's cost, and `config/bot.json`'s `_boonCaptureComment` was
+ * corrected this session to say so at the source.
+ *
+ * Replacement follows the same rule — next-ranked unmodelled type still
+ * offered in a permitted room. ⚠ **That last clause is doing real work here
+ * and would be easy to skip.** The next-ranked type by raw offer count is
+ * `RegenMastery` (6 offers), and it is NOT eligible: all 6 are at rooms 2, 4
+ * and 5, and it has **never once been offered at room 1**, the only permitted
+ * room. Picking it would make the override dead code the day someone armed it
+ * — exactly what the "genuinely offered in a permitted room" test below
+ * exists to catch. `Thorns` (3 offers, 1 at room 1) is the next eligible type
+ * and takes the slot.
+ *
+ * Current corpus ranking over all 249 offers, eligible types only:
+ * AddLifestealSword 6, LossBlockUp 6 (tied — prior relative order kept),
+ * BurningEvade 5, WeakeningBlock 4, Thorns 3.
  */
 export const DEFAULT_CAPTURE_TARGETS: readonly string[] = [
-  "Regen",
   "LossBlockUp",
   "AddLifestealSword",
   "BurningEvade",
   "WeakeningBlock",
+  "Thorns",
 ];
 
 /** See limit 1 above. */

@@ -221,8 +221,17 @@ describe("fail-closed on unmodelled types", () => {
       // coverage gain was not partly offset. Their waits were the longest yet
       // — AddBurnShield first sighted session 19, AddVulnerableSword session
       // 25, WeakeningMastery session 08.
+      // [session 95 §A] TWO moved OUT — `AddWeakMagic` (first sighted session
+      // 25, room 1, declined) and `Regen` (first sighted session 82) both got
+      // first-ever pickup pairs from session 94's run 4, and both are LATENT.
+      // `VulnerableCrit` also gained a pair in that run but never appears in
+      // this list at all: its only recorded OFFER arrived in the same batch of
+      // 22 rows (§B) that its model landed with, so it was modelled before it
+      // was ever unmodelled-and-offered. NONE moved IN — the four runs offered
+      // no type this list had never seen, the second such session in a row
+      // after sessions 87/88, and the pattern of a coverage gain being partly
+      // offset has now not held twice running.
       "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
-      "AddWeakMagic", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked // session 11: first sighting, room-1 offer, not picked
       "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurnMastery", // session 11: first sighting, room-1 offer, not picked
@@ -235,7 +244,6 @@ describe("fail-closed on unmodelled types", () => {
       "LossEvasionUp", // session 82: FIRST-EVER TYPE, live room-4 offer on run 1, not picked
       "LossIntuitionUp", // session 52: first sighting, live room-7 offer (the corpus's first room-7 offer at all), not picked
       "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
-      "Regen",
       "RegenMastery", // session 53: first sighting, live room-4 offer (juiced run 2), not picked
       "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
       "TieDamageReduction",
@@ -390,7 +398,21 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // AddBlock/AddLifestealShield/UpgradeRock — every one of them either a
     // status-effect boon or an already-clean type recurring. The clean TYPE
     // set is unchanged for the fifth consecutive session.
-    expect(roomOne.length).toBe(195);
+    // [session 95 §B] 195 -> 207: FOUR juiced runs on 2026-08-25, twelve more
+    // room-1 options, APPENDED (not regenerated) after the additivity check —
+    // 22 rows in the corpus and absent from the table, ZERO the other way.
+    // **Seventh consecutive session of the same pattern.** The twelve new
+    // options are AddBurnShield/SecondWind/AddBlock,
+    // AddIntuition/AddEvasion/CorrosiveMagic,
+    // AddTenacity/AddIntuition/UpgradeScissor and
+    // AddWeakMagic/AddBlock/UpgradePaper. The only two of the twelve that come
+    // back clean are `UpgradeScissor` and `UpgradePaper`, both already-clean
+    // types recurring — NOT new holes, the session-53/60 distinction.
+    // `AddWeakMagic` gained a model this session and it is LATENT, so it does
+    // not enter the clean set either. The clean TYPE set is unchanged for the
+    // sixth consecutive session, and the claim above — that this table is
+    // closed under the only mechanism feeding it — holds again.
+    expect(roomOne.length).toBe(207);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -419,6 +441,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // NOT new holes, the same distinction sessions 60 and 61 drew. Wall 1
     // still has exactly six clean types, unchanged since session 52, even
     // though the corpus grew by 26 offers and four models.
+    // [session 95 §B] +1 `UpgradePaper` (eleventh) and +1 `UpgradeScissor`
+    // (ninth), from this session's four appended runs. Both already-clean
+    // types recurring — NOT new holes, the same distinction sessions 60, 61,
+    // 75 and 93 drew. Wall 1 still has exactly SIX clean types, unchanged
+    // since session 52 and now across a corpus that has grown by 48 offers and
+    // seven models since.
     expect(clean.sort()).toEqual([
       "AddMaxArmor", // [session 82] run 1's room-1 offer carried AddMaxArmor(8) — one more clean OPTION, and the clean TYPE set is still the same six.
       "AddMaxArmor",
@@ -440,6 +468,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
+      "UpgradePaper", // [session 95] +1 from run-2026-08-25-03-30-48's room-1 offer — already-clean type recurring, not an eleventh hole.
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
@@ -448,6 +477,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock", // [session 93] +1 from run-2026-08-24-01-04-21's room-1 offer — an already-clean type recurring, NOT a seventh hole (the session-60/61/75 distinction).
+      "UpgradeScissor", // [session 95] +1 from run-2026-08-25-03-25-26's room-1 offer — already-clean type recurring, not a seventh hole.
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
@@ -503,7 +533,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 82] +1 Heal offer at room 4 — run 3's room-4 reward, where the
     // orb fallback took Heal for 27 Hard Core out of [25, 25, 27]. Appended at
     // the array's end by insertion order, same as sessions 43, 53 and 62.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4]);
+    // [session 95 §B] +1 room 6 — run-2026-08-25-03-25-26/state-085 offered
+    // Regen / CorrosiveSword / Heal(50) and the ORB rule took `Regen` for its
+    // payout, so this is a Heal OFFER at room 6, not a pickup. Appended at the
+    // array's end by insertion order, same as sessions 43, 53, 60 and 93.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6]);
   });
 });
 

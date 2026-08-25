@@ -198,6 +198,25 @@ describe("player loadout matches the fixtures", () => {
     // This adds no new hp/armor combo — 40/14 was already on the list from
     // session 61, which is why the assertion below is unchanged. The evidence
     // is in the SEQUENCE, not in a new pair of numbers.
+    // [session 95] THREE new combos from session 94's four juiced runs of
+    // 2026-08-25 — `40/24`, `40/26`, `40/28` — and the drift is PURELY
+    // ADDITIVE: three added, ZERO removed, checked against the corpus rather
+    // than taken on trust from the handoff note that claimed it.
+    //
+    // **None of the three is a new starting loadout.** hpMax is 40 in all
+    // three, the starting loadout is still 40/22, and every one is armorMax
+    // growth mid-run after an `AddMaxArmor` pickup — the same reading as
+    // sessions 11, 16 and 82:
+    //
+    //   run-...-03-14-16  state-022  40/22 -> 40/24  (1x AddMaxArmor)
+    //   run-...-03-14-16  state-056  40/24 -> 40/28  (2x AddMaxArmor)
+    //   run-...-03-07-57  state-058  40/22 -> 40/26  (1x AddMaxArmor)
+    //
+    // ⚠ One trace is worth reading twice: `run-...-03-25-26` reaches 40/24 from
+    // **40/21**, not 40/22 — that run met a corrode enemy buff, so its armorMax
+    // was mid-shred when the AddMaxArmor landed. It contributes no combo the
+    // other two runs did not already, but it is the session-61/62 corrode
+    // mechanic surfacing in THIS table for the first time.
     expect([...seen].sort()).toEqual([
       // [session 82] ONE new combo from the four juiced runs of 2026-08-23,
       // and it is NOT a new starting loadout: 48/22 is run 4 mid-run, after a
@@ -245,8 +264,12 @@ describe("player loadout matches the fixtures", () => {
       "40/17",
       "40/19",
       "40/21",
-      "40/22", "40/25",
+      "40/22",
+      "40/24", // [session 95] mid-run, 1x AddMaxArmor off the 40/22 loadout
+      "40/25",
+      "40/26", // [session 95] mid-run, 1x AddMaxArmor off the 40/22 loadout
       "40/27",
+      "40/28", // [session 95] mid-run, 2x AddMaxArmor off the 40/22 loadout
       "40/30",
       "40/32",
       "42/16", "42/18", "42/26", "43/17", "43/25", "48/22",

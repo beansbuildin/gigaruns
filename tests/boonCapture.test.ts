@@ -53,7 +53,7 @@ const player = (hp: number, hpMax: number): Combatant =>
 
 describe("chooseCaptureBoon — the gate", () => {
   it("returns null when disabled, even on an offer full of targets", () => {
-    expect(call([opt("AddBurnShield"), opt("Regen")], 1, { config: BOON_CAPTURE_OFF })).toBeNull();
+    expect(call([opt("BurningEvade"), opt("LossBlockUp")], 1, { config: BOON_CAPTURE_OFF })).toBeNull();
   });
 
   it("BOON_CAPTURE_OFF is off but still carries the real target list, so an armed caller cannot forget it", () => {
@@ -67,28 +67,30 @@ describe("chooseCaptureBoon — the three limits", () => {
     // [session 89] Exemplar moved off `AddBurnShield` — it was modelled this
     // session (offline, from a session-88 pair) and is therefore retired from
     // `DEFAULT_CAPTURE_TARGETS`. `Regen` is the new top-ranked target.
-    const d = call([opt("AddLuck"), opt("Regen")], 1);
-    expect(d?.option.type).toBe("Regen");
+    const d = call([opt("AddLuck"), opt("LossBlockUp")], 1);
+    expect(d?.option.type).toBe("LossBlockUp");
     expect(d?.index).toBe(1);
   });
 
   it("limit 1: does NOT fire in rooms 2+, where a bad boon costs more", () => {
     for (const room of [2, 3, 4, 9]) {
-      expect(call([opt("AddLuck"), opt("Regen")], room)).toBeNull();
+      expect(call([opt("AddLuck"), opt("LossBlockUp")], room)).toBeNull();
     }
   });
 
   it("limit 2: does not fire twice in one run", () => {
-    expect(call([opt("Regen")], 1, { alreadyCaptured: true })).toBeNull();
+    expect(call([opt("LossBlockUp")], 1, { alreadyCaptured: true })).toBeNull();
   });
 
   it("limit 3: a target that already has a model retires itself", () => {
-    const d = call([opt("Regen"), opt("LossBlockUp")], 1, { isModelled: (t) => t === "Regen" });
-    expect(d?.option.type).toBe("LossBlockUp");
+    const d = call([opt("LossBlockUp"), opt("AddLifestealSword")], 1, {
+      isModelled: (t) => t === "LossBlockUp",
+    });
+    expect(d?.option.type).toBe("AddLifestealSword");
   });
 
   it("limit 3: when every target is modelled it stops firing entirely", () => {
-    expect(call([opt("Regen"), opt("LossBlockUp")], 1, { isModelled: () => true })).toBeNull();
+    expect(call([opt("LossBlockUp"), opt("AddLifestealSword")], 1, { isModelled: () => true })).toBeNull();
   });
 });
 
@@ -107,22 +109,29 @@ describe("chooseCaptureBoon — selection", () => {
     // DEFAULT_CAPTURE_TARGETS — modelling the common one first. This is the
     // third time this example has had to move, which is itself the finding:
     // the ordinary rules keep clearing the target list.
-    const d = call([opt("AddLifestealSword"), opt("Regen")], 1);
-    expect(d?.option.type).toBe("Regen");
+    // [session 95] FOURTH swap, same reason: `Regen` was modelled offline
+    // this session (the wide orb rule took it in session 94's run 4) and
+    // retired. LossBlockUp and AddLifestealSword are TIED at 6 corpus offers
+    // each, so this example no longer demonstrates "more frequently offered"
+    // by count — it demonstrates the tie-break, which is DEFAULT_CAPTURE_TARGETS
+    // order, and LossBlockUp is earlier. Stated plainly rather than left to
+    // read as a frequency claim it no longer is.
+    const d = call([opt("AddLifestealSword"), opt("LossBlockUp")], 1);
+    expect(d?.option.type).toBe("LossBlockUp");
   });
 
   it("reports the position within the offered array, and returns the offer's own object", () => {
     // `liveRun.ts` finds the wire index by matching the returned object by
     // IDENTITY against the array it passed in, so returning a copy would
     // silently break the pick.
-    const offered = [opt("AddLuck"), opt("Heal", 10), opt("Regen")];
+    const offered = [opt("AddLuck"), opt("Heal", 10), opt("LossBlockUp")];
     const d = call(offered, 1);
     expect(d?.index).toBe(2);
     expect(d?.option).toBe(offered[2]);
   });
 
   it("the reason names rule 8 explicitly, so a later reader does not 'fix' this as a rule-8 violation", () => {
-    expect(call([opt("Regen")], 1)?.reason).toMatch(/rule 8 does not apply/i);
+    expect(call([opt("LossBlockUp")], 1)?.reason).toMatch(/rule 8 does not apply/i);
   });
 });
 
@@ -132,19 +141,61 @@ describe("the blind spot this module exists to break — measured against the co
     for (const type of UNMODELLED_TYPES) expect(categorise(type)).toBe("unknown");
   });
 
-  it("pickBoon never top-ranks an unmodelled boon on ANY captured offer, at any HP", () => {
+  it("pickBoon never PREFERS an unmodelled boon — the only way one reaches the top is an all-floor tie", () => {
     // Sweeping HP matters: `heal`'s gate and the pool weighting both move with
     // it, so a single HP value could hide a case where an unmodelled option
     // wins by default.
+    //
+    // ⚠ [session 95] THIS ASSERTION USED TO READ `toBe(0)` AND IT NOW FAILS AT
+    // ZERO — 4 of 996 decisions top-rank an unmodelled type. The number was
+    // NOT simply moved to 4. What broke is the wording, not the claim, and the
+    // difference decides whether this module should be deleted (see this
+    // file's header: "if it ever stops holding the module should be deleted
+    // rather than left running").
+    //
+    // All 4 are the SAME offer at four HP fractions —
+    // `run-2026-08-25-03-25-26/state-069`, room 5:
+    // RegenMastery(1) | CorrosiveSword(2) | Vengeance(25). Every one of the
+    // three scores **exactly 10**, the `unknown` floor, because `categorise`
+    // sends LATENT boons to `unknown` too — CorrosiveSword and Vengeance are
+    // both modelled and both land on the floor beside RegenMastery. The tie is
+    // then broken by position in the wire array, and RegenMastery happened to
+    // be first.
+    //
+    // So `pickBoon` did not prefer an unmodelled boon over a modelled one; it
+    // could not tell three floor-scored options apart and took the one the
+    // server listed first. The module's premise — that the ranker cannot
+    // REACH an unmodelled type on its own merits — survives, and this test now
+    // pins the stronger and more honest version of it: every top-ranked
+    // unmodelled option must be part of a total tie at the floor. A case where
+    // an unmodelled option outscored a modelled one would fail here, which is
+    // the case that would actually justify keeping the override.
     let topRankedUnmodelled = 0;
+    let strictlyPreferred = 0;
     for (const offer of OBSERVED_OFFERS) {
       for (const fraction of [1, 0.75, 0.5, 0.25]) {
         const p = player(Math.max(1, Math.round(40 * fraction)), 40);
-        const top = rankBoons(p, offer.options, offer.room)[0]!;
-        if (!BOON_MODELS[top.option.type]) topRankedUnmodelled++;
+        const ranked = rankBoons(p, offer.options, offer.room);
+        const top = ranked[0]!;
+        if (BOON_MODELS[top.option.type]) continue;
+        topRankedUnmodelled++;
+        // Strict preference = it outscored at least one option. A total tie is
+        // not a preference.
+        if (ranked.some((r) => r.score < top.score)) {
+          strictlyPreferred++;
+          expect.fail(
+            `${top.option.type} outscored a modelled option at hp ${p.hp}/40 in ${offer.source}: ` +
+              ranked.map((r) => `${r.option.type}=${r.score}`).join(", "),
+          );
+        }
       }
     }
-    expect(topRankedUnmodelled).toBe(0);
+    expect(strictlyPreferred).toBe(0);
+    // Pinned so a future corpus growing this number is noticed rather than
+    // absorbed. If it moves, re-derive WHY before touching it — a new
+    // all-floor tie is benign, a strict preference is not, and only the
+    // assertion above tells them apart.
+    expect(topRankedUnmodelled).toBe(4);
   });
 
   it("no captured offer is entirely unmodelled — the one escape hatch has never occurred", () => {

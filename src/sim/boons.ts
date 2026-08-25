@@ -573,6 +573,97 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-24-01-04-21 state-123→state-124",
     observed: "selectedVal1 3 → no change to any player field (whole-object diff: pickedBoons append only)",
   },
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // [session 95] THREE first-ever pairs, all from session 94's run 4
+  // (`run-2026-08-25-03-30-48`), modelled OFFLINE at zero live cost.
+  //
+  // MODELLED FROM n=1 BY EXPLICIT USER DIRECTIVE (session-95 brief §A). The
+  // cautious default this repo would otherwise take — leave the wall test red
+  // until a SECOND pickup of each type confirms the reading — was considered
+  // and declined by the account owner. Recorded that way in DECISIONS so a
+  // later reader does not mistake it for an oversight. If any of these three
+  // is ever observed moving a field on a second pickup, THIS is the block to
+  // revisit first.
+  //
+  // All three are `latent`, and that is a MEASURED result, not a fallback. The
+  // check was session 89's stricter one: a recursive diff of the ENTIRE raw
+  // `players[0]` object across each pair, not just the fields `toCombatant`
+  // projects. On all three the only difference in the whole object is the
+  // boon's own append to `pickedBoons` — `health` and `shield` (current,
+  // starting, currentMax, startingMax alike), all three moves, every rolled
+  // stat, `statusEffects`, `activeEffects`, `triggeredBoons`, `gearBoons` and
+  // `focusBuffs` byte-identical before and after.
+  //
+  // Per DECISIONS 2026-08-15 the effect is NOT inferred from the name, and
+  // `Regen` below is the sharpest case of that rule this table has had since
+  // `SecondWind`.
+  //
+  // `contaminates: ["STATUS_EFFECT"]` on all three — the convention all 23
+  // existing latent models use, and conservative rather than a claim: it says
+  // this project cannot score the exchanges AFTER the pickup, not that the
+  // boon does nothing. The alternative `Reason` codes were checked rather than
+  // skipped past: `UNKNOWN_EFFECT` is defined as
+  // activeEffects/triggeredBoons/gearBoons/focusBuffs being NON-EMPTY, and all
+  // four are empty across all three pairs, so it would be a false statement
+  // about the state; `ROLLED_STATS` is for non-zero evasion/block/lck/tenacity,
+  // which is a property of the combatant and not of a pickup; and
+  // `BOON_UNMODELLED` is precisely what these entries stop being. No existing
+  // reason describes "a per-turn heal of unknown tick rate" more honestly than
+  // `STATUS_EFFECT`, whose own detail string already covers an unknown tick
+  // rate. Adding a new reason code for one boon was not worth the churn.
+  AddWeakMagic: {
+    // [session 94, LIVE] `Rare` (RARITY_CID 2), val1 2. Room-1 pickup, the
+    // first reward of the run. The Magic member of the Weak family, whose
+    // Sword member (`AddWeakSword`, session 75) is already modelled latent at
+    // val1 2 — a second independent pair agreeing, not a copy of the first.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-25-03-30-48 state-009→state-010",
+    observed: "selectedVal1 2 → no change to any player field (whole-object diff: pickedBoons append only)",
+  },
+  VulnerableCrit: {
+    // [session 94, LIVE] `Rare` (RARITY_CID 2), val1 1. The Crit member of the
+    // Vulnerable family; `VulnerableEvade`, `AddVulnerableShield`,
+    // `AddVulnerableMagic` and `AddVulnerableSword` are all already latent, so
+    // this is the fifth of that family to measure the same way. Note the val1
+    // of 1 rather than the family's usual 2 — and `VulnerableBlock`
+    // (session 82) is the standing warning that a family's val1 is NOT a flat
+    // add to anything, so the difference is recorded, not interpreted.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-25-03-30-48 state-055→state-056",
+    observed: "selectedVal1 1 → no change to any player field (whole-object diff: pickedBoons append only)",
+  },
+  Regen: {
+    // [session 94, LIVE] `Uncommon` (RARITY_CID 1), val1 1 — taken by the WIDE
+    // ORB rule at room 7 for 28 Hard Core over the ranked `AddBlock`, i.e. at
+    // zero deliberate quality cost (DECISIONS 2026-08-24; third recorded
+    // occurrence of that known mechanism, not a discovery).
+    //
+    // THE NAME IS NOT THE MODEL, AND THIS PAIR IS UNUSUALLY GOOD EVIDENCE OF
+    // THAT. "Regen" reads as a heal, and the pickup happened at
+    // `health.current` = 1 out of a currentMax of 40 — about as much headroom
+    // as this game can offer. An on-pickup heal of any size would have been
+    // impossible to miss. `health` is byte-identical across the pair anyway.
+    // Same shape as `SecondWind` (val1 10, name reads as a heal, moved
+    // nothing), which is the closest precedent in the table.
+    //
+    // WHAT THIS ENTRY DOES NOT SETTLE, stated so that shipping a
+    // confident-looking model does not silently close the question: if `Regen`
+    // ticks health per turn, this repo has not observed it and could not
+    // represent it if it had — `BoonEffect` has no per-turn kind, and the boon
+    // model covers the PICKUP INSTANT only (Task 4.5: modelled only from a
+    // state pair bracketing the pickup, nothing inferred from the option text).
+    // Confirming or refuting a per-turn tick needs its own multi-turn capture
+    // across a battle after a `Regen` pickup, and probably a new `BoonEffect`
+    // kind. Unconfirmed, and deliberately left that way — the same treatment
+    // `CorrosiveShield` gives its own unconfirmed mechanism.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-25-03-30-48 state-105→state-106",
+    observed: "selectedVal1 1 → no change to any player field (whole-object diff: pickedBoons append only); picked at hp 1/40, so an on-pickup heal would have been visible",
+  },
 };
 
 /**
@@ -2112,6 +2203,137 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 8,
     source: "run-2026-08-24-01-04-21/state-123",
     options: [opt("AddBurnShield", 3), opt("BurningBlock", 8), opt("AddLifestealShield", 3)],
+  },
+  // ── [session 95 §B] TWENTY-TWO OFFERS, FROM FOUR JUICED RUNS ON 2026-08-25 ─
+  //
+  // Generated from the corpus and APPENDED, not typed and not regenerated
+  // wholesale — session 93's precedent, for its reason: this table carries
+  // per-entry historical annotations going back to session 03, and a wholesale
+  // rewrite would throw them away to save nothing.
+  //
+  // ⚠ **ADDITIVITY WAS VERIFIED BEFORE THE APPEND, NOT ASSUMED FROM IT.** The
+  // multiset diff against the corpus was **22 rows in the corpus and absent
+  // here, and ZERO rows here and absent from the corpus** — the table was
+  // incomplete, never wrong. Session 94 handed this off explicitly UNVERIFIED
+  // and said so; the check is cheap and is the whole reason a stale table can
+  // be trusted to be stale rather than corrupt.
+  //
+  // **The room-max pin is UNCHANGED at 9.** The deepest of these 22 is room 7
+  // (the four runs died at rooms 8, 4, 7, 7), well short of session 53's
+  // room-9 offer, so `Math.max(...OBSERVED_OFFERS.map(o => o.room))` still
+  // reads 9 and the "offers stop one room short of the deepest death"
+  // invariant is untouched. Re-checked against the corpus rather than assumed.
+  //
+  // Runs: `run-2026-08-25-03-07-57`, `-03-14-16`, `-03-25-26`, `-03-30-48`.
+  {
+    room: 1,
+    source: "run-2026-08-25-03-07-57/state-005",
+    options: [opt("AddIntuition", 1), opt("AddEvasion", 1), opt("CorrosiveMagic", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-25-03-07-57/state-025",
+    options: [opt("TieWeak", 1), opt("WeakeningCrit", 1), opt("AddTenacity", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-25-03-07-57/state-041",
+    options: [opt("AddLuck", 2), opt("VulnerableEvade", 4), opt("UpgradePaper", 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-25-03-07-57/state-057",
+    options: [opt("RegenMastery", 1), opt("AddMaxArmor", 4), opt("AddIntuition", 5)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-25-03-07-57/state-073",
+    options: [opt("AddLuck", 1), opt("AddBlock", 2), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-25-03-07-57/state-095",
+    options: [opt("Regen", 2), opt("CorrosiveSword", 2), opt("Heal", 50)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-25-03-07-57/state-107",
+    options: [opt("AddTenacity", 2), opt("AddBlock", 7), opt("AddBurnMagic", 3)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-25-03-14-16/state-005",
+    options: [opt("AddBurnShield", 3), opt("SecondWind", 5), opt("AddBlock", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-25-03-14-16/state-021",
+    options: [opt("UpgradeRock", 0, 4), opt("AddMaxArmor", 2), opt("BurningEvade", 8)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-25-03-14-16/state-055",
+    options: [opt("AddIntuition", 1), opt("AddEvasion", 2), opt("AddMaxArmor", 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-25-03-25-26/state-009",
+    options: [opt("AddTenacity", 3), opt("AddIntuition", 1), opt("UpgradeScissor", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-25-03-25-26/state-021",
+    options: [opt("SecondWind", 5), opt("RegenMastery", 1), opt("AddIntuition", 10)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-25-03-25-26/state-039",
+    options: [opt("SecondWind", 10), opt("AddEvasion", 4), opt("AddEvasion", 5)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-25-03-25-26/state-051",
+    options: [opt("LossBlockUp", 5), opt("AddLuck", 5), opt("AddMaxArmor", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-25-03-25-26/state-069",
+    options: [opt("RegenMastery", 1), opt("CorrosiveSword", 2), opt("Vengeance", 25)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-25-03-25-26/state-081",
+    options: [opt("AddEvasion", 1), opt("AddVulnerableSword", 2), opt("UpgradeRock", 0, 8)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-25-03-30-48/state-009",
+    options: [opt("AddWeakMagic", 2), opt("AddBlock", 2), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-25-03-30-48/state-021",
+    options: [opt("CorrosiveMagic", 2), opt("AddTenacity", 2), opt("AddEvasion", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-25-03-30-48/state-035",
+    options: [opt("Vengeance", 25), opt("TieVulnerable", 1), opt("AddBurnShield", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-25-03-30-48/state-055",
+    options: [opt("AddLifestealSword", 2), opt("VulnerableCrit", 1), opt("UpgradePaper", 4)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-25-03-30-48/state-073",
+    options: [opt("UpgradeScissor", 4), opt("AddLuck", 1), opt("WeakeningCrit", 1)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-25-03-30-48/state-105",
+    options: [opt("AddBlock", 2), opt("Regen", 1), opt("AddLuck", 2)],
   },
 ];
 
