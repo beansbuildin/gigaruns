@@ -2249,3 +2249,94 @@ was re-confirmed at session 87 §2; §23 closed at session 87 §3 (3x multiplier
 EXONERATED). Closing pointers appended in the existing append-only style, original
 text untouched, so a future backlog sweep does not have to re-derive their status
 from this file the way session 95's did.
+
+2026-08-25 (session 96 §1) — **THE 11-PATTERN MATCHER LIBRARY SHIPS, AND THE
+PAIRED-REPLAY GATE THAT HAD NEVER BEEN RUN FOR IT WAS RUN.** User directive
+("Ship the 11-pattern library; it has now passed offline evaluation"). Session
+95's scratchpad backup of the 3-pattern file survived, so
+`scripts/minedLibraryGate.ts` was run old-vs-new for the first time on this
+change: paired **ΔlogLoss 0.0106, 95% cluster-bootstrap CI [-0.0096, 0.0274]**
+over 618 turns in 188 casts — **CI includes zero**. ⚠ **Read as NO HARM, not as
+benefit**: `caught 48 -> 51` is 3 casts of 188 and **may not be quoted as an
+improvement**. What the gate does newly show is engagement — matcher-active
+turns **292 -> 398 (+36%)** at median weight 0.164 -> 0.196. **This instrument
+is NOT under OIL-POLICY.md §0a**: §0a suspends `castSim` by name and its own
+text says "Session 71 restored the replay's precondition, not this sim arm.
+They are different instruments." The miner's own `castSim` print (9.2% ->
+59.4%) remains unquotable. Recorded in QUESTIONS.md §36 rather than a STATE.md
+open question, which is what left it undecided across two sessions.
+
+2026-08-25 (session 96 §2) — **`boonCapture` IS DELETED, AND THE BRIEF'S WIRING
+LIST UNDERSHOT BY FOUR CALL SITES.** User directive. Six of six capture targets
+had been modelled by the ordinary shipped rules (mostly session 58's wide orb
+rule) with the override never armed, and the module's own test header said to
+delete it once that held. ⚠ **The brief named only `liveRun.ts`, config, module
+and test; two more were REAL CODE** — `src/orchestrator/config.ts` (zod schema,
+`BotConfig` field, `resolve()` passthrough) and `scripts/boonPriorityReport.ts`
+(a whole §2d OVERLAP section built on `chooseCaptureBoon`) — plus
+`tests/boonPriority.test.ts`'s overlap test and two comment references. CLAUDE.md
+rule 9 in its ordinary form. **The brief's instruction to leave `liveRun.ts`'s
+`boonPriority` doc comment alone conflicted with its own clean-grep
+requirement**, since that comment was entirely a contrast with the deleted
+module; **reworded rather than deleted**, because the asymmetry it explains (why
+the user's play directive ships ungated while a quality-costing measurement
+needed two conditions) is load-bearing. **The 1-of-5 overlap MEASUREMENT is
+deliberately KEPT** in `boonPriority.ts`'s header — it is why the priority list
+was never widened, and ⚠ **the retired capture targets must NOT be added to that
+list**: it is the user's play directive, not a coverage instrument.
+
+2026-08-25 (session 96 §3) — **"THE GATE-1 RE-AUDIT" IS DEFINED AND CLOSED, WITH
+NO NEW MEASUREMENT.** Carried as an undefined phrase in five consecutive
+STATE.md files; session 86 §1 had already diagnosed it fully. The finding:
+`damageEconomy.ts`'s `SIM blind` arm and `deckObjectiveSweep.ts`'s baseline
+(`matcherPool: []`) **structurally never aim** — 0 focus moves in 1963 turns, 0
+cells beyond (2,2) — because they carry no fish model, so every candidate scores
+identically. ⚠ **The condition is UNIFORM, not "blind" in the sense of
+handicapped** (`matcherPool: [] + ringModel` moves 824 of 2492). All four named
+figures were traced to source and verified in the logs: 36.42% and the 1.93pp
+noise floor (session 79 §1e, already SUSPENDED under §0a), the −4.6pp drift
+margin (session 80 §1 / session 86 §4, already labelled "no-aim" in its own
+row), and 41.06% (session 78 §4, already RETRACTED by session 79 §1). ⚠ **The
+session-96 brief presented four as session 86's list; session 86 named THREE** —
+41.06% is same-lineage but was retracted independently. Verdict **"not wrong,
+not applicable"**: each remains valid for the deck-composition comparison it was
+measured on, and is retired only as evidence about live play. §0a is not lifted
+and no new quotable number is created. QUESTIONS.md §38.
+
+2026-08-25 (session 96 §4) — **§34's JEBAITOR CONFIRMED A SECOND TIME: TEN CASTS
+PLAYED, NINE CHARGED.** The ten-cast batch produced ten `start_run` POSTs and
+ten `cast_over` events; `dayDocs[pondId 2]` reads **9**/20 and the repo ledger
+agrees at 9. This is the **identical shape session 92 recorded** under §34
+(~6.75% per cast, on the server's own `start_run` response). A **gain, not a
+defect**, and per §34 still not something to plan around — the ledger remains
+the only authority (rule 13).
+
+2026-08-25 (session 96 §4) — **THE §2c CLEAN-CAST TRIPWIRE HAS FIRED AND NEEDS A
+RULING.** 9 clean casts of 10 against a pre-registered threshold of 6; under the
+sim's ~0.70 oils/cast that is a **~1-in-900 event**. Reported exactly as the
+tripwire's own instruction requires — **evidence the oil trigger model does not
+describe live play**. The batch was neither extended nor cut short. This is a
+pre-registered signal that has now triggered; it needs a decision (re-derive the
+trigger model, retire the tripwire, or accept and document the divergence)
+rather than another batch appended under it.
+
+2026-08-25 (session 96 §4) — **TWO LONG-RUNNING TEST CLAIMS DRIFTED AND WERE
+CORRECTED IN PLACE RATHER THAN RESTATED.** (a) `matcherHeadroom`'s miss-spike
+comment claimed the distance-1 share "has not shifted more than 1.4 points"; the
+real spread across five widenings is **48.0% -> 49.9% = 1.9 points, monotone
+upward**. The spike is still the finding; "flat" is no longer honest. (b)
+`redrawCounterfactual`'s K<=3 break-even ratio moved **away** from its 5% bound
+(4.76% -> 4.41%) **only because the numerator is frozen** — `rescues` 11 and
+`sacrifices` 8 unmoved for a third consecutive batch — while `fires` grows, so
+the ratio falls mechanically. ⚠ **Do not read either as the claim
+strengthening.** The standing instruction not to widen the 5% bound is
+untouched.
+
+2026-08-25 (session 96 §4) — **THE ERA RULING SURVIVED OUT OF SAMPLE A THIRD
+TIME.** `preOil` [94, 410, 184] and `oilSupplied` [62, 235, 4] came back
+**byte-identical** after the batch; **all ten new casts classified `focusDry`**
+(33 -> 43). Four other load-bearing claims also held across the widening:
+`incomplete` still exactly 1, `ZONE_OFFSET` still exceptionless over 43 further
+plays (sixth clean widening), the relaxing lethal numerator still 13 casts / 15
+points (ninth denominator-only batch), and the `focusDry` bucket-3 "whole meter
+on move one" tell still exactly 1.
