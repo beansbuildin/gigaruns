@@ -237,3 +237,70 @@ constant.
 **Do not read +19.40pp as a forecast of the live catch rate.** The sim's
 control arm catches 68.71%; the real fishery catches 25.9% (dead-era-excluded).
 The sim is a policy-comparison instrument, not a calibrated model of Dendren.
+
+---
+
+## 4. ⚠ WITHDRAWN IN PART [session 93, 2026-08-24] — the FOCUS half of `on-demand` is no longer live policy
+
+**User directive, 2026-08-24: relaxing-oil-only.** `942` (Mid Focus Oil) has
+been removed from `config/bot.json`'s `dendren.oils.allowedItemIds`, leaving
+`[937]`. The bot no longer attempts Focus Oil in live play.
+
+This is appended rather than written back into §2, for the same reason §0a was
+appended: **§2's derivation is not being corrected, it is being overridden.**
+The sweep said what it said, on the corpus it had; nothing here re-scores it.
+What has changed is which half of its recommendation the account is willing to
+spend, and that is the user's call, not the instrument's.
+
+### 4a. What this costs, stated in the model's own terms
+
+§2's decomposition splits `on-demand` into two triggers. The Focus half —
+`focus-when-empty-only` — is the larger one, and it is the half being dropped:
+
+| trigger | modeled Δ vs never | oils | Δ per oil |
+|---|---|---|---|
+| `focus-when-empty-only` (DROPPED) | +17.74pp | 3515 | 0.404 |
+| `lethal-relaxing-only` (KEPT) | +4.47pp | 1821 | 0.197 |
+| `on-demand` (both) | +19.40pp (SUSPENDED §0a) | 5578 | 0.278 |
+
+⚠ **These are what the MODEL attributed, and nothing more.** §0a's suspension
+is untouched by this section: +19.40pp still may not be quoted, and neither may
++17.74pp be quoted as a live forecast of what the withdrawal costs. They are
+reproduced here only so the shape of the trade is legible — the withdrawal
+drops the trigger the sim scored *higher*, and it does so knowingly.
+
+Two things genuinely soften it, neither of which is a re-derivation:
+
+- The dropped trigger was also the **less efficient** one per oil (0.404 vs
+  0.197 modelled pp per oil), so the account keeps the trigger with the better
+  rate of return on a scarce hand-crafted item.
+- Focus stock has read **0** for four consecutive live batches with no
+  replenishment in sight, so the *observable* live behaviour barely moves.
+
+### 4b. Why this is a policy change and not a stock artifact — the distinction that makes it real
+
+Before this section, a focus trigger firing on an empty bag failed closed
+harmlessly. After it, the trigger is refused **on identity**, which means the
+bot will not spend Focus Oil *even if stock is ever replenished*. That is the
+entire difference between a withdrawal and running dry, and it is the reason
+the landing is a config-and-code change rather than a note.
+
+### 4c. The code half, which a config-only change would have got wrong
+
+`mayConsumeOil` already refused any id absent from `allowedItemIds`, so the
+POST was never in danger. But the refusal fell through `liveFishing.ts`'s
+`held <= 0` branch — **keyed on the balance, not on the reason** — and logged
+`oil_trigger_no_stock`. That event is not cosmetic: it writes a `dryTriggers`
+row (`src/strategy/fishing/oilCastState.ts`) and flags the whole cast
+OIL-POLICY-DRY, keeping it out of **both** outcome arms.
+
+Under a withdrawal that state is permanent. Every future cast whose focus meter
+reached zero would have left the corpus forever, for an oil the policy has
+stopped wanting — the exact corpus poisoning the third state was invented to
+prevent, arriving through the instrument itself.
+
+So the withdrawn kind is now dropped from `oilWanted` **before** the spend
+loop, under its own event, `oil_trigger_policy_withdrawn`. **A trigger the
+policy has withdrawn is not a dry bag.** Pinned by
+`tests/fishing/oilFocusWithdrawn.test.ts`, including a contrast case that shows
+the session-92 budget still flagging the same cast dry.

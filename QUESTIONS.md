@@ -2689,3 +2689,133 @@ the disagreement is possible before assuming a ledger mismatch is a repo bug.
 **No question attached.** Nothing to decide unless it recurs; if it does, the
 thing to capture is the `start_run` RESPONSE body for the uncharged cast, which
 this batch did not single out at the time.
+
+---
+
+## §33 ANSWERED [session 93 §2, user directive 2026-08-24] — OPTION (b). THE UNDERCOUNT WAS **27 CASTS**, NOT 6, AND IT DATES FROM SESSION 62 RATHER THAN SESSION 90
+
+**The ruling.** The user chose option (b), on session 92's own recommendation:
+point `oilsConsumed` at the reader that was already right rather than write a
+new one, and do not touch turn semantics (that was option (a), and it would
+break position continuity and drop every oil cast from the movement corpus).
+
+**Landed.** `castTrace.ts` now carries `consumablesUsedMax` — the MAX of
+`consumablesUsed` over every captured state, including the ones deliberately
+skipped as turns — which is exactly `src/sim/fishingCorpus.ts`'s own rule.
+`oilsConsumed()` returns it. `tests/sim/oilCensusAgreement.test.ts` pins the two
+readers to the same number on every cast in the corpus, so they cannot drift
+apart again. This is the same move session 68 made for `FISH_DIED`: take the
+FACT off the item response without letting the response become a turn.
+
+### ⚠ THE ESTIMATE IN §33 AND §33 UPDATE WAS FOUR TIMES TOO SMALL
+
+§33 put the census at **21 casts / 35 oils** against a read of 15 / 24. The
+truth is **39 / 56**, from **27** blind casts:
+
+```
+  era           casts   oils      (blind casts by era)
+  preOil           1       1       1   ← 12975152, see below
+  oilSupplied     27      39      16
+  focusDry        11      16      10
+  ──────────────────────────────────
+  total           39      56      27
+```
+
+**Why §33 was low, and it is a mechanism it named without following through.**
+§33 reasoned from the double-lethal trigger, which session 90 wired. But the
+**on-demand LETHAL trigger has fired on the closing turn since session 62 by
+construction** — it fires when the oil finishes the fish, so a *successful*
+lethal firing always lands there and always has. Every one of those was
+invisible to the census from the day the oil policy shipped. The signature is
+unmistakable: of the 27, 26 are `caught` with a final `fishHp` at or below the
+payload's damage (single lethal) or exactly 4 (double lethal).
+
+So this was never "a new policy broke an instrument". It was **an instrument
+that had been blind to the shipped policy's own successes for thirty sessions**,
+and the double-lethal only made it visible by firing twice in one turn.
+
+### The consequence that matters more than the count: `firedOil` changed meaning
+
+Every one of the twelve casts the fix added to `oilSupplied`'s oil arm is a
+**Relaxing** firing, and Relaxing Oil does not touch the focus meter. So the arm
+went from "oils that restored the meter" to "oils of any kind", and
+`castEra.test.ts`'s oil-term counterfactual — which strips RESTORES — diluted:
+`cf / plays` 48.5% → 37.5%, entirely because `plays` grew 99 → 128 while `cf`
+stayed at 48.
+
+**`firedOil` used to approximate "restored the meter" only by accident**,
+because the reader was blind to precisely the oils that don't restore. The
+decomposition's claim is now asserted on the restore predicate directly: 13
+restore casts, stripped rate **51.7%** against a length-standardised preOil
+**57.2%** — within 5.5pp, *tighter* than the 6.8pp the blind reader gave. The
+claim survived and is now measured on the right set.
+
+The meter-vs-`consumablesUsed` comparison also loses its "gap is exactly 2"
+reading — that constant was an artifact of BOTH readers being broken in the same
+place. It is 13 against 39 now, and the original point (the meter is the wrong
+detector) is stronger for it.
+
+### One cast is exempted, explicitly, and it is a finding
+
+`12975152` reads `consumablesUsed: 1` on **all four** of its captured states,
+every one a `play_cards` — capture began mid-cast and the consumable predates
+the window *and* the oil policy. It made `assertCastEraSound` throw, because
+`preOil` is the restore-free control. It is now the sole entry in
+`PRE_OIL_CONSUMABLE_EXEMPT`, exempted on a claim rather than by loosening the
+check: the count is flat across every captured turn, so no restore is visible to
+any trace-derived quantity. **A second id arriving there is a different fact and
+must be investigated, not appended.**
+
+Nothing already published was inflated: the old reader under-counted 27 times
+and over-counted zero times.
+
+---
+
+## §35 — RELAXING-OIL-ONLY [session 93 §1, user directive 2026-08-24, LANDED — recorded, not open]
+
+**The directive.** Stop attempting Focus Oil (942) in live play. Relaxing Oil
+(937) is the only oil the bot spends going forward. The user chose a full
+policy-and-code landing over a documentation-only note.
+
+**Landed.** `config/bot.json`'s `dendren.oils.allowedItemIds` is `[937]`.
+`mayConsumeOil` already refused any id absent from that list, so the POST was
+never in danger — that one line is the whole enforcement, and it means the bot
+will not spend Focus Oil **even if stock is ever replenished**. That is the
+difference between a withdrawal and running dry, and it is why this is a real
+decision rather than a no-op against a bag that has read 0 for four batches.
+
+### ⚠ THE BRIEF'S EXPECTED OBSERVABLE WAS WRONG, AND THE CORRECTION IS THE CODE HALF
+
+The session-93 brief §4c-1 expected "no 942 trigger evaluation at all" after the
+config change. **That is not what the config change does.** `onDemandTriggers`
+is documented as evaluating "independently of how many oils are held", the
+focus trigger fires on `focusRemaining <= 0` regardless, and `allowedItemIds` is
+checked inside `mayConsumeOil` — *after* the trigger has already decided.
+
+Worse than cosmetic: the refusal then fell through `liveFishing.ts`'s
+`held <= 0` branch — **keyed on the BALANCE, not on the reason** — and logged
+`oil_trigger_no_stock`. That writes a `dryTriggers` row and flags the whole cast
+OIL-POLICY-DRY, keeping it out of **both** outcome arms. Under a withdrawal that
+state is permanent: every future cast whose meter reached zero would have left
+the corpus forever, for an oil the policy has stopped wanting — the exact corpus
+poisoning the third state was invented to prevent, arriving through the
+instrument itself.
+
+So the withdrawn kind is now dropped from `oilWanted` **before** the spend loop,
+under its own event `oil_trigger_policy_withdrawn`. **A trigger the policy has
+withdrawn is not a dry bag.** `tests/fishing/oilFocusWithdrawn.test.ts` pins it
+with five Focus Oils in stock — a withdrawal that only held because the bag was
+empty would be a stock artifact — plus a contrast case showing the session-92
+budget still flagging the same cast dry.
+
+**What it costs, in the model's own terms, and no further.** `OIL-POLICY.md` §2
+attributes +17.74pp of the +19.40pp effect to `focus-when-empty-only`, leaving
+the lethal trigger's +4.47pp. ⚠ **§0a's suspension is untouched** — neither
+number may be quoted as a live forecast, and they appear here only to show the
+shape of the trade: the withdrawal drops the trigger the sim scored higher, and
+does so knowingly. The dropped trigger was also the less efficient one per oil
+(0.404 vs 0.197 modelled pp/oil), so the account keeps the better rate of return
+on a scarce hand-crafted item. See `handoff/OIL-POLICY.md` §4.
+
+**No question attached.** Recorded so the next session does not read the empty
+Focus bag as the cause and "restore" the item id when stock returns.

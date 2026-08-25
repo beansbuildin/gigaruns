@@ -1948,3 +1948,92 @@ It is recorded because it is the first case of the server and client disagreeing
 about whether a completed cast happened, and because the reverse direction would
 silently cost a cast of allowance. If it recurs, capture the `start_run` RESPONSE
 body for the uncharged cast — this batch did not single it out.
+
+2026-08-24 (session 93) — **RELAXING-OIL-ONLY. Focus Oil (942) is WITHDRAWN
+from live play by user directive, and the config line is the whole
+enforcement.** `dendren.oils.allowedItemIds` is `[937]`; `mayConsumeOil` has
+always refused an id absent from that list. ⚠ **This is a policy withdrawal,
+not a stock artifact, and the distinction is the entire point:** Focus stock has
+read 0 for four consecutive batches, but the bot will now decline Focus Oil
+**even if stock is ever replenished**. Cost, in the model's own terms and
+quotable no further: `OIL-POLICY.md` §2 attributes +17.74pp of the +19.40pp
+effect to `focus-when-empty-only` and +4.47pp to the lethal trigger that
+remains — **§0a's suspension is untouched, neither number is a live forecast** —
+and the dropped trigger was the *less* efficient of the two per oil (0.404 vs
+0.197 modelled pp/oil). See `OIL-POLICY.md` §4, `QUESTIONS.md` §35.
+
+2026-08-24 (session 93) — **A TRIGGER THE POLICY HAS WITHDRAWN IS NOT A DRY BAG,
+AND A CONFIG-ONLY CHANGE WOULD HAVE POISONED THE CORPUS QUIETLY.** The session-93
+brief expected the config edit to stop 942 being evaluated at all. It does not:
+`onDemandTriggers` evaluates independently of stock by documented design, and
+`allowedItemIds` is checked inside `mayConsumeOil`, *after* the trigger decides.
+The refusal then fell through `liveFishing.ts`'s `held <= 0` branch — **keyed on
+the BALANCE, not on the reason** — logging `oil_trigger_no_stock`, writing a
+`dryTriggers` row and flagging the cast OIL-POLICY-DRY, i.e. out of BOTH outcome
+arms. Under a withdrawal that is permanent, so every future cast whose focus
+meter reached zero would have left the corpus forever, for an oil nobody wants —
+the exact poisoning `oilCastState.ts` exists to prevent, arriving through the
+instrument itself. The withdrawn kind is now dropped from `oilWanted` before the
+spend loop under its own event, `oil_trigger_policy_withdrawn`. Pinned by
+`tests/fishing/oilFocusWithdrawn.test.ts` **with five Focus Oils in stock**,
+because a withdrawal that only held on an empty bag would prove nothing.
+
+2026-08-24 (session 93) — **§33 ANSWERED with option (b), and THE UNDERCOUNT WAS
+27 CASTS, NOT 6 — it dates from session 62, not session 90.** `castTrace` now
+carries `consumablesUsedMax` (MAX over every captured state, `fishingCorpus.ts`'s
+own rule) and `oilsConsumed` returns it; `tests/sim/oilCensusAgreement.test.ts`
+ties the two readers together permanently. §33 estimated 21 casts / 35 oils; the
+truth is **39 / 56**. ⚠ **§33 reasoned from the double-lethal trigger and missed
+the bigger mechanism it had already named:** the on-demand LETHAL trigger fires
+when the oil finishes the fish, so a *successful* lethal firing has landed on the
+closing turn since the policy shipped in session 62. 26 of the 27 blind casts are
+`caught` with a final `fishHp` at or below the payload damage (single lethal) or
+exactly 4 (double). **This was never a new policy breaking an instrument; it was
+an instrument blind to the shipped policy's own successes for thirty sessions.**
+The old reader under-counted 27 times and over-counted zero, so nothing already
+published was inflated.
+
+2026-08-24 (session 93) — **⚠ `firedOil` CHANGED MEANING, AND THE OIL-TERM
+DECOMPOSITION HAD BEEN RESTING ON A COINCIDENCE.** All twelve casts the §33 fix
+added to `oilSupplied`'s oil arm are **Relaxing** firings, and Relaxing Oil does
+not touch the focus meter. So the arm went from "oils that restored the meter" to
+"oils of any kind", and the counterfactual that strips RESTORES diluted: `cf /
+plays` 48.5% → 37.5%, purely because `plays` grew 99 → 128 while `cf` stayed at
+48. **`firedOil` only ever approximated "restored the meter" because the reader
+was blind to exactly the oils that don't restore.** The claim is now asserted on
+the restore predicate directly — 13 restore casts, stripped rate **51.7%**
+against a length-standardised preOil **57.2%**, within 5.5pp, *tighter* than the
+6.8pp the blind reader gave. The claim survived and is measured on the right set.
+The meter-vs-`consumablesUsed` "gap is exactly 2" reading is also retired: that
+constant was an artifact of both readers being broken in the same place, and it
+is 13 against 39 now.
+
+2026-08-24 (session 93) — **ONE preOil CAST SPENT A CONSUMABLE BEFORE ITS
+CAPTURE WINDOW OPENED — `12975152`, exempted on a claim rather than by loosening
+a check.** Unifying the readers made `assertCastEraSound` throw, because `preOil`
+is the restore-free control. The cast reads `consumablesUsed: 1` on **all four**
+of its captured states, every one a `play_cards`: capture began mid-cast, and the
+spend predates both the window and the oil policy. `fishingCorpus.ts`'s docblock
+has named this exact cast since session 61 as the one the retroactive flag
+"immediately found". The two readers now disagree about it **on purpose** — the
+corpus reader answers "did this cast spend a consumable" (yes), the control asks
+"did a restore occur in the measured window" (no). It is the sole entry in
+`PRE_OIL_CONSUMABLE_EXEMPT`. **A second id arriving there is a different fact and
+must be investigated, not appended.**
+
+2026-08-24 (session 93) — **`boons.test.ts`'s `OBSERVED_OFFERS` REGENERATED AFTER
+THREE DECLINES, AND THE DRIFT WAS PURELY ADDITIVE.** Red since session 89 and
+declined as inert by 89, 90 and 91 — correctly each time, since nothing
+downstream was wrong. What none of them noted is that it had become the **sole**
+blocker on `scripts/assertionCoverage.ts` and `scripts/preflight.ts`, both of
+which fail closed on a red suite. Re-verified before regenerating, per the gate:
+the diff was **25 rows in the corpus and absent from the table, ZERO rows in the
+table and absent from the corpus** — incomplete, never wrong. All 25 come from
+four juiced runs on 2026-08-24 (00:14 / 00:49 / 00:56 / 01:04); deepest is room
+8, so the `Math.max(room) === 9` pin and the "offers stop one room short of the
+deepest death" invariant are both unchanged. Wall 1: room-1 options 183 → 195,
+clean list +1 `UpgradeRock` — an already-clean type recurring, **not** a seventh
+hole, the same distinction sessions 60/61/75 drew. **Sixth consecutive session
+of that pattern.** Suite went 1 failed → **0 failed, 1757 passed**, and
+`assertionCoverage` ran for the first time in five sessions: 1757 tests counted,
+zero vacuous.

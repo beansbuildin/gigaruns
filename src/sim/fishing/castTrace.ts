@@ -154,6 +154,35 @@ export interface CastTrace {
   hasStart: boolean;
   /** False when some turn's `previousFishPosition` disagrees with the prior turn's `fishPosition`. */
   continuous: boolean;
+  /**
+   * ── [session 93 §2, QUESTIONS.md §33 ANSWERED — option (b)] ──────────────
+   *
+   * **The highest `consumablesUsed` on ANY captured state of this cast,
+   * including the ones that are deliberately not turns.**
+   *
+   * `oilsConsumed()` used to read the first-to-last delta across `turns`, and
+   * `turns` excludes the `use_fishing_item` response by design (see
+   * `ITEM_MESSAGE`). That was invisible until session 90 wired a trigger that
+   * fires on a cast's CLOSING turn: when the oil lands the kill there is no
+   * later real turn to carry the incremented count, and the trace ends before
+   * it. Census: **15 casts / 24 oils where the truth is 21 / 35**, a 40%
+   * undercount concentrated entirely in the current regime.
+   *
+   * `src/sim/fishingCorpus.ts` was already right — it takes the MAX over every
+   * board state and got all six known-missed casts exactly — so this field
+   * applies that same rule here rather than inventing a second reader, and
+   * `tests/sim/oilCensusAgreement.test.ts` pins the two to the same number on
+   * every cast in the corpus.
+   *
+   * **MAX, not last**, for `fishingCorpus.ts`'s own reason: a cast's final
+   * captured state is not guaranteed to be its last state, and under-counting
+   * is the direction that silently biases an outcome metric.
+   *
+   * This is the same move session 68 made for `FISH_DIED`: take the FACT off
+   * the item response without letting the response become a turn. Turn
+   * semantics are untouched — deliberately, since that was option (a).
+   */
+  consumablesUsedMax: number;
 }
 
 const LOOT_MESSAGE = "Card added to deck successfully.";
@@ -243,6 +272,13 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
   const byDoc = new Map<string, { docId: string; entries: { file: string; body: Record<string, unknown> }[] }>();
   /** [session 68] Terminal events that arrive on a `use_fishing_item` response — see the ITEM_MESSAGE branch. */
   const terminalFromItems = new Map<string, { caught: boolean; escaped: boolean }>();
+  /**
+   * [session 93 §2] `consumablesUsed` off EVERY state, including the ones
+   * skipped as turns — see `CastTrace.consumablesUsedMax`. Accumulated before
+   * the `LOOT_MESSAGE`/`ITEM_MESSAGE` skips below, because the whole point is
+   * that the closing item response is where the count lands.
+   */
+  const consumablesMax = new Map<string, number>();
 
   for (const file of files) {
     let parsed: unknown;
@@ -255,6 +291,8 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
     const docId = body.data?.doc?.docId;
     if (typeof docId !== "string") continue;
     if (!body.data?.doc?.data) continue;
+    const used = (body.data.doc.data as { consumablesUsed?: unknown }).consumablesUsed;
+    if (typeof used === "number" && used > (consumablesMax.get(docId) ?? 0)) consumablesMax.set(docId, used);
     if (body.message === LOOT_MESSAGE) continue; // repeats the final state verbatim
     if (body.message === ITEM_MESSAGE) {
       // ---- [session 68 §2] AN ITEM RESPONSE IS NOT A TURN, BUT IT CAN END
@@ -382,6 +420,7 @@ export function loadCastTraces(root: string = join("fixtures", "fishing-casts"))
       escaped: escaped || (fromItem?.escaped ?? false),
       hasStart,
       continuous,
+      consumablesUsedMax: consumablesMax.get(docId) ?? 0,
     });
   }
 

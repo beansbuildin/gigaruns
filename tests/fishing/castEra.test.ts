@@ -486,40 +486,80 @@ describe("GATE 2 — the collapse, decomposed", () => {
     expect(split.preOil.filter((t) => t.turns[0]!.focusMeter !== FOCUS_POOL).length).toBe(1);
   });
 
-  it("isolates the PACING term on the 47 restore-free casts, where the oil cannot be the cause", () => {
+  it("isolates the PACING term on the 35 oil-free casts, where the oil cannot be the cause", () => {
     // [session 92] The pooled arm read 69 restore-free casts at [242, 37] and a
-    // 9.5% observed rate. On the corrected arm it is 47 casts at [136, 2] and
+    // 9.5% observed rate. On the corrected arm it was 47 casts at [136, 2] and
     // **1.5%** — because most of those "restore-free" casts were restore-free
     // for the reason that matters: there was no Focus Oil left to restore with.
-    // The pacing gap is back to (27.7% expected vs 1.5% observed), essentially
-    // session 84's (27.8% vs 1.7%). The claim is unchanged and its evidence is
-    // stronger: a large gap the oil cannot account for, since none fired here.
+    //
+    // ⚠ **[session 93 §2] 47 -> 35, and the arm now means something STRICTER.**
+    // `firedOil` was blind to any oil landing on a cast's closing turn, which
+    // is where the lethal Relaxing trigger fires BY CONSTRUCTION — so twelve
+    // casts that did spend an oil were sitting in this "no oil" arm. They are
+    // out now. 35 casts at [107, 2] and **1.9%**.
+    //
+    // The claim is unchanged and its evidence is stronger again: the gap is
+    // (29.8% expected vs 1.9% observed), and the arm is now genuinely free of
+    // oils rather than free of the ones the reader could see.
     const noOil = split.oilSupplied.filter((t) => !firedOil(t));
-    expect(noOil.length).toBe(47);
+    expect(noOil.length).toBe(35);
     const plays = noOil.reduce((s, t) => s + playCount(t), 0);
     const zero = noOil.reduce((s, t) => s + budgetZeroPlays(t), 0);
-    expect([plays, zero]).toEqual([136, 2]);
-    expect(standardise(split.preOil, noOil).rate).toBeCloseTo(0.277, 3); // was 0.278 (s84)
+    expect([plays, zero]).toEqual([107, 2]);
+    expect(standardise(split.preOil, noOil).rate).toBeCloseTo(0.298, 3); // 0.278 (s84) -> 0.277 (s92)
     // No restore ever fired here, so the counterfactual equals the observation.
     // That is the self-check; the result is the gap to 27.8%.
     expect(noOil.reduce((s, t) => s + budgetZeroPlaysWithoutRestore(t), 0)).toBe(zero);
   });
 
-  it("isolates the OIL term on the 13 oil casts, which revert to the old regime without it", () => {
+  it("isolates the OIL term — and [session 93] the RESTORE arm is what carries the claim, not `firedOil`", () => {
     // [session 89] 13 -> 15 oil casts, 21 -> 24 oils, [87,1,41] -> [99,2,48].
+    //
+    // ⚠ **[session 93 §2] 15 -> 27 casts and 24 -> 39 oils, and that changes
+    // what this arm MEANS.** Fixing `oilsConsumed` did not just find more of
+    // the same casts. Every one of the twelve it added is a LETHAL RELAXING
+    // firing — `caught` true, final `fishHp` at or below the payload's damage —
+    // and a Relaxing Oil does not touch the focus meter. So the arm went from
+    // "oils that restored the meter" to "oils of any kind", and the
+    // counterfactual `cf` (which strips RESTORES) stayed at 48 while `plays`
+    // grew 99 -> 128. `cf / plays` falling 48.5% -> 37.5% is that dilution and
+    // nothing else.
+    //
+    // **`firedOil` used to approximate "restored the meter" only by accident**,
+    // because the reader was blind to exactly the oils that don't restore. It
+    // no longer does, so the claim is asserted below on the restore predicate
+    // directly rather than left resting on a coincidence that has now ended.
     const oiled = split.oilSupplied.filter(firedOil);
-    expect(oiled.length).toBe(15);
-    expect(oiled.reduce((s, t) => s + oilsConsumed(t), 0)).toBe(24);
+    expect(oiled.length).toBe(27);
+    expect(oiled.reduce((s, t) => s + oilsConsumed(t), 0)).toBe(39);
     const plays = oiled.reduce((s, t) => s + playCount(t), 0);
     const zero = oiled.reduce((s, t) => s + budgetZeroPlays(t), 0);
     const cf = oiled.reduce((s, t) => s + budgetZeroPlaysWithoutRestore(t), 0);
-    expect([plays, zero, cf]).toEqual([99, 2, 48]);
-    // 48.5% stripped (was 47.1%), against a before-era length-standardised
-    // 55.3% (was 54.9%). This is the STEADIEST result in the file: strip the
-    // restores and the oil casts revert to within 7pp of the old regime, the
-    // same finding at both corpus sizes.
-    expect(cf / plays).toBeCloseTo(0.485, 3);
-    expect(standardise(split.preOil, oiled).rate).toBeCloseTo(0.553, 3);
+    expect([plays, zero, cf]).toEqual([128, 2, 48]);
+    expect(cf / plays).toBeCloseTo(0.375, 3); // 47.1% (s84) -> 48.5% (s92) -> diluted
+    expect(standardise(split.preOil, oiled).rate).toBeCloseTo(0.473, 3);
+
+    // ---- the claim itself, on the predicate it was always about ------------
+    // Casts where the focus meter actually ROSE. Strip the restores from these
+    // and they revert to **51.7%**, against a before-era length-standardised
+    // **57.2%** — within 5.5pp, TIGHTER than the 6.8pp the blind reader gave.
+    // This is still the steadiest result in the file; it is now measured on
+    // the right set.
+    const restored = (t: import("../../src/sim/fishing/castTrace.js").CastTrace) => {
+      for (let i = 1; i < t.turns.length; i++) if (t.turns[i]!.focusMeter > t.turns[i - 1]!.focusMeter) return true;
+      return false;
+    };
+    const restoreArm = split.oilSupplied.filter(restored);
+    expect(restoreArm.length).toBe(13);
+    const rPlays = restoreArm.reduce((s, t) => s + playCount(t), 0);
+    const rCf = restoreArm.reduce((s, t) => s + budgetZeroPlaysWithoutRestore(t), 0);
+    expect([rPlays, rCf]).toEqual([89, 46]);
+    expect(rCf / rPlays).toBeCloseTo(0.517, 3);
+    expect(standardise(split.preOil, restoreArm).rate).toBeCloseTo(0.572, 3);
+    // Every restore cast fired an oil. The converse is now firmly FALSE, which
+    // is the whole point of splitting them.
+    expect(restoreArm.every(firedOil)).toBe(true);
+    expect(oiled.filter((t) => !restored(t)).length).toBe(14);
   });
 
   it("detects oils on consumablesUsed, NOT on the focus meter — they give different answers", () => {
@@ -530,44 +570,82 @@ describe("GATE 2 — the collapse, decomposed", () => {
       for (let i = 1; i < t.turns.length; i++) if (t.turns[i]!.focusMeter > t.turns[i - 1]!.focusMeter) return true;
       return false;
     });
-    // [session 89] 11 -> 13 and 13 -> 15. The GAP is still exactly 2, which is
-    // the point: meter detection under-counts by a fixed mechanism, not a rate.
+    // [session 89] 11 -> 13 and 13 -> 15. The GAP was exactly 2 twice running,
+    // and this test read that as "meter detection under-counts by a fixed
+    // mechanism, not a rate".
+    //
+    // ⚠ **[session 93 §2] THAT WAS AN ARTIFACT OF THE SECOND READER BEING
+    // BROKEN TOO, and the constant gap is gone: 13 against 39.** The meter
+    // detector finds only casts that RESTORED the meter, i.e. Focus Oil casts;
+    // `firedOil` now correctly finds every cast that spent any consumable,
+    // Relaxing included. Those two quantities were never the same thing — they
+    // agreed to within 2 only while `oilsConsumed` was blind to precisely the
+    // oils the meter cannot see either.
+    //
+    // The original point survives in a stronger form: the meter is the wrong
+    // detector for "did this cast use an oil", and it is now wrong by 26 casts
+    // rather than by 2.
     expect(meterDetected.length).toBe(13);
-    expect(traces.filter(firedOil).length).toBe(15);
+    expect(traces.filter(firedOil).length).toBe(39);
+    // Every meter-restoring cast is an oil cast; the reverse fails 26 times.
+    expect(meterDetected.every(firedOil)).toBe(true);
   });
 
-  it("KNOWN UNDERCOUNT: consumablesUsed cannot see an oil that fires on the cast's LAST turn", () => {
-    // ⚠ [session 92, found while re-specifying the era — see QUESTIONS.md §33]
-    // `firedOil`/`oilsConsumed` read the first-to-last `consumablesUsed` delta
+  it("[§33 FIXED, session 93] the closing-turn oils are VISIBLE now — and there were 27 of them, not 6", () => {
+    // ⚠ **This test was the defect, pinned at its wrong-but-actual value.** It
+    // read `expect(firedOil(t)).toBe(false)` and existed so that repairing the
+    // reader would fail loudly rather than move numbers quietly. It did, and
+    // this is the repair.
+    //
+    // THE DEFECT: `oilsConsumed` read the first-to-last `consumablesUsed` delta
     // over the TRACE, and `castTrace` drops `use_fishing_item` responses. When
     // an oil fires on the closing turn there is no later real turn to carry the
-    // incremented count, so the trace simply ends before it.
+    // incremented count, so the trace ended before it. Fixed by §33's option
+    // (b) — read `consumablesUsedMax`, the same MAX-over-all-states rule
+    // `src/sim/fishingCorpus.ts` has always used.
     //
-    // This is not hypothetical and it is not rare in the new regime: session
-    // 91's two double-lethal firings are exactly this shape. Casts 13068171 and
-    // 13068190 each sent TWO `use_fishing_item(937)` POSTs to land the kill —
-    // the raw fixtures show `consumablesUsed` 0 -> 1 -> 2 and `fishHp` 4 -> 2
-    // -> 0 — and both read `firedOil === false` here.
+    // ⚠ **THE UNDERCOUNT WAS FOUR TIMES WHAT §33 ESTIMATED.** §33 was written
+    // from the double-lethal casts and put the census at 21 casts / 35 oils
+    // against a read of 15 / 24. The truth is **39 / 56**, from **27** blind
+    // casts. The reason is a mechanism §33 named without following through:
+    // the on-demand LETHAL Relaxing trigger fires when the oil finishes the
+    // fish, so a SUCCESSFUL lethal firing always lands on the closing turn.
+    // Every one of those was invisible from the day the policy shipped in
+    // session 62 — not since session 90, and not only on double firings.
     //
-    // **So the corpus oil census is 15 casts / 24 oils where the truth is 17 /
-    // 28.** It is pinned at the wrong-but-actual value deliberately: this test
-    // exists so the gap is a recorded fact rather than a silent one, and so
-    // that fixing `castTrace` makes it fail loudly instead of quietly changing
-    // numbers elsewhere.
-    //
-    // ⚠ It does NOT contaminate anything this file pins. Both casts are in
-    // `focusDry`; the decomposition's oil term reads `oilSupplied`, and
-    // `assertCastEraSound`'s control reads `preOil`. Check that before assuming
-    // a fix is safe — do not just repair castTrace and re-pin.
-    const missed = ["13068171", "13068190"];
-    for (const id of missed) {
+    // The signature is in the data: of the 27, all but one are `caught` with a
+    // final `fishHp` at or below the payload's damage (the single lethal shape)
+    // or exactly 4 (the double-lethal shape).
+    const oldReader = (t: import("../../src/sim/fishing/castTrace.js").CastTrace) => {
+      const first = t.turns[0];
+      const last = t.turns[t.turns.length - 1];
+      if (!first || !last) return 0;
+      return last.consumablesUsed - first.consumablesUsed;
+    };
+    const blind = traces.filter((t) => oldReader(t) < oilsConsumed(t));
+    expect(blind.length).toBe(27);
+    // Never the other direction: the old reader under-counted and never
+    // over-counted, which is why nothing already published was inflated.
+    expect(traces.filter((t) => oldReader(t) > oilsConsumed(t))).toEqual([]);
+
+    // The double-lethal casts §33 was written from, now reading correctly.
+    for (const id of ["13068171", "13068190"]) {
       const t = traces.find((x) => x.docId === id)!;
-      expect(firedOil(t)).toBe(false); // the defect, asserted as such
-      expect(t.turns[t.turns.length - 1]!.fishHp).toBe(4); // truncated before the kill
-      expect(t.caught).toBe(true); // ...yet `caught` survives, off the events
+      expect(firedOil(t)).toBe(true);
+      expect(oilsConsumed(t)).toBe(2); // two POSTs in one turn, both seen
+      expect(t.turns[t.turns.length - 1]!.fishHp).toBe(4); // trace still truncates before the kill...
+      expect(t.caught).toBe(true); // ...and `caught` still comes off the events
     }
-    // The lethal oils are all in focusDry, so no arm this file pins is affected.
-    expect(missed.every((id) => eraOf(id, created) === "focusDry")).toBe(true);
+
+    // ⚠ The one blind cast that is NOT a lethal firing: `12975152` reads
+    // `consumablesUsed: 1` on all four of its captured states, every one a
+    // `play_cards`. Capture began mid-cast and the consumable predates the
+    // window — and the oil policy. It is the sole `PRE_OIL_CONSUMABLE_EXEMPT`
+    // entry; see the constant for why exempting it is a claim and not a
+    // convenience.
+    expect(blind.filter((t) => eraOf(t.docId, created) === "preOil").map((t) => t.docId)).toEqual(["12975152"]);
+    // Everything else is in an era where the oil policy was live.
+    expect(blind.filter((t) => eraOf(t.docId, created) !== "preOil").length).toBe(26);
   });
 
   it("rules the GEAR out: the decks changed a great deal and their reach did not", () => {

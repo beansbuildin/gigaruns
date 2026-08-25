@@ -212,6 +212,35 @@ export const FOCUS_DRY_BOUNDARY = "2026-08-24T00:02:57.148Z";
 export const FOCUS_POOL = 3;
 
 /**
+ * ── [session 93 §2] THE ONE preOil CAST THAT SPENT A CONSUMABLE ────────────
+ *
+ * Surfaced by §33's ruling, and it is a finding rather than a nuisance:
+ * repointing `oilsConsumed` at `fishingCorpus.ts`'s reader made this module
+ * see something the corpus reader has flagged since session 61 and the
+ * trace-side reader never could.
+ *
+ * `12975152` reads `consumablesUsed: 1` on **all four** of its captured
+ * states, every one a `play_cards` — the cast has no `start_run` response, so
+ * capture began mid-cast and the consumable was spent before the window
+ * opened. `fishingCorpus.ts`'s own docblock names this exact cast as the one
+ * the retroactive flag "immediately found".
+ *
+ * **Exempt, explicitly, rather than by loosening the check** — and for a
+ * reason, not for convenience. `assertCastEraSound` asks whether `preOil` is
+ * a restore-free CONTROL, i.e. whether a meter restore happened inside the
+ * window the counterfactual measures. Here it provably did not: the count is
+ * flat across every captured turn, so no restore is visible to any
+ * trace-derived quantity. The cast also predates the oil policy entirely —
+ * whatever was spent, this bot did not spend it under a policy.
+ *
+ * The two readers still disagree about this cast **on purpose**: the corpus
+ * reader answers "did this cast spend a consumable" (yes) and the control
+ * asks "did a restore occur in the measured window" (no). Any SECOND id
+ * arriving here is a different fact and must be investigated, not appended.
+ */
+export const PRE_OIL_CONSUMABLE_EXEMPT: ReadonlySet<string> = new Set(["12975152"]);
+
+/**
  * [session 92] Three eras, not two. `preOil` fires no oils at all;
  * `oilSupplied` has the oil policy AND Focus Oil stock; `focusDry` has the
  * same policy with the stock exhausted. The old two-era `"before" | "today"`
@@ -308,12 +337,34 @@ export function firedOil(t: CastTrace): boolean {
   return oilsConsumed(t) > 0;
 }
 
-/** How many consumables this cast spent, off `consumablesUsed`'s first-to-last delta. */
+/**
+ * How many consumables this cast spent.
+ *
+ * ── [session 93 §2 — QUESTIONS.md §33 ANSWERED, option (b)] ────────────────
+ *
+ * **This used to read `turns`' first-to-last delta, and that reader was blind
+ * to any oil that fired on a cast's CLOSING turn.** `castTrace` correctly
+ * skips the `use_fishing_item` response (it re-reports its predecessor's move
+ * fields), so when the oil lands the kill there is no later real turn to carry
+ * the incremented count. Harmless for four years of shapes where a cast ended
+ * on a card; not harmless since session 90 wired the double-lethal trigger,
+ * which fires exactly there by construction. Measured undercount: **15 casts /
+ * 24 oils against a truth of 21 / 35** — 40% of casts in the current regime.
+ *
+ * The fix is to read the reader that was already right, not to write a new
+ * one: `src/sim/fishingCorpus.ts` takes the MAX of `consumablesUsed` over
+ * every board state and got all six known-missed casts exactly. `castTrace`
+ * now carries that same number as `consumablesUsedMax`, and
+ * `tests/sim/oilCensusAgreement.test.ts` pins the two readers to the same
+ * value on every cast in the corpus, so they cannot drift apart again.
+ *
+ * ⚠ **Turn semantics are deliberately untouched.** Making the item response a
+ * turn was option (a) and was NOT chosen — it would break position continuity
+ * and drop every oil cast from the movement corpus (`castTrace.ts`'s
+ * `ITEM_MESSAGE`).
+ */
 export function oilsConsumed(t: CastTrace): number {
-  const first = t.turns[0];
-  const last = t.turns[t.turns.length - 1];
-  if (!first || !last) return 0;
-  return last.consumablesUsed - first.consumablesUsed;
+  return t.consumablesUsedMax;
 }
 
 /** Plays in a cast — transitions that resolved a card. */
@@ -631,7 +682,7 @@ export function assertCastEraSound(
     }
   }
   const split = splitByEra(traces, created);
-  const oiledBefore = split.preOil.filter(firedOil);
+  const oiledBefore = split.preOil.filter(firedOil).filter((t) => !PRE_OIL_CONSUMABLE_EXEMPT.has(t.docId));
   if (oiledBefore.length > 0) {
     throw new Error(
       `castEra: ${oiledBefore.length} before-era cast(s) fired an oil (${oiledBefore

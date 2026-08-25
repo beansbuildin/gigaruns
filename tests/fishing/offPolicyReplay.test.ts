@@ -78,7 +78,9 @@ function walk(docId: string, steps: number, hp = 200): CastTrace {
     turns.push(t);
   }
   for (let i = 1; i < turns.length; i++) turns[i]!.previousFishPosition = turns[i - 1]!.fishPosition;
-  return { docId, cards: new Map([[1, spot]]), turns, caught: false, escaped: true, hasStart: true, continuous: true };
+  // [session 93 §2] Synthetic, oil-free traces: `consumablesUsedMax` is the
+  // server's own count and these casts spend nothing.
+  return { docId, cards: new Map([[1, spot]]), turns, caught: false, escaped: true, hasStart: true, continuous: true, consumablesUsedMax: 0 };
 }
 
 describe("traceToCast", () => {
@@ -255,7 +257,7 @@ describe("[session 50, brief §1/§2] the matcher tier, coverage, and the placem
         return t;
       });
       for (let i = 1; i < turns.length; i++) turns[i]!.previousFishPosition = turns[i - 1]!.fishPosition;
-      return { docId, cards: new Map([[1, wide]]), turns, caught: true, escaped: false, hasStart: true, continuous: true };
+      return { docId, cards: new Map([[1, wide]]), turns, caught: true, escaped: false, hasStart: true, continuous: true, consumablesUsedMax: 0 };
     };
     const peers = [centre("p"), centre("q"), centre("r")];
     const base = replayCast(centre("a"), peers);

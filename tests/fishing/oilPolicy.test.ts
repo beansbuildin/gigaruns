@@ -237,10 +237,20 @@ describe("the live call site passes every condition the gate checks", () => {
       dendren: { oils: OilBudgetConfig };
     };
     expect(bot.dendren.oils.policyApproved).toBe(true);
-    expect(bot.dendren.oils.allowedItemIds).toContain(MID_FOCUS_OIL_ITEM_ID);
+    // ---- [session 93 §1] RELAXING-ONLY, by user directive 2026-08-24 -------
+    // This read `toContain(MID_FOCUS_OIL_ITEM_ID)` until this session. `942`
+    // is now WITHDRAWN — not out of stock, withdrawn — so the assertion is
+    // inverted for the same reason `policyApproved` was inverted above: the
+    // old value is not the safe one, it is the stale one. See
+    // `handoff/OIL-POLICY.md` §4 and `tests/fishing/oilFocusWithdrawn.test.ts`.
+    expect(bot.dendren.oils.allowedItemIds).not.toContain(MID_FOCUS_OIL_ITEM_ID);
     expect(bot.dendren.oils.allowedItemIds).toContain(MID_RELAXING_OIL_ITEM_ID);
-    // Approved and funded -> a spend is allowed...
+    // Approved and funded -> a RELAXING spend is allowed...
     expect(mayConsumeOil(ok({ configured: bot.dendren.oils })).allowed).toBe(true);
+    // ...a FOCUS spend is refused on identity, whatever the balance says...
+    const focus = mayConsumeOil(ok({ configured: bot.dendren.oils, itemId: MID_FOCUS_OIL_ITEM_ID, heldBalance: 99 }));
+    expect(focus.allowed).toBe(false);
+    expect(focus.reason).toMatch(/not in dendren\.oils\.allowedItemIds/);
     // ...and the approval flag is still the thing doing the work.
     expect(mayConsumeOil(ok({ configured: { ...bot.dendren.oils, policyApproved: false } })).allowed).toBe(false);
   });

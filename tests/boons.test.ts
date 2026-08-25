@@ -381,7 +381,16 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // eleven of them — has been a status-effect boon, and a status-effect boon
     // cannot become clean. The clean set is not slowly growing; it is closed
     // under the only mechanism that has been feeding this table.
-    expect(roomOne.length).toBe(183);
+    // [session 93 §3] 183 -> 195: FOUR juiced runs on 2026-08-24, twelve more
+    // room-1 options, landed as part of regenerating this table (see
+    // `OBSERVED_OFFERS`' own session-93 note for why the regeneration happened
+    // now). **Sixth consecutive session of the same pattern.** The twelve new
+    // options are AddLuck/AddBlock/Thorns, AddIntuition/AddTenacity/
+    // WeakeningMastery, CorrosiveMagic/AddIntuition/AddBlock and
+    // AddBlock/AddLifestealShield/UpgradeRock — every one of them either a
+    // status-effect boon or an already-clean type recurring. The clean TYPE
+    // set is unchanged for the fifth consecutive session.
+    expect(roomOne.length).toBe(195);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -438,6 +447,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
+      "UpgradeRock", // [session 93] +1 from run-2026-08-24-01-04-21's room-1 offer — an already-clean type recurring, NOT a seventh hole (the session-60/61/75 distinction).
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",

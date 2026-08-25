@@ -2334,6 +2334,44 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
           `User override, QUESTIONS.md §30 — the sim does NOT recommend this.`,
       );
     }
+    // ---- [session 93 §1] A WITHDRAWN OIL IS NOT A DRY BAG ------------------
+    //
+    // **User directive 2026-08-24: relaxing-oil-only.** `942` is out of
+    // `dendren.oils.allowedItemIds`, and `mayConsumeOil` already refuses any id
+    // absent from that list — so the POST was never in danger. This filter is
+    // not about the POST.
+    //
+    // It is about which BRANCH the refusal takes below. Focus stock is 0, so a
+    // withdrawn focus trigger would fall through `!auth.allowed` into the
+    // `held <= 0` arm — which is keyed on the BALANCE, not on the reason — and
+    // log `oil_trigger_no_stock`. That event is not cosmetic: it becomes a
+    // `dryTriggers` record (`oilCastState.ts`) and flags the whole cast
+    // OIL-POLICY-DRY, keeping it out of BOTH outcome arms. Under a withdrawal
+    // that state is permanent, so every future cast whose meter reached zero
+    // would be excluded from the corpus forever, for an oil the policy has
+    // stopped wanting. That is precisely the corpus poisoning the third state
+    // was invented to prevent, arriving through the instrument itself.
+    //
+    // So the trigger is dropped BEFORE the spend loop, with its own event. The
+    // policy did not want an oil it could not have; the policy no longer wants
+    // this oil at all. Those are different facts and they get different names.
+    //
+    // Note this is evaluated per turn rather than hoisted: `deps.oilBudget` is
+    // read once per process, but keeping the check at the decision keeps the
+    // console line next to the trigger that caused it.
+    const allowedIds = deps.oilBudget?.allowedItemIds;
+    if (allowedIds) {
+      const withdrawn = oilWanted.filter((k) => !allowedIds.includes(k === "focus" ? MID_FOCUS_OIL_ITEM_ID : MID_RELAXING_OIL_ITEM_ID));
+      if (withdrawn.length > 0) {
+        oilWanted = oilWanted.filter((k) => allowedIds.includes(k === "focus" ? MID_FOCUS_OIL_ITEM_ID : MID_RELAXING_OIL_ITEM_ID));
+        log.write({ event: "oil_trigger_policy_withdrawn", turn, kinds: withdrawn, allowedItemIds: allowedIds, source: oilTriggerSource });
+        console.log(
+          `  \u00b7 ${oilTriggerSource} wanted [${withdrawn.join(",")}] here (turn ${turn}) — WITHDRAWN BY POLICY ` +
+            `(dendren.oils.allowedItemIds is ${JSON.stringify(allowedIds)}), playing on without it. ` +
+            `This is NOT a dry bag and does NOT flag the cast out of the outcome arms.`,
+        );
+      }
+    }
     for (const kind of oilWanted) {
       // ---- [session 68 §2] A LETHAL CONSUME ENDS THE CAST MID-LOOP --------
       //
