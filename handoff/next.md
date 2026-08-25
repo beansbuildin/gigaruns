@@ -1,17 +1,21 @@
-# BRIEF — session 92 — land the §32 ruling (re-specify the era predicate), then run the second live fishing batch (10 casts, this time with `--oil-batch`)
+# BRIEF — session 93 — go relaxing-oil-only, land §33 (option b) and the boons.test.ts pin, then run the third live fishing batch (10 casts)
 
-**One era-model correction, then one live batch.** Read §1 fully before
-touching anything live — the boundary you land there is what the next 10
-traces get classified under the moment anything calls `eraOf()`/`splitByEra()`
-on them, and running the batch first would let 10 new casts blend into a
-corpus whose era split this brief already knows is wrong.
+**Three small, independent landings, then one live batch.** None of §1–§3
+depends on the others, and none of them touches live decision logic in a way
+the batch needs to precede — land all three first anyway, so the batch's
+corpus and its ledger both reflect the corrected state before new casts join
+them.
 
-**Where this came from.** Session 91's STATE.md was walked through with the
-user in chat. `QUESTIONS.md` §32 offered three options for the `castEra.test.ts`
-degradation; the user was shown all three (plus "leave it open, it isn't
-gating anything") and chose **option (b): re-specify the era predicate** —
-record that as a choice made among options offered, not spontaneous user
-language, the same convention §31 used.
+**Where this came from.** Session 92's STATE.md was walked through with the
+user in chat, along with a separate correction: the user had already directed
+that Focus Oil be dropped from the live policy (stock has read 0 for four
+consecutive batches with no replenishment in sight) and this had **not**
+landed anywhere in the repo — not `config/bot.json`, not `OIL-POLICY.md`, not
+`QUESTIONS.md`/`DECISIONS.md`. That gap is §1. Session 92 also left three
+open items worded as needing a ruling (§33, `boons.test.ts`, the redraw-shadow
+puzzle); the user was walked through all three and ruled on each — §2, §3,
+and §4c below record those choices as decisions made among options offered,
+the same convention §29/§31/§32 used, not as spontaneous language.
 
 ---
 
@@ -22,298 +26,273 @@ npx tsc --noEmit
 npx vitest run
 ```
 
-**Establish the actual current baseline yourself.** Session 91's own STATE.md
-(not a paraphrase — its own final recap) reads 2 failed / 1744 passed (1746
-total) at commit `b5d59393`. Cite that as the last *known* reading, not this
-session's baseline — rule 9 applies to numbers carried forward one session as
-much as ten.
+**Establish the actual current baseline yourself.** Session 92's own STATE.md
+(its own final recap, not a paraphrase) reads 1 failed / 1749 passed (1750
+total) at commit `9ec24567`. Cite that as the last *known* reading, not this
+session's baseline.
 
-**Files actually read this pass, precisely** (so the next reader knows what's
-verified versus carried forward): `handoff/STATE.md` (session 91, in full);
-`handoff/next.md` (session 91's brief, in full); `QUESTIONS.md` §32 (in full);
-`CLAUDE.md` rules 9 and 13 (grepped and read in place); `src/sim/fishing/castEra.ts`'s
-docblock and `POLICY_ERA_BOUNDARY`/`eraOf`/`splitByEra` (lines ~1-145); `tests/fishing/castEra.test.ts`
-(grepped for every call site of `splitByEra`/`eraOf`/`todaysEraCastIds`, not
-read start to finish); `handoff/reports/fishing-casts.md` (in full, 178-cast
-report); `data/fishing-oil-cast-states.jsonl` (in full); `config/bot.json`
-(grepped: `dendren.oils` = `{allowedItemIds:[942,937], maxPerCast:3,
-perItemMaxPerCast:{"937":2}}`); `handoff/log/session-90.md` and `session-91.md`
-headers (dates only); `handoff/OIL-POLICY.md` §0a (grepped: +19.40pp still
-SUSPENDED, rests on meter-out/catch, not drift); `tests/fishing/redrawShadow.test.ts`
-and `src/strategy/fishing/redrawShadow.ts` (grepped, not read in full); the six
-raw `logs/fishing-unknown-midcast-2026-08-24-19-1*.json` capture files from
-session 91's batch (grepped for any `redraw*` field — **none exist in the raw
-HTTP capture**; the redraw-shadow's decision fields — `coverageBelowK`,
-`conditionMet`, `budget`, `liveRedrawEnabled` — are computed and accumulated
-client-side inside `liveFishing.ts` and never appear in the server payload, so
-their absence from the raw logs is not itself informative about whether the
-shadow ran).
+**Files actually read this pass, precisely:** `handoff/STATE.md` (session 92,
+in full); `handoff/next.md` (session 92's brief — this brief's predecessor —
+in full); `QUESTIONS.md` §§32 UPDATE/33/33 UPDATE/34 (in full); `handoff/log/session-92.md`
+(grepped for any existing record of a relaxing-only directive — **none
+found**); `handoff/OIL-POLICY.md` (in full, all 240 lines); `config/bot.json`'s
+`dendren.oils` block (in full: `allowedItemIds: [942, 937]`, `maxPerCast: 3`,
+`policyApproved: true`, `perItemMaxPerCast: {"937": 2}` — unchanged since
+before session 91); `src/strategy/fishing/oilPolicy.ts` (grepped: `mayConsumeOil`
+rejects on `!allowedItemIds.includes(ctx.itemId)`, line ~251 — this is the
+mechanism §1 relies on); `tests/fishing/oilPolicy.test.ts`, `oilPerItemCap.test.ts`,
+`oilStockExhaustion.test.ts` (grepped for hardcoded `942`/Focus references —
+`oilPolicy.test.ts` line 92 builds its own local `APPROVED` fixture with
+`allowedItemIds: [937, 942]`; it does not read `config/bot.json`, so it is
+**not** automatically affected by §1, but confirm this pass rather than assume
+it); `tests/boons.test.ts` (grepped: the `OBSERVED_OFFERS` staleness is a pin
+against `Math.max(...OBSERVED_OFFERS.map(o => o.room))` plus an exact-match
+assertion against the fixtures, lines ~117-149 — not read end to end).
 
 **Not opened this pass — verify before relying on them:** the full body of
-`scripts/liveFishing.ts` (183KB — session 91 grepped `doubleLethalTriggers`,
-`redrawShadow`, `COMPLETE_CID`, `--casts=` to specific line numbers; those
-citations are repeated below on session 91's authority, not re-verified this
-pass; `--oil-batch`'s exact flag name and plumbing were **not** grepped by
-session 91 or this brief — confirm before relying on the exact spelling in
-§2b); `tests/fishing/redrawCounterfactual.test.ts` and every other test file
-besides `castEra.test.ts` that calls `splitByEra`/`eraOf` (this brief found
-call sites in `castEra.test.ts` only by grepping that one file — a full-repo
-grep for `splitByEra(`, `eraOf(`, and `todaysEraCastIds(` is part of §1's
-work, not already done here).
+`scripts/liveFishing.ts` (still 180KB+ — confirm how it decides *which* oil
+triggers to even evaluate per turn, i.e. whether `allowedItemIds` gates
+evaluation or only the final POST attempt, before writing §1's docblock note
+about what changes observably); `src/sim/fishing/castEra.ts`'s and
+`scripts/damageEconomy.ts`'s full bodies beyond the `oilsConsumed` call site
+(§2 only needs the one call site repointed, but confirm nothing else reads the
+same blind path); every consumer of `OBSERVED_OFFERS` and `boonPickups`
+besides `tests/boons.test.ts` itself.
 
 ---
 
-## 1. §32 — the ruling, and why it's a bigger edit than a bound bump
+## 1. Relaxing-oil-only, by user directive — config, docs, and the record
 
-**The choice made:** re-specify the `"today"` era predicate at a real policy
-boundary, rather than (a) re-pinning the four degrading claims as converging
-small-sample estimates, or (c) something else including a standing tracked
-series. The user's reasoning, per the options as framed: (a) would require
-someone to say out loud that session 89's "single most important thing that
-did NOT move" bound was descriptive rather than load-bearing, which
-contradicts how session 89 described it; (b) is the honest one, at the cost of
-re-baselining every era-conditioned number in the file.
+**The choice, restated plainly:** stop attempting Focus Oil (942) in live
+play. Relaxing Oil (937) is the only oil the bot spends going forward. This is
+a full policy-and-code landing, not documentation-only — the user chose that
+explicitly over a docs-only note, given `mayConsumeOil`'s existing fail-closed
+behavior already made a docs-only change tempting but incomplete.
 
-### 1a. What's being reversed
+### 1a. What to change, precisely
 
-Three straight batches, one direction, four claims, all in `castEra.test.ts`
-(table from `QUESTIONS.md` §32, reproduce and recompute, don't hand-copy):
+1. **`config/bot.json`**: remove `942` from `dendren.oils.allowedItemIds`,
+   leaving `[937]`. Leave `maxPerCast` (3) and `perItemMaxPerCast` (`{"937":
+   2}`) untouched — neither references Focus Oil. `mayConsumeOil` already
+   rejects on `!allowedItemIds.includes(ctx.itemId)` (`src/strategy/fishing/oilPolicy.ts`
+   ~line 251), so this one-line config change is what actually stops the bot
+   from attempting 942 — confirm the exact rejection path fires as expected
+   (a quick unit check or a `--dry-run` read of the code path, not a live
+   spend) before treating this as done.
+2. **Confirm what observably changes.** Today, Focus Oil already fails closed
+   harmlessly when stock is 0 (an `oil_trigger_no_stock` event, no live
+   effect). After this change, the failure mode moves from "no stock" to
+   "not an allowed item" — functionally similar today, but it also means the
+   bot will **stop attempting Focus Oil even if stock is ever replenished**,
+   which is the actual point of a policy change versus a stock-exhaustion
+   artifact. State this distinction explicitly in the recap; it's the reason
+   this is a real decision and not a no-op.
+3. **`handoff/OIL-POLICY.md`**: add a new dated section (don't rewrite §2's
+   history — append, the way §0a was appended as a suspension rather than an
+   edit) recording that the Focus Oil half of the `on-demand` recommendation
+   is now **withdrawn by user directive**, not merely unsupported. Say plainly
+   what this costs: §2's own decomposition attributes **+17.74pp of the
+   +19.40pp effect** (itself SUSPENDED under §0a, so don't quote it as a live
+   forecast either way) to `focus-when-empty-only`; going relaxing-only keeps
+   only the lethal trigger's modeled +4.47pp share. Cite this as what the
+   *model* attributed, not a live prediction — §0a's suspension still stands
+   and nothing here lifts it.
+4. **Record the directive**: a new dated entry in `QUESTIONS.md` (append,
+   don't edit existing entries) quoting the user's directive and this
+   session's implementation, plus the matching entry in `DECISIONS.md`.
 
-```
-  claim                                 s84/86      s89        s91
-  budget-zero ratio before/today        ~30x        6.48x      3.92x
-  redraw rescue rate, today's era       15/15 100%  26/32 81%  30/42 71%
-  wasted values across the sweep        {0}         {0,3,4,5,6} {0,3,6,7,9,10,11,12}
-  meanOptimal gap between eras          —           0.0062     0.0250  ⚠ BOUND 0.01
-```
+### 1b. What NOT to touch
 
-The mechanism `QUESTIONS.md` §32 hypothesizes (not yet implemented, and not
-yet confirmed): `POLICY_ERA_BOUNDARY` is `"2026-08-21"` (`src/sim/fishing/castEra.ts`
-line 71, day precision), drawn to separate a matcher-weighting regime change.
-`"today"` has since silently kept absorbing every policy change after that
-date rather than closing at the next one — it held 54 casts when these claims
-were first pinned and holds 84 now, spanning (per session 91's STATE.md) the
-autonomous-oil-spend policy, the double-lethal oil trigger's wiring and first
-live firing, and the rod-durability window and repair. **This is the same
-pooling problem §31 just ruled on for `damageEconomy.test.ts`, one file over**
-— a population being treated as one thing when it's several.
-
-### 1b. The boundary — verify before picking one; there is a real wrinkle here
-
-Two candidate cuts exist in the repo's own history, and neither is a clean
-drop-in:
-
-- **The autonomous-oil-spend decision** (session 61, user decision
-  2026-08-20). This **predates** the current 2026-08-21 boundary, so it can't
-  be the new cut — it's already inside `"before"`.
-- **The double-lethal oil trigger.** Wired as code in session 90
-  (2026-08-24, zero live spend that session — confirmed by session 90's own
-  header). **First exercised live** in session 91's batch, same calendar day,
-  casts `13068171` and `13068190`. This is a genuine policy change (a new
-  autonomous live action the bot can take), which makes it the more honest
-  candidate of the two — but it landed on the **same calendar day** as the
-  casts that first exercise it, and `eraOf()` currently truncates to
-  **date-only** precision (`at.slice(0, 10) < POLICY_ERA_BOUNDARY`, line 136).
-  A day-precision predicate cannot separate "2026-08-24, pre-double-lethal"
-  from "2026-08-24, post-double-lethal" — both truncate to the same string.
-
-**This brief does not pick between the resolutions below — that's session
-92's judgment call, made with full code context and against actual
-`doc.createdAt` values, not the calendar-day summary here:**
-
-1. Move `eraOf` to timestamp (not date) precision for this one boundary, with
-   a specific, measured instant — candidate anchors are session 90's landing
-   commit and session 91's first double-lethal firing; verify which reading
-   the corpus actually needs (i.e., which one correctly separates the
-   pre/post populations for the claims in §1a) before picking either.
-2. Accept that day precision genuinely can't cut inside a single calendar day,
-   and instead treat the double-lethal wiring as the start of a third era
-   beginning the next calendar day — which would currently still classify all
-   ten of session 91's casts as pre-double-lethal despite two of them
-   exercising it live. If you take this path, **say so explicitly** in the
-   docblock rather than let that inconsistency sit unremarked; it's exactly
-   the kind of thing this whole exercise exists to surface, not bury.
-
-If neither resolves cleanly against the corpus, **option (c) from `QUESTIONS.md`
-§32 — splitting the control out as a standing tracked series instead of a
-gating bound — is still on the table.** A ruling for (b) is not licence to
-force a boundary that doesn't hold up; if it doesn't, open a fresh
-`QUESTIONS.md` entry describing the new wrinkle rather than picking one of the
-two resolutions above by feel.
-
-### 1c. What to actually change
-
-1. In `src/sim/fishing/castEra.ts`: implement the boundary decided in §1b —
-   this may mean updating `POLICY_ERA_BOUNDARY`/`eraOf`/`splitByEra` in place,
-   or replacing the binary `Era` type with a small named set of boundaries if
-   two eras can no longer honestly describe the corpus. Update the module's
-   docblock (currently lines ~1-59) with the same evidentiary rigor it already
-   models for the existing boundary — it cites an exact five-cast discrepancy
-   for the 2026-08-21 cut; the new boundary needs a citation of the same kind,
-   not a paragraph of reasoning alone.
-2. Grep the **whole repo** (not just `castEra.test.ts`) for every call site of
-   `eraOf(`, `splitByEra(`, and `todaysEraCastIds(`, and recompute — don't
-   hand-edit — every era-conditioned number `QUESTIONS.md` §32's table names,
-   plus anything else those call sites feed.
-3. Rewrite the red `meanOptimal` assertion (and any sibling claim in
-   `castEra.test.ts` whose title no longer matches the corrected split) under
-   a corrected title and claim — the same discipline session 91 applied to
-   `damageEconomy.test.ts`'s three red tests. Don't just adjust the comparator
-   or widen the 0.01 bound; widening it is the exact move session 89 and
-   session 91 both refused elsewhere, and it's what this brief exists to
-   avoid repeating here.
-4. Record the ruling: a new dated **"§32 ANSWERED"** heading in `QUESTIONS.md`
-   (a new heading below the existing text, not an edit to it — the §29/§30/§31
-   convention) stating the user chose option (b) among the three offered, plus
-   exactly which boundary was implemented and why. Add the matching entry to
-   `handoff/DECISIONS.md`.
+- Don't touch `MID_FOCUS_OIL_ITEM_ID` or any other Focus-Oil-referencing
+  constant in `src/strategy/fishing/oilPolicy.ts` — the constant still names a
+  real item and other code/tests may reason about it independent of whether
+  it's currently allowed.
+- Don't touch `tests/fishing/oilPolicy.test.ts`'s local `APPROVED` fixture
+  unless verification in §0 shows it actually reads `config/bot.json` (it
+  appears not to — it's a hand-built `OilBudgetConfig` literal used to test
+  `mayConsumeOil` generically, including the *rejected* case). Confirm rather
+  than edit reflexively.
+- Don't touch `§0a`'s suspension. Nothing here lifts the +19.40pp/+17.74pp
+  quoting ban — if anything, this makes the Focus share of that number even
+  less relevant to quote, since it will not be spent going forward.
 
 ---
 
-## 2. The live batch — 10 more casts, with the summary session 91 missed
+## 2. §33 — apply option (b): point `oilsConsumed` at the reader that's already right
 
-### 2a. Before starting
+**The choice made:** option (b), on session 92's own recommendation. The
+double-lethal trigger fires on a cast's closing turn by construction, and
+`castTrace`'s turn-filtered `oilsConsumed` cannot see anything that happens
+there — currently a **40% undercount** (census reads 15 casts/24 oils where
+the truth is 21/35). `src/sim/fishingCorpus.ts` already reads the raw states
+directly and gets all six known-missed casts exactly right
+(`consumablesUsed` 2, 2, 2, 1, 2, 2), pinned by `tests/sim/fishingCorpus.test.ts`.
+
+### What to actually do
+
+1. Point `castEra.ts`'s (or wherever `oilsConsumed`/`firedOil` is actually
+   defined — confirm the exact file/line this pass, session 92's STATE.md
+   names `castEra.ts` as the affected file but not the precise export) oil
+   count at `fishingCorpus.ts`'s already-correct reader, rather than writing a
+   new one. Don't touch turn semantics — this is explicitly not option (a).
+2. **Recompute, don't hand-edit**, every pinned number downstream of the old
+   undercount. Session 92 named two instruments as affected by the same root
+   cause: the oil census itself, and `tests/fishing/oilReachability.test.ts`'s
+   `lax.decisionPoints === strict + 1` / `focusPoints === 1` structural claim
+   (already exempts `13071770` explicitly — verify that exemption still reads
+   correctly once the census source changes, since it was written against the
+   *old* reader's blind spot). Grep for any other consumer of the old
+   `oilsConsumed`/`firedOil` path before assuming these two are the only ones.
+3. Record the ruling in `QUESTIONS.md` as a new dated "§33 ANSWERED" heading
+   (below the existing §33/§33 UPDATE text, not editing it) stating the user
+   chose option (b), plus the corresponding `DECISIONS.md` entry.
+4. **Generalization worth carrying forward, not just fixing the instance:**
+   §33's own text notes two instruments have now broken on "an instrument
+   that walks the END of a cast, unchecked against a double-lethal cast" in
+   two sessions. If this pass finds a third, treat it as confirming a pattern
+   worth a standing note (e.g. in `castTrace.ts`'s docblock) rather than a
+   third isolated fix.
+
+---
+
+## 3. `boons.test.ts` — regenerate the `OBSERVED_OFFERS` pin
+
+**The choice made:** regenerate now rather than defer a fourth time. It has
+been checked and declined as inert by sessions 89, 90, and 91; it is now the
+**sole** blocker on both `assertionCoverage` and `preflight.ts` passing clean,
+which none of the three prior declines were true of.
+
+1. Confirm one more time that nothing has changed the underlying claim (a new
+   dungeon run reaching deeper than room 9, or a new boon type at an existing
+   room) — this is a regeneration of a stale fixture snapshot, not a licence
+   to stop checking it.
+2. Regenerate `OBSERVED_OFFERS` from the current corpus and update the
+   `Math.max(...OBSERVED_OFFERS.map(o => o.room))` pin (currently `9`) if the
+   deepest recorded offer has moved.
+3. Confirm `assertionCoverage.ts` and `preflight.ts` both actually run clean
+   afterward — that's the entire point of doing this now rather than later.
+
+---
+
+## 4. The live batch — 10 casts, standard cadence, relaxing-only for the first time
+
+### 4a. Before starting
 
 - Baseline the suite yourself (§0).
-- **Land §1 first.** The batch adds up to 10 new traces the next time anything
-  calls `loadCastTraces()`/`eraOf()`. Landing the era fix against the current
-  178-trace corpus first means it doesn't depend on data that doesn't exist
-  yet, and the batch becomes a clean out-of-sample check — the same reasoning
-  session 91 gave for landing its §2 before its own batch.
-- **Rule 13.** Read the server's own ledger before assuming budget:
-  `dayDocs[pondId 2]` casts remaining, `oilHeld.relaxing`/`oilHeld.focus`
-  stock. Session 91 left these at `10/20` for the day and `53` Relaxing / `0`
-  Focus — treat as the last known reading, not the current one; re-check.
-- **Rod durability.** The user's own report (§29, session 91) put ~40 casts of
-  headroom from 2026-08-24, of which session 91's batch already spent 10.
-  Nothing in this repo can see durability directly — the account owner is the
-  only sensor that exists — so this brief cannot promise the next 10 will be
-  real-deck casts. Check afterward (§2c-3); if a `BASE_DECK` cast turns up,
-  that's the user's call to interpret, not something to guess at.
+- **Land §1, §2, and §3 first.** None gates the others, but all three land
+  before the batch so the 10 new traces enter a corrected corpus and a
+  corrected policy, rather than needing to be reconciled against them after
+  the fact.
+- **Rule 13.** Read the server's ledger before assuming budget: `dayDocs[pondId 2]`
+  casts remaining, `oilHeld.relaxing` stock. Session 92 left the day's ledger
+  at `19/20` (**1 cast remaining that day** — confirm whether the daily
+  counter has since reset) and Relaxing stock at `46`; Focus stock was `0`
+  and is now moot regardless of its actual value, since §1 stops the bot from
+  attempting it either way.
+- Rod durability: ~20 of the user's ~40-cast estimate (from the 2026-08-24
+  repair) is spent as of session 92. Check for `BASE_DECK` casts afterward
+  (§4c-3) as before; nothing in this repo can see durability directly.
 
-### 2b. Run it
+### 4b. Run it
 
 ```
 npx tsx scripts/liveFishing.ts --casts=10 --oil-batch
 ```
 
-**`--oil-batch` is new versus session 91's command.** Session 91's own
-STATE.md found, after the fact, that all four `batchRedrawShadow*`
-accumulators and the `redraw_shadow_batch` event live entirely inside
-`if (args.oilBatch)`, which `--casts=10` alone never set — so the summary
-session 91's brief asked for never actually ran (per-turn records are
-unconditional, so nothing was lost, but the batch-level rollup never printed).
-**Confirm the flag's exact name and wiring in `liveFishing.ts` before running**
-— neither session 91 nor this brief has grepped `--oil-batch` specifically,
-only `--casts=`.
+Same flags as session 92 (carry `--oil-batch` forward — it's what makes the
+redraw-shadow batch summary print). `npx tsx` and `git` fail under the command
+sandbox — run unsandboxed.
 
-`npx tsx` and `git` fail under the command sandbox — run unsandboxed, as every
-prior session has noted.
+### 4c. After it finishes — report on
 
-### 2c. After it finishes — three separate reports, not one recap paragraph
-
-1. **The double-lethal trigger, if the band arose again.** Same depth session
-   91 gave it: both `use_fishing_item` POSTs, both slots, the `fishHp`
-   trajectory, and whether the per-cast Relaxing cap (2, from `config/bot.json`)
-   is reached and whether it actually binds this time (session 91: reached
-   once, never bound — the policy wanted exactly two, never three). If the
-   band never arose, say that plainly; it's a real outcome.
-2. **The redraw shadow, now with the batch summary.** Report the raw
-   `batchRedrawShadowDecisions`/`Fires`/`Sanity`/`Blind` counts and the
-   resulting live fire rate against the in-sample K=6 rate. More importantly,
-   check whether session 91's per-turn finding **persists at roughly double
-   the sample**: across session 91's 52 decisions, `coverageBelowK` and
-   `conditionMet` were never true on the same turn — every low-coverage turn
-   had `budget: 0`, and `conditionMet` requires `budget > 0`. That
-   anti-correlation, not the 0/52 fire count, is the thing worth re-measuring;
-   `redrawShadow.ts`'s own docblock is explicit that a live rate can show
-   whether the candidate fires at a similar rate out of sample, not whether it
-   would have helped — report at that level of honesty, no more.
-3. **Whether any of the 10 new casts were dealt `BASE_DECK`,** using the
-   `dealtDeck`/`traceDealtDeck` classification session 91 already built and
-   shared on `rodDeck.ts` — no new logic needed. Zero of session 91's 10 were;
-   if any of these are, surface it immediately rather than letting it quietly
-   join the corpus, since it would mean either the repair didn't fully take or
-   the ~40-cast estimate is wrong.
+1. **Oil spend, under the new policy.** Confirm zero Focus Oil attempts
+   (`oil_trigger_no_stock` events for 942 should disappear entirely, replaced
+   by nothing — there should be no 942 trigger evaluation at all, per §1a-2).
+   If a 942 event of any kind appears, that's a direct sign §1's config change
+   didn't take effect as expected — surface it immediately.
+2. **The double-lethal trigger, if the band arose.** Same depth as the last
+   two batches: both POSTs, both slots, `fishHp` trajectory, whether the
+   per-cast Relaxing cap (2) is reached and whether it binds (reached-not-bound
+   twice running so far). This trigger already only ever spends Relaxing
+   (937), so §1's policy change should not otherwise affect it — confirm that
+   holds rather than assuming it.
+3. **The redraw shadow — standard reporting, not an expanded batch.** The user
+   chose the standard 10-cast cadence over sizing this batch specifically to
+   chase the fire-rate puzzle (0/52 → 4/24, Fisher p = 0.008, backwards from
+   the "dead hand" pattern a redraw trigger should show). Report the batch
+   summary counts and fire rate as usual, plus a cast-length breakdown (short
+   vs long casts) so the puzzle keeps accumulating evidence without this batch
+   being scoped around it. `liveRedrawEnabled` should still read `false` on
+   every row — the shadow stays a shadow.
+4. **Whether any of the 10 new casts were dealt `BASE_DECK`,** using the
+   existing shared classification — no new logic needed.
 
 ---
 
-## 3. Gate
+## 5. Gate
 
-1. §1: `QUESTIONS.md` carries a new dated §32 ANSWERED entry recording the
-   user's choice of option (b) and precisely which boundary was implemented,
-   with measured evidence for it in `castEra.ts`'s docblock, in the same style
-   as the existing 2026-08-21 boundary's justification. Every era-conditioned
-   number named in §1a's table is recomputed on the corrected split, not
-   hand-edited. The previously-red `meanOptimal` assertion (and any sibling
-   whose claim no longer holds) is rewritten under a corrected title and
-   claim. `DECISIONS.md` carries the matching entry.
-2. §2: the batch ran to completion with `--oil-batch`, or the recap says
-   exactly why it stopped early, verified against the ledger (rule 13). All
-   three of §2c's reports are present even when the honest answer is "no, it
-   didn't happen this batch" — a null result reported is a met gate; one left
-   unmentioned is not.
+1. §1: `config/bot.json`'s `dendren.oils.allowedItemIds` is `[937]`.
+   `OIL-POLICY.md` carries a new dated section stating the Focus Oil
+   withdrawal and its cost against the (suspended) modeled recommendation.
+   `QUESTIONS.md` and `DECISIONS.md` both carry the directive.
+2. §2: `oilsConsumed` reads from `fishingCorpus.ts`'s reader; every downstream
+   pinned number is recomputed, not hand-edited; `QUESTIONS.md`/`DECISIONS.md`
+   carry the §33 ruling.
+3. §3: `OBSERVED_OFFERS` is regenerated and verified against the current
+   corpus; `assertionCoverage` and `preflight.ts` both run clean.
+4. §4: the batch ran to completion with `--oil-batch`, or the recap says
+   exactly why it stopped early (rule 13). All four of §4c's reports are
+   present even when the honest answer is "no."
 
-**What does NOT meet the gate:** widening the 0.01 bound, or hand-picking a
-boundary date, without measured evidence of the kind `castEra.ts`'s existing
-docblock already models; a boundary fix applied to `castEra.test.ts` alone
-while other `splitByEra`/`eraOf` call sites go unchecked; a live batch run
-without a ledger check first; a double-lethal or redraw-shadow live result
-that happens and goes unreported because the recap only says "batch
-completed."
+**What does NOT meet the gate:** a docs-only change to `OIL-POLICY.md` without
+the `config/bot.json` edit (the user chose the full landing, not
+documentation-only); hand-editing any of §2's downstream pins instead of
+recomputing them; regenerating `OBSERVED_OFFERS` without re-verifying the
+underlying claim first; a live batch that shows a 942 event of any kind
+without it being surfaced as a possible policy-landing failure; sizing the
+batch around the redraw-shadow puzzle after the user explicitly chose not to.
 
 ---
 
-## 4. Do not
+## 6. Do not
 
-- **Do not re-open `QUESTIONS.md` §26, §28, §29, §30, or §31.** All are
-  closed; nothing here bears on them.
-- **Do not touch `redrawEnabled` or `REDRAW_THRESHOLD`.** The shadow stays a
-  shadow regardless of anything this batch's summary shows.
-- **Do not touch `handoff/reports/session-86-redraw-revisit.md` or
-  `session-86-corpus-snapshot.md`.** Still frozen at `CORPUS-2026-08-23A`.
-- **Do not extend the batch past 10 casts** to chase a double-lethal or
-  redraw-shadow firing. The user set the number; a null result from exactly
-  10 casts is the honest result.
-- **Do not force a §1b boundary that doesn't hold up against the corpus.** If
-  neither resolution in §1b lands cleanly, write a fresh `QUESTIONS.md` entry
-  describing the new wrinkle instead of picking one by feel — a ruling for
-  option (b) in the abstract is not licence to paper over a concrete
-  granularity problem the ruling didn't anticipate.
+- **Do not re-open `QUESTIONS.md` §26, §28, §29, §30, §31, or §32.** All
+  closed.
+- **Do not touch `redrawEnabled` or `REDRAW_THRESHOLD`.** Still a shadow.
+- **Do not touch `session-86-redraw-revisit.md` or `session-86-corpus-snapshot.md`.**
+  Still frozen at `CORPUS-2026-08-23A`.
+- **Do not extend the batch past 10 casts.** The user explicitly chose the
+  standard cadence over an expanded one for the redraw-shadow puzzle.
+- **Do not lift §0a's suspension.** Nothing here re-derives +19.40pp or
+  +17.74pp on a valid instrument; §1 only changes what the bot spends, not
+  whether the old number can be quoted.
 - **`npx tsx` and `git` fail under the command sandbox. Run unsandboxed.**
 
 ---
 
-## Your task (session 92)
+## Your task (session 93)
 
-1. Determine and document the corrected era boundary (§1b), with measured
-   evidence, resolving the same-day granularity wrinkle explicitly rather than
-   glossing over it.
-2. Update `castEra.ts` (`POLICY_ERA_BOUNDARY`/`eraOf`/`splitByEra`, or an
-   expanded era model) and its docblock accordingly.
-3. Grep the whole repo for every consumer of the era split; recompute every
-   era-conditioned number the corrected boundary affects.
-4. Rewrite `castEra.test.ts`'s red assertion(s) under corrected titles and
-   claims.
-5. Record the §32 ruling in `QUESTIONS.md` (new dated heading) and
-   `DECISIONS.md`.
-6. Check the server ledger and oil stock, then run
+1. Remove `942` from `config/bot.json`'s `dendren.oils.allowedItemIds`;
+   confirm the rejection path in `mayConsumeOil` behaves as expected.
+2. Add a dated withdrawal section to `OIL-POLICY.md`; record the directive in
+   `QUESTIONS.md` and `DECISIONS.md`.
+3. Point `oilsConsumed` at `fishingCorpus.ts`'s reader (§33 option b); recompute
+   every downstream pin; record the ruling.
+4. Regenerate `boons.test.ts`'s `OBSERVED_OFFERS` pin after re-verifying the
+   underlying claim; confirm `assertionCoverage`/`preflight.ts` run clean.
+5. Check the server ledger and oil stock, then run
    `npx tsx scripts/liveFishing.ts --casts=10 --oil-batch`.
-7. Report: the double-lethal trigger's firing (or its absence) and whether its
-   cap bound; the redraw shadow's batch-summary fire rate against the
-   in-sample K=6 rate, and whether session 91's coverage/budget
-   anti-correlation persists; whether any of the 10 new casts were dealt
-   `BASE_DECK`.
-8. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
+6. Report: zero-Focus-attempt confirmation, the double-lethal trigger's firing
+   (or absence) and cap behavior, the redraw shadow's batch summary with a
+   cast-length breakdown, and whether any `BASE_DECK` casts appeared.
+7. Recap normally: full suite + `tsc --noEmit` + `git diff --check` at the
    final commit, `assertionCoverage`, `preflight.ts`, secret scan. Report the
-   actual final failure count.
+   actual final failure count — it should read 0 if §3 lands cleanly.
 
-**Honest expectation and sequencing.** §1 is the real work this session — the
-same weight session 91 gave its `damageEconomy.test.ts` reversal — because a
-boundary picked without the same rigor the existing one has would just move
-the pooling problem rather than close it. Do it first and get it right. §2's
-live batch is mechanical by comparison: nothing new is being built there, only
-run and reported on honestly, including the summary session 91's command
-accidentally skipped. **If the double-lethal band or a redraw-shadow fire
-simply don't arise in these 10 casts, that's a complete and acceptable
-result.**
+**Honest expectation and sequencing.** §1–§3 are all small, mechanical
+landings once each one's specific verification step is done — none is the
+kind of open-ended reversal §1/§2 were in sessions 91 and 92. The batch itself
+is, as it has been the last two sessions, mechanical: nothing new is being
+built, only run and reported on honestly. **If Focus Oil quietly stops
+appearing in the logs and everything else reads the same as the last two
+batches, that is the expected and complete result.**
