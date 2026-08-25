@@ -134,8 +134,8 @@ const split = splitByEra(traces, created);
 describe("the era predicate itself", () => {
   it("dates every cast off committed fixtures", () => {
     // [session 89] 148 -> 168: session 87's twenty-cast batch.
-    expect(traces.length).toBe(188);  /* [session 92] was 178 */
-    expect(created.size).toBe(188);  /* [session 92] was 178 */
+    expect(traces.length).toBe(189);  /* [session 92] was 178 */ // [session 93] was 188
+    expect(created.size).toBe(189);  /* [session 92] was 178 */ // [session 93] was 188
     for (const t of traces) expect(created.has(t.docId)).toBe(true);
   });
 
@@ -148,7 +148,7 @@ describe("the era predicate itself", () => {
     expect(FOCUS_DRY_BOUNDARY).toBe("2026-08-24T00:02:57.148Z");
     expect(split.preOil.length).toBe(94);
     expect(split.oilSupplied.length).toBe(62);
-    expect(split.focusDry.length).toBe(32);  /* [session 92] +10, the whole batch */
+    expect(split.focusDry.length).toBe(33);  /* [session 92] +10, the whole batch */ // [session 93] was 32
     expect(split.preOil.length + split.oilSupplied.length + split.focusDry.length).toBe(traces.length);
   });
 
@@ -188,7 +188,7 @@ describe("the era predicate itself", () => {
       return ts.reduce((a, t) => a + budgetZeroPlays(t), 0) / plays;
     };
     expect(rate(rod(split.oilSupplied))).toBeCloseTo(0.014, 3);
-    expect(rate(rod(split.focusDry))).toBeCloseTo(0.276, 3);  /* [session 92] was 0.365 */
+    expect(rate(rod(split.focusDry))).toBeCloseTo(0.269, 3);  /* [session 92] was 0.365 */ // [session 93] was 0.276
     expect(rate(rod(split.focusDry)) / rate(rod(split.oilSupplied))).toBeGreaterThan(15);
   });
 
@@ -262,20 +262,24 @@ describe("GATE 1a — the focus-budget era split", () => {
     // and a Focus-dry one at 33.0%, and the 11.4% was a weighted average of a
     // policy working and the same policy starved.
     expect([s.oilSupplied.casts, s.oilSupplied.plays, s.oilSupplied.budgetZero]).toEqual([62, 235, 4]);
-    expect([s.focusDry.casts, s.focusDry.plays, s.focusDry.budgetZero]).toEqual([32, 130, 37]);
-    expect([s.all.casts, s.all.plays, s.all.budgetZero]).toEqual([188, 775, 225]);
+    expect([s.focusDry.casts, s.focusDry.plays, s.focusDry.budgetZero]).toEqual([33, 132, 37]); // [session 93] +1 cast, +2 plays, +0 budget-zero
+    expect([s.all.casts, s.all.plays, s.all.budgetZero]).toEqual([189, 777, 225]); // [session 93] +1 cast, +2 plays, budget-zero UNCHANGED
     expect(s.preOil.rate).toBeCloseTo(0.449, 3);
     expect(s.oilSupplied.rate).toBeCloseTo(0.017, 3);
-    expect(s.focusDry.rate).toBeCloseTo(0.285, 3);  /* [session 92] was 0.330 */
+    expect(s.focusDry.rate).toBeCloseTo(0.28, 3);  /* [session 92] was 0.330 */ // [session 93] was 0.285
     expect(s.all.rate).toBeCloseTo(0.290, 3);
     // The pooled arms must reconstitute the old `today` arm exactly — this is
     // what makes the re-specification a SPLIT of the same casts and not a
     // silent re-selection of which casts count.
     // [session 92] The old `today` arm is now 94 casts (84 + this batch's 10),
     // and ALL of the growth is in `focusDry` — `oilSupplied` is frozen at 62.
-    expect(s.oilSupplied.casts + s.focusDry.casts).toBe(94);
-    expect(s.oilSupplied.plays + s.focusDry.plays).toBe(365);
+    // [session 93] 95, and the growth is again ENTIRELY in `focusDry` (32 -> 33)
+    // for a fourth consecutive batch. `oilSupplied` has not moved since the
+    // ruling and cannot: it is bounded on both sides by fixed timestamps.
+    expect(s.oilSupplied.casts + s.focusDry.casts).toBe(95);
+    expect(s.oilSupplied.plays + s.focusDry.plays).toBe(367);
     expect(s.oilSupplied.budgetZero + s.focusDry.budgetZero).toBe(41);
+    expect(s.oilSupplied.casts).toBe(62); // FROZEN — asserted directly, not implied by the sum
   });
 
   it("is a ~26x drop on the corrected split — the THIRTYFOLD claim was contaminated, not wrong", () => {
@@ -313,7 +317,7 @@ describe("GATE 1a — the focus-budget era split", () => {
     // later era ever does — and note `focusDry` does not either (0.864, max 2),
     // which is the mechanism holding while the SUPPLY is what changed. The
     // opening spend is a policy behaviour; the budget-zero rate is not.
-    expect(s.focusDry.meanFirstPlaySpend).toBeCloseTo(0.906, 3);
+    expect(s.focusDry.meanFirstPlaySpend).toBeCloseTo(0.909, 3); // [session 93] was 0.906
     expect(s.preOil.maxFirstPlaySpend).toBe(3);
     expect(s.oilSupplied.maxFirstPlaySpend).toBe(2);
     // ⚠⚠ [session 92] **A FINDING, NOT DRIFT — this went 2 -> 3.** One cast in
@@ -343,7 +347,7 @@ describe("GATE 1a — the focus-budget era split", () => {
     // inside noise. Say so rather than reading it as a second confirmation:
     // this file's evidence for the boundary is the focus budget, not the catch.
     expect([s.oilSupplied.resolved, s.oilSupplied.caught]).toEqual([62, 39]);
-    expect([s.focusDry.resolved, s.focusDry.caught]).toEqual([32, 16]);
+    expect([s.focusDry.resolved, s.focusDry.caught]).toEqual([33, 17]); // [session 93] the one new cast was CAUGHT
   });
 });
 
@@ -586,7 +590,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
     // detector for "did this cast use an oil", and it is now wrong by 26 casts
     // rather than by 2.
     expect(meterDetected.length).toBe(13);
-    expect(traces.filter(firedOil).length).toBe(39);
+    expect(traces.filter(firedOil).length).toBe(40); // [session 93] was 39
     // Every meter-restoring cast is an oil cast; the reverse fails 26 times.
     expect(meterDetected.every(firedOil)).toBe(true);
   });
@@ -623,7 +627,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
       return last.consumablesUsed - first.consumablesUsed;
     };
     const blind = traces.filter((t) => oldReader(t) < oilsConsumed(t));
-    expect(blind.length).toBe(27);
+    expect(blind.length).toBe(28); // [session 93] was 27
     // Never the other direction: the old reader under-counted and never
     // over-counted, which is why nothing already published was inflated.
     expect(traces.filter((t) => oldReader(t) > oilsConsumed(t))).toEqual([]);
@@ -645,7 +649,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
     // convenience.
     expect(blind.filter((t) => eraOf(t.docId, created) === "preOil").map((t) => t.docId)).toEqual(["12975152"]);
     // Everything else is in an era where the oil policy was live.
-    expect(blind.filter((t) => eraOf(t.docId, created) !== "preOil").length).toBe(26);
+    expect(blind.filter((t) => eraOf(t.docId, created) !== "preOil").length).toBe(27); // [session 93] was 26
   });
 
   it("rules the GEAR out: the decks changed a great deal and their reach did not", () => {
@@ -667,7 +671,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
     // is itself evidence the budget-zero reversion is about the consumable.
     expect(crit(split.preOil)).toBeCloseTo(0.185, 3);
     expect(crit(split.oilSupplied)).toBeCloseTo(0.316, 3);
-    expect(crit(split.focusDry)).toBeCloseTo(0.336, 3);
+    expect(crit(split.focusDry)).toBeCloseTo(0.341, 3); // [session 93] was 0.336
   });
 
   it("fires the before-era-is-oil-free assertion if that control ever stops holding", () => {
@@ -775,7 +779,7 @@ describe("§1 / GATE 1 — the bot stopped OVERSHOOTING; the target never moved"
     expect(() => assertOpeningFocusPinned(traces)).not.toThrow();
     // [session 89] 147 -> 167 of 168. The exception is still the SAME single
     // cast, which is the claim: twenty more casts produced no new one.
-    expect(traces.filter((t) => t.hasStart).length).toBe(187);  /* [session 92] was 177 */
+    expect(traces.filter((t) => t.hasStart).length).toBe(188);  /* [session 92] was 177 */ // [session 93] was 187
     const unrecorded = traces.filter((t) => !t.hasStart);
     expect(unrecorded).toHaveLength(1);
     expect(unrecorded[0]!.docId).toBe("12975152");
@@ -791,13 +795,13 @@ describe("§1 / GATE 1 — the bot stopped OVERSHOOTING; the target never moved"
   });
 
   it("reproduces the brief's table cell for cell — and the optimal move is UNCHANGED, tested at the corpus's own resolution", () => {
-    expect([over.preOil.casts, over.oilSupplied.casts, over.focusDry.casts]).toEqual([94, 62, 32]);
+    expect([over.preOil.casts, over.oilSupplied.casts, over.focusDry.casts]).toEqual([94, 62, 33]); // [session 93] focusDry +1
 
     // The hands did not get wider — and this now holds across all three eras
     // (7.38 / 7.19 / 7.14), so it is not an artefact of where the cut is made.
     expect(over.preOil.meanHandFootprint).toBeCloseTo(7.38, 2);
     expect(over.oilSupplied.meanHandFootprint).toBeCloseTo(7.19, 2);
-    expect(over.focusDry.meanHandFootprint).toBeCloseTo(7.09, 2);
+    expect(over.focusDry.meanHandFootprint).toBeCloseTo(7.12, 2); // [session 93] was 7.09
 
     // What the bot spent — and it must reproduce `focusEraSplit`'s own figure
     // rather than merely resemble it, which is what the shared first-play
@@ -846,7 +850,7 @@ describe("§1 / GATE 1 — the bot stopped OVERSHOOTING; the target never moved"
      * ===================================================================== */
     expect(over.preOil.meanOptimal).toBeCloseTo(0.656, 3);
     expect(over.oilSupplied.meanOptimal).toBeCloseTo(0.645, 3);
-    expect(over.focusDry.meanOptimal).toBeCloseTo(0.625, 3);
+    expect(over.focusDry.meanOptimal).toBeCloseTo(0.606, 3); // [session 93] 0.625 -> 0.606 on one added cast, which is what n=33 does
 
     const gap = meanOptimalGap(over.preOil, over.oilSupplied);
     expect(gap.gap).toBeCloseTo(0.0108, 4);
@@ -868,7 +872,7 @@ describe("§1 / GATE 1 — the bot stopped OVERSHOOTING; the target never moved"
     // a point bound. The overspend gap dwarfs the difficulty gap ~68-fold.
     expect(over.preOil.overspend).toBeCloseTo(0.897, 3);
     expect(over.oilSupplied.overspend).toBeCloseTo(0.161, 3);
-    expect(over.focusDry.overspend).toBeCloseTo(0.281, 3);
+    expect(over.focusDry.overspend).toBeCloseTo(0.303, 3); // [session 93] was 0.281
     const overspendGap = over.preOil.overspend - over.oilSupplied.overspend;
     expect(overspendGap).toBeCloseTo(0.736, 3);
     expect(overspendGap / gap.gap).toBeGreaterThan(20);
@@ -889,13 +893,13 @@ describe("§1 / GATE 1 — the bot stopped OVERSHOOTING; the target never moved"
     // to 48/39/13%; focusDry 10/11/1 to 45/50/5%. All three are the same shape.
     expect([...over.preOil.optimalHistogram.entries()].sort()).toEqual([[0, 41], [1, 43], [2, 9]]);
     expect([...over.oilSupplied.optimalHistogram.entries()].sort()).toEqual([[0, 30], [1, 24], [2, 8]]);
-    expect([...over.focusDry.optimalHistogram.entries()].sort()).toEqual([[0, 15], [1, 14], [2, 3]]);
+    expect([...over.focusDry.optimalHistogram.entries()].sort()).toEqual([[0, 16], [1, 14], [2, 3]]); // [session 93] the new cast's optimal opening move is 0
     // The ACTUAL distributions, by contrast, are nothing alike — and the tell
     // is the tail: 17 preOil casts spent the WHOLE meter on move one, and
     // neither later era has a single such cast.
     expect([...over.preOil.actualHistogram.entries()].sort()).toEqual([[0, 12], [1, 35], [2, 30], [3, 17]]);
     expect([...over.oilSupplied.actualHistogram.entries()].sort()).toEqual([[0, 26], [1, 22], [2, 14]]);
-    expect([...over.focusDry.actualHistogram.entries()].sort()).toEqual([[0, 12], [1, 12], [2, 7], [3, 1]]);
+    expect([...over.focusDry.actualHistogram.entries()].sort()).toEqual([[0, 12], [1, 13], [2, 7], [3, 1]]); // [session 93] +1 at bucket 1
     // ⚠⚠ [session 92] **THE TELL HAS REAPPEARED IN `focusDry` — ONE CAST.**
     // Session 92's first pass asserted no later-era cast had ever spent the
     // whole meter on move one, and the 22:3x batch produced one that did. It

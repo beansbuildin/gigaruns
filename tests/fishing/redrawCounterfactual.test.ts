@@ -69,7 +69,7 @@ const TRACES = loadCastTraces();
 describe("the triple reconstruction — §2a, pinned before the table that uses it", () => {
   it("advances nextCardIndex by exactly +3 on every draw that advances it, with 7 pile wraps", () => {
     const tr = tripleReconstruction(TRACES);
-    expect(tr.traces).toBe(188); // was 148 @148 casts  /* [session 92] was 178 */
+    expect(tr.traces).toBe(189); // [session 93] was 188; was 148 @148 casts  /* [session 92] was 178 */
     expect(tr.deltas.get(3)).toBe(177); // was 137  /* [session 92] was 174 */
     expect(tr.wraps).toBe(7);
     // Session 79's wraps, by size. The cursor goes DOWN, because the server
@@ -259,8 +259,8 @@ describe("the mana slack — §1c, GATE 2", () => {
    */
   it("reproduces the distribution the corpus now yields, with the shape unmoved", () => {
     const m = manaSlack(TRACES);
-    expect(m.casts).toBe(187); // was 147  /* [session 92] was 177 */
-    expect(m.mean).toBeCloseTo(5.866310160427807, 2); // was 5.85  /* [session 92] was 5.768 */
+    expect(m.casts).toBe(188); // [session 93] was 187; was 147  /* [session 92] was 177 */
+    expect(m.mean).toBeCloseTo(5.88, 2); // [session 93] was 5.866310160427807; was 5.85  /* [session 92] was 5.768 */
     expect(m.median).toBe(7); // UNCHANGED
     expect(m.manaOut).toBe(19); // was 15  /* [session 91] was 17 */
     expect([...m.hist.entries()].sort((a, b) => a[0] - b[0])).toEqual([
@@ -272,16 +272,16 @@ describe("the mana slack — §1c, GATE 2", () => {
       [5, 20], // [session 92] was 19
       [6, 22], // [session 91] was 19
       [7, 35], // [session 91] was 32
-      [8, 60], // [session 92] was 55 — still the mode
+      [8, 61], // [session 93] was 60; [session 92] was 55 — still the mode
       [9, 8], // [session 92] was 5, unchanged for six batches before this
     ]);
   });
 
   it("splits by outcome, and the caught arm still leaves MORE mana unspent", () => {
     const m = manaSlack(TRACES);
-    expect(m.caught).toBe(69); // was 48  /* [session 92] was 64 */
+    expect(m.caught).toBe(70); // [session 93] was 69; was 48  /* [session 92] was 64 */
     expect(m.escaped).toBe(118); // was 99  /* [session 92] was 113 */
-    expect(m.meanWhenCaught).toBeCloseTo(6.898550724637682, 2); // was 6.73  /* [session 92] was 6.766 */
+    expect(m.meanWhenCaught).toBeCloseTo(6.91, 2); // [session 93] was 6.898550724637682; was 6.73  /* [session 92] was 6.766 */
     expect(m.meanWhenEscaped).toBeCloseTo(5.262711864406779, 2); // was 5.42  /* [session 92] was 5.204 */
     // The DIRECTION is the finding and it widened rather than eroded: casts
     // that landed the fish ended with more mana left over, not less.
@@ -290,18 +290,18 @@ describe("the mana slack — §1c, GATE 2", () => {
 
   it("says the pool is not what ends casts: 89.8% of casts leave mana unspent", () => {
     const m = manaSlack(TRACES);
-    expect(m.casts - m.manaOut).toBe(168); // was 132  /* [session 92] was 158 */
+    expect(m.casts - m.manaOut).toBe(169); // [session 93] was 168; was 132  /* [session 92] was 158 */
     // 89.8% SURVIVES TO THREE DECIMALS on 20 more casts — the one figure in
     // this file the corpus growth did not move at all.
-    expect((m.casts - m.manaOut) / m.casts).toBeCloseTo(0.8983957219251337, 3);  /* [session 92] was 0.8927 */
+    expect((m.casts - m.manaOut) / m.casts).toBeCloseTo(0.899, 3);  /* [session 92] was 0.8927 */ // [session 93] was 0.8983957219251337
   });
 
   it("excludes unresolved casts rather than reading a truncated capture as a cast end", () => {
     // Anti-vacuity: the resolved filter must actually filter, otherwise "147"
     // is just "every trace" wearing a predicate.
-    expect(TRACES.length).toBe(188); // was 148  /* [session 92] was 178 */
+    expect(TRACES.length).toBe(189); // [session 93] was 188; was 148  /* [session 92] was 178 */
     // STRUCTURAL AND UNCHANGED: still EXACTLY one unresolved trace.
-    expect(TRACES.filter((t) => t.caught || t.escaped)).toHaveLength(187); // [session 92] was 177
+    expect(TRACES.filter((t) => t.caught || t.escaped)).toHaveLength(188); // [session 92] was 177; [session 93] +1
     expect(TRACES.length - TRACES.filter((t) => t.caught || t.escaped).length).toBe(1);
   });
 });

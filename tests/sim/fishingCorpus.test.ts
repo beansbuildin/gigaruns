@@ -146,10 +146,10 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // +52 playTurns, +4 caught, +6 escaped. `incomplete` is UNCHANGED at 1 for
     // the SEVENTH consecutive oil batch — the structural half of this pin, and
     // the reason it is asserted separately from the counts.
-    expect(summary.casts).toBe(188); // was 178
-    expect(summary.responseDocs).toBe(1086); // was 1040
-    expect(summary.playTurns).toBe(776); // [session 92] was 752
-    expect(summary.caught).toBe(69); // [session 92] was 64
+    expect(summary.casts).toBe(189); // [session 93] was 188; was 178
+    expect(summary.responseDocs).toBe(1091); // [session 93] was 1086; was 1040
+    expect(summary.playTurns).toBe(778); // [session 93] was 776; [session 92] was 752
+    expect(summary.caught).toBe(70); // [session 93] was 69; [session 92] was 64
     expect(summary.escaped).toBe(118); // [session 92] was 113
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
@@ -568,6 +568,11 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // correct source already exists in this repo, and only the trace-derived
       // path is blind.
       "13071770", "13071790", "13071794", "13071804",
+      // [session 93] +1 from the single-cast batch: `13073296`, ONE Relaxing oil,
+      // the first cast ever played with Focus Oil withdrawn by policy rather than
+      // absent for stock. The lethal trigger landed the kill on the closing turn —
+      // the exact shape §33 had been blind to, now counted correctly.
+      "13073296",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

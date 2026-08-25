@@ -130,7 +130,32 @@ export function reconcileFishingLedger<T extends FishingLedgerCounts>(
   const why =
     direction === "raised"
       ? `casts this process did not send (a browser cast, or another client) — planning off the repo's ${repoCastsBefore} would attempt a cast the server will reject`
-      : `the repo over-counted by ${repoCastsBefore - gameCasts} — the game says that many more cast(s) remain than the repo believed`;
+      : // ── [session 93 §4, QUESTIONS.md §34 ANSWERED] THE CAUSE HAS A NAME ──
+        //
+        // **`JEBAITOR`.** The account carries a skill with a per-cast chance
+        // that the cast does not count against the daily ledger — user-stated
+        // 2026-08-24, and visible on the server's own `start_run` response as
+        // an event of that type carrying the proc percentage as its `value`.
+        //
+        // Confirmed against the committed fixtures: of 166 captured
+        // `start_run` responses, exactly 3 carry it, and **two of those three
+        // are the two casts known to have gone uncharged** — `13071800`
+        // (session 92's §34) and `13073296` (session 93), both at `value:
+        // 6.75`. The third, `13024510` at `value: 2.25`, predates the
+        // reconciliation instrument entirely, so nobody was watching; it is an
+        // unobserved instance, not a counterexample. (CLAUDE.md rule 10: the
+        // JEBAITOR event is on the SERVER's response and predates the
+        // instrument, which is what makes it datable at all.)
+        //
+        // **So this direction is EXPECTED and benign, and it is a GAIN.** The
+        // repo counted a cast the game did not charge, so the account gets one
+        // more cast that day than the cap implies. Deferring to the game is
+        // still right; what changes is that a future session must not read this
+        // as a repo defect. The other direction — `raised` — has no such
+        // explanation and remains worth investigating.
+        `the repo over-counted by ${repoCastsBefore - gameCasts} — the game says that many more cast(s) remain than the repo believed. ` +
+        `EXPECTED CAUSE: the JEBAITOR skill (a per-cast chance the cast does not count against the daily ledger; ` +
+        `look for a JEBAITOR event on that cast's start_run response). This direction is a GAIN, not a defect — see QUESTIONS.md §34`;
 
   return {
     // `energySpent` is carried through untouched — see the header.

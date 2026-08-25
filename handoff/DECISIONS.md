@@ -2037,3 +2037,21 @@ hole, the same distinction sessions 60/61/75 drew. **Sixth consecutive session
 of that pattern.** Suite went 1 failed → **0 failed, 1757 passed**, and
 `assertionCoverage` ran for the first time in five sessions: 1757 tests counted,
 zero vacuous.
+
+2026-08-24 (session 93) — **§34 ANSWERED: THE UNCHARGED CASTS ARE A SKILL PROC
+NAMED `JEBAITOR`, VISIBLE ON THE SERVER'S OWN `start_run` RESPONSE.** User-stated:
+a skill with a ~6.75% chance that a cast does not count against the daily ledger.
+§34 asked for the `start_run` body on recurrence; it recurred, the body was
+captured, and it carries `{"type":"JEBAITOR","value":6.75}` — the `value` is the
+proc rate. Census: **166 casts with a captured `start_run`, `JEBAITOR` on exactly
+3**, and **two of those three are the only two casts ever observed to go
+uncharged** (`13071800`, session 92's own §34 cast, and `13073296`, this one).
+The third, `13024510` at `value: 2.25`, predates `fishing_ledger_reconciled`
+entirely, so it is an unobserved instance rather than a counterexample — ⚠ and
+the only reason this is datable at all is that the event sits on the SERVER's
+response and predates the instrument, which is precisely CLAUDE.md rule 10's
+prescribed move. **This direction is a GAIN, not a defect** (21 casts today
+instead of 20); the `raised` direction still has no explanation and this answer
+must not be generalised to it. **Do not plan around it** — a post-hoc bonus is
+not schedulable allowance, and the ledger stays the only authority (rule 13).
+`fishingLedgerReconcile.ts` now names the cause in its `lowered` note.

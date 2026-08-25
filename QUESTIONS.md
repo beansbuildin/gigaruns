@@ -2819,3 +2819,58 @@ on a scarce hand-crafted item. See `handoff/OIL-POLICY.md` §4.
 
 **No question attached.** Recorded so the next session does not read the empty
 Focus bag as the cause and "restore" the item id when stock returns.
+
+---
+
+## §34 ANSWERED [session 93 §4, user-stated 2026-08-24] — IT IS A SKILL, IT IS NAMED `JEBAITOR`, AND IT IS ON THE SERVER'S OWN `start_run` RESPONSE
+
+**The answer, from the account owner:** *"I have a skill that has a 6.75% chance
+of a cast not counting against the daily ledger. so one trigger of that today
+allowed us to have 21 casts instead of 20."*
+
+**§34 asked for exactly the right capture and the capture carries the proof.**
+§34's closing line was "if it recurs, capture the `start_run` RESPONSE body for
+the uncharged cast". It recurred this session, the body was captured, and it
+contains a single event:
+
+```json
+{"type": "JEBAITOR", "playerId": -1, "batch": 0, "value": 6.75, "data": {}}
+```
+
+The `value` is the proc percentage. Census over every committed fixture — **166
+casts with a captured `start_run`, and `JEBAITOR` appears on exactly 3**:
+
+```
+  docId       when                      value   charged?
+  13024510    2026-08-21T21:59:50.786Z   2.25   unknown — predates the instrument
+  13071800    2026-08-24T22:35:50.831Z   6.75   NO  ← session 92's §34 cast
+  13073296    2026-08-25T02:20:23.009Z   6.75   NO  ← this session's
+```
+
+**Two of the three are the two casts known to have gone uncharged, and they are
+the only two ever observed.** `13071800` is the exact docId session 92 named.
+
+⚠ **The third is not a counterexample — it is CLAUDE.md rule 10 in action.**
+`13024510` predates `fishing_ledger_reconciled` (session 92's instrument), so
+nobody was watching that day; it is an unobserved instance, not a
+contradiction. The reason this can be dated at all is that the `JEBAITOR` event
+is on the **SERVER's** response and predates the instrument, which is exactly
+the field rule 10 says to re-ask the question with. Its lower `value` (2.25 vs
+6.75) suggests the skill was levelled between 08-21 and 08-24, but that is an
+inference from two points and is not asserted.
+
+### What changes as a result
+
+- **The direction is EXPECTED and it is a GAIN, not a defect.** The repo counts
+  a cast the game does not charge, so the account gets *more* casts that day
+  than the cap implies — 21 instead of 20 today. Deferring to the game stays
+  correct; what changes is that a future session must not investigate this as a
+  repo bug. `src/orchestrator/fishingLedgerReconcile.ts` now names the cause in
+  the `lowered` note and points here.
+- **The `raised` direction still has no explanation** and remains worth
+  investigating. Do not generalise this answer to it.
+- **Do not plan around it.** ~6.75% per cast is a bonus that shows up after the
+  fact, not allowance to schedule. The ledger remains the only authority
+  (CLAUDE.md rule 13).
+
+**§34 is CLOSED.**
