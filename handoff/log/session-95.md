@@ -163,3 +163,207 @@ reconcile, so rule 13 never came up.
   M  tests/fishing/{cardChoice,redraw}.test.ts
   !  data/minedFishPatterns.json         3 -> 11 patterns — GITIGNORED, see above
 ```
+
+---
+
+# APPENDIX — session 95 verbose detail
+
+## §A — the three pairs, as measured (not as transcribed by the brief)
+
+Whole-object recursive diff of `data.run.players[0]` across each pair. The only
+key whose JSON differs is `pickedBoons`; `health`, `shield`, `rock`, `paper`,
+`scissor`, `evasion`, `block`, `lck`, `tenacity`, `intuition`, `statusEffects`,
+`activeEffects`, `triggeredBoons`, `gearBoons`, `focusBuffs`,
+`battleArmorReduction`, `lastMove`, `otherPlayerWin`, `thisPlayerWin` all
+byte-identical.
+
+```
+  AddWeakMagic    009→010  Rare      RARITY_CID 2  val1 2  val2 0  arr [2,2,null,null]
+  VulnerableCrit  055→056  Rare      RARITY_CID 2  val1 1  val2 0  arr [1,1,null,null]
+  Regen           105→106  Uncommon  RARITY_CID 1  val1 1  val2 0  arr [1,2,null,null]
+```
+
+`Regen` was picked at `health.current` = **1** of a `currentMax` of 40. An
+on-pickup heal of any size would have been impossible to miss, and `health` is
+identical across the pair. That is the strongest instance of DECISIONS
+2026-08-15 (never infer from the name) this table has had since `SecondWind`.
+
+**What the entry does NOT settle, and says so:** whether `Regen` ticks per turn.
+`BoonEffect` has no per-turn kind and Task 4.5 restricts the model to the pickup
+instant. Confirming or refuting a tick needs its own multi-turn capture after a
+`Regen` pickup and probably a new `BoonEffect` kind.
+
+## §B — the additivity check, in full
+
+Multiset diff of `room: opt(v1,v2) | …` keys, corpus against table:
+
+```
+  corpus rows: 249   table rows: 227   delta: 22
+  IN CORPUS, ABSENT FROM TABLE : 22
+  IN TABLE, ABSENT FROM CORPUS :  0   <-- the one that matters
+  ADDITIVE: YES
+  room max — table: 9   corpus: 9
+```
+
+New rows by room: 4 at room 1, 4 at 2, 4 at 3, 3 at 4, 3 at 5, 3 at 6, 1 at 7.
+Deepest is room 7, well short of session 53's room-9 offer, so the room-max pin
+and the "offers stop one room short of the deepest death" invariant hold.
+
+`source` convention was re-derived rather than assumed: it is the BEFORE state,
+the one carrying `rewardPathOptions`. Verified against an existing row
+(`run-2026-08-13-23-29-39/state-008` → `[AddLuck, CorrosiveShield, UpgradePaper]`,
+`rewardPathPhase: true`).
+
+## §C1 — the undercount, and why the brief's hypothesis was wrong
+
+The brief expected a call-site bug in `liveRun.ts` at the run's last room, on
+the `oilsConsumed` closing-turn pattern. It is not that. The evidence:
+
+```
+  $ git show 47076bfb:src/sim/boons.ts | grep -c "VulnerableCrit"   -> 0
+  $ git show 47076bfb:src/sim/boons.ts | grep -c '"AddWeakMagic"'   -> 3
+  $ git show 47076bfb:src/sim/boons.ts | grep -c '"Regen"'          -> 8
+```
+
+`UNMODELLED_TYPES` is derived from `OBSERVED_OFFERS`. At the session-94 handoff
+commit `VulnerableCrit` appeared nowhere in `boons.ts`, so it could not be in
+`UNMODELLED_TYPES`, so `unmodelledPicked` could not count it. Two of three
+countable → the stdout's 2 against the test's 3.
+
+The list was blindest at the FIRST-EVER pickup of a brand-new type — which is
+the single case the instrument exists to report.
+
+Fix: the third parameter is now an `isModelled` predicate defaulting to
+`!BOON_MODELS[t]`, not an unmodelled list. `unmodelledTypesAtRunStart` still
+reports the list's size, which is a genuine table metric, and its docstring now
+says so explicitly.
+
+## §C2 — the drift warning, before and after
+
+Before: *"guard enforced off committed spend (CODEXREVIEW #8), not the observed
+delta. Possible external balance change (e.g. a ROM claim) landed mid-run."*
+
+After: *"… Leading candidate is in-run passive regen (18/hr) crediting back part
+of the charge — expected on any run of nontrivial length, and not asserted. A
+gap far larger than regen could account for would instead suggest an external
+balance change; check the ROM/claim history before assuming one."*
+
+The hedge is deliberate and matches DECISIONS 2026-08-23 (session 87 §3) word
+for word in intent: regen is the LEADING CANDIDATE, not asserted. Enforcement is
+untouched — §23 said explicitly not to fix the underlying drift.
+
+## §D/§E — the two stale config artefacts
+
+`config/bot.json`'s `boonCapture.targets` held **five types that are all now
+modelled** (TieWeak, AddBurnShield, AddLifestealShield, Regen, VulnerableBlock —
+each checked against `BOON_MODELS` rather than assumed). Armed against that
+list, limit 3 retires every entry and the override silently does nothing.
+Re-synced to `DEFAULT_CAPTURE_TARGETS` with a comment saying to keep them in
+step. `enabled` still `false`.
+
+`scripts/claimRoms.ts` had zero argv parsing. Now:
+`rejectUnknownArgs(process.argv.slice(2), KNOWN_ARGS, USAGE)` as `main()`'s first
+statement, a real `--dry-run` that does the read half and never calls
+`claimRomEnergy`, and a `USAGE` block. Tests are SOURCE assertions on purpose —
+importing the module runs `main()` and would make a real claim from the suite.
+
+## §F2 — the redraw budget, and the comparison that was checked
+
+The oil per-cast cap's own comment, quoted because it is the sentence this gap
+needed: *"The cast CONTINUES and the batch does NOT halt. A ceiling reached is
+an expected state, not a rule-5 unexpected one."*
+
+One constant became two:
+
+```
+  REDRAW_BUDGET_PER_CAST = 5     policy ceiling, now in the branch CONDITION
+  REDRAW_RUNAWAY_GUARD          = REDRAW_BUDGET_PER_CAST, unreachable assertion
+```
+
+Exhausting the budget falls through and plays the already-chosen `best`, which
+advances `turn` — so the spin `MAX_TURNS` could not bound is bounded by
+`MAX_TURNS x REDRAW_BUDGET_PER_CAST` without any cast being aborted. Test
+evidence: with `alwaysRedrawWorthy`, exactly 5 redraws POSTed, a real card
+played afterwards, `runOneCast` RESOLVES instead of rejecting.
+
+`redraw_suppressed`'s existing reason string was left byte-identical on purpose
+(rule 10) — QUESTIONS.md §28's 449 counted decisions are keyed on it.
+
+## §G — the focus-reserve derivation, with the sweep output
+
+```
+  CLAIM 1 — clamping inside the default search space: 0 of 1912 candidates.
+  CLAIM 2 — max |termDiff - (-(w/3)*Δd)| over all candidate pairs: 0.
+  CLAIM 3 — tax at the shipped w=3: 1.00 EV-units per manhattan step.
+    remaining 3: 17 candidate cell(s), longest move 3 step(s), worst-case tax 3.0
+    remaining 2: 11 candidate cell(s), longest move 2 step(s), worst-case tax 2.0
+    remaining 1:  5 candidate cell(s), longest move 1 step(s), worst-case tax 1.0
+    remaining 0:  1 candidate cell(s), longest move 0 step(s), worst-case tax 0.0
+```
+
+`bestFocusForCard`'s default search space is
+`reachableCells(gridSize, focusBudget.current, focusBudget.remaining)`, so every
+candidate satisfies `d <= remaining` and `Math.max(0, remaining - d)` never
+clamps. With the only nonlinearity unreachable:
+
+```
+  w * (remaining - d) / MAX  =  (w * remaining / MAX)  -  (w / MAX) * d
+                                └── per-decision constant, cancels in argmax
+```
+
+So the term is exactly `-(w/MAX)·d`. This reconciles session 48 ("w=0 and w=3
+indistinguishable over 73 whole traces" — measured across all turns, 50.4% of
+which were at focus zero) with session 85 gate 2 ("w=3 lands 0.004 outside the
+opening-spend interval, w=0 0.207" — measured on turn 1, the only turn where
+`remaining` is 3). Both correct; they measure different turns of a term that
+only lives on the early ones.
+
+## §H — the miner's full output
+
+```
+  778 transitions across 189 casts
+  first-move: step1 101, diag1 51, line2 36, jump2 0, other 1
+  1 cast excluded (12923189, duplicate/conflicting records at turn 0, CODEXREVIEW #5)
+
+  perimeterWalk(cw)     support=13     bounce(-1,0)        support=3
+  perimeterWalk(ccw)    support=13     bounce(-1,1)        support=3
+  bounce(1,0)           support=5      bounce(-1,-1)       support=3
+  bounce(0,1)           support=4      twoCellCycle(0,-1)  support=3
+  bounce(0,-1)          support=4      bounce(1,-1)        support=2  (below)
+  bounce(1,1)           support=4      bounce(0,2)         support=2  (below)
+  bounce(2,0)           support=4      twoCellCycle(1,0)   support=1  (below)
+                                       twoCellCycle(-1,0)  support=1  (below)
+                                       twoCellCycle(0,1)   support=1  (below)
+
+  PROMOTION_THRESHOLD = 3  →  11 promoted
+```
+
+The brief's prediction was wrong in three ways, recorded so the next brief does
+not repeat it: `bounce(2,0)` was ALREADY in the live library (which held 3
+patterns, not 2); `bounce(-2,0)` is not a candidate at any support level; and
+the count is 11, not 4. The two `perimeterWalk` supports went 11 → 13, not
+11/88 → some larger fraction of 189 — support is a CAST COUNT, not a rate.
+
+⚠ The miner also prints a `castSim` comparison (blind 46/500 = 9.2%, mined
+297/500 = 59.4%). **That number may not be quoted.** OIL-POLICY.md §0a suspends
+`castSim` for this fishery.
+
+## Verification, final, against the handoff commit
+
+```
+  npx vitest run                  105 files, 1792 passed, 0 failed
+  npx tsc --noEmit                clean
+  git diff --check                clean
+  npx tsx scripts/assertionCoverage.ts   1792 counted, every one called expect()
+  npx tsx scripts/preflight.ts    PASSED — green in a stranger's tree
+                                  (1776 passed | 16 author-data skipped)
+  tests/discoveredShipsClean      8/8
+  secret scan (4 patterns, tracked files, handoff/ excluded)
+      eyJ…            1 hit — tests/api/client.test.ts:542, a synthetic
+                      "eyJhbGciOiJIUzI1NiJ9." + "x".repeat(300), pre-existing
+      0x[hex]{64}     0
+      BEGIN … PRIVATE KEY  0
+      gigaverse-jwt.txt=   0
+  .gitignore covers .env, .env.*, *.key, data/, logs/, profiles/,
+      fixtures/**/*.har, fixtures/**/raw/
+```

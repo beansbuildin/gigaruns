@@ -2141,3 +2141,111 @@ resulted — a ROM claim is an energy GAIN, and `liveRun.ts`'s preflight perform
 it autonomously under rule 12 — but a script that accepts a flag it does not
 implement will eventually be trusted to have honoured it. It should reject
 unknown argv rather than proceed.
+
+2026-08-25 (session 95 §A) — **THE THREE FIRST-EVER BOON PAIRS WERE MODELLED
+FROM n=1, BY EXPLICIT USER DIRECTIVE, AGAINST THE MORE CAUTIOUS DEFAULT.**
+`AddWeakMagic`, `VulnerableCrit` and `Regen` all land `latent`. The alternative
+— leave `tests/boons.test.ts` red until a SECOND pickup confirms each reading —
+was put to the user in chat and declined. ⚠ **Record it as a deliberate choice
+against the safer option, not an oversight**, so a later reader who finds one of
+these three moving a field on a second pickup knows exactly which block to
+revisit. The `latent` verdict itself is MEASURED, not a fallback: a whole-object
+recursive diff of `players[0]` across each pair shows the only difference is the
+append to `pickedBoons`. `Regen` is the sharpest test of the never-infer-from-
+the-name rule since `SecondWind` — it was picked at hp **1 of 40**, so an
+on-pickup heal of any size would have been impossible to miss, and `health` is
+byte-identical. Whether it TICKS per turn is unconfirmed, out of scope
+(`BoonEffect` has no per-turn kind, and Task 4.5 restricts the model to the
+pickup instant), and deliberately left open in its own entry rather than closed
+by a confident-looking model.
+
+2026-08-25 (session 95 §C1) — **`boonRunCoverage` UNDERCOUNTED BECAUSE
+`UNMODELLED_TYPES` IS DERIVED FROM `OBSERVED_OFFERS`, NOT BECAUSE OF A CALL-SITE
+BUG.** The session-95 brief predicted a bug in `liveRun.ts` at the run's last
+room, on the `oilsConsumed` closing-turn pattern. ⚠ **That hypothesis is wrong
+and should not be re-investigated.** `git show 47076bfb:src/sim/boons.ts | grep
+-c VulnerableCrit` returns **0** against 3 for `AddWeakMagic` and 8 for `Regen`:
+a type the OFFER TABLE has never recorded cannot be in `UNMODELLED_TYPES`, so
+`unmodelledPicked` could not count it — 2 of 3. **The list was blindest at the
+first-ever pickup of a brand-new type, which is the one case the instrument
+exists to report.** Fixed by taking an `isModelled` PREDICATE
+(`!BOON_MODELS[t]`) instead of a list. `unmodelledTypesAtRunStart` still reports
+the LIST's size, which is a real table metric, and now says so.
+
+2026-08-25 (session 95 §B) — **`pickBoon` CAN NOW TOP-RANK AN UNMODELLED BOON —
+4 of 996 DECISIONS — AND THE MODULE'S PREMISE SURVIVES ANYWAY.** Session 55's
+0-of-540 measurement no longer holds on the grown corpus, and the assertion was
+**rewritten rather than renumbered**, because the two readings imply opposite
+actions. All 4 are ONE offer at four HP fractions
+(`run-2026-08-25-03-25-26/state-069`, room 5: RegenMastery | CorrosiveSword |
+Vengeance) and all three options score **exactly 10** — the `unknown` floor —
+because `categorise` sends LATENT boons there too. The tie breaks on wire-array
+position. **So `pickBoon` did not PREFER an unmodelled boon; it could not tell
+three floor-scored options apart.** `tests/boonCapture.test.ts`'s own header
+says the module should be DELETED if its premise stops holding, which is why the
+distinction was not papered over: the test now fails loudly on a strict
+preference and pins the benign tie count separately.
+
+2026-08-25 (session 95 §F2) — **THE REDRAW PER-CAST CAP NO LONGER ABORTS THE
+CAST; ONE OF QUESTIONS.md §28's TWO UNPAID CORRECTNESS GAPS IS PAID.** Hitting
+`MAX_REDRAWS_PER_CAST` threw a `GuardTrip`, treating a POLICY CEILING — an
+expected state — as a rule-5 unexpected one, and a cast is a unit of a capped
+daily allowance. The comparison was **checked before being leaned on**: the
+per-cast OIL cap already logs, prints "playing on without it" and continues, and
+its own comment reads *"A ceiling reached is an expected state, not a rule-5
+unexpected one."* The constant splits into `REDRAW_BUDGET_PER_CAST` (5, number
+unchanged and still uncalibrated) in the branch CONDITION, so exhaustion falls
+through and PLAYS — which also advances `turn` and bounds the spin structurally
+— plus `REDRAW_RUNAWAY_GUARD`, unreachable by construction and kept as a
+fail-closed assertion. ⚠ **`redrawEnabled` stays false and `REDRAW_THRESHOLD`
+stays 0; the VERDICT does not move**, only its stated reason, from "two unpaid
+gaps" to "one".
+
+2026-08-25 (session 95 §F1) — **THE OTHER REDRAW GAP IS NOT CLOSED, AND
+RECORDING IS NOT CHOOSING.** The two candidate semantics turned out to be
+already named concretely in the code by session 78 §6, so the brief's request to
+articulate them was already satisfied. Neither has been measured and session 95
+did **not** choose. `redraw_sent` now carries `fishFrom`, `fishTo` and
+`observedByMatcher: false` — the only part of the gap that can be paid offline —
+so the recalibration has data instead of nothing. ⚠ **The matcher is untouched,
+`turn` is untouched, and nothing reads those fields.** A reader who takes their
+presence as a lean toward semantics (a) has it backwards.
+
+2026-08-25 (session 95 §G) — **THE FOCUS-RESERVE TERM IS A MOVEMENT TAX, NOT A
+RETENTION REWARD, AND THE REPO'S OWN DOCS SAID OTHERWISE IN TWO PLACES.**
+`bestFocusForCard` searches `reachableCells(gridSize, current, remaining)`, so
+every candidate satisfies `d <= remaining` and the `Math.max(0, …)` clamp is
+DEAD CODE — **0 of 1912** swept candidates clamp. With the only nonlinearity
+unreachable, `w*(remaining-d)/MAX` splits into a per-decision CONSTANT that
+cancels in the argmax plus `-(w/MAX)*d`. So the term is **exactly a linear
+movement tax of 1.00 EV-units per manhattan step at the shipped w=3** (max error
+against that form over every candidate pair: 0). Its RATE is constant, its REACH
+is bounded by `remaining`, so it is structurally a first-turns-only effect.
+**This reconciles two measurements that looked contradictory**: session 48's
+"w=0 and w=3 indistinguishable over 73 whole traces" (all turns; 50.4% of them
+at focus zero) and session 85 gate 2's "w=3 lands 0.004 outside the
+opening-spend interval, w=0 0.207" (turn 1). Both correct. ⚠ §27 does NOT close:
+the remaining question is the ΔEV-per-step distribution at decision points, and
+it was measured on NEITHER side — live needs the off-policy replay machinery,
+sim needs `castSim`, which §0a suspends.
+
+2026-08-25 (session 95 §H) — **RE-MINING PROMOTED 11 PATTERNS, NOT THE ~4 THE
+BRIEF EXPECTED, AND IT WAS NOT REVERTED.** `data/minedFishPatterns.json` went
+**3 → 11** patterns at `castCount` 89 → 189. The brief's premise was wrong three
+ways: `bounce(2,0)` was ALREADY promoted, `bounce(-2,0)` is not a candidate at
+any support level, and eleven primitives clear the shipped
+`PROMOTION_THRESHOLD` of 3. Kept, because the threshold is untouched and this is
+what the shipped rule returns at the current corpus — overriding it would be the
+renegotiation session 87 refused when §19 missed its bar by one turn. ⚠ **But
+this is a LIVE behaviour change in a GITIGNORED file, so it will not appear in
+any diff review, and nobody has evaluated a 4x larger candidate pool's effect on
+the matcher posterior.** Flag it to the user before the next fishing batch. ⚠
+The miner's own `castSim` comparison (9.2% → 59.4%, N=500) **may not be quoted**
+— OIL-POLICY.md §0a suspends `castSim` for this fishery.
+
+2026-08-25 (session 95 §I) — **QUESTIONS.md §19 AND §23 HEADERS SAID `OPEN` FOR
+SESSIONS AFTER BOTH CLOSED.** §19 closed at session 65 (POWERED KEEP, n=35) and
+was re-confirmed at session 87 §2; §23 closed at session 87 §3 (3x multiplier
+EXONERATED). Closing pointers appended in the existing append-only style, original
+text untouched, so a future backlog sweep does not have to re-derive their status
+from this file the way session 95's did.
