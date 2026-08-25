@@ -66,7 +66,7 @@ const ASCENDING_MAX_CLAIMS = 15;
 import { regenerateRunReports } from "./regenerateReports.js";
 import { toCombatant, exchangeIdentity, exchangeLabel, type WireRun, type WireSide, type WireBoon } from "../src/sim/corpus.js";
 import { MOVES, type BattleState, type MoveKey } from "../src/sim/types.js";
-import { BOON_MODELS, type BoonOption } from "../src/sim/boons.js";
+import { type BoonOption } from "../src/sim/boons.js";
 import { decide, formatDecision, type Decision } from "../src/strategy/decide.js";
 import { LIVE_CONFIG, type StrategyConfig } from "../src/strategy/config.js";
 import { OpponentModel, modelKey } from "../src/strategy/opponentModel.js";
@@ -91,12 +91,6 @@ import { MAX_ROOM, SAFE_TIER } from "../src/sim/enemies.js";
 import { summarizeBoonRunCoverage } from "../src/sim/boonRunCoverage.js";
 import { probeDecision } from "../src/sim/coverage.js";
 import { pickBoon } from "../src/strategy/loot.js";
-import {
-  chooseCaptureBoon,
-  DEFAULT_CAPTURE_ROOMS,
-  DEFAULT_CAPTURE_TARGETS,
-  type BoonCaptureConfig,
-} from "../src/strategy/boonCapture.js";
 import {
   choosePriorityBoon,
   chooseOrbFallback,
@@ -592,39 +586,18 @@ export interface LiveRunDeps {
    */
   playCountsPersistence?: { path: string };
   /**
-   * [session 55, brief §3] The deliberate suboptimal boon pick that buys a
-   * pickup pair for an unmodelled boon — see `src/strategy/boonCapture.ts`
-   * for why the ranker can never do this on its own, and why CLAUDE.md
-   * rule 8 does not apply to a boon choice.
-   *
-   * `undefined` (the default, every existing caller and test) means the
-   * override never runs — identical to the previous behaviour. `main()` only
-   * populates it when BOTH `config/bot.json`'s `forbiddenWoods.boonCapture`
-   * block exists with `enabled: true` AND `--boon-capture` is passed, the
-   * same two-condition shape as the potion gate (see that gate's history:
-   * a config block ALONE auto-derived a loadout in session 24 and consumed a
-   * user's limited item on a run they had not authorized).
-   *
-   * `captures` is shared across every run of one invocation so the summary
-   * covers the whole session; the ONE-TARGET-PER-RUN limit is enforced by a
-   * `runOnce`-local flag, not by this array, so a `--runs=2` invocation can
-   * legitimately capture twice — once per run.
-   */
-  boonCapture?: {
-    config: BoonCaptureConfig;
-    captures: Array<{ type: string; room: number; beforeTag: string; afterTag: string }>;
-  };
-  /**
    * [session 56] The user's boon-selection directive as a total order above
    * the scorer — `src/strategy/boonPriority.ts`.
    *
-   * **Unlike `boonCapture`, this is ON by default in live play and needs no
-   * gate.** The two are not comparable: `boonCapture` knowingly costs run
-   * quality to buy a measurement, which is why it needs two conditions before
-   * it may fire. This is the user's own instruction about how they want their
-   * account played, it spends nothing, and it is reversible by editing a list.
-   * A gate here would only mean the directive silently not applying on the run
-   * the user asked for it on.
+   * **This is ON by default in live play and needs no gate**, and that is a
+   * deliberate asymmetry rather than an oversight. Until session 96 a second,
+   * gated boon layer sat beside this one; it knowingly cost run quality to buy
+   * a measurement, which is why it took two conditions to arm (QUESTIONS.md
+   * §37 records what it was and why it was deleted). This layer is the user's
+   * own instruction about how they want their account played, it spends
+   * nothing, and it is reversible by editing a list. A gate here would only
+   * mean the directive silently not applying on the run the user asked for it
+   * on.
    *
    * `undefined` resolves to `DEFAULT_BOON_PRIORITY` (the shipped rooms-1..8
    * window). Pass `null` to run the unmodified `rankBoons` path — the sim's
@@ -933,13 +906,6 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
   // its own follow-up read, mistaking "we just looked twice" for "the run is
   // stuck".
   let skipNextStateCheck = false;
-  // [session 55] Limit 2 of `boonCapture.ts`'s three limits — ONE target per
-  // run. Deliberately runOnce-local rather than on `deps`: two picks in one
-  // run compound the run-quality cost and buy no extra information about
-  // either boon, but a second RUN capturing a second target is exactly the
-  // intended path to modelling all five.
-  let boonCapturedThisRun = false;
-
   // Check BEFORE deciding to start_run — CLAUDE.md §1, don't assume. A prior
   // stage (or a prior crashed process) can leave a run active; sending
   // start_run on top of one is rejected by the server (HTTP 400, "Error
@@ -1661,44 +1627,14 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
             orbs,
           })
         : null;
-      // [session 55, brief §3] The capture override, if one is armed and this
-      // offer holds an unmodelled target. `null` on every ordinary run and on
-      // ~82% of room-1 offers even when armed — see boonCapture.ts's measured
-      // rate. `isModelled` is injected there so the module stays pure and its
-      // tests need no fixture; here it is the real `BOON_MODELS`, so a target
-      // that has since been modelled retires itself.
-      const capture = deps.boonCapture
-        ? chooseCaptureBoon({
-            offered: mapped.map((m) => m.option),
-            room: roomNum,
-            config: deps.boonCapture.config,
-            alreadyCaptured: boonCapturedThisRun,
-            isModelled: (type) => Boolean(BOON_MODELS[type]),
-          })
-        : null;
-      // Precedence: capture > priority > ranked. `boonCapture` is OFF by
-      // default and requires an explicit `--boon-capture`, so arming it IS the
-      // choice to pay run quality for a measurement on that run; it therefore
-      // wins. The overlap between the two layers is small and MEASURED — 1 of
-      // boonCapture's 5 targets (`VulnerableBlock`) is a priority family
-      // member — which is why both layers exist rather than one replacing the
-      // other. See boonPriority.ts's precedence section.
-      // Precedence, widened at the tail only: capture > priority > ORB FALLBACK
-      // > ranked. The fallback slots in below priority by construction (it is
-      // only computed when priority is null), so nothing above it moved.
-      const chosenOption = capture
-        ? capture.option
-        : priority
-          ? priority.option
-          : (orbFallback?.option ?? rankedOption);
+      // [session 96] Precedence: priority > ORB FALLBACK > ranked. The
+      // fallback slots in below priority by construction (it is only computed
+      // when priority is null). A fourth layer used to sit above all three;
+      // it was deleted this session — see QUESTIONS.md §37.
+      const chosenOption = priority ? priority.option : (orbFallback?.option ?? rankedOption);
       const chosenEntry = mapped.find((m) => m.option === chosenOption)!;
       const chosenIndex = chosenEntry.wireIndex;
-      if (capture) {
-        console.log(
-          `  ▸ reward: BOON-CAPTURE override — taking "${chosenOption.type}" (index ${chosenIndex}) ` +
-            `instead of ranked "${rankedOption.type}". ${capture.reason}`,
-        );
-      } else if (priority) {
+      if (priority) {
         const note =
           priority.option.type === rankedOption.type
             ? "(the ranker agreed)"
@@ -1727,7 +1663,6 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         chosen: chosenOption,
         chosenIndex,
         options,
-        ...(capture ? { capture: { overrodeRanked: rankedOption.type, reason: capture.reason } } : {}),
         ...(priority
           ? {
               priority: {
@@ -1810,33 +1745,7 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
         "reward selection rejected",
         deps.attemptTelemetry,
       );
-      const afterTag = resp ? fixtures.write(resp) : null;
-      // [session 55] The whole point of the override: a pick that does not
-      // produce a usable pair costs run quality and buys nothing. `beforeTag`
-      // is the offer state written at the top of this same loop iteration;
-      // `afterTag` is the server's response to the pick. Recorded as ONE log
-      // event so the pair is read off a single line rather than reconstructed
-      // by hunting adjacent fixture numbers — and only when BOTH halves
-      // exist, so a failed write can never be reported as a capture.
-      if (capture && deps.boonCapture && afterTag) {
-        deps.boonCapture.captures.push({
-          type: chosenOption.type,
-          room: roomNum,
-          beforeTag,
-          afterTag,
-        });
-        boonCapturedThisRun = true;
-        log.write({
-          event: "boon_capture_pair",
-          type: chosenOption.type,
-          room: roomNum,
-          selected: { val1: chosenOption.val1, val2: chosenOption.val2 },
-          beforeTag,
-          afterTag,
-          runName: fixtures.runName,
-        });
-        console.log(`  ▸ boon-capture PAIR recorded: ${fixtures.runName} ${beforeTag} → ${afterTag}`);
-      }
+      if (resp) fixtures.write(resp);
       continue;
     }
 
@@ -1908,10 +1817,6 @@ export function parseArgs(argv: string[]) {
   // that "index == tier" is not yet confirmed in general, so guessing it
   // here would be exactly the class of mistake CLAUDE.md §2 forbids.
   const juiced = argv.includes("--juiced");
-  // [session 55, brief §3] Half of the two-condition gate on the boon-capture
-  // override. The other half is `config/bot.json`'s
-  // `forbiddenWoods.boonCapture.enabled`. Neither alone arms it.
-  const boonCaptureFlag = argv.includes("--boon-capture");
   const juicedIndexArg = argv.find((a) => a.startsWith("--juiced-index="));
   const juicedIndex = juicedIndexArg ? Number(juicedIndexArg.split("=")[1]) : undefined;
   if (juiced && juicedIndex === undefined) {
@@ -1936,7 +1841,6 @@ export function parseArgs(argv: string[]) {
     claimOrder,
     juiced,
     juicedIndex,
-    boonCaptureFlag,
   };
 }
 
@@ -2055,7 +1959,6 @@ const KNOWN_ARGS = [
   "--potions=",
   "--potions-used=",
   "--potion-threshold=",
-  "--boon-capture",
   "--resume-existing",
   "--no-rom-claim",
   "--claim-order=",
@@ -2077,7 +1980,6 @@ const USAGE = `Usage: npx tsx scripts/liveRun.ts [flags]
   --runs=N           play N runs (default 1; rule 11 says 1)
   --juiced           juiced entry (3 run-units), with --juiced-index=N
   --potions=N        load N Big Heal Juice, with --potion-threshold=X
-  --boon-capture     arm the boonCapture block (also needs config enabled:true)
   --resume-existing  resume a run already in progress
   --no-rom-claim     skip the ROM-claim energy preflight
   --profile=NAME     data/log profile (value takes an equals sign)
@@ -2256,17 +2158,11 @@ async function main() {
     );
   }
 
-  // [session 55, brief §3] The boon-capture override, armed only when BOTH
-  // the config block says `enabled: true` AND `--boon-capture` was typed.
-  // Two conditions, exactly like the potion gate above and for the same
-  // reason — session 24 shipped a one-condition gate on the block next door
-  // and it consumed a user's limited item on an unauthorized run. Everything
-  // this override does is announced here and again in the run summary,
-  // because a deliberately suboptimal pick that happens silently is
-  // indistinguishable from a bug.
   // [session 56] The directive's one knob. No gate — see boonPriority.ts and
-  // config/bot.json's `_boonPriorityComment` for why this differs from the
-  // two-condition boon-capture gate right below it.
+  // config/bot.json's `_boonPriorityComment` for why the directive is ON in
+  // live play without one. (A two-condition gate used to sit right below this
+  // for a second, deliberately-suboptimal boon layer; that layer was deleted
+  // in session 96 — see QUESTIONS.md §37.)
   const boonPriority: BoonPriorityConfig = {
     ...DEFAULT_BOON_PRIORITY,
     ...(config.boonPriority ?? {}),
@@ -2287,35 +2183,6 @@ async function main() {
       : `  · orb rule: TIE-BREAK (session 57) — the payout only separates options already tied at the best ` +
         `priority rank. This is the pre-session-58 rule; config/bot.json has it pinned.`,
   );
-
-  const captureCfg = config.boonCapture;
-  let boonCapture: LiveRunDeps["boonCapture"];
-  if (args.boonCaptureFlag && !captureCfg?.enabled) {
-    throw new Error(
-      `--boon-capture was passed but config/bot.json's forbiddenWoods.boonCapture is ` +
-        `${captureCfg ? "present with enabled: false" : "absent"} — the loop refuses to trade run quality on a flag ` +
-        `alone. Both conditions are required (see src/strategy/boonCapture.ts).`,
-    );
-  }
-  if (captureCfg?.enabled && !args.boonCaptureFlag) {
-    console.log(
-      `  · boon-capture: config enables it but --boon-capture was NOT passed -> OFF. This is the safe default, not a bug.`,
-    );
-  }
-  if (captureCfg?.enabled && args.boonCaptureFlag) {
-    const cfg: BoonCaptureConfig = {
-      enabled: true,
-      targets: captureCfg.targets ?? DEFAULT_CAPTURE_TARGETS,
-      rooms: captureCfg.rooms ?? DEFAULT_CAPTURE_ROOMS,
-    };
-    boonCapture = { config: cfg, captures: [] };
-    const live = cfg.targets.filter((t) => !BOON_MODELS[t]);
-    console.log(
-      `  · boon-capture: ARMED, rooms ${cfg.rooms.join("/")}, targets ${cfg.targets.join(", ")}` +
-        (live.length === cfg.targets.length ? "" : ` (still unmodelled: ${live.join(", ") || "NONE — every target already has a pair"})`) +
-        `. This DELIBERATELY takes a worse boon, at most once per run, to record a pickup pair.`,
-    );
-  }
 
   // [session 45, TASKS.md Task 10] Graceful SIGINT, wired into this
   // direct-CLI entry point's own `main()`. `runOnce` has accepted a
@@ -2478,7 +2345,6 @@ async function main() {
                 ? Array(potionCount).fill(potionItemId)
                 : undefined,
           juicedStartRun: args.juiced ? { index: args.juicedIndex! } : undefined,
-          boonCapture,
           boonPriority,
           // [session 54, brief §3] QUESTIONS.md §23 — two GETs, zero energy,
           // armed on every real run. Skipped on a dry run, which never POSTs
@@ -2522,20 +2388,6 @@ async function main() {
   uninstallSigint();
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, runs ${guards.runCount}`);
-  if (boonCapture) {
-    // Reported on EVERY armed invocation, including the zero case — "armed and
-    // never fired" is the ~82%-of-room-1-offers outcome and must not read as
-    // "was never on". See boonCapture.ts's measured rate.
-    console.log(
-      boonCapture.captures.length === 0
-        ? `▸ boon-capture: ARMED, 0 pairs recorded (no targeted offer appeared in a permitted room — the common case).`
-        : `▸ boon-capture: ${boonCapture.captures.length} pair(s) recorded — ` +
-          boonCapture.captures
-            .map((c) => `${c.type} room ${c.room} (${c.beforeTag} → ${c.afterTag})`)
-            .join("; ") +
-          `. Model these in src/sim/boons.ts before the next armed run.`,
-    );
-  }
   console.log(attemptTelemetry.format());
   console.log(`▸ log: ${log.filePath}`);
   console.log(`▸ fixtures: ${fixtures.dir}\n`);

@@ -4,10 +4,13 @@
  * Two kinds of assertion. The unit tests pin the order itself and the one
  * window rule, including the `AddLifestealSword` edge that both rules touch.
  * The corpus tests pin the claims the module's own header makes about the
- * fixtures — the family matchers against the real type names, and the measured
- * 1-of-5 overlap with `boonCapture.ts` that is the reason both layers still
- * exist. If that overlap ever changes, the retire-or-keep decision should be
- * re-made rather than inherited.
+ * fixtures — the family matchers against the real type names.
+ *
+ * [session 96] A third corpus test used to pin the overlap between this layer
+ * and a second, gated capture layer, because that overlap was the reason both
+ * existed. The capture layer was deleted (QUESTIONS.md §37), so the
+ * retire-or-keep decision it guarded has been made and the test is gone with
+ * it. `boonPriority.ts`'s header keeps the measurement itself.
  */
 
 import { describe, expect, it } from "vitest";
@@ -25,7 +28,6 @@ import {
   pickBoonWithPriority,
   priorityOf,
 } from "../src/strategy/boonPriority.js";
-import { DEFAULT_CAPTURE_TARGETS } from "../src/strategy/boonCapture.js";
 import { BOON_MODELS, OBSERVED_OFFERS, type BoonOption } from "../src/sim/boons.js";
 import type { Combatant } from "../src/sim/types.js";
 
@@ -323,22 +325,6 @@ describe("against the corpus", () => {
         expect(offer.options).toContain(chosen);
       }
     }
-  });
-
-  it("the boonCapture overlap is 0 of 5 — the priority layer captured the one type they shared", () => {
-    // [session 82] Was 1 of 5, and the single overlapping type was
-    // `VulnerableBlock` — a boonCapture target that ALSO sat in the Vulnerable
-    // priority family. It is gone from the target list because the priority
-    // layer went and picked it live (run 3, room 3, BOON-PRIORITY 5 over
-    // ranked AddEvasion), giving it a first-ever pickup pair and a model.
-    //
-    // **So the overlap did not get tidied away; it got RESOLVED by the layer
-    // that owned it**, which is a stronger version of what the old title
-    // claimed. The two layers remain distinct — boonCapture reaches types no
-    // priority family names, and that is now true of all five targets rather
-    // than four of them.
-    const subsumed = DEFAULT_CAPTURE_TARGETS.filter((t) => priorityOf(t, 1) !== null);
-    expect(subsumed).toEqual([]);
   });
 
   it("reaches unmodelled types the scorer never could — the by-product capture", () => {

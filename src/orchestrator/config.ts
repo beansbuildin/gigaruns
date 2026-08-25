@@ -25,26 +25,13 @@ const BotJsonSchema = z.object({
         maxPerRun: z.number().int().positive(),
       })
       .optional(),
-    // [session 55] The deliberate suboptimal boon pick that buys a pickup
-    // pair for an unmodelled boon (`src/strategy/boonCapture.ts`). Absent
-    // means OFF, and `enabled: false` also means off — but note that this
-    // block being present and enabled is only HALF the gate: `liveRun.ts`
-    // additionally requires `--boon-capture` on the command line. Two
-    // conditions, deliberately, because the potion block next door taught
-    // this repo what a one-condition gate costs (session 24).
-    boonCapture: z
-      .object({
-        enabled: z.boolean(),
-        targets: z.array(z.string().min(1)).nonempty().optional(),
-        rooms: z.array(z.number().int().positive()).nonempty().optional(),
-      })
-      .optional(),
     // [session 56] The user's boon directive (`src/strategy/boonPriority.ts`).
-    // NOT a gate — unlike `boonCapture` above, the directive is ON in live
-    // play whether or not this block exists, because it is the user's
-    // instruction about how to play rather than a measurement that costs run
-    // quality. This block only lets the one number in it be read without a
-    // code change. Absent means the shipped default (rooms 1..8).
+    // NOT a gate — the directive is ON in live play whether or not this block
+    // exists, because it is the user's instruction about how to play rather
+    // than a measurement that costs run quality. (A gated sibling schema entry
+    // for such a measurement sat directly above until session 96; QUESTIONS.md
+    // §37 records it.) This block only lets the one number in it be read
+    // without a code change. Absent means the shipped default (rooms 1..8).
     //
     // [session 58] `orbRule` MUST be listed here even though it has a code
     // default: zod strips unknown keys silently, so an unlisted knob would
@@ -115,13 +102,6 @@ export interface BotConfig {
   maxConsecutiveActionFailures: number;
   /** User-authorized potion, session 17 — absent means "no potions," not "figure it out from inventory." */
   potions?: { allowedItemId: number; maxPerRun: number };
-  /**
-   * [session 55] Absent means the boon-capture override is off. Present and
-   * `enabled` is still not sufficient on its own — see the schema comment
-   * and `liveRun.ts`'s `main()`. `targets`/`rooms` fall back to
-   * `boonCapture.ts`'s measured defaults when omitted.
-   */
-  boonCapture?: { enabled: boolean; targets?: string[]; rooms?: number[] };
   /**
    * [session 56] The lifesteal demotion window. Absent means
    * `boonPriority.ts`'s shipped `EARLY_GAME_MAX_ROOM` (8, user-confirmed).
@@ -200,7 +180,6 @@ export function loadBotConfig(
     maxRunsPerSession: bot.forbiddenWoods.maxRunsPerSession,
     maxConsecutiveActionFailures: bot.guards.maxConsecutiveActionFailures,
     potions: bot.forbiddenWoods.potions,
-    boonCapture: bot.forbiddenWoods.boonCapture,
     boonPriority: bot.forbiddenWoods.boonPriority,
     dendren,
   };

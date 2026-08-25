@@ -3070,3 +3070,270 @@ inference from two points and is not asserted.
   (CLAUDE.md rule 13).
 
 **§34 is CLOSED.**
+
+---
+
+## §36 ANSWERED [session 96, user directive 2026-08-25] — SHIP THE 11-PATTERN LIBRARY
+
+**The directive, verbatim:** *"Ship the 11-pattern library; it has now passed
+offline evaluation."*
+
+This entry exists because session 95 left the decision in a STATE.md "Open
+questions" list, which is where it sat unresolved across two sessions. A live
+behaviour change in a gitignored file needs a home a future reader can find.
+
+### What actually changed
+
+`data/minedFishPatterns.json` — the library `scripts/liveFishing.ts` seeds its
+matcher from — went **3 patterns → 11** when `scripts/mineFishPatterns.ts` was
+re-run offline in session 95 §H, at `castCount` **89 → 189**.
+
+| | before (mined 2026-08-20, 89 casts) | after (mined 2026-08-25, 189 casts) |
+|---|---|---|
+| patterns | `perimeterWalk(cw)`, `perimeterWalk(ccw)`, `bounce(2,0)` | those three plus `bounce(1,0)`, `bounce(0,1)`, `bounce(0,-1)`, `bounce(1,1)`, `bounce(-1,0)`, `bounce(-1,1)`, `bounce(-1,-1)`, `twoCellCycle(0,-1)` |
+
+`PROMOTION_THRESHOLD` is **unchanged at 3**. Nothing was tuned to produce this;
+it is what the shipped rule returns at the current corpus size. Three specifics
+from session 95 §H, recorded because the session-95 brief predicted otherwise
+and a later reader should not re-derive them: **`bounce(2,0)` was ALREADY
+promoted** before this re-run (it is in the 89-cast file above),
+**`bounce(-2,0)` does not clear the threshold at any support level** and is not
+a candidate at all, and **eleven primitives clear the threshold**, not the ~4
+the brief expected.
+
+### The due-diligence cross-check — it ran, and here is the verdict
+
+Session 95's scratchpad backup of the pre-re-mine 3-pattern file **survived**,
+so `scripts/minedLibraryGate.ts` — the purpose-built paired-replay gate for
+exactly this kind of library change, which had NOT been run old-vs-new — was
+run for this library:
+
+```
+npx tsx scripts/minedLibraryGate.ts <3-pattern-backup>.json data/minedFishPatterns.json
+
+▸ minedLibraryGate — 188 clean traces
+  BEFORE  caught 48/188   hits 302/671   matcher-active turns 292 (median weight 0.164)
+  AFTER   caught 51/188   hits 294/632   matcher-active turns 398 (median weight 0.196)
+
+  paired ΔlogLoss (AFTER − BEFORE, negative favours AFTER), 618 turns in 188 casts:
+    0.0106  95% cluster-bootstrap CI [-0.0096, 0.0274]
+
+  VERDICT: CI includes zero — the change is not measurably better OR worse on log loss.
+```
+
+**Read this as what it is: a NO-HARM result, not a benefit.** The paired
+ΔlogLoss CI straddles zero, so on the replay corpus the 4x larger candidate
+pool neither sharpens nor degrades the matcher's predictions measurably. The
+`caught 48 → 51` difference is 3 casts in 188 and is nowhere near the gate's
+own noise bar — **do not quote it as an improvement.**
+
+**This instrument is NOT under OIL-POLICY.md §0a.** §0a suspends `castSim` for
+this fishery and says so by name; `minedLibraryGate.ts` runs `replayCorpus`
+over real cast traces, and §0a's own text draws the line explicitly — *"Session
+71 restored the replay's precondition, not this sim arm. They are different
+instruments."* So the ΔlogLoss verdict above is quotable and the suspension is
+untouched.
+
+⚠ **What may NOT be quoted:** `mineFishPatterns.ts`'s own end-of-run print
+(blind 9.2% → mined 59.4%, N=500). That is `castSim`-derived, §0a suspends it,
+and it is the only "evaluation" that had run on this change before today.
+
+### The honest scope of "passed offline evaluation"
+
+The gate says the change does no measurable harm on 188 clean traces. It does
+**not** establish that eleven candidates help, and nobody has evaluated the
+larger pool's effect on the matcher **posterior in live play** — the replay's
+LOO arm is not the live seeding path. What the gate does newly show is that the
+matcher **engages more often**: active turns 292 → 398 (+36%) at a higher
+median weight (0.164 → 0.196). More engagement with no log-loss penalty is the
+case for shipping; it is not proof of gain.
+
+**§36 is CLOSED. The library ships.** The first live batch to run against it is
+session 96 §4, which is therefore also the first out-of-sample observation of
+it — see that batch's matcher-activity report.
+
+---
+
+## §37 ANSWERED [session 96, user directive 2026-08-25] — RETIRE AND DELETE `boonCapture`
+
+**The directive.** Retire and delete the boon-capture override — module, test,
+config block, and all of `scripts/liveRun.ts`'s wiring. Done this session.
+
+### Why, in one line
+
+**Six of six capture targets have now been modelled by the ordinary shipped
+rules, without the override ever being armed once**, and the module's own test
+said in as many words that this is the condition for deleting it:
+`tests/boonCapture.test.ts`'s header — *"if it ever stops holding the module
+should be deleted rather than left running."*
+
+### What it was, quoted out of the deleted files, because the "why" lived there
+
+The module took a **deliberately worse boon**, at most once per run and only in
+room 1, to record a `state-NNN → state-NNN+1` pickup pair for a boon nobody had
+ever picked. `src/sim/boons.ts` can only model a boon it has seen taken, and
+session 55 measured a closed loop that made such a pair impossible to get any
+other way:
+
+> all 36 unmodelled boon types fall to `loot.ts`'s `unknown` category (score
+> 10, the lowest of five), and across 135 captured offers × 4 HP fractions —
+> **540 decisions** — `pickBoon` top-ranked an unmodelled type **ZERO** times,
+> with **0 of 135** offers having every option unmodelled. Unmodelled because
+> never picked, never picked because unmodelled.
+
+It was a score **floor**, not an exclusion — which is why a small override was
+enough rather than surgery on the ranker. It carried three limits (room 1 only;
+one target per run; a target retires itself once modelled) and a **two-condition
+gate**: `config/bot.json`'s block with `enabled: true` **and** `--boon-capture`
+on the command line. Two conditions deliberately, because session 24 shipped a
+one-condition gate on the potion block next door and it consumed the user's
+limited item on a run they had not authorized. **That two-condition precedent is
+the load-bearing part worth preserving** — it survives on the potion gate, which
+is untouched.
+
+### What actually killed it: the wide orb rule, not this module
+
+The 0-of-540 figure predates **session 58's WIDE ORB RULE**, which picks
+unmodelled types for free whenever no priority family is on offer. All six of
+the types the override existed to reach — `TieWeak`, `VulnerableBlock`,
+`AddBurnShield`, `WeakeningMastery`, `AddLifestealShield`, `Regen` — got their
+first-ever pickup pairs through the ordinary rules, **at zero deliberate quality
+cost**. Session 55's headline cost estimate ("~27 runs to model all five") was
+pricing a mechanism that turned out not to be the one doing the work; it was
+already marked stale-as-a-forecast in session 95 and is **not** to be quoted.
+
+### The one wrinkle, and why it does not resurrect the premise
+
+Session 95 re-measured the 0-of-540 claim on the grown corpus: `rankBoons` now
+top-ranks an unmodelled type on **4 of 996** decisions. All four are **one
+offer** (`run-2026-08-25-03-25-26/state-069`, room 5) at four HP fractions, and
+all three of its options score **exactly 10** — the `unknown` floor — because
+`categorise` sends LATENT boons there too. The tie breaks on wire-array order.
+**So the ranker did not PREFER an unmodelled boon; it could not tell three
+floor-scored options apart.** A tie-break artifact is not the escape hatch the
+module existed to provide.
+
+### ⚠ The deletion was LARGER than the session-96 brief's own wiring list
+
+The brief enumerated `liveRun.ts`, `config/bot.json`, the module and its test.
+**Four more call sites existed and are recorded here so a future reader does not
+read the brief as the complete map** (CLAUDE.md rule 9 — a brief's claims are
+hypotheses):
+
+- **`src/orchestrator/config.ts`** — a zod schema entry, the `BotConfig`
+  field, and the `resolve()` line passing it through. A real code dependency,
+  not a comment.
+- **`scripts/boonPriorityReport.ts`** — imported `chooseCaptureBoon`,
+  `DEFAULT_CAPTURE_TARGETS`, `DEFAULT_CAPTURE_ROOMS` and built an entire **§2d
+  OVERLAP section** on them. That section is deleted; §2d's firing-rate arm
+  remains and the script still runs.
+- **`tests/boonPriority.test.ts`** — imported `DEFAULT_CAPTURE_TARGETS` for a
+  corpus test pinning the overlap ("0 of 5"). Deleted with it.
+- **Comment references** in `src/strategy/boonPriority.ts` and
+  `src/sim/boonRunCoverage.ts`.
+
+The brief also said to leave `liveRun.ts`'s `boonPriority` doc comment alone,
+but that comment's whole point was the contrast *"unlike `boonCapture`, this is
+ON by default and needs no gate"* — it would have been left naming a deleted
+module. **It was reworded, not deleted:** the asymmetry it explains is real and
+is why the user's play directive correctly ships ungated. The same applies to
+`config/bot.json`'s `_boonPriorityComment`, which opened "NOT A GATE, unlike
+`_boonCaptureComment` next door."
+
+**The 1-of-5 overlap measurement is deliberately KEPT**, in
+`src/strategy/boonPriority.ts`'s header. It is the reason the priority list was
+never widened to cover those types, and that reason outlives the module. **Do
+not add the old capture targets to the priority list** — it is the user's play
+directive, not a coverage instrument.
+
+### Verification
+
+`grep -rn "boonCapture\|boon-capture\|BoonCapture" src/ scripts/ tests/ config/`
+returns **nothing**. `npx tsc --noEmit` clean. Full suite **1769 passed /
+1769**, 104 files (down from 1792/105 — 23 tests removed with the feature, no
+failures). `handoff/log/` and `handoff/DECISIONS.md` still mention it and were
+deliberately left alone: they are historical and append-only.
+
+**§37 is CLOSED.**
+
+---
+
+## §38 ANSWERED [session 96, user directive 2026-08-25] — THE GATE-1 RE-AUDIT IS DEFINED, ITS NAMED FIGURES ARE ALREADY SUPERSEDED OR SUSPENDED, AND IT IS CLOSED
+
+**Why this entry exists.** "The gate-1 re-audit" has been carried as an open
+item in five consecutive STATE.md files (sessions 87, 91, 92, 93, 95) as a bare
+phrase with no definition any of them pointed at. It **already had an answer**
+— session 86 §1 diagnosed it fully — and nobody ever wrote that down as one.
+**No new measurement was taken to close this.** This is bookkeeping: the first
+time the diagnosis is recorded where a future STATE.md can find it instead of
+re-carrying the phrase.
+
+### The definition, from the phrase's origin
+
+`handoff/log/session-86.md` line 97, verbatim:
+
+> **Gate 1 opens a re-audit nobody has done.** Every figure the no-aim arm has
+> produced — the deck sweep, the noise floor, its −4.6pp drift margin — was
+> measured on a bot that never aims. That is not wrong for a deck comparison
+> and it is not a fishery anyone plays in. **Not started; larger than one
+> session.**
+
+The finding behind it: `damageEconomy.ts`'s `SIM blind` arm and
+`deckObjectiveSweep.ts`'s baseline arm (`matcherPool: []`) **structurally never
+aim** — **0 focus moves in 1963 turns, 0 cells used beyond the start cell
+(2,2)**, at both `w=0` and `w=3` (session 86 §1, and §4b's table). They carry no
+fish-distribution model at all, so every candidate cell scores identically and
+`bestFocusForCard` has nothing to prefer.
+
+⚠ **This is not a bug and not "blind" in the sense of "handicapped."** Session
+86 §4b is explicit that the condition is **UNIFORM, not blind**: the arm's EV
+surface is flat, not degraded. `matcherPool: [] + ringModel` moves 824 of 2492
+turns; it is the *absence of any fish model whatsoever*, not blindness, that
+produces 0/1963.
+
+### The figures, traced to source — none needs re-measuring
+
+Session 86 named **three**. A fourth from the same lineage is added here because
+it is the number most likely to be found and cited by someone reading the older
+logs.
+
+1. **The deck sweep's 36.42%** — `deckObjectiveSweep.ts`'s baseline
+   (`matcherPool: []`), re-run session 79 §1e on the shuffled draw pile: 4000
+   paired casts, baseline hit **36.42%**, catch **0.0%** on the real 23-card
+   deck. The no-aim arm by construction. **Already SUSPENDED** under
+   OIL-POLICY.md §0a in session 79's own text.
+2. **The noise floor, 1.93pp** — session 79 §1e, same re-run: two arms that are
+   the SAME deck differ by 1.93pp at 4000 casts, so **only 10 of 80 arms clear
+   their own noise**. Sound as a noise floor *for that harness*; wrong to cite
+   as a noise floor for anything a real, aiming fishery does.
+3. **The −4.6pp drift margin** — `damageEconomy.ts`'s comparison table (session
+   80 §1, re-run session 86 §4): margin **−4.6pp** against LIVE's −0.7pp, drift
+   **+0.317**. By session 86 the row label already read **`SIM blind
+   (no-aim)`** — the table carries the caveat this closure formalizes.
+4. **[not one of session 86's three] Session 78's 41.06%** — the pre-shuffle
+   baseline of the same lineage ("All 80 appended candidates measured
+   byte-identical to the baseline (hit 41.06%)", session 78 §4). **Already
+   RETRACTED independently**: session 79 §1 retracted session 78's "deck ORDER
+   is load-bearing" finding outright once the per-cast shuffle was confirmed
+   (129 opening hands, zero equal to the sequential prediction), and the same
+   baseline arm was re-measured as item 1. Superseded by its own re-run, which
+   is itself the no-aim arm.
+
+### The verdict: "not wrong, not applicable" — not "wrong"
+
+**None of these misdescribes the harness it was measured on.** `SIM blind` and
+`deckObjectiveSweep.ts`'s baseline are legitimate for the one thing session 86
+§4b says they are good for: a **deck-composition comparison**, where uniform-EV
+aiming is a fair way to isolate the deck variable. They are not, and were never
+validly cited as, a description of catch rate, hit rate, or margin for a fishery
+a real aiming policy plays. That distinction is the entire finding.
+
+**This closure changes none of the four numbers.** It retires their use as
+evidence about live play, and it does **not** lift OIL-POLICY.md §0a or create
+any new quotable figure.
+
+### Closed
+
+**§38 is CLOSED.** "The gate-1 re-audit" stops being carried as an open item in
+STATE.md as of session 96 — the same way §19 and §23 got closing pointers in
+session 95 rather than staying open by inertia.

@@ -7,7 +7,8 @@
  * Session 60's wide orb rule shrank `UNMODELLED_TYPES` by two **at once** — a
  * first — because choosing by orb payout reaches boons the ranked policy
  * structurally avoids (`rankBoons` floors every unmodelled type at score 10,
- * so it top-ranked one on 0 of 540 decisions; see `boonCapture.ts`). Depth got
+ * so it top-ranked one on 0 of 540 decisions — the measurement that justified
+ * the capture override deleted in session 96, QUESTIONS.md §37). Depth got
  * worse that run and coverage got better.
  *
  * Whether coverage is a **reason** for the wide orb rule or a **side effect**

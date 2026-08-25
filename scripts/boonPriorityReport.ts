@@ -5,9 +5,14 @@
  * (`src/strategy/boonPriority.ts`), both answered off the corpus and the sim
  * rather than off a guess:
  *
- *   §2d  How much of `boonCapture.ts` does the directive subsume, and what is
- *        the combined firing rate? The brief expected the overlap to be high
- *        enough to retire `boonCapture`. It is not — see the OVERLAP section.
+ *   §2d  What is the directive's firing rate, and what does it reach for
+ *        free? [session 96] This section used to open with an OVERLAP
+ *        analysis against a second, gated boon layer, answering whether the
+ *        directive subsumed it (it did not — the overlap was 1 of 5). That
+ *        layer was deleted in session 96, so the overlap arm is gone with it
+ *        and the firing-rate arm below is the whole of §2d. QUESTIONS.md §37
+ *        records the deletion; `boonPriority.ts`'s own header keeps the 1-of-5
+ *        measurement, which is still the reason this list was never widened.
  *   §2e  Does the directive cost depth against the unmodified `rankBoons`
  *        path? Reported either way and NOT tuned to the answer: the directive
  *        ships regardless, because it is the user's read of a game the
@@ -19,7 +24,6 @@
  */
 
 import { BOON_MODELS, OBSERVED_OFFERS } from "../src/sim/boons.js";
-import { DEFAULT_CAPTURE_TARGETS, DEFAULT_CAPTURE_ROOMS, chooseCaptureBoon } from "../src/strategy/boonCapture.js";
 import {
   choosePriorityBoon,
   DEFAULT_BOON_PRIORITY,
@@ -44,57 +48,6 @@ const player = (fraction: number): Combatant =>
   ({ hp: Math.max(1, Math.round(40 * fraction)), hpMax: 40, armor: 8, armorMax: 20, moves: {} }) as unknown as Combatant;
 
 const pct = (n: number, d: number) => (d === 0 ? "n/a" : `${((100 * n) / d).toFixed(1)}%`);
-
-// ── §2d OVERLAP ───────────────────────────────────────────────────────────
-console.log(rule("§2d — OVERLAP with boonCapture.ts, and the retire-or-keep call"));
-
-const subsumed = DEFAULT_CAPTURE_TARGETS.filter((t) => priorityOf(t, 1) !== null);
-const notSubsumed = DEFAULT_CAPTURE_TARGETS.filter((t) => priorityOf(t, 1) === null);
-
-/** Offers (not options) in a capture-permitted room holding each target. */
-const targetOfferCount = (target: string) =>
-  OBSERVED_OFFERS.filter(
-    (o) => DEFAULT_CAPTURE_ROOMS.includes(o.room) && o.options.some((x) => x.type === target),
-  ).length;
-
-console.log(`
-  capture targets subsumed by a priority family: ${subsumed.length} of ${DEFAULT_CAPTURE_TARGETS.length}
-    subsumed:     ${subsumed.map((t) => `${t} (priority ${priorityOf(t, 1)})`).join(", ") || "(none)"}
-    NOT subsumed: ${notSubsumed.join(", ") || "(none)"}
-
-  offers in a capture room (${DEFAULT_CAPTURE_ROOMS.join("/")}) holding each target:`);
-for (const t of DEFAULT_CAPTURE_TARGETS) {
-  console.log(`    ${t.padEnd(20)} ${String(targetOfferCount(t)).padStart(2)} offer(s)   ${priorityOf(t, 1) === null ? "— no priority family" : `— priority ${priorityOf(t, 1)}`}`);
-}
-
-const captureRoomOffers = OBSERVED_OFFERS.filter((o) => DEFAULT_CAPTURE_ROOMS.includes(o.room));
-const capturableOffers = captureRoomOffers.filter(
-  (o) =>
-    chooseCaptureBoon({
-      offered: o.options,
-      room: o.room,
-      config: { enabled: true, targets: DEFAULT_CAPTURE_TARGETS, rooms: DEFAULT_CAPTURE_ROOMS },
-      alreadyCaptured: false,
-      isModelled: (type) => Boolean(BOON_MODELS[type]),
-    }) !== null,
-);
-const stillOnlyCapture = capturableOffers.filter((o) => {
-  const d = chooseCaptureBoon({
-    offered: o.options,
-    room: o.room,
-    config: { enabled: true, targets: DEFAULT_CAPTURE_TARGETS, rooms: DEFAULT_CAPTURE_ROOMS },
-    alreadyCaptured: false,
-    isModelled: (type) => Boolean(BOON_MODELS[type]),
-  })!;
-  return priorityOf(d.option.type, o.room) === null;
-});
-
-console.log(`
-  capture-room offers:                     ${captureRoomOffers.length}
-  ...on which boonCapture would fire:      ${capturableOffers.length}  (${pct(capturableOffers.length, captureRoomOffers.length)})
-  ...where the target it takes is REACHED
-     by no priority family (capture is the
-     only way that pair is ever recorded): ${stillOnlyCapture.length}  (${pct(stillOnlyCapture.length, captureRoomOffers.length)})`);
 
 // ── FIRING RATE, and the by-product capture ───────────────────────────────
 console.log(rule("§2d — firing rate of the directive, and what it reaches for free"));

@@ -67,19 +67,24 @@
  * boon** — the window has closed, and that follows from the two rules as
  * written without an extra case. It is logged either way (`conflictedTypes`).
  *
- * ── PRECEDENCE AGAINST `boonCapture.ts` — MEASURED, NOT ASSUMED ────────────
+ * ── THE CAPTURE LAYER THAT USED TO SIT ABOVE THIS ONE [session 96] ─────────
  *
- * The session-56 brief expected this list to subsume `boonCapture.ts`'s five
- * targets and asked for it to be retired if so. **It does not: the overlap is
- * 1 of 5.** Only `VulnerableBlock` is a priority family member; `TieWeak`(11
- * offers), `AddBurnShield`(8), `AddLifestealShield`(5) and `Regen`(4) — the
- * four most frequently offered, 28 of the 32 target offers — match no family
- * here. So both layers stay, and `scripts/liveRun.ts` gives `boonCapture`
- * strict precedence over this module: it is OFF by default and needs an
- * explicit `--boon-capture`, so arming it IS the choice to pay run quality for
- * a measurement on that run. `VulnerableBlock` needs no special case — this
- * layer will pick it as priority 5, which produces its pair, after which
- * `boonCapture`'s retire-once-modelled check drops it on its own.
+ * Until session 96 a second boon layer took strict precedence over this
+ * module: a deliberately-suboptimal pick, armed only behind two conditions,
+ * whose purpose was to buy a pickup pair for a boon nobody had ever picked.
+ * It has been deleted — QUESTIONS.md §37 records what it was and why it went.
+ *
+ * The measurement that kept both layers alive is worth keeping, because it is
+ * the reason this list was NOT widened to cover them. The session-56 brief
+ * expected this list to subsume that layer's five targets and asked for it to
+ * be retired if so; **it did not — the overlap was 1 of 5.** Only
+ * `VulnerableBlock` was a priority family member; `TieWeak`(11 offers),
+ * `AddBurnShield`(8), `AddLifestealShield`(5) and `Regen`(4) — the four most
+ * frequently offered, 28 of the 32 target offers — match no family here. All
+ * of them have since been modelled anyway, by the ordinary shipped rules
+ * (mostly the wide orb rule), which is what made the capture layer redundant.
+ * **Do not read that as a reason to add them here**: this list is the user's
+ * play directive, not a coverage instrument.
  */
 
 import type { BoonOption } from "../sim/boons.js";
