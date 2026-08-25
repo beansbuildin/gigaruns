@@ -186,3 +186,174 @@ sessions** — 1757 tests counted with zero vacuous, and PREFLIGHT PASSED.
   M  handoff/reports/{fishing-casts,dungeon-runs}.md
   M  handoff/STATE.md, handoff/log/session-93.md
 ```
+
+---
+
+# Verbose appendix — session 93
+
+## The live cast, in full
+
+```
+▸ cast 1/10
+  ✓ start_run sent — fishing actionToken now <TOKEN>
+  · oils held: Relaxing 46, Focus 0 (on-demand policy)
+  ▸ turn 0: card 37 @ focus [2,1] (P_hit 0.63, ev 2.7)
+  · predictors: ring p(actual)=0.191 | baseline p(actual)=0.103 | shot P_hit 0.63 → miss
+  ▸ turn 1: card 11 @ focus [1,2] (P_hit 0.93, ev 12.5)
+  · predictors: ring p(actual)=0.910 TOP1 | baseline p(actual)=0.717 TOP1 | shot P_hit 0.93 → HIT
+  · shadow(conserve(r=0.833,f=1)) on turn 2: on-demand wanted [relaxing,focus],
+    shadow would take [relaxing,focus] (bestKill 0.022)
+  · on-demand wanted [focus] here (turn 2) — WITHDRAWN BY POLICY
+    (dendren.oils.allowedItemIds is [937]), playing on without it.
+    This is NOT a dry bag and does NOT flag the cast out of the outcome arms.
+  ★ on-demand LETHAL trigger: fish at 1/19 HP (46 Relaxing Oil held) — using one.
+  ✓ use_fishing_item (937): fish now 0/19, focus 0/3, mana 8 -> 8
+  ▸ cast over: caught after 2 turns — CAUGHT!
+  ★ caught! resolving cardsToAdd offer (10, 41, 7) -> chose id 10
+  ✓ loot sent — fullDeck now 19 card(s), cardChosenId 10
+  ▸ energy: 154 -> 142  (observed delta 12; committed 12)
+  · batch state: cast 1, oils consumed 1, clean 0, ledger 1 left,
+    held Focus 0 / Relaxing 45
+  · redraw shadow: 0/2 card decisions would redraw (0.0%, in-sample 2.7%),
+    1 turn(s) reached no card decision.
+
+▸ cast 2/10
+  ★ LEDGERS DISAGREE: game 19 vs repo 20 — deferring to the game (lowered).
+✗ Guard tripped: daily energy budget would be exceeded
+  {"spent":252,"estimatedEnergyCost":12,"budget":252}
+```
+
+The guard trip is the intended exit.
+
+## §34 — the JEBAITOR capture, verbatim
+
+`fixtures/fishing-casts/live/cast-2026-08-25-02-20-19/state-000.json`, the
+`start_run` response for the uncharged cast:
+
+```json
+{
+  "message": "Game started successfully.",
+  "data": {
+    "doc": {
+      "docId": "13073296",
+      "docType": "FISHING_GAME",
+      "DAY_CID": 20689,
+      "IS_JUICED_CID": true,
+      "LEVEL_CID": 24,
+      "PLAYER_CID": "0xUSER",
+      "COMPLETE_CID": false,
+      "createdAt": "2026-08-25T02:20:23.009Z"
+    },
+    "events": [
+      {"type": "JEBAITOR", "playerId": -1, "batch": 0, "value": 6.75, "data": {}}
+    ]
+  }
+}
+```
+
+Census over all 166 committed casts that have a captured `start_run`:
+
+```
+  docId       createdAt                  value   charged by the game?
+  13024510    2026-08-21T21:59:50.786Z    2.25   unknown — predates the instrument
+  13071800    2026-08-24T22:35:50.831Z    6.75   NO   ← session 92 §34
+  13073296    2026-08-25T02:20:23.009Z    6.75   NO   ← session 93
+```
+
+`JEBAITOR` is the ONLY event type ever seen on a `start_run` response in the
+whole corpus. `DAY_CID` was checked as an alternative explanation and rejected:
+it reads 20689 for every cast from 19:19 UTC on 08-24 through 02:20 UTC on
+08-25, so the game-day did not roll between the charged and uncharged casts.
+
+## §2 — the 27 blind casts, in full
+
+`oldReader` = the first-to-last `consumablesUsed` delta over `turns`;
+`new` = `consumablesUsedMax`.
+
+```
+  12975152  0 -> 1   preOil       caught=false  lastHp 19   ← EXEMPTED, capture began mid-cast
+  13019665  0 -> 1   oilSupplied  caught=true   lastHp 1
+  13022748  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13022876  0 -> 1   oilSupplied  caught=true   lastHp 1
+  13024510  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13024550  1 -> 2   oilSupplied  caught=true   lastHp 2
+  13024562  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13024574  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13024581  1 -> 2   oilSupplied  caught=true   lastHp 1
+  13025990  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13041055  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13041483  0 -> 1   oilSupplied  caught=true   lastHp 1
+  13055873  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13055879  0 -> 1   oilSupplied  caught=true   lastHp 1
+  13055883  2 -> 3   oilSupplied  caught=true   lastHp 2
+  13055886  0 -> 1   oilSupplied  caught=true   lastHp 2
+  13055896  0 -> 1   focusDry     caught=true   lastHp 1
+  13055900  0 -> 1   focusDry     caught=true   lastHp 2
+  13055915  0 -> 1   focusDry     caught=true   lastHp 2
+  13055924  0 -> 1   focusDry     caught=true   lastHp 1
+  13055929  0 -> 1   focusDry     caught=true   lastHp 2
+  13068171  0 -> 2   focusDry     caught=true   lastHp 4   ← double-lethal
+  13068190  0 -> 2   focusDry     caught=true   lastHp 4   ← double-lethal
+  13071770  0 -> 2   focusDry     caught=true   lastHp 4   ← double-lethal
+  13071790  0 -> 2   focusDry     caught=true   lastHp 4   ← double-lethal
+  13071794  0 -> 2   focusDry     caught=true   lastHp 4   ← double-lethal
+  13071804  0 -> 1   focusDry     caught=true   lastHp 2
+```
+
+`lastHp` ≤ 2 is the single-lethal signature (the payload's `fishDamage` is 2);
+`lastHp` 4 is the double. `13073296` joins as a 28th after the live cast.
+
+Era census after the fix:
+
+```
+  preOil        n=94   oilCasts=1    oils=1
+  oilSupplied   n=62   oilCasts=27   oils=39
+  focusDry      n=33   oilCasts=11   oils=16
+  ───────────────────────────────────────────
+  total        n=189   oilCasts=40   oils=57
+```
+
+## §2 — the decomposition, before and after
+
+```
+  arm                                casts  plays  zero   cf   cf/plays  std(preOil)
+  oilSupplied no-oil  (was 47)          35    107     2     2     1.9%      29.8%
+  oilSupplied oil     (was 15)          27    128     2    48    37.5%      47.3%
+  └ RESTORE arm (meter actually rose)   13     89     2    46    51.7%      57.2%
+  └ no-restore arm                      49    146     2     4     2.7%      28.4%
+  preOil                                94    410   184     —    44.9%        —
+```
+
+The restore arm is the one that carries the causal claim: strip the restores and
+those casts revert to within 5.5pp of the old regime. The blind reader gave
+6.8pp on a set that happened to be almost exactly the restore casts.
+
+## §3 — the boons diff, before regenerating
+
+```
+  table rows: 202     corpus rows: 227
+  IN TABLE, NOT IN CORPUS:   (none)
+  IN CORPUS, NOT IN TABLE:   25
+  max room, table: 9    corpus: 9
+```
+
+Source runs for all 25: `run-2026-08-24-00-14-01` (7), `-00-49-12` (6),
+`-00-56-03` (4), `-01-04-21` (8). Deepest new offer: room 8.
+
+## Verification, at the final commit
+
+```
+  npx tsc --noEmit                       clean
+  npx vitest run                         105 files, 1757 passed / 0 failed (1757)
+  npx tsx scripts/assertionCoverage.ts   1757 counted, every one called expect()
+  npx tsx scripts/preflight.ts           PREFLIGHT PASSED
+                                         exported tree: 105 passed, 16 skipped
+                                         doctor.ts: exactly one ✗ (the JWT)
+                                         secret scan of the export: clean
+  npx vitest run tests/discoveredShipsClean.test.ts   8 passed
+  git diff --check                       clean
+  secret scan of the session diff        clean (0x/eyJ/noobId/PRIVATE)
+  .gitignore                             .env *.key data/ logs/ profiles/
+                                         fixtures/**/raw/ fixtures/**/*.har — all present
+                                         config/discovered.json NOT ignored (correct)
+```
