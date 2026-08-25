@@ -49,7 +49,12 @@ describe("ZONE_OFFSET against the real corpus", () => {
     // fifth consecutive clean widening. Only the census moved; the property
     // this test exists for (`mismatches` empty, `correct === scored`) is
     // asserted below and did not.
-    expect(r.scored).toBe(777); // [session 93] was 775; [session 92] was 751
+    // [session 96] 777 -> 820 across the ten-cast batch. **STILL
+    // exceptionless** over 43 further plays it has never seen — the ratchet's
+    // sixth consecutive clean widening. Only the census moved; the property
+    // this test exists for (`mismatches` empty, `correct === scored`) is
+    // asserted below and did not.
+    expect(r.scored).toBe(820); // [session 96] was 777; [session 92] was 751
     expect(r.mismatches).toEqual([]);
     expect(r.correct).toBe(r.scored);
   });
@@ -71,15 +76,15 @@ describe("ZONE_OFFSET against the real corpus", () => {
    */
   it("resolves against the POST-move focus and the RESULTING fish cell — and no other reading fits", () => {
     const truth = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.truth);
-    expect(truth.correct).toBe(777); // [session 93] was 775; [session 92] was 751
-    expect(truth.scored).toBe(777); // [session 93] was 775; [session 92] was 751
+    expect(truth.correct).toBe(820); // [session 96] was 777; [session 92] was 751
+    expect(truth.scored).toBe(820); // [session 96] was 777; [session 92] was 751
 
     // The three wrong readings, pinned at their exact scores. `toBeLessThan`
     // alone would pass if a refactor made them all 589.
     const focusBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.focusBefore);
     const stateBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.stateBefore);
     const prevFish = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.previousFishPosition);
-    expect(focusBefore.correct).toBe(601); // [session 93] was 600; [session 92] was 582 @178 casts
+    expect(focusBefore.correct).toBe(635); // [session 96] was 601; [session 92] was 582 @178 casts
     // ⚠ [session 90] These two SWAPPED RANK: `stateBefore` was the better of
     // the pair (385 vs 380) and is now the worse (430 vs 436). Neither is
     // close to exceptionless and nothing downstream ranks them, so this is
@@ -90,8 +95,12 @@ describe("ZONE_OFFSET against the real corpus", () => {
     // session 90's reading of the earlier rank swap as noise between two wrong
     // readings survives and is if anything better supported. Nothing downstream
     // ranks them; this stays recorded rather than promoted.
-    expect(stateBefore.correct).toBe(476); // [session 93] was 475; [session 92] was 460
-    expect(prevFish.correct).toBe(484); // [session 93] was 482; [session 92] was 464
+    // [session 96] 476 -> 506 and 484 -> 508. The gap between the two wrong
+    // readings NARROWED again, 4 plays -> 2, continuing the trend session 91
+    // noted. Still noise between two wrong readings, still nothing downstream
+    // ranking them; recorded, not promoted.
+    expect(stateBefore.correct).toBe(506); // [session 96] was 476; [session 92] was 460
+    expect(prevFish.correct).toBe(508); // [session 96] was 484; [session 92] was 464
 
     // **The demonstration the gate asks for: the pin FAILS under the
     // `previousFishPosition` reading.** A pin that does not fail the wrong
@@ -101,11 +110,14 @@ describe("ZONE_OFFSET against the real corpus", () => {
     // [session 91] 287/751 = 38.2% wrong, i.e. 61.8% "correct" — the SAME
     // misleading band as session 90's 62.4% and session 81's 62.1%, now over
     // three corpus widenings. The danger the pin exists for does not shrink.
-    expect(prevFish.mismatches.length).toBe(293); // [session 92] was 287
+    // [session 96] 508/820 "correct" = 62.0% — the SAME misleading band as
+    // session 91's 61.8%, session 90's 62.4% and session 81's 62.1%, now over
+    // four corpus widenings. The danger the pin exists for does not shrink.
+    expect(prevFish.mismatches.length).toBe(312); // [session 96] was 293
 
     // All four score the same denominator: the reading changes which cells are
     // compared, never which plays are eligible.
-    for (const r of [truth, focusBefore, stateBefore, prevFish]) expect(r.scored).toBe(777); // [session 93] was 775; [session 92] was 751
+    for (const r of [truth, focusBefore, stateBefore, prevFish]) expect(r.scored).toBe(820); // [session 96] was 777; [session 92] was 751
   });
 
   it("zone numbering is row-major with x as the ROW", () => {
@@ -160,8 +172,11 @@ describe("cast-trace corpus reconciliation", () => {
     // [session 91] 168 -> 178 across the ten-cast batch. Clean STILL trails
     // traces by exactly one, the same long-standing incomplete cast, now
     // across seven consecutive oil batches.
-    expect(traces.length).toBe(189); // [session 93] was 188; [session 92] was 178
-    expect(clean.length).toBe(188); // [session 93] was 187; [session 92] was 177
+    // [session 96] 189 -> 199 across the ten-cast batch. Clean STILL trails
+    // traces by exactly one, the same long-standing incomplete cast, now
+    // across eight consecutive oil batches.
+    expect(traces.length).toBe(199); // [session 96] was 189; [session 92] was 178
+    expect(clean.length).toBe(198); // [session 96] was 188; [session 92] was 177
     // Asserted as the IDENTITY rather than as two literals, so "exactly one"
     // stays the claim when both numbers next move.
     expect(traces.length - clean.length).toBe(1);
@@ -176,10 +191,10 @@ describe("cast-trace corpus reconciliation", () => {
     // 26 and thereby visible. With the ITEM_MESSAGE branch fixed both views
     // say 26 — the reconciliation is the evidence, which is why it is asserted
     // against the corpus figure rather than against a literal.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(774); // [session 93] was 772; [session 92] 748 -> 772. Was 609 @148 casts.
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(817); // [session 96] was 774; [session 92] 748 -> 772. Was 609 @148 casts.
     // Still asserted against the corpus figure rather than a literal — the
     // reconciliation is the evidence, and it holds at 38.
-    expect(traces.filter((t) => t.caught).length).toBe(70); // [session 93] was 69; [session 92] 64 -> 69 (+5 catches over 10 casts). Was 48 @148 casts.
+    expect(traces.filter((t) => t.caught).length).toBe(73); // [session 96] was 70 (+3 catches over 10 casts); [session 92] 64 -> 69. Was 48 @148 casts.
   });
 
   /**

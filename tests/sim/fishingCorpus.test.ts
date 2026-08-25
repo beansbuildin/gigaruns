@@ -146,11 +146,15 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // +52 playTurns, +4 caught, +6 escaped. `incomplete` is UNCHANGED at 1 for
     // the SEVENTH consecutive oil batch — the structural half of this pin, and
     // the reason it is asserted separately from the counts.
-    expect(summary.casts).toBe(189); // [session 93] was 188; was 178
-    expect(summary.responseDocs).toBe(1091); // [session 93] was 1086; was 1040
-    expect(summary.playTurns).toBe(778); // [session 93] was 776; [session 92] was 752
-    expect(summary.caught).toBe(70); // [session 93] was 69; [session 92] was 64
-    expect(summary.escaped).toBe(118); // [session 92] was 113
+    // [session 96] 189 -> 199 across the ten-cast batch: +58 responseDocs,
+    // +43 playTurns, +3 caught, +7 escaped. `incomplete` is UNCHANGED at 1 —
+    // the same long-standing truncated cast, still unmoved, which is the
+    // structural half of this pin and the reason it is asserted separately.
+    expect(summary.casts).toBe(199); // [session 96] was 189; was 178
+    expect(summary.responseDocs).toBe(1149); // [session 96] was 1091; was 1040
+    expect(summary.playTurns).toBe(821); // [session 96] was 778; [session 92] was 752
+    expect(summary.caught).toBe(73); // [session 96] was 70; [session 92] was 64
+    expect(summary.escaped).toBe(125); // [session 96] was 118; [session 92] was 113
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -573,6 +577,21 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // absent for stock. The lethal trigger landed the kill on the closing turn —
       // the exact shape §33 had been blind to, now counted correctly.
       "13073296",
+      // [session 96] +1 from the ten-cast batch: `13083731`, TWO Relaxing oils
+      // across slots 0 and 1 — the batch's single DOUBLE-LETHAL firing (fish
+      // at 4/16, turn 1, CAUGHT on that turn).
+      //
+      // ✅ The Relaxing per-cast cap of 2 was REACHED and **still did not
+      // BIND** — `doubleLethalTriggers` wanted exactly two, never three. That
+      // is the THIRD batch to reach it without binding (91, 92, 96), so the
+      // pattern is now well past the point of being a coincidence.
+      //
+      // The other nine casts of the batch spent nothing: Focus (942) is
+      // WITHDRAWN BY POLICY (§35), so all nine of its triggers recorded
+      // `oil_trigger_policy_withdrawn` rather than OIL-POLICY-DRY — the
+      // session-93 distinction working as designed across a full batch for the
+      // first time.
+      "13083731",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;
