@@ -1841,6 +1841,95 @@ DECISIONS.md.
 
 ---
 
+## §27 UPDATE [session 95 §G] — the narrower question was asked, and it narrows AGAIN: the weight is not the variable
+
+**Time-boxed, offline, zero live spend.** The question §27 recommended asking
+was *"what makes live's EFFECTIVE focus-reserve behaviour differ from the sim's
+at the same nominal weight"*. The first thing to establish is what the term
+does at all, and that turns out to be **structural and exactly derivable** —
+no corpus and no sim needed. Three claims, all verified by exhaustive sweep and
+now pinned in `tests/fishing/cardChoice.test.ts`:
+
+**1. The `Math.max(0, …)` clamp is dead code inside the default search space.**
+`bestFocusForCard` searches `reachableCells(gridSize, current, remaining)`, so
+every candidate already satisfies `d <= remaining` and `left` is never
+negative. Swept over grids 4/5/6, every current cell, every `remaining` 0–3:
+**0 of 1912 candidates clamp.** The clamp is the term's only nonlinearity, so
+with it unreachable the term is linear.
+
+**2. Therefore the term is EXACTLY a linear movement tax, and the retention
+part cancels.** Within one decision `remaining` is fixed, so
+
+```
+  w * (remaining - d) / MAX   =   (w * remaining / MAX)  -  (w / MAX) * d
+```
+
+and the first half is a constant across candidates — which cancels in an
+argmax. **`focusReserveWeight` does not price retention in the ranking at
+all.** Its entire effect is `-(w / FOCUS_METER_MAX) * d`. Max error over every
+candidate pair on every tested grid and budget: **exactly 0**. At the shipped
+`DEFAULT_FOCUS_RESERVE_WEIGHT = 3` against `FOCUS_METER_MAX = 3` that is a tax
+of **precisely 1.00 EV-units per manhattan step**.
+
+⚠ This contradicts the term's own documentation in two places.
+`cardChoice.ts`'s docstring calls it a reward for what a placement LEAVES, and
+`focusBudget.ts` describes it as *"a FIXED penalty proportional to budget
+retained"*. Both describe the FORMULA correctly and its RANKING BEHAVIOUR
+incorrectly, and the difference is the whole finding.
+
+**3. The tax's RATE is constant but its REACH scales with `remaining`, so it is
+structurally a first-turns-only effect.** The longest available move is bounded
+by the meter:
+
+```
+  remaining 3   17 candidate cells   longest move 3   worst-case tax 3.0
+  remaining 2   11                   longest move 2   worst-case tax 2.0
+  remaining 1    5                   longest move 1   worst-case tax 1.0
+  remaining 0    1                   longest move 0   worst-case tax 0.0
+```
+
+At `remaining` 0 the search space is a single cell and the term cannot
+influence anything.
+
+### What this settles: two measurements that looked contradictory are both right
+
+- **Session 48:** `w=0` and `w=3` indistinguishable over 73 whole traces —
+  measured across ALL turns, and `focusBudget.ts` records that 50.4% of turns
+  in that era were played at focus zero, where the term has nothing to reach
+  with.
+- **Session 85 gate 2:** `w=3` lands 0.004 outside today's era's OPENING-SPEND
+  interval against 0.207 at `w=0` — measured on turn 1, the only turn where
+  `remaining` is 3 and the tax can apply its full 3.0 EV-units.
+
+They are measuring different turns of a term that is only alive on the early
+ones. Neither needs to be re-run and neither was wrong.
+
+### The question that is actually left, and it is now ONE distribution
+
+Since the tax is an identical 1.00-per-step on both sides, **the nominal weight
+cannot be the source of a live-vs-sim difference.** The term changes a choice
+if and only if
+
+```
+  ΔEV(best moving placement, best stay-put placement)  <  1.00 x Δd
+```
+
+so the entire remaining question is **how the ΔEV-per-step distribution at
+decision points differs between live and sim** — a sharper distribution (EV
+gaps well above 1.00/step) makes the term inert, a flatter one makes it bind.
+That is one measurable quantity per side, not a policy replay.
+
+### What was NOT established, per rule 6
+
+**That distribution was not measured on either side.** Measuring it live needs
+the off-policy replay machinery over the corpus, and measuring it in sim needs
+`castSim`, which OIL-POLICY.md §0a suspends for this fishery — so a sim-side
+number would not be quotable even once computed. §27 therefore stays a
+RECOMMENDATION rather than closing, narrowed from "replay two whole policies"
+to "measure one distribution, live side first". The replay is still on hold.
+
+---
+
 ## §26 UPDATE [session 85] — still OPEN, still needs a yes/no, and gate 2 does not touch it
 
 Session 85 was asked to put §26 to the user and has. **Nothing has been

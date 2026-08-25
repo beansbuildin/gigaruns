@@ -132,6 +132,37 @@ export interface CardFocusChoice {
  */
 export const DEFAULT_FOCUS_RESERVE_WEIGHT = 3;
 
+/**
+ * ⚠ [session 95 §G] **WHAT THIS TERM DOES IN THE RANKING IS NOT WHAT THE
+ * COMMENTS ABOVE SAY.** They describe the formula correctly and its behaviour
+ * incorrectly, and the difference is worth stating where the function is.
+ *
+ * `bestFocusForCard` searches `reachableCells(gridSize, current, remaining)`,
+ * so every candidate already satisfies `d <= remaining` and the `Math.max(0, …)`
+ * below NEVER CLAMPS — 0 of 1912 candidates over grids 4/5/6, every current
+ * cell and every remaining 0–3. With the clamp unreachable the term is linear,
+ * and within one decision `remaining` is fixed, so
+ *
+ *     w * (remaining - d) / MAX  =  (w * remaining / MAX)  -  (w / MAX) * d
+ *
+ * whose first half is a per-decision CONSTANT and cancels in an argmax.
+ *
+ * So this does not "reward the budget a placement LEAVES" in any way that
+ * affects which placement wins. It is **exactly a linear movement tax of
+ * `w / FOCUS_METER_MAX` EV-units per manhattan step** — 1.00 per step at the
+ * shipped weight of 3. Its RATE is constant; its REACH is bounded by
+ * `remaining`, so it is structurally a first-turns-only effect and is inert
+ * once the meter empties.
+ *
+ * That reconciles session 48's "w=0 and w=3 indistinguishable over 73 whole
+ * traces" with session 85's "w=3 lands 0.004 outside the opening-spend
+ * interval, w=0 0.207": they measure different turns of a term that only lives
+ * on the early ones. See QUESTIONS.md §27 UPDATE and the pins in
+ * `tests/fishing/cardChoice.test.ts`.
+ *
+ * The formula is NOT changed on the strength of this — the reading is, and
+ * `DEFAULT_FOCUS_RESERVE_WEIGHT` keeps its swept value.
+ */
 export function focusReserveFraction(focusBudget: FocusBudget | undefined, focus: Cell): number {
   if (!focusBudget) return 0;
   const left = focusBudget.remaining - manhattan(focusBudget.current, focus);

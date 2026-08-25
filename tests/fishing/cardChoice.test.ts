@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Cell } from "../../src/sim/fishing/geometry.js";
-import { cellKey } from "../../src/sim/fishing/geometry.js";
+import { cellKey, FOCUS_METER_MAX, manhattan, reachableCells } from "../../src/sim/fishing/geometry.js";
 import {
   bestFocusForCard,
   chooseCard,
@@ -434,6 +434,99 @@ describe("focusReserveFraction", () => {
   it("never goes negative when a caller overspends the budget", () => {
     const budget: FocusBudget = { current: { x: 1, y: 1 }, remaining: 1 };
     expect(focusReserveFraction(budget, { x: 4, y: 4 })).toBe(0);
+  });
+
+  // ─── [session 95 §G] WHAT THIS TERM ACTUALLY IS, pinned ──────────────────
+  //
+  // QUESTIONS.md §27's narrowed question was "what makes live's EFFECTIVE
+  // focus-reserve behaviour differ from the sim's at the same nominal weight".
+  // The answer starts here, and it is structural rather than empirical: inside
+  // `bestFocusForCard`'s DEFAULT search space the term is not a retention
+  // reward at all. It is exactly a linear movement tax.
+  //
+  // These two tests pin the two steps of that, because the reading breaks
+  // silently if either the search space or the clamp changes.
+
+  it("the max(0, …) clamp is DEAD CODE inside the default search space", () => {
+    // `bestFocusForCard` searches `reachableCells(gridSize, current, remaining)`,
+    // so every candidate already satisfies d <= remaining and `left` is never
+    // negative. Swept exhaustively over grids 4/5/6, every current cell and
+    // every remaining 0..3: 0 of 1912 candidates clamp.
+    //
+    // This matters because the clamp is the ONLY nonlinearity in the term. With
+    // it unreachable, the term is linear, which is what the next test uses.
+    let clamped = 0;
+    let total = 0;
+    for (const gridSize of [4, 5, 6]) {
+      for (let x = 0; x < gridSize; x++) {
+        for (let y = 0; y < gridSize; y++) {
+          for (const remaining of [0, 1, 2, 3]) {
+            const current: Cell = { x, y };
+            for (const focus of reachableCells(gridSize, current, remaining)) {
+              total++;
+              if (remaining - manhattan(current, focus) < 0) clamped++;
+            }
+          }
+        }
+      }
+    }
+    expect(total).toBe(1912);
+    expect(clamped).toBe(0);
+  });
+
+  it("is EXACTLY a movement tax of w/FOCUS_METER_MAX per step — the retained part cancels", () => {
+    // Within ONE decision `remaining` is fixed, so
+    //   w * (remaining - d) / MAX  =  (w * remaining / MAX)  -  (w / MAX) * d
+    // and the first half is a constant across candidates. In an argmax a
+    // constant cancels. So `focusReserveWeight` does not price retention in the
+    // ranking; its whole effect is -(w/MAX) * d.
+    //
+    // At the shipped DEFAULT_FOCUS_RESERVE_WEIGHT = 3 and FOCUS_METER_MAX = 3
+    // that is a tax of exactly 1.00 EV-units per manhattan step.
+    const w = 3;
+    let maxErr = 0;
+    for (const gridSize of [4, 5]) {
+      for (const remaining of [1, 2, 3]) {
+        const current: Cell = { x: 2, y: 2 };
+        const cells = reachableCells(gridSize, current, remaining);
+        const budget: FocusBudget = { current, remaining };
+        for (const a of cells) {
+          for (const b of cells) {
+            const termDiff = w * focusReserveFraction(budget, a) - w * focusReserveFraction(budget, b);
+            const taxDiff = -(w / FOCUS_METER_MAX) * (manhattan(current, a) - manhattan(current, b));
+            maxErr = Math.max(maxErr, Math.abs(termDiff - taxDiff));
+          }
+        }
+      }
+    }
+    expect(maxErr).toBe(0);
+    expect(w / FOCUS_METER_MAX).toBe(1);
+  });
+
+  it("the tax's REACH scales with `remaining`, which is why it is a first-turns effect", () => {
+    // The per-step rate is constant, but the longest AVAILABLE move is bounded
+    // by `remaining` — so the largest penalty the term can apply falls with the
+    // meter, and at remaining 0 the search space is a single cell and the term
+    // cannot influence anything at all.
+    //
+    // This reconciles two readings that look contradictory:
+    //   session 48  w=0 and w=3 indistinguishable over 73 whole traces
+    //   session 85  w=3 lands 0.004 outside the OPENING-SPEND interval, w=0 0.207
+    // Mid-cast the meter is low (focusBudget.ts: 50.4% of turns played at focus
+    // zero in its era), so the term has nothing to reach with; turn 1 is where
+    // remaining is 3 and it can apply up to 3.0 EV-units. Both measurements are
+    // correct and they are measuring different turns.
+    const reach = [3, 2, 1, 0].map((remaining) => {
+      const current: Cell = { x: 2, y: 2 };
+      const cells = reachableCells(5, current, remaining);
+      return { remaining, cells: cells.length, maxD: Math.max(...cells.map((c) => manhattan(current, c))) };
+    });
+    expect(reach).toEqual([
+      { remaining: 3, cells: 17, maxD: 3 },
+      { remaining: 2, cells: 11, maxD: 2 },
+      { remaining: 1, cells: 5, maxD: 1 },
+      { remaining: 0, cells: 1, maxD: 0 },
+    ]);
   });
 });
 

@@ -63,6 +63,11 @@
  * Why the penalty term could never fix that (session 48 measured it inert:
  * w=0 and w=3 indistinguishable on 73 traces, w>=4 monotonically worse):
  * `focusReserveWeight` adds a FIXED penalty proportional to budget retained,
+ * [⚠ session 95 §G: in the RANKING it is exactly a linear movement tax of
+ * w/FOCUS_METER_MAX per step — the retained-budget half is a per-decision
+ * constant and cancels in the argmax. The conclusion below is unaffected and
+ * if anything strengthened; see `focusReserveFraction` and QUESTIONS.md §27
+ * UPDATE.]
  * but the policy's problem is not that it undervalues retention — it is that
  * it has no representation of how many turns remain or what a point will be
  * worth in them. A constant either loses to a real EV gain every turn (small
