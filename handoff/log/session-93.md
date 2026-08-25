@@ -144,9 +144,11 @@ sessions** — 1757 tests counted with zero vacuous, and PREFLIGHT PASSED.
    resets 11:00 PT; nothing about it is blocked any more. The redraw-shadow
    puzzle (0/52 vs 4/24, Fisher p = 0.008) has 2 more observations and still
    needs volume, not a redesign.
-2. **Should `dendren.dailyEnergyBudget` stay at 252?** It is safe (the game caps
-   at 20 casts) but it is no longer the binding ceiling, which is a change in
-   what that number means. A one-line ruling either way.
+2. ~~**Should `dendren.dailyEnergyBudget` stay at 252?**~~ **ANSWERED — YES,
+   standing.** Ruled by the user at the end of session 93. At 240 the REPO was
+   the binding ceiling; at 252 the GAME is, which is the correct arrangement.
+   Safe by construction (252/12 = 21 casts against a server cap of 20). Does NOT
+   generalise — a future raise still needs its own approval.
 3. **§2 found that a shipped policy's own successes were invisible to the census
    for thirty sessions. That is worth one deliberate audit, not a fix.** The
    pattern is "an instrument that walks the END of a cast, unchecked against the

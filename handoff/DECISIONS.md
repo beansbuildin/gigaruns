@@ -2055,3 +2055,18 @@ instead of 20); the `raised` direction still has no explanation and this answer
 must not be generalised to it. **Do not plan around it** — a post-hoc bonus is
 not schedulable allowance, and the ledger stays the only authority (rule 13).
 `fishingLedgerReconcile.ts` now names the cause in its `lowered` note.
+
+2026-08-24 (session 93) — **`dendren.dailyEnergyBudget` STAYS AT 252. Confirmed
+standing by the user; it is the budget now, not a one-day exception.** Raised
+240 → 252 mid-session so the day's twentieth cast could be spent — the repo's
+own ceiling had become binding at 19 casts while the GAME's ledger still showed
+19/20, and an unspent cast expires at the 11:00 PT rollover. ⚠ **What changed is
+not the size of the number but WHICH ceiling binds:** at 240 the repo was the
+constraint; at 252 the GAME is, and that is the correct arrangement — the repo's
+budget exists to stop runaway spend, not to shave the last cast off a day the
+server is already capping. **Safe by construction: 252/12 = 21 casts against a
+server cap of 20** (`maxCastsPerDayJuiced`), so this value can never buy a cast
+the server would not already refuse. It is a ceiling that has stopped being the
+binding one, not a loosened cap. ⚠ It does NOT generalise: CLAUDE.md's ask-first
+rule on spending above the configured budget is untouched, and a future raise
+needs its own approval. `forbiddenWoods.dailyEnergyBudget` is unchanged at 240.
