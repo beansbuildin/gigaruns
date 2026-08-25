@@ -3337,3 +3337,84 @@ any new quotable figure.
 **§38 is CLOSED.** "The gate-1 re-audit" stops being carried as an open item in
 STATE.md as of session 96 — the same way §19 and §23 got closing pointers in
 session 95 rather than staying open by inertia.
+
+---
+
+## §39 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — APPROVE THE NECESSITY GATE FROM `handoff/OIL-CONSERVE.md`, DIRECTION CONFIRMED, RE-DERIVATION REQUIRED BEFORE IT SHIPS
+
+**Why this entry exists.** The user asked, unprompted, how many of their own
+directives had been logged as recommendations and never actually wired live.
+An audit of `DECISIONS.md`/`TASKS.md`/the session logs surfaced
+`handoff/OIL-CONSERVE.md` (session 67, 2026-08-21, brief §1) as the clearest
+case: a policy the user explicitly asked for, that was derived, swept at
+n=8000, and measured to **beat the shipped policy on catch rate AND oil spend
+at once** (88.38% vs 88.11% catch, 32% fewer oils; dominates at every
+finite-stock level tested, §5) — and the one open question it left
+("does the user approve `conserve(r=1,f=1)`?") was written into
+`handoff/log/session-67.md`'s own "open questions" section instead of into
+this file, so it was never actually put in front of the user. It surfaced
+again in passing in `DECISIONS.md`'s 2026-08-24 (session 90) entry and then
+stopped being mentioned anywhere through session 96.
+
+**The user's directive, quoted again because it's what this approves** (first
+recorded `handoff/OIL-CONSERVE.md` §0, session 67, 2026-08-21):
+
+> Keep crafting, but use oils only on an as-needed basis. If the autofisher
+> believes it can catch the fish without oil, don't use the oil — conserve
+> inventory for future casts. The priority is to use mana to get the fish as
+> close as possible to caught, with the oils as a backup to guarantee a catch
+> if need be.
+
+**Today, 2026-08-25, the user approved shipping this direction** when it was
+re-surfaced to them directly (not through `handoff/log/`) as one of several
+stalled recommendations found by an audit. **This answers the "does the user
+approve" question `session-67.md` left open. It does not, by itself,
+authorize dropping the old `conserve(r=1,f=1)` sweep numbers straight into
+`liveFishing.ts`** — two things changed underneath that sweep since session
+67 that make a straight drop-in the wrong kind of confidence (rule 9):
+
+1. **`config/bot.json`'s `dendren.oils.allowedItemIds` is now `[937]` only**
+   (session 93, §35, RELAXING-OIL-ONLY). The original sweep scored both the
+   Relaxing gate and the Focus gate; only the Relaxing half is live-relevant
+   today. §3's own decomposition table already isolates that half — "the
+   Relaxing gate is free… for 1182 fewer oils (−21%)" — so the Relaxing-only
+   case doesn't need re-deriving from nothing, but it does need re-stating on
+   its own, not as half of a two-oil recommendation that no longer applies
+   whole.
+2. **The live trigger the necessity gate would sit on top of is no longer
+   `onDemandTriggers` alone.** Session 90 (§30, user directive) wired
+   `doubleLethalTriggers` live, which itself calls `onDemandTriggers` as its
+   `base` (`src/strategy/fishing/oilTiming.ts` line ~699) and layers a
+   same-turn double-spend on top in a specific HP band. `conservingOil`
+   (line 600) also wraps `onDemandTriggers` directly — the two were built as
+   siblings, not composed with each other, and nothing in `OIL-CONSERVE.md`
+   or `oilTiming.ts`'s own comments says what "necessity-gated AND
+   double-lethal-capable" does together. That composition needs to be
+   written and swept before it ships, not assumed.
+
+**What this entry settles and what it leaves for the next session:**
+
+- **Settled:** the user approves the necessity-gating *direction* — skip an
+  oil spend the bot's own model already shows is unnecessary — as shipped
+  policy, not merely a sim curiosity. `handoff/OIL-CONSERVE.md` is no longer
+  "awaiting the user's approval" in the sense its own title says; that title
+  should be updated when the wiring session runs.
+- **Not settled, and not to be assumed:** the exact thresholds and the
+  composition with `doubleLethalTriggers` under the current relaxing-only
+  configuration. `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing = 1` was derived
+  with both oils live and no double-lethal layer; re-sweep it (or confirm it
+  still holds) under today's actual live composition before wiring, per
+  CLAUDE.md rule 4.
+- **Worth checking together with the still-open §2c oil-trigger tripwire**
+  (STATE.md session 96: 9 of 10 clean casts exceeded a threshold of 6, a
+  ~1-in-900 event under the model's ~0.70 oils/cast assumption). A
+  necessity gate that cuts unnecessary Relaxing spends by ~21% would also
+  lower the *model's own* expected oils/cast, which changes what threshold
+  the tripwire should have been pre-registered against. These may be the
+  same finding wearing two names — the wiring session should check that
+  explicitly rather than treat them as two separate open items.
+
+See `handoff/next-oil-conserve.md` for the concrete wiring brief.
+
+**§39 is ANSWERED on direction; wiring is deferred to a brief with its own
+verification gate, per CLAUDE.md rule 4.**
