@@ -222,7 +222,7 @@ const LEVEL_SITES: { file: string; contains: string; live: boolean; why: string 
   },
   {
     file: "src/strategy/fishing/oilTiming.ts",
-    contains: "meetsThreshold(bestConnectProbabilityFromFrozenCell(d), t.focus)",
+    contains: "meetsThreshold(bestConnectProbabilityFromFrozenCell(s), t.focus)",
     live: true,
     why:
       "The FOCUS OIL necessity gate — the site the session-73 brief named. The gate skips the " +
@@ -231,7 +231,7 @@ const LEVEL_SITES: { file: string; contains: string; live: boolean; why: string 
   },
   {
     file: "src/strategy/fishing/oilTiming.ts",
-    contains: "meetsThreshold(bestKillProbability(d), t.relaxing)",
+    contains: "meetsThreshold(bestKillProbability(s), t.relaxing)",
     live: true,
     why:
       "The RELAXING OIL necessity gate. Same shape, same direction, one step further derived: " +
@@ -240,9 +240,16 @@ const LEVEL_SITES: { file: string; contains: string; live: boolean; why: string 
   },
   {
     file: "src/strategy/fishing/oilTiming.ts",
-    contains: "if (bestKillProbability(s) >= relaxingThreshold) return base;",
+    contains: "if (meetsThreshold(bestKillProbability(s), relaxingThreshold)) return base;",
     live: true,
     why:
+      "[session 97 §1b] ⚠ THE COMPARISON CHANGED FROM A BARE `>=` TO `meetsThreshold`, AND THAT IS A " +
+      "FIX, NOT A RENAME. This line read `bestKillProbability(s) >= relaxingThreshold` from session 89 " +
+      "until session 97 while the necessity gate two entries up — same quantity, same constant — went " +
+      "epsilon-tolerant in session 68. At a threshold of exactly 1 a certain kill arrives as " +
+      "0.9999999999999999 whenever the summation order does not cancel (session 68 observed exactly " +
+      "that), so the bare form read certainty as uncertainty and spent TWO oils on a turn the bot was " +
+      "already sure of. " +
       "[session 89, WENT LIVE session 90] The DOUBLE-LETHAL band gate. Same level-based read as " +
       "the relaxing necessity gate above and the same constant, applied in the band where one oil " +
       "cannot finish the fish but two can. **This entry was `live: false` for exactly one session.** " +
@@ -319,9 +326,9 @@ describe("the level-based sites — the only ones a miscalibrated level can reac
     expect(LEVEL_SITES.filter((s) => s.live).map((s) => s.contains).sort()).toEqual(
       [
         "if (pAnyHit < 0.999999) return false;",
-        "meetsThreshold(bestConnectProbabilityFromFrozenCell(d), t.focus)",
-        "meetsThreshold(bestKillProbability(d), t.relaxing)",
-        "if (bestKillProbability(s) >= relaxingThreshold) return base;",
+        "meetsThreshold(bestConnectProbabilityFromFrozenCell(s), t.focus)",
+        "meetsThreshold(bestKillProbability(s), t.relaxing)",
+        "if (meetsThreshold(bestKillProbability(s), relaxingThreshold)) return base;",
         "(r.bestConnectProbability ?? 0) >= 1",
         "(r.bestKillProbability ?? 0) >= 1",
       ].sort(),

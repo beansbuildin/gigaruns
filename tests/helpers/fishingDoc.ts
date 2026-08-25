@@ -92,6 +92,40 @@ export function fakeCard(o: FakeCardOptions = {}) {
   };
 }
 
+/**
+ * **A card that CANNOT finish a fish sitting in the Relaxing Oil's lethal
+ * band** — the hand every oil-LOOP test needs as of session 97.
+ *
+ * ## Why this exists
+ *
+ * `fakeCard`'s default is a FULL 3x3 template (`hitZones: [1..9]`) dealing 5,
+ * so against the `fishHp: 2` these tests use to arm the lethal trigger it
+ * kills with probability exactly 1 — a hit is certain by construction when the
+ * template covers every reachable cell. Session 68 hit the same property with
+ * the same shape on the live shadow harness.
+ *
+ * That was harmless while `scripts/liveFishing.ts` played `onDemandTriggers`,
+ * which reads scalars and never looks at the hand. As of session 97 §1d the
+ * live trigger is `necessityGatedDoubleLethalTriggers`, and a certain kill is
+ * precisely the state the necessity gate WITHHOLDS the oil on. So a fixture
+ * built to exercise the consume loop, the per-cast cap, or the dry path stops
+ * exercising any of them: no oil is ever requested.
+ *
+ * **Using this card is not weakening those tests to match new code — it
+ * isolates them from a gate they were never about**, the same way
+ * `conservingTriggers` reuses `onDemandTriggers` rather than restating it so
+ * two changes cannot be confounded. Each of those files pins downstream
+ * machinery GIVEN a trigger fires; which trigger fires is
+ * `oilNecessityComposition.test.ts`'s question, not theirs.
+ *
+ * **And it is the LIVE-REPRESENTATIVE case, not a convenient one.** Session 97
+ * §1a measured `bestKillProbability` across every cast ever recorded: 18
+ * replayed evaluations and 24 live observations, maximum **0.991**, never once
+ * reaching 1. A fixture whose kill is certain describes a board the real
+ * fishery has never produced; this one describes the board it always produces.
+ */
+export const CANNOT_FINISH_CARD = fakeCard({ hitAmount: 1 });
+
 export interface FakeDocOptions {
   docId?: string;
   fishPosition?: [number, number];

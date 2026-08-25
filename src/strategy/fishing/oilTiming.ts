@@ -605,25 +605,77 @@ export function conservingOil(t: OilNecessityThresholds): OilTimingPolicy {
       "already kills with probability >= the relaxing threshold, and skip the Focus Oil when an affordable " +
       "card already connects from the frozen cell with probability >= the focus threshold. Mana first, oils " +
       "as the backup that guarantees the catch.",
-    decide: (s, e) => {
-      const d = s as OilDecisionState;
-      const wanted = onDemandTriggers(s, e);
-      const out: OilKind[] = [];
-      for (const kind of wanted) {
-        if (kind === "relaxing") {
-          if (heldOf(s, "relaxing") <= 0) continue;
-          if (meetsThreshold(bestKillProbability(d), t.relaxing)) continue;
-          out.push("relaxing");
-        } else {
-          if (heldOf(s, "focus") <= 0) continue;
-          if (meetsThreshold(bestConnectProbabilityFromFrozenCell(d), t.focus)) continue;
-          out.push("focus");
-        }
-      }
-      return out;
-    },
+    // Defined in terms of `conservingTriggers` + the stock filter, exactly as
+    // `onDemand.decide` is defined in terms of `onDemandTriggers`, so the
+    // trigger half and the policy half cannot drift apart.
+    decide: (s, e) => conservingTriggers(s as OilDecisionState, e, t).filter((k) => heldOf(s, k) > 0),
   };
 }
+
+/**
+ * **The necessity gate's TRIGGERS, evaluated independently of how many oils are
+ * held** — the sibling `conservingOil` never had, and the reason §1 of the
+ * session-97 brief could not simply "swap the trigger call in `liveFishing.ts`".
+ *
+ * `conservingOil` is a `OilTimingPolicy`, and `decide` folds the stock check in
+ * with the trigger check. That is right for the SIM and wrong for the LIVE
+ * loop, for precisely the reason session 62 §1b split `onDemandTriggers` out of
+ * `onDemand.decide`: collapsing "the trigger did not fire" into "the trigger
+ * fired and the account was dry" is what poisoned the dead era's rate for 40
+ * casts. `scripts/liveFishing.ts` calls a TRIGGER and does its own stock
+ * accounting through `oilHeld`/`mayConsumeOil`; handing it a `decide` would
+ * silently re-merge the two states this repo has already paid to keep apart.
+ *
+ * The triggers themselves are UNCHANGED and are reused from `onDemandTriggers`
+ * rather than restated — same reason as before: the directive is about
+ * spending fewer oils at the same moments, not about moving the moments.
+ *
+ * **This function can only ever REMOVE entries from `onDemandTriggers`' array,
+ * never add or reorder.** That property is what makes the composition in
+ * `necessityGatedDoubleLethalTriggers` analysable, and it is pinned by test.
+ */
+export function conservingTriggers(
+  s: OilDecisionState,
+  e: OilEffects,
+  t: OilNecessityThresholds,
+): OilKind[] {
+  const out: OilKind[] = [];
+  for (const kind of onDemandTriggers(s, e)) {
+    if (kind === "relaxing") {
+      if (meetsThreshold(bestKillProbability(s), t.relaxing)) continue;
+      out.push("relaxing");
+    } else {
+      if (meetsThreshold(bestConnectProbabilityFromFrozenCell(s), t.focus)) continue;
+      out.push("focus");
+    }
+  }
+  return out;
+}
+
+/**
+ * **The gate as it is actually configured live: RELAXING ONLY.**
+ *
+ * [session 93 §35, RELAXING-OIL-ONLY] `config/bot.json`'s
+ * `dendren.oils.allowedItemIds` is `[937]`. The Focus Oil is not a spendable
+ * item on this account today, so gating it would be gating nothing — and
+ * *appearing* to change the Focus policy while shipping the Relaxing one is
+ * exactly the confound `conservingOil`'s own header refuses.
+ *
+ * `focus: ALWAYS_FIRES_THRESHOLD` is not a tune and not a disabling hack: it
+ * is the documented degenerate endpoint that makes the Focus arm behave as
+ * `onDemandTriggers` does, byte for byte (`NEVER_FIRES_THRESHOLD` /
+ * `ALWAYS_FIRES_THRESHOLD`'s own doc comment). So this constant reads as
+ * "gate the Relaxing Oil, leave the Focus Oil exactly as it ships", which is
+ * the live configuration stated in code rather than in a comment.
+ *
+ * It is the same arm `handoff/OIL-CONSERVE.md` §3 scored as
+ * `conserve(r=1, f=2)` — "the Relaxing gate is free" — so the historical row
+ * and the shipped constant are the same object.
+ */
+export const RELAXING_ONLY_NECESSITY_THRESHOLDS: OilNecessityThresholds = {
+  relaxing: RECOMMENDED_NECESSITY_THRESHOLDS.relaxing,
+  focus: ALWAYS_FIRES_THRESHOLD,
+};
 
 /** The conserving arm at the recommended thresholds — the candidate the sweep scores. */
 export const conserving: OilTimingPolicy = conservingOil(RECOMMENDED_NECESSITY_THRESHOLDS);
@@ -696,18 +748,107 @@ export function doubleLethalTriggers(
   e: OilEffects,
   relaxingThreshold: number = RECOMMENDED_NECESSITY_THRESHOLDS.relaxing,
 ): OilTimingDecision {
-  const base = onDemandTriggers(s, e);
+  return doubleLethalOver(onDemandTriggers(s, e), s, e, relaxingThreshold);
+}
+
+/**
+ * **The double-lethal band applied over an ARBITRARY base**, extracted from
+ * `doubleLethalTriggers` [session 97 §1b] so the necessity gate can be
+ * composed underneath it without either layer being restated.
+ *
+ * The extraction is behaviour-preserving by construction:
+ * `doubleLethalTriggers` is now literally this function over
+ * `onDemandTriggers`, which is what its body was.
+ *
+ * **⚠ The comparison is `meetsThreshold`, not a bare `>=`, and that is a FIX,
+ * not a refactor artifact [session 97 §1b].** This line read
+ * `bestKillProbability(s) >= relaxingThreshold` from session 89 until now,
+ * while the necessity gate reading the SAME quantity against the SAME constant
+ * went epsilon-tolerant in session 68. That divergence was live: at the
+ * shipped threshold of exactly `1`, a genuinely certain kill arrives as
+ * `0.9999999999999999` whenever the probability summation order happens not to
+ * cancel (session 68 observed exactly this, same card, same certainty,
+ * consecutive turns), and a bare `>=` reads it as "not certain" and fires
+ * **two** oils on a turn the bot was already sure of — the precise decision
+ * both this band's thesis and the gate's forbid. `NECESSITY_EPSILON`'s own doc
+ * comment explains why 1e-9 is not a tune; it applies here unchanged. The
+ * degenerate endpoints still behave: nothing is below `0 - 1e-9`, everything
+ * is below `2 - 1e-9`.
+ */
+export function doubleLethalOver(
+  base: OilKind[],
+  s: OilDecisionState,
+  e: OilEffects,
+  relaxingThreshold: number,
+): OilTimingDecision {
   // Today's single-lethal case is UNCHANGED. If it fired, one oil ends the
   // cast and a second could not be spent on a finished fish anyway.
   if (base.includes("relaxing")) return base;
   if (s.fishHp <= e.fishDamage) return base;
   if (s.fishHp > 2 * e.fishDamage) return base;
   if (s.relaxingOilHeld < 2) return base;
-  if (bestKillProbability(s) >= relaxingThreshold) return base;
+  if (meetsThreshold(bestKillProbability(s), relaxingThreshold)) return base;
   // Order matters to the live loop, which sends these in sequence. Relaxing
   // first: the pair is the point, and a focus consume between them would be
   // sent against a state the second relaxing then acts on.
   return ["relaxing", "relaxing", ...base];
+}
+
+/**
+ * ── [session 97 §1b] THE COMPOSED LIVE TRIGGER ─────────────────────────────
+ * **necessity-gated Relaxing spend, still capable of the same-turn
+ * double-lethal spend when the band calls for it.**
+ *
+ * QUESTIONS.md §39 approved the necessity gate's DIRECTION and explicitly
+ * refused to approve a composition nobody had written: *"the two were built as
+ * siblings, not composed with each other, and nothing in `OIL-CONSERVE.md` or
+ * `oilTiming.ts`'s own comments says what 'necessity-gated AND
+ * double-lethal-capable' does together."* This is that composition.
+ *
+ * ## It costs nothing relative to the gate alone, and this is PROVED, not swept
+ *
+ * The session-97 brief asked for a sweep to price the composition. A sweep was
+ * not the right instrument and would have been the weaker answer: the two
+ * layers act on **disjoint `fishHp` bands**, so the composition is decidable by
+ * case analysis over a partition. With `D = e.fishDamage`:
+ *
+ *  - **`fishHp <= 0`** — the fish is dead; `onDemandTriggers`' relaxing arm is
+ *    guarded on `fishHp > 0` and does not fire. Nothing to compose.
+ *  - **`0 < fishHp <= D`** (single-lethal) — the gate may drop the relaxing
+ *    entry. Either way `doubleLethalOver`'s second guard (`fishHp <= D`)
+ *    returns the base untouched, so the band CANNOT re-add an oil the gate just
+ *    skipped. **Composed == gate alone.**
+ *  - **`D < fishHp <= 2D`** (the double band) — `onDemandTriggers` never emits
+ *    a relaxing here (`fishHp <= D` is false), and `conservingTriggers` only
+ *    ever REMOVES entries, so the base's relaxing content is identical under
+ *    both. The band then applies its own `bestKillProbability` check, which is
+ *    the same gate against the same constant. **Composed == shipped
+ *    double-lethal.**
+ *  - **`fishHp > 2D`** — no relaxing trigger on any arm.
+ *
+ * The Focus arm is untouched at `RELAXING_ONLY_NECESSITY_THRESHOLDS` by the
+ * degenerate-endpoint argument in that constant's own comment.
+ *
+ * **So the composition is exactly "the gate below the single-lethal ceiling,
+ * the band above it", with no interaction term at any HP.** That is a stronger
+ * statement than a sweep could have produced — a sweep would have reported a
+ * near-zero difference with a confidence interval, and near-zero-with-a-CI is
+ * how a real interaction hides. `tests/fishing/oilNecessityComposition.test.ts`
+ * pins the case analysis exhaustively over the band boundaries rather than
+ * trusting this prose.
+ *
+ * ⚠ **The one behaviour that DOES change versus what shipped before this**, and
+ * it is the point of the change rather than a side effect: in the single-lethal
+ * band, when the bot's best affordable card already kills with certainty, no
+ * oil is spent. That is the user's directive from 2026-08-21, approved in
+ * §39.
+ */
+export function necessityGatedDoubleLethalTriggers(
+  s: OilDecisionState,
+  e: OilEffects,
+  t: OilNecessityThresholds = RELAXING_ONLY_NECESSITY_THRESHOLDS,
+): OilTimingDecision {
+  return doubleLethalOver(conservingTriggers(s, e, t), s, e, t.relaxing);
 }
 
 /**

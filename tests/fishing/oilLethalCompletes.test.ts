@@ -33,7 +33,7 @@ import { describe, expect, it } from "vitest";
 
 import { runOneCast, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
-import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
+import { fakeDoc as sharedFakeDoc, CANNOT_FINISH_CARD } from "../helpers/fishingDoc.js";
 import { GuardState } from "../../src/orchestrator/guards.js";
 import type { BotConfig } from "../../src/orchestrator/config.js";
 import type { GigaverseClient } from "../../src/api/client.js";
@@ -92,6 +92,7 @@ function makeClient(): { client: GigaverseClient; calls: { action: string; itemI
         if (body.data.itemId === MID_RELAXING_OIL_ITEM_ID) complete = true;
       }
       const doc = sharedFakeDoc({
+        cards: [CANNOT_FINISH_CARD],
         docId: "13024000",
         // Lethal, and the meter is empty: BOTH triggers fire on the same turn.
         fishHp: complete ? 0 : PAYLOAD_OIL_EFFECTS.fishDamage,

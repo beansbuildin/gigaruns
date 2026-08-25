@@ -132,7 +132,26 @@ async function runArm(shadowOil: boolean, opts: { oilBudget?: OilBudgetConfig } 
         // Lethal for the whole cast: the trigger is available on every turn,
         // so a shadow leak has more than one chance to show up.
         fishHp: PAYLOAD_OIL_EFFECTS.fishDamage,
-        focusMeter: 3,
+        // ── [session 97 §1d] THE METER IS EMPTY, AND THAT IS THE WHOLE FIX ──
+        //
+        // This was `3` (full), so only the RELAXING trigger fired and the
+        // disagreement was "live spends, the conserving shadow would skip".
+        // **Shipping the necessity gate destroyed that construction**: live now
+        // runs the gate too, skips for the same reason, and the two arms agree
+        // — which makes byte-identity a statement about nothing, exactly the
+        // vacuity this file exists to prevent.
+        //
+        // An empty meter fires the FOCUS trigger as well, and the focus arm is
+        // where the two policies still genuinely differ:
+        //   - the SHADOW is `conservingOil(PREREGISTERED_EXCHANGE_THRESHOLDS)`,
+        //     whose `focus` threshold is 1 — so at a certain connect it SKIPS.
+        //   - LIVE is `RELAXING_ONLY_NECESSITY_THRESHOLDS`, whose `focus` is
+        //     `ALWAYS_FIRES_THRESHOLD` (session 93 §35 leaves the Focus Oil
+        //     exactly as `onDemandTriggers` has it) — so it SPENDS.
+        // The divergence is therefore real, live-relevant, and forced by
+        // construction rather than by luck, which is what the `gridSize: 3`
+        // comment above asks of this fixture.
+        focusMeter: 0,
         complete: body.action === "play_cards" && plays >= 2,
         slotUsed,
       });
@@ -186,11 +205,13 @@ describe("GATE 1 — the oil shadow is provably inert", () => {
 
   it("the shadow DISAGREES with the live policy here — so a leak would be visible", async () => {
     const on = await runArm(true);
-    // The live policy wanted the Relaxing Oil and really spent it...
+    // The live policy wanted the Focus Oil and really spent it...
     expect(on.posts.some((p) => (p as { action: string }).action === "use_fishing_item")).toBe(true);
-    // ...and the conserving gate would have kept it, because a card in hand
-    // already kills with certainty. This is the divergence the guarantee is about.
-    const skips = on.result.oilShadowRecords.filter((r) => r.wouldSkip.includes("relaxing"));
+    // ...and the shadow's exchange-rate gate would have kept it, because a
+    // card in hand already connects from the frozen cell with certainty. This
+    // is the divergence the guarantee is about. [session 97 §1d] It is now the
+    // FOCUS arm rather than the Relaxing one — see the fixture above.
+    const skips = on.result.oilShadowRecords.filter((r) => r.wouldSkip.includes("focus"));
     expect(skips.length).toBeGreaterThan(0);
     // Asserted through `meetsThreshold`, NOT as `toBe(1)`. This board makes a
     // hit certain by construction, and the summation still returns
@@ -198,7 +219,7 @@ describe("GATE 1 — the oil shadow is provably inert", () => {
     // `NECESSITY_EPSILON` exists for, and the first version of this line
     // re-imported it by comparing the raw float. `oilNecessity.test.ts` pins
     // the unit behaviour.
-    expect(meetsThreshold(skips[0]!.bestKillProbability!, 1)).toBe(true);
+    expect(meetsThreshold(skips[0]!.bestConnectProbability!, 1)).toBe(true);
   });
 
   it("the live decision is BYTE-IDENTICAL with shadow on and shadow off", async () => {

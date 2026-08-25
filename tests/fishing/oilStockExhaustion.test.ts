@@ -21,7 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
-import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
+import { fakeDoc as sharedFakeDoc, CANNOT_FINISH_CARD } from "../helpers/fishingDoc.js";
 
 import { runOneCast, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
@@ -66,7 +66,7 @@ const APPROVED_BUDGET: OilBudgetConfig = {
  * the copy of the literal it was attached to.
  */
 const fakeDoc = (opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) =>
-  sharedFakeDoc({ docId: "88888888", ...opts });
+  sharedFakeDoc({ docId: "88888888", cards: [CANNOT_FINISH_CARD], ...opts });
 
 /**
  * `balances` is what `getItemsBalances` reports for the two oils. `null` makes

@@ -1,11 +1,28 @@
-# OIL CONSERVATION POLICY — derived, awaiting the user's approval
+# OIL CONSERVATION POLICY — APPROVED (§39) and SHIPPED (§40), and a MEASURED LIVE NO-OP
 
-Session 67, 2026-08-21. Brief §1. **Nothing here has been consumed live and
-nothing here is shipped.** `scripts/liveFishing.ts` still plays
-`onDemandTriggers`, `config/bot.json`'s `dendren.oils.policyApproved` still
-ships **false**, and CLAUDE.md rule 4 still governs.
+Session 67, 2026-08-21. Brief §1. **Shipped 2026-08-25, session 97 §1d.**
 
-Reproduce with `npx tsx scripts/oilConserveSweep.ts --runs=8000`.
+> **STATUS, because this document said "nothing here is shipped" for 29
+> sessions and that is the failure QUESTIONS.md §39 exists to stop.**
+>
+> - The user **approved the direction** (QUESTIONS.md §39, 2026-08-25).
+> - `scripts/liveFishing.ts` now plays **`necessityGatedDoubleLethalTriggers`**
+>   — the Relaxing-only necessity gate composed under the double-lethal band
+>   (session 97 §1b, `tests/fishing/oilNecessityComposition.test.ts`).
+> - ⚠ **AND IT CHANGES NOTHING LIVE.** See §7 below before quoting any number
+>   in §2–§5 of this document. The threshold-`1` gate has **never fired against
+>   a real board**: 18 replayed evaluations and 24 live observations, maximum
+>   `bestKillProbability` **0.991**, zero at 1.
+> - ⚠ **§2–§5's tables are `castSim` output and are SUSPENDED** under
+>   `handoff/OIL-POLICY.md` §0a. They are kept as the derivation's record.
+>   **Do not quote "88.38%", "+19.66pp" or "32% less oil" as live evidence** —
+>   §7 explains why the mechanism behind them does not exist live.
+
+**Do NOT reproduce this with `npx tsx scripts/oilConserveSweep.ts`.**
+`OIL-POLICY.md` §0a forbids re-running the oil sweep on that instrument by
+name — "that produces a second unsupported number" — and `runArm` uses
+`castSim`'s bare default arm, which is the arm §0a suspends. The live
+re-derivation is `npx tsx scripts/liveGateFiringRates.ts`.
 
 ---
 
@@ -220,3 +237,66 @@ days played.
 - **Approving this is a separate act from approving the budget.**
   `mayConsumeOil` enforces the distinction in code and will refuse every spend
   until `policyApproved` is true.
+
+
+---
+
+## 7. ⚠ [session 97 §1a] THE GATE IS A MEASURED LIVE NO-OP, AND §4'S JUSTIFICATION IS A `castSim` ARTEFACT
+
+**This section supersedes §3's "the Relaxing gate is free… for 1182 fewer oils
+(−21%)" as a statement about live play.** It does not retract §3 as a statement
+about the simulator, which is what §3 measured and all it ever measured.
+
+The session-97 brief asked for the Relaxing-only gate to be re-swept. It was
+re-derived instead on the instrument that resolves against **real fish
+trajectories** — `scripts/liveGateFiringRates.ts`, built in session 75 — because
+§0a forbids the sweep and because the corpus is simply the better evidence:
+
+| source | Relaxing gate evaluated | gate HELD (withheld an oil) | max `bestKillProbability` | at exactly 1 |
+|---|---|---|---|---|
+| replay, whole clean corpus (684 turns) | **18** | **0 — 0.0%** | 0.990 | **0** |
+| the live loop's own record | **20** | **0 — 0.0%** | 0.991 | **0** |
+| union of every Relaxing observation ever | **24** | **0** | 0.991 | **0** |
+
+**§4's threshold argument does not survive this.** §4 chose `1` because the
+gate's input is bimodal with **55.8% of Relaxing decisions at exactly 1** — "no
+constant to defend" between the spikes. That upper spike is a property of
+`castSim` and of nothing else. Two independent instruments that resolve against
+real movement put **no mass at 1 at all**; live, the top of the range is
+approached (0.991) and never reached.
+
+So the mechanism §3 credits the saving to — *"on 55.8% of the turns the lethal
+trigger fires, an affordable card kills the fish with probability exactly 1…
+spending an oil to convert a certainty into a certainty buys nothing"* — is a
+description of the simulator. Live, that case has occurred **zero times in 24
+observations**. The −21% does not transfer.
+
+**And the direction of the residual error makes this stronger, not weaker.**
+`pConnect` is optimistic (+9.38pp, session 73). Correcting it moves these inputs
+**DOWN**, i.e. further from the only boundary they are compared against. A
+better estimator cannot make this gate fire; it can only make it fire less.
+That argument does not depend on the sample size, which is what makes it worth
+more than "it has not fired yet".
+
+### Why it shipped anyway
+
+Three reasons, and none of them is "the numbers held up":
+
+1. **It is the user's approved policy** (§39), and leaving an approved
+   directive unwired for another 29 sessions is the exact failure that audit
+   found.
+2. **It is provably safe.** A gate that never fires cannot cost a catch, and
+   the composition with the live double-lethal band has no interaction term at
+   any `fishHp` (session 97 §1b, proved by partition rather than swept).
+3. **It is correctly positioned for the day the estimator changes.** If
+   anything ever does put mass at certainty, the directive is already wired.
+
+### The open decision, which is the user's and NOT an agent's
+
+**Should the threshold be lowered so the gate actually bites?** At `1` it is
+inert. The live observations cluster below it — 0.991 is the maximum and the
+shadow's own exchange-rate arm already uses **0.8333**, which WOULD have fired.
+Lowering it would start conserving oil and would start risking catches, and
+`oilTiming.ts`'s standing rule against tuning the necessity thresholds means no
+agent may pick that number. It needs a user directive, and it is the real
+question this document now leaves open.

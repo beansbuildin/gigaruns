@@ -150,7 +150,7 @@ import {
   type OverrideDisarmRecord,
 } from "../src/strategy/fishing/nextPositionArm.js";
 import {
-  doubleLethalTriggers,
+  necessityGatedDoubleLethalTriggers,
   onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
   type OilKind,
@@ -2264,15 +2264,66 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
             ? `bestKill ${shadowRecord.bestKillProbability.toFixed(3)}`
             : `bestConnect ${(shadowRecord.bestConnectProbability ?? 0).toFixed(3)}`;
         console.log(
-          `  · shadow(${shadowRecord.shadowPolicy}) on turn ${turn}: on-demand wanted ` +
+          `  · shadow(${shadowRecord.shadowPolicy}) on turn ${turn}: the live trigger wanted ` +
             `[${shadowRecord.liveWanted.join(",")}], shadow would take [${shadowRecord.shadowWanted.join(",") || "none"}]` +
             `${shadowRecord.wouldSkip.length > 0 ? ` — WOULD SKIP ${shadowRecord.wouldSkip.join(",")}` : ""} (${p}). ` +
-            `Observational only; the live decision below is taken by \`on-demand\` regardless.`,
+            // [session 97 §1d] Was "taken by `on-demand`", which stopped being
+            // true when the necessity gate shipped. The shadow is still
+            // observational; what it is observational BESIDE has changed.
+            `Observational only; the live decision below is taken by ` +
+            `\`necessity-gated double-lethal\` regardless.`,
         );
       }
     }
 
-    // ---- [session 90 §1] THE LIVE TRIGGER IS `doubleLethalTriggers` --------
+    // ---- [session 97 §1d] THE LIVE TRIGGER IS NOW ------------------------
+    //      `necessityGatedDoubleLethalTriggers`
+    //
+    // **The necessity gate ships (QUESTIONS.md §39/§40), composed under the
+    // double-lethal band rather than beside it.** The user's directive,
+    // 2026-08-21: *"If the autofisher believes it can catch the fish without
+    // oil, don't use the oil."* §39 approved that direction and explicitly
+    // refused to approve the composition, which did not exist; session 97 §1b
+    // wrote it and proved it (`tests/fishing/oilNecessityComposition.test.ts`).
+    //
+    // **The composition has NO interaction term, and that is proved rather
+    // than swept.** The gate acts on `0 < fishHp <= fishDamage`, the band on
+    // `fishDamage < fishHp <= 2*fishDamage` — disjoint — and
+    // `conservingTriggers` can only ever REMOVE entries from
+    // `onDemandTriggers`' array. So the shipped double-lethal behaviour is
+    // untouched at every HP, which is the property that mattered, since that
+    // band is a user override (§30) and not sim-endorsed.
+    //
+    // ⚠⚠ **AND IT IS A MEASURED NO-OP ON EVERY CAST EVER RECORDED. READ THIS
+    // BEFORE CONCLUDING THE BOT NOW CONSERVES OIL.** [session 97 §1a]
+    // `scripts/liveGateFiringRates.ts`: the Relaxing gate was evaluated **18**
+    // times over 684 clean replayed turns and **held 0** of them; the live
+    // record adds **20** more evaluations, also 0; the union of every Relaxing
+    // observation ever recorded is **24, none at >= 1, maximum 0.991**.
+    // `bestKillProbability` has never once reached the threshold of 1 against
+    // a real fish trajectory.
+    //
+    // `handoff/OIL-CONSERVE.md` §4's justification for the threshold — 55.8%
+    // of Relaxing decisions landing at exactly 1 — **is a `castSim` artefact**;
+    // two instruments that resolve against real movement put no mass there at
+    // all. So the "-21% oils" that motivated this gate DOES NOT TRANSFER, and
+    // this line changes zero live spends until something moves that
+    // distribution.
+    //
+    // The direction of the residual error makes that stronger, not weaker, and
+    // it does not depend on sample size: `pConnect` is OPTIMISTIC, so
+    // correcting the estimator moves these inputs DOWN, away from the only
+    // boundary they are compared against. Correcting it cannot make this gate
+    // fire — only fire less.
+    //
+    // It ships anyway because it is the user's approved policy, it is provably
+    // safe (a no-op cannot cost a catch), and leaving an approved directive
+    // unwired is the failure QUESTIONS.md §39 exists to stop. **Whether the
+    // threshold should be lowered so the gate actually bites is a USER
+    // decision and explicitly NOT an agent's** — `oilTiming.ts`'s standing rule
+    // against tuning the necessity thresholds is untouched.
+    //
+    // ---- [session 90 §1] the band this composes over ----------------------
     //
     // **USER OVERRIDE 2026-08-24, and it is NOT the sim's recommendation.**
     // `handoff/OIL-DOUBLE-LETHAL.md` recommends AGAINST this trigger — 140.9
@@ -2284,8 +2335,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     // sim-endorsed.
     //
     // **Every single-oil behaviour is preserved BY CONSTRUCTION**, not by
-    // review: `doubleLethalTriggers` calls `onDemandTriggers` as its base case
-    // and returns it unchanged on every state outside the band.
+    // review: the band returns its base unchanged on every state outside
+    // itself. As of session 97 that base is `conservingTriggers` rather than
+    // `onDemandTriggers` — which, per the no-op measurement above, is the same
+    // array on every state the corpus has ever seen.
     //
     // **The call is NOT the same shape the old one was, and the difference is
     // the whole risk.** `onDemandTriggers` reads eight scalars.
@@ -2328,9 +2381,12 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
      * turn can never want two, because its single relaxing is lethal by
      * construction and ends the cast.
      */
-    let oilTriggerSource: "on-demand" | "double-lethal" | "on-demand (fallback after throw)" = "on-demand";
+    let oilTriggerSource:
+      | "necessity-gated"
+      | "double-lethal"
+      | "on-demand (fallback after throw)" = "necessity-gated";
     try {
-      oilWanted = doubleLethalTriggers(
+      oilWanted = necessityGatedDoubleLethalTriggers(
         {
           ...oilTimingState,
           focusCell: { x: doc.data.focusPoint[0] ?? 1, y: doc.data.focusPoint[1] ?? 1 },
@@ -2353,7 +2409,7 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       );
     }
     if (oilWanted.filter((k) => k === "relaxing").length >= 2) {
-      if (oilTriggerSource === "on-demand") oilTriggerSource = "double-lethal";
+      if (oilTriggerSource === "necessity-gated") oilTriggerSource = "double-lethal";
       // The event §30 asks to be able to find after the fact. Emitted at the
       // DECISION, before any POST, so a firing is on the record even if the
       // first consume then fails.

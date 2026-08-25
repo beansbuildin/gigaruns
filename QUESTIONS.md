@@ -3418,3 +3418,238 @@ See `handoff/next-oil-conserve.md` for the concrete wiring brief.
 
 **§39 is ANSWERED on direction; wiring is deferred to a brief with its own
 verification gate, per CLAUDE.md rule 4.**
+
+---
+
+## §40 ANSWERED [session 97 §1, 2026-08-25] — THE NECESSITY GATE IS WIRED, COMPOSED AND PROVED — AND IT IS A MEASURED LIVE NO-OP
+
+**What shipped.** `scripts/liveFishing.ts` now calls
+**`necessityGatedDoubleLethalTriggers`** in place of `doubleLethalTriggers`.
+That is the Relaxing-only necessity gate composed UNDER the live double-lethal
+band, at `RELAXING_ONLY_NECESSITY_THRESHOLDS` = `{ relaxing: 1, focus:
+ALWAYS_FIRES_THRESHOLD }`. §39 approved the direction; this is the wiring it
+deferred.
+
+### §1b — the composition, and why it was PROVED rather than swept
+
+The brief asked for the composition to be swept. **A sweep was the wrong
+instrument and would have been the weaker answer.** The two layers act on
+disjoint `fishHp` bands, so with `D = fishDamage`:
+
+| `fishHp` | gate acts? | band acts? | composed result |
+|---|---|---|---|
+| `<= 0` | no | no | `[]` — fish dead |
+| `0 < hp <= D` | **yes** | no | **== gate alone** |
+| `D < hp <= 2D` | no | **yes** | **== shipped double-lethal, untouched** |
+| `hp > 2D` | no | no | == on-demand |
+
+`conservingTriggers` can only ever REMOVE entries from `onDemandTriggers`'
+array, and the band's second guard (`fishHp <= D`) means it cannot re-add an
+oil the gate just skipped. **There is no interaction term at any HP.** A sweep
+of a quantity that is provably zero returns "near zero, CI [−x, +y]" — which is
+exactly how a real interaction hides. `tests/fishing/oilNecessityComposition.test.ts`
+pins the partition exhaustively over both sides of every boundary (91 assertions).
+
+**Answer to the brief's question — does composing cost anything relative to the
+gate alone? No, and not approximately: exactly nothing, at every `fishHp`.**
+
+Two supporting pieces of work fell out of it:
+
+- **`conservingTriggers` is new.** `conservingOil` was a `OilTimingPolicy`
+  whose `decide` folds the stock check in with the trigger check. The live loop
+  needs a TRIGGER and does its own stock accounting — the session 62 §1b split
+  that exists so "trigger did not fire" and "trigger fired while dry" stay
+  distinguishable. Handing `liveFishing.ts` a `decide` would have silently
+  re-merged them. `conservingOil.decide` is now defined in terms of it, so the
+  two halves cannot drift.
+- ⚠ **A LIVE EPSILON DIVERGENCE WAS FOUND AND FIXED.** `doubleLethalTriggers`
+  compared `bestKillProbability(s) >= relaxingThreshold` with a **bare `>=`**
+  from session 89 onward, while the necessity gate — same quantity, same
+  constant — went epsilon-tolerant in session 68. At a threshold of exactly `1`
+  a certain kill arrives as `0.9999999999999999` whenever the summation order
+  does not cancel (**session 68 observed exactly this**, same card, consecutive
+  turns). The bare form therefore read certainty as uncertainty and would spend
+  **two** oils on a turn the bot was already sure of — the precise decision both
+  the band's thesis and the gate's forbid. Now `meetsThreshold`. This was
+  shipped live from session 90.
+
+### §1a — ⚠ THE GATE IS A MEASURED LIVE NO-OP, AND ITS JUSTIFICATION IS A `castSim` ARTEFACT
+
+**The brief's instruction to re-run `scripts/oilConserveSweep.ts` was NOT
+followed, and could not be.** `handoff/OIL-POLICY.md` §0a forbids it by name —
+*"Do not re-run the oil sweep on the current instrument to 'check': that
+produces a second unsupported number"* — and `runArm` (`scripts/oilTimingSweep.ts:130`)
+uses `baseOpts() = { policy: matcherFishPolicy }`, the plain synthetic-pool bare
+arm, which is exactly the arm §0a suspends. Re-derived instead on the LIVE
+corpus via `scripts/liveGateFiringRates.ts` (session 75), which §0a does not
+reach:
+
+| source | Relaxing gate evaluated | HELD (withheld an oil) | max `bestKillProbability` | at exactly 1 |
+|---|---|---|---|---|
+| replay, whole clean corpus (684 turns) | **18** | **0 — 0.0%** | 0.990 | **0** |
+| the live loop's own record | **20** | **0 — 0.0%** | 0.991 | **0** |
+| union of every Relaxing observation ever | **24** | **0** | 0.991 | **0** |
+
+**`OIL-CONSERVE.md` §4's threshold argument does not survive this.** §4 chose
+`1` because the input is bimodal with **55.8% of Relaxing decisions at exactly
+1**. That upper spike is a property of `castSim`; two instruments resolving
+against real movement put **no mass at 1 at all**. So §3's mechanism — *"spending
+an oil to convert a certainty into a certainty buys nothing"* — describes the
+simulator, and its **"1182 fewer oils (−21%)" DOES NOT TRANSFER**.
+
+**The direction argument is stronger than the sample size.** `pConnect` is
+optimistic, so correcting it moves these inputs DOWN, away from the only
+boundary they are compared against. A better estimator cannot make this gate
+fire — only fire less.
+
+It shipped anyway because it is the user's approved policy, because a gate that
+never fires cannot cost a catch, and because leaving an approved directive
+unwired is the failure §39 exists to stop. **The open decision — should the
+threshold be lowered so the gate actually bites? — is the USER's.** The shadow's
+own exchange-rate arm already uses **0.8333**, which WOULD have fired on live
+observations. `oilTiming.ts`'s standing rule against tuning the necessity
+thresholds means no agent may pick that number.
+
+### §1c — the §2c tripwire and this gate are UNRELATED. §39's guess is REFUTED
+
+§39 speculated they "may be the same finding wearing two names". **They are
+not.** The gate holds 0 oils live, so a gated oils/cast is IDENTICAL to an
+ungated one and the tripwire's threshold is unchanged by this gate.
+
+**But they share a CAUSE, and it is the same one.** The tripwire is
+pre-registered against *"the sim's ~0.70 oils/cast"* (`scripts/liveFishing.ts`)
+— another `castSim` number. Measured live (`scripts/eraCatchRate.ts` §4–§5):
+
+| | oils/cast | clean-cast rate | P(≥9 clean of 10) |
+|---|---|---|---|
+| the sim's assumption | ~0.70 | 49.7% | 1.02% — **~1 in 98** |
+| **live, `focusDry` era** | **0.44** | **30/43 = 69.8%** | **14.6% — ~1 in 7** |
+| live, all-time | 0.30 | 157/198 = 79.3% | — |
+
+⚠ **And the tripwire's own stated rarity is miscomputed by ~9x.** It prints
+"~1-in-900"; the correct figure under its OWN assumption is ~1 in 98. So three
+errors compounded: wrong instrument, wrong arithmetic, wrong conclusion.
+
+**RULING: session 96's 9-clean-of-10 is an ORDINARY outcome (~1 in 7), not a
+~1-in-900 anomaly. The tripwire did not detect a divergence in live play; it
+detected its own threshold being derived from a suspended instrument.** It
+should be re-registered against the live clean-cast rate or retired — flagged
+for the user, not decided here, since it is a pre-registered instrument.
+
+---
+
+## §41 ANSWERED [session 97 §2, 2026-08-25] — THE CATCH-RATE DIAGNOSIS: A COMBINATION, AND THE USER'S "~60%" IS CORRECT
+
+**VERDICT, named rather than hedged: sampling noise on the BATCH, plus a real
+but statistically unresolved ERA-level decline that is mechanically explained
+by a deliberate policy change. NOT a code regression, and NOT purely noise
+either.**
+
+### §2a — ⚠ THE BRIEF WAS WRONG. "~60%" IS A REAL, LIVE-MEASURED NUMBER (CLAUDE.md rule 9)
+
+The brief asserted that *"The user's '~60%' figure does not match anything in
+the live-measured record"* and that *"the honest all-time live baseline has
+never been close to 60% on any real volume."* **Both are false**, and the
+correction matters because the whole framing of §2 rested on them.
+
+`scripts/eraCatchRate.ts` (written this session; LIVE corpus only, no `castSim`
+quantity appears in it by construction):
+
+| era | caught/n | rate | 95% Wilson | oils/cast |
+|---|---|---|---|---|
+| `preOil` | 14/93 | 15.1% | [9.2%, 23.7%] | 0.01 |
+| **`oilSupplied`** | **39/62** | **62.9%** | **[50.5%, 73.8%]** | 0.63 |
+| `focusDry` (today) | 20/43 | 46.5% | [32.5%, 61.1%] | 0.44 |
+| ALL | 73/198 | 36.9% | [30.5%, 43.8%] | 0.30 |
+
+**`oilSupplied` reads 62.9% on n=62.** That is real volume, and it is the era
+the user remembers. The lineage is one era growing, re-confirmed three times:
+
+- session 71 log: catch **60.0%**, n=35
+- session 72 log: **23/39 = 59.0%** [43.4%, 72.9%] — *"(session 71's 60.0%)"*
+- today: **39/62 = 62.9%** [50.5%, 73.8%]
+
+**The user's recollection is accurate.** It is not the stale §0a-era artefact
+the brief predicted, and it is not sim/live conflation — though the trap the
+brief asked about is real: `castSim`/miner prints land at 59–88%, numerically
+adjacent to 60%. The user's figure does not need that explanation.
+
+### §2b — the era split: the right direction, NOT resolvable at this n
+
+`focusDry` 46.5% vs `oilSupplied` 62.9% = **−16.4pp**. **The Wilson intervals
+OVERLAP** ([32.5, 61.1] vs [50.5, 73.8]), so the corpus cannot distinguish these
+rates and the era effect is **not established** — it is the right sign with an
+honest mechanism and insufficient n.
+
+The mechanism, stated before the numbers and not fitted to them: the focus meter
+never regenerates within a cast (CONFIRMED session 13), the only live-approved
+top-up was Focus Oil, and Focus Oil was **withdrawn in session 93 (§35,
+RELAXING-OIL-ONLY)**. `focusDry` is by definition the era after that withdrawal.
+So if the decline is real, it is a **live-confirmed mechanical consequence of a
+deliberate policy change the user made** — not a bot defect.
+
+### §2c — session 96's 3/10, with the interval the brief asked for
+
+**3/10 = 30.0%, EXACT (Clopper–Pearson) 95% CI [6.7%, 65.2%].** That interval
+contains *every* baseline on record:
+
+| baseline | | |
+|---|---|---|
+| bare-arm real (§0a) | 27.6% | INSIDE |
+| live-config pooled | 28.3% | INSIDE |
+| dead-era-excluded | 25.9% | INSIDE |
+| all-time corpus | 36.9% | INSIDE |
+| **today's `focusDry` era** | **46.5%** | **INSIDE** |
+
+**Stated as its own finding, independent of §2b: a 10-cast batch cannot
+distinguish 30% from 46.5% or from 27.6%. Session 96's batch is uninformative
+about whether anything changed.** It is not evidence of a regression and would
+not have been evidence of an improvement either.
+
+### §2d — the two items session 96 left open
+
+- **The oil-trigger tripwire — see §40 §1c above, not re-derived here.** Ruling:
+  9-clean-of-10 is ~1 in 7 at the live rate, an ordinary outcome; the tripwire's
+  threshold came from `castSim` and its stated rarity is miscomputed ~9x.
+- **The 11-pattern library's weak first read.** **No second batch exists on
+  disk** — the newest fixtures are session 96's own (2026-08-25 18:53–18:56) and
+  §1/§2 both forbade live play — so the tally stands at n=20 (mined 2, baseline
+  5). Exact sign test on the discordant pairs, overlap unknown so bounded:
+  **p = 0.25 to 0.45**. It settles nothing, exactly as STATE.md said.
+  **What WOULD settle it, computed rather than asserted:** McNemar at α=0.05,
+  power 0.80, *assuming the true gap is as large as the observed 25%-vs-10%
+  (optimistic — an observed gap this size at n=20 is likely an extreme)*:
+  **87–122 matcher-active turns**. At session 96's rate of 2.0 matcher-active
+  turns per cast that is **~44–61 casts, i.e. 4–6 ten-cast batches**. Against a
+  20/day server cap and a rod with ~9 casts of headroom, **this question is
+  expensive and should be chosen deliberately, not drifted into.**
+
+### §2e — the unconstrained-early-spend guardrail: do NOT wire it, and `costCap` should be RETIRED
+
+Re-measured fresh (`scripts/focusProfileCheck.ts`, live corpus):
+
+| | session 49's premise era (n=73) | **today's policy era (n=110)** |
+|---|---|---|
+| opening spend | 1.62 | **0.82**, 95% CI [0.67, 0.97] |
+| focus profile | 3.00 1.38 0.72 0.36 0.14 0.04 **0.00** | 3.00 2.18 1.49 1.01 0.93 0.70 0.36 — **does not collapse** |
+| fish-at-full (meter-out) | 80.8% | **38.2%** |
+| turns at focus 0 | 50.4% | **23.0%** |
+
+- **Opening spend 0.83 (n=35, session 71) → 0.82 (n=110). UNMOVED across 75 more
+  casts.** `costCap(2)` still has nothing to bind on. Session 72's "costCap is
+  inert because the policy does not need it" is re-confirmed at 3x the n.
+  **Recommendation: retire `costCap` explicitly** rather than leave it as a
+  fourth stale recommendation.
+- **The module's PREMISE is gone.** It was built because meter-out was the
+  dominant loss at 80.8%; today's era reads 38.2% fish-at-full and 23.0% of
+  turns at focus zero — roughly halved. The binding constraint has moved.
+- ⚠ **The brief's "`TASKS.md` records focus exhaustion at 69.5% of casts" is a
+  `castSim` number** (TASKS.md:810, session 45's `focusReserveAblation.ts`),
+  suspended under §0a, and must not be cited as a live constraint.
+- **`schedule` keeps a named revival condition rather than an open-ended
+  "worth doing":** revisit it if today's-era turns-at-focus-0 rises back above
+  ~40%, or if meter-out becomes the dominant loss again. That is a gate on a
+  number this repo already prints every run (CLAUDE.md rule 6).
+
+**Nothing in §2 changed strategy code.** §2e's conclusion is "do not wire", so
+there was nothing to wire.

@@ -30,6 +30,36 @@
  * It is also the reason this file is not merely a session-69 artifact: any
  * future rearrangement of the turn loop is measured against the same capture.
  *
+ * ## ⚠ THE GOLDEN WAS RE-BLESSED ONCE, IN SESSION 97, AND HERE IS THE CLAIM
+ *
+ * This file's own rule is that a diff to the golden "is a claim that live play
+ * was MEANT to change, and belongs in a commit message that says so". Session
+ * 97 §1d made that change deliberately: the live oil trigger became
+ * `necessityGatedDoubleLethalTriggers`, so the bot now withholds a Relaxing
+ * Oil on a turn its own best affordable card already kills with certainty
+ * (the user's directive, QUESTIONS.md §39/§40).
+ *
+ * **The diff was inspected before it was accepted, and it is exactly the
+ * predicted effect — no more:**
+ *
+ *   1. two `relaxing` refusal rows with `reason: "empty"` DISAPPEAR — the gate
+ *      now withholds above the stock check, so there is no dry trigger left to
+ *      refuse;
+ *   2. one consume changes item 937 (Relaxing) → 942 (Focus) — the Relaxing
+ *      spend is gated out and the Focus trigger, ungated by
+ *      `RELAXING_ONLY_NECESSITY_THRESHOLDS`, is what remains;
+ *   3. the casts get LONGER. This is the consequence worth naming: a withheld
+ *      lethal oil does not end the cast, so play continues. These fixtures
+ *      freeze `fishHp`, so the card can never actually collect the kill the
+ *      gate is counting on and the cast runs to its other limit. Live that
+ *      premise holds by construction — and per session 97 §1a the gate has
+ *      never once fired against a real board anyway (`bestKillProbability`
+ *      maximum 0.991 over every cast ever recorded).
+ *
+ * The hoist invariant itself is untouched: what moved is a POLICY, not the
+ * position of a computation, and every future rearrangement is still measured
+ * against this capture.
+ *
  * ## Anti-vacuity
  *
  * A golden of six empty POST lists would compare equal forever. The scenarios

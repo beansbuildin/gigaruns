@@ -28,7 +28,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
-import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
+import { fakeDoc as sharedFakeDoc, CANNOT_FINISH_CARD } from "../helpers/fishingDoc.js";
 
 import { runOneCast, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
@@ -69,7 +69,7 @@ const BOTH_OILS: OilBudgetConfig = {
 };
 
 const fakeDoc = (opts: { fishHp: number; fishMaxHp: number; focusMeter: number; complete: boolean; slotUsed: boolean[] }) =>
-  sharedFakeDoc({ docId: "93000001", ...opts });
+  sharedFakeDoc({ docId: "93000001", cards: [CANNOT_FINISH_CARD], ...opts });
 
 function makeClient(opts: {
   fishHp: number;

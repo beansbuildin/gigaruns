@@ -42,7 +42,7 @@ import { describe, expect, it } from "vitest";
 
 import { runOneCast, type CastRunResult, type LiveFishingDeps } from "../../scripts/liveFishing.js";
 import { makeLiveFishingDeps } from "../helpers/liveFishingDeps.js";
-import { fakeDoc as sharedFakeDoc } from "../helpers/fishingDoc.js";
+import { fakeDoc as sharedFakeDoc, CANNOT_FINISH_CARD } from "../helpers/fishingDoc.js";
 import { GuardState } from "../../src/orchestrator/guards.js";
 import type { BotConfig } from "../../src/orchestrator/config.js";
 import type { GigaverseClient } from "../../src/api/client.js";
@@ -145,6 +145,7 @@ async function runCappedCast(itemKind: "relaxing" | "focus"): Promise<{ result: 
       }
       if (body.action === "play_cards") plays += 1;
       const doc = sharedFakeDoc({
+        cards: [CANNOT_FINISH_CARD],
         docId: "13024300",
         // Lethal for the whole cast (so `relaxing` triggers every turn) and the
         // meter empty (so `focus` does too) — whichever arm is under test, the

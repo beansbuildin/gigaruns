@@ -192,10 +192,24 @@ describe("it IS wired live — [session 90 §1b] the guard, turned around rather
    * and fails if the wiring is reverted — verified by mutation, not assumed.
    * This one exists so the FAILURE MESSAGE names the decision.
    */
-  it("liveFishing.ts calls doubleLethalTriggers, and still falls back to onDemandTriggers", async () => {
+  it("liveFishing.ts calls the double-lethal band, and still falls back to onDemandTriggers", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("scripts/liveFishing.ts", "utf8");
-    expect(src).toContain("oilWanted = doubleLethalTriggers(");
+    // ── [session 97 §1d] THE CALL IS NOW `necessityGatedDoubleLethalTriggers` ──
+    //
+    // **This is not the revert this test was built to catch.** The band is
+    // still live and still the user's override (QUESTIONS.md §30); what
+    // changed is what sits UNDERNEATH it. `necessityGatedDoubleLethalTriggers`
+    // is `doubleLethalOver(conservingTriggers(...))`, and the band's own
+    // behaviour is provably untouched at every `fishHp` — the gate acts only
+    // on `0 < fishHp <= fishDamage`, the band only on
+    // `fishDamage < fishHp <= 2 * fishDamage`, and `conservingTriggers` can
+    // only REMOVE entries. `tests/fishing/oilNecessityComposition.test.ts`
+    // pins that case analysis exhaustively.
+    //
+    // The decision this assertion protects is therefore unchanged: a revert to
+    // bare `onDemandTriggers` at this call site still fails here.
+    expect(src).toContain("oilWanted = necessityGatedDoubleLethalTriggers(");
     // `onDemandTriggers` must STILL be called — it is the throw fallback, and
     // the reason every out-of-band behaviour is preserved. Its disappearance
     // would mean the degrade path went with it.

@@ -138,23 +138,1031 @@
         }
       },
       {
-        "action": "use_fishing_item",
+        "action": "play_cards",
         "actionToken": "",
         "data": {
-          "cards": [],
+          "cards": [
+            0
+          ],
           "nodeId": "",
-          "focusPoint": [],
-          "itemId": 937,
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
           "slotIndex": 0,
           "tierId": 0
         }
       }
     ],
     "result": {
-      "outcome": "caught",
-      "turns": 0,
+      "outcome": "turn_cap",
+      "turns": 60,
       "oilTriggerNoStock": [],
-      "oilsConsumed": 1
+      "oilsConsumed": 0
     }
   },
   "both triggers on one turn — only the lethal one may be sent": {
@@ -178,17 +1186,1061 @@
           "cards": [],
           "nodeId": "",
           "focusPoint": [],
-          "itemId": 937,
+          "itemId": 942,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "use_fishing_item",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "",
+          "focusPoint": [],
+          "itemId": 942,
+          "slotIndex": 1,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "use_fishing_item",
+        "actionToken": "",
+        "data": {
+          "cards": [],
+          "nodeId": "",
+          "focusPoint": [],
+          "itemId": 942,
+          "slotIndex": 2,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
+          "slotIndex": 0,
+          "tierId": 0
+        }
+      },
+      {
+        "action": "play_cards",
+        "actionToken": "",
+        "data": {
+          "cards": [
+            0
+          ],
+          "nodeId": "",
+          "focusPoint": [
+            2,
+            2
+          ],
+          "itemId": 0,
           "slotIndex": 0,
           "tierId": 0
         }
       }
     ],
     "result": {
-      "outcome": "caught",
-      "turns": 0,
+      "outcome": "turn_cap",
+      "turns": 60,
       "oilTriggerNoStock": [],
-      "oilsConsumed": 1
+      "oilsConsumed": 3
     }
   },
   "both triggers against an EMPTY bag — OIL-POLICY-DRY": {
@@ -246,20 +2298,8 @@
       "oilTriggerNoStock": [
         {
           "turn": 0,
-          "kind": "relaxing",
-          "itemId": 937,
-          "reason": "empty"
-        },
-        {
-          "turn": 0,
           "kind": "focus",
           "itemId": 942,
-          "reason": "empty"
-        },
-        {
-          "turn": 1,
-          "kind": "relaxing",
-          "itemId": 937,
           "reason": "empty"
         },
         {
