@@ -1,191 +1,157 @@
-# STATE — session 93 — 2026-08-24 (PT) — code at commit 84f4d796 (recap c31531bc)
+# STATE — session 94 — 2026-08-24 (PT) — code at commit <RECAP_SHA>
 
 ## Status
-**GATE PASS — all four items delivered, one with a scope the ledger forced.**
-§1 (relaxing-oil-only, config AND code), §2 (§33 answered, option b), §3
-(`OBSERVED_OFFERS` regenerated) all landed. §4 ran **1 cast, not 10** — see
-below; the reason is a real ceiling, exercised not assumed, and the user
-approved the one-cast spend.
+**GATE PASS on the session's task — all four juiced runs delivered.**
+**⚠ SUITE IS RED AT HANDOFF: 6 failed / 1773 passed (1779).** Both facts are
+load-bearing; neither cancels the other. Every failure is the designed
+new-fixture wall tripping on the runs this session was authorized to make, all
+six are diagnosed below, and **no existing model was contradicted** — but the
+suite is red and closing it is real modelling work, not a regeneration.
+`tsc --noEmit` clean, `git diff --check` clean, secret scan clean (422 files,
+zero matches on all four patterns), `discoveredShipsClean` 8/8, no `raw/`
+committed.
 
-**Suite went 1 failed → 0 failed** (1749 → **1757 passed, 1757 total**).
-`tsc --noEmit` clean, `git diff --check` clean, secret scan clean,
-`discoveredShipsClean` 8/8, no `raw/` committed.
-
-**`assertionCoverage` and `preflight` BOTH RUN CLEAN for the first time in five
-sessions** — 1757 tests counted with zero vacuous, and PREFLIGHT PASSED.
+**The session ran 2+2 in a different shape than the brief specified, by explicit
+user override mid-session** — see Dead ends. Rule 11 is untouched.
 
 ## What works
-- **§1 — RELAXING-OIL-ONLY IS LIVE.** `dendren.oils.allowedItemIds` is `[937]`.
-  A **withdrawal, not a stock artifact**: the bot declines Focus Oil even if
-  stock returns. ⚠ **The brief's §4c-1 expectation was wrong and was checked,
-  not implemented** — a config-only change does NOT stop 942 being evaluated.
-  `onDemandTriggers` fires on `focusRemaining <= 0` regardless of stock (its own
-  docblock says so), and `allowedItemIds` is checked inside `mayConsumeOil`
-  *after* the trigger decides. The refusal then fell through liveFishing's
-  `held <= 0` branch — **keyed on the BALANCE, not the reason** — logging
-  `oil_trigger_no_stock`, writing a `dryTriggers` row and flagging the cast
-  OIL-POLICY-DRY, out of **both** arms. Under a withdrawal that is permanent:
-  every future cast whose meter hit zero would have left the corpus forever.
-  So the withdrawn kind is now dropped from `oilWanted` **before** the spend
-  loop under `oil_trigger_policy_withdrawn`. **A trigger the policy has
-  withdrawn is not a dry bag.** Pinned WITH FIVE FOCUS OILS IN STOCK, plus a
-  contrast case showing the session-92 budget still flagging the same cast dry.
-- **§1 CONFIRMED ON ITS FIRST LIVE TURN.** The one cast fired the focus trigger
-  at turn 2 (meter 0) and it was dropped by the new filter. **Zero log lines
-  mention 942.** Under yesterday's code that turn flags the cast out of both
-  arms.
-- **§2 — §33 ANSWERED (option b).** `castTrace` carries `consumablesUsedMax`
-  (MAX over every captured state — `fishingCorpus.ts`'s own rule);
-  `oilsConsumed` returns it; `tests/sim/oilCensusAgreement.test.ts` ties the two
-  readers together permanently. Turn semantics untouched (that was option a).
-- ⚠ **THE UNDERCOUNT WAS 27 CASTS, NOT 6, AND DATES FROM SESSION 62.** Census
-  15/24 → **39/56**, against §33's estimate of 21/35. §33 reasoned from the
-  double-lethal, but **the on-demand LETHAL trigger fires when the oil finishes
-  the fish — so a *successful* lethal firing has always landed on the closing
-  turn.** 26 of 27 blind casts are `caught` with final `fishHp` ≤ payload damage
-  (single lethal) or exactly 4 (double). This was never a new policy breaking an
-  instrument; it was **an instrument blind to the shipped policy's own successes
-  for thirty sessions.** Under-counted 27×, over-counted 0× — nothing published
-  was inflated.
-- **§3 — `OBSERVED_OFFERS` regenerated after three declines.** Re-verified
-  first, per the gate: **25 rows in the corpus and absent from the table, ZERO
-  the other way** — incomplete, never wrong. All 25 from four juiced runs on
-  2026-08-24. Deepest new row is room 8, so the room-9 pin and "offers stop one
-  room short of the deepest death" both hold untouched.
-- **§34 ANSWERED — `JEBAITOR`.** §34 asked for the `start_run` body on
-  recurrence; it recurred, the body was captured, and it carries
-  `{"type":"JEBAITOR","value":6.75}` — a skill giving ~6.75% chance a cast does
-  not count against the daily ledger (user-stated). **166 casts with a captured
-  `start_run`, JEBAITOR on exactly 3, and two of the three are the ONLY two
-  casts ever observed uncharged** (`13071800` = session 92's §34 cast, and
-  `13073296`). The third predates the instrument (rule 10 — the event is
-  datable only because it sits on the SERVER's response). **This direction is a
-  GAIN, not a defect.**
+- **Four juiced Tier-3 runs, all four conditions held every time** — `--juiced`,
+  `--juiced-index=3`, 3x Big Heal Juice (131), `--runs=1`. Deaths at rooms
+  **8, 4, 7, 7**; zero cleared. `TIER-CHECK ... OK` in every room of every run.
+- **ZERO action failures across all 4 runs — 0/196 posted actions**, no retries,
+  no stale action tokens, no guard trips. Per-run: 0/60, 0/34, 0/50, 0/52.
+- **Rule 13 discharged after every run.** `dayProgressEntities` read from the
+  server after runs 1, 3 and 4: 3 → 9 → **12 of 12**. The day's dungeon
+  allowance is fully and exactly spent; a 5th run is server-refused.
+- **§1 preflight exercised the real gates, not raw endpoints** (rule 12).
+  `liveRun.ts --dry-run` with the exact run-1 flags: clean. Potions 54 in stock
+  against 12 needed. Run-units 0/12 at session start.
+- **`handoff/reports/dungeon-runs.md` regenerated and picked up all four**
+  (cids 25066942, 25067064, 25067282, 25067399). 75 recorded attempts, 30 juiced.
 
 ## What's broken
-- **Nothing is red.** Suite 1757/1757, `assertionCoverage` clean, PREFLIGHT
-  PASSED. First fully-green handoff in five sessions.
-- ⚠ **`firedOil` CHANGED MEANING and one published claim diluted.** All twelve
-  casts §2 added to `oilSupplied`'s oil arm are **Relaxing** firings, which do
-  not restore the meter — so the restore-stripping counterfactual fell
-  **48.5% → 37.5%** purely by dilution. `firedOil` only ever approximated
-  "restored the meter" *because the reader was blind to exactly the oils that
-  don't restore*. The claim is now asserted on the restore predicate directly:
-  13 casts, **51.7%** stripped vs a standardised preOil **57.2%** — within
-  5.5pp, **tighter** than the 6.8pp the blind reader gave. The claim survived;
-  do not quote the 48.5% figure again.
-- ⚠ The "meter-vs-`consumablesUsed` gap is exactly 2" reading is **retired** —
-  that constant was an artifact of both readers being broken in the same place.
-  It is **13 against 39** now.
-- ⚠ **`12975152` is exempted from the preOil restore-free control**
-  (`PRE_OIL_CONSUMABLE_EXEMPT`). It reads `consumablesUsed: 1` on all four
-  captured states, every one a `play_cards`: capture began mid-cast, the spend
-  predates the window and the policy. Exempted on a claim, not by loosening the
-  check. **A second id arriving there is a different fact — investigate, don't
-  append.**
-- Carried, untouched: the gate-1 re-audit; the two unpaid redraw correctness
-  gaps (`liveFishing.ts:2471`, `:1526`); the pacing term's cause; H2's proc
-  model; §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE QUOTED**.
+- **⚠ SUITE RED — 6 failures in 2 files. Diagnosed, NOT papered over:**
+  - **3x `has a pair but no model`** (`tests/boons.test.ts`): `AddWeakMagic`,
+    `VulnerableCrit`, `Regen` — all three from **run 4**
+    (`run-2026-08-25-03-30-48`). These are **first-ever PICKUP PAIRS**. No
+    modelled boon's recorded delta broke. Closing them means deriving each
+    effect from its before/after pair — real modelling work, deliberately NOT
+    attempted at the tail of this session, because inventing a `BOON_MODELS`
+    entry poisons the sim (session 93 refused hand-editing pins for this reason).
+  - **1x `covers every boon type the corpus has a pair for`** — the aggregate of
+    those three. Goes green only when they are modelled.
+  - **1x `OBSERVED_OFFERS is exactly what the corpus recorded`** — table **227**
+    vs corpus **249**, i.e. **+22 offers** from today's four runs (session 82 saw
+    +21 from its four). ⚠ **Additivity was NOT verified this session.** The next
+    session must re-run session 93's check — rows in corpus absent from table
+    vs **zero** the other way — BEFORE regenerating.
+  - **1x `tests/enemies.test.ts` loadout combos** — **purely additive**, three
+    additions (`40/24`, `40/26`, `40/28`), **zero removals**.
+  - ⚠ Suite was 1757/1757 green at the handoff commit. The **+16 new passing
+    tests** are per-pair cases the new fixtures generated; the 6 reds are the
+    wall.
+- **⚠ `scripts/claimRoms.ts` silently accepts and ignores `--dry-run`.** There is
+  no `dryRun` handling in the file. Passing the flag performed the **real**
+  claim: 4 ROMs, energy 156 → 315 (+159). Harmless — a claim is a gain, and
+  `liveRun.ts`'s preflight does it autonomously under rule 12 — but the script
+  accepts an unknown flag without erroring, which is a fail-closed violation.
+- **⚠ The `energy accounting drift` warning names the WRONG CAUSE, and it fired
+  4/4 runs.** It says *"possible external balance change (e.g. a ROM claim)
+  landed mid-run"*; **no ROM claim happened during any run.** Observed delta was
+  59 vs committed 60 on all four. Between-run readings rise unaided
+  (256→257, 198→200, 141→142) = passive regen at 18/hr ≈ 0.3/min over a ~6-min
+  run. **The drift is in-run regen and will fire on every run of nontrivial
+  length.** Nothing is mis-budgeted (the guard enforces off committed spend,
+  CODEXREVIEW #8); only the suggested cause is wrong.
+- **⚠ Instrument discrepancy — the third of its class.** Run 4's stdout reported
+  *"6 type(s) picked, **2** of them still UNMODELLED (first-ever candidates)"*,
+  but `boons.test.ts` finds **3** unmodelled run-4 pairs.
+  `boonRunCoverage.ts:79` sets `firstEverCandidates` per-run; the test extracts
+  pairs corpus-wide. One reader is missing a pick. **This is exactly session
+  93's open-question-3 class** (an end-of-run instrument unchecked against the
+  shape the current policy produces).
+- Carried, untouched: the 10-cast fishing batch still owed; gate-1 re-audit; the
+  two unpaid redraw correctness gaps (`liveFishing.ts:2471`, `:1526`); pacing
+  term's cause; H2's proc model; §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT
+  BE QUOTED**.
 
 ## Corrections to SPEC.md
 - **None this session.** No live response contradicted the spec; `SPEC.md` and
   `SPEC-fishing.md` are untouched.
 - Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
 - Move charges: PRESENT — unchanged, not re-measured.
-- **Rule 9 — the brief was wrong twice and both were checked, not implemented.**
-  (a) §4c-1's "no 942 trigger evaluation at all" — false, see §1 above; the
-  correction *is* the code half of §1. (b) §0's claim that `oilPolicy.test.ts`
-  does not read `config/bot.json` — **it does**, at line ~236, and that
-  assertion had to be inverted to pin the withdrawal.
+- **Rule 9, applied to my OWN inference rather than to the brief.** Run 4's
+  room-7 `ORB FALLBACK` took `Regen` (28 HC out of `[22,28,19]`) over ranked
+  `AddBlock` — `Regen` being one of config's five `boonCapture.targets`, with
+  boonCapture **OFF**. I nearly wrote this up as a discovery: the wide orb rule
+  buying, at zero deliberate cost, a pair `boonCapture` exists to buy
+  deliberately. **`src/sim/boons.ts:1600` already records it from session 60**,
+  and session 82 saw it again at `:1865`. Third occurrence of a **known**
+  mechanism, not a finding.
 
 ## Dead ends
-- **Hand-editing any moved pin — REFUSED.** All 59 recomputed from measured
-  values, each carrying a `[session 93] was X` attribution.
-- **Regenerating `OBSERVED_OFFERS` wholesale — REFUSED.** The table carries
-  per-entry historical annotations going back to session 03; the 25 missing rows
-  were generated from the corpus and appended instead.
-- **Reverting `boons.test.ts`'s Wall-1 clean list — not needed.** +1
-  `UpgradeRock` is an already-clean type recurring, **not** a seventh hole (the
-  session-60/61/75 distinction). Sixth consecutive session of that pattern.
+- **Modelling the three new boon types — NOT ATTEMPTED, deliberately.** Deriving
+  a `BOON_MODELS` entry from a single before/after pair at the tail of a session
+  is how the sim gets poisoned. Left red with the diagnosis instead. Sessions 89,
+  90 and 91 each handed off a red wall test and were judged correct to.
+- **Regenerating `OBSERVED_OFFERS` — NOT ATTEMPTED.** Three of the six failures
+  need modelling regardless, so the suite could not reach green this session
+  whatever I did to the table; a partial, unverified regeneration would have
+  bought nothing and risked the exact hand-editing session 93 refused.
 - Standing, none re-opened: redraw CLOSED; `--dry-run` before claiming a
-  blocker; do not revert rule 8; +19.40pp SUSPENDED; `boonCapture` OFF.
+  blocker; do not revert rule 8; +19.40pp SUSPENDED; `boonCapture` OFF;
+  `dendren.dailyEnergyBudget` 252 STANDING.
 
 ## Metrics
-- **Live: 1 fishing cast, 1 caught (100%), 1 Relaxing Oil, 12 energy. ZERO
-  dungeon runs** (`dayProgressEntities` null). Relaxing 46 → 45; Focus stock
-  irrelevant now.
-- ⚠ **THE BATCH WAS 1 CAST BECAUSE BOTH CEILINGS WERE REAL, AND BOTH WERE
-  EXERCISED BEFORE BEING REPORTED** (rules 12 and 13). `checkFishingCaps.ts`
-  read `dayDocs[pond 2]` at **19/20** — the daily counter had NOT reset, 16.4h
-  to 11:00 PT. `liveFishing.ts --dry-run` tripped the repo's own budget at
-  **240/240**. The user then approved raising `dendren.dailyEnergyBudget`
-  **240 → 252** to spend the day's last cast, which expires unused at rollover.
-  **That bump is safe to leave: 252/12 = 21 casts and the GAME caps the day at
-  20**, so it can never buy a cast the server would not already refuse.
-- **§4c-2 — the double-lethal did NOT fire.** One ordinary on-demand lethal:
-  fish 1/19 → one Relaxing → 0/19, CAUGHT. Per-cast Relaxing cap of 2 **not
-  reached** (1 of 2), so the reached-not-bound streak neither extends nor breaks.
-- **§4c-3 — redraw shadow: 2 decisions, 0 fires, 1 blind, 0 sanity/error**,
-  `liveRedrawEnabled` false on both rows. Both had `conditionMet` true and
-  `coverageBelowK` FALSE (heldCoverage 16 and 13 against a threshold of 6).
-  A 2-decision cast — a SHORT one, where session 92 saw fires concentrate — and
-  it produced none. **n=2 settles nothing.** Running tally: 0/52, 4/24, 0/2.
-- **§4c-4 — ROD-DEALT, not `BASE_DECK`.** focusDry base count still 12 of 33.
-- ⚠ **The new cast is itself a live instance of the §33 defect fixed hours
-  earlier** — `consumablesUsed` reads 0,0,0 across its turns and 1 on the item
-  response. Counted correctly now; invisible under yesterday's reader.
-- Suite **1 failed / 1749 passed → 0 failed / 1757 passed (1757)**.
-- Corpus: **188 → 189 casts**. `preOil` 94 and `oilSupplied` 62 both still
-  FROZEN (now asserted directly, not implied by a sum); all growth in
-  `focusDry` 32 → 33 — **fourth consecutive batch**.
+- **Live: 4 juiced dungeon runs, 4 deaths, 0 cleared** — rooms **8, 4, 7, 7**.
+  **23,664 Hard Core, 1,122 Dendren Root**, 240 energy committed (236 observed).
+  Big Heal Juice **54 → 42**, exactly 3/run, 4/4. Energy 315 → 83.
+- **Run-units 12 / 12 — the day's entire dungeon allowance, exactly.** Repo
+  budget also landed on the nose: 240 of `forbiddenWoods.dailyEnergyBudget` 240.
+  `guards.ts:89` trips on `spent + cost > budget`, so run 4 passed at exactly
+  240 with **zero headroom** — no fifth run and no other dungeon spend today.
+- **EV support 0/49, 0/31, 0/41, 0/43 — 100.0% unsupported, all four runs.**
+  This is rule 8's accepted cost (SPEC §4e), flagged by the tool itself as
+  *"EXPECTED, not a fault."* **Do not "fix" it.**
+- Boon coverage after run 4: 34 modelled, **21 offered-but-unmodelled**, 65
+  room-1 offers of 227. `UNMODELLED_TYPES` still **21** — ⚠ a pickup pair is
+  raw data CAPTURED, not a type MODELLED.
+- Today's depth profile (8, 4, 7, 7) is near-identical to session 82's four
+  juiced runs (8, 3, 7, 7).
+- Fishing: **untouched this session.** 189 casts, unchanged.
+- Suite **1757/1757 green → 1773 passed / 6 failed (1779)**.
 
 ## Open questions for Claude
-1. **The 10-cast batch is still owed and is the obvious next ask.** The ledger
-   resets 11:00 PT; nothing about it is blocked any more. The redraw-shadow
-   puzzle (0/52 vs 4/24, Fisher p = 0.008) has 2 more observations and still
-   needs volume, not a redesign.
-2. ~~**Should `dendren.dailyEnergyBudget` stay at 252?**~~ **ANSWERED — YES,
-   standing.** Ruled by the user at the end of session 93; the config comment
-   and `DECISIONS.md` both say so. ⚠ The point to carry: at 240 the REPO was the
-   binding ceiling, at 252 the GAME is, and that is the correct arrangement. It
-   is safe by construction (252/12 = 21 casts against a server cap of 20) and it
-   does NOT generalise — a future raise still needs its own approval.
-3. **§2 found that a shipped policy's own successes were invisible to the census
-   for thirty sessions. That is worth one deliberate audit, not a fix.** The
-   pattern is "an instrument that walks the END of a cast, unchecked against the
-   shape the current policy produces". Two instruments broke on it in sessions
-   92-93. A brief that names the remaining end-of-cast readers and asks for them
-   to be checked once would close the class.
-4. **`firedOil` now means "spent any consumable".** Anything that wants "restored
-   the meter" must use the restore predicate. Worth stating in the next brief so
-   it is not re-conflated — it was conflated for thirty sessions by accident.
-5. **The rod: ~21 of the user's ~40-cast horizon is now spent.** `rodDeck.test.ts`
-   goes red when it runs dry; that is designed.
-6. **§34 is CLOSED and should not be reopened.** The `raised` direction of a
-   ledger disagreement still has no explanation — do not generalise JEBAITOR to
-   it.
+1. **The three unmodelled first-ever pairs are the obvious next task, and they
+   are a modelling job, not a regeneration.** `AddWeakMagic`, `VulnerableCrit`,
+   `Regen`, all in `run-2026-08-25-03-30-48` (states 009→010, 055→056,
+   105→106). A brief should say explicitly whether to model from a single pair
+   or wait for a second observation of each.
+2. **`OBSERVED_OFFERS` is +22 and its additivity is UNVERIFIED.** Session 93's
+   check is the precedent and must be re-run before regenerating.
+3. **The 10-cast fishing batch is still owed** and is now two sessions old. The
+   redraw-shadow puzzle (0/52, 4/24, 0/2 — Fisher p = 0.008) still needs volume.
+4. **Two instrument bugs are worth one cheap brief between them**: the
+   `firedOil`-class reader discrepancy in `boonRunCoverage.ts` (2 vs 3), and the
+   energy-drift warning's wrong cause. Both are wrong *text and counts* on
+   correct *enforcement* — low risk, high legibility payoff.
+5. **`config/bot.json`'s `_boonCaptureComment` now carries a stale cost model.**
+   It prices boonCapture at "~27 runs to model all five" from session 55's
+   measurement that `pickBoon` top-ranks an unmodelled type **0/540** times.
+   That measurement predates the **wide orb rule**, which demonstrably picks
+   unmodelled types for free — three times today. The comment is not wrong about
+   session 55; it is wrong as a current forecast.
+6. **`scripts/claimRoms.ts` should reject unknown flags** (fail closed, rule 5).
 
 ## Files changed
 ```
- 2 commits, 24 files (+1006 / -136), 1 new cast fixture (5 states).
+ 1 commit. 4 new live run fixtures (196 states), reports regenerated.
 
-  M  config/bot.json                        §1 allowedItemIds [937]; §4 budget 240 -> 252
-  M  scripts/liveFishing.ts                 §1 oil_trigger_policy_withdrawn filter
-  M  src/sim/fishing/castTrace.ts           §2 consumablesUsedMax
-  M  src/sim/fishing/castEra.ts             §2 oilsConsumed repointed; PRE_OIL_CONSUMABLE_EXEMPT
-  M  src/orchestrator/fishingLedgerReconcile.ts  §34 names the JEBAITOR cause
-  M  src/sim/boons.ts                       §3 +25 regenerated offers
-  A  tests/fishing/oilFocusWithdrawn.test.ts     §1, 3 cases
-  A  tests/sim/oilCensusAgreement.test.ts        §2, ties the two readers
-  M  tests/boons.test.ts                    §3 Wall 1 183 -> 195, clean +1
-  M  tests/fishing/{castEra,matcherHeadroom,oilReachability}.test.ts
-  M  tests/fishing/{redrawCounterfactual,stateFields,zoneTemplate,oilPolicy}.test.ts
-  M  tests/fishing/offPolicyReplay.test.ts  §2 synthetic traces
-  M  tests/sim/fishingCorpus.test.ts
-  M  QUESTIONS.md                           §33 ANSWERED; §34 ANSWERED; §35 OPENED+LANDED
-  M  handoff/DECISIONS.md                   7 entries
-  M  handoff/OIL-POLICY.md                  §4, the withdrawal
-  A  fixtures/fishing-casts/live/cast-2026-08-25-02-20-19  (5 states)
-  M  handoff/reports/{fishing-casts,dungeon-runs}.md
-  M  handoff/STATE.md, handoff/log/session-93.md
+  A  fixtures/dungeon-runs/run-2026-08-25-03-07-57   run 1, death room 8, 60 states
+  A  fixtures/dungeon-runs/run-2026-08-25-03-14-16   run 2, death room 4, 34 states
+  A  fixtures/dungeon-runs/run-2026-08-25-03-25-26   run 3, death room 7, 50 states
+  A  fixtures/dungeon-runs/run-2026-08-25-03-30-48   run 4, death room 7, 52 states
+  M  handoff/reports/dungeon-runs.md                 71 -> 75 attempts
+  M  handoff/reports/fishing-casts.md                regenerated, 189 casts unchanged
+  M  handoff/STATE.md, handoff/log/session-94.md, handoff/DECISIONS.md
 ```

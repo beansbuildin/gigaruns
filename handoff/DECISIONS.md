@@ -2070,3 +2070,74 @@ the server would not already refuse. It is a ceiling that has stopped being the
 binding one, not a loosened cap. ⚠ It does NOT generalise: CLAUDE.md's ask-first
 rule on spending above the configured budget is untouched, and a future raise
 needs its own approval. `forbiddenWoods.dailyEnergyBudget` is unchanged at 240.
+
+2026-08-24 (session 94) — **THE PER-RUN APPROVAL GATE WAS OVERRIDDEN ONCE, BY
+THE USER, EXPLICITLY AND FOR THIS SESSION ONLY — AND IT DOES NOT GENERALISE.**
+The session-94 brief structured four juiced runs as 1 → stop → 2 → hard pause →
+3 and 4. After run 1 the user wrote: *"you are authorized for this session
+specifically to complete to more runs back to back without a pause for my
+approval… proceed with runs 2 and 3 back to back then report the results before
+run 4."* Runs 2 and 3 were executed back to back on that authorization; run 4
+got its own separate go-ahead. ⚠ **CLAUDE.md rule 11 and the Ask-first list are
+UNTOUCHED.** "Approval for one run is never approval for the next" remains the
+standing default for every future session; what happened here is the account
+owner exercising their own authority over their own account for two named runs,
+which is precisely the thing rule 11 defers to. **An agent may not infer from
+this that batching is ever acceptable without the user saying so again, in that
+session.** One cost was flagged to the user BEFORE running rather than after:
+back-to-back runs surrender the skill-point allocation window between them.
+
+2026-08-24 (session 94) — **THE `energy accounting drift` WARNING BLAMES THE
+WRONG CAUSE, AND IT IS SYSTEMATIC — 4 OF 4 RUNS, NOT AN EXCEPTION.** The warning
+reads "possible external balance change (e.g. a ROM claim) landed mid-run". No
+ROM claim occurred during any of the four runs; the only claim preceded run 1 by
+~2 minutes. Observed delta was 59 against a committed 60 on **every** run, and
+the pool rises between runs unaided (256→257, 198→200, 141→142). Passive regen
+is 18/hr = 0.3/min and a run takes ~5–7 minutes, so ~+1.5 energy is recovered
+mid-run. **The drift is in-run regen** and will fire on every run of nontrivial
+length. ⚠ Enforcement is CORRECT and nothing is mis-budgeted — the guard spends
+off committed cost (CODEXREVIEW #8), which is the conservative direction. Only
+the warning's suggested cause is wrong, and it points future readers at a
+non-existent external actor.
+
+2026-08-24 (session 94) — **THE SUITE WAS HANDED OFF RED, DELIBERATELY:
+6 failed / 1773 passed. Three failures need MODELLING, not regeneration.**
+Run 4 produced first-ever pickup pairs for `AddWeakMagic`, `VulnerableCrit` and
+`Regen`, so `tests/boons.test.ts` fails three times with `has a pair but no
+model` plus once on the aggregate. ⚠ **No existing model's recorded delta
+broke** — this is the designed first-ever-capture signal, not a regression.
+Deriving a `BOON_MODELS` entry from a single before/after pair at the tail of a
+session is how the sim gets poisoned (session 93's refusal to hand-edit pins,
+same reasoning; sessions 89/90/91 each handed off a red wall test and were judged
+correct to). **Because those three cannot close without modelling work, the suite
+could not reach green whatever was done to `OBSERVED_OFFERS`** — which is why
+that table (**227 vs corpus 249, +22**) was also left alone rather than
+part-regenerated. ⚠ Its additivity is **UNVERIFIED**; session 93's check —
+rows-in-corpus-absent-from-table against **zero** the other way — must be re-run
+before regenerating. `tests/enemies.test.ts`'s loadout drift IS verified purely
+additive (+`40/24`, +`40/26`, +`40/28`, zero removals).
+
+2026-08-24 (session 94) — **THE WIDE ORB RULE CAPTURED THREE FIRST-EVER BOON
+PAIRS FOR FREE, AND THIS IS THE THIRD RECORDED OCCURRENCE OF A KNOWN MECHANISM —
+NOT A DISCOVERY.** Run 4 room 7: `ORB FALLBACK — no priority family on offer;
+taking "Regen" (index 1) for 28 Hard Core out of [22, 28, 19] instead of ranked
+"AddBlock"`. `Regen` is one of the five `boonCapture.targets` and `boonCapture`
+is OFF, so the orb rule bought at **zero deliberate quality cost** a pair
+`boonCapture` exists to buy by taking a deliberately worse boon. ⚠ This was
+nearly written up as a finding; `src/sim/boons.ts:1600` already records it from
+session 60 and `:1865` from session 82. **Rule 9 applies to the agent's own
+inferences, not only to the brief's claims.** Two consequences: a pickup pair is
+raw data CAPTURED, not a type MODELLED (`UNMODELLED_TYPES` is still 21), and
+`config/bot.json`'s `_boonCaptureComment` now carries a **stale cost model** — it
+prices boonCapture at "~27 runs to model all five" from session 55's
+0-of-540 measurement, which predates the wide orb rule and no longer bounds the
+capture rate.
+
+2026-08-24 (session 94) — **`scripts/claimRoms.ts` SILENTLY ACCEPTS AND IGNORES
+UNKNOWN FLAGS — a fail-closed violation (rule 5), found by tripping over it.**
+`npx tsx scripts/claimRoms.ts --dry-run` performed the **real** claim (4 ROMs,
+energy 156 → 315). There is no `dryRun` handling in the file at all. No harm
+resulted — a ROM claim is an energy GAIN, and `liveRun.ts`'s preflight performs
+it autonomously under rule 12 — but a script that accepts a flag it does not
+implement will eventually be trusted to have honoured it. It should reject
+unknown argv rather than proceed.
