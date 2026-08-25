@@ -593,10 +593,14 @@ describe("boonCoverage ranks the unmodelled gap by what it costs", () => {
 // ---------------------------------------------------------------------------
 
 describe("summarizeBoonRunCoverage", () => {
+  // [session 95] Was a LIST of unmodelled types; is now a PREDICATE, because
+  // deciding unmodelled-ness by list membership undercounted. See the
+  // regression test at the end of this block and the module header.
   const UNMOD = ["TieWeak", "AddBurnShield", "Regen"];
+  const isModelled = (t: string) => !UNMOD.includes(t);
 
   it("counts a picked-but-unmodelled type as a first-ever candidate", () => {
-    const c = summarizeBoonRunCoverage(["AddMaxHealth", "TieWeak"], ["TieWeak"], UNMOD);
+    const c = summarizeBoonRunCoverage(["AddMaxHealth", "TieWeak"], ["TieWeak"], isModelled);
     expect(c.unmodelledPicked).toEqual(["TieWeak"]);
     expect(c.firstEverCandidates).toBe(1);
   });
@@ -605,20 +609,20 @@ describe("summarizeBoonRunCoverage", () => {
     // Two unmodelled types on offer, neither taken: the run had the chance and
     // did not convert it. Collapsing these two counts would make a run that
     // never sees an unmodelled boon look the same as one that declines two.
-    const c = summarizeBoonRunCoverage(["TieWeak", "Regen", "AddMaxHealth"], ["AddMaxHealth"], UNMOD);
+    const c = summarizeBoonRunCoverage(["TieWeak", "Regen", "AddMaxHealth"], ["AddMaxHealth"], isModelled);
     expect(c.unmodelledOffered).toEqual(["Regen", "TieWeak"]);
     expect(c.firstEverCandidates).toBe(0);
   });
 
   it("collapses duplicates — a type offered in four rooms is one type", () => {
-    const c = summarizeBoonRunCoverage(["Regen", "Regen", "Regen"], ["Regen", "Regen"], UNMOD);
+    const c = summarizeBoonRunCoverage(["Regen", "Regen", "Regen"], ["Regen", "Regen"], isModelled);
     expect(c.typesOffered).toEqual(["Regen"]);
     expect(c.typesPicked).toEqual(["Regen"]);
     expect(c.firstEverCandidates).toBe(1);
   });
 
   it("records the UNMODELLED_TYPES size, which is the 'before' of the before/after pair", () => {
-    expect(summarizeBoonRunCoverage([], [], UNMOD).unmodelledTypesAtRunStart).toBe(3);
+    expect(summarizeBoonRunCoverage([], [], isModelled, UNMOD.length).unmodelledTypesAtRunStart).toBe(3);
     // Against the live list, asserted as a shape rather than a number: the
     // count legitimately falls every time a boon is modelled, and pinning a
     // literal would make ordinary progress fail the suite.
@@ -628,7 +632,47 @@ describe("summarizeBoonRunCoverage", () => {
   });
 
   it("is empty and harmless on a run that reached no reward phase", () => {
-    const c = summarizeBoonRunCoverage([], [], UNMOD);
+    const c = summarizeBoonRunCoverage([], [], isModelled);
     expect(c).toMatchObject({ typesOffered: [], typesPicked: [], firstEverCandidates: 0 });
+  });
+
+  // ─── [session 95 §C1] REGRESSION: the undercount that shipped ────────────
+  //
+  // Session 94's run 4 printed "2 of them still UNMODELLED" against three
+  // real first-ever pickup pairs. The missing one was `VulnerableCrit`, and
+  // the reason it was missing is the whole point of this test.
+
+  it("counts a first-ever type the OFFER TABLE has never recorded — the session-94 undercount", () => {
+    // Reconstructs the exact shape. At the session-94 handoff commit,
+    // `UNMODELLED_TYPES` (derived from OBSERVED_OFFERS) held `AddWeakMagic`
+    // and `Regen` but NOT `VulnerableCrit` — the string did not appear
+    // anywhere in boons.ts, because its first offer row only arrived with
+    // session 95's +22 append. Under the old list-membership logic this run
+    // reported 2. All three types genuinely had no model.
+    const tableDerivedList = ["AddWeakMagic", "Regen"]; // what UNMODELLED_TYPES could see
+    const picked = ["AddWeakMagic", "VulnerableCrit", "Regen"];
+    const noneModelled = () => false;
+
+    const wrong = summarizeBoonRunCoverage(picked, picked, (t) => !tableDerivedList.includes(t));
+    expect(wrong.firstEverCandidates, "the old list-membership logic").toBe(2);
+
+    const right = summarizeBoonRunCoverage(picked, picked, noneModelled);
+    expect(right.firstEverCandidates, "the model predicate").toBe(3);
+    expect(right.unmodelledPicked).toEqual(["AddWeakMagic", "Regen", "VulnerableCrit"]);
+  });
+
+  it("the live default predicate reads BOON_MODELS, not UNMODELLED_TYPES", () => {
+    // The specific defect: a type absent from OBSERVED_OFFERS but genuinely
+    // unmodelled must still count. `__NeverOfferedNeverModelled__` is in
+    // neither table, which is precisely `VulnerableCrit`'s position on
+    // 2026-08-25.
+    const c = summarizeBoonRunCoverage([], ["__NeverOfferedNeverModelled__"]);
+    expect(UNMODELLED_TYPES).not.toContain("__NeverOfferedNeverModelled__");
+    expect(c.firstEverCandidates).toBe(1);
+
+    // And the converse, so the predicate is not just "always true": a type
+    // that IS modelled must not be counted, whether or not it is in the
+    // offer table. `Regen` is modelled as of session 95.
+    expect(summarizeBoonRunCoverage([], ["Regen"]).firstEverCandidates).toBe(0);
   });
 });

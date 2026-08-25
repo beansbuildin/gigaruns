@@ -84,3 +84,63 @@ describe("both spending scripts wire the guard in", () => {
     });
   }
 });
+
+// ─── [session 95 §E] scripts/claimRoms.ts — the third script to need this ───
+//
+// Session 94 ran `npx tsx scripts/claimRoms.ts --dry-run` expecting a preview.
+// The file had NO argument parsing at all, so the flag was silently ignored and
+// the real claim went through (4 ROMs, energy 156 -> 315). Harmless in itself —
+// a claim is an energy gain — but "accepts a flag it does not implement" is the
+// session-80 defect exactly, one script over, and the next person to trust a
+// --dry-run here might be pointing it at something that spends.
+//
+// Same source-assertion construction as the block above, and for the same
+// reason: this file must NOT be imported, because importing it runs `main()`
+// and would make a REAL claim from the test suite. That is also why the
+// dry-run behaviour below is pinned by reading the source rather than by
+// executing it.
+describe("scripts/claimRoms.ts wires the guard in and implements --dry-run for real", () => {
+  const src = readFileSync("scripts/claimRoms.ts", "utf8");
+
+  it("calls rejectUnknownArgs as main()'s first statement", () => {
+    expect(src).toContain('import { rejectUnknownArgs } from "./lib/cliArgs.js";');
+    expect(src).toMatch(
+      /async function main\(\) \{\n\s*rejectUnknownArgs\(process\.argv\.slice\(2\), KNOWN_ARGS, USAGE\);/,
+    );
+  });
+
+  it("declares every flag it reads", () => {
+    // KNOWN_ARGS is a one-liner here, unlike the multi-line lists in the two
+    // spending scripts, so the declaration is read off that line rather than
+    // off indented array entries.
+    const knownLine = /const KNOWN_ARGS = \[([^\]]*)\]/.exec(src)?.[1] ?? "";
+    const declared = new Set([...knownLine.matchAll(/"(--[a-z0-9-]+=?)"/g)].map((m) => m[1]!));
+    const read = new Set([...src.matchAll(/argv\.(?:includes|find)\(\s*\(?a?\)?\s*=?>?\s*a?\.?(?:startsWith)?\(?"(--[a-z0-9-]+=?)"/g)].map((m) => m[1]!));
+    expect(read.size).toBeGreaterThan(0);
+    for (const flag of read) expect(declared).toContain(flag);
+  });
+
+  it("--dry-run guards the claim call itself, not just the logging", () => {
+    // The specific regression: a `--dry-run` that prints "DRY RUN" and then
+    // claims anyway is worse than no flag at all. `claimRomEnergy` must sit
+    // behind the dryRun branch's `continue`.
+    // `.indexOf` would land in the docblock, which names the endpoint too —
+    // match the actual awaited CALL.
+    const claimIdx = src.indexOf("await client.claimRomEnergy(");
+    const guardIdx = src.indexOf("if (dryRun) {");
+    expect(guardIdx).toBeGreaterThan(-1);
+    expect(claimIdx).toBeGreaterThan(guardIdx);
+    expect(src.slice(guardIdx, claimIdx)).toContain("continue;");
+  });
+
+  it("classifyArgs accepts --dry-run and refuses the near-misses", () => {
+    const KNOWN_CLAIM = ["--dry-run"] as const;
+    expect(classifyArgs(["--dry-run"], KNOWN_CLAIM).unknown).toEqual([]);
+    expect(classifyArgs([], KNOWN_CLAIM).unknown).toEqual([]);
+    expect(classifyArgs(["--dryrun"], KNOWN_CLAIM).unknown).toEqual(["--dryrun"]);
+    expect(classifyArgs(["--dry_run"], KNOWN_CLAIM).unknown).toEqual(["--dry_run"]);
+    // The shape session 94 would have hit next: a plausible flag this script
+    // has never implemented.
+    expect(classifyArgs(["--limit=2"], KNOWN_CLAIM).unknown).toEqual(["--limit=2"]);
+  });
+});

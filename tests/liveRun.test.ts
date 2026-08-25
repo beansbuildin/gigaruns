@@ -1568,6 +1568,35 @@ describe("reconcileEnergyAccounting / describeEnergyAccounting (session 31, CODE
     expect(drifted).toContain("committed 20");
     expect(drifted).toContain("observed 0");
   });
+
+  // ─── [session 95 §C2] REGRESSION: the warning named the wrong cause ──────
+  //
+  // It read "Possible external balance change (e.g. a ROM claim) landed
+  // mid-run" and fired on 4 of 4 of session 94's runs, none of which had a
+  // ROM claim during them. Enforcement was correct; the text was not.
+
+  it("the drift warning names in-run regen, not a ROM claim, and hedges rather than asserts", async () => {
+    const { reconcileEnergyAccounting, describeEnergyAccounting } = await import("../src/orchestrator/energyAccounting.js");
+    // Session 94's actual shape, four times over: committed 60, observed 59.
+    const drifted = describeEnergyAccounting(reconcileEnergyAccounting(315, 256, 60));
+    expect(drifted).toContain("drift");
+
+    // The wrong cause must not be the headline explanation any more.
+    expect(drifted).not.toMatch(/Possible external balance change/i);
+
+    // The right one, named as a CANDIDATE. DECISIONS 2026-08-23 (session 87
+    // §3) settled the hedge for the sibling `tightDelta` probe and this must
+    // match it — asserting regen would be the same overreach in the other
+    // direction.
+    expect(drifted).toMatch(/leading candidate/i);
+    expect(drifted).toMatch(/regen/i);
+    expect(drifted).toMatch(/not asserted/i);
+
+    // Enforcement is unchanged and the message must keep saying so — §23 said
+    // explicitly not to "fix" the underlying drift.
+    expect(drifted).toContain("CODEXREVIEW #8");
+    expect(reconcileEnergyAccounting(315, 256, 60).committedDelta).toBe(60);
+  });
 });
 
 describe("runOnce — dungeon cap reconciliation against GET /game/dungeon/today (session 29, CODEXREVIEW #6)", () => {

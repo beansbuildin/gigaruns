@@ -25,7 +25,14 @@ export interface EnergyAccountingReport {
   observedDelta: number;
   /** What the guard actually recorded and enforced this iteration (0 on a resume — no new start_run sent). */
   committedDelta: number;
-  /** True when the observed delta doesn't match what was committed — e.g. a ROM claim landed mid-run. */
+  /**
+   * True when the observed delta doesn't match what was committed.
+   *
+   * ⚠ [session 95] This used to say "e.g. a ROM claim landed mid-run", and on
+   * the evidence that is the WRONG default reading — see
+   * `describeEnergyAccounting` below. Drift is the normal case on any run of
+   * nontrivial length, not an anomaly.
+   */
   drifted: boolean;
 }
 
@@ -40,14 +47,43 @@ export function reconcileEnergyAccounting(before: number, after: number, committ
   return { before, after, observedDelta, committedDelta, drifted: observedDelta !== committedDelta };
 }
 
-/** One human-readable line for the diagnostic — same message shape at every call site. */
+/**
+ * One human-readable line for the diagnostic — same message shape at every call
+ * site.
+ *
+ * ## [session 95 §C2] The warning used to name the wrong cause
+ *
+ * It read *"Possible external balance change (e.g. a ROM claim) landed
+ * mid-run"*, and that pointed every future reader at an actor that was not
+ * there. Session 94 fired this on **4 of 4** juiced runs — observed 59 against
+ * a committed 60, every time — and **no ROM claim happened during any of
+ * them**; the only claim preceded run 1 by about two minutes. Between-run
+ * readings rose unaided (256→257, 198→200, 141→142), which is passive regen at
+ * 18/hr ≈ 0.3/min across a ~6-minute run.
+ *
+ * So drift of roughly this size is the EXPECTED state of a run of nontrivial
+ * length, not an anomaly, and the message now says so.
+ *
+ * ⚠ **In-run passive regen is named as the LEADING CANDIDATE, not asserted**,
+ * matching the hedge DECISIONS 2026-08-23 (session 87 §3) already settled on
+ * for the closely-related `tightDelta -60` probe: regen against an integer pool
+ * is the leading candidate there too, and was explicitly NOT asserted. Do not
+ * upgrade this wording to a certainty without a probe that isolates it.
+ *
+ * **The enforcement is unchanged and was never wrong.** The guard spends off
+ * the committed cost (CODEXREVIEW #8), which is the conservative direction —
+ * §23 said not to "fix" the underlying drift, and this change does not. Only
+ * the diagnostic text moved.
+ */
 export function describeEnergyAccounting(report: EnergyAccountingReport): string {
   const base = `energy: ${report.before} -> ${report.after}  (observed delta ${report.observedDelta}; committed ${report.committedDelta})`;
   if (!report.drifted) return `  ▸ ${base}`;
   return (
     `  ▸ ${base}\n` +
     `  ⚠ energy accounting drift — committed ${report.committedDelta} vs observed ${report.observedDelta}; ` +
-    `guard enforced off committed spend (CODEXREVIEW #8), not the observed delta. Possible external balance ` +
-    `change (e.g. a ROM claim) landed mid-run.`
+    `guard enforced off committed spend (CODEXREVIEW #8), not the observed delta. Leading candidate is ` +
+    `in-run passive regen (18/hr) crediting back part of the charge — expected on any run of nontrivial ` +
+    `length, and not asserted. A gap far larger than regen could account for would instead suggest an ` +
+    `external balance change; check the ROM/claim history before assuming one.`
   );
 }
