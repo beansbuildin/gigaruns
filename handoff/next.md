@@ -1,358 +1,300 @@
-# BRIEF — session 95 — offline backlog sweep: zero live spend, no fishing casts, no dungeon runs
+# BRIEF — session 96 — ship the 11-pattern library, retire `boonCapture`, close the gate-1 re-audit, then the owed 10-cast fishing batch
 
-**Every item below is chosen specifically because it needs no new live data.**
-Read-only GETs against already-captured logs/fixtures/corpus are fine and are
-exactly what several of these need (the energy probe from session 94's four
-runs, the boon pairs from session 94's run 4, the existing fishing corpus for
-the matcher questions). Nothing here should ever reach `start_run`,
-`use_fishing_item`, a cast POST, or any other action that spends a resource.
+**Where this came from.** After reviewing session 95's offline results (nine
+gate items, suite 1792/1792), the user issued five rulings in one message:
+ship the 11-pattern matcher library, retire and delete `boonCapture`, make the
+10-cast fishing batch the next live brief, define-and-close "the gate-1
+re-audit," and split off a separate offline brief for the ΔEV-per-step
+distribution work. The first four are this document, in the order that makes
+the live batch a clean out-of-sample check on the biggest thing changing
+underneath it — the matcher seed. **The ΔEV-per-step brief is deliberately
+NOT in this file** — it's `handoff/next-ev-per-step.md`, delivered alongside
+this one, so it doesn't compete for this slot with the batch the user asked to
+run next.
 
-**Where this came from.** Session 94's STATE.md was walked through in chat,
-which surfaced its own six open items. Cross-referencing those against
-`QUESTIONS.md` turned up more: several sections still headed **"OPEN"**
-(§19, §23) are actually **closed** in `handoff/DECISIONS.md` (sessions 65 and
-87) — the headers were never updated. Two more genuinely open sections (§20,
-§27) turned out to be offline-doable and are folded in. One item (the boon
-pairs) needed a ruling from the user on modelling policy, obtained in chat —
-recorded as §A below.
-
----
-
-## 0. Ground rule for this whole session
-
-**No live spend of any kind.** If working any item below turns out to
-actually require a new cast or dungeon run rather than reading what's already
-on disk, stop and say so rather than running it — that would defeat the
-reason this session exists. `--dry-run` reads and report scripts are fine;
-anything that would POST an action that spends a resource is not.
+None of the five rulings are open questions anymore. Don't re-litigate any of
+them — the sections below are about executing each correctly, not about
+whether to.
 
 ---
 
-## A. Model the three first-ever boon pairs from session 94's run 4 — user directive: model now, don't wait
+## 1. Ship the 11-pattern matcher library
 
-**The choice made, in chat:** model `AddWeakMagic`, `VulnerableCrit`, and
-`Regen` now from their single observed pair each, rather than waiting for a
-second pickup to confirm. The user chose this over the more cautious default
-(leave them red until a second observation) — record it that way in
-`DECISIONS.md`: a deliberate choice against the safer option, not an
-oversight.
+**What "ship" means here: nothing to build, a decision to record.**
+`data/minedFishPatterns.json` already holds the 11-pattern library —
+`scripts/mineFishPatterns.ts` wrote it during session 95's offline re-run and
+`scripts/liveFishing.ts` already reads that file to seed the matcher. There is
+no separate "activate" step. Shipping is: (a) don't revert it, (b) write the
+decision down somewhere other than a STATE.md open question, because that's
+what left it undecided across sessions 95→96 in the first place.
 
-### A0. Verified this pass — corrects the STATE.md framing, doesn't change the directive
+- Add **QUESTIONS.md §36** (next unused number — §35 is RELAXING-OIL-ONLY,
+  session 93): `## §36 ANSWERED [session 96, user directive 2026-08-25] — SHIP
+  THE 11-PATTERN LIBRARY`. Record: the miner re-run went 3→11 patterns
+  (`castCount` 89→189), `PROMOTION_THRESHOLD` unchanged at 3, `bounce(2,0)`
+  was already promoted before this re-run, `bounce(-2,0)` does not clear the
+  threshold at all, eleven primitives do. Quote the user's directive verbatim
+  ("Ship the 11-pattern library; it has now passed offline evaluation").
+- **Say plainly what evaluation this is and isn't.** The only offline
+  comparison that has actually run against this specific change (3-pattern
+  library vs. this 11-pattern one) is `mineFishPatterns.ts`'s own
+  end-of-run print — blind vs. mined `castSim` catch rate. That number is
+  `castSim`-derived and OIL-POLICY.md §0a suspends `castSim` for this fishery
+  outright (sim catch ~70–80% against a real ~27.6%), so it may not be quoted
+  as evidence the change helps. **`scripts/minedLibraryGate.ts` — the
+  purpose-built paired-replay gate for exactly this kind of library change —
+  has NOT been run old-vs-new for this library.** Check first whether
+  session 95's scratchpad backup of the pre-re-mine 3-pattern
+  `minedFishPatterns.json` survived (STATE.md: "A backup of the old file is
+  in this session's scratchpad only"). If it did, run
+  `npx tsx scripts/minedLibraryGate.ts <backup>.json data/minedFishPatterns.json`
+  and record the paired ΔlogLoss verdict in the §36 entry — this is due
+  diligence on a shipped decision, not a re-opening of it. If the backup is
+  gone, say so in §36 and ship anyway: the user's directive is the decision
+  either way, and a missing before-artifact just means that particular
+  cross-check isn't available after the fact.
+- Note in the same entry that this changed the live matcher seed by more than
+  session 95's brief predicted, and that the next live cast (§4 below) is the
+  first one to run against it — which is exactly why the batch doubles as an
+  observation of it.
 
-Session 94's STATE.md describes this as "deriving each effect from its
-before/after pair." **Checked directly against the fixtures this pass:** all
-three pairs show **zero change to any `players[0]` field** —
+## 2. Retire and delete `boonCapture`
 
-```
-  AddWeakMagic   run-2026-08-25-03-30-48  state-009 → state-010   selectedVal1=2
-  VulnerableCrit run-2026-08-25-03-30-48  state-055 → state-056   selectedVal1=1
-  Regen          run-2026-08-25-03-30-48  state-105 → state-106   selectedVal1=1
-```
+**Full wiring, from source to config to tests — leave nothing dangling.**
+`tests/boonCapture.test.ts`'s own header says "if it ever stops holding the
+module should be deleted rather than left running," and it has stopped
+holding: all six of `DEFAULT_CAPTURE_TARGETS`' predecessors have now been
+modelled by the ordinary shipped rules (the wide-orb rule, mostly) without the
+override ever firing once. The remaining "0-of-540 → 4-of-996" wrinkle from
+session 95 is a tie-break artifact (`categorise` scores LATENT boons at the
+same floor as truly unmodelled ones), not a live preference — it doesn't
+resurrect the premise.
 
-only `pickedBoons` grows by one entry each time; `hp`, `armor`, `hpMax`,
-`armorMax`, and every `rolled` stat are byte-identical before and after in
-all three pairs. **This is not a gap in what to derive — it's the answer.**
+Delete, in this order so nothing is left importing a deleted file mid-step:
 
-`src/sim/boons.ts` already has a well-precedented category for exactly this
-shape: **`{ kind: "latent" }`**, currently used by 24 entries including
-`AddBurnSword`, `CorrosiveShield`, and `CorrosiveMagic` — each documented as
-"a zero delta is a RESULT here, not a gap: the pair proves the pickup changes
-no stat," with the actual mechanism (almost always a status effect armed for
-later combat) left **unconfirmed and never inferred from the name** (an
-explicit rule since `UpgradePaper` guessed wrong in session 43, and DECISIONS
-2026-08-15 made it standing). `AddBurnSword`'s own entry is the template:
+1. **`tests/boonCapture.test.ts`** — delete the whole file.
+2. **`src/strategy/boonCapture.ts`** — delete the whole file.
+3. **`scripts/liveRun.ts`** — remove every piece of the wiring, currently at
+   (line numbers as of commit `deb120df`, verify against current HEAD):
+   - The `BoonCaptureConfig` import (~line 98).
+   - `LiveRunDeps.boonCapture?: { config, captures }` field and its doc
+     comment (~613–622) — leave the doc comment on `boonPriority` next to it
+     alone, that's a different, unrelated mechanism (it's ON by default and
+     isn't gated).
+   - `boonCapturedThisRun` state (~941) and its "one target per run" comment.
+   - The capture-decision call inside the boon-pick branch (~1666–1683,
+     `deps.boonCapture ? chooseCaptureBoon(...) : null` and the precedence
+     comment above it).
+   - The `boon_capture_pair` fixture-logging block (~1821–1838).
+   - `boonCaptureFlag` CLI parsing (~1914) and the `"--boon-capture"` entry in
+     the argv allowlist plus its help-text line (~2058, ~2080).
+   - The two-condition gate/arming block that builds `captureCfg`/`boonCapture`
+     from `config.boonCapture` + the flag, including both error/warning paths
+     for a flag-without-config or config-without-flag (~2259–2314).
+   - Passing `boonCapture` into `deps` (~2481).
+   - The end-of-run summary line reporting capture pairs (~2525–2533).
+4. **`config/bot.json`** — remove `forbiddenWoods.boonCapture` (the whole
+   block: `enabled`, `_targetsComment`, `targets`, `rooms`) and
+   `forbiddenWoods._boonCaptureComment`. Leave `_boonPriorityComment` and
+   everything else in `forbiddenWoods` untouched — that's the separate,
+   always-on mechanism the deleted comment already took care to distinguish
+   itself from.
+5. **Verify nothing's left**: `grep -rn "boonCapture\|boon-capture\|BoonCapture" src/ scripts/ tests/ config/` should return nothing. (It will still appear in `handoff/log/session-*.md` and `handoff/DECISIONS.md` — those are historical and append-only; leave them exactly as written.)
+6. Run the full suite after deletion, not just a targeted test file —
+   `liveRun.ts`'s own test file may reference the removed
+   `LiveRunDeps.boonCapture` field in a fixture object even where it doesn't
+   test the feature directly.
+7. Add **QUESTIONS.md §37**: `## §37 ANSWERED [session 96, user directive
+   2026-08-25] — RETIRE AND DELETE boonCapture`. State the reason (six-for-six
+   modelled by ordinary play, the module's own test said to delete it once
+   that happened) and point to this deletion rather than re-deriving the
+   history — `src/strategy/boonCapture.ts`'s own header and
+   `config/bot.json`'s `_boonCaptureComment` already carry the full "why," and
+   both are gone after step 4, so quote the load-bearing parts into the
+   QUESTIONS.md entry rather than leaving the reasoning only in a deleted
+   file's git history.
 
-```ts
-AddBurnSword: {
-  effect: { kind: "latent" },
-  contaminates: ["STATUS_EFFECT"],
-  evidence: "run-2026-08-14-01-00-08 state-038→state-039",
-  observed: "selectedVal1 3 → no change to any player field",
-},
-```
+## 3. Define and close "the gate-1 re-audit"
 
-### A1. What to actually do
+**It already has an answer. Nobody wrote it down as one.** Session 86 §1
+diagnosed this fully; every STATE.md since has carried "the gate-1 re-audit"
+forward as an undefined phrase instead of pointing at that diagnosis. This
+section is bookkeeping, not new investigation — there is no live spend and no
+new measurement required.
 
-1. Add three `BOON_MODELS` entries in `src/sim/boons.ts`, each
-   `effect: { kind: "latent" }`, following the `AddBurnSword`/`CorrosiveShield`/
-   `CorrosiveMagic` shape exactly: `evidence` citing the exact run/state pair
-   above, `observed` stating the selectedVal1 and "no change to any player
-   field" (verify this claim yourself against the fixture rather than trust
-   this brief's transcription — rule 9).
-2. **`contaminates`**: the three existing `latent` boons that arm a status
-   effect all use `["STATUS_EFFECT"]`. Check `Reason` (`src/sim/coverage.ts`)
-   for whether that's still the right category for these three specifically,
-   or whether one of them fits a different existing `Reason` better — don't
-   default to `STATUS_EFFECT` by pattern-matching alone.
-3. **Do not guess the mechanism from the name for any of the three, including
-   `Regen`.** "Regen" strongly suggests a per-turn heal-over-time effect, but
-   Task 4.5's rule ("a boon is modelled ONLY if the corpus contains a state
-   pair bracketing its pickup — nothing inferred from the option text")
-   applies exactly here: this repo's boon model only covers the pickup
-   instant, and a per-turn tick — if `Regen` even has one — would need its
-   own multi-turn observation and possibly a new `BoonEffect` kind this repo
-   doesn't have yet. That's out of scope for this brief. Model `Regen` as
-   `latent` like the other two, and note in its entry's comment (matching
-   `CorrosiveShield`'s own phrasing) that a per-turn effect, if real, is
-   unconfirmed and would need separate future capture — don't silently close
-   that question by shipping a confident-looking model.
-4. Update `tests/boons.test.ts` — the three `"has a pair but no model"`
-   failures and the aggregate `"covers every boon type the corpus has a pair
-   for"` failure should go green from this alone; confirm they do rather than
-   assume it.
-5. Record in `DECISIONS.md`: the user's choice to model from n=1 against the
-   more cautious default, and that all three landed as `latent` because the
-   evidence — not a judgment call — put them there.
+**The definition**, from `handoff/log/session-86.md` line 97 (the phrase's
+origin) and DECISIONS.md's session-86 §1/GATE-1 entry: session 86 found that
+`damageEconomy.ts`'s `SIM blind` arm and `deckObjectiveSweep.ts`'s baseline
+arm (`matcherPool: []`) **structurally never aim** — 0 focus moves in 1963
+turns, 0 cells used beyond the start cell — because they carry no
+fish-distribution model at all, so every candidate cell scores identically
+and there is nothing for `bestFocusForCard` to prefer. This is **not a bug**
+and it is **not "blind" in the sense of "handicapped"** — the arm's EV surface
+is uniform, not degraded. Session 86 §1 was explicit that this opens "a
+re-audit nobody has done": every figure either of those two arms has ever
+produced describes an arm that cannot aim by construction, not a fishery
+anyone plays, and needed to be checked rather than assumed retracted.
 
----
+**The four named figures, traced to source, and why each is already
+superseded or suspended — none of this needs re-measuring:**
 
-## B. `OBSERVED_OFFERS` — verify additivity, then regenerate
+1. **The deck sweep's 36.42%** — `deckObjectiveSweep.ts`'s baseline
+   (`matcherPool: []`), re-run in session 79 §1e on the shuffled draw pile:
+   4000 paired casts, baseline hit 36.42% (catch 0.0% on the real 23-card
+   deck). This is the no-aim arm by construction (§4b's table: BLIND
+   `matcherPool: []` moves 0 of 1963 turns at both `w=0` and `w=3`). **Already
+   SUSPENDED**: session 79 §1e's own text marks it suspended under
+   OIL-POLICY.md §0a.
+2. **Session 78's 41.06%** — the pre-shuffle-fix baseline from the same
+   lineage (session 78 §4, "All 80 appended candidates measured
+   byte-identical to the baseline (hit 41.06%)"), measured before the server's
+   real shuffle behavior was discovered. **Already RETRACTED**: session 79 §1
+   retracted session 78's "deck ORDER is load-bearing" finding outright once
+   the shuffle was confirmed, and the same baseline arm was re-measured as
+   item 1 above. 41.06% is superseded by its own re-run, which is itself the
+   no-aim arm.
+3. **The noise floor** — session 79 §1e, same re-run: "two arms that are the
+   SAME deck differ by 1.93pp at 4000 casts, so only 10 of 80 arms clear their
+   own noise." Measured on `deckObjectiveSweep.ts`'s no-aim arm, same as items
+   1–2. Not wrong as a noise-floor measurement of that harness — wrong to cite
+   as a noise floor for anything a real fishery does, since the arm producing
+   it never aims.
+4. **The −4.6pp drift margin** — `damageEconomy.ts`'s comparison table
+   (session 80 §1, re-run and re-printed session 86 §4): the "SIM blind
+   (no-aim)" row, margin −4.6pp against LIVE's −0.7pp, drift +0.317. Named as
+   "no-aim" in the table's own row label by the time session 86 re-ran it —
+   the table itself already carries the caveat this closure is formalizing.
 
-**+22 offers this session** (227 in the table, 249 in the corpus). Session
-93's precedent is the check to re-run **before** touching the table: confirm
-every row in the corpus not in the table (should be the full +22, and only
-in that direction) and **zero** rows in the table absent from the corpus. If
-that holds, regenerate `OBSERVED_OFFERS` from the current corpus and confirm
-`Math.max(...OBSERVED_OFFERS.map(o => o.room))`'s pin is still accurate.
-**Do not skip the additivity check to save time** — session 93 established
-why it matters and it's cheap.
+**Why all four survive as "not wrong, not applicable" rather than "wrong":**
+none of them misdescribes the harness they were measured on. `SIM blind` and
+`deckObjectiveSweep.ts`'s baseline are legitimate for what session 86 §4b
+calls the one thing they're good for — a deck-composition comparison, where
+uniform-EV aiming is a fair way to isolate the deck variable. They are not,
+and were never validly cited as, a description of catch rate, hit rate, or
+margin for a fishery a real (aiming) policy plays. That distinction is the
+entire finding; this closure doesn't change any of the four numbers, it
+retires their use as evidence about live play.
 
-Note: three of the six suite failures need §A regardless, so this table's
-regeneration was correctly deferred until now — don't regenerate it before
-§A lands, since a boon-modelling change could plausibly touch adjacent
-fixtures the table reads.
+**Close it:**
 
----
-
-## C. Two cheap instrument fixes — wrong text and counts on correct enforcement
-
-### C1. `boonRunCoverage.ts`'s `firstEverCandidates` undercounts by one
-
-Run 4's stdout reported **2** unmodelled first-ever candidates;
-`tests/boons.test.ts` found **3**. `src/sim/boonRunCoverage.ts`'s
-`summarizeBoonRunCoverage()` (line ~63) is pure — it only sees the `picked`
-array it's handed. **The bug is very likely in whatever builds that array at
-the call site in `liveRun.ts`**, not in this pure function itself — find where
-`summarizeBoonRunCoverage` is actually called for a live run and check
-whether it's missing one of the three picks (`AddWeakMagic`, `VulnerableCrit`,
-or `Regen`). Session 94's own STATE.md flags this as "exactly session 93's
-open-question-3 class" — an end-of-run reader unchecked against a shape the
-current policy produces — so the missing pick is a good candidate for
-happening at the run's LAST room specifically (the same closing-turn/closing-
-room blind spot pattern that hit `oilsConsumed` in §33). Verify which of the
-three is missing and why before fixing, then add a regression test so a
-future run can't silently drop one again.
-
-### C2. The energy-drift warning names the wrong cause
-
-`src/orchestrator/energyAccounting.ts`'s `describeEnergyAccounting()` prints
-something to the effect of *"possible external balance change (e.g. a ROM
-claim) landed mid-run"* whenever `observedDelta` differs from
-`committedDelta`. It fired on all four of session 94's runs (observed 59 vs
-committed 60, every time) and **no ROM claim happened during any of them** —
-between-run readings show energy rising unaided between runs (passive regen,
-~18/hr ≈ 0.3/min over a ~6-minute run), which is consistent with the drift
-without needing an external event. **§23 already resolved a closely related
-case** (`DECISIONS.md`, 2026-08-23, session 87 §3): a `tightDelta -60` probe
-on run `25035508` found the charge is exactly 60 and "the standing −1 is
-credited back DURING the run… regen at 18/hr against an integer pool is the
-LEADING CANDIDATE, NOT asserted." **Match that hedge exactly** — rewrite the
-warning to name in-run passive regen as the leading candidate for the
-observed-vs-committed gap, not a certainty, and drop the "external balance
-change / ROM claim" framing, which session 94 confirmed didn't happen. Don't
-fix the underlying drift (§23 already said not to — the guard enforces off
-committed spend, so it's conservative and safe); only the diagnostic text is
-wrong.
-
----
-
-## D. `config/bot.json`'s `_boonCaptureComment` is a stale forecast
-
-It prices `boonCapture` at "~27 runs to model all five" targets, from session
-55's measurement that `pickBoon` top-ranks an unmodelled type 0 of 540 times.
-That measurement predates the **wide orb rule** (session 58+), which
-session 94 itself demonstrated picks unmodelled types for free — a THIRD
-occurrence today (`Regen`, room 7, taken over ranked `AddBlock` purely
-because of its orb payout). Update the comment to note the wide-orb-rule
-finding and that the "~27 runs" forecast is stale as a current estimate,
-without erasing what session 55 actually measured (it's still correct about
-session 55; it's wrong as a forecast today). This is a comment-only change —
-`boonCapture.enabled` stays `false`.
-
----
-
-## E. `scripts/claimRoms.ts` — add real flag handling, fail closed on unknown flags
-
-**Read the file — it currently has *no* CLI argument parsing of any kind.**
-`main()` runs the same unconditional claim sequence every time; passing
-`--dry-run` (as session 94 did, expecting a preview) does nothing to prevent
-it — the four ROM claims and the +159 energy still happened for real. This
-is a fail-closed violation (CLAUDE.md rule 5): an unrecognized flag should
-error, not be silently ignored.
-
-1. Add argument parsing (`process.argv`) with an actual `--dry-run` mode that
-   logs the planned claims and the `getEnergy` before-read, without calling
-   `client.claimRomEnergy`.
-2. Reject any other unrecognized flag with a non-zero exit and a clear error
-   naming the bad flag — don't just ignore it.
-3. Add a regression test (mirroring how `tests/cliArgs.test.ts` or
-   `scripts/claimAllRoms.ts`'s own arg handling, if it has any, is tested)
-   so a future unknown flag fails loudly rather than being silently accepted
-   again.
-
----
-
-## F. Two unpaid redraw correctness gaps — offline hardening of code that never fires live
-
-**`QUESTIONS.md` §28 ANSWERED names both explicitly as "both fixable
-offline, neither fixed."** Redraw stays `redrawEnabled: false` regardless —
-**do not touch that flag or `REDRAW_THRESHOLD`.** This is about the
-correctness of code that would matter if redraw is ever turned on, not about
-turning it on.
-
-1. **`liveFishing.ts:2471`** — a redraw firing `FISH_MOVED` isn't observed by
-   the branch that should see it, leaving a hole in the matcher's history.
-   `QUESTIONS.md` describes this as "a choice between two unmeasured
-   semantics, not a repair" — read the surrounding code, articulate the two
-   candidate semantics concretely (this brief cannot, without having read the
-   full function), and if neither is obviously correct, write a new
-   `QUESTIONS.md` entry naming both rather than picking one by feel.
-2. **`liveFishing.ts:1526`** — `MAX_REDRAWS_PER_CAST = 5` currently aborts
-   the cast via a fail-closed `GuardTrip` rather than falling through to an
-   ordinary play. Design a real per-cast redraw budget with a fall-through,
-   consistent with how other per-cast caps in this repo behave (e.g. the
-   Relaxing Oil per-cast cap, which stops trying rather than aborting the
-   whole cast) — but confirm that comparison actually holds before leaning on
-   it, don't assume.
-3. Add regression tests for both. Since redraw never fires live, these tests
-   necessarily exercise the code path directly rather than through a real
-   cast — say so in the test's docblock so a future reader doesn't mistake
-   unit coverage for live validation.
+- Add **QUESTIONS.md §38**: `## §38 ANSWERED [session 96, user directive
+  2026-08-25] — THE GATE-1 RE-AUDIT IS DEFINED, ITS FOUR NAMED FIGURES ARE
+  ALREADY SUPERSEDED OR SUSPENDED, AND IT IS CLOSED`. Use the definition and
+  the four-figure breakdown above (cite session 86 §1/§4b, session 78 §4,
+  session 79 §1/§1e, session 80 §1 by name and section, the way OIL-POLICY.md
+  §0a cites its own sources). State explicitly: **no new measurement was
+  taken to close this** — session 86 already did the work, this entry is the
+  first time it was written where a future STATE.md can find it instead of
+  re-carrying the phrase.
+- **Stop carrying "the gate-1 re-audit" as an open item in STATE.md.** This
+  session's own STATE.md should not list it under "What's broken" or "Open
+  questions" — it closes with this brief, full stop, the same way §19 and §23
+  got closing pointers in session 95 rather than staying open by inertia.
 
 ---
 
-## G. §27 / "the pacing term's cause" — the narrower sim-vs-live question, offline
+## 4. The 10-cast live fishing batch — now three sessions overdue
 
-These are the same open thread under two names. Session 84 decomposed the
-44.9%→1.5% focus-budget collapse into three terms and could not name the
-cause of the **focus-pacing term** (−18.2pp) — `DECISIONS.md`, 2026-08-23,
-explicitly: "the CAUSE is not [identified], and rule 6 says say so." Session
-85 found the direct hypothesis (replaying sessions 61/62's commits) doesn't
-work — the corpus can't date the change precisely enough, and the one
-focus-related constant in the live path didn't move in that window — but
-also found gate 2's simulator at the shipped weight (`w=3`) lands **0.004
-outside** today's era's opening-spend interval, against **0.207 outside** at
-`w=0`. §27's recommendation, never acted on: ask **"what makes live's
-EFFECTIVE focus-reserve behaviour differ from the sim's at the same nominal
-weight"** instead of replaying whole policies — a much smaller search.
+Standard cadence, same shape as sessions 92/93's fishing briefs — with one
+addition: **this is the first live batch to run against the 11-pattern
+library**, which §1 above just shipped, so this batch is simultaneously the
+owed volume and the first out-of-sample read on the new matcher seed.
 
-This is pure sim/corpus analysis — no live data needed beyond what's already
-captured. Worth a bounded time-box rather than an open-ended search; if
-nothing surfaces, say so plainly and leave §27 as a still-open recommendation
-rather than forcing a conclusion.
+### 4a. Before starting
 
----
+- **Rule 13.** Check today's fishing ledger fresh — cast count against the
+  daily cap, `dendren.dailyEnergyBudget` (252) against today's actual spend.
+  Don't carry forward any number from a prior STATE.md; today's cap window
+  and any spend from §1–§3's work (there should be none — everything above is
+  offline) reset independently.
+- **Oil.** `dendren.oils.allowedItemIds` is `[937]` (relaxing only, session
+  93 landing) — confirm stock covers at least 10 casts' worth of triggers
+  before starting, and confirm nothing in §1's changes touched oil policy
+  (it shouldn't have; the matcher and the oil policy are unrelated systems,
+  but rule 9 says verify, don't assume).
+- **Rod.** Shroom Rod durability — check the current count against the
+  ~40-cast repair cycle. If it's due to run out mid-batch, say so up front
+  rather than discovering it mid-cast.
+- **`--dry-run` first** if anything about the matcher, oil trigger, or redraw
+  logic has changed since the last live cast — and §1 just changed the
+  matcher's candidate pool, which is exactly the kind of change this habit
+  exists for.
 
-## H. §20 — re-mine `data/mined-patterns.json` (optional, lower priority)
+### 4b. Run it
 
-**No longer gates anything** — §19 closed as a POWERED KEEP at session 65
-and was reaffirmed at session 87, independent of this. Still a real, cheap,
-long-deferred item: re-mining at the current (189-cast, up from 88) corpus
-promotes `bounce(2,0)`/`bounce(-2,0)` alongside the two `perimeterWalk`
-patterns already live, raising support from 11/88 to more (recompute against
-the current corpus size, don't reuse the old fraction). `scripts/mineFishPatterns.ts`
-owns this decision per its own docblock. If time allows after A–G, run it;
-if not, it's fine to leave for a future brief — say so rather than rushing it.
+`npx tsx scripts/liveFishing.ts --casts=10 --oil-batch`
 
----
+### 4c. Report, with the new-matcher observation folded in specifically
 
-## I. Documentation hygiene: two stale "OPEN" headers in `QUESTIONS.md`
+Alongside the standard per-batch report (catches, hit rate, oil triggers,
+double-lethal firings, rod durability spent):
 
-Found while compiling this brief, worth a few minutes: **§19** and **§23**
-are both closed (§19: `DECISIONS.md` 2026-08-23 session 87 §2, "KEEP, one
-turn short of powered," confirming session 65's original close; §23:
-`DECISIONS.md` 2026-08-23 session 87 §3, "the 3x multiplier is EXONERATED"),
-but their `QUESTIONS.md` section headers still read `[... OPEN ...]`. Add a
-brief closing pointer to each (in the same append-only style as other
-`ANSWERED` headings — don't rewrite the original text) so a future backlog
-sweep doesn't have to re-derive their status from `DECISIONS.md` the way this
-one did.
+- **Redraw-shadow tally.** `redrawEnabled` stays `false` — this doesn't
+  change that — but keep logging what the shadow candidate would have done,
+  same as every batch since it was added. State explicitly whether this
+  batch used a redraw in the actual live path (it shouldn't have; confirm
+  rather than assume, the way session 92's brief asked).
+- **Matcher-seed observation.** Report how often the 11-pattern library's
+  candidates were actually matched against during this batch (vs. the
+  3-pattern library's prior behavior) — `liveFishing.ts` should already be
+  logging matcher weight/activity per turn; surface it in the report rather
+  than only in raw logs, since this is the "somebody needs to look at this"
+  item STATE.md flagged. This is an observation, not a gate — nothing here
+  blocks the batch from running or completing.
+- **Double-lethal and oil-trigger behavior**, same depth as sessions 92/93.
 
----
+### 4d. After
 
-## What's explicitly excluded from this brief, and why
-
-- **The 10-cast fishing batch** (owed since session 92) — needs live casts.
-  Separate future brief.
-- **H2's proc-branch model** — blocked on capture (`TASKS.md` CAPTURE-1): the
-  proc rates for evasion/block/lck/tenacity/intuition don't exist in any
-  captured data yet, and inventing them was explicitly refused in session 78
-  ("converts an honest 'unscorable' into a confident wrong number"). Not
-  offline-doable until new live dungeon data captures those procs.
-- **"The gate-1 re-audit"** — carried across several STATE.md's as a phrase
-  with no definition this pass could locate in `QUESTIONS.md`, `DECISIONS.md`,
-  or `TASKS.md`. Before deciding whether it's offline-doable, the next
-  session should locate what it actually refers to (likely an older session
-  log or a git-history search this pass didn't do) rather than either
-  guessing at it or continuing to carry it forward undefined.
+- Full suite, `tsc --noEmit`, `git diff --check`, secret scan — same as any
+  other session's recap.
+- Update the fishing corpus counts (casts, transitions) in STATE.md's Metrics
+  section, same convention as every prior fishing session.
+- **Do not use this batch to re-litigate §36–§38 above** — they're closed by
+  the time this section runs, and a batch result (good or bad) doesn't reopen
+  a shipping/deletion/closure decision that already has a directive behind
+  it. If the batch surfaces something genuinely new about the matcher
+  (regression, a candidate misfiring), that's a fresh open question for
+  QUESTIONS.md, not grounds to revert §36.
 
 ---
-
-## Gate
-
-1. §A: three new `BOON_MODELS` entries, evidence-cited and verified against
-   the actual fixtures (not copied from this brief); `boons.test.ts`'s four
-   related failures go green; the n=1 modelling choice is recorded in
-   `DECISIONS.md` as the user's directive.
-2. §B: additivity verified before regeneration; `OBSERVED_OFFERS` regenerated
-   and its room-max pin confirmed accurate.
-3. §C: both instrument fixes land with corrected text/logic and a regression
-   test each; neither touches the underlying enforcement it was diagnosing.
-4. §D: `_boonCaptureComment` updated, `boonCapture.enabled` untouched.
-5. §E: `claimRoms.ts` has real flag parsing, a working `--dry-run`, and
-   rejects unknown flags; a regression test pins it.
-6. §F: both redraw correctness gaps addressed or explicitly deferred to a new
-   `QUESTIONS.md` entry with concrete named options; `redrawEnabled`/
-   `REDRAW_THRESHOLD` untouched either way.
-7. §G: a time-boxed attempt at the narrower focus-reserve question, reported
-   honestly whether or not it lands on an answer.
-8. §I: both stale headers get a closing pointer.
-9. Suite, `tsc --noEmit`, `git diff --check`, secret scan all run clean at
-   the end — this session has no reason to leave anything red that §A–§E
-   can close.
-
-**What does NOT meet the gate:** guessing at `Regen`'s or any other latent
-boon's mechanism from its name; skipping the `OBSERVED_OFFERS` additivity
-check; fixing the energy-drift warning's text by asserting regen as certain
-rather than a leading candidate; touching `redrawEnabled`/`REDRAW_THRESHOLD`
-under any framing; spending any live resource for any reason, including "just
-to verify."
 
 ## Do not
 
-- **Do not run any live cast or dungeon run.** This is the one hard rule for
-  the whole session.
-- **Do not touch `redrawEnabled` or `REDRAW_THRESHOLD`.**
-- **Do not infer a boon's effect from its name.** Established since
-  `UpgradePaper` guessed wrong in session 43; DECISIONS 2026-08-15 made it
-  standing.
-- **Do not re-open `QUESTIONS.md` §19, §23, §26, §28, §29, §30, §31, §32, or
-  §33.** All closed; §I only adds a pointer, not a reopening.
-- **Do not regenerate `OBSERVED_OFFERS` before §A lands** or before
-  additivity is verified.
+- **Do not re-ask whether to ship the 11-pattern library, delete
+  `boonCapture`, or close the gate-1 re-audit.** All three are directives, not
+  open questions — this brief is about executing them correctly, including
+  the due-diligence step in §1 (running `minedLibraryGate.ts` if the backup
+  survives) and the deletion completeness check in §2, neither of which is a
+  reason to pause and ask again.
+- **Do not touch `castSim`-suspended figures as evidence for anything.**
+  OIL-POLICY.md §0a stays in force; the gate-1 closure in §3 explains why four
+  more figures join the "measured, not quotable as live evidence" pile — it
+  doesn't lift §0a or create a new quotable number.
+- **Do not fold the ΔEV-per-step work into this session.** It's
+  `handoff/next-ev-per-step.md`, a separate document for a separate future
+  session — this batch and the housekeeping above are already a full session.
+- **Do not let §1's due-diligence check on `minedLibraryGate.ts` block the
+  fishing batch.** If the old-library backup is gone, note it and move on;
+  the shipping decision doesn't wait on a cross-check that may not be
+  recoverable.
+- **Do not carry any of §1–§3 forward into another STATE.md as open.** That's
+  the exact failure mode §3 just closed out for the gate-1 phrase — writing
+  a decision down once, completely, is what stops it from becoming a
+  standing undefined obligation.
 
-## Your task (session 95)
+---
 
-1. §A: model the three boon pairs as `latent`, verified against fixtures.
-2. §B: verify `OBSERVED_OFFERS` additivity, then regenerate.
-3. §C: fix `boonRunCoverage`'s undercount and the energy-drift warning's
-   wrong cause, each with a regression test.
-4. §D: update `_boonCaptureComment`.
-5. §E: add real flag handling to `claimRoms.ts`.
-6. §F: address or formally defer the two redraw correctness gaps.
-7. §G: time-boxed attempt at the focus-reserve question; report honestly.
-8. §H: re-mine `mined-patterns.json` if time remains.
-9. §I: close the two stale headers.
-10. Recap normally: full suite, `tsc --noEmit`, `git diff --check`,
-    `assertionCoverage`, `preflight.ts`, secret scan. Report the actual final
-    count — this session has no live-spend excuse for leaving anything red.
+## Your task (session 96)
+
+1. Record and due-diligence-check the 11-pattern library shipping decision
+   (§1) — QUESTIONS.md §36, `minedLibraryGate.ts` if the backup survives.
+2. Delete `boonCapture` completely — file, test, config block, all of
+   `liveRun.ts`'s wiring (§2) — verify with a repo-wide grep, then run the
+   full suite. QUESTIONS.md §37.
+3. Define and close the gate-1 re-audit (§3) — QUESTIONS.md §38, no new
+   measurement, and stop carrying the phrase in STATE.md.
+4. Run the owed 10-cast live fishing batch (§4) — first live read on the
+   11-pattern library, standard rule-13/oil/rod checks before, redraw-shadow
+   and matcher-activity reporting after.
+5. Normal recap: suite, `tsc --noEmit`, `git diff --check`, secret scan,
+   updated fishing corpus counts.
