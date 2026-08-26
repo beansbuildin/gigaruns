@@ -1,4 +1,4 @@
-# STATE — session 99 — 2026-08-26 (PT) — code at commit 7d1bbdcf
+# STATE — session 99 — 2026-08-26 (PT) — code at commit 531cd331
 
 ## Status
 Brief items **§1, §2, §3, §4: ALL DONE. GATE PASS.** All four dungeon runs the
