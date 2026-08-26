@@ -178,14 +178,38 @@ describe("GATE 2 — it fails at BOTH degeneracies", () => {
     expect(alwaysFire.decide(s, E)).toEqual(["relaxing"]);
   });
 
-  it("and it is not the CERTAINTY gate either — 0.9 is the case the two disagree on", () => {
-    // This is the whole delta the user asked for: `conserve{1,1}` spends here
-    // because 0.9 is not certainty; the exchange rate says a 10% loss is not
-    // worth an oil valued at 17% of a fish.
-    const s = stateWithKillProbability(0.9);
+  /**
+   * ⚠ **[session 98 §A] This case moved, and the move is the finding.**
+   *
+   * It used to read "0.9 is the case the two disagree on", because the
+   * necessity gate sat at `1` and spent an oil at any `p < 1`. The user
+   * lowered the Relaxing threshold to **0.85** (QUESTIONS.md §43), so the two
+   * rules now AGREE at 0.9 — both hold the oil — and the band on which they
+   * still differ is the narrow `[0.8333, 0.85)`.
+   *
+   * The test therefore keeps its purpose (the two policies are different
+   * rules, not a rename) by moving to a probe inside the band that survives,
+   * rather than by being deleted. Both bounds are read from the constants, so
+   * if either threshold moves again this fails loudly instead of quietly
+   * probing a band that no longer exists.
+   */
+  it("and it is not the NECESSITY gate either — the two now disagree only on [0.8333, 0.85)", () => {
+    const tExch = PREREGISTERED_EXCHANGE_THRESHOLDS.relaxing;
+    const tGate = RECOMMENDED_NECESSITY_THRESHOLDS.relaxing;
+    // Guard the premise: a non-empty disagreement band is what makes the rest
+    // of this test meaningful.
+    expect(tExch).toBeLessThan(tGate);
+    const inBand = (tExch + tGate) / 2;
+    const s = stateWithKillProbability(inBand);
     expect(conserving.decide(s, E)).toEqual(["relaxing"]);
     expect(conservingByExchangeRate.decide(s, E)).toEqual([]);
-    expect(RECOMMENDED_NECESSITY_THRESHOLDS.relaxing).toBe(1);
+
+    // And where they used to disagree, they now agree — pinned so the change
+    // of behaviour is stated rather than inferred from an absent assertion.
+    const above = stateWithKillProbability(0.9);
+    expect(conserving.decide(above, E)).toEqual([]);
+    expect(conservingByExchangeRate.decide(above, E)).toEqual([]);
+    expect(tGate).toBe(0.85);
   });
 
   it("the boundary is exactly the derived value, checked from both sides", () => {

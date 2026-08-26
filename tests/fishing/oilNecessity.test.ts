@@ -209,12 +209,24 @@ describe("MANA FIRST — structural, not aspirational", () => {
 });
 
 describe("the recommendation carries no fitted constant", () => {
-  it("both recommended thresholds are exactly 1 — the directive's own sentence, not a tuned number", () => {
-    // If someone retunes these to a fitted value, this fails and they have to
-    // justify the constant in `oilConserveSweep.ts` §2b's terms: the quantity
-    // is bimodal, so a value between the modes is buying ~0.1pp on the sim
-    // that fitted it. See `RECOMMENDED_NECESSITY_THRESHOLDS`' doc comment.
-    expect(RECOMMENDED_NECESSITY_THRESHOLDS).toEqual({ relaxing: 1, focus: 1 });
+  /**
+   * ⚠ **[session 98 §A] `relaxing` is 0.85, and it is still not a fitted
+   * number — it is the USER's, QUESTIONS.md §43, 2026-08-25.**
+   *
+   * The assertion's job never was "the value is 1". It is *"no agent quietly
+   * tuned this"*, and that job is unchanged: any future edit to either number
+   * fails here and has to point at a user directive recorded in QUESTIONS.md,
+   * exactly as this one does. Session 97 measured the gate a live no-op at `1`
+   * (24 evaluations, 0 held, max 0.991) and escalated rather than picking a
+   * replacement, which is the behaviour this test exists to force.
+   *
+   * `focus` stays `1` because nothing was asked about it and nothing live
+   * bears on it — `allowedItemIds` is `[937]`, so the Focus Oil is not
+   * spendable at all, and the shipped constant overrides that arm to
+   * `ALWAYS_FIRES_THRESHOLD` regardless.
+   */
+  it("the thresholds are exactly the two the user set — no agent-fitted constant", () => {
+    expect(RECOMMENDED_NECESSITY_THRESHOLDS).toEqual({ relaxing: 0.85, focus: 1 });
   });
 });
 
@@ -275,6 +287,12 @@ describe("a CERTAIN outcome that arrives as 0.9999999999999999 is still certain"
     });
     expect(onDemandTriggers(s, E)).toContain("relaxing");
     expect(bestKillProbability(s)).toBeCloseTo(1, 12);
+    // [session 98 §A] Pinned at a threshold of `1` EXPLICITLY, because that is
+    // the only threshold at which the tolerance decides anything. The shipped
+    // `conserving` now sits at 0.85 (QUESTIONS.md §43), where this sum clears
+    // the bar under a bare `>=` too — so asserting only on `conserving` would
+    // leave the session-68 defect free to come back green.
+    expect(conservingOil({ relaxing: 1, focus: 1 }).decide(s, E)).not.toContain("relaxing");
     expect(conserving.decide(s, E)).not.toContain("relaxing");
   });
 

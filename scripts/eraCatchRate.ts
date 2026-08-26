@@ -214,17 +214,26 @@ function main(): void {
     console.log(`    ${name.padEnd(22)} ${pct(v).padStart(6)}  ${inside ? "INSIDE the 3/10 interval" : "OUTSIDE the 3/10 interval"}`);
   }
 
-  console.log(`\n── §4  LIVE OILS PER CAST — the §2c tripwire's own denominator (§1c) ──`);
-  console.log(`  The tripwire is pre-registered against "the sim's ~0.70 oils/cast"`);
+  console.log(`\n── §4  LIVE OILS PER CAST — the RETIRED §2c tripwire's own denominator (§1c) ──`);
+  console.log(`  The tripwire WAS pre-registered against "the sim's ~0.70 oils/cast"`);
   console.log(`  (scripts/liveFishing.ts). That is a SWEEP number, i.e. \`castSim\`. Live:`);
   printRows([row("focusDry (today)", byEra.get("focusDry")!), row("ALL", casts)]);
 
-  // ── §5 ── The tripwire, re-registered against the rate it should have used.
+  // ── §5 ── ⚠ THE §2c TRIPWIRE IS RETIRED. This is the diagnosis that retired
+  // it, kept as the record of WHY — not a proposal, and not an instrument.
   //
-  // The tripwire asks: how surprising is it to see >= 9 clean (zero-oil) casts
-  // in 10? It was registered against a per-cast oil rate of ~0.70 taken from
-  // the sim. The live clean-cast rate is measurable directly and is the number
-  // it should have been registered against.
+  // [session 98 §B] Session 97 wrote this block as a RE-REGISTRATION: here is
+  // the live rate the tripwire should have used, so re-register it against
+  // that. **The user declined** (2026-08-25, QUESTIONS.md §44) and retired the
+  // tripwire outright instead, on the reasoning that retiring a broken
+  // instrument and proposing a new one are two different decisions. The
+  // evaluation site in `scripts/liveFishing.ts` is gone and
+  // `src/strategy/fishing/oilBatch.ts` carries the tombstone at the constant.
+  //
+  // Nothing below is operational. It computes: how surprising is >= 9 clean
+  // (zero-oil) casts in 10, under the sim's assumed rate versus the live one?
+  // Keep it readable — a future reader asking "why did this stop existing"
+  // should land on these two numbers.
   const cleanRate = (cs: readonly FishingCast[]) => {
     const scored = cs.filter((c) => castOutcome(c) !== "incomplete");
     // `oilEra` is a BOOLEAN (`consumablesUsed > 0 || slotsUsed.some(...)`),
@@ -246,7 +255,10 @@ function main(): void {
     return acc;
   };
 
-  console.log(`\n── §5  THE §2c TRIPWIRE, RE-REGISTERED AGAINST THE LIVE RATE (§1c) ──`);
+  console.log(`\n── §5  THE §2c TRIPWIRE — RETIRED 2026-08-25, AND WHY (§1c) ──`);
+  console.log(`  ⚠ RETIRED OUTRIGHT by user directive, QUESTIONS.md §44 — not re-registered`);
+  console.log(`    against the live rate below. That was offered and declined. Nothing here`);
+  console.log(`    is evaluated by any live script; this is the record of the diagnosis.`);
   const dryClean = cleanRate(byEra.get("focusDry")!);
   const allClean = cleanRate(casts);
   console.log(`  live CLEAN-cast rate   focusDry ${dryClean.clean}/${dryClean.n} = ${pct(dryClean.clean / dryClean.n)}` +
@@ -259,15 +271,21 @@ function main(): void {
   console.log(
     `\n  ⇒ The tripwire fired because its THRESHOLD was derived from \`castSim\`, not\n` +
       `    because live play diverged from anything measured. Session 96's 9-of-10 is\n` +
-      `    an ordinary outcome at the live rate.`,
+      `    an ordinary outcome at the live rate. That is what retired it.`,
   );
   console.log(
-    `\n  AND THE NECESSITY GATE CANNOT BE THE CAUSE. \`scripts/liveGateFiringRates.ts\`\n` +
-      `  measures the Relaxing gate holding 0 of 18 replayed evaluations and 0 of 24\n` +
-      `  live observations, so a gated oils/cast is IDENTICAL to an ungated one.\n` +
-      `  QUESTIONS.md §39 asked whether the tripwire and the gate are "the same\n` +
-      `  finding wearing two names": they are NOT. They share a CAUSE (both numbers\n` +
-      `  came from \`castSim\`), not a mechanism.`,
+    `\n  AND THE NECESSITY GATE WAS NOT THE CAUSE — AT THE THRESHOLD IT HAD THEN.\n` +
+      `  \`scripts/liveGateFiringRates.ts\` measured the Relaxing gate holding 0 of 18\n` +
+      `  replayed evaluations and 0 of 24 live observations AT A THRESHOLD OF 1, so a\n` +
+      `  gated oils/cast was IDENTICAL to an ungated one over every cast in this\n` +
+      `  corpus. QUESTIONS.md §39 asked whether the tripwire and the gate are "the\n` +
+      `  same finding wearing two names": they are NOT. They shared a CAUSE (both\n` +
+      `  numbers came from \`castSim\`), not a mechanism.\n` +
+      `\n  ⚠ [session 98 §A] THAT NO LONGER DESCRIBES THE SHIPPED GATE. The user lowered\n` +
+      `  the Relaxing threshold to 0.85 (QUESTIONS.md §43) and the same instrument now\n` +
+      `  reports 9 of 24 held — so from the NEXT batch onward the oils/cast above is\n` +
+      `  no longer a gate-independent quantity, and a clean-cast rate measured after\n` +
+      `  2026-08-25 is not comparable to one measured before it. Segment on it.`,
   );
 }
 

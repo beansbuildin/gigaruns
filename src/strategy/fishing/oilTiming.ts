@@ -424,30 +424,78 @@ export interface OilNecessityThresholds {
 }
 
 /**
- * **The recommended thresholds, and the reason they are 1 and not a tuned
- * number — see `handoff/OIL-CONSERVE.md` for the sweep.** Not shipped:
- * `scripts/liveFishing.ts` still plays `onDemandTriggers`.
+ * **The necessity thresholds. `relaxing` is 0.85 BY USER DIRECTIVE; `focus` is
+ * still the unfitted 1.**
  *
- * At `1`, a gate fires unless the bot's best chance is EXACTLY certain, so the
- * policy reads back as the directive's own sentence with no free parameter in
- * it: *if the bot can guarantee the outcome without the oil, don't spend the
- * oil.*
+ * ## The Relaxing arm — 1 → 0.85, 2026-08-25, QUESTIONS.md §43
  *
- * That is available because both quantities the gates read turn out to be
- * strongly BIMODAL rather than spread — measured, `scripts/oilConserveSweep.ts`
- * §2b, at the moments `onDemandTriggers` actually fires:
+ * Session 97 shipped this gate at `1` and then measured it: **24 Relaxing
+ * evaluations across the whole live-and-replay record, 0 held, maximum
+ * observed `bestKillProbability` 0.991, zero observations at exactly 1**
+ * (`scripts/liveGateFiringRates.ts`, QUESTIONS.md §40). At `1` the gate was a
+ * measured live no-op — it could not withhold an oil because the quantity it
+ * reads never reaches its boundary against real fish movement.
+ *
+ * **The justification for `1` was a `castSim` artefact, and that is why it
+ * moved.** The argument below — the input is bimodal, 55.8% of Relaxing
+ * decisions sit at exactly 1, so any constant between the modes is buying
+ * ~0.1pp on the sim that fitted it — is true of the SIMULATOR and false of
+ * live play. Two instruments that resolve against real trajectories (the live
+ * loop, and the replay over 684 clean turns) put **no mass at 1 at all**;
+ * 100% of live Relaxing evaluations land strictly between the modes, in the
+ * region the bimodality argument said was empty.
+ *
+ * **0.85 is the USER's number, not a fitted one, and the distinction is the
+ * whole point.** No agent may pick it — `oilTiming.ts`'s standing rule against
+ * tuning the necessity thresholds is unchanged, and it is what made session 97
+ * escalate rather than tune. The user chose 0.85 with the live maximum (0.991)
+ * and the pre-registered exchange-rate threshold (0.8333, session 69 §3) both
+ * in front of them: just above the exchange rate, i.e. deliberately near the
+ * aggressive end of the range that was on the table. It is a TRADEOFF that was
+ * accepted knowingly — the gate now withholds oils on turns the bot is merely
+ * confident about rather than certain of, which saves oil and risks catches.
+ *
+ * ⚠ **Consequences a reader must not re-derive as bugs.**
+ *
+ *   - **This gate is no longer a "certainty gate", and prose calling it one is
+ *     now wrong.** At 0.85 it withholds on `p >= 0.85`, which is confidence,
+ *     not certainty.
+ *   - **`NECESSITY_EPSILON` is INERT on the Relaxing arm at this value** and
+ *     stays in the code deliberately — see its own doc comment. It was
+ *     load-bearing only at exactly 1, where a certain kill can arrive as
+ *     `0.9999999999999999`.
+ *   - **The sim arms `conserving` and `doubleLethal(...)` rename themselves**
+ *     to `conserve(r=0.85,f=1)` / `double-lethal(r=0.85)`, because their names
+ *     interpolate this constant. `handoff/OIL-CONSERVE.md` and
+ *     `handoff/log/session-67.md`'s tables are keyed to `conserve(r=1,f=1)`
+ *     and describe a DIFFERENT arm from today's default. Those rows are
+ *     history and stay readable as history; do not "reconcile" them.
+ *
+ * ## The Focus arm — unchanged at 1, and untouched by the live configuration
+ *
+ * `focus` stays `1` because nothing was asked about it and no live evidence
+ * bears on it: `config/bot.json`'s `allowedItemIds` is `[937]`, so the Focus
+ * Oil is not spendable on this account at all (session 93 §35), and the
+ * shipped `RELAXING_ONLY_NECESSITY_THRESHOLDS` overrides it to the degenerate
+ * `ALWAYS_FIRES_THRESHOLD` regardless. Moving it would be tuning a parameter
+ * that governs nothing.
+ *
+ * ## The original argument for 1, preserved because it is what got overturned
+ *
+ * Both quantities the gates read are strongly BIMODAL rather than spread in
+ * `castSim` — measured, `scripts/oilConserveSweep.ts` §2b, at the moments
+ * `onDemandTriggers` actually fires:
  *
  *   `bestKillProbability`      34.3% exactly 0, 55.8% exactly 1, 9.9% between
  *   `bestConnectProbability`   59.8% exactly 0, 27.8% exactly 1, 12.5% between
  *
- * so every threshold from 0.25 to 1 lands on the same plateau (catch 88.29% to
- * 88.46%, 2.18 to 2.42 oils per extra fish) and the tuned pair buys 0.08pp for
- * a constant somebody would later have to defend. A fitted parameter that
- * cannot be distinguished from 1 on the sim that fitted it is not worth
- * shipping — especially in a simulator whose control arm catches 68.71%
- * against a real fishery's 25.9%.
+ * so every threshold from 0.25 to 1 landed on the same plateau there (catch
+ * 88.29% to 88.46%, 2.18 to 2.42 oils per extra fish) and a tuned pair bought
+ * 0.08pp for a constant somebody would later have to defend. That reasoning is
+ * still correct ABOUT THE SIM, and `handoff/OIL-POLICY.md` §0a has since
+ * suspended the sim for this fishery.
  */
-export const RECOMMENDED_NECESSITY_THRESHOLDS: OilNecessityThresholds = { relaxing: 1, focus: 1 };
+export const RECOMMENDED_NECESSITY_THRESHOLDS: OilNecessityThresholds = { relaxing: 0.85, focus: 1 };
 
 // ---------------------------------------------------------------------------
 // [session 69 §3] THE EXCHANGE-RATE THRESHOLD — derived, PRE-REGISTERED, and
@@ -575,7 +623,24 @@ export const conservingByExchangeRate: OilTimingPolicy = conservingOil(PREREGIST
  * to 1 landing on the same plateau — so a shift of 1e-9 cannot change a
  * ranking. It restores the boundary the constant `1` was always meant to
  * express. CLAUDE.md's "do not tune the necessity thresholds" is untouched:
- * `RECOMMENDED_NECESSITY_THRESHOLDS` is still `{1, 1}`.
+ * this constant has never moved a threshold, and the one threshold that HAS
+ * moved was moved by the user, not by a fit (see
+ * `RECOMMENDED_NECESSITY_THRESHOLDS`).
+ *
+ * ⚠ **[session 98 §A] It is now INERT on the Relaxing arm, and it stays
+ * anyway.** The tolerance only ever changes a verdict when the threshold sits
+ * at the top of the probability range, because that is where float summation
+ * error can straddle the boundary. `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing`
+ * is `0.85` as of 2026-08-25, and `0.9999999999999999 >= 0.85` under a bare
+ * `>=` just as well — so no live Relaxing decision turns on this line today.
+ *
+ * Three reasons not to delete it, in order of weight: the `focus` arm is still
+ * `1`, where it is fully load-bearing; `meetsThreshold` is called with
+ * ARBITRARY thresholds (`doubleLethalOver` takes one as a parameter, the
+ * degenerate endpoints are passed in tests), so inertness is a property of
+ * today's value and not of the function; and the divergence session 97 found —
+ * one call site epsilon-tolerant and its sibling reading the same quantity
+ * with a bare `>=` — is exactly what re-introducing the bare form invites back.
  *
  * The degenerate endpoints still work: `NEVER_FIRES_THRESHOLD` is `0` and no
  * probability is below `0 - 1e-9`; `ALWAYS_FIRES_THRESHOLD` is `2` and every
@@ -668,9 +733,12 @@ export function conservingTriggers(
  * "gate the Relaxing Oil, leave the Focus Oil exactly as it ships", which is
  * the live configuration stated in code rather than in a comment.
  *
- * It is the same arm `handoff/OIL-CONSERVE.md` §3 scored as
- * `conserve(r=1, f=2)` — "the Relaxing gate is free" — so the historical row
- * and the shipped constant are the same object.
+ * ⚠ **[session 98 §A] This is no longer `handoff/OIL-CONSERVE.md` §3's
+ * `conserve(r=1, f=2)` row.** It was, until the user lowered the Relaxing
+ * threshold to `0.85` (QUESTIONS.md §43); the shipped constant is now
+ * `conserve(r=0.85, f=2)` and the historical row scores a DIFFERENT arm. The
+ * §3 table stays valid as history and must not be read as pricing what ships
+ * today — that price has not been measured on any instrument §0a permits.
  */
 export const RELAXING_ONLY_NECESSITY_THRESHOLDS: OilNecessityThresholds = {
   relaxing: RECOMMENDED_NECESSITY_THRESHOLDS.relaxing,
@@ -704,11 +772,20 @@ export const conserving: OilTimingPolicy = conservingOil(RECOMMENDED_NECESSITY_T
  * `onDemandTriggers` instead of each restating the lethal condition.
  *
  * **The cutoff is `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` and NOT a new
- * fitted number.** At 1 the rule reads back as the directive's own sentence
- * with no free parameter: *if the bot can guarantee the kill without the oils,
- * don't spend them.* `oilTiming.ts`'s standing rule against tuning the
- * necessity thresholds applies here unchanged, and inventing a second constant
- * for the same question would be the failure that rule exists to prevent.
+ * fitted number.** The band asks the same question the gate asks — *can the
+ * bot land this fish without the oils?* — so it must read the same constant.
+ * `oilTiming.ts`'s standing rule against tuning the necessity thresholds
+ * applies here unchanged, and inventing a second constant for the same
+ * question would be the failure that rule exists to prevent.
+ *
+ * [session 98 §A] That constant is **0.85** since 2026-08-25 (QUESTIONS.md
+ * §43, the user's own number), where it read `1` from session 89 to session
+ * 97. The rule therefore no longer reads "don't spend when the kill is
+ * CERTAIN" but "don't spend when the kill is already at least 85% likely",
+ * and the pair is withheld on strictly more turns than before. That is the
+ * intended direction of the user's ruling, not drift — but it does mean this
+ * band, which had never once been reached by the gate at `1`, can now
+ * withhold a pair it would previously have spent.
  *
  * ⚠ **NOT SHIPPED, and deliberately reachable-but-uncalled**, the same status
  * `conservingOil` has held since session 67. `scripts/liveFishing.ts` still
@@ -839,9 +916,17 @@ export function doubleLethalOver(
  *
  * ⚠ **The one behaviour that DOES change versus what shipped before this**, and
  * it is the point of the change rather than a side effect: in the single-lethal
- * band, when the bot's best affordable card already kills with certainty, no
- * oil is spent. That is the user's directive from 2026-08-21, approved in
- * §39.
+ * band, when the bot's best affordable card already kills with probability at
+ * or above the Relaxing threshold, no oil is spent. That is the user's
+ * directive from 2026-08-21, approved in §39.
+ *
+ * [session 98 §A] At the shipped threshold that sentence now reads **0.85**,
+ * not "with certainty" — QUESTIONS.md §43. The composition argument above is
+ * INDIFFERENT to the value: it turns on the two layers acting on disjoint
+ * `fishHp` bands and on `conservingTriggers` only ever removing entries,
+ * neither of which mentions a threshold. What the value changes is how often
+ * the gate's band actually removes something, which at `1` was measured to be
+ * never (§40) and at `0.85` is not.
  */
 export function necessityGatedDoubleLethalTriggers(
   s: OilDecisionState,

@@ -8,10 +8,12 @@
  * four of them exist because the obvious one can never be met:
  *
  *   1. **A cast consumed an oil.** The intended exit. Finish that cast, stop.
- *   2. **Six clean casts.** NOT a budget — a tripwire on the model. Under the
- *      sim's own consumption rate six clean casts is a ~1-in-900 event, so
- *      reaching it is evidence the trigger model does not describe live play,
- *      and the correct response is to report that rather than to extend.
+ *   2. **Six clean casts.** ⚠ **RETIRED 2026-08-25 — see the `cleanCastCap`
+ *      doc below.** It was a tripwire on the model: under the sim's own
+ *      consumption rate six clean casts was believed to be a ~1-in-900 event,
+ *      so reaching it was evidence the trigger model did not describe live
+ *      play. Both halves of that — the instrument and the arithmetic — turned
+ *      out to be wrong.
  *   3. **The day's cast ledger is exhausted.**
  *   4. **Stock is dry for both oils.** The stop condition can then never be
  *      met, so every further cast spends a ledger entry for nothing.
@@ -43,13 +45,44 @@
  * ## Why `cleanCastCap` is nullable rather than raised
  *
  * §2c pre-registered six clean casts as EVIDENCE the trigger model is wrong.
- * That interpretation stands and is not being retired (session 64's recap
- * explicitly keeps it pre-registered for a batch against fixed code — this is
- * that batch). But under a fixed seven-cast size the tripwire can only ever
- * pre-empt the last cast of an authorized batch, so it is set to REPORT
- * without halting: `null` means "the caller still counts clean casts and says
- * so", not "nobody is watching". Raising the number instead would have
- * silently rewritten the pre-registration.
+ * Under a fixed seven-cast size the tripwire could only ever pre-empt the last
+ * cast of an authorized batch, so it was set to REPORT without halting: `null`
+ * means "the caller still counts clean casts and says so", not "nobody is
+ * watching". Raising the number instead would have silently rewritten the
+ * pre-registration.
+ *
+ * ## ⚠ [session 98 §B] THE §2c CLEAN-CAST TRIPWIRE IS RETIRED — 2026-08-25
+ *
+ * **By user directive, QUESTIONS.md §44. Retired outright, NOT re-registered
+ * with a corrected threshold** — that was offered and declined, and inventing
+ * a replacement here would be the second decision the ruling separates from
+ * the first.
+ *
+ * **Why.** Three errors compounded (session 97 §1c, QUESTIONS.md §40–§41):
+ *
+ *   - **Wrong instrument.** The "~0.70 oils/cast" it was registered against is
+ *     a `castSim` number, and `handoff/OIL-POLICY.md` §0a suspends that
+ *     simulator for this fishery. Live, the rate is **0.44** in today's era
+ *     and **0.30** all-time.
+ *   - **Wrong arithmetic.** It printed "~1-in-900". Under its OWN ~0.70
+ *     assumption the correct figure for 9 clean of 10 is **~1 in 98** — off by
+ *     roughly 9x.
+ *   - **Wrong conclusion.** At the LIVE clean-cast rate (30/43 = 69.8%,
+ *     `focusDry` era) the same event is **~1 in 7** — an ordinary outcome. It
+ *     did not detect a divergence in live play; it detected its own threshold
+ *     being derived from a suspended instrument.
+ *
+ * **What is retired, precisely.** The PRE-REGISTRATION — the claim that N
+ * clean casts is evidence about the trigger model, and the ~1-in-900 rarity
+ * attached to it. `scripts/liveFishing.ts` no longer evaluates or prints it.
+ *
+ * **What is NOT changed, and why.** `SESSION_64_LIMITS.cleanCastCap` stays
+ * `6` and the `clean_cast_cap` branch of `batchVerdict` stays reachable. That
+ * shape is HISTORY — this module's own rule is that "a shape is history, not
+ * a setting" — and editing its numbers would rewrite what session 64 actually
+ * ran. No live shape sets a non-null `cleanCastCap`: `SESSION_65_LIMITS` and
+ * `SESSION_69_LIMITS` are both `null`, and have been since session 65. The
+ * branch's message no longer carries the retired rarity claim.
  */
 
 /** Which condition ended the batch. `null` means keep casting. */
@@ -98,9 +131,14 @@ export interface BatchLimits {
    */
   castCap: number | null;
   /**
-   * §2c. Six, and it is pre-registered as a finding rather than a budget.
-   * `null` = the tripwire does not HALT — see the module header on why that is
-   * nullable rather than raised.
+   * §2c. Six, and it was pre-registered as a finding rather than a budget.
+   *
+   * ⚠ **RETIRED 2026-08-25 by user directive (QUESTIONS.md §44)** — the
+   * pre-registration was miscalibrated on a suspended `castSim` instrument and
+   * its stated rarity was wrong by ~9x. See the module header for the full
+   * reason. Every live shape sets this `null`; do not set it non-null in a new
+   * shape without a fresh, live-derived pre-registration and a user directive
+   * to go with it.
    */
   cleanCastCap: number | null;
   /** The zero-streak tripwire, armed at 15. */
@@ -120,7 +158,15 @@ export interface BatchLimits {
   stopOnOilConsume: boolean;
 }
 
-/** Session 64's shape: stop at the first consume, tripwire at six clean casts, no cast ceiling. */
+/**
+ * Session 64's shape: stop at the first consume, tripwire at six clean casts,
+ * no cast ceiling.
+ *
+ * ⚠ [session 98 §B] Its `cleanCastCap` of 6 is the RETIRED §2c
+ * pre-registration (QUESTIONS.md §44). The number stays because this constant
+ * records what session 64 ran — history, not a setting — and no live shape
+ * uses it.
+ */
 export const SESSION_64_LIMITS: BatchLimits = {
   castCap: null,
   cleanCastCap: 6,
@@ -255,8 +301,11 @@ export function batchVerdict(s: BatchState, limits: BatchLimits = SESSION_64_LIM
       stop: true,
       reason: "clean_cast_cap",
       detail:
-        `${s.cleanCasts} clean casts with no consume. Under the sim's ~0.70 oils/cast this is a ~1-in-900 ` +
-        `event: report it as evidence the trigger model does not describe live play. DO NOT extend the batch.`,
+        `${s.cleanCasts} clean casts with no consume. ⚠ THE §2c PRE-REGISTRATION THIS HALT CARRIED IS ` +
+        `RETIRED (2026-08-25, user directive, QUESTIONS.md §44): its "~1-in-900" rarity was miscomputed by ` +
+        `~9x AND derived from a suspended simulator, and the same event is ~1 in 7 at the live clean-cast ` +
+        `rate. This halt is now nothing but the cap the caller asked for — it is NOT evidence about the ` +
+        `trigger model. DO NOT extend the batch on the strength of it, and DO NOT report it as a finding.`,
     };
   }
   // [session 69 §6] Ranked BELOW the ledger and the cast cap (running out of

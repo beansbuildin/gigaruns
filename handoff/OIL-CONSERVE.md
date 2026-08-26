@@ -1,6 +1,8 @@
-# OIL CONSERVATION POLICY — APPROVED (§39) and SHIPPED (§40), and a MEASURED LIVE NO-OP
+# OIL CONSERVATION POLICY — APPROVED (§39), SHIPPED (§40), AND NOW AT THE USER'S THRESHOLD OF 0.85 (§43)
 
-Session 67, 2026-08-21. Brief §1. **Shipped 2026-08-25, session 97 §1d.**
+Session 67, 2026-08-21. Brief §1. **Shipped 2026-08-25, session 97 §1d.
+Threshold lowered `1` → `0.85` the same day, session 98 §A, by user directive
+(QUESTIONS.md §43) — §8 is the current status and supersedes §7's "no-op".**
 
 > **STATUS, because this document said "nothing here is shipped" for 29
 > sessions and that is the failure QUESTIONS.md §39 exists to stop.**
@@ -9,10 +11,11 @@ Session 67, 2026-08-21. Brief §1. **Shipped 2026-08-25, session 97 §1d.**
 > - `scripts/liveFishing.ts` now plays **`necessityGatedDoubleLethalTriggers`**
 >   — the Relaxing-only necessity gate composed under the double-lethal band
 >   (session 97 §1b, `tests/fishing/oilNecessityComposition.test.ts`).
-> - ⚠ **AND IT CHANGES NOTHING LIVE.** See §7 below before quoting any number
->   in §2–§5 of this document. The threshold-`1` gate has **never fired against
->   a real board**: 18 replayed evaluations and 24 live observations, maximum
->   `bestKillProbability` **0.991**, zero at 1.
+> - ⚠ **AT THRESHOLD `1` IT CHANGED NOTHING LIVE** — 18 replayed evaluations
+>   and 24 live observations, maximum `bestKillProbability` **0.991**, zero at
+>   1. See §7. **That is no longer the shipped configuration:** the user set the
+>   Relaxing threshold to **0.85** on 2026-08-25 (QUESTIONS.md §43) and on the
+>   same 24 observations the gate now holds **9 — 37.5%**. §8.
 > - ⚠ **§2–§5's tables are `castSim` output and are SUSPENDED** under
 >   `handoff/OIL-POLICY.md` §0a. They are kept as the derivation's record.
 >   **Do not quote "88.38%", "+19.66pp" or "32% less oil" as live evidence** —
@@ -300,3 +303,60 @@ Lowering it would start conserving oil and would start risking catches, and
 `oilTiming.ts`'s standing rule against tuning the necessity thresholds means no
 agent may pick that number. It needs a user directive, and it is the real
 question this document now leaves open.
+
+---
+
+## 8. ⚠ [session 98 §A] THE THRESHOLD IS NOW `0.85`, AND THE GATE IS NO LONGER A NO-OP
+
+**§7's open decision was decided by the user, not by an agent.** QUESTIONS.md
+§43, 2026-08-25: `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` moves from `1` to
+**0.85**, which sits just above the pre-registered exchange-rate threshold
+(0.8333, session 69 §3) and well below the live maximum (0.991) — deliberately
+near the aggressive end of the range that was on the table.
+
+### What it does on the corpus, measured rather than swept
+
+`npx tsx scripts/liveGateFiringRates.ts` §3c — a block added this session so
+the question is answered by running the instrument, not by reading a table.
+`OIL-POLICY.md` §0a forbids the sim table as a source for this, so it is not
+cited here.
+
+| observations | n | held at `1` | held at `0.85` | newly held |
+|---|---|---|---|---|
+| the live loop's own record | 20 | 0 | **8 — 40.0%** | 8 |
+| pre-hoist, recovered offline (session 69) | 4 | 0 | 1 — 25.0% | 1 |
+| **UNION — every Relaxing observation ever** | **24** | **0** | **9 — 37.5%** | **9** |
+| replay, whole clean corpus (684 turns) | 18 | 0 | 4 — 22.2% | 4 |
+
+The nine newly-held values are `0.857, 0.914, 0.925, 0.945, 0.961, 0.964,
+0.971, 0.975, 0.991`. **So roughly three of every eight Relaxing spends the
+old policy would have made are now withheld** — the tradeoff the user accepted,
+stated as the number rather than as a direction.
+
+### Three consequences that are easy to re-discover as bugs
+
+1. **This gate is not a "certainty gate" any more.** Prose in this repo that
+   calls it one is describing the retired configuration. It withholds on
+   *confidence*, not certainty.
+2. **`NECESSITY_EPSILON` is inert on the Relaxing arm** — `0.9999999999999999`
+   clears `0.85` under a bare `>=` too. It is kept (the Focus arm is still at
+   `1`, and `meetsThreshold` takes arbitrary thresholds), and the assertions
+   that actually exercise it were re-pointed at an explicit threshold of `1`.
+3. ⚠ **`liveGateFiringRates.ts` §4's standing verdict does not survive for this
+   arm.** *"`pConnect`'s +9.38pp optimism reaches NO live level gate — CLOSED BY
+   IRRELEVANCE"* held because every level gate sat at `p = 1` and no observation
+   ever reached it. The corpus has mass on **both sides** of 0.85, so correcting
+   an optimistic estimator now moves observations across the boundary and
+   changes gate verdicts. The claim still holds for the FOCUS arm. The script
+   says this itself; it is repeated here because §7 above quotes the old
+   direction argument as a strength.
+
+### And what §7's direction argument becomes
+
+§7 argued that because `pConnect` is optimistic, a better estimator "cannot
+make this gate fire; it can only make it fire less". At `1` that was a safety
+argument. At `0.85` it is a **risk** argument pointing the other way: a
+correction moves inputs down across the boundary, so the gate would withhold
+FEWER oils, not more. Same fact, opposite consequence — which is exactly why
+§0a's suspension of the sim and this document's separation of derivation from
+live measurement matter.

@@ -34,6 +34,24 @@
  * `oilNecessity.test.ts`'s header states at length: a source-text pin proves a
  * line exists, not that it runs.
  *
+ * ## ⚠ [session 98 §A] THE THRESHOLD MOVED, AND THIS FILE WAS RE-DERIVED
+ *
+ * `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` went `1` → **0.85** by user
+ * directive (QUESTIONS.md §43). Every assertion above the re-derivation block
+ * still holds, and that is a fact about how they were built rather than luck:
+ * they probe `bestKillProbability` only at `0` and `1`, and both verdicts are
+ * unchanged by any threshold strictly between them. **The partition argument
+ * itself never mentions a threshold** — it turns on the two layers acting on
+ * disjoint `fishHp` bands and on `conservingTriggers` only ever removing
+ * entries — so the proof is threshold-independent by construction.
+ *
+ * What DID change is where the decision boundary sits, and a boundary test
+ * that never probes its own boundary proves nothing. So the block
+ * "§A — the boundary moved" below covers `0.85` from both sides, plus the
+ * interval `(0.85, 1)` that was SPEND under the old threshold and is WITHHOLD
+ * under this one — the only region where live play has ever actually landed
+ * (2 of the 9 recorded live firings, at 0.964 and 0.975).
+ *
  * ## The one guard that matters most
  *
  * A composition that quietly changed the shipped double-lethal band would be
@@ -70,6 +88,17 @@ const cannotKill = (hp: number) =>
 /** Only affordable card kills with certainty from the marker's own cell. */
 const certainKill = (hp: number) =>
   board({ hand: [card({ hitZones: [5], critZones: [], hitEffects: [{ amount: hp + 5 }] })], dist: distAt(FISH) });
+
+/**
+ * [session 98 §A] The only affordable card kills iff it connects, and it
+ * connects with EXACTLY `p` — the fish's whole predicted mass is `p` on the one
+ * cell the card covers. `cannotKill`/`certainKill` are the `p = 0` and `p = 1`
+ * ends of this same construction, and they were the only two this file needed
+ * while the threshold was `1`, because a gate at `1` partitions the interval
+ * into {1} and everything else.
+ */
+const killsWithProbability = (hp: number, p: number) =>
+  board({ hand: [card({ hitZones: [5], critZones: [], hitEffects: [{ amount: hp + 5 }] })], dist: distAt(FISH, p) });
 
 /** The whole partition, plus both sides of every boundary it names. */
 const HP_PARTITION = [-1, 0, 1, D, D + 1, 2 * D, 2 * D + 1, 5, 18];
@@ -215,18 +244,99 @@ describe("§1b — the composition is NOT degenerate in either direction", () =>
  * turn the bot was already sure of, which both this band's thesis and the
  * gate's forbid.
  */
+describe("§A — the boundary moved to 0.85, and it is covered from both sides", () => {
+  const T_OLD = { relaxing: 1, focus: ALWAYS_FIRES_THRESHOLD };
+
+  it("the shipped threshold is the user's 0.85, not a fitted number", () => {
+    expect(T.relaxing).toBe(0.85);
+    expect(T.relaxing).toBe(RECOMMENDED_NECESSITY_THRESHOLDS.relaxing);
+  });
+
+  // ── The SINGLE-LETHAL band, where the gate is the only layer acting ──────
+  for (const hp of [1, D]) {
+    for (const p of [0, 0.5, 0.84, 0.8499999]) {
+      it(`fishHp ${hp}, kill p ${p} — BELOW the threshold, the oil is spent`, () => {
+        const s = oilState({ fishHp: hp, relaxingOilHeld: 2, focusRemaining: 2, board: killsWithProbability(hp, p) });
+        expect(bestKillProbability(s)).toBeCloseTo(p, 12);
+        expect(necessityGatedDoubleLethalTriggers(s, E, T)).toContain("relaxing");
+      });
+    }
+
+    for (const p of [0.85, 0.8500001, 0.9, 0.964, 0.975, 0.99, 1]) {
+      it(`fishHp ${hp}, kill p ${p} — AT OR ABOVE the threshold, the oil is withheld`, () => {
+        const s = oilState({ fishHp: hp, relaxingOilHeld: 2, focusRemaining: 2, board: killsWithProbability(hp, p) });
+        expect(bestKillProbability(s)).toBeCloseTo(p, 12);
+        expect(necessityGatedDoubleLethalTriggers(s, E, T)).not.toContain("relaxing");
+      });
+    }
+  }
+
+  // ── The DOUBLE band, where the band's own check reads the same constant ──
+  for (const hp of [D + 1, 2 * D]) {
+    it(`fishHp ${hp} — below the threshold the PAIR still fires`, () => {
+      const s = oilState({ fishHp: hp, relaxingOilHeld: 2, focusRemaining: 2, board: killsWithProbability(hp, 0.84) });
+      expect(necessityGatedDoubleLethalTriggers(s, E, T)).toEqual(["relaxing", "relaxing"]);
+    });
+
+    it(`fishHp ${hp} — at or above the threshold the PAIR is withheld`, () => {
+      const s = oilState({ fishHp: hp, relaxingOilHeld: 2, focusRemaining: 2, board: killsWithProbability(hp, 0.85) });
+      expect(necessityGatedDoubleLethalTriggers(s, E, T)).toEqual([]);
+    });
+  }
+
+  /**
+   * The region the move actually bought, stated as a behaviour change rather
+   * than as a constant. Every live Relaxing observation ever recorded sits in
+   * `(0, 0.991]` with nothing at `1`, so `[0.85, 1)` is the ONLY band in which
+   * lowering the threshold can ever have changed a live decision — and it is
+   * where 2 of the 9 recorded firings (0.964, 0.975) sit.
+   */
+  it("`[0.85, 1)` flips from SPEND to WITHHOLD — the whole effect of the change", () => {
+    for (const p of [0.85, 0.9, 0.964, 0.975, 0.99]) {
+      const s = oilState({ fishHp: 2, relaxingOilHeld: 2, focusRemaining: 2, board: killsWithProbability(2, p) });
+      expect(necessityGatedDoubleLethalTriggers(s, E, T_OLD)).toContain("relaxing");
+      expect(necessityGatedDoubleLethalTriggers(s, E, T)).not.toContain("relaxing");
+    }
+  });
+
+  it("outside `[0.85, 1)` the old and new thresholds agree, so nothing else moved", () => {
+    for (const hp of [1, D, D + 1, 2 * D, 5]) {
+      for (const p of [0, 0.3, 0.6, 0.84, 1]) {
+        const s = oilState({ fishHp: hp, relaxingOilHeld: 2, focusRemaining: 2, board: killsWithProbability(hp, p) });
+        expect(necessityGatedDoubleLethalTriggers(s, E, T)).toEqual(
+          necessityGatedDoubleLethalTriggers(s, E, T_OLD),
+        );
+      }
+    }
+  });
+});
+
 describe("§1b — the band's certainty comparison is epsilon-tolerant, like the gate's", () => {
-  /** A board whose kill probability sums to just under 1 by float error. */
+  /**
+   * A board whose kill probability sums to just under 1 by float error.
+   *
+   * ⚠ **[session 98 §A] The masses are `0.7, 0.2, 0.1` and the ORDER is
+   * load-bearing.** This helper was written in session 97 with three cells each
+   * holding `1 / 3`, on the reasoning that `3 * (1 / 3)` does not re-sum to
+   * exactly 1 for every summation order. Measured, in this summation order, it
+   * does: `bestKillProbability` came back **exactly 1**, so the test asserted
+   * that a certain kill is treated as certain — true, and nothing to do with
+   * the tolerance it was named for. It passed for the wrong reason and would
+   * have kept passing with `meetsThreshold` reverted to a bare `>=`.
+   *
+   * `0.7 + 0.2 + 0.1` sums left-to-right to `0.9999999999999999`, which is the
+   * exact value session 68's live shadow harness observed. Reversing the order
+   * (`0.1, 0.2, 0.7`) re-sums to exactly 1 — checked — so a future edit that
+   * "tidies" these into ascending order silently restores the vacuous test.
+   */
   const almostCertain = (hp: number) => {
-    // Three cells each holding a third of the mass: 3 * (1/3) does not
-    // re-sum to exactly 1 for every summation order.
-    const third = 1 / 3;
     const cells = [
       { x: 1, y: 1 },
       { x: 2, y: 2 },
       { x: 3, y: 3 },
     ];
-    const dist = new Map(cells.map((c) => [`${c.x},${c.y}`, { cell: c, p: third }]));
+    const masses = [0.7, 0.2, 0.1];
+    const dist = new Map(cells.map((c, i) => [`${c.x},${c.y}`, { cell: c, p: masses[i]! }]));
     return board({
       hand: [card({ hitZones: [1, 5, 9], critZones: [], hitEffects: [{ amount: hp + 5 }] })],
       dist,
@@ -234,13 +344,34 @@ describe("§1b — the band's certainty comparison is epsilon-tolerant, like the
     });
   };
 
-  it("a kill probability within epsilon of 1 counts as certain in the BAND", () => {
+  /**
+   * ⚠ **[session 98 §A] This is asserted at a threshold of `1`, deliberately,
+   * even though the SHIPPED threshold is now 0.85.**
+   *
+   * The tolerance can only change a verdict where the threshold sits at the
+   * top of the probability range — that is the only place float summation
+   * error can straddle the boundary. At 0.85 it is inert: `0.9999999999999999`
+   * clears 0.85 under a bare `>=` too. Pinning the tolerance at `T` alone
+   * would therefore assert nothing, and the regression session 97 fixed (one
+   * call site epsilon-tolerant, its sibling reading the same quantity with a
+   * bare `>=`) could come back green. So the load-bearing case is exercised at
+   * the threshold where it is load-bearing, and the shipped threshold is
+   * checked beside it.
+   */
+  it("a kill probability within epsilon of 1 counts as certain in the BAND, at a threshold of 1", () => {
     const s = oilState({ fishHp: 3, relaxingOilHeld: 2, board: almostCertain(3), focusRemaining: 0, focusCell: { x: 2, y: 2 } });
     const p = bestKillProbability(s);
     // Guard the premise: if this is exactly 1 the test proves nothing.
     expect(p).toBeGreaterThan(1 - 1e-6);
     expect(p).toBeLessThanOrEqual(1);
+    expect(p).toBeLessThan(1);
+    // A bare `>=` at 1 would read this as uncertain — the defect itself.
+    expect(p >= 1).toBe(false);
     // Certain enough => the band must NOT spend the pair.
+    const atOne = { relaxing: 1, focus: ALWAYS_FIRES_THRESHOLD };
+    expect(necessityGatedDoubleLethalTriggers(s, E, atOne)).not.toContain("relaxing");
+    expect(doubleLethalTriggers(s, E, 1)).not.toContain("relaxing");
+    // And at the shipped threshold, which the tolerance does not reach.
     expect(necessityGatedDoubleLethalTriggers(s, E, T)).not.toContain("relaxing");
     expect(doubleLethalTriggers(s, E)).not.toContain("relaxing");
   });

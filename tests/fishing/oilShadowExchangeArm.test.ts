@@ -97,34 +97,78 @@ describe("the shadowed policy is the exchange threshold", () => {
     expect(PREREGISTERED_EXCHANGE_THRESHOLDS.focus).toBe(RECOMMENDED_NECESSITY_THRESHOLDS.focus);
   });
 
-  it("disagrees on the band LIVE actually occupies — 2 of the 9 recorded firings", () => {
-    // The whole point. Both gates hold when `p >= threshold - epsilon`.
+  /**
+   * ⚠ **[session 98 §A] THE SHADOW'S RELAXING ARM HAS GONE INERT ON THIS
+   * RECORD, AND THAT IS THE FINDING — not a broken assertion.**
+   *
+   * This test used to pin the contrast the shadow existed to measure: the
+   * exchange arm held 2 of the 9 recorded live firings while the necessity
+   * gate at `1` held none. The user lowered the Relaxing threshold to **0.85**
+   * (QUESTIONS.md §43), which sits just above the exchange rate's 0.8333, and
+   * on every Relaxing observation ever recorded the two rules now return the
+   * SAME verdict — no live observation has ever landed in `[0.8333, 0.85)`.
+   *
+   * So on the RELAXING arm the shadow is no longer measuring a contrast
+   * against the live policy; the divergence `oilShadowInert.test.ts` still
+   * sees comes from the FOCUS arm (shadow `1` vs live `ALWAYS_FIRES`). That is
+   * worth stating in a test rather than in a recap, because the next reader of
+   * a shadow report needs to know the relaxing column can only be a tie today.
+   */
+  it("agrees with the live gate on every recorded firing, now that the gate is at 0.85", () => {
+    // Both gates hold when `p >= threshold - epsilon`.
     const heldByExchange = LIVE_RELAXING_KILL_PROBABILITIES.filter(
       (p) => p >= PREREGISTERED_EXCHANGE_THRESHOLDS.relaxing - NECESSITY_EPSILON,
     );
-    const heldByCertainty = LIVE_RELAXING_KILL_PROBABILITIES.filter(
+    const heldByNecessity = LIVE_RELAXING_KILL_PROBABILITIES.filter(
       (p) => p >= RECOMMENDED_NECESSITY_THRESHOLDS.relaxing - NECESSITY_EPSILON,
     );
     expect(heldByExchange).toEqual([0.964, 0.975]);
-    // The measured no-op, pinned as a number so a future report cannot soften it.
-    expect(heldByCertainty).toEqual([]);
+    expect(heldByNecessity).toEqual([0.964, 0.975]);
+    // The rules are still DIFFERENT rules — they simply have no live
+    // observation between them. Pinned so "they agree" is never read as
+    // "they are the same policy".
+    expect(PREREGISTERED_EXCHANGE_THRESHOLDS.relaxing).toBeLessThan(RECOMMENDED_NECESSITY_THRESHOLDS.relaxing);
+    expect(LIVE_RELAXING_KILL_PROBABILITIES.filter(
+      (p) => p >= PREREGISTERED_EXCHANGE_THRESHOLDS.relaxing && p < RECOMMENDED_NECESSITY_THRESHOLDS.relaxing,
+    )).toEqual([]);
   });
 });
 
-describe("nothing is lost — the certainty gate stays reconstructable from the record", () => {
-  it("`bestKillProbability >= 1` reproduces `conserve(r=1,f=1)`'s verdict at every live-observed value", () => {
-    // This is the argument that the swap discards nothing. If it ever fails,
-    // the record has stopped carrying enough to reconstruct the old gate and
-    // the swap would need revisiting rather than the assertion loosening.
+describe("nothing is lost — ANY threshold's verdict stays reconstructable from the record", () => {
+  /**
+   * [session 98 §A] The claim this file makes is that swapping the shadowed
+   * policy discarded nothing, because the record keeps the raw probability and
+   * any gate is a comparison against it. That claim is now exercised at TWO
+   * thresholds rather than one — the retired `1` and the shipped `0.85` — which
+   * is a stronger version of the same argument, and the reason the threshold
+   * move did not cost this file its point.
+   */
+  it("reconstructs the RETIRED threshold of 1 — every live value below it", () => {
+    // Deliberately the literal `1`, not the constant: this arm is history now
+    // (session 97 §40's measured no-op) and must keep reading 1 after the
+    // constant moves, or it stops being a reconstruction of what shipped then.
     for (const p of LIVE_RELAXING_KILL_PROBABILITIES) {
-      const reconstructed = p >= RECOMMENDED_NECESSITY_THRESHOLDS.relaxing - NECESSITY_EPSILON;
-      expect(reconstructed).toBe(false);
+      expect(p >= 1 - NECESSITY_EPSILON).toBe(false);
     }
     // And it is not vacuously false: a certain kill reconstructs as HELD.
-    expect(1 >= RECOMMENDED_NECESSITY_THRESHOLDS.relaxing - NECESSITY_EPSILON).toBe(true);
+    expect(1 >= 1 - NECESSITY_EPSILON).toBe(true);
     // NECESSITY_EPSILON is what makes a genuinely certain kill — arriving as
     // 0.9999999999999999 from float summation — reconstruct correctly too.
-    expect(0.9999999999999999 >= RECOMMENDED_NECESSITY_THRESHOLDS.relaxing - NECESSITY_EPSILON).toBe(true);
+    // This is the threshold at which that tolerance is load-bearing; at 0.85
+    // it is inert, which is why it is exercised here and not below.
+    expect(0.9999999999999999 >= 1 - NECESSITY_EPSILON).toBe(true);
+  });
+
+  it("reconstructs the SHIPPED threshold of 0.85 — 2 of the 9 live values held", () => {
+    const held = LIVE_RELAXING_KILL_PROBABILITIES.filter(
+      (p) => p >= RECOMMENDED_NECESSITY_THRESHOLDS.relaxing - NECESSITY_EPSILON,
+    );
+    expect(held).toEqual([0.964, 0.975]);
+    // 2 of 9 = 22.2% of every Relaxing firing ever recorded live. The
+    // corpus-grounded answer to "does lowering the threshold do anything",
+    // pinned as a number so a future report cannot soften it in either
+    // direction. QUESTIONS.md §43.
+    expect(held.length / LIVE_RELAXING_KILL_PROBABILITIES.length).toBeCloseTo(2 / 9, 12);
   });
 });
 

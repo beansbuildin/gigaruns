@@ -182,7 +182,7 @@ import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fis
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { CaptureFixtureWriter, CaptureRunLog, stamp } from "../src/orchestrator/capture.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
-import { SESSION_64_LIMITS, SESSION_69_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { SESSION_69_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
@@ -3651,22 +3651,26 @@ async function main() {
   }
   uninstallSigint();
 
-  // [session 65 §1b] §2c REPORTS EVEN THOUGH IT NO LONGER HALTS. Session 64's
-  // recap kept the six-clean-casts interpretation pre-registered for a batch
-  // against FIXED code, and this is that batch; setting `cleanCastCap` to null
-  // suppresses the halt, not the pre-registration. Printing it here is what
-  // makes "reports without halting" true rather than a claim in a comment.
-  if (args.oilBatch) {
-    const tripwire = SESSION_64_LIMITS.cleanCastCap ?? Infinity;
-    console.log(
-      `\n▸ §2c clean-cast tripwire: ${batchCleanCasts} clean cast(s) of ${targetCasts}, ` +
-        `${batchOilsConsumed} oil(s) consumed. Pre-registered threshold ${tripwire} — ` +
-        (batchCleanCasts >= tripwire
-          ? `REACHED. Under the sim's ~0.70 oils/cast this is a ~1-in-900 event: report it as evidence ` +
-            `the trigger model does not describe live play. The batch was NOT extended and NOT cut short.`
-          : `not reached.`),
-    );
-  }
+  // ── [session 98 §B] THE §2c CLEAN-CAST TRIPWIRE WAS EVALUATED HERE, AND IS
+  // RETIRED — 2026-08-25, user directive, QUESTIONS.md §44. ─────────────────
+  //
+  // This block printed "§2c clean-cast tripwire: N clean cast(s) of M ...
+  // Pre-registered threshold 6" after every oil batch, and called reaching it
+  // a "~1-in-900 event ... evidence the trigger model does not describe live
+  // play". All three parts were wrong: the ~0.70 oils/cast it assumed is a
+  // `castSim` number suspended by `OIL-POLICY.md` §0a (live: 0.44 this era,
+  // 0.30 all-time), the rarity was miscomputed by ~9x (~1 in 98 under its own
+  // assumption), and at the live clean-cast rate the event is ~1 in 7 — which
+  // is what made session 96's 9-clean-of-10 look like an anomaly when it was
+  // an ordinary batch. Session 97 §1c diagnosed it; the user retired it
+  // outright rather than re-registering it against the live rate.
+  //
+  // Deliberately NOT replaced with a corrected tripwire — that is a separate
+  // decision and needs its own directive. The batch still counts clean casts
+  // (`batchCleanCasts`, logged in `batch_verdict`), so a future instrument has
+  // the data; what is gone is the pre-registered claim about what it means.
+  // `src/strategy/fishing/oilBatch.ts` carries the same tombstone at the
+  // constant itself.
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, casts ${guards.runCount}`);
   console.log(`▸ log: ${log.filePath}`);

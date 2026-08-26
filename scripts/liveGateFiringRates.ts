@@ -64,6 +64,7 @@ import {
   onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
   RECOMMENDED_NECESSITY_THRESHOLDS,
+  RELAXING_ONLY_NECESSITY_THRESHOLDS,
   type OilDecisionState,
   type OilKind,
 } from "../src/strategy/fishing/oilTiming.js";
@@ -278,23 +279,69 @@ function main(): void {
   console.log(`  fire less. That is a stronger statement than "they never fired on this`);
   console.log(`  corpus" and it does not depend on the sample size.`);
 
+  // ── §3c ───────────────────────────────────────────────────────────────
+  // [session 98 §A] THE SAME UNION, AGAINST THE SHIPPED THRESHOLD.
+  //
+  // The counts above are hard-coded at `>= 1` on purpose: they are the
+  // historical reading, and they must keep saying what session 97 measured
+  // after the constant moves. This block is the live-configuration reading —
+  // `RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing`, whatever it currently is —
+  // so "does lowering the threshold do anything on the corpus" is answered by
+  // running this script rather than by reasoning about a table. QUESTIONS.md
+  // §43 asked for exactly this number and forbids the sim table as a source.
+  const shipped = RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing;
+  const heldAt = (xs: readonly number[]) => xs.filter((x) => meetsThreshold(x, shipped));
+  console.log(`\n── §3c  THE SHIPPED RELAXING THRESHOLD, ON THE SAME OBSERVATIONS ──`);
+  console.log(`  shipped \`RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing\` = ${shipped}`);
+  const at1 = (xs: readonly number[]) => xs.filter((x) => x >= 1).length;
+  const line = (label: string, xs: readonly number[]) => {
+    const h = heldAt(xs);
+    console.log(
+      `  ${label.padEnd(34)} n ${String(xs.length).padStart(3)}   held at ${shipped}: ${String(h.length).padStart(3)} ${pct(h.length, xs.length)}` +
+        `   held at 1: ${String(at1(xs)).padStart(3)}   NEWLY held: ${String(h.length - at1(xs)).padStart(3)}` +
+        (h.length ? `   [${h.map((x) => x.toFixed(3)).join(", ")}]` : ""),
+    );
+  };
+  line("live loop's own record", kill);
+  line("pre-hoist, recovered offline", PRE_HOIST_RELAXING);
+  line("UNION — every observation ever", union);
+  line("replay, whole clean corpus", allRows.filter((r) => r.wanted.includes("relaxing") && r.bestKill !== null).map((r) => r.bestKill!));
+  console.log(
+    `\n  A "NEWLY held" count above zero is the gate acting on evidence it could not\n` +
+      `  act on at 1. Zero would mean the lowered threshold is inert on this corpus\n` +
+      `  too — a finding, not a failure, and one to report rather than to fix.`,
+  );
+
   // ── §4 ────────────────────────────────────────────────────────────────
   console.log("\n── §4  THE VERDICT ──");
-  const anyFired =
-    allRows.some((r) => r.heldRelaxing || r.heldFocus || r.certainKillFlag || r.certainConnectFlag) ||
+  // [session 98 §A] Split in two, because the Relaxing gate stopped sitting at
+  // the p = 1 boundary and folding the two together would have quietly turned
+  // this line into "YES" while its own sentence still said "p = 1".
+  const firedAtOne =
+    allRows.some((r) => r.heldFocus || r.certainKillFlag || r.certainConnectFlag || (r.bestKill ?? 0) >= 1) ||
     kill.some((x) => x >= 1) ||
     conn.some((x) => x >= 1) ||
     union.some((x) => x >= 1);
-  console.log(`  a live level gate fired anywhere on this evidence: ${anyFired ? "YES" : "NO"}`);
-  console.log(`\n  All four of the remaining live level-based sites sit at the SAME p = 1`);
-  console.log(`  boundary as \`isLethal\`, and the two oil gates read a probability that has`);
+  const firedAtShipped =
+    allRows.some((r) => r.heldRelaxing) || union.some((x) => meetsThreshold(x, RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing));
+  console.log(`  a level gate at the p = 1 boundary fired anywhere on this evidence: ${firedAtOne ? "YES" : "NO"}`);
+  console.log(`  the RELAXING gate at its shipped ${RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing} fired on this evidence:            ${firedAtShipped ? "YES" : "NO"}`);
+  console.log(`\n  THAT SENTENCE IS NOW HISTORY, AND §3c IS THE CURRENT ANSWER. Session 75`);
+  console.log(`  wrote it when all four remaining live level-based sites sat at the SAME`);
+  console.log(`  p = 1 boundary as \`isLethal\`, and the two oil gates read a probability that`);
   console.log(`  never once reached it — not in ${allRows.length} replayed turns, not in the live record.`);
-  console.log(`  Session 70 reached the same conclusion from the live side alone and swapped`);
-  console.log(`  the shadowed policy off the certainty gate because of it; this measures the`);
-  console.log(`  same thing from the corpus side, at ${allRows.length} turns instead of 9 firings.`);
-  console.log(`\n  SO: \`pConnect\`'s +9.38pp optimism reaches NO live level gate. It is`);
-  console.log(`  CLOSED BY IRRELEVANCE, NOT BY EXPLANATION — the estimator is still wrong by`);
-  console.log(`  the same amount and nothing here diagnosed why. Those are different claims.`);
+  console.log(`  That is still true OF THE p = 1 BOUNDARY and is why the counts above are`);
+  console.log(`  hard-coded there rather than following the constant.`);
+  console.log(`\n  ⚠ THE RELAXING GATE NO LONGER SITS AT THAT BOUNDARY. The user lowered it`);
+  console.log(`  to ${RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing} on 2026-08-25 (QUESTIONS.md §43), and §3c measures it holding`);
+  console.log(`  oils on real observations. So the old conclusion — "\`pConnect\`'s +9.38pp`);
+  console.log(`  optimism reaches NO live level gate, CLOSED BY IRRELEVANCE" — DOES NOT`);
+  console.log(`  SURVIVE for the Relaxing arm: the corpus has mass on both sides of ${RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing}, so`);
+  console.log(`  correcting an optimistic estimator now moves observations ACROSS the`);
+  console.log(`  boundary and changes gate verdicts. It holds unchanged for the FOCUS arm,`);
+  console.log(`  which is still compared against 1 in shadow and against ALWAYS_FIRES live.`);
+  console.log(`\n  The estimator was never diagnosed, only priced as irrelevant. Its relevance`);
+  console.log(`  is what changed, not its correctness.`);
   console.log(`\n  WHAT MAKES "MOOT" SAFE TO RECORD is not this measurement, which is a`);
   console.log(`  snapshot. It is \`tests/fishing/pConnectConsumers.test.ts\`: a connect-probability`);
   console.log(`  read in an unclassified file fails the suite, and so does a changed site count`);
