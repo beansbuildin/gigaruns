@@ -160,3 +160,160 @@ much bigger than expected**); §B done; §C done (**verdict: FLAT, not sharp**);
        stateFields,zoneTemplate}.test.ts, tests/sim/fishingCorpus.test.ts
                                             corpus pins re-blessed, 199 -> 208
 ```
+
+---
+
+# APPENDIX — session 98, the verbose half
+
+## A1. The §A measurement in full — `npx tsx scripts/liveGateFiringRates.ts` §3c
+
+```
+── §3c  THE SHIPPED RELAXING THRESHOLD, ON THE SAME OBSERVATIONS ──
+  shipped `RELAXING_ONLY_NECESSITY_THRESHOLDS.relaxing` = 0.85
+  live loop's own record             n  20   held at 0.85:   8 40.0%   held at 1:   0   NEWLY held:   8   [0.964, 0.925, 0.961, 0.991, 0.945, 0.914, 0.971, 0.857]
+  pre-hoist, recovered offline       n   4   held at 0.85:   1 25.0%   held at 1:   0   NEWLY held:   1   [0.975]
+  UNION — every observation ever     n  24   held at 0.85:   9 37.5%   held at 1:   0   NEWLY held:   9   [0.857, 0.914, 0.925, 0.945, 0.961, 0.964, 0.971, 0.975, 0.991]
+  replay, whole clean corpus         n  18   held at 0.85:   4 22.2%   held at 1:   0   NEWLY held:   4   [0.990, 0.856, 0.964, 0.868]
+```
+
+And the replay's own gate rows moved with the constant, from 0 held to:
+
+```
+  era only — 405 turns:            RELAXING gate evaluated  6   held 1   16.7%
+  whole clean corpus — 684 turns:  RELAXING gate evaluated 18   held 4   22.2%
+```
+
+The §4 verdict line is now SPLIT in two, because folding the two boundaries
+together would have silently turned it into "YES" while its own sentence still
+said "p = 1":
+
+```
+  a level gate at the p = 1 boundary fired anywhere on this evidence: NO
+  the RELAXING gate at its shipped 0.85 fired on this evidence:            YES
+```
+
+## A2. The §D batch, cast by cast
+
+```
+cast 1/9   9 turns   CAUGHT    DOUBLE-LETHAL at fish 3/21, 2 oils
+cast 2/9   1 turn    CAUGHT    DOUBLE-LETHAL at fish 3/15, 2 oils
+cast 3/9   7 turns   escaped   clean
+cast 4/9   3 turns   escaped   clean
+cast 5/9   2 turns   CAUGHT    clean
+cast 6/9   3 turns   CAUGHT    clean
+cast 7/9   2 turns   CAUGHT    DOUBLE-LETHAL at fish 3/15, 2 oils
+cast 8/9   3 turns   CAUGHT    DOUBLE-LETHAL at fish 4/18, 2 oils
+cast 9/9  10 turns   escaped   clean
+▸ BATCH HALT (cast_cap) — 9 of 9 casts completed — the intended exit.
+   8 oil(s) consumed along the way; a consume is a capture here, not an exit.
+▸ energy: guard-tracked 228 spent, 18 casts this guard-day
+```
+
+Preflight, all read before the first POST: game ledger 9/20 spent → 11
+available; repo ledger agrees at 9; **43** Mid Relaxing Oil (937) held, 0 Mid
+Focus Oil (942); `--dry-run` passed every guard. Oils after: 35.
+
+### The gate's four opportunities, from the batch's own `oil_shadow` records
+
+```
+turns recorded (oil_shadow):                    44
+single-lethal turns (0 < fishHp <= 2):           0
+double-lethal BAND turns with >= 2 held:         4
+  of which the pair FIRED:                       4
+  => gate WITHHELD the pair:                     0
+
+   turn  9  fishHp 3  mana 1  focusRem 0  hand 3   fired
+   turn  1  fishHp 3  mana 9  focusRem 2  hand 2   fired
+   turn  2  fishHp 3  mana 8  focusRem 1  hand 1   fired
+   turn  3  fishHp 4  mana 7  focusRem 2  hand 3   fired
+```
+
+**A withhold is not logged anywhere** — `liveFishing.ts` emits
+`oil_double_lethal_fired` on a firing and nothing on a skip, and
+`bestKillProbability` lands on the `oil_shadow` record only when the ON-DEMAND
+shadow wanted a relaxing. The count above is therefore reconstructed from
+`oil_shadow`'s `fishHp` + `heldAtDecision.relaxing`, which every turn carries.
+**If a future session wants the withhold rate directly, that event has to be
+added.**
+
+### Catch rate, with the arithmetic
+
+```
+6/9  = 66.7%   exact (Clopper-Pearson) 95% CI [29.9%, 92.5%]
+3/10 = 30.0%   exact 95% CI [6.7%, 65.2%]      (session 96)
+Fisher exact, two-sided, 3/10 vs 6/9:  p = 0.179
+```
+
+Every baseline sits inside the 6/9 interval: focusDry 50.0%, oilSupplied 62.9%,
+all-time 38.2%, today's policy era 55.5%, and session 96's own 30.0%.
+
+## A3. §C's full output
+
+```
+  whole clean corpus — 207 casts
+    turns replayed 723   comparable 583   excluded (no d>0 candidate) 140 19.4%
+    ΔEV/step   min -9.26   p25 0.13   median 1.05   p75 2.28   max 13.19   mean 1.38
+    TAX BINDS (< 1.00): 285 of 583 = 48.9%   |   INERT (>= 1.00): 298 = 51.1%
+    by manhattan distance (best placement at EXACTLY d, same stayer):
+      d=1   n  583   median 0.83   p75 2.25   max 13.19   binds  309 53.0%
+      d=2   n  460   median 0.48   p75 1.20   max 4.61   binds  312 67.8%
+      d=3   n  316   median -0.01   p75 0.40   max 3.56   binds  287 90.8%
+    by meter remaining entering the turn:
+      remaining 1   n  123   median 0.46   binds   73 59.3%
+      remaining 2   n  144   median 1.39   binds   62 43.1%
+      remaining 3   n  316   median 1.06   binds  150 47.5%
+
+  today's era — 119 casts
+    turns replayed 444   comparable 334   excluded (no d>0 candidate) 110 24.8%
+    ΔEV/step   min -9.26   p25 0.12   median 1.06   p75 2.19   max 13.19   mean 1.34
+    TAX BINDS (< 1.00): 160 of 334 = 47.9%   |   INERT (>= 1.00): 174 = 52.1%
+      d=1   n  334   median 0.76   binds  181 54.2%
+      d=2   n  253   median 0.40   binds  177 70.0%
+      d=3   n  185   median -0.02   binds  169 91.4%
+```
+
+The two corpora agree to within a percentage point, so this is not an era
+artefact.
+
+## A4. The corpus re-blessing, and the two movements worth naming
+
+199 → 208 casts broke 52 assertions across 7 files. All were corpus-size
+statistics and all moved in the direction +9 casts / +40 plays implies. Two are
+worth reading rather than burying:
+
+- **`zoneTemplate.test.ts`: the two WRONG readings are now exactly tied.**
+  `stateBefore` and `previousFishPosition` both score **528 of 860**. The gap
+  has run 6 → 4 → 2 → **0** across sessions 90, 91, 96, 98 — a monotone
+  narrowing over four batches, which is more than session 90's "noise between
+  two wrong readings" predicted. Recorded as an observation, not promoted:
+  nothing downstream ranks them and neither is remotely exceptionless. The
+  "misleading band" pin is 61.4%, its fifth widening inside 61–63%.
+- **`redrawCounterfactual.test.ts`: `sweep[3]`'s numerator un-froze.** Three
+  consecutive batches had `rescues` 11 and `sacrifices` 8 unmoved while `fires`
+  grew, which earlier recaps read as a frozen numerator. Both moved this batch
+  (11→12, 8→9) — by one in each direction, so the net stays 3. The
+  frozen-numerator reading is no longer the whole story.
+
+Also re-blessed: corpus 199→208 / 1149→1212 responseDocs / 821→861 playTurns /
+73→79 caught / 125→128 escaped, `incomplete` **UNCHANGED at 1 for the ninth
+consecutive batch**; four new oil casts `13088831`, `13088834`, `13088849`,
+`13088850`, all two-Relaxing double-lethal firings across slots 0 and 1 — the
+most double-lethal firings in any single batch on record (previous high was
+session 92's three), and the fourth batch running in which the per-cast cap of
+2 was REACHED and still did not BIND.
+
+## A5. Surprises, in the order they were found
+
+1. The composition test's epsilon case was vacuous (A/§A above). Found only
+   because tightening `expect(p).toBeLessThanOrEqual(1)` to
+   `toBeLessThan(1)` failed.
+2. At 0.85 the shadow's Relaxing arm can only ever tie the live policy on this
+   corpus — no observation has landed in `[0.8333, 0.85)`.
+3. `liveGateFiringRates.ts` §4's "CLOSED BY IRRELEVANCE" verdict does not
+   survive the move for the Relaxing arm, and the direction argument in
+   `OIL-CONSERVE.md` §7 flips from safety to risk.
+4. The live batch writes fixtures as it runs, so an analysis script run
+   mid-batch reads a growing corpus. §C was re-run after the batch finished;
+   the numbers were identical apart from `turns replayed` (721 → 723).
+5. Test cells are **1-indexed** (`1..gridSize`); `(0,0)` is off-grid and makes
+   `reachableCells` empty. Cost one round of red tests in `evPerStep.test.ts`.

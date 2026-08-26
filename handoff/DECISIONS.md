@@ -2463,3 +2463,71 @@ oil no longer ends them. The third is the consequence worth naming — those
 fixtures freeze `fishHp`, so the card can never collect the kill the gate is
 counting on. The hoist invariant itself is untouched: a POLICY moved, not the
 position of a computation.
+
+2026-08-25 (session 98 §A) — **THE NECESSITY GATE'S RELAXING THRESHOLD IS 0.85,
+BY USER DIRECTIVE (QUESTIONS.md §43), NOT BY A FIT.** `focus` stays 1. Measured
+on the live/replay corpus rather than the sim §0a suspends
+(`scripts/liveGateFiringRates.ts` §3c, new): on the union of every Relaxing
+observation ever recorded the gate now holds **9 of 24 (37.5%)** against **0**
+at the old threshold of 1 — live loop 8/20, replay 4/18. So it moves from a
+measured no-op to withholding roughly three of every eight Relaxing spends.
+Three consequences recorded rather than left to be re-discovered: this is no
+longer a "certainty" gate; `NECESSITY_EPSILON` is INERT on the Relaxing arm
+(kept, and its load-bearing assertions re-pointed at an explicit threshold of
+1); and `liveGateFiringRates.ts` §4's "`pConnect`'s optimism reaches NO live
+level gate — CLOSED BY IRRELEVANCE" **does not survive for this arm**, because
+the corpus now has mass on both sides of the boundary. `handoff/OIL-CONSERVE.md`
+§8.
+
+2026-08-25 (session 98 §A) — **SESSION 97's EPSILON TEST IN
+`oilNecessityComposition.test.ts` WAS VACUOUS AND IS FIXED.** `almostCertain`
+summed three thirds, which in this summation order is exactly 1 — so it asserted
+only that a certain kill is treated as certain, and would have stayed green with
+session 97's own bare-`>=` fix reverted. Now `0.7 + 0.2 + 0.1 =
+0.9999999999999999`; the ORDER is load-bearing (ascending re-sums to exactly 1)
+and is documented at the helper.
+
+2026-08-25 (session 98 §B) — **THE §2c CLEAN-CAST TRIPWIRE IS RETIRED OUTRIGHT**
+— user directive, QUESTIONS.md §44, explicitly NOT re-registered against the
+live rate. Its only evaluating site (`scripts/liveFishing.ts`'s post-batch
+report) is deleted. `SESSION_64_LIMITS.cleanCastCap` keeps its `6` because that
+constant records what session 64 RAN — a shape is history, not a setting — and
+no live shape carries a non-null cap. Tombstones recording the three compounded
+errors (wrong instrument, ~9x arithmetic, wrong conclusion) sit at the constant,
+the module header, the `clean_cast_cap` message and `eraCatchRate.ts` §5. No
+replacement tripwire was invented; that is a separate decision.
+
+2026-08-25 (session 98 §C) — **THE MOVEMENT TAX BINDS ON 48.9% OF LIVE DECISION
+POINTS. THE EV SURFACE IS FLAT, NOT SHARP.** QUESTIONS.md §27's remaining
+measurement, taken out-of-sample (leave-one-cast-out, no `castSim`) by the new
+`scripts/evPerStepDistribution.ts`: 583 comparable decision points of 723
+replayed, median ΔEV/step **1.05** — sitting ON the 1.00 tax — mean 1.38, and
+285/583 below it. By distance the shape is much sharper than the headline:
+d=1 binds 53.0%, d=2 67.8%, **d=3 90.8% at a median ΔEV/step of −0.01**, i.e.
+the term effectively removes long moves from the policy's reach. **NO
+`DEFAULT_FOCUS_RESERVE_WEIGHT` IS RECOMMENDED FROM THIS** — a binding fraction
+says how often the term is live, not whether its price is right, and session
+85's opening-spend evidence points the other way. A weight change is the user's
+call and needs its own evidence.
+
+2026-08-25 (session 98 §D) — **THE 9-CAST BATCH CAUGHT 6 (66.7%), AND IT
+SETTLES NOTHING — THE SAME FRAMING APPLIED TO A GOOD RESULT.** Exact 95% CI
+[29.9%, 92.5%] contains every baseline including session 96's 3/10 = 30.0%;
+Fisher's exact on the two batches gives **p = 0.179**. `focusDry` is now
+26/52 = 50.0% [36.9, 63.1] against `oilSupplied`'s 62.9% — overlapping, still
+NOT SUPPORTED. **`SESSION_98_LIMITS` (castCap 9) makes the rod's headroom
+STRUCTURAL** rather than a `--casts` flag, because nothing in this repo can read
+durability (`rodDeck.ts`) and a mistyped flag would otherwise spend a tenth
+cast. §2e's reopening condition is NOT met: today's-era turns-at-focus-zero is
+24.3% against the ~40% bar, opening spend 0.83 [0.69, 0.97] at n=119.
+
+2026-08-25 (session 98 §D) — **THE 0.85 GATE HAS STILL NEVER BEEN OBSERVED
+LIVE, AND THAT IS NOT THE SAME AS IT BEING INERT.** The batch gave it four
+opportunities and it withheld none — but all four were double-lethal-band turns
+at mana 9/8/7/1, and **zero single-lethal turns arose in the entire batch**
+(every `bestKillProbability` in the live record is null). The 9-of-24 corpus
+figure and this 0-of-4 are different arms of the same threshold. ⚠ **A WITHHOLD
+IS NOT LOGGED ANYWHERE** — `liveFishing.ts` emits `oil_double_lethal_fired` on a
+firing and nothing on a skip — so the count above is reconstructed from
+`oil_shadow`'s `fishHp` and `heldAtDecision`. A session wanting the withhold
+rate directly has to add that event.
