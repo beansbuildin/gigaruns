@@ -4006,3 +4006,78 @@ made from it.
 account owner is the only sensor), so "the rod showed no signs of failing" is
 NOT a claim this session can make. What can be said is that all 9 casts
 completed and none halted early. The user's replacement is the next event.
+
+---
+
+## §47 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — THE ROD WAS SWAPPED, AFTER SESSION 98, FOR A NEW ONE WITH A NEW DECK
+
+**Session 98's open question #1**, verbatim ruling: *"yes it's swapped now
+after the session."* Confirms the swap happened, and that it happened
+**after** session 98's 9-cast batch — so every fixture and pin from session
+98 and earlier is still on the OLD rod's deck; nothing needs retroactive
+correction, but the NEXT live fishing activity is on a new one.
+
+**What this requires of the next session that casts anything:**
+
+- **Do not assume `REAL_DECK` transferred.** Check `GEAR_CID_array` on the
+  first live response against the OLD rod's known ids before trusting any
+  deck-composition assumption — the Makeshift/Shroom break (session 87-89)
+  is the standing precedent for why this gets checked, not inferred.
+- **Expect a fresh baseline requirement**, not a continuation of the
+  existing one. `rodDeck.ts` and any pinned test keyed to the current deck
+  should be treated as describing the OLD rod until the new one is
+  confirmed and captured.
+- **State plainly, in whichever session first casts on the new rod, whether
+  the deck actually changed** (it may not, if the new rod grants the same
+  card set) — don't assume a new rod implies a new deck just because it's
+  the more interesting finding.
+
+---
+
+## §48 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — DO NOT REVISIT `DEFAULT_FOCUS_RESERVE_WEIGHT`
+
+**Session 98's open question #2**: the ΔEV/step report found the reserve tax
+binds on 48.9% of decision points overall and 90.8% at distance 3 (median
+ΔEV/step −0.01 there) — session 98 deliberately did not recommend a change
+and left it as the user's call. **The user's ruling: leave it.**
+
+**This closes the question, not just defers it.** No follow-up sweep, no
+weight change, no re-litigating this the next time a binding-fraction number
+looks high in a report. If the underlying numbers move enough to matter
+again, that's a fresh finding earning a fresh ask — this entry is not a
+standing invitation to revisit on the strength of the same data.
+
+---
+
+## §49 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — PROCEED WITH THE §26 REDRAW SHADOW ANALYSIS
+
+**Session 98's open question #3**: 161 cumulative shadow decisions, 6 fires,
+with the honest caveat that *whether that's enough for an out-of-sample
+verdict had not been computed*. **The user's ruling: yes, proceed.**
+
+**What this authorizes, precisely.** It authorizes attempting the analysis
+now rather than waiting for more volume — it does **not** pre-certify that
+161 is statistically sufficient. That's still a computation, not a
+judgment call, and the session that does this work must run it honestly:
+compute the actual power/confidence the data supports, and if 161 turns out
+to be thin for the effect size in question, **say so explicitly rather than
+forcing a verdict** the same way session 97 priced the matcher question
+instead of leaving it vague. A green light to start the work is not a green
+light to round up the result.
+
+**What stays untouched regardless of what the analysis finds:**
+`redrawEnabled` and `REDRAW_THRESHOLD`. Enabling redraw live is the user's
+call per §26/§28's standing text, not a conclusion this analysis gets to
+reach on its own even if the verdict comes back favorable.
+
+---
+
+## §50 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — THE MATCHER-LIBRARY QUESTION: NO NEW ACTION, KEEP ACCUMULATING NATURALLY; DO NOT SHAPE A BATCH TO OBSERVE THE 0.85 GATE
+
+**Session 98's open questions #4 and #5.** On the matcher-library volume
+question (still priced at 87–122 matcher-active turns), the user's answer
+was **"ok"** — read as: continue accumulating through ordinary batches,
+nothing dedicated. On whether to deliberately shape a future batch to give
+the 0.85 necessity-gate threshold a single-lethal turn to actually fire on,
+the user's answer was **no** — let it happen naturally or not at all;
+do not engineer a cast toward `fishHp <= 2` specifically to observe it.
