@@ -3653,3 +3653,140 @@ Re-measured fresh (`scripts/focusProfileCheck.ts`, live corpus):
 
 **Nothing in §2 changed strategy code.** §2e's conclusion is "do not wire", so
 there was nothing to wire.
+
+---
+
+## §42 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — FOCUS OIL STAYS RETIRED. THREE RELAXING OILS PLUS 10 MANA IS THE STANDING BUDGET, GATED ON THE FOCUS-SPEND GUARDRAIL STAYING OFF
+
+**Session 97's open question #3 asked whether the user wants to reconsider
+the session-93 Focus Oil withdrawal**, given the era split showed
+`oilSupplied` reading 62.9% against `focusDry`'s 46.5%. **The user's answer:
+no.** Verbatim:
+
+> "no we will not be using focus oil, the autofisher with 3x relaxing oils
+> and 10 mana is enough. as long as it is not aggressively burning through
+> focus meter is should be able to reliable catch fish."
+
+**This is a standing decision, not a re-opening of §35.** RELAXING-OIL-ONLY
+(§35, session 93) is reaffirmed with its reasoning restated in the user's own
+terms: the account will run on 3 Relaxing Oils and 10 mana, and the thing
+that has to stay true for that to work is the bot not burning the focus
+meter aggressively early. **This is directly why §2e's finding matters and
+should not be re-litigated lightly**: session 97 measured today's-era
+opening spend at 0.82 of 3 (n=110, stable since session 71's 0.83 at n=35)
+and recommended retiring `costCap` because the module's premise (meter-out
+dominant at 80.8%) is gone — today's era reads 38.2% fish-at-full, half of
+the historical rate. §2e's own text names the reopening condition
+precisely: **if today's-era turns-at-focus-zero rises back above ~40%, or
+meter-out becomes the dominant loss again, that is the signal this
+directive is no longer holding and `schedule` should be revisited** — not a
+guess, a number this repo already prints every run (CLAUDE.md rule 6).
+
+**Do not read the `oilSupplied`-era 62.9% as evidence Focus Oil should come
+back.** The user weighed that tradeoff directly, with the number in front of
+them, and chose the simpler standing configuration. Carry this decision
+forward as CLOSED, the same way §35 has been since session 93 — don't
+re-surface the era split as if it were still an open question next session.
+
+---
+
+## §43 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — LOWER THE NECESSITY-GATE RELAXING THRESHOLD FROM 1 TO 0.85
+
+**Session 97's open question #1**, named "the session's most consequential
+open item": the necessity gate shipped in §40 at threshold 1 (only skip the
+oil on an exactly-certain kill) and was measured a live no-op — 24
+evaluations, 0 held, max observed `bestKillProbability` 0.991. `oilTiming.ts`
+itself forbids an agent picking a lower number; it needed the user.
+
+**The user's ruling: 0.85.** Between the live maximum (0.991, would still be
+near-inert) and the shadow's own exchange-rate arm (0.8333, session 69 §3,
+which QUESTIONS §40/session 97 noted "WOULD have fired") — 0.85 sits just
+above that exchange-rate arm, closer to the aggressive end of the range that
+was actually on the table. **This is a deliberate tradeoff, not a
+free lunch**: `handoff/OIL-CONSERVE.md` §4's plateau table showed lower
+thresholds trade a small amount of catch probability for oil savings; at
+0.85 expect the gate to actually start firing (unlike at 1) and to skip a
+meaningfully larger share of the Relaxing spends `doubleLethalTriggers`
+would otherwise take.
+
+**What this requires before it ships** (do not treat "the user picked a
+number" as "the number is now correct in code"):
+
+- `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` in
+  `src/strategy/fishing/oilTiming.ts` changes from `1` to `0.85`.
+- **Do not re-run `scripts/oilConserveSweep.ts`** to "check" this number —
+  `OIL-POLICY.md` §0a forbids it by name, and session 97 already refused
+  that instruction once for exactly this reason. If a sanity check is
+  wanted, it has to be against the live/replay corpus the way §40/§41 were,
+  not the suspended sim.
+- Re-run `tests/fishing/oilNecessityComposition.test.ts`'s boundary
+  assertions at the new threshold — they were pinned exhaustively at `1`
+  (91 assertions) and the boundary behavior at `0.85` needs the same
+  scrutiny, not an assumption that shifting one constant leaves every pinned
+  case correct.
+- Confirm against the live/replay union (the same 24-decision set §40
+  measured) how many of those 24 would have fired at `0.85` instead of `1` —
+  report this number. It is the honest, corpus-grounded answer to "does this
+  actually do anything now," in place of the sim table §0a forbids citing.
+
+---
+
+## §44 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — RETIRE THE §2c CLEAN-CAST TRIPWIRE
+
+**Session 97's open question #2**: the tripwire's stated rarity ("~1-in-900")
+was wrong by roughly 9x — the correct figure under its own ~0.70 oils/cast
+assumption is ~1-in-98, and against the live `focusDry` clean-cast rate
+(30/43 = 69.8%) it's ~1-in-7. Three compounded errors: wrong instrument
+(`castSim`-derived assumption), wrong arithmetic, wrong conclusion.
+
+**The user's ruling: retire it.** Not re-register with a corrected
+threshold — retire outright. Whoever picks this up should:
+
+- Remove or explicitly disable the §2c tripwire check in whatever script
+  currently evaluates it (`scripts/eraCatchRate.ts` per session 97's files-
+  changed list is the newest touch point; confirm the tripwire's actual
+  call site before editing rather than assuming it's there).
+- Record in the tripwire's own location (wherever its threshold constant
+  and pre-registration comment live) that it was retired 2026-08-25, by
+  user directive, for being miscalibrated on a suspended sim instrument —
+  not that it "never fired again" or was quietly removed. A future reader
+  should be able to find why this stopped existing, the same discipline
+  `boonCapture`'s deletion (§37) already set.
+- Do not invent a replacement tripwire in the same motion. Retiring a
+  broken instrument and proposing a new one are two different decisions;
+  if a corrected pre-registered threshold is wanted later, that's its own
+  ask.
+
+---
+
+## §45 ANSWERED [conversation with the user, 2026-08-25, outside a numbered session] — QUEUE 9 LIVE CASTS, THEN THE ROD IS BEING REPLACED
+
+**Session 97's open questions #4 and #5** (matcher-library volume is
+expensive; the rod has ~9 casts of headroom on the user's own estimate):
+resolved together. **The user's ruling, verbatim:**
+
+> "we can queue up 9 live casts then I will replace the rod with a new one
+> that will have a new deck."
+
+**What this settles:**
+
+- The next live fishing batch is capped at **9 casts**, not the standard 10
+  — deliberately inside the user's own durability estimate rather than
+  testing it to failure.
+- **The rod change is the user's own action, off-repo.** No script here can
+  detect or trigger it; whoever runs the next fishing session should ask
+  the user to confirm the swap happened before treating the deck as
+  changed, the same way `REAL_DECK`'s rod-mismatch history (session 87–89)
+  argues for checking rather than assuming.
+- **A new rod very likely means a new `REAL_DECK`.** Every pinned corpus
+  number keyed to the current rod's deck (`rodDeck.ts`, the Makeshift/Shroom
+  break precedent) should be expected to need a fresh baseline after the
+  swap — this is not optional bookkeeping, it's the same kind of break
+  session 87 already diagnosed once for an intermittent rod mismatch, this
+  time deliberate and known in advance.
+- **This does not, on its own, resolve the matcher-library question.**
+  Session 97 priced that at 87–122 matcher-active turns (~4–6 ten-cast
+  batches) to settle with real power — 9 casts is far short of that. Treat
+  the matcher-activity data from this batch as a partial contribution to
+  that eventual volume, not as the batch that closes it, and don't claim it
+  settled anything it didn't.

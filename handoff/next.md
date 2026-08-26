@@ -1,309 +1,209 @@
-# BRIEF — session 97 — wire the oil necessity gate, diagnose the catch-rate batch, and close it out. NOT a rolling recommendation.
+# BRIEF — session 98 — wire the four rulings, run the capped 9-cast batch, and build the ΔEV-per-step report. NOT a rolling recommendation.
 
-**This document replaces the session-96 `next.md`.** Session 96's brief is
-executed and closed (QUESTIONS.md §36–§38, STATE.md session 96) — its content
-now lives there, not here. This file is the assignment for session 97, full
-stop.
+**This document replaces the session-97 `next.md`.** Session 97 is executed
+and closed — QUESTIONS.md §40/§41, STATE.md session 97. This file is the
+assignment for session 98, full stop, on the same terms session 97 shipped
+under: **every numbered item below is done, or blocked with an explicit
+named reason stated up front, before the session ends** (CLAUDE.md rule 6).
+Session 97 held that bar; hold it again.
 
-**Why this file looks different from the last few briefs in this repo, and
-why that's deliberate.** The user's own words, 2026-08-25: *"I don't trust
-Claude's judgement to not sweep shit under the rug again."* That reaction was
-earned — an audit this session ran found three concrete cases of a
-user-sourced recommendation getting logged as "worth doing," never gated by
-any legitimate approval requirement, and then sitting unbuilt for 24 to 70+
-sessions because nothing forced a follow-up (`handoff/OIL-CONSERVE.md` sat
-"awaiting approval" for 29 sessions after the approval question was written
-into a session log instead of `QUESTIONS.md`, where the user would actually
-see it; `focusBudget.ts`'s `schedule` policy for 24; `chooseNewCard`'s
-deck-composition scoring for 70+). The structural cause was a document that
-says "whenever convenient, no dependency" and a task backlog nothing sweeps.
+**Where this came from.** The user answered all four of session 97's open
+questions directly, in conversation, 2026-08-25 — recorded as QUESTIONS.md
+§42 (no Focus Oil, standing), §43 (necessity-gate threshold → 0.85), §44
+(retire the §2c tripwire), §45 (9-cast batch, then a rod swap). Read those
+four entries in full before starting — this brief summarizes them but the
+entries carry the reasoning and the specific things to verify, not just the
+headline decision.
 
-**So: this session is not complete until every numbered item in §1 and §2
-below is either done, or blocked with an explicit, named reason stated
-before you stop** (CLAUDE.md rule 6 — a gate must be on something the agent
-controls; if something here turns out to be ungateable, say so at the START
-of the recap, not buried in it). "I ran out of session" is not a reason
-unless you say so explicitly and state exactly what's left undone and why,
-the same way rule 6 already requires for an unreachable gate. Do not write a
-"still open" list and move on the way `handoff/OIL-CONSERVE.md` effectively
-did for 29 sessions.
-
-**Ordering, and why it's in this order:** §1 (oil necessity gate) is
-smaller, already user-approved in direction (QUESTIONS.md §39, recorded
-today), and has the clearest finish line — do it first so it's *done*, not
-partially done, before spending time on §2's more open-ended diagnostic
-work. §2 (catch-rate diagnosis) doesn't gate §1 or vice versa; if time runs
-short, §1 fully done and §2 partially done with an honest account of what's
-left is a better outcome than both half-finished.
+**Ordering, and why.** §A and §B are offline config/code changes that the
+live batch (§D) depends on — §D is pointless if the threshold and tripwire
+aren't already shipped, since the whole reason to run 9 live casts now is to
+see the new threshold actually fire. §C (the ΔEV-per-step report) has zero
+live dependency and no ordering constraint with anything else here; do it
+whenever it's convenient inside the session, including in parallel with
+§A/§B if that's how the work naturally splits. §D must come after §A/§B.
+§E is a note to leave for whoever reads this after the rod swap, not a task
+this session performs.
 
 ---
 
-# §1 — Re-derive and wire the oil necessity gate
+# §A — Lower the necessity-gate relaxing threshold to 0.85 (QUESTIONS.md §43)
 
-*(Full detail below is the same brief as `handoff/next-oil-conserve.md`,
-inlined here because that file is now superseded — this is the version to
-work from.)*
+`RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` in
+`src/strategy/fishing/oilTiming.ts` changes from `1` to `0.85`.
 
-## Where this came from
+1. **Do not re-run `scripts/oilConserveSweep.ts`.** `OIL-POLICY.md` §0a
+   forbids it by name; session 97 already refused this instruction once
+   when an earlier brief asked for it. If you want a sanity check, do it
+   against the live/replay corpus the way §40/§41 were, not the suspended
+   sim.
+2. Re-run and, where the boundary shifted, re-derive
+   `tests/fishing/oilNecessityComposition.test.ts`'s assertions (91 of them,
+   pinned exhaustively at threshold `1`) at `0.85`. Don't assume they all
+   still hold; the whole point of that test file is boundary behavior, and
+   the boundary moved.
+3. Report, against the same 24-decision live/replay union §40 measured
+   (18 replayed + 20 live... wait — cross-check the exact union size at the
+   time you run this, don't reuse a stale count), **how many of those
+   decisions would fire at 0.85 that didn't fire at 1.** This is the
+   corpus-grounded answer to "does this do anything now" — §0a forbids
+   citing a sim table for it.
+4. Ship it, and note in the same recap section as §D below what the live
+   batch actually shows the gate doing at the new threshold — that's the
+   first real-world read on a threshold picked by the user, not derived
+   from a sweep, and it's worth recording plainly whether it looks like the
+   tradeoff the user expected.
 
-QUESTIONS.md §39: the user approved, in direction, the necessity-gating
-policy `handoff/OIL-CONSERVE.md` derived in session 67 — skip an oil spend
-when the bot's own model already shows it can catch the fish without one.
-That approval is **not** a green light to paste the old
-`conserve(r=1,f=1)` numbers into `liveFishing.ts` unmodified. Two live
-things changed since session 67's sweep and neither was accounted for in
-it:
+# §B — Retire the §2c clean-cast tripwire (QUESTIONS.md §44)
 
-1. **`config/bot.json`'s `dendren.oils.allowedItemIds` is `[937]` only**
-   (session 93, RELAXING-OIL-ONLY). The old sweep priced both a Relaxing
-   gate and a Focus gate; only the Relaxing half matters live today.
-2. **`doubleLethalTriggers` is live** (session 90, §30), and it composes
-   with `onDemandTriggers`, not with `conservingOil` — the two gate
-   functions in `src/strategy/fishing/oilTiming.ts` were built as siblings
-   (both wrap `onDemandTriggers` directly, lines ~600 and ~694) and nothing
-   anywhere says what "necessity-gated Relaxing spend, still capable of a
-   double-lethal same-turn spend when the band calls for it" actually does.
+Not re-register with a corrected threshold — retire outright, per the
+user's explicit ruling.
 
-## 1a. Re-price the Relaxing-only necessity gate on its own, not as half of a two-oil table
+1. Find the tripwire's actual current call site — `scripts/eraCatchRate.ts`
+   per session 97's files-changed list is the newest touch point, but
+   confirm before editing rather than assuming.
+2. Remove or explicitly disable the check.
+3. Record, at the tripwire's own threshold constant / pre-registration
+   comment, that it was retired 2026-08-25 by user directive, for being
+   miscalibrated on a suspended `castSim` instrument (stated rarity wrong
+   by ~9x — see QUESTIONS.md §44 for the exact figures). A future reader
+   should be able to find why this stopped existing.
+4. **Do not invent a replacement tripwire in the same motion.** That's a
+   separate ask if it comes up later.
 
-`handoff/OIL-CONSERVE.md` §3 already isolated this once — "the Relaxing
-gate is free… identical catch rate… for 1182 fewer oils (−21%)" — but that
-was measured with Focus Oil still live alongside it and the double-lethal
-layer not yet built. Re-run `scripts/oilConserveSweep.ts` (or a
-relaxing-only variant of it) with:
+# §C — Build the ΔEV-per-step distribution report (QUESTIONS.md §27)
 
-- `allowedItemIds` restricted to `[937]` in the sweep's simulated
-  configuration, matching live.
-- `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` (currently `1`) re-checked
-  against the bimodal `bestKillProbability` distribution table
-  (`OIL-CONSERVE.md` §4) — confirm the plateau shape still holds
-  relaxing-only, don't assume it transfers unchanged from the two-oil
-  sweep.
-- Report catch rate and oils-per-cast/oils-per-extra-fish exactly as
-  `OIL-CONSERVE.md`'s tables do, so the numbers are directly comparable to
-  the ones already on record.
+**Zero live spend. No ordering dependency on §A/§B/§D.** This has been
+fully scoped and ready since session 95 §G narrowed it — it has simply
+never been picked up. Do it this session rather than let it become a fifth
+stale recommendation; the pattern this repo is actively correcting for is
+exactly "scoped, ready, never started."
 
-## 1b. Derive how the necessity gate composes with `doubleLethalTriggers` — this does not exist yet
+`src/strategy/fishing/cardChoice.ts`'s `bestFocusForCard` ranks each
+reachable candidate cell by `score = ev + focusReserveWeight *
+focusReserveFraction(focusBudget, focus)`. Session 95 §G proved the term's
+entire ranking effect reduces to a linear movement tax,
+`-(w / FOCUS_METER_MAX) * d`, exactly **1.00 EV-units per manhattan step**
+at the shipped weight. That tax changes the argmax if and only if
+`ΔEV(best moving placement, best stay-put placement) < 1.00 × Δd`. **The
+ΔEV-per-step distribution** is: at every live decision point, take the raw
+`ev` (before the reserve term) of the best `d = 0` candidate and the best
+`d > 0` candidate, compute `ΔEV = ev(best mover) − ev(best stayer)`, divide
+by that mover's `d`. Report the full distribution, not just a mean — what
+matters is the fraction of decision points with `ΔEV/d < 1.00` (tax binds,
+can flip the choice) vs. `≥ 1.00` (tax is inert there).
 
-`src/strategy/fishing/oilTiming.ts`:
+How to build it without inventing new machinery:
 
-- `onDemandTriggers` (line ~180) is the shared base both `conservingOil`
-  (line ~600) and `doubleLethalTriggers` (line ~694) wrap independently.
-- `doubleLethalTriggers` layers a same-turn double-Relaxing-spend in the
-  HP band where one oil can't finish the fish but two can, when the bot's
-  own best affordable card can't guarantee the kill this turn — using
-  `RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` as its own default
-  `relaxingThreshold` parameter already (line ~697), which is a promising
-  sign the two were designed to be compatible, but it has never been
-  proven and never tested composed.
+1. Reuse `offPolicyReplay.ts`'s existing leave-one-cast-out discipline over
+   `loadCastTraces().filter(isCleanTrace)` — the same corpus, the same
+   convention. An in-sample number here would repeat the mistake session
+   47/49 already documented for logloss.
+2. The EV surface per decision point already exists inside `chooseCard`'s
+   candidate loop. Either add an option that returns the per-candidate `ev`
+   breakdown alongside the winning choice, or write a sibling function that
+   computes the same candidate set without re-deriving the movement model —
+   whichever keeps the two provably in sync (a test asserting the report's
+   chosen cell matches what `chooseCard` actually picks at
+   `focusReserveWeight = 0` is the cheap way to catch drift).
+3. A new script (`scripts/evPerStepDistribution.ts` or similar, in the
+   shape of `focusProfileCheck.ts`/`offPolicyReplay.ts` — same corpus
+   loading, same `--flag=value` style) that walks every decision point and
+   prints: n (excluding decision points with no `d > 0` candidate — nothing
+   to compare there), mean/median/quartiles, the `< 1.00` / `≥ 1.00`
+   binding-fraction split, and a by-manhattan-distance breakdown if the
+   shape differs meaningfully across `d = 1, 2, 3`.
+4. Pin it with a test against a small hand-computable synthetic corpus.
 
-Write the composition explicitly — either a new function that applies the
-necessity gate first and then evaluates the double-lethal band on what
-survives, or confirm (with a test, not an assertion in a comment) that
-calling `doubleLethalTriggers` with a necessity-gated base produces the
-intended behavior. Pin it with a test (`tests/fishing/oilNecessity.test.ts`
-is probably the right home, or a new sibling file if the composition
-warrants its own coverage).
+**Do not touch `castSim` for this — §0a applies exactly as much here.**
+**Do not recommend a new `DEFAULT_FOCUS_RESERVE_WEIGHT` value from this
+measurement alone** — report the distribution; a weight change is a
+follow-up decision if the distribution turns up something actionable.
 
-Sweep the composed policy the same way §1a does, and report where it lands
-relative to: today's shipped `doubleLethalTriggers`-over-`onDemandTriggers`,
-and the Relaxing-only necessity gate alone from §1a. State plainly whether
-composing costs anything relative to the gate alone.
+Write up as QUESTIONS.md §27 UPDATE (not a new section number — this
+continues the existing thread): n, the distribution, the binding-fraction
+split, the by-`d` breakdown, and whether the distribution reads "sharp"
+(tax mostly inert) or "flat" (tax often binds).
 
-## 1c. Check whether this resolves (or explains) the §2c oil-trigger tripwire
+# §D — Run the capped 9-cast live batch (QUESTIONS.md §45)
 
-STATE.md session 96 records: the §2c clean-cast tripwire fired, 9 of 10
-clean casts exceeding a pre-registered threshold of 6 against the model's
-~0.70 oils/cast assumption (~1-in-900 event). That assumption was almost
-certainly built on `onDemandTriggers`'s ungated firing rate. If §1a's
-re-sweep shows the necessity gate cuts oils/cast by roughly the ~20%
-`OIL-CONSERVE.md` originally measured, **recompute what the tripwire's
-threshold would have been under the gated rate** and check whether session
-96's 9/10 still looks anomalous against it, or whether it was actually
-consistent with a gate that hadn't shipped yet. Report this explicitly
-either way — "the tripwire and this gate are unrelated" is a fine answer
-too, but it has to be checked, not assumed.
+Standard fishing-batch cadence, with two differences from the usual 10:
 
-## 1d. Ship it
+1. **Cap at 9 casts, not 10** — deliberately inside the user's own rod
+   durability estimate rather than testing it to failure. If the rod shows
+   signs of failing before 9, stop and say so; don't push to the cap.
+2. **This is the first live read on both §A's new threshold and the
+   standing no-Focus-Oil decision (§42) at the same time.** Report, same
+   depth as prior fishing sessions: catch rate (with the usual caveat that
+   n=9 proves little on its own — use the same binomial-CI framing session
+   97 established, don't repeat the mistake this whole thread started
+   from), how many times the necessity gate actually fired at 0.85 vs. how
+   many opportunities it had, and opening-turn focus spend compared to the
+   0.82 baseline session 97 measured (§2e's own stated reopening condition
+   is turns-at-focus-zero rising back above ~40% — check it, don't assume
+   it's fine).
+3. **This batch also feeds the redraw shadow instrument for free.**
+   `src/strategy/fishing/redrawShadow.ts` (built session 90, QUESTIONS.md
+   §26) has been passively logging a shadow record on every live decision
+   since it shipped — nothing here needs to change that. Report the
+   updated cumulative shadow count after this batch (STATE.md session 96
+   had it at 43 in-sample decisions; state the new total) — this is
+   groundwork for §26's eventual resolution, not a new task, and costs
+   nothing beyond running the batch you were already running.
 
-Once §1a–§1c hold up:
+Before starting: confirm oil stock covers the batch, confirm rod durability
+per the user's own estimate, `--dry-run` first since §A/§B both changed
+oil-decision logic since the last live cast (rule 4 discipline, same as
+every prior fishing brief in this repo).
 
-- Swap the live trigger call in `scripts/liveFishing.ts` from whatever
-  currently calls `onDemandTriggers`/`doubleLethalTriggers` to the composed,
-  necessity-gated version from §1b.
-- Update `handoff/OIL-CONSERVE.md`'s own title and opening line — it
-  currently says "derived, awaiting the user's approval" and "Nothing here
-  has been consumed live and nothing here is shipped," both of which stop
-  being true the moment this lands. **A shipped policy's own design doc
-  must not claim it isn't shipped** — that stale-status-line failure mode is
-  exactly what QUESTIONS.md §39 exists to stop happening again.
-- Add a QUESTIONS.md **§40** entry stating what was actually wired, the
-  re-derived numbers from §1a–§1b, and the §2c tripwire finding from §1c.
+# §E — Note for whoever picks up the session after the rod swap
 
-## §1 — Do not
+Not a task for this session. Leave this here so it isn't lost: **the user
+is replacing the rod after this 9-cast batch**, with a new deck. When that
+happens:
 
-- **Do not skip §1a–§1b and wire the old session-67 numbers directly.** They
-  were measured under a configuration (both oils, no double-lethal) that no
-  longer exists live. The user approved the *direction*, not a specific
-  unverified number — wiring an unverified number is the same mistake this
-  whole review started from.
-- **Do not run a live fishing batch as part of §1.** Sim/offline
-  re-derivation and the code change are in scope; §2 below (or a future
-  fishing session) is where live play happens.
-- **Do not touch the Focus Oil trigger or `allowedItemIds`.** Session 93's
-  RELAXING-OIL-ONLY directive stands untouched; this is scoped to the
-  Relaxing gate only.
+- Confirm the swap actually occurred before assuming `REAL_DECK` changed —
+  ask the user, the way session 87-89's rod-mismatch history argues for
+  checking rather than inferring from `GEAR_CID_array`.
+- Expect every pinned corpus number keyed to the current deck to need a
+  fresh baseline, the same kind of break the Makeshift/Shroom rod change
+  already caused once.
+- The matcher-library question (11-pattern library accuracy, still open at
+  n=20) needs 87–122 matcher-active turns total to settle with real power.
+  This session's 9-cast batch contributes toward that, but doesn't close
+  it — track cumulative matcher-active-turn count across batches rather
+  than resetting the tally at each one, and don't claim the question is
+  settled until the volume actually gets there.
 
 ---
 
-# §2 — Diagnose the catch-rate batch: sampling noise, the focusDry era, real regression, or some combination
+## What §26 (the redraw shadow) still needs — status, not a task for this session
 
-*(Full detail below is the same brief as `handoff/next-catch-rate.md`,
-inlined here because that file is now superseded — this is the version to
-work from.)*
-
-**Zero live spend for all of §2.** Every question below is answerable from
-the existing corpus (`fixtures/fishing-casts/`, `data/run-reports/
-fishing.jsonl`) and the existing `handoff/` record.
-
-## Where this came from
-
-The user read `handoff/STATE.md` (session 96) — **3 caught / 7 escaped, 43
-shots, 15 hits (34.9%)** — and reacted: catch rate is "DOWN to 30%," was
-"~60% on previous sessions," and the autofisher is "garage now." **Do not
-start §2 by looking for a bug to fix.** The user's "~60%" figure does not
-match anything in the live-measured record — the closest candidate is one
-specific, datable, superseded number (§2a below) — and the honest all-time
-live baseline has never been close to 60% on any real volume. Whether
-session 96's 30% is actually abnormal is the first thing to establish, not
-the last.
-
-## 2a. Nail down where "~60%" actually comes from — fact-finding, not assumption
-
-`handoff/OIL-POLICY.md` line 14 (§0a, session 71, 2026-08-21) is the only
-place in `handoff/` a "60%" live catch figure appears:
-
-> the real fishery reads meter-out **64.2%** and catch **27.6%** (and **34.3%
-> / 60.0%** on the era today's policy actually played)
-
-`src/strategy/fishing/focusBudget.ts`'s header (session 71/72) carries the
-same figure with more detail — a 35-cast "TODAY's policy" era at that time,
-opening spend 0.83, meter-out 34.3%, catch 60.0%. Confirm from the git
-history / STATE.md trail between session 71 and 96 that no live batch since
-has reported anything near 60% — session 92's STATE.md reads 5 caught (50%),
-the highest recorded live-batch rate in that window and still not 60. If a
-literal 60% live number turns up elsewhere in `handoff/log/`, cite it and
-treat it as new evidence; if it doesn't, the §0a-era figure — pre-Focus-Oil-
-withdrawal, 25 sessions stale — is almost certainly the source, and say so
-plainly in the write-up.
-
-**Separately, rule out sim/live conflation explicitly.** `scripts/
-mineFishPatterns.ts` and `scripts/minedLibraryGate.ts` both print
-`castSim`-derived catch numbers in the 59%–88% range. Every one is
-suspended from being quoted as live evidence by OIL-POLICY.md §0a — the
-sim's own bare arm reads catch ~81–91% against the real fishery's 27.6%. If
-the "~60%" recollection traces to one of these prints instead, say so
-exactly as plainly.
-
-## 2b. Build the missing measurement: live catch rate, broken out by era, over the full corpus
-
-This is the load-bearing check and it has never been run. `src/sim/fishing/
-castEra.ts` (`eraOf`) classifies casts into `preOil` / `oilSupplied` /
-`focusDry`. Existing reports use `eraOf` for budget-zero rate
-(QUESTIONS.md §32: preOil 44.9%, oilSupplied ~1.4–7%, focusDry ~36.5%) but
-nothing reports **catch rate** segmented the same way.
-
-- Write or extend a script (`scripts/oilArmCatchCheck.ts` is the closest
-  existing convention; `scripts/fishingReport.ts` already has the per-cast
-  caught/not-caught data) to report caught/total, **by `eraOf`
-  classification**, over the full 199-cast corpus.
-- State plainly whether `focusDry` reads meaningfully lower than
-  `oilSupplied`/`preOil`. Mechanical hypothesis to test directly: the focus
-  meter never regenerates within a cast (CONFIRMED session 13), and the
-  only live-approved top-up was Focus Oil, withdrawn session 93. If
-  `focusDry` casts catch at a materially lower rate, **that's a real,
-  live-confirmed mechanical explanation, not a bug**, and session 96's
-  batch being entirely `focusDry` would make 30% close to expected for its
-  era.
-- Report by batch/session too where the corpus supports it — session 92's
-  50% batch is a useful anchor against session 96's 30%.
-
-## 2c. Frame session 96's 3/10 with an actual confidence interval
-
-Compute the exact binomial 95% CI for 3/10 and state it next to the corpus
-baselines (27.6% bare-arm real / 28.3% live-config pooled / 25.9%
-dead-era-excluded / 36.7% all-time corpus). If the interval comfortably
-contains those baselines — it will — say so explicitly as its own finding,
-independent of §2b's era question. Keep the two separate in the write-up:
-they're independent reasons 30% doesn't need a code regression to explain
-it.
-
-## 2d. Rule on the two things STATE.md session 96 itself flagged as open
-
-- **The §2c oil-trigger tripwire.** Coordinate with §1c above — do not
-  duplicate the analysis; whichever of §1 or §2 you reach first on this
-  point should leave a clear pointer for the other rather than re-deriving
-  it twice. If §1 already resolved it, §2d just needs to cite that result.
-- **The 11-pattern library's weak first read.** On the 20 matcher-active
-  turns in session 96's batch, the mined library predicted the actual cell
-  2 times against the baseline's 5. n=20 is not evidence of a regression on
-  its own, but extend the accuracy tally past n=20 if a second batch exists
-  on disk by the time this runs; otherwise state precisely what volume
-  would settle it, rather than re-asserting "not evidence" as if closed.
-
-## 2e. The unconstrained-early-spend guardrail — check whether it should be wired now
-
-`src/strategy/fishing/focusBudget.ts` (session 49) built three real
-guardrails (`costCap`, `threshold`, `schedule`) for exactly the shape of
-problem session 48 measured ("the first move alone spends 1.62 of 3
-points"). The module's own header says `NO_FOCUS_POLICY` (unconstrained)
-"remains the default," and this is **confirmed still true at the current
-live call site**: `scripts/liveFishing.ts`'s `chooseCard(hand, mana, dist,
-gridSize, 1, fishHp, turnFocusBudget, true, focusReserveWeight)` passes no
-sixth `spendConstraint` argument, so it falls through to `UNCONSTRAINED`.
-The only live brake is the soft `focusReserveWeight` tax (session 45,
-unchanged since), and even with it `TASKS.md` records focus exhaustion at
-69.5% of casts.
-
-- **Re-measure opening-turn spend fresh** against sessions 92 and 96 at
-  minimum. The only number on record — 0.83 of 3 — is from session 71,
-  ~25 sessions old, measured under a different matcher, before the Focus
-  Oil withdrawal, and never rechecked.
-- **Report which of the three built-and-swept policies looks most
-  promising** against the current corpus and state plainly whether it's
-  worth wiring now or in a dedicated follow-up — this is a second
-  already-built, already-swept lever sitting unused; don't let it become a
-  fourth 25-session-old stale recommendation.
-
-## §2 — Write-up
-
-Write up 2a–2e as one QUESTIONS.md entry (**§41** — §39 is the oil-conserve
-approval recorded 2026-08-25, §40 is §1's shipping record above; check the
-file's actual last section before numbering in case either shifted) with an
-explicit verdict: sampling noise, era effect, real regression, or some
-combination — named, not hedged into mush.
-
-## §2 — Do not
-
-- **Do not touch `castSim`- or miner-derived catch numbers as evidence
-  either way.** OIL-POLICY.md §0a stays in force.
-- **Do not re-open §36/§37/§38** (11-pattern shipping, `boonCapture`
-  deletion, gate-1 closure) — executed directives, not open questions. 2d's
-  matcher-accuracy check is about measuring the already-shipped library,
-  not re-litigating whether to have shipped it.
-- **Do not change strategy code in §2 beyond what 2e recommends and you
-  actually have time to wire and test.** If 2e's guardrail looks worth
-  wiring but there isn't session time left after §1 and §2a–§2d, say so
-  explicitly and name it as the next session's first job — do not let it
-  join the pile silently.
+Worth recording precisely, since the user asked directly what's needed here
+and the honest answer is more specific than "write a brief": the shadow
+**instrument already exists and has been running since session 90**
+(`src/strategy/fishing/redrawShadow.ts`) — it is not unbuilt code, contrary
+to how it's been carried in recent STATE.md "carried, untouched" lists.
+What's actually missing is the **analysis pass**: nobody has written a
+script that takes the accumulated shadow log and produces an out-of-sample
+verdict on the candidate trigger, and the remaining correctness question
+from §28 (`GAP 1`, the `FISH_MOVED`-unobserved semantics ambiguity named in
+code since session 78 §6) is still unmeasured. Once §D's batch lands, check
+whether the cumulative shadow count is enough volume to attempt that
+analysis (session 95's log mentions an early Fisher's-exact read at
+0/52, 4/24, 0/2 — check whether that's still the right framing before
+reusing it) — if so, that's the natural next brief; if not, say explicitly
+how much more volume is needed, the same way session 97 priced the
+matcher-library question at 87-122 turns instead of leaving it vague.
+`redrawEnabled` and `REDRAW_THRESHOLD` stay untouched regardless — enabling
+redraw live is explicitly the user's call, not an agent's, per §26/§28's
+own text.
 
 ---
 
 ## Recap, for the whole session
 
 Full suite, `tsc --noEmit`, `git diff --check`, secret scan — once, at the
-end, against everything §1 and §2 actually changed. State explicitly, at
-the top of the recap, the status of every lettered/numbered item above:
-done, done-with-a-named-caveat, or blocked-with-a-stated-reason. Nothing
-gets left as a bare "still open" the way `OIL-CONSERVE.md` was for 29
-sessions.
+end, against everything §A–§D actually changed. State explicitly, at the
+top of the recap, the status of every lettered item above: done,
+done-with-a-named-caveat, or blocked-with-a-stated-reason.
