@@ -1,151 +1,170 @@
-# STATE — session 99 — 2026-08-26 (PT) — code at commit 531cd331
+# STATE — session 100 — 2026-08-26 (PT) — code at commit 6ad36e50
 
 ## Status
-Brief items **§1, §2, §3, §4: ALL DONE. GATE PASS.** All four dungeon runs the
-brief budgeted were run, each on its own explicit user go-ahead.
+Brief items **§A: DONE. §B: DONE. §C: BLOCKED — ledger not reset (expected).**
+**GATE PASS** on everything this session could reach.
 
-Suite **1967 passed / 1967, 107 files**. `tsc --noEmit` clean,
+Suite **1988 passed / 1988, 109 files** (`vitest run --maxWorkers=4`; see
+"What's broken" — unbounded, this machine fails on timeouts, including on
+session 99's own file set). `tsc --noEmit` clean,
 `git diff --check` clean, secret scan **0 hits on all four patterns**,
 `discoveredShipsClean` 8/8.
 
-**Live spend: 2 fishing casts, 4 juiced dungeon runs, 360 energy, 0 oils.**
-Both daily ledgers are now EXHAUSTED — fishing 20/20, dungeon 12/12.
+**Live spend: ZERO.** No casts, no runs, no energy, no oils. The only live
+traffic was three reads (`/gear/instances` twice, one `--dry-run`).
 
-Per item: §1 done (**the deck changed, and a standing doc claim was false**);
-§2 done (**1 of 2, uninformative and said so**); §3 done (**verdict:
-CONSISTENT but UNDERPOWERED**); §4 done (**4 of 4 runs, 4 deaths**).
+§C was blocked on arrival and stayed blocked: `checkFishingCaps.ts` read
+**20/20 spent** at 07:59 PT and again at 09:12 PT (**1.8h to the 11:00 PT
+window**). The brief anticipated this exact case and said to do §A/§B and
+leave §C. Not attempted, not partially attempted.
 
 ## What works
-- **§1 — the rod is GOLKAN (812)**, swapped 2026-08-26T02:27:20Z. Confirmed on
-  BOTH halves rule 9 demands: `/offchain/static` grants
-  `[74,80,81,84,85,86,87,88,89,90]`, and both live casts opened on exactly that
-  prefix with 812 in `GEAR_CID_array` and 811 gone. `rodDeck.ts` repointed.
-- **§2 — 2 casts, 1 caught**, halted on `cast_cap`, the intended exit.
-  `SESSION_99_LIMITS` (castCap 2) is the one batch shape in `oilBatch.ts` whose
-  number is set BY the ledger rather than in spite of it.
-- **§3 — `scripts/redrawShadowAnalysis.ts` is new**, with
-  `tests/fishing/redrawShadowAnalysis.test.ts` pinning its exact statistics.
-  Re-runnable as volume accumulates, per the brief.
-- **§4 — 4 juiced Tier-3 runs**, 214 POSTs, **0 first-attempt failures across
-  every action class in all four runs**. Rule 8 held (`TIER-CHECK ... OK`).
-- **`LossIntuitionUp` is now MODELLED** (latent), first-ever pickup.
-  `UNMODELLED_TYPES` 19 → 18.
+- **§A — the durability preflight is LIVE and fail-closed.**
+  `GET /gear/instances/{address}` → `src/strategy/fishing/rodDurability.ts`
+  (pure) → `scripts/liveFishing.ts` halts before any cast. Verified by running
+  it: `rod 812 reads DURABILITY_CID 38 (slot 14, GearInstance#812_...)`.
+  Halts on four states, each meaning the batch would spend casts on a rod the
+  repo cannot describe: **durability <=0**, **rod not equipped**, **a DIFFERENT
+  rod equipped**, **empty response**. Warns at <=5 without stopping.
+- **The rod is identified by ITEM ID, never by slot 14.** That makes the check
+  self-validating: if the equipped rod stops being the rod `REAL_DECK`
+  describes, that is itself the halt — sessions 89-91's failure caught forward
+  instead of backward.
+- **§A — the first real durability bracket exists.** Golkan read **40** at
+  equip (2026-08-26T02:27:20Z) and **38** on this session's preflight, with
+  session 99's **2 casts** between. **1.0/cast.** `data/rodDurability.jsonl`
+  now takes a paired before/after reading on every live batch.
+- **§B — `scripts/procEvidence.ts` is new**, with `tests/procEvidence.test.ts`.
+  Re-runnable as volume accumulates.
 
 ## What's broken
-- ⚠ **`rodDeck.ts`'s "nothing here can SEE durability" was FALSE, and was false
-  when written.** `GET /gear/instances/{address}` carries **`DURABILITY_CID`**
-  on every row — Shroom (811) reads 0 (it ran dry), Golkan (812) reads 40.
-  Three sessions reconstructed durability from dealt decks while the server
-  published it directly. This is the session-70 mistake one endpoint over
-  (`/gear/items` vs `/offchain/static`). **Corrected in the file. Nothing
-  CONSUMES it yet — that is a wiring job and is unclaimed.**
-- ⚠ **The 0.85 necessity gate STILL has never been observed live.** 0 oils
-  consumed across the batch, so it got **zero opportunities** — not "held
-  nothing". Third consecutive batch without a single-lethal turn.
-- ⚠ **`tests/rejectionAudit.test.ts`'s numeric-arm assertion was CHANGED**, and
-  a reader should know it was a re-expression, not a relaxation. It read
-  `Math.max(numeric) < 2500` and went red on ONE `scissor` POST at 3810ms
-  (1 of 1308; next slowest 2259ms; first attempt, and it SUCCEEDED). A max over
-  an ever-growing machine-local log corpus fails eventually for reasons
-  unrelated to what it checks. It now asserts the median `< 2500` and the share
-  at/above the 3600ms pacing floor `< 1%` — **strictly more sensitive** to the
-  actual failure mode, since a leak is a floor affecting ~all POSTs, which a
-  max could pass.
-- **Session 98's STATE.md mislabelled an n.** Its opening-focus-spend figure
-  "0.83 [0.69, 0.97] at n=119" is n=**114**; 119 belonged to the 0.82 line.
-  Both are +2 now (116 / 121). Values unmoved.
-- Carried, untouched: H2's proc model still blocked (`TASKS.md` CAPTURE-1);
-  §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE QUOTED**.
+- ⚠ **`triggeredBoons` has NEVER populated — 0 of 10,616 occurrences**, 93 run
+  dirs, both sides, 2026-08-13 to 2026-08-26. Session 99 saw the same over 4
+  runs and could not tell "rare" from "never". It is never. **It gates nothing
+  and no runs should be spent on it** (QUESTIONS.md §57).
+- ⚠ **`data.events[]` — the channel that DOES carry proc evidence — has been
+  ignored on the dungeon side for 92 sessions.** `src/api/schemas.ts` has kept
+  it since session 08 with a comment predicting exactly this use, and the
+  FISHING side has read its own `data.events[]` all along. **Third instance of
+  the same failure**: session 70 (`/gear/items` vs `/offchain/static`), session
+  99 (fishing doc vs `/gear/instances`), now (`run.players[]` vs
+  `data.events[]`). A field's absence from the payload a repo happens to read
+  is not its absence from the API.
+- ⚠ **`data.events` is present on only 2093 of 5308 canonical states.**
+  Presumably action responses only — **not verified**, and if some exchanges
+  are captured without their events then the true n is larger than 1919 and the
+  capture path is dropping evidence. Unresolved; see open question 3.
+- ⚠ **The default vitest worker count over-subscribes this machine and
+  produces FALSE failures. Use `--maxWorkers=4`.** Load ran **13-31 with 49
+  stray node processes** from unrelated sessions. Unbounded, the suite failed
+  intermittently — always timeouts in heavy sim tests (`deckShuffle` observed
+  at **16.3s** against the 10s `testTimeout`), never assertion failures.
+  **The control that proves it is not this session's code:** the suite
+  *excluding both new test files* — session 99's exact 107 files — failed
+  **4 of 1967** under load 20, where session 99 recorded 1967/1967.
+  With `--maxWorkers=4` it passes **1988/1988 in 13.3s even at load 31.6**.
+  Never read a red suite here as a regression before re-running bounded.
+- Carried, untouched: §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE
+  QUOTED**; `CORPUS_DECK` still Shroom (§53 sets no threshold); the 0.85
+  necessity gate still never observed live (now four batches).
 
 ## Corrections to SPEC.md
-- **None this session.** `SPEC.md` and `SPEC-fishing.md` untouched — nothing in
-  any live response contradicted either.
-- The corrections that DID happen are to REPO DOCS, and the durability one is
-  significant: `src/sim/fishing/rodDeck.ts` now records that `DURABILITY_CID`
-  exists on `/gear/instances/{address}`, and carries a new SHROOM/GOLKAN BREAK
-  section.
+- **None to `SPEC.md` or `SPEC-fishing.md` — neither file was touched.**
+  Nothing in any live response contradicted either.
+- **But SPEC §4e's "unknown semantics" list is now one shorter, in TASKS.md
+  rather than SPEC:** **`lck` is CRIT CHANCE.** Established by the zero-stat
+  control, not by the name — `critProc0/1` never fired in 1012 + 943 exchanges
+  where `lck` was 0.
 - Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
 - Move charges: PRESENT — unchanged, not re-measured.
+- Corrections to REPO DOCS: `src/sim/boons.ts` (`LossIntuitionUp`'s
+  "`triggeredBoons` empty all run" is true but evidences nothing),
+  `src/sim/fishing/rodDeck.ts` (the wiring job is done; first bracket recorded).
 
 ## Dead ends
-- **Do not read the Shroom→Golkan swap as a big break. It is a TIER change, not
-  a geometry change.** The decks are positionally IDENTICAL — same ten hit-zone
-  sets, same mana cost on all ten, card 74 literally shared. Golkan is Shroom
-  one tier better (+1 hit on the six row/column cards, +2 on the diamond, +1
-  crit on the centre). Card 89 is the ONLY regression: miss −4 vs 76's −3.
-  **Geometry-keyed numbers transfer; damage-keyed ones do not.**
-- **Do NOT re-bless a pin that moved because `REAL_DECK` repointed.** Six
-  assertions did, and they are tests comparing a SIM arm against a
-  CORPUS-derived quantity — correct only while the two decks coincided. New
-  **`CORPUS_DECK`** names the deck the corpus was actually played on; all six
-  pins stayed byte-identical. Widening those tolerances, or re-blessing them to
-  Golkan values, would both have destroyed a working cross-check.
-- **Do not ask the redraw shadow to close §28's GAP 1 — at ANY volume.** The
-  two `FISH_MOVED` readings differ only on a turn a redraw actually happened,
-  and a shadow never redraws. `redraw_sent` rows on this machine: 0.
+- **Do not spend runs trying to make `triggeredBoons` fire.** Ruled out as a
+  capture-path gap separately: five sibling arrays on the SAME player object
+  populate, including `focusBuffs` at **54/21,268 = 0.25%**. A path that
+  captures a 0.25% sibling is not silently dropping this one 21,268 times.
+- **Do not narrow `tests/procEvidence.test.ts` and keep its "every flag fires"
+  assertion.** `evadeProc0` and `intuitionProc0` fire **6 times each across all
+  1919 exchanges**; any slice can honestly contain zero. The test scans 20 run
+  dirs and asserts a slice-safe form instead.
+- **Do not inherit a performance rationale from `procEvidence.ts`'s history.**
+  Two different "the full scan times out other tests" justifications were
+  written and both were withdrawn — they rested on runs taken at load 17+ and
+  one with two vitest processes at once. The bounded scan is there to bound
+  what a test pays as an append-only corpus grows, and for no other reason.
 - Standing, none re-opened: redraw CLOSED; `--dry-run` before claiming a
-  blocker; do not revert rule 8; +19.40pp SUSPENDED; `castSim` suspended for
-  this fishery; §48 closed `DEFAULT_FOCUS_RESERVE_WEIGHT`.
+  blocker; do not revert rule 8; +19.40pp SUSPENDED; §50's "don't shape a batch
+  toward the 0.85 gate"; §56's depth-confidence gap stays open, no action.
 
 ## Metrics
-- **Fishing: 2 casts, 1 caught = 50.0%, exact 95% CI [1.3%, 98.7%]** — spans
-  essentially the whole interval; Fisher vs session 98's 6/9 gives **p = 1.0**.
-  0 oils consumed. Corpus 208 → **210** casts.
-- **Opening focus spend: 0.83 [0.69, 0.97] at n=116** (and 0.82 at n=121 on the
-  other boundary) — **unmoved**.
-- **§3 shadow: out-of-sample 6 fires / 170 decisions = 3.53% [1.31%, 7.52%]**
-  against an in-sample **3.07%**. Exact binomial **p = 0.6545, NOT REJECTED**.
-  **MDE at 80% power = 2.38x**; ~**350** decisions (~7 more batches) needed for
-  80% power at a 2x departure. 12 turns reached no card decision. 0 sanity rows.
-- **Dungeon: 4 runs, 4 deaths, 0 clears** — rooms 5, 5, 10, 7.
-  **Hard Core 24384, Dendren Root 1278, 240 energy, 214 POSTs, 0 first-attempt
-  failures.** Room 10 **ties** the deepest death on record (it stood at 1).
-- Corpus now 79 dungeon attempts / 210 fishing casts. 23 new boon offers.
-- **Oils held: 35 Relaxing (937), 0 Focus (942)** — unchanged, none spent.
+- **Live: 0 casts, 0 runs, 0 energy, 0 oils, 0 deaths.** Corpus unchanged at
+  79 dungeon attempts / 210 fishing casts.
+- **§B proc rates, n = 1919 exchanges per side** (`scripts/procEvidence.ts`):
+
+```
+  flag              stat        fired /    n      rate    fired when stat==0
+  blockProc0        block         90 / 1919     4.69%     0 / 299
+  blockProc1        block         22 / 1919     1.15%     0 / 918
+  critProc0         lck           24 / 1919     1.25%     0 / 1012
+  critProc1         lck           25 / 1919     1.30%     0 / 943
+  evadeProc0        evasion        6 / 1919     0.31%     0 / 1691
+  evadeProc1        evasion       31 / 1919     1.62%     0 / 928
+  intuitionProc0    intuition      6 / 1919     0.31%     0 / 1354
+  tenacityProc0     tenacity      17 / 1919     0.89%     0 / 1172
+  tenacityProc1     tenacity      19 / 1919     0.99%     0 / 932
+```
+
+  Rates land in **0.31%-4.69%**, exactly the 1-5% band SPEC §4e predicted.
+  **The zero-stat column is the load-bearing one** — no flag has ever fired
+  while its own stat read zero, across 299-1691 observations each.
+- **Two corroborations, neither engineered:** `intuitionProc0` fired 6 times and
+  the corpus holds exactly **6** `intuition_block` events on the same turns;
+  and there is **no `intuitionProc1` at all**, matching the enemy's `intuition`
+  being 0 in all 5308 states.
+- **Rod durability: 40 → 38 over 2 casts = 1.0/cast, n=1 bracket.** At 1.0/cast
+  a 40-durability rod is a ~40-cast rod, which matches the user's own estimate.
+  **Not promoted to the rate** — the "before" half was a hand-read at equip, and
+  a per-BATCH or per-TURN decrement could coincide at this sample.
 
 ## Open questions for Claude
-1. **`DURABILITY_CID` is readable and nothing reads it.** The rod's remaining
-   durability is now a forward-looking number (Golkan: 40 at equip, and 2 casts
-   have been played on it). Wiring it into `liveFishing.ts`'s preflight would
-   make the base-deck window PREDICTABLE instead of detectable-after-the-fact,
-   which is what sessions 89–91 spent three sessions reconstructing. Worth a
-   small task? It is unclaimed and nobody has scoped it.
-2. **Should `CORPUS_DECK` be repointed, and when?** It is Shroom and the corpus
-   is 210 casts of which **2** are Golkan. The stated rule is to repoint when
-   the ratio inverts and re-bless the affected pins in one deliberate pass. That
-   is a long way off at 2 casts per batch — but every damage-keyed sim number is
-   describing the OLD rod until it happens. Is there a threshold you want?
-3. **`triggeredBoons` was EMPTY on every recorded state of a full 4-run day.**
-   It is the field that would evidence a boon proc, and it never populated once
-   across 214 POSTs. Either it does not populate on this capture path, or no
-   boon triggered at all. **Settling which is far cheaper than CAPTURE-1's
-   five-stat model, and it gates it** — a proc-evidence channel that silently
-   never fires would make CAPTURE-1 unreachable by ordinary play, however many
-   runs are spent.
-4. **The 0.85 gate has now gone three batches with zero opportunities.** §50
-   ruled against shaping a batch toward `fishHp <= 2` to observe it. That ruling
-   stands and is not being reopened — but at 2 casts/day the natural arrival
-   rate is very low, and it is worth knowing whether you want it left
-   indefinitely unobserved.
-5. **Dungeon depth is where the opponent model is weakest.** At room 10 it
-   reported `uniform-below-floor n=5 confidence=low` — the deepest,
-   highest-stakes decisions run on the thinnest data, and that compounds
-   because a death there forfeits the most accumulated Hard Core.
+1. **Effect SIZES are now the only thing blocking CAPTURE-1, and they are
+   measurable from data already on disk.** A rate is not a mechanic: nothing yet
+   says what `block` DOES when it procs (full negate? reduction? how much?).
+   The measurement is a diff of HP/shield deltas on fired vs unfired exchanges
+   over the same 1919, no live play required. Worth a task?
+2. **Should the live loop READ the proc booleans, or only the corpus?**
+   `scripts/procEvidence.ts` reads committed fixtures. The events are in every
+   action response the bot already receives, so per-exchange proc logging beside
+   the existing `evSupported`/`unmodelled` fields is cheap — but nothing should
+   consume it in a decision until effect sizes exist.
+3. **Is the capture path dropping events?** `data.events` is on 2093 of 5308
+   states. If that is "action responses only" it is complete; if some exchanges
+   are captured without their events, n is larger than 1919 and evidence is
+   being lost. Cheap to settle offline and it sizes everything in question 1.
+4. **§C is still owed: the 20-cast batch** (§55), first session after 11:00 PT.
+   It is also the first real chance at a durability bracket the instrument took
+   itself at BOTH ends — §A's task-3 data.
+5. **The 0.85 necessity gate has now gone four batches with zero
+   opportunities.** Unchanged from session 99's question 4; §50 still stands.
 
 ## Files changed
 ```
- 6 commits (this recap makes 7). 4 dungeon-run + 2 fishing-cast fixture dirs.
+ 2 commits (this recap makes 3). No new fixtures — zero live play.
 
-  A  scripts/redrawShadowAnalysis.ts        +250  §3's instrument
-  A  tests/fishing/redrawShadowAnalysis.test.ts +120  its exact statistics
-  M  src/sim/fishing/rodDeck.ts             +150  Golkan, CORPUS_DECK, DURABILITY_CID
-  M  src/sim/boons.ts                       +60   LossIntuitionUp + 23 offers
-  M  src/strategy/fishing/oilBatch.ts       +37   SESSION_99_LIMITS
-  M  scripts/liveFishing.ts                 +20   cap + in-sample constant
-  M  QUESTIONS.md                           +110  §51
-  M  tests/rejectionAudit.test.ts           +30   numeric arm re-expressed
-  M  tests/boons.test.ts, tests/enemies.test.ts   dungeon pins
-  M  tests/fishing/{castEra,matcherHeadroom,oilReachability,redrawCounterfactual,
-       zoneTemplate,damageEconomy,fishMaxHp,focusMovement}.test.ts,
-     tests/sim/fishingCorpus.test.ts        corpus pins re-blessed, 208 -> 210
+  A  scripts/procEvidence.ts               +239  §B's instrument
+  A  tests/procEvidence.test.ts            +116  both claims + zero-stat control
+  A  src/strategy/fishing/rodDurability.ts +199  §A, pure, fail-closed
+  A  tests/fishing/rodDurability.test.ts   +188  the durability-0 refusal
+  M  scripts/liveFishing.ts                +144  preflight + paired ledger
+  M  QUESTIONS.md                          +132  §57
+  M  src/api/schemas.ts                     +42  GearInstanceSchema
+  M  TASKS.md                               +32  CAPTURE-1 updated
+  M  src/sim/fishing/rodDeck.ts             +22  wiring done, first bracket
+  M  src/api/client.ts                      +14  getGearInstances()
+  M  src/sim/boons.ts                       +14  LossIntuitionUp correction
+  M  tests/noHardcodedPaths.test.ts          +9  ratchet 25 -> 26
+  M  tests/clientSurface.test.ts             +3  allowlist the read
 ```

@@ -2625,3 +2625,11 @@ widening the gap a real leak could hide in. It now asserts the median < 2500 and
 the share at/above the 3600ms pacing floor < 1%, which is **strictly more
 sensitive** to the actual failure mode: a pacing leak is a floor affecting
 essentially all POSTs, which a max could pass.
+2026-08-26 — Rod durability preflight is FAIL-CLOSED only, never predictive, until paired readings exist — QUESTIONS.md §52; one unpaired data point cannot support a decrement rate, and a made-up rate is worse than no rate.
+2026-08-26 — The equipped rod is identified by GAME_ITEM_ID_CID matching CURRENT_ROD, never by slot number — makes the preflight self-validating: a rod the simulator does not model becomes a halt rather than a silently-wrong simulation (the sessions 89-91 failure, caught forward).
+2026-08-26 — `triggeredBoons` is CLOSED as an evidence channel; no runs to be spent on it — 0 non-empty of 10,616 occurrences across the whole corpus, and a capture-path gap was ruled out separately by `focusBuffs` populating at 0.25% on the same object.
+2026-08-26 — `data.events[].use_move.data.*Proc[01]` is the dungeon proc-evidence channel; CAPTURE-1's proc-RATE half is unblocked, its effect-SIZE half is not — 1919 exchanges per side already committed, rates 0.31-4.69%, and no flag has ever fired while its own stat read 0.
+2026-08-26 — `lck` is CRIT CHANCE — established by the zero-stat control (critProc never fired in 1012+943 exchanges at lck 0), not inferred from the name, per DECISIONS 2026-08-15.
+2026-08-26 — CAPTURE-1's "do not stub, default, or flag-hide the proc branches" prohibition is UNCHANGED by the rate discovery — having rates makes one input obtainable; effect sizes are still missing and a branch filled with guessed sizes is still an honest "unscorable" turned into a confident wrong number.
+2026-08-26 — tests/noHardcodedPaths ratchet raised 25 -> 26 rather than converting scripts/procEvidence.ts to the profile seam — it names the COMMITTED CORPUS, which per the rodDeck.ts precedent must not be redirectable by --profile.
+2026-08-26 — Run the suite as `vitest run --maxWorkers=4` on this machine — the default worker count over-subscribes it and produces TIMEOUT-only false failures in heavy sim tests; the control is that session 99's own 107-file set also fails 4/1967 under load while passing 1988/1988 bounded at load 31.6.
