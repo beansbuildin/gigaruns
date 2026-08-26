@@ -150,11 +150,15 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // +43 playTurns, +3 caught, +7 escaped. `incomplete` is UNCHANGED at 1 —
     // the same long-standing truncated cast, still unmoved, which is the
     // structural half of this pin and the reason it is asserted separately.
-    expect(summary.casts).toBe(199); // [session 96] was 189; was 178
-    expect(summary.responseDocs).toBe(1149); // [session 96] was 1091; was 1040
-    expect(summary.playTurns).toBe(821); // [session 96] was 778; [session 92] was 752
-    expect(summary.caught).toBe(73); // [session 96] was 70; [session 92] was 64
-    expect(summary.escaped).toBe(125); // [session 96] was 118; [session 92] was 113
+    // [session 98] 199 -> 208 across the NINE-cast batch (capped by the rod,
+    // not the ledger — `SESSION_98_LIMITS`): +63 responseDocs, +40 playTurns,
+    // +6 caught, +3 escaped. `incomplete` is UNCHANGED at 1 for the NINTH
+    // consecutive batch.
+    expect(summary.casts).toBe(208); // [session 98] was 199; was 189
+    expect(summary.responseDocs).toBe(1212); // [session 98] was 1149; was 1091
+    expect(summary.playTurns).toBe(861); // [session 98] was 821; [session 96] was 778
+    expect(summary.caught).toBe(79); // [session 98] was 73; [session 96] was 70
+    expect(summary.escaped).toBe(128); // [session 98] was 125; [session 96] was 118
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -592,6 +596,24 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // session-93 distinction working as designed across a full batch for the
       // first time.
       "13083731",
+      // [session 98] +4 from the NINE-cast batch (`SESSION_98_LIMITS` — capped
+      // by the rod's headroom, not the ledger): `13088831`, `13088834`,
+      // `13088849`, `13088850`. TWO Relaxing oils each, slots 0 and 1 — and
+      // all four are DOUBLE-LETHAL firings, which is the most in any single
+      // batch on record (the previous high was session 92's three).
+      //
+      // ✅ The Relaxing per-cast cap of 2 was REACHED four more times and
+      // **still did not BIND** — the composed trigger wanted exactly two on
+      // each, never three. Fourth batch running (91, 92, 96, 98).
+      //
+      // ⚠ Worth reading beside QUESTIONS.md §46: this is the first batch
+      // played with the necessity threshold at the user's 0.85, and the gate
+      // withheld NOTHING here — not because it is inert, but because all four
+      // of its opportunities were in the double-lethal band on turns the bot
+      // was nowhere near 85% sure of, and the single-lethal band (the arm the
+      // corpus measurement is about) never came up at all. Zero of this
+      // batch's `oil_shadow` records carry a non-null `bestKillProbability`.
+      "13088831", "13088834", "13088849", "13088850",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

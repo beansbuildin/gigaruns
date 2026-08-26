@@ -236,6 +236,48 @@ export const SESSION_69_LIMITS: BatchLimits = {
   haltOnShadowBlind: true,
 };
 
+/**
+ * **[session 98 §D] NINE casts, and what the nine are for.**
+ *
+ * Session 66 §4's rule is that a batch shape is history rather than a standing
+ * authorization, and that a session wanting N casts states what they are for
+ * in its own brief. Stated:
+ *
+ * **The cap is NINE because the ROD has about nine casts left**, on the
+ * account owner's own estimate (`rodDeck.ts`: nothing in this repo can see
+ * durability, so the owner is the only sensor), and the user is replacing the
+ * rod immediately after this batch — QUESTIONS.md §45, 2026-08-25, verbatim:
+ * *"we can queue up 9 live casts then I will replace the rod with a new one
+ * that will have a new deck."* Nine is deliberately INSIDE that estimate
+ * rather than testing it to failure.
+ *
+ * **What the casts buy:** the first live read of two things that changed
+ * without any live play between them — the necessity gate's Relaxing threshold
+ * at the user's **0.85** (QUESTIONS.md §43, session 98 §A: 9 of 24 recorded
+ * observations would be held, against 0 at the old threshold of 1), and the
+ * standing no-Focus-Oil configuration (§42). Neither has ever been observed
+ * live in combination.
+ *
+ * **It is a distinct shape rather than `SESSION_69_LIMITS` with a smaller
+ * number** for the same reason session 69's was: the number is load-bearing
+ * and it is justified here, beside itself. Making the cap structural also
+ * means a mistyped `--casts` flag cannot spend a tenth cast the rod may not
+ * have.
+ *
+ * Everything else is session 69's shape and is inherited deliberately:
+ * `stopOnOilConsume` false (a consume is the capture, not the exit),
+ * `cleanCastCap` null (the §2c pre-registration is RETIRED — §B, QUESTIONS.md
+ * §44), `haltOnShadowBlind` true (a blind shadow means the objective is
+ * unreachable and further casts accumulate unobservable data).
+ */
+export const SESSION_98_LIMITS: BatchLimits = {
+  castCap: 9,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
 export interface BatchVerdict {
   stop: boolean;
   reason: BatchStopReason | null;

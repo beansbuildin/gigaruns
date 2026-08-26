@@ -182,7 +182,7 @@ import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fis
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { CaptureFixtureWriter, CaptureRunLog, stamp } from "../src/orchestrator/capture.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
-import { SESSION_69_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { SESSION_98_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
@@ -3418,7 +3418,10 @@ async function main() {
   // place that survives is beside the number. `SESSION_65_LIMITS` stays
   // exported and tested so its halts remain demonstrable, exactly as
   // `SESSION_64_LIMITS` does.
-  const batchLimits = SESSION_69_LIMITS;
+  // [session 98 §D] SESSION_98_LIMITS — nine casts, capped by the ROD rather
+  // than by the ledger, and justified in that constant's own doc comment as
+  // session 66 §4 requires. `SESSION_69_LIMITS` stays exported and tested.
+  const batchLimits = SESSION_98_LIMITS;
   const authorizedCasts = batchLimits.castCap ?? args.casts;
   const batchCeiling = Math.min(args.casts > 1 ? args.casts : authorizedCasts, authorizedCasts);
   const targetCasts = args.dryRun ? 1 : args.oilBatch ? batchCeiling : args.casts;

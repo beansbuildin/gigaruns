@@ -14,7 +14,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { BatchState } from "../../src/strategy/fishing/oilBatch.js";
-import { SESSION_64_LIMITS, SESSION_65_LIMITS, SESSION_69_LIMITS, batchVerdict } from "../../src/strategy/fishing/oilBatch.js";
+import { SESSION_64_LIMITS, SESSION_65_LIMITS, SESSION_69_LIMITS, SESSION_98_LIMITS, batchVerdict } from "../../src/strategy/fishing/oilBatch.js";
 
 /** A healthy mid-batch state: nothing consumed, ledger and stock ample, no streak. */
 function base(): BatchState {
@@ -145,5 +145,37 @@ describe("the shadow-blind halt", () => {
     // the batch on the first thing it is looking for.
     expect(SESSION_69_LIMITS.stopOnOilConsume).toBe(false);
     expect(SESSION_69_LIMITS.cleanCastCap).toBeNull();
+  });
+
+  it("[session 98 §D] the session-98 shape caps at NINE — the ROD's headroom, not the ledger's", () => {
+    // QUESTIONS.md §45: the user's own durability estimate is ~9 casts and the
+    // rod is replaced immediately after. Nothing in this repo can read
+    // durability (`rodDeck.ts`), so the cap is the only enforcement there is —
+    // which is why it is structural here rather than a `--casts` flag.
+    expect(SESSION_98_LIMITS.castCap).toBe(9);
+    expect(SESSION_98_LIMITS.stopOnOilConsume).toBe(false);
+    // The §2c pre-registration is RETIRED (§B, QUESTIONS.md §44); no live
+    // shape may carry a non-null clean-cast cap.
+    expect(SESSION_98_LIMITS.cleanCastCap).toBeNull();
+    expect(SESSION_69_LIMITS.cleanCastCap).toBeNull();
+    expect(SESSION_65_LIMITS.cleanCastCap).toBeNull();
+    // Inherited from session 69 deliberately: a blind shadow makes the
+    // batch's own objective unreachable.
+    expect(SESSION_98_LIMITS.haltOnShadowBlind).toBe(true);
+  });
+
+  it("[session 98 §B] the retired §2c halt no longer claims to be evidence about the model", () => {
+    const v = batchVerdict({ ...base(), castsPlayed: 6, cleanCasts: 6 });
+    expect(v.reason).toBe("clean_cast_cap");
+    expect(v.detail).toContain("RETIRED");
+    // The message still NAMES the "~1-in-900" figure — a reader has to be able
+    // to find why this stopped meaning anything — but it must no longer ASSERT
+    // it, and must not tell the operator to report the halt as a finding.
+    expect(v.detail).toContain("miscomputed");
+    expect(v.detail).not.toContain("report it as evidence");
+    expect(v.detail).toContain("DO NOT report it as a finding");
+    // And the halt still must not read as a budget — §2c's original point,
+    // which survives its pre-registration.
+    expect(v.detail).toContain("DO NOT extend");
   });
 });

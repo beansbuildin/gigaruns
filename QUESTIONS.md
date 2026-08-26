@@ -1930,6 +1930,79 @@ to "measure one distribution, live side first". The replay is still on hold.
 
 ---
 
+## §27 UPDATE [session 98 §C] — THE DISTRIBUTION IS MEASURED. THE TAX BINDS ON **48.9%** OF DECISION POINTS — THE SURFACE IS FLAT, NOT SHARP
+
+**The measurement §27 was narrowed to, taken.** Session 95 §G proved the
+reserve term's entire ranking effect is a linear movement tax of
+`w / FOCUS_METER_MAX` = **1.00 EV-units per manhattan step** at the shipped
+weight, and left one thing unmeasured: how often that tax is large enough to
+change the argmax. It changes it exactly when `ΔEV / d < 1.00`.
+
+`scripts/evPerStepDistribution.ts` (new) measures that ratio at every live
+decision point, LEAVE-ONE-CAST-OUT over the clean corpus — the same
+out-of-sample discipline sessions 47/49 established for logloss. **No `castSim`
+quantity appears; §0a is untouched.**
+
+### The distribution
+
+| | whole clean corpus (207 casts) | today's era (119 casts) |
+|---|---|---|
+| turns replayed | 723 | 444 |
+| **comparable decision points** | **583** | **334** |
+| excluded — no `d > 0` candidate | 140 (19.4%) | 110 (24.8%) |
+| min / p25 / **median** / p75 / max | −9.26 / 0.13 / **1.05** / 2.28 / 13.19 | −9.26 / 0.12 / **1.06** / 2.19 / 13.19 |
+| mean | 1.38 | 1.34 |
+| **TAX BINDS (`< 1.00`)** | **285 of 583 = 48.9%** | **160 of 334 = 47.9%** |
+| INERT (`>= 1.00`) | 298 = 51.1% | 174 = 52.1% |
+
+**The verdict the brief asked for: FLAT, decisively.** The median sits at 1.05
+— essentially ON the tax — and the tax binds on very nearly half of all
+decision points. This is not a term that "rarely decides anything": at the
+shipped weight it is choosing the placement on roughly one turn in two where a
+move is available at all. The two corpora agree to within a percentage point,
+so this is not an era artefact.
+
+### The shape by distance, and it is the sharpest thing here
+
+Measured within-turn, best placement at EXACTLY `d` against the same stayer:
+
+| `d` | n | median ΔEV/step | binds |
+|---|---|---|---|
+| 1 | 583 | 0.83 | 309 — **53.0%** |
+| 2 | 460 | 0.48 | 312 — **67.8%** |
+| 3 | 316 | −0.01 | 287 — **90.8%** |
+
+**The tax is near-prohibitive on three-step moves.** At `d = 3` the median
+ΔEV/step is BELOW ZERO — the best three-step placement is typically WORSE in
+raw EV than staying put — and the tax binds on 91% of them. At `d = 1` it is
+close to a coin flip. So the term does not merely tax movement uniformly; it
+effectively removes long moves from the policy's reach, which is a much
+stronger statement than "1.00 per step" reads as.
+
+### What is deliberately NOT concluded
+
+**No `DEFAULT_FOCUS_RESERVE_WEIGHT` is recommended, and none should be inferred
+from this.** A binding fraction says how often the term is live; it says
+nothing about whether its price is right. A high binding fraction is equally
+consistent with "the weight is far too high" and with "the weight is doing
+exactly the job session 45 swept it for". Session 85 measured the shipped
+weight landing 0.004 outside the opening-spend interval against `w=0`'s 0.207,
+which is evidence FOR the current value and is not contradicted by anything
+here.
+
+**And note the 19.4% exclusion before reading any of it.** Those turns have an
+empty meter, no `d > 0` candidate, and pay no tax however flat their surface
+is. The tax is structurally a first-turns-only effect (session 95 §G) and this
+is the number that says how much of the cast it cannot reach at all.
+
+Pinned by `tests/fishing/evPerStep.test.ts` — including a DRIFT GUARD that the
+report's argmax is the cell `chooseCard` actually picks at
+`focusReserveWeight = 0`, because the report enumerates the candidate surface
+itself (it needs the losers, and `bestFocusForCard` returns only a winner) and
+two enumerations of "the same" surface are exactly what silently diverges.
+
+---
+
 ## §26 UPDATE [session 85] — still OPEN, still needs a yes/no, and gate 2 does not touch it
 
 Session 85 was asked to put §26 to the user and has. **Nothing has been
@@ -3790,3 +3863,146 @@ resolved together. **The user's ruling, verbatim:**
   the matcher-activity data from this batch as a partial contribution to
   that eventual volume, not as the batch that closes it, and don't claim it
   settled anything it didn't.
+
+---
+
+## §46 ANSWERED [session 98 §A/§B/§D, 2026-08-25] — THE THRESHOLD IS SHIPPED AT 0.85 AND HELD 9 OF 24 ON THE CORPUS; THE TRIPWIRE IS RETIRED; THE 9-CAST BATCH CAUGHT 6
+
+The execution record for the user's three operational rulings (§43, §44, §45).
+The rulings are in those entries; this is what happened when they were carried
+out.
+
+### §A — the necessity gate at 0.85 (QUESTIONS.md §43)
+
+`RECOMMENDED_NECESSITY_THRESHOLDS.relaxing` is **0.85**. `focus` is untouched
+at `1` (nothing was asked about it, the Focus Oil is not spendable on this
+account, and the shipped `RELAXING_ONLY_NECESSITY_THRESHOLDS` overrides that
+arm to the degenerate `ALWAYS_FIRES_THRESHOLD` regardless).
+
+**`scripts/oilConserveSweep.ts` was NOT run** — `OIL-POLICY.md` §0a forbids it
+by name, and this is the third brief in a row to ask. Re-derived on the live
+and replayed corpus instead, via a new **§3c** block in
+`scripts/liveGateFiringRates.ts` so the question is answered by running an
+instrument rather than by reading a suspended table:
+
+| observations | n | held at `1` | held at `0.85` | **newly held** |
+|---|---|---|---|---|
+| the live loop's own record | 20 | 0 | **8 — 40.0%** | 8 |
+| pre-hoist, recovered offline (session 69) | 4 | 0 | 1 — 25.0% | 1 |
+| **UNION — every Relaxing observation ever** | **24** | **0** | **9 — 37.5%** | **9** |
+| replay, whole clean corpus (684 turns) | 18 | 0 | 4 — 22.2% | 4 |
+
+The nine newly-held values are `0.857, 0.914, 0.925, 0.945, 0.961, 0.964,
+0.971, 0.975, 0.991`. **So the gate goes from a measured live no-op to
+withholding roughly three of every eight Relaxing spends the old policy would
+have made.** That is the corpus-grounded answer §43 asked for.
+
+`tests/fishing/oilNecessityComposition.test.ts` was **re-derived, not
+assumed**. Its 91 assertions all still pass — because they probe
+`bestKillProbability` only at `0` and `1`, and no threshold strictly between
+them changes either verdict — which means the file had **no coverage at its own
+new boundary**. Added: both sides of 0.85 in the single-lethal band and in the
+double-lethal band, and the `[0.85, 1)` region that flips SPEND → WITHHOLD.
+91 → 120 tests in that file. The partition PROOF is threshold-independent by
+construction (it turns on disjoint `fishHp` bands and on `conservingTriggers`
+only ever removing entries), so §40's composition argument survives unchanged.
+
+**Three findings fell out, all recorded in `handoff/OIL-CONSERVE.md` §8:**
+
+1. ⚠ **Session 97's epsilon test was VACUOUS.** `almostCertain` summed three
+   thirds, which in this summation order comes to **exactly 1** — so it
+   asserted that a certain kill is treated as certain, and nothing about the
+   tolerance it was named for. It would have stayed green with session 97's own
+   bare-`>=` fix reverted. Now `0.7 + 0.2 + 0.1 = 0.9999999999999999`, the
+   exact value session 68 observed live; the ORDER is load-bearing and is
+   documented, because ascending order re-sums to exactly 1.
+2. **`NECESSITY_EPSILON` is now INERT on the Relaxing arm** —
+   `0.9999999999999999` clears `0.85` under a bare `>=` too. Kept (the Focus
+   arm is still `1`, and `meetsThreshold` takes arbitrary thresholds), and every
+   assertion that actually exercises it was re-pointed at an explicit
+   threshold of `1`.
+3. ⚠ **`liveGateFiringRates.ts` §4's standing verdict does not survive for this
+   arm.** *"`pConnect`'s +9.38pp optimism reaches NO live level gate — CLOSED BY
+   IRRELEVANCE"* held because every level gate sat at `p = 1` and no observation
+   ever reached it. The corpus has mass on **both sides** of 0.85, so correcting
+   an optimistic estimator now moves observations across the boundary and
+   changes gate verdicts. Unchanged for the FOCUS arm. §7's direction argument
+   flips with it: at `1` "a better estimator can only make the gate fire less"
+   was a SAFETY argument; at `0.85` it is a risk argument.
+
+Also: at 0.85 the shadowed exchange arm (0.8333) and the live gate return the
+**same verdict on every Relaxing observation ever recorded** — nothing has
+landed in `[0.8333, 0.85)`. The shadow's Relaxing column can now only be a tie;
+its live-relevant disagreement is entirely the FOCUS arm.
+
+### §B — the §2c clean-cast tripwire, retired (QUESTIONS.md §44)
+
+Retired outright, not re-registered. The only site that still EVALUATED it was
+the post-batch report block in `scripts/liveFishing.ts`; that is gone, and the
+batch output confirms it live. Tombstones recording what it claimed, why it was
+wrong (wrong instrument, ~9x arithmetic error, wrong conclusion) and who
+retired it sit at `src/strategy/fishing/oilBatch.ts`'s `cleanCastCap` field,
+its module header, `SESSION_64_LIMITS`, the `clean_cast_cap` verdict message,
+and `scripts/eraCatchRate.ts` §5.
+
+`SESSION_64_LIMITS.cleanCastCap` keeps its `6`: that constant records what
+session 64 RAN — the module's own rule is that a shape is history, not a
+setting — and no live shape carries a non-null cap. No replacement tripwire was
+invented, per the ruling.
+
+### §D — the 9-cast batch (QUESTIONS.md §45)
+
+Preflight: ledger 11 casts available, **43** Relaxing Oils held (Focus 0),
+`--dry-run` clean. The cap is structural, not a flag: **`SESSION_98_LIMITS`**
+(new) sets `castCap: 9` with its nine casts justified at the constant, as
+session 66 §4 requires — the rod's headroom, not the ledger's.
+
+**Result: 9 casts, 6 caught = 66.7%, exact 95% CI [29.9%, 92.5%].** 8 oils
+consumed. Halted on `cast_cap`, the intended exit.
+
+That interval contains **every** baseline — the `focusDry` era (50.0%),
+`oilSupplied` (62.9%), all-time (38.2%), today's policy era (55.5%) **and
+session 96's 3/10 = 30.0%**. Fisher's exact on the two batches (3/10 vs 6/9)
+gives **p = 0.179**. **So this batch settles nothing on its own, and neither
+batch is evidence the autofisher changed.** That is the same framing session 97
+established and it applies to the good result exactly as it applied to the bad
+one.
+
+Era-level, after folding these 9 casts in: `focusDry` **26/52 = 50.0%**
+[36.9, 63.1] (was 20/43 = 46.5%), against `oilSupplied` 62.9% — the gap is now
+−12.9pp with **overlapping intervals**, i.e. still NOT SUPPORTED.
+
+**⚠ THE GATE AT 0.85 HAD FOUR OPPORTUNITIES AND WITHHELD ZERO — and the reason
+matters more than the count.** From the batch's own `oil_shadow` records:
+
+- **single-lethal turns (`0 < fishHp <= 2`): ZERO.** The arm the corpus
+  measurement above is about never arose. Every `bestKillProbability` in the
+  live record is null for this batch.
+- **double-lethal band turns (`2 < fishHp <= 4`, ≥2 oils held): FOUR**, and the
+  band's own gate — same constant — fired the pair on all four. Those turns had
+  mana 9, 8, 7 and 1, so the bot was nowhere near 85% sure; withholding would
+  have been wrong there.
+
+So the first live read of 0.85 is **"no opportunity to observe it"**, not
+"confirmed" and not "still inert". The 9-of-24 corpus figure and this batch's
+0-of-4 are consistent: they are different arms of the same threshold.
+
+**Opening focus spend: 0.83** [0.69, 0.97] at n=119 (was 0.82 at n=110) —
+unmoved by another 9 casts. **§2e's stated reopening condition is NOT met:**
+today's-era turns-at-focus-zero is **24.3%** (was 23.0%) against the ~40% bar,
+and fish-at-full is 37.0%. `costCap` stays retired and `focusBudget.ts`'s
+guardrails stay unwired.
+
+**Redraw shadow, cumulative across every batch it has run in:** 0/52, 4/24,
+0/2, 0/43, 2/40 = **6 fires in 161 shadow card decisions (3.7%)**, plus 12
+turns that reached no card decision. `redrawEnabled` is still false and the bot
+did not redraw.
+
+**Matcher volume:** this batch contributes toward the 87–122 matcher-active
+turns session 97 priced. It does not close anything, and no matcher claim is
+made from it.
+
+**The rod:** nothing in this repo can read durability (`rodDeck.ts` — the
+account owner is the only sensor), so "the rod showed no signs of failing" is
+NOT a claim this session can make. What can be said is that all 9 casts
+completed and none halted early. The user's replacement is the next event.

@@ -49,8 +49,8 @@ describe("matcher headroom — the scoreboard the matcher is scored against", ()
     // (`zoneTemplate.test.ts`), the remaining 3 in session 45's resumed cast.
     // [session 91] 699 -> 751 plays, 168 -> 178 casts.
     // [session 96] 777 -> 820 plays, 189 -> 199 casts.
-    expect(result.plays).toBe(820); // [session 96] was 777; [session 92] was 751
-    expect(result.casts).toBe(199); // [session 96] was 189; [session 92] was 178
+    expect(result.plays).toBe(860); // [session 96] was 777; [session 92] was 751  // [session 98] was 820
+    expect(result.casts).toBe(208); // [session 96] was 189; [session 92] was 178  // [session 98] was 199
   });
 
   it("reproduces the four rates — floor, actual, and both ceilings", () => {
@@ -83,17 +83,17 @@ describe("matcher headroom — the scoreboard the matcher is scored against", ()
     // (QUESTIONS.md §36); ten casts pooled into 199 cannot resolve a matcher
     // change either way, so do NOT read the flat `actual` as evidence about
     // it in either direction.
-    expect(result.random).toBeCloseTo(0.199, 3); // [session 96] was 0.198; [session 92] was 0.200
-    expect(result.stayPut).toBeCloseTo(0.243, 3); // [session 93] was 0.244; [session 92] was 0.245
-    expect(result.actual).toBeCloseTo(0.373, 3); // [session 96] was 0.375; was 0.374
-    expect(result.oracleSameCard).toBeCloseTo(0.670, 3); // [session 96] was 0.665; was 0.662
-    expect(result.oracleBestCard).toBeCloseTo(0.713, 3); // [session 96] was 0.710
+    expect(result.random).toBeCloseTo(0.20033121916842866, 3); // [session 96] was 0.198; [session 92] was 0.200  // [session 98] was 0.199
+    expect(result.stayPut).toBeCloseTo(0.24069767441860465, 3); // [session 93] was 0.244; [session 92] was 0.245  // [session 98] was 0.243
+    expect(result.actual).toBeCloseTo(0.3767441860465116, 3); // [session 96] was 0.375; was 0.374  // [session 98] was 0.373
+    expect(result.oracleSameCard).toBeCloseTo(0.66860465116279070, 3); // [session 96] was 0.665; was 0.662  // [session 98] was 0.67
+    expect(result.oracleBestCard).toBeCloseTo(0.7104651162790697, 3); // [session 96] was 0.710  // [session 98] was 0.713
 
     // The derived readings the report prints, pinned so a change to the
     // arithmetic is caught rather than the inputs alone.
-    expect(result.capturedFraction).toBeCloseTo(0.370, 3); // [session 96] was 0.378; [session 92] was 0.373
-    expect(result.headroomRemaining).toBeCloseTo(0.296, 3); // [session 96] was 0.291; [session 91] was 0.288 // was 0.301
-    expect(result.cardSelectionValue).toBeCloseTo(0.044, 3); // [session 96] was 0.045; [session 92] was 0.045; 0.047 before that
+    expect(result.capturedFraction).toBeCloseTo(0.37673067661931110, 3); // [session 96] was 0.378; [session 92] was 0.373  // [session 98] was 0.37
+    expect(result.headroomRemaining).toBeCloseTo(0.29186046511627906, 3); // [session 96] was 0.291; [session 91] was 0.288 // was 0.301  // [session 98] was 0.296
+    expect(result.cardSelectionValue).toBeCloseTo(0.041860465116279055, 3); // [session 96] was 0.045; [session 92] was 0.045; 0.047 before that  // [session 98] was 0.044
   });
 
   it("orders floor <= stay-put <= actual <= same-card oracle <= best-card oracle", () => {
@@ -131,7 +131,7 @@ describe("the focus budget, reconstructed rather than read off the stale meter",
         else fails.push({ docId: t.docId, turn: i, consumed: cur.consumablesUsed > prev.consumablesUsed });
       }
     }
-    expect(holds).toBe(796); // [session 96] was 753; [session 92] was 727
+    expect(holds).toBe(836); // [session 96] was 753; [session 92] was 727  // [session 98] was 796
     // **Every** failure is an oil consume — not most, all. This is the
     // assertion that makes the reconstruction legitimate rather than a fudge
     // that happens to fit: if a play ever breaks the identity WITHOUT an oil,
@@ -229,9 +229,9 @@ describe("the aim-error distribution — is the miss structured or diffuse?", ()
     // The spike is still the finding — half of all misses land one cell away,
     // across a corpus that has nearly doubled — but the drift is monotone
     // upward and worth watching rather than describing as flat.
-    expect(total).toBe(487); // [session 96] was 459; [session 92] was 445
-    expect(h.get(1)).toBe(243); // [session 96] was 226; [session 92] was 220
-    expect(h.get(2)).toBe(180); // [session 96] was 171; [session 92] was 164
+    expect(total).toBe(509); // [session 96] was 459; [session 92] was 445  // [session 98] was 487
+    expect(h.get(1)).toBe(251); // [session 96] was 226; [session 92] was 220  // [session 98] was 243
+    expect(h.get(2)).toBe(194); // [session 96] was 171; [session 92] was 164  // [session 98] was 180
     expect(h.get(3)).toBe(52); // [session 96] was 50; [session 91] was 46
     expect(h.get(4)).toBe(11); // was 9
     // Nothing further out, and nothing at 0 — a footprint containing the fish
@@ -287,8 +287,8 @@ describe("the aim-error distribution — is the miss structured or diffuse?", ()
     // The histogram therefore covers 699 - 25 plays, and the miss histogram
     // 437 - 25. Asserted so a silent change in what gets counted is caught,
     // and as identities rather than literals so the relationship is the pin.
-    expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(793); // [session 96] was 750; [session 92] was 726
+    expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(833); // [session 96] was 750; [session 92] was 726  // [session 98] was 793
     expect([...result.aimErrorHist.values()].reduce((a, b) => a + b, 0)).toBe(result.plays - result.noFootprint);
-    expect(result.perPlay.filter((p) => !p.actualHit).length).toBe(514); // [session 96] was 486; [session 92] was 470
+    expect(result.perPlay.filter((p) => !p.actualHit).length).toBe(536); // [session 96] was 486; [session 92] was 470  // [session 98] was 514
   });
 });
