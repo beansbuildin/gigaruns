@@ -88,14 +88,24 @@ export interface Exchange {
   outcome: -1 | 0 | 1;
   /** Combat damage taken by each side (`source === ""` rows only, summed). */
   taken: [number, number];
+  /** Burn damage taken by each side (`source === "burn"` rows) — a status mechanic, kept separate. */
+  burn: [number, number];
+  /** `{type: amount}` on the PRECEDING state, per side. See `scripts/statusEffects.ts` on what `amount` means. */
+  beforeStatus: [Record<string, number>, Record<string, number>];
+  /** The same, on the response itself — `Burn` ticks for its AFTER value, so both are needed. */
+  afterStatus: [Record<string, number>, Record<string, number>];
   /** Each side's `currentATK` for the move it played, from the PRECEDING state. */
   atk: [number | null, number | null];
   /** Each side's rolled-stat values, from the preceding state. */
   stat: [Record<string, number | null>, Record<string, number | null>];
   /** True when NEITHER side carried a status effect — the clean measurement set. */
   statusClean: boolean;
-  /** `OnHeal` value per side, when one was emitted. */
+  /** `OnHeal` value per side, when one was emitted. At most one row per side ever — checked across the corpus. */
   heal: Partial<Record<0 | 1, number>>;
+  /** HP each side entered the exchange on, and its max. */
+  hp: [number | null, number | null];
+  /** True for a side that took at least as much damage as it had HP — it died this exchange. */
+  died: [boolean, boolean];
 }
 
 const ROLLED_STATS = ["block", "evasion", "lck", "tenacity", "intuition"] as const;
@@ -195,10 +205,13 @@ export function loadExchanges(options: LoadOptions = {}): Exchange[] {
       if (bp.length < 2) continue;
 
       const taken: [number, number] = [0, 0];
+      const burn: [number, number] = [0, 0];
       for (const e of events as WireEvent[]) {
         if (e.type !== "OnDamage") continue;
-        if ((e.data ?? {}).source !== "") continue; // burn ticks are a status mechanic, not this
-        if (e.playerId === 0 || e.playerId === 1) taken[e.playerId] += Number(e.value ?? 0);
+        if (e.playerId !== 0 && e.playerId !== 1) continue;
+        // burn ticks are a status mechanic, kept out of `taken` and measured separately
+        const bucket = (e.data ?? {}).source === "burn" ? burn : (e.data ?? {}).source === "" ? taken : null;
+        if (bucket) bucket[e.playerId] += Number(e.value ?? 0);
       }
 
       const heal: Partial<Record<0 | 1, number>> = {};
@@ -206,8 +219,26 @@ export function loadExchanges(options: LoadOptions = {}): Exchange[] {
         if (e.type === "OnHeal" && (e.playerId === 0 || e.playerId === 1)) heal[e.playerId] = Number(e.value ?? 0);
       }
 
+      const hp = [0, 1].map((s) => {
+        const h = (bp[s] as Record<string, any>).health;
+        return h && typeof h.current === "number" ? (h.current as number) : null;
+      });
+
       const statusOf = (side: Record<string, unknown>): unknown[] =>
         Array.isArray(side.statusEffects) ? (side.statusEffects as unknown[]) : [];
+      const statusMap = (side: Record<string, unknown>): Record<string, number> =>
+        Object.fromEntries(
+          statusOf(side)
+            .filter((x): x is { type: string; amount: number } =>
+              !!x && typeof x === "object" && typeof (x as any).type === "string")
+            .map((x) => [x.type, Number(x.amount)]),
+        );
+      // The response's own players[], for the AFTER reading. Falls back to the
+      // before-state when a response omits it, which keeps a missing `run` from
+      // silently reading as "every status cleared".
+      const afterPlayers = Array.isArray(body?.data?.run?.players)
+        ? (body.data.run.players as Record<string, unknown>[])
+        : bp;
 
       out.push({
         label: `${d.name}/${files[i]}`,
@@ -215,6 +246,9 @@ export function loadExchanges(options: LoadOptions = {}): Exchange[] {
         moves,
         outcome: moves[0] === moves[1] ? 0 : BEATS.has(`${moves[0]}>${moves[1]}`) ? 1 : -1,
         taken,
+        burn,
+        beforeStatus: [statusMap(bp[0]!), statusMap(bp[1]!)],
+        afterStatus: [statusMap(afterPlayers[0] ?? bp[0]!), statusMap(afterPlayers[1] ?? bp[1]!)],
         atk: [0, 1].map((s) => {
           const mv = (bp[s] as Record<string, any>)[moves[s]!];
           return mv && typeof mv.currentATK === "number" ? (mv.currentATK as number) : null;
@@ -224,6 +258,8 @@ export function loadExchanges(options: LoadOptions = {}): Exchange[] {
         ) as Exchange["stat"],
         statusClean: statusOf(bp[0]!).length === 0 && statusOf(bp[1]!).length === 0,
         heal,
+        hp: hp as [number | null, number | null],
+        died: [0, 1].map((s) => typeof hp[s] === "number" && taken[s]! + burn[s]! >= hp[s]!) as [boolean, boolean],
       });
     }
   }

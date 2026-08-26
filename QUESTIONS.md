@@ -4582,3 +4582,124 @@ stats from "rate only" to "rate and effect size"; it does not close CAPTURE-1.
 zero-matching control — on a bounded slice, with slice-safe assertions, since
 `evadeProc0` and `intuitionProc0` fire 6 times each in the whole corpus and any
 honest slice can contain none.
+
+---
+
+## §59 ANSWERED [session 101 §D] — THE STATUSES WERE NEVER UNCAPTURED. FOUR OF SIX ARE NOW EXACT, `lifesteal` DOES NOT EXIST, AND `amount` MEANS THREE DIFFERENT THINGS
+
+**Why this was done instead of waiting for the fishing reset.** §58 established
+that the statuses account for the ENTIRE residual of the proc measurement:
+every exchange that missed the null, and every proc exchange that missed its
+rule, carried a non-empty `statusEffects` array; status-clean, the rules held
+72/72. CAPTURE-1 has listed `Weak`, `Vulnerable`, `Burn`, `Regen` and lifesteal
+as needing capture since it was written. **They needed no capture.** They are on
+every player object in the corpus, exactly like `data.events[]` was in §57.
+
+**This is the fourth instance of the same failure**, and it should stop being
+surprising: session 70 (`/gear/items` vs `/offchain/static`), session 99
+(fishing doc vs `/gear/instances`), session 100 (`run.players[]` vs
+`data.events[]`), now this. A field's absence from the payload a repo happens to
+read is not its absence from the API — and a TASKS entry saying "we need to
+capture X" is a claim about the repo's reading habits, not about the server.
+
+### 1. What the corpus contains — six statuses, not four
+
+```
+  Burn 1388    Weak 477    Vulnerable 427    SecondWind 223    Regen 176    Steadfast 65
+```
+
+- **`SecondWind` and `Steadfast` are not in CAPTURE-1's list at all.**
+- **`lifesteal` IS in that list and does not exist.** There is no status by that
+  name and no proportional heal anywhere in the corpus. See §4.
+
+### 2. `amount` means three different things. This is the trap.
+
+Every entry is `{type, amount}`. Read as a magnitude everywhere — the obvious
+reading — it is wrong on half the types:
+
+| type | what `amount` is |
+|---|---|
+| `Burn` | magnitude. The tick equals it exactly. |
+| `Regen` | magnitude, spent down. Heals its value, then decrements by 1. |
+| `SecondWind` | magnitude, stored. Heals its value ONCE, then sits at 0. |
+| `Weak` / `Vulnerable` | **not a magnitude.** A countdown; the multiplier is fixed. |
+
+**And `amount: 0` means INERT, not "present and cleared."** A `Weak` at 0 leaves
+damage at exactly 1.000x the attacker's ATK — indistinguishable from having no
+`Weak` at all — verified **59/59, 37/37 and 25/25** on `Weak`, `Vulnerable` and
+`SecondWind`. **Zero is the single most common amount on four of the six types**
+(`Weak` 320/477, `Vulnerable` 230/427, `SecondWind` 135/223, `Steadfast` 35/65).
+Anything that tests `"Weak" in statusEffects` instead of reading the amount will
+be wrong on the MAJORITY of occurrences. `tests/statusEffects.test.ts` pins this
+specifically.
+
+### 3. The measured mechanics
+
+```
+  Burn        tick === AFTER-state amount              522/522   100%
+  Weak        damage dealt === floor(ATK * 0.75)         33/33   independent of amount (1: 30/30, 2: 3/3)
+  Vulnerable  damage taken === floor(ATK * 1.25)         34/34   independent of amount (1: 26/26, 2: 5/5, 3: 1/1, 4: 2/2)
+  Regen       heals its amount, if the unit survived     53/53   100%
+              then decays by 1, same exchange            60/60   100%
+  SecondWind  when spent, heals exactly its amount       10/10   100%
+              while held, does nothing                   28/28   100%
+  Steadfast   no effect on damage, either role           UNDETERMINED (n=23)
+```
+
+Three details that only appear if you check the residual instead of reporting a
+percentage:
+
+- **`Burn` matches the AFTER-state amount, not the before-state one.** A burn
+  applied this exchange ticks the same exchange — 161 of 522 ticks had no prior
+  burn at all — and a burn re-applied on top stacks before ticking (4 -> 8, 6 ->
+  12). Measured against the before-state it looks like a 303/522 rule with two
+  families of exception; against the after-state it is exact. **The order is:
+  apply, then tick.**
+- **`Regen` does not heal a unit that DIED this exchange, but its counter still
+  decays.** All 7 apparent exceptions were lethal exchanges — incoming damage at
+  or above the unit's HP. Excluding them takes the rule from 53/60 (88.3%) to
+  53/53. This was found by looking at the seven, not by rounding 88.3% up.
+- **`Burn` does not decay on its own.** 0 of 522 decremented; it holds its value
+  and then clears outright. `Weak` and `Vulnerable` DO decrement, within the
+  exchange (1 -> 0, 38 and 46 times).
+
+### 4. `lifesteal` does not exist, and the heals it was invented to explain are something else
+
+22 heals are explained by no status and no proc. If lifesteal were real they
+would sit at a constant fraction of damage dealt. They do not: **ratios run 0.20
+to 0.80, and one heals 2 having dealt 0 damage.** What they actually are is
+**constant within a run** — one value per run per side, always 2 or 4, the enemy
+side always 4. That is the signature of a flat per-exchange effect from a boon
+or an enemy trait, not a proportional one. **Mechanism undetermined; lifesteal
+is ruled OUT** and should come off CAPTURE-1's list rather than staying on it as
+an unmeasured item.
+
+### 5. What is still open, stated as thin because it is thin
+
+- **`SecondWind`'s TRIGGER.** The magnitude is exact and the trigger is not
+  determined. It is **not** lethality and **not** a fixed HP threshold: it fired
+  at 40/40 HP against 10 incoming and held at 40/40 against 14 incoming. n = 10
+  fires. Fitting a rule to that would be inventing one.
+- **`Steadfast`.** No effect on the damage number in either role (10/10 and 6/6
+  at exactly 1.00x). Debuff immunity is consistent with the data — 0 of 11
+  exchanges gained a `Weak`/`Vulnerable` while `Steadfast > 0`, against 103 of
+  3815 when absent — but at n=11 the expected count under NO effect is ~0.3, so
+  **the observation is underpowered and proves nothing.** Recorded as consistent,
+  not as established.
+- **`tenacity` and `intuition` are unchanged from §58** — still ruled out as
+  damage mitigation, still without a positive mechanic.
+
+### 6. This still does not authorise building the model
+
+CAPTURE-1's prohibition stands. What has changed is which gap is load-bearing:
+the damage NUMBER is now almost fully accounted for, and what remains unmodelled
+is two proc mechanics, one trigger condition and one status. That is a much
+smaller list than CAPTURE-1 describes — and it is a list, not a green light.
+STATE.md session 100's open question 2 (should the live loop read any of this in
+real time) is still deferred and this session did not touch it.
+
+### 7. Reproducing this
+
+`npx tsx scripts/statusEffects.ts`, re-runnable as volume accumulates.
+`tests/statusEffects.test.ts` pins every exact rule plus the inert-at-zero
+claim, on a bounded slice with slice-safe assertions.

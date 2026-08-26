@@ -1687,11 +1687,36 @@ volumes and QUESTIONS.md §58 reports them wide; the separation is the claim.
 - **`tenacity` and `intuition` mechanics.** Both are ruled OUT as damage
   mitigation, which is progress, but neither has a positive verdict. Both fire
   ~6-19 times in the whole corpus, so both need volume, not cleverness.
-- **`Weak`, `Vulnerable`, `Burn`, `Regen`, lifesteal** — untouched by this.
-  They live in `statusEffects`, not in the proc booleans. **They are also the
-  ENTIRE residual**: every exchange that misses the null or its rule carries a
-  non-empty `statusEffects` array, and on status-clean exchanges the three
-  rules hold 72/72. Measuring the statuses is what would close the error term.
+- **`SecondWind`'s TRIGGER condition** — magnitude exact, trigger unknown. Not
+  lethality and not a fixed HP threshold (fired at 40/40 vs 10 incoming, held
+  at 40/40 vs 14). n=10.
+- **`Steadfast`'s mechanic** — no damage effect. Debuff immunity is consistent
+  (0 of 11 gained a Weak/Vulnerable while active) but underpowered at n=11;
+  the expected count under NO effect is ~0.3.
+- **The flat run-scoped heal** — 22 heals no status or proc explains, always 2
+  or 4, constant within a run. A boon or enemy trait, not lifesteal.
+- **[session 101 §D — DONE, and they were never uncaptured] The statuses.**
+  They are on every player object in the corpus, exactly as `data.events[]`
+  was. Six exist, not the four listed here: `Burn` 1388, `Weak` 477,
+  `Vulnerable` 427, **`SecondWind` 223**, `Regen` 176, **`Steadfast` 65**.
+  **`lifesteal` does not exist** — no such status, and no proportional heal
+  anywhere in the corpus. It comes OFF this list rather than staying on it.
+
+```
+  Burn        tick == AFTER-state amount (apply, then tick)   522/522
+  Weak        damage dealt == floor(ATK * 0.75)                 33/33
+  Vulnerable  damage taken == floor(ATK * 1.25)                 34/34
+  Regen       heals its amount unless the unit died             53/53
+              then decays by 1, same exchange                   60/60
+  SecondWind  one-shot stored heal of exactly `amount`          10/10
+  Steadfast   no damage effect; mechanic UNDETERMINED (n=23)
+```
+
+  **`amount` means three different things** — magnitude for `Burn`/`Regen`/
+  `SecondWind`, a countdown for `Weak`/`Vulnerable` whose multiplier is fixed —
+  and **`amount: 0` is INERT**, verified 59/59, 37/37, 25/25. Zero is the most
+  common value on four of the six types, so a PRESENCE check is wrong on the
+  majority of occurrences. QUESTIONS.md §59.
 - **`crit x block` composes multiplicatively** (2 x 0.5 = 1.0) on the single
   exchange where both fired. Mechanism, one observation — not a measured rule.
 
