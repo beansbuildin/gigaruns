@@ -1,4 +1,4 @@
-# STATE — session 100 — 2026-08-26 (PT) — code at commit 6ad36e50
+# STATE — session 100 — 2026-08-26 (PT) — code at commit 5d99093f
 
 ## Status
 Brief items **§A: DONE. §B: DONE. §C: BLOCKED — ledger not reset (expected).**
