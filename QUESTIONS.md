@@ -4178,3 +4178,118 @@ the suite instead of quietly mis-hinting an operator.
 
 **`redrawEnabled` stays `false` and `REDRAW_THRESHOLD` stays `0`**, per §49,
 whatever the verdict. This analysis reports; it does not enable.
+
+---
+
+## §52 ANSWERED [conversation with the user, 2026-08-26, outside a numbered session] — WIRE `DURABILITY_CID` INTO THE FISHING PREFLIGHT
+
+**Session 99's open question #1**: `GET /gear/instances/{address}` publishes
+`DURABILITY_CID` directly (Golkan 40 at equip; Shroom read 0 when it ran
+dry) and nothing consumes it — three sessions (89–91) reconstructed
+durability indirectly from dealt decks while the server had it the whole
+time. **The user's ruling: proceed.**
+
+**What "proceed" requires, precisely, so it doesn't repeat the mistake it's
+fixing.** Reading a durability number and acting on it correctly needs one
+thing this repo does not yet have: **the per-cast decrement rate.** Session
+99 recorded exactly one data point — Golkan equipped at 40, two casts played
+on it since — and did not record the post-batch reading. **Do not assume a
+linear ~1-unit-per-cast rate or any other formula.** The scoped work is:
+
+1. Call `/gear/instances/{address}` (or reuse it if a live fishing response
+   already bundles the same gear-instance data — check before adding a new
+   network call) at the START of a live batch and log the reading, the same
+   way oil stock is checked before a batch today.
+2. **Fail-closed, not predict-forward, for the first version.** We know 0
+   means "ran dry" (Shroom). A preflight that halts or warns when durability
+   reads at or near 0 is buildable now, on data already in hand. A preflight
+   that predicts "N casts of headroom remain" needs the decrement rate,
+   which needs at least two readings bracketing a known cast count — that
+   doesn't exist yet.
+3. **Start recording the reading before and after each live batch** as a
+   new, small piece of instrumentation, so the decrement rate becomes
+   derivable from ordinary play rather than a dedicated experiment. Once
+   there are a few paired readings, a future session can fit the rate and
+   upgrade the preflight from fail-closed to predictive.
+4. This replaces the user's own self-reported "~40-cast estimate" as the
+   authority once it's wired and reads a real number — but not before it has
+   been cross-checked at least once against an actual observed rod failure,
+   the same discipline rule 9 asks of everything else this repo measures.
+
+---
+
+## §53 ANSWERED [conversation with the user, 2026-08-26, outside a numbered session] — GOLKAN IS THE STANDING ROD, UNTIL FURTHER NOTICE
+
+**Session 99's open question #2** asked when `CORPUS_DECK` should repoint
+from Shroom to Golkan (2 of 210 corpus casts are Golkan; the standing rule
+is repoint when the ratio inverts). **The user's ruling, verbatim:** *"golkan
+will be the rod of choice until further notice."*
+
+**This does not, by itself, trigger a repoint.** It answers a different but
+related question: there is no planned swap back to Shroom, so every future
+cast will be Golkan and the ratio will move in exactly one direction from
+here. **The existing "repoint when the ratio inverts" rule stays the
+mechanism — no new numeric threshold is being set**, because the user
+didn't set one and an agent shouldn't invent one (rule 9 territory: a
+threshold picked by an agent rather than derived or directed is exactly the
+kind of unverified confidence this repo has been correcting). What changes
+is that whoever tracks the ratio going forward can now assume it moves
+monotonically toward Golkan rather than possibly reversing, which makes
+"the ratio inverts" a when-not-if question for the first time.
+
+**No code change from this entry alone.** `rodDeck.ts`'s `CORPUS_DECK`
+stays Shroom until the ratio condition is actually met.
+
+---
+
+## §54 ANSWERED [conversation with the user, 2026-08-26, outside a numbered session] — THE `triggeredBoons` EMPTY-FIELD QUESTION IS A REQUIRED ITEM FOR THE NEXT SESSION, NOT RESOLVED HERE
+
+**Session 99's open question #3**: `triggeredBoons` — the field that would
+evidence a boon actually procing — was empty on every recorded state across
+all 214 POSTs of a full 4-run day, and it gates `CAPTURE-1` (a silent,
+never-firing evidence channel would make the five-rolled-stats model
+unreachable by ordinary play, however many runs are spent). **The user's
+ruling: write this into the next session as a resolution requirement**,
+rather than answer it in conversation.
+
+**This entry does not resolve the question — it records the requirement.**
+See `handoff/next.md` §C for the scoped investigation. Whoever picks that up
+should treat it as blocking: don't let it become a sixth item carried
+forward unresolved the way `OIL-CONSERVE.md` sat for 29 sessions. Check the
+FULL corpus (all 79 dungeon attempts), not just session 99's 4, before
+concluding anything about whether the field ever populates.
+
+---
+
+## §55 ANSWERED [conversation with the user, 2026-08-26, outside a numbered session] — TOMORROW'S FISHING BATCH IS 20 CASTS, THE FULL DAILY CAP
+
+**Session 99's open question #4** (the 0.85 necessity gate has gone three
+straight batches with zero opportunities, at a natural arrival rate too low
+to observe it at 1-2 casts/day) is not being solved by shaping a batch
+toward it — §50 already ruled that out and stands. **The user's ruling
+instead: tomorrow's batch is 20 casts** — the full daily cap, not another
+small increment.
+
+**This is a volume decision, not a targeting one — the distinction
+matters and should be preserved in how the next session reports it.** A
+20-cast batch raises the natural odds of a single-lethal turn arising
+without engineering toward one, which is consistent with §50's ruling, not
+a reversal of it. Report whatever the gate does (or doesn't do) as an
+observation of ordinary play at higher volume, not as a targeted test.
+
+**Timing:** both daily ledgers were EXHAUSTED as of session 99 (fishing
+20/20, dungeon 12/12), resetting 11:00 Pacific. This batch runs whenever a
+session executes after that reset — it does not have to be the very next
+session chronologically if that session runs before the reset.
+
+---
+
+## §56 ANSWERED [conversation with the user, 2026-08-26, outside a numbered session] — THE DUNGEON DEPTH-CONFIDENCE GAP STAYS OPEN, NO ACTION
+
+**Session 99's open question #5** (the opponent model is weakest exactly at
+the deepest, highest-stakes rooms — room 10 reported `confidence=low` on
+n=5 — which compounds because a death there forfeits the most accumulated
+Hard Core). **The user's ruling: leave open.** No task, no brief item, no
+threshold set. Carry it forward as a standing observation only; do not let
+a future session interpret silence on this as license to invent a fix
+unprompted.
