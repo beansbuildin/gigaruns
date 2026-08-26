@@ -27,7 +27,7 @@ import {
 import { loadCastTraces } from "../../src/sim/fishing/castTrace.js";
 import { matcherFishPolicy, simulateCasts } from "../../src/sim/fishing/castSim.js";
 import { makeRng } from "../../src/sim/rng.js";
-import { REAL_DECK } from "../../src/sim/fishing/rodDeck.js";
+import { CORPUS_DECK } from "../../src/sim/fishing/rodDeck.js";
 
 const ALL = loadCastTraces();
 
@@ -77,7 +77,7 @@ describe("buildFishMaxHpSampler", () => {
 
 describe("the option is OPT-IN, and the default is pinned", () => {
   const board = { startFishHpRatio: 13 / 21, startMana: 10, handSize: 3, gridSize: 4 } as const;
-  const opts = { policy: matcherFishPolicy, deckIds: [...REAL_DECK], matcherPool: [] as [], ...board };
+  const opts = { policy: matcherFishPolicy, deckIds: [...CORPUS_DECK], matcherPool: [] as [], ...board };
 
   it("leaves the default path byte-for-byte where it was before the option existed", () => {
     // MEASURED at commit abf1aaf9, before `fishMaxHpSampler` was added, on the

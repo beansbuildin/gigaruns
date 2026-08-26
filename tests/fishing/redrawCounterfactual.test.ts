@@ -69,8 +69,8 @@ const TRACES = loadCastTraces();
 describe("the triple reconstruction — §2a, pinned before the table that uses it", () => {
   it("advances nextCardIndex by exactly +3 on every draw that advances it, with 7 pile wraps", () => {
     const tr = tripleReconstruction(TRACES);
-    expect(tr.traces).toBe(208); // [session 93] was 188; was 148 @148 casts  /* [session 92] was 178 */  // [session 96] was 189  // [session 98] was 199
-    expect(tr.deltas.get(3)).toBe(196); // was 137  /* [session 92] was 174 */  // [session 96] was 177  // [session 98] was 185
+    expect(tr.traces).toBe(210); // [session 93] was 188; was 148 @148 casts  /* [session 92] was 178 */  // [session 96] was 189  // [session 98] was 199  /* [session 99] was 208 */
+    expect(tr.deltas.get(3)).toBe(198); // was 137  /* [session 92] was 174 */  // [session 96] was 177  // [session 98] was 185  /* [session 99] was 196 */
     expect(tr.wraps).toBe(8);  // [session 96] was 7
     // Session 79's wraps, by size. The cursor goes DOWN, because the server
     // wraps rather than overflows — a predicate looking for an index ABOVE
@@ -84,8 +84,8 @@ describe("the triple reconstruction — §2a, pinned before the table that uses 
   it("deals at least one previously-unheld card on every single draw", () => {
     const tr = tripleReconstruction(TRACES);
     // STRUCTURAL AND UNCHANGED: the two are still EQUAL. 144/144 -> 166/166.
-    expect(tr.draws).toBe(204); // was 144  /* [session 92] was 181 */  // [session 96] was 184  // [session 98] was 193
-    expect(tr.drawsWithUnheldCard).toBe(204); // was 144  /* [session 92] was 181 */  // [session 96] was 184  // [session 98] was 193
+    expect(tr.draws).toBe(206); // was 144  /* [session 92] was 181 */  // [session 96] was 184  // [session 98] was 193  /* [session 99] was 204 */
+    expect(tr.drawsWithUnheldCard).toBe(206); // was 144  /* [session 92] was 181 */  // [session 96] was 184  // [session 98] was 193  /* [session 99] was 204 */
   });
 
   it("the unheld-card check is NOT vacuous — the drawing turn's own hand must be excluded", () => {
@@ -106,7 +106,7 @@ describe("the triple reconstruction — §2a, pinned before the table that uses 
         if (nh.some((c) => !heldIncludingNow.has(c))) vacuous++;
       }
     }
-    expect(draws).toBe(204); // was 144  /* [session 92] was 181 */  // [session 96] was 184  // [session 98] was 193
+    expect(draws).toBe(206); // was 144  /* [session 92] was 181 */  // [session 96] was 184  // [session 98] was 193  /* [session 99] was 204 */
     // STRUCTURAL AND UNCHANGED: the vacuous reading still finds nothing, so the
     // 166/166 above is still evidence rather than a tautology.
     expect(vacuous).toBe(0);
@@ -143,8 +143,8 @@ describe("the four-cell counterfactual — §2b", () => {
     const r = redrawCounterfactual(TRACES);
     assertRedrawCounterfactualSound(r);
 
-    expect(r.plays).toBe(547); // was 389 @148 casts (session-83 brief: 386)  /* [session 92] was 485 */  // [session 96] was 493  // [session 98] was 519
-    expect(r.bothReach).toBe(362); // was 261 (brief: 262)  /* [session 92] was 323 */  // [session 96] was 327  // [session 98] was 347
+    expect(r.plays).toBe(553); // was 389 @148 casts (session-83 brief: 386)  /* [session 92] was 485 */  // [session 96] was 493  // [session 98] was 519  /* [session 99] was 547 */
+    expect(r.bothReach).toBe(368); // was 261 (brief: 262)  /* [session 92] was 323 */  // [session 96] was 327  // [session 98] was 347  /* [session 99] was 362 */
     expect(r.sacrifice).toBe(37); // was 27 (brief: 26)  /* [session 91] was 30 */  // [session 96] was 34  // [session 98] was 35
     expect(r.rescue).toBe(71); // was 45 (brief: 42)  /* [session 92] was 60 */  // [session 96] was 61  // [session 98] was 64
     expect(r.neitherReaches).toBe(77); // was 56 (brief: 56)  /* [session 92] was 68 */  // [session 96] was 71  // [session 98] was 73
@@ -159,9 +159,9 @@ describe("the four-cell counterfactual — §2b", () => {
     // part that was ever load-bearing, is that both availabilities are
     // counts over `plays` and that the actual arm is the smaller.
     const r = redrawCounterfactual(TRACES);
-    expect(r.bothReach + r.sacrifice).toBe(399); // was 288  /* [session 92] was 357 */  // [session 96] was 361  // [session 98] was 382
-    expect(r.actualAvailability).toBeCloseTo(399 / 547, 6);  // [session 98] was 382 / 519
-    expect(r.redrawAvailability).toBeCloseTo(433 / 547, 6); // [session 98] was 411 / 519
+    expect(r.bothReach + r.sacrifice).toBe(405); // was 288  /* [session 92] was 357 */  // [session 96] was 361  // [session 98] was 382  /* [session 99] was 399 */
+    expect(r.actualAvailability).toBeCloseTo(405 / 553, 6);  // [session 98] was 382 / 519  // [session 99] was 399 / 547
+    expect(r.redrawAvailability).toBeCloseTo(439 / 553, 6); // [session 98] was 411 / 519  // [session 99] was 433 / 547
     expect(r.redrawAvailability).toBeGreaterThan(r.actualAvailability);
   });
 
@@ -189,7 +189,7 @@ describe("the four-cell counterfactual — §2b", () => {
     const dead = r.rescue + r.neitherReaches;
     expect(dead).toBe(148); // was 101 (brief: 98)  /* [session 92] was 128 */  // [session 96] was 132  // [session 98] was 137
     // The dead RATE is the durable half: 0.260 -> 0.266 across 20 more casts.
-    expect(dead / r.plays).toBeCloseTo(0.27056672760511885, 3);  /* [session 92] was 0.2639 */  // [session 96] was 0.26774847870182555  // [session 98] was 0.26396917148362237
+    expect(dead / r.plays).toBeCloseTo(0.26763110307414106, 3);  /* [session 92] was 0.2639 */  // [session 96] was 0.26774847870182555  // [session 98] was 0.26396917148362237  /* [session 99] was 0.27056672760511885 */
     expect(r.rescue / dead).toBeCloseTo(0.4797297297297297, 3); // was 0.446  /* [session 92] was 0.469 */  // [session 96] was 0.4621212121212121  // [session 98] was 0.46715328467153283
   });
 
@@ -228,17 +228,17 @@ describe("the four-cell counterfactual — §2b", () => {
         byLength++;
       }
     }
-    expect(byLength).toBe(406); // was 286  /* [session 92] was 360 */  // [session 96] was 366  // [session 98] was 384
-    expect(redrawCounterfactual(TRACES).plays - byLength).toBe(141); // was 103  /* [session 92] was 125 */  // [session 96] was 127  // [session 98] was 135
+    expect(byLength).toBe(410); // was 286  /* [session 92] was 360 */  // [session 96] was 366  // [session 98] was 384  /* [session 99] was 406 */
+    expect(redrawCounterfactual(TRACES).plays - byLength).toBe(143); // was 103  /* [session 92] was 125 */  // [session 96] was 127  // [session 98] was 135  /* [session 99] was 141 */
   });
 
   it("is not an artefact of the trace filter — clean-only moves it by one row", () => {
     const clean = redrawCounterfactual(TRACES.filter(isCleanTrace));
     // STRUCTURAL AND UNCHANGED: still EXACTLY one row, on 20 more casts.
-    expect(clean.plays).toBe(546); // was 388  /* [session 92] was 484 */  // [session 96] was 492  // [session 98] was 518
+    expect(clean.plays).toBe(552); // was 388  /* [session 92] was 484 */  // [session 96] was 492  // [session 98] was 518  /* [session 99] was 546 */
     expect(redrawCounterfactual(TRACES).plays - clean.plays).toBe(1);
     expect(clean.neitherReaches).toBe(77); // was 56  /* [session 92] was 68 */  // [session 96] was 71  // [session 98] was 73
-    expect(clean.bothReach).toBe(362); // was 261  /* [session 92] was 323 */  // [session 96] was 327  // [session 98] was 347
+    expect(clean.bothReach).toBe(368); // was 261  /* [session 92] was 323 */  // [session 96] was 327  // [session 98] was 347  /* [session 99] was 362 */
   });
 });
 
@@ -259,7 +259,7 @@ describe("the mana slack — §1c, GATE 2", () => {
    */
   it("reproduces the distribution the corpus now yields, with the shape unmoved", () => {
     const m = manaSlack(TRACES);
-    expect(m.casts).toBe(207); // [session 93] was 187; was 147  /* [session 92] was 177 */  // [session 96] was 188  // [session 98] was 198
+    expect(m.casts).toBe(209); // [session 93] was 187; was 147  /* [session 92] was 177 */  // [session 96] was 188  // [session 98] was 198  /* [session 99] was 207 */
     expect(m.mean).toBeCloseTo(5.855072463768116, 2); // [session 93] was 5.866310160427807; was 5.85  /* [session 92] was 5.768 */  // [session 96] was 5.88  // [session 98] was 5.8686868686868685
     expect(m.median).toBe(7); // UNCHANGED
     expect(m.manaOut).toBe(21); // was 15  /* [session 91] was 17 */  // [session 96] was 19  // [session 98] was 20
@@ -269,8 +269,8 @@ describe("the mana slack — §1c, GATE 2", () => {
       [2, 5], // UNCHANGED across the nine-cast batch
       [3, 8], // [session 98] was 7
       [4, 9], // UNCHANGED across the nine-cast batch
-      [5, 22], // UNCHANGED across the nine-cast batch
-      [6, 24], // UNCHANGED across the nine-cast batch
+      [5, 23], // [session 99] was 22
+      [6, 25], // [session 99] was 24
       [7, 38], // [session 98] was 35; [session 91] was 32
       [8, 66], // [session 98] was 64; [session 96] was 61 — still the mode
       [9, 10], // [session 98] was 9; [session 96] was 8
@@ -279,10 +279,10 @@ describe("the mana slack — §1c, GATE 2", () => {
 
   it("splits by outcome, and the caught arm still leaves MORE mana unspent", () => {
     const m = manaSlack(TRACES);
-    expect(m.caught).toBe(79); // [session 93] was 69; was 48  /* [session 92] was 64 */  // [session 96] was 70  // [session 98] was 73
-    expect(m.escaped).toBe(128); // was 99  /* [session 92] was 113 */  // [session 96] was 118  // [session 98] was 125
-    expect(m.meanWhenCaught).toBeCloseTo(6.886075949367089, 2); // [session 93] was 6.898550724637682; was 6.73  /* [session 92] was 6.766 */  // [session 96] was 6.91  // [session 98] was 6.904109589041096
-    expect(m.meanWhenEscaped).toBeCloseTo(5.21875, 2); // was 5.42  /* [session 92] was 5.204 */  // [session 98] was 5.262711864406779
+    expect(m.caught).toBe(80); // [session 93] was 69; was 48  /* [session 92] was 64 */  // [session 96] was 70  // [session 98] was 73  /* [session 99] was 79 */
+    expect(m.escaped).toBe(129); // was 99  /* [session 92] was 113 */  // [session 96] was 118  // [session 98] was 125  /* [session 99] was 128 */
+    expect(m.meanWhenCaught).toBeCloseTo(6.8625, 2); // [session 93] was 6.898550724637682; was 6.73  /* [session 92] was 6.766 */  // [session 96] was 6.91  // [session 98] was 6.904109589041096  /* [session 99] was 6.886075949367089 */
+    expect(m.meanWhenEscaped).toBeCloseTo(5.224806201550388, 2); // was 5.42  /* [session 92] was 5.204 */  // [session 98] was 5.262711864406779  /* [session 99] was 5.21875 */
     // The DIRECTION is the finding and it widened rather than eroded: casts
     // that landed the fish ended with more mana left over, not less.
     expect(m.meanWhenCaught).toBeGreaterThan(m.meanWhenEscaped);
@@ -290,18 +290,18 @@ describe("the mana slack — §1c, GATE 2", () => {
 
   it("says the pool is not what ends casts: 89.8% of casts leave mana unspent", () => {
     const m = manaSlack(TRACES);
-    expect(m.casts - m.manaOut).toBe(186); // [session 93] was 168; was 132  /* [session 92] was 158 */  // [session 96] was 169  // [session 98] was 178
+    expect(m.casts - m.manaOut).toBe(188); // [session 93] was 168; was 132  /* [session 92] was 158 */  // [session 96] was 169  // [session 98] was 178  /* [session 99] was 186 */
     // 89.8% SURVIVES TO THREE DECIMALS on 20 more casts — the one figure in
     // this file the corpus growth did not move at all.
-    expect((m.casts - m.manaOut) / m.casts).toBeCloseTo(0.899, 3);  /* [session 92] was 0.8927 */ // [session 93] was 0.8983957219251337
+    expect((m.casts - m.manaOut) / m.casts).toBeCloseTo(0.8995215311004785, 3);  /* [session 92] was 0.8927 */ // [session 93] was 0.8983957219251337  /* [session 99] was 0.899 */
   });
 
   it("excludes unresolved casts rather than reading a truncated capture as a cast end", () => {
     // Anti-vacuity: the resolved filter must actually filter, otherwise "147"
     // is just "every trace" wearing a predicate.
-    expect(TRACES.length).toBe(208); // [session 93] was 188; was 148  /* [session 92] was 178 */  // [session 96] was 189  // [session 98] was 199
+    expect(TRACES.length).toBe(210); // [session 93] was 188; was 148  /* [session 92] was 178 */  // [session 96] was 189  // [session 98] was 199  /* [session 99] was 208 */
     // STRUCTURAL AND UNCHANGED: still EXACTLY one unresolved trace.
-    expect(TRACES.filter((t) => t.caught || t.escaped)).toHaveLength(207); // [session 96] was 188; [session 92] was 177  // [session 98] was 198
+    expect(TRACES.filter((t) => t.caught || t.escaped)).toHaveLength(209); // [session 96] was 188; [session 92] was 177  // [session 98] was 198  /* [session 99] was 207 */
     expect(TRACES.length - TRACES.filter((t) => t.caught || t.escaped).length).toBe(1);
   });
 });
@@ -314,17 +314,17 @@ describe("separability — §3, the question that decides whether §2 is actiona
     // use where the fish went, which is what makes it a candidate trigger and
     // not another oracle.
     expect(SEP.deadPlays).toBe(148); // was 101  /* [session 92] was 128 */  // [session 96] was 132  // [session 98] was 137
-    expect(SEP.livePlays).toBe(399); // was 288  /* [session 92] was 357 */  // [session 96] was 361  // [session 98] was 382
+    expect(SEP.livePlays).toBe(405); // was 288  /* [session 92] was 357 */  // [session 96] was 361  // [session 98] was 382  /* [session 99] was 399 */
     // The AUC is the durable claim and it barely moved: 0.922 -> 0.921.
-    expect(SEP.coverageAuc).toBeCloseTo(0.9214675201517307, 3);  /* [session 92] was 0.9216 */  // [session 98] was 0.9238856711155881
+    expect(SEP.coverageAuc).toBeCloseTo(0.9226142809476143, 3);  /* [session 92] was 0.9216 */  // [session 98] was 0.9238856711155881  /* [session 99] was 0.9214675201517307 */
     expect(SEP.meanCoverageDead).toBeCloseTo(5.283783783783784, 2); // was 5.13  /* [session 92] was 5.258 */  // [session 96] was 5.196969696969697  // [session 98] was 5.240875912408759
-    expect(SEP.meanCoverageLive).toBeCloseTo(13.298245614035087, 2); // [session 92] was 13.33  // [session 96] was 13.34  // [session 98] was 13.350785340314136
+    expect(SEP.meanCoverageLive).toBeCloseTo(13.335802469135803, 2); // [session 92] was 13.33  // [session 96] was 13.34  // [session 98] was 13.350785340314136  /* [session 99] was 13.298245614035087 */
     // A hand that can put a zone on all sixteen cells is never dead. Asserted
     // because it is the mechanism behind the AUC, not a coincidence of it.
-    expect(SEP.sweep[15]!.fires).toBe(354); // was 248  /* [session 92] was 310 */  /* [session 91] was 285 */  // [session 96] was 316  // [session 98] was 332
+    expect(SEP.sweep[15]!.fires).toBe(355); // was 248  /* [session 92] was 310 */  /* [session 91] was 285 */  // [session 96] was 316  // [session 98] was 332  /* [session 99] was 354 */
     // STRUCTURAL AND UNCHANGED: full coverage fires on EVERY play, which is
     // the mechanism behind the AUC rather than a coincidence of it.
-    expect(SEP.sweep[16]!.fires).toBe(547); // was 389  /* [session 92] was 485 */  // [session 96] was 493  // [session 98] was 519
+    expect(SEP.sweep[16]!.fires).toBe(553); // was 389  /* [session 92] was 485 */  // [session 96] was 493  // [session 98] was 519  /* [session 99] was 547 */
     expect(SEP.sweep[16]!.fires).toBe(redrawCounterfactual(TRACES).plays);
   });
 

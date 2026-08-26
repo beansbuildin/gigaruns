@@ -154,11 +154,11 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // not the ledger — `SESSION_98_LIMITS`): +63 responseDocs, +40 playTurns,
     // +6 caught, +3 escaped. `incomplete` is UNCHANGED at 1 for the NINTH
     // consecutive batch.
-    expect(summary.casts).toBe(208); // [session 98] was 199; was 189
-    expect(summary.responseDocs).toBe(1212); // [session 98] was 1149; was 1091
-    expect(summary.playTurns).toBe(861); // [session 98] was 821; [session 96] was 778
-    expect(summary.caught).toBe(79); // [session 98] was 73; [session 96] was 70
-    expect(summary.escaped).toBe(128); // [session 98] was 125; [session 96] was 118
+    expect(summary.casts).toBe(210); // [session 98] was 199; was 189  /* [session 99] was 208 */
+    expect(summary.responseDocs).toBe(1224); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */
+    expect(summary.playTurns).toBe(870); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */
+    expect(summary.caught).toBe(80); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */
+    expect(summary.escaped).toBe(129); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.

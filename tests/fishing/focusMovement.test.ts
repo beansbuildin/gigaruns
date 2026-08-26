@@ -31,13 +31,13 @@
 import { describe, expect, it } from "vitest";
 
 import { measureFocusMovement, type FocusMovementProbe } from "../../src/sim/fishing/focusMovement.js";
-import { REAL_DECK } from "../../src/sim/fishing/rodDeck.js";
+import { CORPUS_DECK } from "../../src/sim/fishing/rodDeck.js";
 import type { Cast } from "../../src/sim/fishing/transitionCorpus.js";
 import { buildStepClassTable } from "../../src/strategy/fishing/stepClass.js";
 
 /** The two arms exactly as `scripts/damageEconomy.ts` §3 writes them. */
-const blindArm = () => ({ deckIds: [...REAL_DECK], matcherPool: [] });
-const bareArm = () => ({ deckIds: [...REAL_DECK] });
+const blindArm = () => ({ deckIds: [...CORPUS_DECK], matcherPool: [] });
+const bareArm = () => ({ deckIds: [...CORPUS_DECK] });
 
 const blind0 = measureFocusMovement("BLIND (matcherPool: [])", blindArm(), 0);
 const blind3 = measureFocusMovement("BLIND (matcherPool: [])", blindArm(), 3);
@@ -149,7 +149,7 @@ describe("the condition is UNIFORM, not BLIND — the boundary that stops the ov
     // suppresses aiming is having no distribution at all.
     const table = oneDirectionTable();
     for (const w of [0, 3]) {
-      const p = measureFocusMovement("blind + ringModel", { deckIds: [...REAL_DECK], matcherPool: [], ringModel: { table } }, w);
+      const p = measureFocusMovement("blind + ringModel", { deckIds: [...CORPUS_DECK], matcherPool: [], ringModel: { table } }, w);
       expect(p.turnsThatMoved).toBeGreaterThan(0.25 * p.turns);
       expect(p.focusCells.length).toBeGreaterThan(1);
       expect(p.playsThatAimed).toBe(p.turnsThatMoved);

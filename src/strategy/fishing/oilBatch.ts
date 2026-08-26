@@ -278,6 +278,43 @@ export const SESSION_98_LIMITS: BatchLimits = {
   haltOnShadowBlind: true,
 };
 
+/**
+ * **[session 99 §2] TWO casts, and what the two are for.**
+ *
+ * Session 66 §4's rule again: a batch shape is history, not a standing
+ * authorization, so the number is justified beside itself.
+ *
+ * **The cap is TWO because the DAY'S LEDGER holds exactly two.**
+ * `dayDocs[pondId 2]` read 18 of 20 at the start of this session and the repo
+ * ledger agreed at 18, so two is the whole remaining allowance — this is the
+ * one batch shape in this file whose number is set by the ledger rather than
+ * in spite of it. Session 98's nine were capped by the ROD against a ledger
+ * with room to spare; this is the opposite case, and the distinction is worth
+ * keeping because `ledger_exhausted` and `cast_cap` would fire on the same
+ * cast here. `batchVerdict` ranks `cast_cap` first, which is correct: two
+ * casts completed is the INTENDED exit, not an exhaustion.
+ *
+ * **What the casts buy:** the first PLAY capture on the new rod. The account
+ * swapped Shroom (811, durability 0) for **Golkan (812)** at
+ * 2026-08-26T02:27:20Z — after session 98's last cast, exactly as
+ * QUESTIONS.md §47 said — and `/offchain/static` gives Golkan's grant as
+ * `[74,80,81,84,85,86,87,88,89,90]`. That is the PAYLOAD half. These two
+ * casts are the half that reads the game: whether PLAY is actually dealt that
+ * grant, which `rodDeck.ts` has been burned on before (a rod being equipped
+ * does not mean its grant is dealt — session 89's durability window).
+ *
+ * Everything else is session 98's shape, inherited deliberately and for its
+ * reasons: `stopOnOilConsume` false, `cleanCastCap` null (RETIRED, §44),
+ * `haltOnShadowBlind` true.
+ */
+export const SESSION_99_LIMITS: BatchLimits = {
+  castCap: 2,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
 export interface BatchVerdict {
   stop: boolean;
   reason: BatchStopReason | null;

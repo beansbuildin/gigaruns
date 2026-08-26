@@ -58,7 +58,7 @@ import {
 } from "../../src/sim/fishing/damageEconomy.js";
 import { makeMatcherFishPolicy, REDRAW_THRESHOLD, type CastOptions } from "../../src/sim/fishing/castSim.js";
 import { isCleanTrace, loadCastTraces } from "../../src/sim/fishing/castTrace.js";
-import { REAL_DECK, splitByDealtDeck } from "../../src/sim/fishing/rodDeck.js";
+import { CORPUS_DECK, splitByDealtDeck } from "../../src/sim/fishing/rodDeck.js";
 
 const ALL_TRACES = loadCastTraces().filter(isCleanTrace);
 
@@ -286,8 +286,8 @@ describe("the BASE-DECK windows — a closed population, kept as a dated record"
 });
 
 describe("the simulator's economy, same predicate", () => {
-  const bare = armOf("bare", { deckIds: [...REAL_DECK] });
-  const blind = armOf("blind", { deckIds: [...REAL_DECK], matcherPool: [] });
+  const bare = armOf("bare", { deckIds: [...CORPUS_DECK] });
+  const blind = armOf("blind", { deckIds: [...CORPUS_DECK], matcherPool: [] });
 
   it("accounts for every shot — the zero-delta filter is validated, not trusted", () => {
     // Card 78 deals its damage only on a crit (`hitEffects: []`), so an

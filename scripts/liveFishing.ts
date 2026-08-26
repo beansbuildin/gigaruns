@@ -182,7 +182,22 @@ import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fis
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { CaptureFixtureWriter, CaptureRunLog, stamp } from "../src/orchestrator/capture.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
-import { SESSION_98_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { SESSION_99_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+
+/**
+ * [session 99 §3] The shadowed redraw trigger's IN-SAMPLE firing rate, printed
+ * beside every batch's shadow line so an operator can see out-of-sample drift
+ * at a glance.
+ *
+ * A LITERAL, deliberately: computing it needs `redrawCounterfactual` over the
+ * whole committed corpus, and the live loop is not the place to spend that on
+ * every batch. The cost of the literal is that it goes stale — it was written
+ * as `2.7` in session 90 and was **3.07** by session 99, 42 casts later, with
+ * nothing to say so. `tests/fishing/redrawShadowAnalysis.test.ts` now pins it
+ * against the corpus, so the next drift fails the suite instead of quietly
+ * mis-hinting. Re-derive with `scripts/redrawShadowAnalysis.ts`.
+ */
+const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "3.1";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
@@ -3421,7 +3436,12 @@ async function main() {
   // [session 98 §D] SESSION_98_LIMITS — nine casts, capped by the ROD rather
   // than by the ledger, and justified in that constant's own doc comment as
   // session 66 §4 requires. `SESSION_69_LIMITS` stays exported and tested.
-  const batchLimits = SESSION_98_LIMITS;
+  // [session 99 §2] Now SESSION_99_LIMITS — TWO casts, capped by the LEDGER
+  // (18 of 20 already spent this guard-day), for the first play capture on the
+  // new Golkan rod. Justified in that constant's own doc comment.
+  // `SESSION_98_LIMITS` stays exported and tested, exactly as its predecessors
+  // do, so its halts stay demonstrable.
+  const batchLimits = SESSION_99_LIMITS;
   const authorizedCasts = batchLimits.castCap ?? args.casts;
   const batchCeiling = Math.min(args.casts > 1 ? args.casts : authorizedCasts, authorizedCasts);
   const targetCasts = args.dryRun ? 1 : args.oilBatch ? batchCeiling : args.casts;
@@ -3632,7 +3652,7 @@ async function main() {
         const rate = batchRedrawShadowDecisions === 0 ? 0 : (100 * batchRedrawShadowFires) / batchRedrawShadowDecisions;
         console.log(
           `  · redraw shadow: ${batchRedrawShadowFires}/${batchRedrawShadowDecisions} card decisions would redraw ` +
-            `(${rate.toFixed(1)}%, in-sample 2.7%), ${batchRedrawShadowBlind} turn(s) reached no card decision` +
+            `(${rate.toFixed(1)}%, in-sample ${REDRAW_SHADOW_IN_SAMPLE_RATE_PCT}%), ${batchRedrawShadowBlind} turn(s) reached no card decision` +
             `${batchRedrawShadowSanity > 0 ? `, \u2605\u2605\u2605 ${batchRedrawShadowSanity} SANITY/ERROR row(s)` : ""}. ` +
             `Observational only; \`redrawEnabled\` is false and the bot did not redraw.`,
         );

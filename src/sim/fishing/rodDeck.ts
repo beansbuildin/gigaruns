@@ -53,11 +53,30 @@
  * - **It will recur**, on the user's own ~40-cast horizon from 2026-08-24.
  *   `BASE_DECK` stays an intermittent STATE, so `REAL_DECK` stays pointed at
  *   the rod.
- * - **Nothing here can SEE durability.** No durability, charge, or
- *   uses-remaining field exists in the fixtures or the live doc shape, so this
- *   repo detects a base window only AFTER the fact, by the deck dealt. The
- *   account owner is the only durability sensor that exists, and "~40 casts" is
- *   their report about their own equipment — not a repo measurement.
+ * - ~~**Nothing here can SEE durability.**~~ **[session 99 §1] FALSE, and it
+ *   was false when it was written.** `GET /gear/instances/{address}` carries
+ *   **`DURABILITY_CID`** on every row, alongside `EQUIPPED_TO_SLOT_CID`. Read
+ *   on 2026-08-26 it says exactly what three sessions of inference had to
+ *   reconstruct from dealt decks: Shroom (811) sits at `DURABILITY_CID: 0`
+ *   and `EQUIPPED_TO_SLOT_CID: -1`, and the newly-equipped Golkan (812) at
+ *   `DURABILITY_CID: 40`, slot 14. The user's "~40 casts" was not an
+ *   unverifiable owner report — it is a number the server publishes.
+ *
+ *   **This is the session-70 mistake repeated exactly.** That one concluded
+ *   rod `itemEffects` were empty because `/gear/items` did not carry the
+ *   grant, when `/offchain/static` did — *"the wrong place to look, not the
+ *   wrong question."* This file then made the identical error one endpoint
+ *   over: durability was looked for in the FISHING doc and in the fixtures,
+ *   found absent, and declared nonexistent. The GEAR endpoint was never
+ *   asked. **A field being absent from the payloads a repo happens to record
+ *   is not evidence it does not exist**, and this file has now been wrong
+ *   that way twice.
+ *
+ *   The consequence is that a base-deck window is no longer detectable only
+ *   AFTER the fact. `DURABILITY_CID` on the equipped rod is a forward-looking
+ *   read, so the ~40-cast horizon is checkable before a batch rather than
+ *   reconstructed from the decks it was dealt. Nothing in this repo consumes
+ *   it yet — that is a wiring job, not a discovery one.
  *
  * Two smaller corrections fall out of the same read, both of which made the old
  * claim look better-supported than it was:
@@ -83,6 +102,43 @@
  * choice: it fails when `REAL_DECK` no longer matches the rod the account is
  * actually holding in the most recent recorded cast.
  *
+ * ## ⚠ [session 99 §1] THE SHROOM/GOLKAN BREAK — A ROD CHANGE THAT IS **NOT**
+ * ## A GEOMETRY CHANGE, WHICH MAKES IT MUCH SOFTER THAN THE ONE BELOW
+ *
+ * The account swapped to **Golkan (812)** at 2026-08-26T02:27:20Z. Nine of
+ * the ten granted ids are new, so a count of changed card ids makes this look
+ * like the largest deck break yet. It is not, and reporting it that way would
+ * be wrong: **the two decks are positionally IDENTICAL.**
+ *
+ * ```
+ *   zones            Shroom            Golkan          delta
+ *   [1,2,3]          1  (+5/-3)        80 (+6/-3)      hit +1
+ *   [4,5,6]          2  (+5/-3)        81 (+6/-3)      hit +1
+ *   [7,8,9]          3  (+5/-3)        84 (+6/-3)      hit +1
+ *   [1,4,7]          4  (+5/-3)        85 (+6/-3)      hit +1
+ *   [2,5,8]          5  (+5/-3)        86 (+6/-3)      hit +1
+ *   [3,6,9]          6  (+5/-3)        87 (+6/-3)      hit +1
+ *   [1,3,7,9]        74 (+7/-4)        74 (+7/-4)      SAME CARD
+ *   [2,4,6,8]        75 (+6/-4)        88 (+8/-4)      hit +2
+ *   ring (8 cells)   76 (+3/-3)        89 (+4/-4)      hit +1, MISS -1
+ *   centre crit      78 (crit+11/-3)   90 (crit+12/-3) crit +1
+ * ```
+ *
+ * Same ten hit-zone sets, same mana cost (1) on all ten, one card literally
+ * shared. So it is the same relationship `BASE_DECK` has to the rod grants —
+ * *"positionally the same deck, one tier worse"* — running in the other
+ * direction: Golkan is the same deck one tier BETTER.
+ *
+ * **What that means for the pinned numbers, stated so nobody re-derives it.**
+ * Anything keyed to GEOMETRY — zone coverage, the ring/contextual predictors,
+ * the mined pattern library, the matcher, focus movement — is keyed to
+ * quantities this swap does not touch, and transfers. Anything keyed to
+ * DAMAGE MAGNITUDE — EV per card, lethality bands, `fishMaxHp` turn counts,
+ * the necessity gate's `fishHp <= 2` arm — is on a deck that now hits harder
+ * on every single card, and does not transfer unexamined. Card 89 is the one
+ * genuine regression (miss -4 against 76's -3) and is the only place the new
+ * deck is worse than the old one.
+ *
  * ## ⚠ THE MAKESHIFT/SHROOM BREAK
  *
  * 110 of the corpus's 123 clean traces were played on **Makeshift**. Any number
@@ -99,6 +155,8 @@ import { join } from "node:path";
 
 export const MAKESHIFT_ROD = 922;
 export const SHROOM_ROD = 811;
+/** [session 99 §1] The rod the account swapped to at 2026-08-26T02:27:20Z. */
+export const GOLKAN_ROD = 812;
 
 /**
  * `gameItems[].CARD_CID_array`, read live off `/offchain/static` on 2026-08-21.
@@ -111,6 +169,11 @@ export const SHROOM_ROD = 811;
 export const ROD_CARD_GRANTS: Readonly<Record<number, readonly number[]>> = {
   [MAKESHIFT_ROD]: [1, 2, 3, 4, 5, 6, 7, 76, 77, 79],
   [SHROOM_ROD]: [1, 2, 3, 4, 5, 6, 74, 75, 76, 78],
+  // [session 99 §1] Re-read live off `/offchain/static` on 2026-08-26, and
+  // CONFIRMED AGAINST PLAY the same session: both casts of the two-cast batch
+  // opened on exactly this prefix. The other six rods' grants were re-read in
+  // the same call and none of them changed.
+  [GOLKAN_ROD]: [74, 80, 81, 84, 85, 86, 87, 88, 89, 90],
 };
 
 /**
@@ -126,8 +189,17 @@ export const ROD_CARD_GRANTS: Readonly<Record<number, readonly number[]>> = {
  */
 export const BASE_DECK: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-/** The rod the account holds. Repointed from Makeshift on 2026-08-21 (session 71 §2). */
-export const CURRENT_ROD = SHROOM_ROD;
+/**
+ * The rod the account holds. Repointed from Makeshift on 2026-08-21 (session
+ * 71 §2), and from Shroom to **Golkan on 2026-08-26** (session 99 §1).
+ *
+ * The Golkan repoint is made on BOTH halves of the evidence this file requires
+ * — `/offchain/static`'s payload AND play — rather than on the payload alone,
+ * because session 89's counterexample is precisely a rod being equipped while
+ * its grant is not dealt. Both casts of session 99's batch opened on the
+ * Golkan prefix, and `GEAR_CID_array` carries 812 with 811 gone.
+ */
+export const CURRENT_ROD = GOLKAN_ROD;
 
 /**
  * The deck every sim script starts from. ONE definition — three scripts
@@ -142,6 +214,44 @@ export const CURRENT_ROD = SHROOM_ROD;
  * say which deck it used, exactly as the Makeshift/Shroom break requires.
  */
 export const REAL_DECK: readonly number[] = ROD_CARD_GRANTS[CURRENT_ROD]!;
+
+/**
+ * **[session 99 §1] The deck the COMMITTED CORPUS was played on — which is no
+ * longer the deck the account holds.**
+ *
+ * Several tests and scripts run a SIM arm and compare it against a quantity
+ * derived from the live corpus: `damageEconomy.test.ts` asserts the sim
+ * "reproduces live's per-card AMOUNTS", `focusMovement.test.ts` pins turn
+ * counts against corpus-shaped casts, `fishMaxHp.test.ts` pins a default path.
+ * Every one of those built its sim arm from `REAL_DECK`.
+ *
+ * **That was only ever correct by coincidence.** `REAL_DECK` means "the deck
+ * the account holds right now"; those call sites need "the deck the thing I am
+ * comparing against was played on". The two were the same constant from
+ * session 71 until 2026-08-26, so nothing distinguished them — and the moment
+ * the rod changed, three tests started comparing a Golkan sim to a Shroom
+ * capture and failing on the difference. `damageEconomy`'s `meanHeal` gap went
+ * to 0.765 against a 0.5 tolerance, which is almost exactly the +1 hit that
+ * every Golkan row-and-column card carries over its Shroom counterpart: the
+ * tests were not wrong, they were correctly detecting a comparison that had
+ * become invalid.
+ *
+ * So this constant is Shroom, and it stays Shroom until the corpus itself is
+ * majority-Golkan. It is deliberately NOT an alias for `REAL_DECK`:
+ *
+ * - **Widening those tolerances would have been the wrong fix** — it would
+ *   have thrown away a working cross-check between sim and live to paper over
+ *   a deck mismatch, and it would have had to be widened again on the next
+ *   rod.
+ * - **Re-blessing those pins to their Golkan values would have been worse** —
+ *   the pinned numbers would then describe a sim on a deck the corpus they are
+ *   compared against was never played on.
+ *
+ * The corpus is 210 casts of which **2** are Golkan. When that ratio inverts,
+ * repoint this at `REAL_DECK` and re-bless the pins in one deliberate pass —
+ * that is a re-baselining, and it should look like one.
+ */
+export const CORPUS_DECK: readonly number[] = ROD_CARD_GRANTS[SHROOM_ROD]!;
 
 /**
  * Every starting deck this repo has SEEN DEALT — the rod grants it knows, plus

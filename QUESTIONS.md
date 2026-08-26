@@ -4081,3 +4081,100 @@ nothing dedicated. On whether to deliberately shape a future batch to give
 the 0.85 necessity-gate threshold a single-lethal turn to actually fire on,
 the user's answer was **no** — let it happen naturally or not at all;
 do not engineer a cast toward `fishHp <= 2` specifically to observe it.
+
+---
+
+## §51 ANSWERED [session 99 §3, 2026-08-26] — THE §26 SHADOW VERDICT: **CONSISTENT, AND UNDERPOWERED — BOTH HALVES ARE THE FINDING.** GAP 1 IS **STRUCTURALLY** UNREACHABLE FROM THE SHADOW, NOT MERELY SHORT OF DATA
+
+**§49 authorized attempting this analysis without pre-certifying that 161
+observations were enough, and required that an underpowered result be reported
+as underpowered rather than rounded up.** It is underpowered. It is also
+consistent. Both sentences are true and neither is the headline on its own.
+
+`scripts/redrawShadowAnalysis.ts` is new and is the re-runnable instrument the
+brief asked for, in the shape of `redrawTriggerCalibration.ts` /
+`redrawCounterfactual.ts` rather than as a one-off calculation.
+`tests/fishing/redrawShadowAnalysis.test.ts` pins its arithmetic.
+
+### The two arms
+
+| | fires | decisions | rate |
+|---|---|---|---|
+| **OUT-OF-SAMPLE** (`logs/`, sessions 90–99) | 6 | 170 | **3.53%**, exact 95% CI **[1.31%, 7.52%]** |
+| **IN-SAMPLE** (`fixtures/`, same rule) | 17 | 553 | **3.07%** |
+
+Per batch: 0/52, 4/24, 0/2, 0/43, 2/40, **0/9** — the last being session 99's
+two casts. 12 turns reached no card decision at all (the instrument's counted
+blind spot). 0 rows carried a sanity flag or error.
+
+⚠ **The denominators are easy to get wrong and the recap's number depends on
+it.** `grep -c redraw_shadow logs/*.jsonl` returns 214, not 170, because
+`redraw_shadow_no_decision` shares the prefix. A turn with no card decision has
+no redraw decision to shadow and is not part of the firing-rate denominator.
+
+### §2 — the power computation, run BEFORE the verdict
+
+Against H0 = the in-sample 3.07%, at n = 170, α = 0.05:
+
+```
+  truth = 1.5x in-sample (4.61%)   power  26.06%
+  truth =   2x in-sample (6.15%)   power  60.27%
+  truth =   3x in-sample (9.22%)   power  95.69%
+  truth =   5x in-sample (15.4%)   power 100.00%
+```
+
+- **Minimum detectable effect at 80% power: 2.38x the in-sample rate.**
+- **~350 card decisions** would be needed for 80% power at a **2x** departure —
+  about **7 more batches** at the recent average, on top of the 170 held.
+
+That is the number to quote when asking for more volume, priced the way session
+97 priced the matcher question at 87–122 turns rather than leaving it vague.
+
+### §3 — the verdict
+
+Two-sided exact binomial test of 6/170 against 3.07%: **p = 0.6545, NOT
+REJECTED.**
+
+**What it licenses.** The candidate is not firing wildly more often on hands it
+has never seen. That is precisely the refutation `redrawShadow.ts`'s own header
+pre-registers — *"a trigger that fires ten times more often live than it did on
+the corpus is refuted as a calibrated rule before any outcome question is
+asked"* — and at 10x the test has 100% power, so **that specific refutation is
+genuinely excluded**, not merely unobserved.
+
+**What it does not license.** It is not evidence the trigger is GOOD: no outcome
+is observed, because the bot really plays the card and the counterfactual is
+unobservable live. And a non-rejection at 60% power against a 2x departure is
+weak — **anyone quoting the non-rejection without the 2.38x MDE beside it is
+quoting absence of evidence as evidence of absence.** The test pins that pairing
+so it cannot be separated silently.
+
+### §4 — GAP 1 (§28): **NO, and not for want of volume**
+
+The two candidate `FISH_MOVED` semantics — **(a)** redraw is a turn the
+predictor learns from, **(b)** redraw is a turn it skips (what ships) — differ
+**only in what happens to the predictor's bookkeeping on a turn a redraw
+actually happened.**
+
+**A shadow never redraws. That is its defining property.** So no shadow row, at
+any n, ever sits on the turn where (a) and (b) disagree. `redraw_sent` rows in
+every log on this machine: **0**, and the `fishFrom`/`fishTo`/
+`observedByMatcher` fields session 95 added ride on that line.
+
+⚠ **§28 said the §26 shadow "or the recalibration" would close gap 1. On the
+shadow half that expectation is wrong**, and it should stop being repeated as a
+volume problem. Closing gap 1 needs redraw **armed** live, which is §26/§28's
+standing user decision.
+
+### A stale number found on the way
+
+`scripts/liveFishing.ts` printed *"in-sample 2.7%"* beside every batch's shadow
+line. That literal was written in session 90 and the corpus has grown 42 casts
+since; the true figure is **3.07%**. Now a named constant, re-derived by the new
+script, and **pinned against the corpus by the test** so the next drift fails
+the suite instead of quietly mis-hinting an operator.
+
+### Unchanged
+
+**`redrawEnabled` stays `false` and `REDRAW_THRESHOLD` stays `0`**, per §49,
+whatever the verdict. This analysis reports; it does not enable.
