@@ -4425,3 +4425,160 @@ nothing to collect because it was already committed.
 `npx tsx scripts/procEvidence.ts`, re-runnable as volume accumulates.
 `tests/procEvidence.test.ts` pins both claims — the never-populated field and
 the zero-stat control — so a corpus change that breaks either is visible.
+
+---
+
+## §58 ANSWERED [session 101 §A + §B] — THE CAPTURE PATH IS COMPLETE, AND FOUR OF THE FIVE ROLLED STATS NOW HAVE AN EXACT EFFECT SIZE
+
+### 1. §A — `data.events` is not being dropped. Every state is accounted for.
+
+STATE.md session 100's open question 3 asked whether the capture path was
+losing proc evidence: `data.events` was present on only **2093 of 5308**
+canonical states, and if some of the 3215 without it were exchanges, then
+§57's `n = 1919` was an undercount and evidence had already been lost.
+
+**It is not.** The 5308 states partition exactly, with no remainder:
+
+```
+  2687   GET /game/dungeon/state reads      (actionToken == 0)   0 carry events
+   265   enemyPath POST responses           the offer, no exchange
+   263   path-SELECTION POST responses      fresh un-acted enemy, no exchange
+    66   dungeon_started (start_run)        events, no use_move
+   108   use_item / OnHeal (potion)         events, no use_move
+  1919   exchange responses                 events, exactly 2 use_move each
+  ----
+  5308                                      3838 use_move rows = 1919 x 2
+```
+
+The classifier needs no new capture. `scripts/liveRun.ts:1191` writes the
+loop's `GET` read before every POST, and `client.getDungeonState` documents
+that the GET reports `actionToken: 0` regardless of run state — so
+`actionToken === 0` separates reads from responses, and **2687 of 2687 reads
+lack events**, zero exceptions. A read caused nothing, so it reports nothing.
+
+The 263 that look like combat but carry no events are the response to a path
+selection, which returns the NEXT room's opening state. All 263 have the foe at
+`health.current === health.currentMax` with `lastMove === ""` while the player's
+`lastMove` is set — a fresh enemy that has not acted. **263 of 263, zero
+exceptions.**
+
+**The decisive statement:** every POST response in which an exchange actually
+resolved — foe `lastMove` non-empty — carries `data.events`. **1919 of 1919.**
+
+The eventless share is also flat across every capture date (17-24% of POST
+responses, 2026-08-14 through 2026-08-26), so this is structural, not a
+regression that crept in. **§57's `n = 1919` stands uncorrected.**
+
+### 2. §B — the instrument, and the null that makes it a measurement
+
+The same `data.events[]` carries the resolved arithmetic beside the proc
+booleans:
+
+```json
+{"type":"OnDamage","value":10,"playerId":0,
+ "data":{"ignoreShield":false,"prevent":0,"source":""}}
+```
+
+Two properties, both verified rather than assumed:
+
+- **`playerId` on `OnDamage` names the VICTIM, not the dealer.** Checked
+  against a state diff (`run-2026-08-15-01-53-36/state-012`): player 0 entered
+  with 0 shield, the events show `OnApplyShield 12` then `OnDamage 10` both at
+  `playerId: 0`, and the response reports shield 2.
+- **`data.source` separates combat damage (`""`, 2591 rows) from burn ticks
+  (`"burn"`, 522).** Every number below filters to `source === ""`.
+
+**`data.prevent` is NOT the block instrument, despite the name.** It reads 0 on
+all 2591 combat rows, including all 76 on which a block procced. Anyone
+reaching for the obvious field here will find nothing; the effect is in the
+`value`.
+
+**The null.** `src/sim/combat.ts` resolves by RPS — winner deals its move's
+ATK, a tie has both deal, loser deals nothing. So the baseline prediction for
+damage taken is the attacker's `currentATK`, read off the preceding state. On
+no-proc exchanges that prediction is exact **2211 / 2285 (96.8%)**.
+
+### 3. The results
+
+Restricted to exchanges where the attacker owed damage, excluding the opposing
+multiplier, against a matched control holding the same stat non-zero unfired:
+
+```
+  flag          predicts       status-clean          all       control (stat>0, unfired)
+  blockProc0    floor(ATK/2)   33/33  [90-100%]    53/56              0/1041
+  blockProc1    floor(ATK/2)    8/8   [68-100%]    19/19               0/619
+  evadeProc0    0               2/2   [34-100%]      4/4               0/149
+  evadeProc1    0               9/9   [70-100%]    22/22               0/605
+  critProc0     2*ATK           9/9   [70-100%]    13/14               0/558
+  critProc1     2*ATK          11/11  [74-100%]    16/17               0/605
+```
+
+**Verdict per flag:**
+
+- **`block` — PARTIAL REDUCTION, exactly `floor(ATK/2)`.** Not a negate: of 76
+  fired exchanges, **0 took zero damage**. Odd ATK rounds down (ATK 15 → 7
+  taken), so it is floor and not a rounded half.
+- **`evasion` — FULL NEGATE.** 26 of 26 fired exchanges took exactly 0, and
+  this one is status-robust (0 is 0 regardless of what else is modifying
+  damage).
+- **`lck` — CRIT, exactly `2 x ATK`.** Session 100 established `lck` is crit
+  chance from the zero-stat control; this gives the magnitude.
+- **`tenacity` — NOT damage mitigation, mechanic UNDETERMINED.** See §4.
+- **`intuition` — NOT damage mitigation, mechanic UNDETERMINED.** See §4.
+
+**The control column is the load-bearing one, and it is 0 on every row.**
+Across 3577 matched control exchanges — same stat non-zero, flag unfired — the
+rule matched **zero times**. That is what separates a mechanic from a
+correlation, and it is a stronger result than any of the confidence intervals.
+
+**The intervals are wide and are reported wide.** `evadeProc0`'s status-clean
+sample is 2, and 2/2 is not 100% — its Wilson interval starts at 34%. The
+per-flag intervals are not the claim; the perfect separation against a control
+in the hundreds is.
+
+### 4. What is NOT resolved, stated as thin because it is thin
+
+- **`tenacity` does something, and it is not damage.** Matched on
+  `tenacity > 0`, damage taken tracks the null. What moves is `OnHeal`:
+  **11.8% [3.3-34.3%] fired vs 1.6% [0.9-2.9%] unfired** on the player side,
+  **21.1% [8.5-43.3%] vs 5.2% [3.9-6.7%]** on the enemy's. Both pairs of
+  intervals are non-overlapping, so the association is real — but that rests on
+  **6 heals total**, and the heal AMOUNTS (2; 4, 6, 8) cannot be bounded at
+  that volume. **Recorded as an association, not a mechanic.**
+- **`intuition` denies a MOVE, it does not reduce damage.** All 6
+  `intuitionProc0` fires carry an `intuition_block` event with a `blockedMove`,
+  and **5 of 5 non-blocked fires took the attacker's FULL ATK**. The sixth
+  looked mitigated and was not: it also carried `blockProc0` and took exactly
+  `floor(ATK/2)` — that is block. In **2 of 6**, `blockedMove` names a move
+  DIFFERENT from the one the enemy actually played, which points at move denial
+  rather than damage handling. **n = 6. Not enough to say more.**
+- **`Weak`, `Vulnerable`, `Burn`, `Regen`, lifesteal — untouched, and they are
+  the residual.** Every one of the 74 no-proc exchanges the null misses, and
+  every one of the 6 proc exchanges that misses its rule, carries a non-empty
+  `statusEffects` array on one side. Restricted to status-clean exchanges the
+  rules hold **72 / 72**. The statuses are the entire error term.
+
+### 5. One composition rule, found by accident and worth keeping
+
+`run-2026-08-23-05-53-49/state-108`: `critProc1` and `blockProc0` both fired,
+attacker ATK 14, damage dealt **14**. Crit doubles and block halves, and they
+**compose multiplicatively** — `2 x 0.5 = 1.0`. One observation, so it is a
+hypothesis with a mechanism, not a measured rule; it is recorded because it
+also explains an outlier that would otherwise read as noise.
+
+### 6. This does not authorise building the model
+
+CAPTURE-1's prohibition is unchanged: **do not stub, default, or flag-hide the
+proc branches in `src/sim/combat.ts`.** Two of the five rolled stats still have
+no mechanic, the statuses that account for the entire residual are still
+unmeasured, and STATE.md session 100's open question 2 — should the live loop
+read the proc booleans in real time — stays deferred. This entry moves three
+stats from "rate only" to "rate and effect size"; it does not close CAPTURE-1.
+
+### 7. Reproducing this
+
+`npx tsx scripts/procEffectSize.ts`, re-runnable as volume accumulates.
+`tests/procEffectSize.test.ts` pins the null, all three rules, and the
+zero-matching control — on a bounded slice, with slice-safe assertions, since
+`evadeProc0` and `intuitionProc0` fire 6 times each in the whole corpus and any
+honest slice can contain none.

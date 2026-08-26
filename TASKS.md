@@ -1655,18 +1655,61 @@ stat read zero** (299-1691 zero-stat observations per flag). That also resolves
 channel and never was. It has never been non-empty in 10,616 occurrences. It
 gates nothing. Do not spend runs chasing it.
 
-**What is still missing, and it is the half that matters most:**
+**[session 101 §A] THE CAPTURE PATH IS COMPLETE — the `n` above is not an
+undercount.** Session 100 flagged that `data.events` was on only 2093 of 5308
+states and could not tell "expected" from "evidence being dropped". The 5308
+partition exactly: 2687 `GET` reads (`actionToken == 0`, 0 carry events, no
+exceptions), 265 enemyPath offers, 263 path-SELECTION responses reporting a
+fresh un-acted enemy, 66 `dungeon_started`, 108 potion `use_item`, and 1919
+exchanges. **Every response in which an exchange resolved carries its events —
+1919 of 1919.** QUESTIONS.md §58 §1.
 
-- **Effect SIZES.** A rate is not a mechanic: nothing yet says what `block`
-  DOES when it procs. The next measurement is a diff of HP/shield deltas on
-  fired vs unfired exchanges, on data already on disk.
+**[session 101 §B] EFFECT SIZES: THREE OF THE FIVE ARE NOW EXACT.** Measured
+off `OnDamage` rows in the same `data.events[]` — `playerId` names the VICTIM,
+`data.source` separates combat from burn — against a null of "damage taken ==
+attacker `currentATK`" that is exact on 2211/2285 no-proc exchanges.
+
+```
+  block      floor(ATK/2)   partial reduction, never a negate (0 of 76 took 0)
+  evasion    0              FULL negate, 26 of 26
+  lck        2 x ATK        crit multiplier; session 100 gave the rate
+  tenacity   —              NOT damage. Associated with OnHeal, n=6, UNBOUNDED
+  intuition  —              NOT damage. Denies a MOVE (`blockedMove`), n=6
+```
+
+**The control is what makes these mechanics rather than correlations:** across
+3577 matched exchanges holding the same stat non-zero with the flag unfired,
+the rule matched **zero** times. Confidence intervals are wide at these
+volumes and QUESTIONS.md §58 reports them wide; the separation is the claim.
+
+**What is still missing:**
+
+- **`tenacity` and `intuition` mechanics.** Both are ruled OUT as damage
+  mitigation, which is progress, but neither has a positive verdict. Both fire
+  ~6-19 times in the whole corpus, so both need volume, not cleverness.
 - **`Weak`, `Vulnerable`, `Burn`, `Regen`, lifesteal** — untouched by this.
-  They live in `statusEffects`, not in the proc booleans.
+  They live in `statusEffects`, not in the proc booleans. **They are also the
+  ENTIRE residual**: every exchange that misses the null or its rule carries a
+  non-empty `statusEffects` array, and on status-clean exchanges the three
+  rules hold 72/72. Measuring the statuses is what would close the error term.
+- **`crit x block` composes multiplicatively** (2 x 0.5 = 1.0) on the single
+  exchange where both fired. Mechanism, one observation — not a measured rule.
 
 **The prohibition above is UNCHANGED. Do not stub, default, or flag-hide these
-branches.** Having the rates makes one input obtainable; it does not authorise
-building the model, and a branch structure filled with guessed effect sizes is
-still an honest "unscorable" converted into a confident wrong number.
+branches.** Sessions 100 and 101 obtained two inputs — rates, then effect sizes
+for three of the five — and obtaining inputs is not authorisation to build. A
+branch structure is still an honest "unscorable" converted into a confident
+wrong number while `tenacity` and `intuition` have no mechanic at all and the
+statuses that account for the ENTIRE residual are unmeasured.
+
+**The specific trap now that three rules are exact and cheap to code:**
+`block`, `evasion` and `lck` are the easy three, and wiring only those would
+produce a simulator that models the mitigation it happens to know and silently
+ignores `tenacity`, `intuition`, `Weak`, `Vulnerable`, `Burn`, `Regen` and
+lifesteal — biased, not merely incomplete, because every mechanic left out is
+one that moves damage. `src/sim/types.ts:31-36`'s "unscorable rather than
+quietly approximated" contract is what forbids that, and it forbids it more
+now than it did before these numbers existed.
 
 **Blocks:** any Rule 8 policy claim derived from the simulator; CAPTURE-2.
 

@@ -176,7 +176,11 @@ describe("the profile seam — what is NOT converted, counted so it cannot grow 
     // a fact about what was recorded and not something a `--profile` run
     // should be able to redirect. It takes the root as a parameter with that
     // default, so a caller wanting a different tree passes one.
-    expect([...unconverted].sort().length).toBe(26);
+    //
+    // [session 101 §B] 26 -> 27: `scripts/procEffectSize.ts`, for exactly the
+    // same reason and on the same terms — it reads the committed corpus and
+    // takes `runsRoot` as a parameter with that default.
+    expect([...unconverted].sort().length).toBe(27);
   });
 
   it("the three entry points are NOT in the unconverted set", () => {

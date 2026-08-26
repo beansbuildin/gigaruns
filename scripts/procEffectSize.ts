@@ -1,0 +1,370 @@
+/**
+ * PROC EFFECT SIZES — what the five rolled stats DO when they proc.
+ *
+ * [session 101 §B, QUESTIONS.md §58]
+ *
+ * ## The question this answers
+ *
+ * Session 100 (`scripts/procEvidence.ts`, QUESTIONS.md §57) established the
+ * RATES at which each of the five rolled stats procs, and validated the
+ * flag-to-stat mapping with a zero-stat control. It said plainly that a rate
+ * is not a mechanic: nothing yet said what `block` DOES when `blockProc0`
+ * reads true. This script measures that, from the same committed corpus, with
+ * no live play.
+ *
+ * ## The instrument
+ *
+ * The same `data.events[]` array carries, alongside the `use_move` proc
+ * booleans, the resolved arithmetic of the exchange:
+ *
+ *     {"type":"OnDamage","value":10,"playerId":0,
+ *      "data":{"ignoreShield":false,"prevent":0,"source":""}}
+ *
+ * Two properties of that row make the measurement possible, both verified
+ * rather than assumed:
+ *
+ * - **`playerId` on `OnDamage` names the VICTIM, not the dealer.** Checked
+ *   against the state diff on `run-2026-08-15-01-53-36/state-012`: player 0
+ *   entered with 0 shield, the events show `OnApplyShield 12` then
+ *   `OnDamage 10` both at `playerId: 0`, and the response reports shield 2.
+ * - **`data.source` separates combat damage (`""`, 2591 rows) from burn ticks
+ *   (`"burn"`, 522 rows).** Every measurement here filters to `source === ""`;
+ *   burn is a `statusEffects` mechanic and CAPTURE-1 lists it separately.
+ *
+ * `data.prevent` is NOT the block instrument, despite the name. It reads 0 on
+ * all 2591 combat damage rows, including all 76 on which a block procced.
+ *
+ * ## The null, and why the comparison is matched
+ *
+ * `src/sim/combat.ts` resolves an exchange by RPS: the winner deals its move's
+ * ATK, a tie has both deal, the loser deals nothing. So the baseline
+ * prediction for damage taken is the ATTACKER's `currentATK` for the move it
+ * played, read off the state that PRECEDED the exchange. On no-proc exchanges
+ * that prediction is exact **2211 / 2285** times.
+ *
+ * Every comparison below is therefore restricted to exchanges in which the
+ * attacker actually owed damage (won or tied), and each flag is additionally
+ * compared against a control holding the SAME stat non-zero and unfired —
+ * without that restriction, "fired" would silently also mean "in a room deep
+ * enough to have rolled the stat at all".
+ *
+ * ## The residual, stated up front
+ *
+ * The 74 no-proc exchanges the null misses, and every one of the 6 proc
+ * exchanges that misses its rule, carry a NON-EMPTY `statusEffects` array on
+ * one side or the other. Restricting to status-clean exchanges, the rules
+ * below hold **72 / 72**. That is the honest boundary of this measurement:
+ * it characterises the proc mechanics and it does NOT characterise `Weak`,
+ * `Vulnerable`, `Burn`, `Regen` or lifesteal, which remain exactly as open as
+ * CAPTURE-1 has always listed them.
+ *
+ * ## What this does NOT do
+ *
+ * It writes nothing into the simulator. CAPTURE-1's prohibition — "do not stub
+ * it, default it, or hide it behind a flag" — is unchanged, and STATE.md
+ * session 100's open question 2 (should the live loop read the proc booleans
+ * in real time) stays deferred. This is evidence a future session would need
+ * before building that model properly, not a shortcut past it.
+ *
+ * Re-runnable as volume accumulates:  `npx tsx scripts/procEffectSize.ts`
+ */
+
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/** RPS pairs in which the first move beats the second — SPEC §2. */
+const BEATS = new Set(["rock>scissor", "scissor>paper", "paper>rock"]);
+
+export type MoveName = "rock" | "paper" | "scissor";
+
+export interface Exchange {
+  /** `run-<stamp>/state-NNN.json`, the same identity `src/sim/corpus.ts` uses. */
+  label: string;
+  /** Every proc boolean on both `use_move` rows, merged. */
+  flags: Record<string, boolean>;
+  /** The move each side played. */
+  moves: [string, string];
+  /** `+1` player 0 won the RPS, `-1` player 1 won, `0` tie. */
+  outcome: -1 | 0 | 1;
+  /** Combat damage taken by each side (`source === ""` rows only, summed). */
+  taken: [number, number];
+  /** Each side's `currentATK` for the move it played, from the PRECEDING state. */
+  atk: [number | null, number | null];
+  /** Each side's rolled-stat values, from the preceding state. */
+  stat: [Record<string, number | null>, Record<string, number | null>];
+  /** True when NEITHER side carried a status effect — the clean measurement set. */
+  statusClean: boolean;
+  /** `OnHeal` value per side, when one was emitted. */
+  heal: Partial<Record<0 | 1, number>>;
+}
+
+const ROLLED_STATS = ["block", "evasion", "lck", "tenacity", "intuition"] as const;
+
+const current = (side: Record<string, unknown>, key: string): number | null => {
+  const raw = side[key];
+  if (typeof raw === "number") return raw;
+  if (raw && typeof raw === "object" && typeof (raw as { current?: unknown }).current === "number") {
+    return (raw as { current: number }).current;
+  }
+  return null;
+};
+
+interface WireEvent {
+  type?: string;
+  value?: unknown;
+  playerId?: number;
+  data?: Record<string, unknown>;
+}
+
+/** Whether `attacker` owed damage on this exchange — it won the RPS or tied. */
+export const dealtDamage = (ex: Exchange, attacker: 0 | 1): boolean =>
+  attacker === 0 ? ex.outcome >= 0 : ex.outcome <= 0;
+
+export interface LoadOptions {
+  runsRoot?: string;
+  /** Scan only the N most recent run dirs. See `procEvidence.ts`'s note — this bounds what a TEST pays as an append-only corpus grows, nothing more. */
+  maxRunDirs?: number;
+}
+
+/**
+ * Every exchange in the corpus, paired with the state that preceded it.
+ *
+ * An exchange is a captured response carrying exactly two `use_move` events.
+ * Session 101 §A established that this set is complete: every POST response in
+ * which an exchange resolved carries `data.events`, 1919 of 1919, and the
+ * 3215 states without it are all reads or non-exchange responses.
+ */
+export function loadExchanges(options: LoadOptions = {}): Exchange[] {
+  const { runsRoot = join("fixtures", "dungeon-runs"), maxRunDirs } = options;
+  const out: Exchange[] = [];
+
+  const allDirs = readdirSync(runsRoot, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && e.name.startsWith("run-"))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const dirs = maxRunDirs === undefined ? allDirs : allDirs.slice(-maxRunDirs);
+
+  for (const d of dirs) {
+    let files: string[] = [];
+    try {
+      // Canonical copies only — each run dir also holds a `raw/` mirror.
+      files = readdirSync(join(runsRoot, d.name))
+        .filter((f) => /^state-\d+\.json$/.test(f))
+        .sort();
+    } catch {
+      continue;
+    }
+
+    const cache = new Map<string, Record<string, any> | null>();
+    const load = (f: string): Record<string, any> | null => {
+      if (!cache.has(f)) {
+        try {
+          cache.set(f, JSON.parse(readFileSync(join(runsRoot, d.name, f), "utf8")));
+        } catch {
+          cache.set(f, null);
+        }
+      }
+      return cache.get(f) ?? null;
+    };
+
+    for (let i = 0; i < files.length; i++) {
+      const body = load(files[i]!);
+      const events = body?.data?.events;
+      if (!Array.isArray(events)) continue;
+      const useMove = (events as WireEvent[]).filter((e) => e.type === "use_move");
+      if (useMove.length !== 2) continue;
+
+      const flags: Record<string, boolean> = {};
+      const moves: [string, string] = ["", ""];
+      for (const e of useMove) {
+        for (const [k, v] of Object.entries(e.data ?? {})) if (typeof v === "boolean") flags[k] = v;
+        if (e.playerId === 0 || e.playerId === 1) moves[e.playerId] = String(e.value ?? "");
+      }
+
+      // The nearest preceding capture carrying a player array is the pre-exchange
+      // state — the loop writes its `GET /game/dungeon/state` read before every POST.
+      let before: Record<string, any> | null = null;
+      for (let j = i - 1; j >= 0; j--) {
+        const prev = load(files[j]!);
+        if (Array.isArray(prev?.data?.run?.players)) {
+          before = prev;
+          break;
+        }
+      }
+      if (!before) continue;
+      const bp = before.data.run.players as Record<string, unknown>[];
+      if (bp.length < 2) continue;
+
+      const taken: [number, number] = [0, 0];
+      for (const e of events as WireEvent[]) {
+        if (e.type !== "OnDamage") continue;
+        if ((e.data ?? {}).source !== "") continue; // burn ticks are a status mechanic, not this
+        if (e.playerId === 0 || e.playerId === 1) taken[e.playerId] += Number(e.value ?? 0);
+      }
+
+      const heal: Partial<Record<0 | 1, number>> = {};
+      for (const e of events as WireEvent[]) {
+        if (e.type === "OnHeal" && (e.playerId === 0 || e.playerId === 1)) heal[e.playerId] = Number(e.value ?? 0);
+      }
+
+      const statusOf = (side: Record<string, unknown>): unknown[] =>
+        Array.isArray(side.statusEffects) ? (side.statusEffects as unknown[]) : [];
+
+      out.push({
+        label: `${d.name}/${files[i]}`,
+        flags,
+        moves,
+        outcome: moves[0] === moves[1] ? 0 : BEATS.has(`${moves[0]}>${moves[1]}`) ? 1 : -1,
+        taken,
+        atk: [0, 1].map((s) => {
+          const mv = (bp[s] as Record<string, any>)[moves[s]!];
+          return mv && typeof mv.currentATK === "number" ? (mv.currentATK as number) : null;
+        }) as [number | null, number | null],
+        stat: [0, 1].map((s) =>
+          Object.fromEntries(ROLLED_STATS.map((k) => [k, current(bp[s]!, k)])),
+        ) as Exchange["stat"],
+        statusClean: statusOf(bp[0]!).length === 0 && statusOf(bp[1]!).length === 0,
+        heal,
+      });
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// The four rules, each stated as a prediction the corpus can falsify.
+// ---------------------------------------------------------------------------
+
+export interface RuleResult {
+  flag: string;
+  /** Human-readable prediction, e.g. `floor(ATK/2)`. */
+  predicts: string;
+  /** Exchanges matching the prediction, over those tested, on STATUS-CLEAN exchanges. */
+  ok: number;
+  n: number;
+  /** The same, over ALL exchanges including status-carrying ones. */
+  okAll: number;
+  nAll: number;
+  /** Exchanges with the same stat non-zero where the flag did NOT fire, and how many matched. */
+  controlMatched: number;
+  controlN: number;
+}
+
+/** Wilson score interval — the right one at these sample sizes; a normal approximation is not. */
+export function wilson(k: number, n: number): [number, number] {
+  if (n === 0) return [0, 1];
+  const z = 1.96;
+  const p = k / n;
+  const d = 1 + (z * z) / n;
+  const centre = (p + (z * z) / (2 * n)) / d;
+  const half = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d;
+  return [Math.max(0, centre - half), Math.min(1, centre + half)];
+}
+
+/**
+ * `block` halves incoming damage; `evasion` negates it; `lck` doubles damage
+ * dealt. Each is checked only where the attacker owed damage, and each excludes
+ * exchanges on which the OPPOSING multiplier also fired — the two compose
+ * (`run-2026-08-23-05-53-49/state-108`: crit then block, ATK 14 → 14 dealt).
+ */
+export function scoreRules(exchanges: Exchange[]): RuleResult[] {
+  const results: RuleResult[] = [];
+
+  const run = (
+    flag: string,
+    predicts: string,
+    attacker: 0 | 1,
+    victim: 0 | 1,
+    stat: string,
+    statSide: 0 | 1,
+    matches: (atk: number, taken: number) => boolean,
+    excludeFlag: string,
+  ): void => {
+    const eligible = (ex: Exchange, fired: boolean) =>
+      ex.flags[flag] === fired &&
+      dealtDamage(ex, attacker) &&
+      typeof ex.atk[attacker] === "number" &&
+      ex.atk[attacker]! > 0 &&
+      !ex.flags[excludeFlag];
+
+    const firedAll = exchanges.filter((ex) => eligible(ex, true));
+    const firedClean = firedAll.filter((ex) => ex.statusClean);
+    const control = exchanges.filter((ex) => eligible(ex, false) && (ex.stat[statSide][stat] ?? 0) > 0);
+    const hit = (ex: Exchange) => matches(ex.atk[attacker]!, ex.taken[victim]);
+
+    results.push({
+      flag,
+      predicts,
+      ok: firedClean.filter(hit).length,
+      n: firedClean.length,
+      okAll: firedAll.filter(hit).length,
+      nAll: firedAll.length,
+      controlMatched: control.filter(hit).length,
+      controlN: control.length,
+    });
+  };
+
+  for (const s of [0, 1] as const) {
+    const foe = (1 - s) as 0 | 1;
+    // block/evasion sit on the VICTIM; the attacker is the other side.
+    run(`blockProc${s}`, "floor(ATK/2)", foe, s, "block", s, (a, t) => t === Math.floor(a / 2), `critProc${foe}`);
+    run(`evadeProc${s}`, "0", foe, s, "evasion", s, (_a, t) => t === 0, `critProc${foe}`);
+    // lck sits on the ATTACKER.
+    run(`critProc${s}`, "2*ATK", s, foe, "lck", s, (a, t) => t === 2 * a, `blockProc${foe}`);
+  }
+  return results;
+}
+
+function main(): void {
+  const exchanges = loadExchanges();
+  const clean = exchanges.filter((e) => e.statusClean);
+  console.log(`\n▸ proc effect sizes — ${exchanges.length} exchanges, ${clean.length} of them status-clean\n`);
+
+  // The null, restated every run: it is what makes every number below a measurement.
+  let nullOk = 0;
+  let nullN = 0;
+  for (const ex of exchanges) {
+    if (Object.values(ex.flags).some(Boolean)) continue;
+    for (const victim of [0, 1] as const) {
+      const attacker = (1 - victim) as 0 | 1;
+      if (!dealtDamage(ex, attacker) || typeof ex.atk[attacker] !== "number") continue;
+      nullN++;
+      if (ex.taken[victim] === ex.atk[attacker]) nullOk++;
+    }
+  }
+  console.log(`  NULL (no proc fired): damage taken === attacker currentATK   ${nullOk} / ${nullN}\n`);
+
+  console.log(`  flag            predicts       status-clean        all exchanges     control (stat>0, unfired)`);
+  for (const r of scoreRules(exchanges)) {
+    const [lo, hi] = wilson(r.ok, r.n);
+    const ci = r.n === 0 ? "n/a" : `[${(100 * lo).toFixed(0)}-${(100 * hi).toFixed(0)}%]`;
+    console.log(
+      `  ${r.flag.padEnd(15)} ${r.predicts.padEnd(13)} ${`${r.ok}/${r.n}`.padStart(7)} ${ci.padStart(11)}   ${`${r.okAll}/${r.nAll}`.padStart(8)}        ${`${r.controlMatched}/${r.controlN}`.padStart(9)}`,
+    );
+  }
+
+  // tenacity and intuition get no rule — both are reported as what they are.
+  console.log(`\n  tenacity — NOT damage mitigation. Matched on tenacity>0:`);
+  for (const s of [0, 1] as const) {
+    for (const fired of [true, false]) {
+      const rs = exchanges.filter((e) => e.flags[`tenacityProc${s}`] === fired && (e.stat[s].tenacity ?? 0) > 0);
+      const healed = rs.filter((e) => e.heal[s] !== undefined);
+      const [lo, hi] = wilson(healed.length, rs.length);
+      console.log(
+        `    tenacityProc${s} ${fired ? "FIRED  " : "unfired"} n=${String(rs.length).padStart(4)}   OnHeal on that side ${String(healed.length).padStart(3)} (${((100 * healed.length) / (rs.length || 1)).toFixed(1)}%, 95% CI [${(100 * lo).toFixed(1)}-${(100 * hi).toFixed(1)}%])`,
+      );
+    }
+  }
+
+  const intuition = exchanges.filter((e) => e.flags.intuitionProc0);
+  const unmitigated = intuition.filter(
+    (e) => !e.flags.blockProc0 && dealtDamage(e, 1) && e.taken[0] === e.atk[1],
+  ).length;
+  const blocked = intuition.filter((e) => e.flags.blockProc0).length;
+  console.log(
+    `\n  intuition — NOT damage mitigation either: ${unmitigated} of ${intuition.length - blocked} non-blocked procs took the attacker's FULL ATK` +
+      `\n    (the remaining ${blocked} also carried blockProc0, and took exactly floor(ATK/2) — that is block, not intuition).\n`,
+  );
+}
+
+const isMain = process.argv[1] && process.argv[1].endsWith("procEffectSize.ts");
+if (isMain) main();
