@@ -45,6 +45,9 @@ const ALLOWED = new Set([
   "getJuice",
   "getFishingState",
   "getRomsPlayer",
+  // [session 100 §A] `GET /gear/instances/{address}` — the equipped rod's
+  // `DURABILITY_CID`. A read of the account's own gear; touches nothing.
+  "getGearInstances",
   // writes — both are game actions
   "postDungeonAction",
   "postFishingAction",

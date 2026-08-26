@@ -97,6 +97,7 @@ import { resolveProfile, profileArg, dataPath, fixturePath } from "../src/profil
 import { rejectUnknownArgs } from "./lib/cliArgs.js";
 import { reconcileEnergyAccounting, describeEnergyAccounting } from "../src/orchestrator/energyAccounting.js";
 import { ensureEnergyFor, clientEnergyPreflightDeps, EnergyPreflightError } from "../src/orchestrator/energyPreflight.js";
+import { readRodDurability, type RodDurabilityReading } from "../src/strategy/fishing/rodDurability.js";
 import { regenerateRunReports } from "./regenerateReports.js";
 import { createShutdownSignal, installProcessSigintHandler } from "../src/orchestrator/shutdown.js";
 import {
@@ -896,6 +897,62 @@ function topCellOf(dist: ReadonlyMap<string, { cell: Cell; p: number }>): { cell
   const tied = values.filter((v) => Math.abs(v.p - maxP) < 1e-9);
   tied.sort((a, b) => a.cell.x - b.cell.x || a.cell.y - b.cell.y);
   return tied[0] ?? null;
+}
+
+/**
+ * [session 100 §A, QUESTIONS.md §52] The paired rod-durability ledger.
+ *
+ * One line per reading, taken BEFORE and AFTER every live batch. This exists
+ * for exactly one purpose: to make the per-cast DECREMENT RATE derivable from
+ * ordinary play instead of from a dedicated experiment. §52 forbids assuming a
+ * rate, and the repo currently holds one unpaired data point (Golkan at 40 on
+ * equip), so nothing can be fitted yet — the fix is to start recording, and
+ * let a future session fit it once a few brackets exist.
+ *
+ * A row is only useful in a PAIR, which is why `castsSoFar` is on it: the two
+ * readings that bracket a batch, plus the cast count between them, are the
+ * whole measurement.
+ */
+export const DEFAULT_ROD_DURABILITY_LOG_PATH = join("data", "rodDurability.jsonl");
+
+export interface RodDurabilityRecord {
+  at: string;
+  /** "before" or "after" the batch — a pair with the same `batchId` brackets one batch. */
+  phase: "before" | "after";
+  /** Ties the two readings of one batch together. */
+  batchId: string;
+  /** Casts this process had actually played at the moment of the reading. */
+  castsSoFar: number;
+  /**
+   * True when the reading came from a `--dry-run`. Such a row is a REAL
+   * reading (the GET is real) but its batch never spent a cast, so a rate fit
+   * must not pair it with anything — it is a point, not a bracket.
+   */
+  dryRun: boolean;
+  rodItemId: number | null;
+  docId: string | null;
+  durability: number | null;
+  status: string;
+}
+
+/** Append-one-line writer, same never-fatal convention as `appendTransition`. */
+export function appendRodDurability(rec: RodDurabilityRecord, path: string = DEFAULT_ROD_DURABILITY_LOG_PATH): void {
+  mkdirSync(dirname(path), { recursive: true });
+  appendFileSync(path, `${JSON.stringify(rec)}\n`, "utf8");
+}
+
+export function loadRodDurability(path: string = DEFAULT_ROD_DURABILITY_LOG_PATH): RodDurabilityRecord[] {
+  if (!existsSync(path)) return [];
+  const out: RodDurabilityRecord[] = [];
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line) as RodDurabilityRecord);
+    } catch {
+      continue; // one bad line shouldn't lose the whole log
+    }
+  }
+  return out;
 }
 
 export const DEFAULT_RING_PREDICTION_LOG_PATH = join("data", "ringPrediction.jsonl");
@@ -3398,6 +3455,59 @@ async function main() {
   const armState = readArmState(nextPositionArmStatePath);
   console.log(`  ${armState.disarmed ? "★★★ " : "· "}${describeArmState(armState, nextPositionArmStatePath)}`);
 
+  // ── [session 100 §A, QUESTIONS.md §52] ROD DURABILITY PREFLIGHT ──────────
+  //
+  // `GET /gear/instances/{address}` publishes the equipped rod's
+  // `DURABILITY_CID`. Zero means the rod has RUN DRY, and a dry rod makes the
+  // server deal `BASE_DECK` instead of the rod's grant — the state sessions
+  // 89-91 reconstructed after the fact from the decks they were dealt, three
+  // sessions running, while this endpoint was publishing it directly.
+  //
+  // **Fail-closed, not predict-forward.** §52 forbids inventing a decrement
+  // rate, so this halts at 0 and warns near it and says nothing about "casts
+  // remaining". The paired before/after readings written to
+  // `DEFAULT_ROD_DURABILITY_LOG_PATH` are what will make a rate derivable
+  // later, from ordinary play.
+  //
+  // Runs on a --dry-run too: it spends no cast, it is exactly the kind of
+  // guard `--dry-run` exists to exercise (CLAUDE.md rule 12), and a batch
+  // whose rehearsal skipped the newest gate has not rehearsed it.
+  const rodDurabilityLogPath = dataPath(profile, "rodDurability.jsonl");
+  const batchId = new Date().toISOString();
+  let rodReading: RodDurabilityReading;
+  try {
+    const gear = await client.getGearInstances(me.address);
+    rodReading = readRodDurability(gear.entities);
+  } catch (e) {
+    // Rule 5. A preflight that could not read is not a preflight that passed.
+    throw new GuardTrip("rod durability preflight could not read /gear/instances", {
+      error: (e as Error).message,
+    });
+  }
+  console.log(`  ${rodReading.status === "ok" ? "· " : "★★★ "}rod durability: ${rodReading.detail}`);
+  log.write({ event: "rod_durability_preflight", phase: "before", ...rodReading });
+  appendRodDurability(
+    {
+      at: new Date().toISOString(),
+      phase: "before",
+      batchId,
+      castsSoFar: 0,
+      dryRun: args.dryRun,
+      rodItemId: rodReading.rodItemId,
+      docId: rodReading.docId,
+      durability: rodReading.durability,
+      status: rodReading.status,
+    },
+    rodDurabilityLogPath,
+  );
+  if (rodReading.stop) {
+    throw new GuardTrip(`rod durability preflight HALT: ${rodReading.detail}`, {
+      durability: rodReading.durability,
+      rodItemId: rodReading.rodItemId,
+      docId: rodReading.docId,
+    });
+  }
+
   // [session 45, TASKS.md Task 10] Graceful SIGINT, wired into this direct-CLI
   // entry point's own `main()` — `runOneCast` has accepted a `shutdownSignal`
   // since Task 10, but only `scripts/orchestrator.ts` ever constructed and
@@ -3694,6 +3804,40 @@ async function main() {
   // the data; what is gone is the pre-registered claim about what it means.
   // `src/strategy/fishing/oilBatch.ts` carries the same tombstone at the
   // constant itself.
+
+  // [session 100 §A] The AFTER half of the pair. This reading is the entire
+  // reason the before-reading is worth taking: one bracketed batch with a
+  // known cast count is one observation of the decrement rate, and a few of
+  // them is a rate. Never fatal — the batch is already over, so a failed read
+  // costs a data point and nothing else, and throwing here would turn a
+  // completed batch into a non-zero exit for no benefit.
+  if (!args.dryRun) {
+    try {
+      const gearAfter = await client.getGearInstances(me.address);
+      const afterReading = readRodDurability(gearAfter.entities);
+      console.log(
+        `▸ rod durability after: ${afterReading.durability ?? "unreadable"} ` +
+          `(before: ${rodReading.durability ?? "unreadable"}, casts this batch: ${guards.runCount})`,
+      );
+      log.write({ event: "rod_durability_preflight", phase: "after", ...afterReading });
+      appendRodDurability(
+        {
+          at: new Date().toISOString(),
+          phase: "after",
+          batchId,
+          castsSoFar: guards.runCount,
+          dryRun: false,
+          rodItemId: afterReading.rodItemId,
+          docId: afterReading.docId,
+          durability: afterReading.durability,
+          status: afterReading.status,
+        },
+        rodDurabilityLogPath,
+      );
+    } catch (e) {
+      console.log(`▸ rod durability after: UNREAD (${(e as Error).message}) — the pair for this batch is incomplete.`);
+    }
+  }
 
   console.log(`\n▸ done. energy spent (guard-tracked) ${guards.spentEnergy}, casts ${guards.runCount}`);
   console.log(`▸ log: ${log.filePath}`);

@@ -215,6 +215,48 @@ export const ItemsBalancesSchema = z
   .passthrough();
 export type ItemsBalances = z.infer<typeof ItemsBalancesSchema>;
 
+/**
+ * One row of `GET /gear/instances/{address}` — CONFIRMED, not guessed.
+ *
+ * Shape taken from the real 200 captured in
+ * `fixtures/fishing-casts/fishing-cast.har` (148 rows), and cross-read
+ * against the same object as it rides along on a dungeon action response at
+ * `data.entity.data.gearInstances[]`.
+ *
+ * **This is the endpoint `src/sim/fishing/rodDeck.ts` spent three sessions
+ * (89-91) not asking.** Rod durability was looked for in the FISHING doc and
+ * in the fixtures, found absent, and declared unobservable; it was here the
+ * whole time, one endpoint over — the session-70 `/gear/items` vs
+ * `/offchain/static` mistake repeated exactly. Session 99 §1 corrected the
+ * claim, QUESTIONS.md §52 authorised the wiring, and this schema is the
+ * wiring's first half.
+ *
+ * Only the four fields anything reads are asserted; `.passthrough()` keeps the
+ * rest (`RARITY_CID`, `REPAIR_COUNT_CID`, `OWNER_CID`, `createdAt`, ...)
+ * intact per this file's header rule.
+ *
+ * `EQUIPPED_TO_SLOT_CID` is **-1 when the instance is not equipped** — that is
+ * what Shroom (811) read after it was swapped out, alongside
+ * `DURABILITY_CID: 0`. A non-negative value is a real slot (the rod sat in 14
+ * on both the 2026-08-26 read and the HAR's older Makeshift 922).
+ */
+const GearInstanceSchema = z
+  .object({
+    docId: z.string(),
+    GAME_ITEM_ID_CID: z.number(),
+    DURABILITY_CID: z.number(),
+    EQUIPPED_TO_SLOT_CID: z.number(),
+  })
+  .passthrough();
+export type GearInstance = z.infer<typeof GearInstanceSchema>;
+
+export const GearInstancesResponseSchema = z
+  .object({
+    entities: z.array(GearInstanceSchema),
+  })
+  .passthrough();
+export type GearInstancesResponse = z.infer<typeof GearInstancesResponseSchema>;
+
 export const JuiceSchema = z
   .object({
     juiceData: z.object({ isJuiced: z.boolean() }).passthrough(),

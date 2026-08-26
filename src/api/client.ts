@@ -21,6 +21,7 @@ import {
   DungeonTodaySchema,
   DungeonStateOrIdleSchema,
   ItemsBalancesSchema,
+  GearInstancesResponseSchema,
   JuiceSchema,
   DungeonActionResponseSchema,
   RomClaimResponseSchema,
@@ -31,6 +32,7 @@ import {
   type DungeonToday,
   type DungeonState,
   type ItemsBalances,
+  type GearInstancesResponse,
   type Juice,
   type DungeonActionRequest,
   type DungeonActionResponse,
@@ -512,6 +514,18 @@ export class GigaverseClient {
 
   async getItemsBalances(): Promise<ItemsBalances> {
     return this.get("/items/balances", ItemsBalancesSchema);
+  }
+
+  /**
+   * `GET /api/gear/instances/{address}` — CONFIRMED, captured 200 in
+   * `fixtures/fishing-casts/fishing-cast.har` (148 rows). Not brute-forced:
+   * the path came out of a recorded browser session, per CLAUDE.md rule 2.
+   *
+   * The one place `DURABILITY_CID` is published for the equipped rod. A read,
+   * not an action — no token chain, no pacing beyond the client's own.
+   */
+  async getGearInstances(address: string): Promise<GearInstancesResponse> {
+    return this.get(`/gear/instances/${address}`, GearInstancesResponseSchema);
   }
 
   async getJuice(address: string): Promise<Juice> {

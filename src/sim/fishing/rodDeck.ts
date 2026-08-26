@@ -75,8 +75,26 @@
  *   The consequence is that a base-deck window is no longer detectable only
  *   AFTER the fact. `DURABILITY_CID` on the equipped rod is a forward-looking
  *   read, so the ~40-cast horizon is checkable before a batch rather than
- *   reconstructed from the decks it was dealt. Nothing in this repo consumes
- *   it yet — that is a wiring job, not a discovery one.
+ *   reconstructed from the decks it was dealt. ~~Nothing in this repo consumes
+ *   it yet — that is a wiring job, not a discovery one.~~
+ *
+ *   **[session 100 §A] The wiring job is DONE.**
+ *   `src/strategy/fishing/rodDurability.ts` reads it and
+ *   `scripts/liveFishing.ts` halts a batch on a dry rod before it spends a
+ *   cast. Fail-closed only — QUESTIONS.md §52 forbids predicting headroom
+ *   without a decrement rate, and the rate is still unknown.
+ *
+ *   **The first real bracket, and it is only one.** Golkan read **40** at
+ *   equip (2026-08-26T02:27:20Z) and **38** on the session-100 preflight,
+ *   with session 99's **2 casts** in between. That is 1.0/cast, and at 1.0/cast
+ *   a 40-durability rod is a ~40-cast rod — which is exactly the user's own
+ *   estimate. **Do not promote that to the rate yet.** It is n=1 bracket, the
+ *   "before" half was a hand-read at equip rather than an instrument reading,
+ *   and nothing rules out a per-BATCH or per-TURN decrement that happens to
+ *   coincide at this sample. `data/rodDurability.jsonl` now records a paired
+ *   before/after reading on every live batch, so the rate becomes derivable
+ *   from ordinary play; §52 point 4 keeps "~40 casts" an estimate until it has
+ *   been cross-checked against a real observed rod failure.
  *
  * Two smaller corrections fall out of the same read, both of which made the old
  * claim look better-supported than it was:
