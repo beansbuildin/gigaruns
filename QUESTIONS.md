@@ -4293,3 +4293,135 @@ Hard Core). **The user's ruling: leave open.** No task, no brief item, no
 threshold set. Carry it forward as a standing observation only; do not let
 a future session interpret silence on this as license to invent a fix
 unprompted.
+
+---
+
+## §57 ANSWERED [session 100 §B] — `triggeredBoons` IS NOT THE PROC CHANNEL. `data.events[]` IS, IT HAS POPULATED SINCE 2026-08-14, AND IT UNBLOCKS CAPTURE-1
+
+**The question (§54, session 99's open question #3):** `triggeredBoons` — the
+field that would evidence a boon actually procing — was empty on every recorded
+state across all 214 POSTs of a full 4-run day. Does it ever populate? A
+silent, never-firing evidence channel would make CAPTURE-1's five-rolled-stats
+model unreachable by ordinary play, however many runs get spent chasing it.
+
+**Verdict, in one line: the field is real, it has never once populated, and it
+does not matter — because it was never the channel.**
+
+### 1. `triggeredBoons` has never been non-empty. Not rare — never.
+
+Measured over the whole committed corpus, every run dir, both players, every
+captured state (`scripts/procEvidence.ts`):
+
+```
+  triggeredBoons occurrences        10616      (= 5308 states x 2 players, exactly)
+  triggeredBoons NON-EMPTY              0
+```
+
+Session 99 saw the same thing over four runs and could not tell "rare" from
+"never". Over 93 run dirs spanning 2026-08-13 to 2026-08-26, it is never.
+
+### 2. It is NOT a capture-path gap, and that had to be ruled out separately.
+
+The obvious competing explanation — the pipeline strips array fields off the
+player object — is false. Five sibling arrays on the *same object* populate:
+
+```
+  activeEffects   10286 / 21268 non-empty        gearBoons    8346 / 21268
+  pickedBoons      9036 / 21268                  statusEffects 4900 / 21268
+  focusBuffs          54 / 21268   = 0.25%
+```
+
+`focusBuffs` is the one that settles it: it populates on a quarter of one
+percent of states and it still gets through. A path that captures a 0.25%
+sibling is not a path that would silently drop `triggeredBoons` in 21,268
+consecutive chances.
+
+### 3. The proc channel is `data.events[]`, and this repo has kept it since session 08.
+
+Every dungeon ACTION response carries an event log. Its `use_move` rows carry a
+**per-exchange, per-side boolean for each of the five rolled stats**:
+
+```json
+{"type":"use_move","value":"rock","playerId":0,"batch":0,
+ "data":{"blockProc0":false,"evadeProc0":false,"critProc0":false,
+         "intuitionProc0":false,"tenacityProc0":false}}
+```
+
+Measured, n = 1919 exchanges per side:
+
+```
+  flag              stat        fired /     n       rate     fired when stat==0
+  blockProc0        block         90 /  1919      4.69%      0 / 299
+  blockProc1        block         22 /  1919      1.15%      0 / 918
+  critProc0         lck           24 /  1919      1.25%      0 / 1012
+  critProc1         lck           25 /  1919      1.30%      0 / 943
+  evadeProc0        evasion        6 /  1919      0.31%      0 / 1691
+  evadeProc1        evasion       31 /  1919      1.62%      0 / 928
+  intuitionProc0    intuition      6 /  1919      0.31%      0 / 1354
+  tenacityProc0     tenacity      17 /  1919      0.89%      0 / 1172
+  tenacityProc1     tenacity      19 /  1919      0.99%      0 / 932
+```
+
+**The right-hand column is the load-bearing one.** No flag has ever fired while
+its own stat read zero, across 299 to 1691 zero-stat observations each. That is
+what makes this a MAPPING rather than a naming coincidence — and it resolves
+`lck` as **crit chance**, which SPEC §4e listed as unknown semantics.
+
+Two independent corroborations, neither of which was engineered:
+
+- `intuitionProc0` fired **6** times and the corpus holds exactly **6**
+  `intuition_block` events (`{"blockedMove":"rock"}` etc.). Same number, and
+  they identify the same turns.
+- There is **no `intuitionProc1` flag at all**, and the enemy's `intuition` is
+  zero in all 5308 states. The server does not report a roll the enemy cannot
+  make.
+
+Proc rate rises with the stat roughly as expected (block 10 → 8.5%, crit 2 →
+3.0%, evade 2 → 3.3%), i.e. on the order of 1 percentage point per point.
+**That last sentence is an observation, not a fitted model** — do not lift it
+into code.
+
+### 4. This was predicted in `src/api/schemas.ts` in session 08 and never followed up.
+
+The schema has carried `events: z.array(z.unknown())` since 2026-08-14, with a
+comment saying: *"worth watching: a structured event log of what an action
+caused is a much better signal than diffing `run` before/after, if later actions
+populate it for room clears, kills, boon picks, etc."* They populate — from
+2026-08-14 onward, including all four of session 99's runs. Nothing on the
+dungeon side has ever read it, while the FISHING side
+(`src/sim/fishing/castTrace.ts`) has been reading its own `data.events[]` all
+along.
+
+**This is the same failure as §52's, one week and one endpoint apart:** the
+data was published, a field was looked for in the wrong payload, and its
+absence there was read as its absence everywhere. Third occurrence
+(`/gear/items` vs `/offchain/static` in session 70, the FISHING doc vs
+`/gear/instances` in session 99, and now `run.players[]` vs `data.events[]`).
+
+### 5. What this does to CAPTURE-1
+
+**It does not gate it. It unblocks the capture half of it.** CAPTURE-1 said the
+proposed proc branches need proc RATES, "1-5% events wanting hundreds of
+observations each (SPEC §4e)" — and the corpus already holds **1919 exchanges
+per side**, with rates landing in exactly that 0.3-4.7% band, on data that cost
+nothing to collect because it was already committed.
+
+**What is still NOT resolved, and must not be papered over:**
+
+- **Rates are not mechanics.** Knowing `blockProc0` fires 4.69% of the time
+  does not say what `block` DOES when it fires (a full negate? a reduction? by
+  how much?). That is a second measurement — diff the HP/shield deltas on
+  fired vs unfired exchanges — and it has not been done.
+- **`Weak`, `Vulnerable`, `Burn`, `Regen` and lifesteal are untouched by this.**
+  They surface in `statusEffects`, not in the proc booleans, and CAPTURE-1
+  lists them separately.
+- **Nothing here licenses stubbing `src/sim/combat.ts`.** CAPTURE-1's "do not
+  stub it, default it, or hide it behind a flag" stands unchanged. This entry
+  moves one input from unobtainable to obtained; it does not authorise
+  building the model, and the per-stat effect sizes are still missing.
+
+### 6. Reproducing this
+
+`npx tsx scripts/procEvidence.ts`, re-runnable as volume accumulates.
+`tests/procEvidence.test.ts` pins both claims — the never-populated field and
+the zero-stat control — so a corpus change that breaks either is visible.

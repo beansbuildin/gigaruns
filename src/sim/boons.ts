@@ -599,11 +599,23 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     // (session 99, confirmed across two runs) — which is why a future
     // CAPTURE-1 pass should read it differently from evasion/block/lck/
     // tenacity.
+    //
+    // **[session 100 §B, QUESTIONS.md §57] "`triggeredBoons` stayed EMPTY"
+    // above is TRUE but carries no information.** That field has never been
+    // non-empty anywhere in the corpus — 0 of 10,616 occurrences, both sides,
+    // every run since 2026-08-13 — so its emptiness here is not evidence about
+    // THIS boon. It is the field's only behaviour.
+    //
+    // The channel that would have shown a proc is `data.events[]`, whose
+    // `use_move` rows carry `intuitionProc0` (and the four siblings) per
+    // exchange. That run IS covered by it. Anyone re-opening
+    // `LossIntuitionUp` should re-ask the question there rather than repeat
+    // the `triggeredBoons` observation — it will always come back empty.
     // ─────────────────────────────────────────────────────────────────────
     effect: { kind: "latent" },
     contaminates: ["STATUS_EFFECT"],
     evidence: "run-2026-08-26-03-12-54 state-023→state-024",
-    observed: "selectedVal1 5 → no change to any player field (whole-object diff: pickedBoons append only); intuition still {current:0,starting:0} 31 rounds later, triggeredBoons empty all run",
+    observed: "selectedVal1 5 → no change to any player field (whole-object diff: pickedBoons append only); intuition still {current:0,starting:0} 31 rounds later, triggeredBoons empty all run (§57: that field is empty in ALL runs, so it evidences nothing here)",
   },
   AddBurnShield: {
     // [session 88, LIVE] `Uncommon` (RARITY_CID 1), val1 3 — the only Uncommon

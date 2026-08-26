@@ -1636,6 +1636,38 @@ now logs `evSupported` / `unmodelled` / `unmodelledBySide` beside its EV
 mechanics co-occur in the fights the bot actually loses becomes readable
 straight out of `logs/`. **Read that before choosing what to capture.**
 
+**[session 100 §B, QUESTIONS.md §57] THE PROC-RATE HALF IS NO LONGER A
+CAPTURE PROBLEM. The data is already committed and nobody had read it.**
+
+`data.events[]` on every dungeon action response carries a per-exchange,
+per-side boolean for all five rolled stats (`blockProc0`, `evadeProc0`,
+`critProc0`, `intuitionProc0`, `tenacityProc0`, and the `*1` enemy variants).
+It has populated since 2026-08-14. The corpus holds **1919 exchanges per side**
+— against the "hundreds of observations each" this entry said were needed —
+with rates of 0.31% to 4.69%, exactly the 1-5% band SPEC §4e predicted.
+`scripts/procEvidence.ts` measures it; `tests/procEvidence.test.ts` pins it.
+
+The mapping is verified, not assumed: **no flag has ever fired while its own
+stat read zero** (299-1691 zero-stat observations per flag). That also resolves
+`lck` as CRIT CHANCE.
+
+`triggeredBoons` — the field session 99 flagged as never firing — is NOT this
+channel and never was. It has never been non-empty in 10,616 occurrences. It
+gates nothing. Do not spend runs chasing it.
+
+**What is still missing, and it is the half that matters most:**
+
+- **Effect SIZES.** A rate is not a mechanic: nothing yet says what `block`
+  DOES when it procs. The next measurement is a diff of HP/shield deltas on
+  fired vs unfired exchanges, on data already on disk.
+- **`Weak`, `Vulnerable`, `Burn`, `Regen`, lifesteal** — untouched by this.
+  They live in `statusEffects`, not in the proc booleans.
+
+**The prohibition above is UNCHANGED. Do not stub, default, or flag-hide these
+branches.** Having the rates makes one input obtainable; it does not authorise
+building the model, and a branch structure filled with guessed effect sizes is
+still an honest "unscorable" converted into a confident wrong number.
+
 **Blocks:** any Rule 8 policy claim derived from the simulator; CAPTURE-2.
 
 ### CAPTURE-2 — potion timing on a model that covers Rule 8 fights (M2)

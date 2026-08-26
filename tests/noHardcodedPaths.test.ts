@@ -169,7 +169,14 @@ describe("the profile seam — what is NOT converted, counted so it cannot grow 
     // A ratchet, not a target. If this fails LOW, a script was converted —
     // lower the number. If it fails HIGH, a new script hard-coded a path;
     // prefer the profile instead of raising it.
-    expect([...unconverted].sort().length).toBe(25);
+    //
+    // [session 100 §B] 25 -> 26: `scripts/procEvidence.ts`. Raised rather than
+    // converted, for the reason `src/sim/fishing/rodDeck.ts` is allowlisted
+    // above — it names `fixtures/dungeon-runs`, the COMMITTED CORPUS, which is
+    // a fact about what was recorded and not something a `--profile` run
+    // should be able to redirect. It takes the root as a parameter with that
+    // default, so a caller wanting a different tree passes one.
+    expect([...unconverted].sort().length).toBe(26);
   });
 
   it("the three entry points are NOT in the unconverted set", () => {
