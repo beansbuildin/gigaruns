@@ -2531,3 +2531,97 @@ IS NOT LOGGED ANYWHERE** — `liveFishing.ts` emits `oil_double_lethal_fired` on
 firing and nothing on a skip — so the count above is reconstructed from
 `oil_shadow`'s `fishHp` and `heldAtDecision`. A session wanting the withhold
 rate directly has to add that event.
+
+2026-08-26 (session 99 §1) — **THE ROD IS GOLKAN (812), AND THE DECK CHANGE IS
+A TIER CHANGE RATHER THAN A GEOMETRY CHANGE.** Swapped at 2026-08-26T02:27:20Z,
+confirmed on both `/offchain/static` and PLAY (both casts opened on the Golkan
+prefix). Nine of ten granted ids are new, which makes it look like the largest
+deck break yet; it is not. The two decks are positionally IDENTICAL — same ten
+hit-zone sets, same mana cost on all ten, card 74 literally shared — and Golkan
+is Shroom one tier better. **Geometry-keyed numbers transfer; damage-keyed ones
+do not.** Card 89 (miss −4 vs 76's −3) is the only regression.
+
+2026-08-26 (session 99 §1) — **`DURABILITY_CID` EXISTS, ON
+`GET /gear/instances/{address}`, AND `rodDeck.ts`'s CLAIM THAT IT DOES NOT WAS
+FALSE WHEN WRITTEN.** Shroom (811) reads 0 and unequipped; Golkan (812) reads 40
+at slot 14. Sessions 89–91 reconstructed durability from dealt decks while the
+server published it directly — the session-70 mistake one endpoint over. A field
+absent from the payloads this repo happens to record is not evidence it does not
+exist. Corrected in the file; **nothing consumes it yet**, which is an unclaimed
+wiring job, not a discovery one.
+
+2026-08-26 (session 99 §1) — **`CORPUS_DECK` IS INTRODUCED, AND IS DELIBERATELY
+NOT AN ALIAS FOR `REAL_DECK`.** Three tests build a SIM arm from `REAL_DECK` and
+compare it against a CORPUS-derived quantity; that was correct only by
+coincidence while the two decks matched, and six assertions broke the moment the
+rod changed. `CORPUS_DECK` names the deck the corpus was actually played on
+(Shroom) and stays there until the corpus is majority-Golkan — currently 2 of
+210. **Widening those tolerances or re-blessing them to Golkan values were both
+considered and rejected**: the first discards a working sim-vs-live cross-check,
+the second pins numbers describing a deck the comparison corpus was never played
+on. All six pins stayed byte-identical.
+
+2026-08-26 (session 99 §2) — **THE 2-CAST BATCH CAUGHT 1, AND SAYS NOTHING** —
+exact 95% CI [1.3%, 98.7%], Fisher against session 98's 6/9 gives p = 1.0. The
+brief predicted n=2 would be uninformative and it is; no baseline moved. 0 oils
+consumed, so **the 0.85 necessity gate got ZERO opportunities for the third
+consecutive batch** — which is not the same as it holding nothing.
+`SESSION_99_LIMITS` (castCap 2) is the first batch shape whose number is set BY
+the ledger (18 of 20 already spent) rather than in spite of it.
+
+2026-08-26 (session 99 §3) — **THE §26 SHADOW VERDICT IS "CONSISTENT AND
+UNDERPOWERED", AND BOTH HALVES ARE THE FINDING.** Out-of-sample 6/170 = 3.53%
+[1.31%, 7.52%] against an in-sample 3.07%; exact binomial p = 0.6545, not
+rejected. But MDE at 80% power is **2.38x** and ~350 decisions (~7 more batches)
+are needed for 80% power at 2x. The 10x refutation `redrawShadow.ts`
+pre-registers IS excluded at 100% power; nothing weaker is. **Quoting the
+non-rejection without the MDE beside it is quoting absence of evidence as
+evidence of absence**, and the test pins the pairing. `redrawEnabled` and
+`REDRAW_THRESHOLD` untouched per §49. QUESTIONS.md §51.
+
+2026-08-26 (session 99 §3) — **§28's GAP 1 IS STRUCTURALLY UNREACHABLE FROM THE
+REDRAW SHADOW, AT ANY VOLUME — §28's own expectation that the shadow would close
+it is WRONG.** The two `FISH_MOVED` readings differ only in bookkeeping on a turn
+a redraw actually happened, and a shadow never redraws. `redraw_sent` rows on
+this machine: 0. Stop reporting this as a volume problem; closing it needs
+redraw ARMED live, which is a standing user decision.
+
+2026-08-26 (session 99 §4) — **FOUR JUICED RUNS, FOUR DEATHS, ROOMS 5/5/10/7 —
+24384 Hard Core, 1278 Dendren Root, 240 energy, 214 POSTs, ZERO first-attempt
+action failures.** Each run had its own explicit user go-ahead per rule 11; the
+ledger was read after every one (3/6/9/12) per rule 13. Room 10 **ties** the
+deepest death on record rather than setting a new one — checked before claiming
+otherwise, because a truncated histogram read earlier in the session made "new
+deepest" an easy and wrong claim. At room 10 the opponent model reports
+`uniform-below-floor n=5 confidence=low`: the deepest, highest-stakes decisions
+run on the thinnest data.
+
+2026-08-26 (session 99 §4, user directive in-session) — **`LossIntuitionUp` IS
+MODELLED `latent` FROM n=1**, the same call the account owner made in session 95
+for three types; the cautious default (leave the wall test red until a second
+pickup) was put to them with the evidence and declined. A recursive whole-object
+diff shows only `pickedBoons` changing at pickup, on both players. It was also
+watched for 31 subsequent rounds: **`intuition` never left `{current:0,
+starting:0}` and `triggeredBoons` was EMPTY on every recorded state of the whole
+run.** Per DECISIONS 2026-08-15 nothing is inferred from the name.
+`UNMODELLED_TYPES` 19 → 18, none moved in.
+
+2026-08-26 (session 99, recap) — **`triggeredBoons` NEVER POPULATED ONCE ACROSS
+A FULL FOUR-RUN DAY (214 POSTs).** It is the field that would evidence a boon
+proc. Either it does not populate on this capture path or no boon triggered at
+all, and **settling which is far cheaper than CAPTURE-1's five-stat model while
+also gating it** — a proc-evidence channel that silently never fires would make
+CAPTURE-1 unreachable by ordinary play however many runs are spent. Also
+recorded: `intuition` is the one of the five rolled stats carrying a
+`{current, starting}` METER shape rather than a scalar.
+
+2026-08-26 (session 99, recap) — **`tests/rejectionAudit.test.ts`'s NUMERIC arm
+no longer asserts a MAXIMUM, and this is a re-expression rather than a
+relaxation.** `Math.max(numeric) < 2500` went red on ONE `scissor` POST at
+3810ms — 1 of 1308, next slowest 2259ms, a first attempt that SUCCEEDED. A max
+over an ever-growing machine-local log corpus eventually fails for reasons
+unrelated to what it checks, and raising the bound would only defer that while
+widening the gap a real leak could hide in. It now asserts the median < 2500 and
+the share at/above the 3600ms pacing floor < 1%, which is **strictly more
+sensitive** to the actual failure mode: a pacing leak is a floor affecting
+essentially all POSTs, which a max could pass.

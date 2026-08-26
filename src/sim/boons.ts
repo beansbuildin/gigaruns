@@ -562,6 +562,49 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-24-01-04-21 state-105→state-106",
     observed: "selectedVal1 2 → no change to any player field (whole-object diff: pickedBoons append only)",
   },
+  LossIntuitionUp: {
+    // ─────────────────────────────────────────────────────────────────────
+    // [session 99 §4, LIVE] FIRST-EVER pickup, from run 2 of 2026-08-26
+    // (`run-2026-08-26-03-12-54`), room 2. `selectedVal1` 5.
+    //
+    // MODELLED FROM n=1 BY EXPLICIT USER DIRECTIVE, exactly as the three
+    // session-95 types above were, and recorded that way so a later reader
+    // does not mistake it for an oversight. The cautious default this repo
+    // would otherwise take — leave the wall test red until a SECOND pickup
+    // confirms — was put to the account owner with the evidence below and
+    // declined. **If this type is ever observed moving a field on a second
+    // pickup, this is the entry to revisit.**
+    //
+    // `latent` is a MEASURED result here, not a fallback. The check was
+    // session 89's stricter one — a recursive diff of the ENTIRE raw
+    // `players[0]` object across the pair, not just the fields `toCombatant`
+    // projects — and the only difference in the whole object is this boon's
+    // own append to `pickedBoons`. `health` and `shield`, all three moves,
+    // every rolled stat, `statusEffects`, `activeEffects`, `triggeredBoons`,
+    // `gearBoons` and `focusBuffs` are byte-identical before and after.
+    // `players[1]` is byte-identical too.
+    //
+    // ⚠ IT WAS ALSO WATCHED FOR THE REST OF THE RUN, which is more than a
+    // pickup diff can show, and this is the part worth carrying to CAPTURE-1:
+    // **31 combat rounds followed the pickup and `intuition` never left
+    // `{current: 0, starting: 0}`, while `triggeredBoons` stayed EMPTY on
+    // every recorded state of the entire run.** So the conditional the name
+    // suggests was never seen to fire. Per DECISIONS 2026-08-15 the effect is
+    // NOT inferred from the name, so nothing here claims it does anything on
+    // a loss — only that it does nothing at pickup and was never observed
+    // doing anything afterwards.
+    //
+    // `intuition` is also the one member of the five rolled stats that
+    // carries a `{current, starting}` METER shape rather than a scalar
+    // (session 99, confirmed across two runs) — which is why a future
+    // CAPTURE-1 pass should read it differently from evasion/block/lck/
+    // tenacity.
+    // ─────────────────────────────────────────────────────────────────────
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-26-03-12-54 state-023→state-024",
+    observed: "selectedVal1 5 → no change to any player field (whole-object diff: pickedBoons append only); intuition still {current:0,starting:0} 31 rounds later, triggeredBoons empty all run",
+  },
   AddBurnShield: {
     // [session 88, LIVE] `Uncommon` (RARITY_CID 1), val1 3 — the only Uncommon
     // of the three. Same run as `AddVulnerableSword`, 18 states later. Reads as
@@ -2334,6 +2377,133 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 6,
     source: "run-2026-08-25-03-30-48/state-105",
     options: [opt("AddBlock", 2), opt("Regen", 1), opt("AddLuck", 2)],
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // [session 99 §4] TWENTY-THREE offers from the four juiced runs of
+  // 2026-08-26 (4 + 4 + 9 + 6). Appended by multiset difference against the
+  // corpus rather than by hand: the diff reported 23 new and **0 stale**, so
+  // nothing already in this table was invalidated, and no entry here is a
+  // re-transcription of one that was.
+  //
+  // Nine of them come from  alone — the room-10 run,
+  // which ties the deepest death on record. Depth is where this table is
+  // thinnest, so a deep run contributes disproportionately to it.
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    room: 1,
+    source: "run-2026-08-26-03-08-08/state-017",
+    options: [opt("LossBlockUp", 5), opt("AddIntuition", 1), opt("UpgradeRock", 0, 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-26-03-08-08/state-033",
+    options: [opt("AddEvasion", 2), opt("AddBurnMagic", 3), opt("UpgradeScissor", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-26-03-08-08/state-049",
+    options: [opt("AddLuck", 5), opt("AddIntuition", 5), opt("CorrosiveMagic", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-26-03-08-08/state-079",
+    options: [opt("BurningCrit", 3), opt("Vengeance", 15), opt("AddIntuition", 10)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-26-03-12-54/state-011",
+    options: [opt("AddLuck", 4), opt("TieVulnerable", 1), opt("UpgradePaper", 0, 8)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-26-03-12-54/state-023",
+    options: [opt("UpgradeScissor", 0, 8), opt("AddIntuition", 10), opt("LossIntuitionUp", 5)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-26-03-12-54/state-043",
+    options: [opt("CorrosiveMagic", 2), opt("AddBlock", 2), opt("AddVulnerableSword", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-26-03-12-54/state-075",
+    options: [opt("UpgradePaper", 4), opt("AddBlock", 2), opt("UpgradeRock", 8)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-26-03-27-11/state-013",
+    options: [opt("AddEvasion", 1), opt("AddTenacity", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-26-03-27-11/state-039",
+    options: [opt("AddMaxArmor", 8), opt("AddBurnSword", 5), opt("AddBlock", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-26-03-27-11/state-045",
+    options: [opt("AddBlock", 3), opt("BurningEvade", 8), opt("AddIntuition", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-26-03-27-11/state-057",
+    options: [opt("TieVulnerable", 1), opt("AddMaxHealth", 14), opt("Regen", 4)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-26-03-27-11/state-067",
+    options: [opt("UpgradeRock", 0, 4), opt("AddTenacity", 2), opt("AddLifestealShield", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-26-03-27-11/state-089",
+    options: [opt("AddBlock", 2), opt("CorrosiveShield", 2), opt("UpgradeRock", 4)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-26-03-27-11/state-109",
+    options: [opt("AddIntuition", 2), opt("AddIntuition", 1), opt("AddMaxArmor", 10)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-26-03-27-11/state-125",
+    options: [opt("UpgradePaper", 0, 4), opt("AddTenacity", 7), opt("AddBurnMagic", 3)],
+  },
+  {
+    room: 9,
+    source: "run-2026-08-26-03-27-11/state-151",
+    options: [opt("CorrosiveSword", 2), opt("AddBurnMagic", 3), opt("UpgradeRock", 0, 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-26-03-46-50/state-009",
+    options: [opt("AddLifestealShield", 4), opt("Heal", 50), opt("AddIntuition", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-26-03-46-50/state-027",
+    options: [opt("UpgradeScissor", 4), opt("AddEvasion", 1), opt("AddLuck", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-26-03-46-50/state-041",
+    options: [opt("Heal", 16), opt("AddTenacity", 7), opt("AddVulnerableMagic", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-26-03-46-50/state-057",
+    options: [opt("AddLifestealMagic", 4), opt("UpgradeRock", 0, 8), opt("Regen", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-26-03-46-50/state-067",
+    options: [opt("UpgradePaper", 8), opt("AddBlock", 2), opt("AddEvasion", 5)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-26-03-46-50/state-089",
+    options: [opt("AddLuck", 10), opt("UpgradeScissor", 8), opt("AddTenacity", 2)],
   },
 ];
 

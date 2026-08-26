@@ -166,6 +166,12 @@ describe("fail-closed on unmodelled types", () => {
 
   it("names the types the corpus offered but never showed the effect of", () => {
     expect(UNMODELLED_TYPES).toEqual([
+      // [session 99 §4] ONE moved OUT: `LossIntuitionUp`, modelled LATENT from
+      // its first-ever pickup in run 2 of 2026-08-26 (see `boons.ts`). It had
+      // been sighted since session 52 — a room-7 offer, the corpus's first
+      // room-7 offer at all — and went 47 sessions without being taken.
+      // NONE moved in: the four runs offered no type this list did not
+      // already carry, so 19 -> 18 is a clean decrement.
       // [session 82] TWO moved OUT — TieWeak and VulnerableBlock both got
       // first-ever pickup pairs from this session's four juiced runs, both
       // LATENT. TieWeak had been the most-offered unmodelled type on the
@@ -242,7 +248,6 @@ describe("fail-closed on unmodelled types", () => {
       "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
       "LossBlockUp", // session 20: first sighting, live room-2 offer, not picked
       "LossEvasionUp", // session 82: FIRST-EVER TYPE, live room-4 offer on run 1, not picked
-      "LossIntuitionUp", // session 52: first sighting, live room-7 offer (the corpus's first room-7 offer at all), not picked
       "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
       "RegenMastery", // session 53: first sighting, live room-4 offer (juiced run 2), not picked
       "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
@@ -412,7 +417,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // not enter the clean set either. The clean TYPE set is unchanged for the
     // sixth consecutive session, and the claim above — that this table is
     // closed under the only mechanism feeding it — holds again.
-    expect(roomOne.length).toBe(207);
+    expect(roomOne.length).toBe(219);  /* [session 99] was 207 — +12 from the four juiced runs of 2026-08-26 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -447,6 +452,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // 75 and 93 drew. Wall 1 still has exactly SIX clean types, unchanged
     // since session 52 and now across a corpus that has grown by 48 offers and
     // seven models since.
+    // [session 99 §4] +1 `Heal` (fifth), +1 `UpgradePaper` (twelfth) and +1
+    // `UpgradeScissor` (tenth), from this session's four juiced runs of
+    // 2026-08-26. All three are already-clean types RECURRING — NOT new
+    // holes, the same distinction sessions 60, 61, 75, 93 and 95 drew. Wall 1
+    // still has exactly SIX clean types, unchanged since session 52 and now
+    // across a corpus that has grown by 71 offers since.
     expect(clean.sort()).toEqual([
       "AddMaxArmor", // [session 82] run 1's room-1 offer carried AddMaxArmor(8) — one more clean OPTION, and the clean TYPE set is still the same six.
       "AddMaxArmor",
@@ -458,6 +469,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "Heal",
       "Heal",
       "Heal",
+      "Heal",
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
@@ -468,7 +480,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
-      "UpgradePaper", // [session 95] +1 from run-2026-08-25-03-30-48's room-1 offer — already-clean type recurring, not an eleventh hole.
+      "UpgradePaper",
+      "UpgradePaper",
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
@@ -476,8 +489,9 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
-      "UpgradeRock", // [session 93] +1 from run-2026-08-24-01-04-21's room-1 offer — an already-clean type recurring, NOT a seventh hole (the session-60/61/75 distinction).
-      "UpgradeScissor", // [session 95] +1 from run-2026-08-25-03-25-26's room-1 offer — already-clean type recurring, not a seventh hole.
+      "UpgradeRock",
+      "UpgradeRock",
+      "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
@@ -537,7 +551,10 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // Regen / CorrosiveSword / Heal(50) and the ORB rule took `Regen` for its
     // payout, so this is a Heal OFFER at room 6, not a pickup. Appended at the
     // array's end by insertion order, same as sessions 43, 53, 60 and 93.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6]);
+    // [session 99 §4] +2 Heal offers from the four juiced runs of 2026-08-26,
+    // at rooms 1 and 3. Appended at the array's end by insertion order, same
+    // as sessions 43, 53, 60, 61 and 95.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3]);
   });
 });
 

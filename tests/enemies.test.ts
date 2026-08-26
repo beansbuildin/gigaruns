@@ -281,6 +281,13 @@ describe("player loadout matches the fixtures", () => {
       "54/27",
       "54/30",
       "54/32",
+      // [session 99] ONE new combo from the four juiced runs of 2026-08-26,
+      // and — as in session 82 — it is NOT a new starting loadout. The start
+      // is still 40/22, byte-identical to session 75's, so all four runs are
+      // one arm. 54/40 is mid-run in `run-2026-08-26-03-27-11`, the room-10
+      // run: armorMax 40 is the highest this census has ever recorded, which
+      // is what reaching room 10 buys rather than a change in the account.
+      "54/40",
       "62/32",
     ]);
   });
