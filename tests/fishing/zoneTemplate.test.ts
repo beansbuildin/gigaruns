@@ -57,7 +57,13 @@ describe("ZONE_OFFSET against the real corpus", () => {
     // [session 98] 820 -> 860 across the nine-cast batch. **STILL
     // exceptionless** over 40 further plays it has never seen — the ratchet's
     // seventh consecutive clean widening.
-    expect(r.scored).toBe(869); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */
+    // [session 102] 869 -> 939 across the TWENTY-cast batch, the largest single
+    // widening this ratchet has ever taken. **STILL exceptionless** over 70
+    // further plays it has never seen — the eighth consecutive clean widening,
+    // and the first on a full-cap batch rather than a 2-10 cast one. Only the
+    // census moved; the property this test exists for (`mismatches` empty,
+    // `correct === scored`) is asserted below and did not.
+    expect(r.scored).toBe(939); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */ /* [session 101] was 869 */
     expect(r.mismatches).toEqual([]);
     expect(r.correct).toBe(r.scored);
   });
@@ -79,15 +85,15 @@ describe("ZONE_OFFSET against the real corpus", () => {
    */
   it("resolves against the POST-move focus and the RESULTING fish cell — and no other reading fits", () => {
     const truth = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.truth);
-    expect(truth.correct).toBe(869); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */
-    expect(truth.scored).toBe(869); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */
+    expect(truth.correct).toBe(939); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */ /* [session 101] was 869 */
+    expect(truth.scored).toBe(939); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */ /* [session 101] was 869 */
 
     // The three wrong readings, pinned at their exact scores. `toBeLessThan`
     // alone would pass if a refactor made them all 589.
     const focusBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.focusBefore);
     const stateBefore = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.stateBefore);
     const prevFish = auditZoneTemplate(traces, undefined, RESOLUTION_READINGS.previousFishPosition);
-    expect(focusBefore.correct).toBe(669); // [session 98] was 635; [session 96] was 601  /* [session 99] was 661 */
+    expect(focusBefore.correct).toBe(716); // [session 98] was 635; [session 96] was 601  /* [session 99] was 661 */ /* [session 101] was 669 */
     // ⚠ [session 90] These two SWAPPED RANK: `stateBefore` was the better of
     // the pair (385 vs 380) and is now the worse (430 vs 436). Neither is
     // close to exceptionless and nothing downstream ranks them, so this is
@@ -109,8 +115,23 @@ describe("ZONE_OFFSET against the real corpus", () => {
     // recorded as an observation rather than promoted to a finding. Nothing
     // downstream ranks them, and neither is remotely exceptionless (528 of
     // 860), so the conclusion this test exists for is untouched.
-    expect(stateBefore.correct).toBe(533); // [session 98] was 506; [session 96] was 476  /* [session 99] was 528 */
-    expect(prevFish.correct).toBe(533); // [session 98] was 508; [session 96] was 484  /* [session 99] was 528 */
+    //
+    // ⚠⚠ **[session 102] THE MONOTONE NARROWING IS FALSIFIED, and by the
+    // largest batch the corpus has ever taken.** The gap ran 6 -> 4 -> 2 -> 0
+    // across sessions 90, 91, 96, 98 and held at 0 through session 101, which
+    // looked like a trend heading somewhere. Twenty fresh casts REOPENED it to
+    // 4 (569 vs 573) and flipped the rank back to `prevFish` ahead — session
+    // 90's original order. So session 98's "more than noise predicted" reading
+    // does not survive contact with a batch of real size, and session 90's
+    // first reading — noise between two wrong readings — is what stands.
+    //
+    // The lesson is worth more than the numbers: a monotone run of four points
+    // drawn from batches of 8-10 casts was not evidence of a trend, and the
+    // narrowing was reported as an observation rather than a finding precisely
+    // so that this reversal costs nothing. It cost nothing. Nothing downstream
+    // ranked them then and nothing does now.
+    expect(stateBefore.correct).toBe(569); // [session 98] was 506; [session 96] was 476  /* [session 99] was 528 */ /* [session 101] was 533 */
+    expect(prevFish.correct).toBe(573); // [session 98] was 508; [session 96] was 484  /* [session 99] was 528 */ /* [session 101] was 533 */
 
     // **The demonstration the gate asks for: the pin FAILS under the
     // `previousFishPosition` reading.** A pin that does not fail the wrong
@@ -125,11 +146,11 @@ describe("ZONE_OFFSET against the real corpus", () => {
     // four corpus widenings. The danger the pin exists for does not shrink.
     // [session 98] 528/860 "correct" = 61.4% — the same band over a FIFTH
     // widening. Five batches and the number has never left 61-63%.
-    expect(prevFish.mismatches.length).toBe(336); // [session 98] was 312; [session 96] was 293  /* [session 99] was 332 */
+    expect(prevFish.mismatches.length).toBe(366); // [session 98] was 312; [session 96] was 293  /* [session 99] was 332 */ /* [session 101] was 336 */
 
     // All four score the same denominator: the reading changes which cells are
     // compared, never which plays are eligible.
-    for (const r of [truth, focusBefore, stateBefore, prevFish]) expect(r.scored).toBe(869); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */
+    for (const r of [truth, focusBefore, stateBefore, prevFish]) expect(r.scored).toBe(939); // [session 98] was 820; [session 96] was 777  /* [session 99] was 860 */ /* [session 101] was 869 */
   });
 
   it("zone numbering is row-major with x as the ROW", () => {
@@ -189,8 +210,11 @@ describe("cast-trace corpus reconciliation", () => {
     // across eight consecutive oil batches.
     // [session 98] 199 -> 208 across the nine-cast batch. Clean STILL trails
     // traces by exactly one — NINE consecutive oil batches.
-    expect(traces.length).toBe(210); // [session 98] was 199; [session 96] was 189  /* [session 99] was 208 */
-    expect(clean.length).toBe(209); // [session 98] was 198; [session 96] was 188  /* [session 99] was 207 */
+    // [session 102] 210 -> 230 across the twenty-cast batch. Clean STILL
+    // trails traces by exactly one — TEN consecutive oil batches, and the
+    // first full-cap batch to leave the identity untouched.
+    expect(traces.length).toBe(230); // [session 98] was 199; [session 96] was 189  /* [session 99] was 208 */ /* [session 101] was 210 */
+    expect(clean.length).toBe(229); // [session 98] was 198; [session 96] was 188  /* [session 99] was 207 */ /* [session 101] was 209 */
     // Asserted as the IDENTITY rather than as two literals, so "exactly one"
     // stays the claim when both numbers next move.
     expect(traces.length - clean.length).toBe(1);
@@ -205,10 +229,10 @@ describe("cast-trace corpus reconciliation", () => {
     // 26 and thereby visible. With the ITEM_MESSAGE branch fixed both views
     // say 26 — the reconciliation is the evidence, which is why it is asserted
     // against the corpus figure rather than against a literal.
-    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(866); // [session 98] was 817; [session 96] was 774  /* [session 99] was 857 */
+    expect(clean.reduce((s, t) => s + t.turns.length - 1, 0)).toBe(936); // [session 98] was 817; [session 96] was 774  /* [session 99] was 857 */ /* [session 101] was 866 */
     // Still asserted against the corpus figure rather than a literal — the
     // reconciliation is the evidence, and it holds at 38.
-    expect(traces.filter((t) => t.caught).length).toBe(80); // [session 98] was 73 (+6 catches over 9 casts); [session 96] was 70  /* [session 99] was 79 */
+    expect(traces.filter((t) => t.caught).length).toBe(94); // [session 98] was 73 (+6 catches over 9 casts); [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80; session 102 added 14 over 20 casts */
   });
 
   /**

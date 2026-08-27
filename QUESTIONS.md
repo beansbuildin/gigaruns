@@ -4703,3 +4703,172 @@ real time) is still deferred and this session did not touch it.
 `npx tsx scripts/statusEffects.ts`, re-runnable as volume accumulates.
 `tests/statusEffects.test.ts` pins every exact rule plus the inert-at-zero
 claim, on a bounded slice with slice-safe assertions.
+
+---
+
+## §60 ANSWERED [session 102 §C] — THE 20-CAST BATCH: THE 0.85 NECESSITY GATE FIRED FOR THE FIRST TIME, THE ROD DECREMENT IS EXACTLY 1.00/CAST, AND TWO PINNED CLAIMS DIED
+
+The brief was §55's twenty-cast batch — the full daily cap, set as a VOLUME
+decision, not a shaped attempt to observe the necessity gate (§50's ruling,
+unchanged). The ledger had reset (0/20 on arrival), the batch ran clean, and
+both ledgers agree at 20/20 spent afterwards.
+
+Everything below is an observation of ordinary play at higher volume.
+
+### 1. The necessity gate finally had opportunities, and it used them
+
+Four batches had gone by with **zero** single-lethal evaluations — §46 recorded
+that session 98's gate "withheld NOTHING", not because it is inert but because
+zero of its `oil_shadow` records carried a non-null `bestKillProbability`.
+
+This batch produced **three**, and the gate withheld on two:
+
+```
+  04:14:45  turn 1  p = 0.9830  ->  WITHHELD   card played bare   CAUGHT
+  04:17:32  turn 2  p = 0.5457  ->  PERMITTED  oil spent          CAUGHT
+  04:18:08  turn 1  p = 0.9937  ->  WITHHELD   card played bare   CAUGHT
+```
+
+**Both withholds are the gate, not an artefact.** Ruled out explicitly: the
+per-cast Relaxing cap of 2 (the first had 40 held with zero oils spent all
+batch; the second was turn 1 of a cast started 5 seconds earlier with no prior
+oil), and an empty bag (40 and 27 held). All three casts were caught, so the
+two withholds saved an oil at **no observed cost**.
+
+⚠ **The shadow arm is NOT independent confirmation.** It runs
+`conserve(r=0.8333, f=1)` — `PREREGISTERED_EXCHANGE_THRESHOLDS`, not the user's
+0.85 — and agreed with the live gate on all three, because 0.983 and 0.994 sit
+above BOTH thresholds and 0.546 below both. Do not report it as corroborating.
+
+**n = 2 withholds.** This is the gate's first live evidence, not a validation.
+
+### 2. The rod durability bracket is closed: exactly 1.00 per cast
+
+The first batch to take a real `before` AND `after` reading around live casts in
+one session. Rod 812 (Golkan): **38 -> 18 over 20 casts, n = 20**. Session 99's
+40 -> 38 over 2 casts gave the same 1.00, at n = 1; this makes it a measurement.
+
+**Operational consequence, and it binds the NEXT session:** the rod now reads
+**18**. At 1.00/cast a full 20-cast day exhausts it with 2 casts unspent. The
+preflight is fail-closed (DECISIONS 2026-08-26), so the batch will halt rather
+than break the rod — but the next batch cannot be a full cap unless the rod is
+replaced or repaired first. That is a user decision, not an agent one.
+
+### 3. The batch's numbers
+
+- **14/20 caught = 70.0%**, exact 95% CI **[45.7%, 88.1%]**, Wilson
+  [48.1%, 85.5%]. Best batch on record.
+- ⚠ **Do not quote the all-time comparison on its own.** Against the pooled
+  corpus (80/210 = 38.1%) Fisher gives p = 0.0079 — but that corpus spans
+  several strategy eras, which is exactly the "transposed-era majority answers a
+  different question" trap `scripts/focusBudgetSweep.ts:238` warns about.
+  Against the recent-era live batches (s91 4/10, s92 5/10, s96 3/10, s98 6/9,
+  s99 1/2; pooled **19/41 = 46.3%**) Fisher gives **p = 0.105 — NOT
+  significant**. The honest statement: the best batch on record, and not
+  separable from the recent era at n = 20.
+- Corpus **210 -> 230 casts, 80 -> 94 caught** (38.1% -> 40.9%).
+- **Oils: 13 Relaxing (937), 0 Focus.** Six casts spent 2 (double-lethal), one
+  spent 1. The per-cast cap of 2 was reached six more times and **still did not
+  bind** — fifth batch running. 19 `oil_trigger_policy_withdrawn` rows, the
+  session-93 Focus withdrawal path working across a full batch. Stock 40 -> 27.
+- **Opening focus spend UNMOVED**: 0.85 [0.52, 1.18] for the batch alone against
+  the era's 0.82 [0.68, 0.96] at n = 121; era pooled now 0.82 [0.69, 0.95] at
+  n = 141.
+- **Redraw shadow**: out-of-sample **8 fires / 240 card decisions = 3.33%**
+  [1.45%, 6.46%] against in-sample 3.04%; exact binomial **p = 0.7064, NOT
+  REJECTED**. MDE at 80% power 2.32x. ~375 decisions needed for 80% power at a
+  2x departure, so **~2 more batches of this size**, not the script's "~4 more
+  batches" (which averages over the small historical ones). 0 redraws sent,
+  0 sanity rows. §51's target is in reach for the first time.
+- **Energy**: the preflight claimed 242 from the ROM bank (pool 45 -> 287) and
+  spent 240. Rule 12 working as documented; not a blocker at any point.
+
+### 4. `data.nextPosition` is an EXACT oracle — 21/21 all time
+
+Every recorded occurrence has predicted the fish's next cell correctly:
+**21/21** (exact 95% lower bound 83.9%), of which **9/9** with the override
+actively steering focus (lower bound 66.4%). This batch added 3, all
+`acted_hit`. Occurrence rate here: 4 non-null of 117 responses = **3.4%**,
+consistent with the historical ~1-2%.
+
+The standing framing — "statistically compatible with, not confirming, a 3%
+Fintuition proc" (§12) — is about the RATE and is unchanged. What it
+understates is the ACCURACY: the field has never once been wrong.
+
+### 5. The "possible dual yield" detector was firing on every catch — FIXED
+
+All five `possible_dual_yield_event` sightings on this machine (sessions 91, 93,
+99 and two this batch) are **false positives**, and they share one shape:
+
+```
+  [{id:519, amount:1}, {id:935, amount:10}, {id:845, amount:320}]
+```
+
+Item **935 is the XP credit** — the same value the response carries as
+`data.doc.data.caughtFish.xpItemId`, 5 of 5 dumps. `detectPossibleDualYield`'s
+arm 2 excluded only `845` (Hard Core), so the XP credit read as a second
+non-currency item. Arm 1 (`2+ FISH_DIED`) has **never** fired.
+
+This mattered rather than merely being noisy: **a real dual yield would have
+looked identical to the noise on arm 2**, so the signal the detector exists to
+catch was already indistinguishable from ordinary play.
+
+Fixed by excluding the response's OWN `xpItemId` — read off the payload, never
+hardcoded to 935, the same self-validating rule as the rod preflight's
+`GAME_ITEM_ID_CID` match. A genuine dual yield still trips arm 2 because it
+credits two distinct FISH ids on top of the one XP id; pinned by five new tests.
+
+### 6. TWO PINNED CLAIMS DIED ON THIS BATCH — both recorded, neither smoothed over
+
+**(a) `redrawCounterfactual`'s "near-break-even" bound broke, and was NOT
+widened.** `|rescues - sacrifices| / fires` for the unconditional threshold-3
+trigger is **4/74 = 5.41%** against a 5% bound. Session 91 wrote that one more
+growth in the same direction would break it and left an explicit instruction:
+*"do NOT widen the bound: the honest reading is that near-break-even has stopped
+being true, which is a finding."* It is followed. The ratio has run
+0% -> 1.7% -> 4.76% -> 4.41% -> 5.41%, and the one dip was mechanical (frozen
+numerator, growing denominator). The assertion is now a PIN on the measured
+value. **This argues for nothing**: the trigger is unconditional, §3's finding
+is that only the conditioned trigger is worth anything, and `redrawEnabled`
+stays false per §49.
+
+**(b) `damageEconomy`'s sim-vs-live drift ratio crossed its 10x bar: 9.97x.**
+Decomposed at the batch boundary, and the cause is **live moving toward the sim,
+not the sim moving**:
+
+```
+  pre-batch   165 casts / 709 plays   hitRate 39.2%   drift -0.2426
+  this batch   20 casts /  70 plays   hitRate 48.6%   drift -1.4429
+  pooled      185 casts / 779 plays   hitRate 40.1%   drift -0.3504
+```
+
+The batch landed damage at 48.6% against 39.2% and at a higher mean (6.18 vs
+5.32 HP), so live's own drift grew 1.44x in magnitude. `bare` did not move.
+The gap narrowed **because the bot played better**, which is the one direction
+that makes this a result rather than an artefact. The bar is lowered to 5 and
+that is **stated as a weakening**; if it keeps falling the answer is to
+re-examine the conclusion, not to move the bar a third time. Nothing in flight
+depends on it — OIL-POLICY §0a is already SUSPENDED.
+
+### 7. Two more claims survived a much bigger test than they were built for
+
+- **The era ruling (§32) held out of sample for a FIFTH batch.** All twenty new
+  casts classified `focusDry`; `preOil` and `oilSupplied` are byte-identical.
+- **The `focusDry` bucket-3 tell is STILL EXACTLY ONE**, now across 74 focusDry
+  casts against `preOil`'s 17 in 94.
+
+Two other pinned "trends" were falsified, and both are recorded in the tests
+rather than here: `zoneTemplate`'s monotone narrowing of the two wrong readings
+(6 -> 4 -> 2 -> 0, then REOPENED to 4 with the rank flipped back — session 90's
+"noise between two wrong readings" is what stands), and `deckShuffle`'s
+`toEqual([])` on sequential-draw matches (the first match appeared; the
+uniform-shuffle null expects 0.199 over the 232 opening hands on record, so
+P(at least one) = 18.1% — an ordinary coincidence, and the zero-count assertion
+was the fragile part, not the finding).
+
+### 8. Reproducing this
+
+`npx tsx scripts/checkFishingCaps.ts` for the ledger, `scripts/fishingReport.ts`
+for the corpus totals, `scripts/redrawShadowAnalysis.ts` for §3's figures.
+`data/rodDurability.jsonl` holds the paired before/after readings under one
+`batchId` with `dryRun: false`.

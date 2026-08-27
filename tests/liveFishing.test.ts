@@ -21,6 +21,7 @@ import {
   NEXT_POSITION_OVERRIDE_WEIGHT,
   confirmedHitCount,
   detectPossibleDualYield,
+  xpItemIdsIn,
   extractNextPosition,
   fishCell,
   lastRecordForCast,
@@ -668,6 +669,87 @@ describe("detectPossibleDualYield — session 30, brief §3, forward detection o
   it("does NOT flag two Hard Core credits in one response (same currency id, not two fish)", () => {
     const raw = { gameItemBalanceChanges: [{ id: 845 }, { id: 845 }] };
     expect(detectPossibleDualYield(raw)).toBeNull();
+  });
+
+  // [session 102] The REAL wire shape, which the fixtures above did not have.
+  // `gameItemBalanceChanges` carries THREE entries on an ordinary catch — fish,
+  // XP, Hard Core — not the two DECISIONS 2026-08-17 recorded. Arm 2 excluded
+  // only 845, so it fired on every catch: 5 false positives, 0 true ones, all
+  // dumped to `logs/fishing-unknown-dual-yield-*.json`.
+  describe("the XP credit is not a second fish [session 102]", () => {
+    /** Byte-shape of a real flagged response, `logs/fishing-unknown-dual-yield-2026-08-27-04-14-47.json`. */
+    const realSingleCatch = {
+      data: {
+        doc: { data: { caughtFish: { xpItemId: 935 } } },
+        events: [{ type: "FISH_DIED", data: { fish: { xpItemId: 935 } } }],
+      },
+      gameItemBalanceChanges: [
+        { id: 519, amount: 1 },
+        { id: 935, amount: 10 },
+        { id: 845, amount: 320 },
+      ],
+    };
+
+    it("does NOT flag a real single catch that credits fish + XP + Hard Core", () => {
+      expect(detectPossibleDualYield(realSingleCatch)).toBeNull();
+    });
+
+    it("reads the XP id off the response rather than hardcoding 935", () => {
+      // Same shape, a DIFFERENT xp item id. The exclusion must follow the
+      // response, not a frozen constant — otherwise a game-side XP item change
+      // silently restores the false positive.
+      const moved = {
+        ...realSingleCatch,
+        data: {
+          doc: { data: { caughtFish: { xpItemId: 7777 } } },
+          events: [{ type: "FISH_DIED", data: { fish: { xpItemId: 7777 } } }],
+        },
+        gameItemBalanceChanges: [
+          { id: 519, amount: 1 },
+          { id: 7777, amount: 10 },
+          { id: 845, amount: 320 },
+        ],
+      };
+      expect(detectPossibleDualYield(moved)).toBeNull();
+      expect([...xpItemIdsIn(moved)]).toEqual([7777]);
+    });
+
+    it("STILL flags a genuine dual yield — two fish ids alongside the same XP credit", () => {
+      const dual = {
+        ...realSingleCatch,
+        gameItemBalanceChanges: [
+          { id: 519, amount: 1 },
+          { id: 516, amount: 1 },
+          { id: 935, amount: 10 },
+          { id: 845, amount: 320 },
+        ],
+      };
+      const hit = detectPossibleDualYield(dual);
+      expect(hit).not.toBeNull();
+      expect(hit!.reason).toContain("2 distinct non-currency items");
+      expect(hit!.reason).not.toContain("935");
+    });
+
+    it("excludes nothing extra when the response credited no fish", () => {
+      expect([...xpItemIdsIn({ data: { events: [] } })]).toEqual([]);
+      expect([...xpItemIdsIn({})]).toEqual([]);
+      // unchanged from the pre-session-102 behaviour
+      const hit = detectPossibleDualYield({ gameItemBalanceChanges: [{ id: 517 }, { id: 519 }, { id: 845 }] });
+      expect(hit).not.toBeNull();
+    });
+
+    it("every real dumped 'dual yield' on this machine is a single catch", () => {
+      // The five dumps are machine-local logs, not committed fixtures, so this
+      // asserts the SHAPE they all share rather than reading the files.
+      for (const fishId of [514, 515, 516, 519]) {
+        expect(
+          detectPossibleDualYield({
+            data: { doc: { data: { caughtFish: { xpItemId: 935 } } } },
+            gameItemBalanceChanges: [{ id: fishId }, { id: 935 }, { id: 845 }],
+          }),
+        ).toBeNull();
+      }
+    });
   });
 });
 

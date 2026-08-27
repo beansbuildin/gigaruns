@@ -197,8 +197,15 @@ import { SESSION_99_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatc
  * nothing to say so. `tests/fishing/redrawShadowAnalysis.test.ts` now pins it
  * against the corpus, so the next drift fails the suite instead of quietly
  * mis-hinting. Re-derive with `scripts/redrawShadowAnalysis.ts`.
+ *
+ * **[session 102] 3.1 -> 3.0**, and the pin did its job: the twenty-cast batch
+ * took the corpus from 553 plays / 17 fires to 592 / 18, i.e. 3.0405%, and the
+ * suite went red on the stale hint rather than printing it for another batch.
+ * EXPORTED as of this session so the test can assert against THIS constant
+ * instead of a second literal of its own — the session-99 arrangement kept the
+ * two in sync by hand, which is the same failure mode one level up.
  */
-const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "3.1";
+export const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "3.0";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
@@ -1202,14 +1209,62 @@ function dumpUnknownTerminal(resp: unknown, keys: string[], tag: string = "termi
 // betting on one specific shape:
 //  1. `data.events[]` containing 2+ `FISH_DIED` entries in one response.
 //  2. The top-level `gameItemBalanceChanges` array crediting 2+ DISTINCT
-//     item ids that are NOT the known currency id (845, "Hard Core") — a
-//     normal single catch already credits one fish item + one currency
-//     amount together (DECISIONS 2026-08-17 session 27), so this excludes
-//     that id specifically rather than flagging every ordinary catch.
+//     item ids that are NEITHER the known currency id (845, "Hard Core") NOR
+//     the response's OWN XP item — a normal single catch already credits one
+//     fish item + one currency amount together (DECISIONS 2026-08-17 session
+//     27), so this excludes those rather than flagging every ordinary catch.
+//
+// **[session 102] Arm 2 excluded ONLY 845 until now, and that made it fire on
+// every ordinary catch — 5 false positives, 0 true ones.** The real wire has
+// THREE entries, not the two DECISIONS 2026-08-17 recorded: the fish (amount
+// 1), the XP credit, and Hard Core. Every flagged response on this machine has
+// exactly that shape:
+//
+//   [{id:519,amount:1}, {id:935,amount:10}, {id:845,amount:320}]
+//
+// and `935` is the same value the response itself carries as
+// `data.doc.data.caughtFish.xpItemId` (and `data.events[].data.fish.xpItemId`)
+// — 5 of 5 dumps, `logs/fishing-unknown-dual-yield-*.json`. So it is the XP
+// credit, not a second fish. Arm 1 (`2+ FISH_DIED`) has never fired.
+//
+// This mattered rather than merely being noisy: a REAL dual yield would have
+// looked identical to the noise on arm 2, so the signal the detector exists to
+// catch was already indistinguishable from ordinary play.
+//
+// **The XP id is READ OFF THE RESPONSE, never hardcoded to 935** — the same
+// self-validating rule as the rod preflight's `GAME_ITEM_ID_CID` match
+// (DECISIONS 2026-08-26). If the game ever changes the XP item, the exclusion
+// follows it; a frozen 935 would silently start flagging every catch again.
+// A real dual yield still trips arm 2, because it credits two distinct FISH
+// ids on top of the one XP id.
 // ---------------------------------------------------------------------------
 
 /** Wire item id, `NAME_CID: "Hard Core"` — see `src/sim/dungeonReport.ts`'s `ITEM_HARD_CORE` for the dungeon-side capture; duplicated here rather than imported to keep this fishing script decoupled from the dungeon report module for one constant. */
 const ITEM_HARD_CORE = 845;
+
+/**
+ * The XP item ids this response names as its own, from either place the wire
+ * carries them. Empty when the response credited no fish — in which case
+ * nothing is excluded beyond `ITEM_HARD_CORE`, exactly as before.
+ */
+export function xpItemIdsIn(raw: unknown): Set<number> {
+  const body = raw as
+    | {
+        data?: {
+          doc?: { data?: { caughtFish?: { xpItemId?: unknown } | null } | null } | null;
+          events?: { data?: { fish?: { xpItemId?: unknown } | null } | null }[] | null;
+        } | null;
+      }
+    | undefined;
+
+  const ids = new Set<number>();
+  const add = (v: unknown) => {
+    if (typeof v === "number" && Number.isFinite(v)) ids.add(v);
+  };
+  add(body?.data?.doc?.data?.caughtFish?.xpItemId);
+  for (const e of body?.data?.events ?? []) add(e?.data?.fish?.xpItemId);
+  return ids;
+}
 
 export function detectPossibleDualYield(raw: unknown): { reason: string } | null {
   const body = raw as
@@ -1219,8 +1274,11 @@ export function detectPossibleDualYield(raw: unknown): { reason: string } | null
   const fishDiedCount = (body?.data?.events ?? []).filter((e) => e?.type === "FISH_DIED").length;
   if (fishDiedCount >= 2) return { reason: `${fishDiedCount} FISH_DIED events in one response` };
 
+  const xpIds = xpItemIdsIn(raw);
   const nonCurrencyIds = new Set(
-    (body?.gameItemBalanceChanges ?? []).map((c) => c.id).filter((id) => id !== ITEM_HARD_CORE),
+    (body?.gameItemBalanceChanges ?? [])
+      .map((c) => c.id)
+      .filter((id) => id !== ITEM_HARD_CORE && !xpIds.has(id)),
   );
   if (nonCurrencyIds.size >= 2) {
     return { reason: `${nonCurrencyIds.size} distinct non-currency items credited in one response: ${[...nonCurrencyIds].join(", ")}` };

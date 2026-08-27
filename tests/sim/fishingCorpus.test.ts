@@ -154,11 +154,20 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // not the ledger — `SESSION_98_LIMITS`): +63 responseDocs, +40 playTurns,
     // +6 caught, +3 escaped. `incomplete` is UNCHANGED at 1 for the NINTH
     // consecutive batch.
-    expect(summary.casts).toBe(210); // [session 98] was 199; was 189  /* [session 99] was 208 */
-    expect(summary.responseDocs).toBe(1224); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */
-    expect(summary.playTurns).toBe(870); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */
-    expect(summary.caught).toBe(80); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */
-    expect(summary.escaped).toBe(129); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */
+    // [session 102] 210 -> 230 across the TWENTY-cast batch — the full daily
+    // cap, and the largest single addition this corpus has ever taken (every
+    // prior batch was 2-10 casts): +117 responseDocs, +70 playTurns, +14
+    // caught, +6 escaped. `incomplete` is UNCHANGED at 1 for the TENTH
+    // consecutive batch. The caught share of the ADDITION is 14/20 = 70%,
+    // well above the 40.9% the corpus now pools to, which is why the pooled
+    // catch rate moves 38.1% -> 40.9% on a single batch after barely moving
+    // for several — see handoff/log/session-102.md before reading that as an
+    // improvement, it is not separable from the recent era at n = 20.
+    expect(summary.casts).toBe(230); // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */
+    expect(summary.responseDocs).toBe(1341); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */
+    expect(summary.playTurns).toBe(940); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */
+    expect(summary.caught).toBe(94); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */
+    expect(summary.escaped).toBe(135); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -614,6 +623,35 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // corpus measurement is about) never came up at all. Zero of this
       // batch's `oil_shadow` records carry a non-null `bestKillProbability`.
       "13088831", "13088834", "13088849", "13088850",
+      // [session 102] +7 from the TWENTY-cast batch — the full daily cap, and
+      // the largest batch this corpus has ever taken. Six casts spent TWO
+      // Relaxing oils each (slots 0 and 1, all double-lethal firings) and
+      // `13106758` spent ONE, an ordinary single-lethal. Thirteen oils, all
+      // Relaxing (937); Focus (942) remains withdrawn by policy (§35) and
+      // every one of its 19 triggers recorded `oil_trigger_policy_withdrawn`.
+      //
+      // ✅ The Relaxing per-cast cap of 2 was REACHED six more times and
+      // **still did not BIND** — the composed trigger wanted exactly two on
+      // each, never three. Fifth batch running (91, 92, 96, 98, 102).
+      //
+      // ✅✅ **THIS ANSWERS THE ⚠ DIRECTLY ABOVE, and it is the first time the
+      // corpus can.** Session 98's note recorded that the 0.85 necessity gate
+      // withheld nothing because *"zero of this batch's `oil_shadow` records
+      // carry a non-null `bestKillProbability`"* — the single-lethal band
+      // never came up. This batch produced THREE such records, and the gate
+      // WITHHELD ON TWO of them:
+      //
+      //     p = 0.9830  ->  WITHHELD, card played bare, cast CAUGHT
+      //     p = 0.5457  ->  PERMITTED, oil spent (this is `13106758`), CAUGHT
+      //     p = 0.9937  ->  WITHHELD, card played bare, cast CAUGHT
+      //
+      // Neither withhold is a stock or cap artefact: the first had 40 Relaxing
+      // held with zero oils spent all batch, and the second was turn 1 of a
+      // fresh cast. So the gate's first live firings cost nothing observable —
+      // all three casts were caught either way. n = 2 withholds; see
+      // handoff/log/session-102.md before treating that as a validated policy.
+      "13106720", "13106726", "13106732", "13106738", "13106752",
+      "13106758", "13106761",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

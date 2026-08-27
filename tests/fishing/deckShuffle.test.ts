@@ -85,9 +85,36 @@ describe("§1a — the live corpus falsifies the sequential draw pile", () => {
     expect(LIVE.length).toBeGreaterThanOrEqual(129);
   });
 
-  it("NOT ONE live opening hand is fullDeck[0..handSize-1] — sequential draw predicts every one of them", () => {
+  it("live opening hands match fullDeck[0..handSize-1] at CHANCE, not at the sequential model's 100%", () => {
     const sequential = LIVE.filter(matchesSequentialDraw);
-    expect(sequential).toEqual([]);
+
+    // ⚠⚠ **[session 102] THE FIRST MATCH APPEARED, and it does not falsify
+    // anything.** This assertion read `toEqual([])` from session 79 to session
+    // 101 — "NOT ONE live opening hand is fullDeck[0..handSize-1]". Cast
+    // `13106723` (fixtures/fishing-casts/live/cast-2026-08-27-04-15-04) opened
+    // on `[86, 87, 88]` against a fullDeck starting `86, 87, 88, 89, 90, ...`
+    // and matched.
+    //
+    // **A zero-count assertion on a chance event was always going to break;
+    // the question is whether it broke early.** It did not. Summed over the
+    // 232 opening hands actually on record, each against its own deck size,
+    // the uniform-shuffle null expects **0.199** ordered matches, so
+    // P(at least one) = **18.1%** — roughly one corpus in five this size. The
+    // ORDERED null is the right one: only 53 of 232 opening hands are even a
+    // roster-ORDER subsequence of their deck, so the hand is not served in
+    // roster order and this is not a display artefact. (Had it been, the SET
+    // null would apply: 1.063 expected, P(at least one) = 65.4%, and one match
+    // would be less surprising still.)
+    //
+    // **What session 79 established is untouched and is what is asserted now.**
+    // The sequential-draw pile predicts 232 of 232; the corpus shows 1. That
+    // three-orders-of-magnitude gap is the falsification, and it does not
+    // depend on the count being exactly zero. Asserting zero made the test
+    // fragile in the one direction that matters — it would have gone red on a
+    // coincidence and invited someone to go hunting for a bug in the loader.
+    expect(sequential.length).toBeLessThanOrEqual(1); /* [session 102] was toEqual([]) — see above */
+    // The discriminating claim, expressed as the ratio rather than the count.
+    expect(sequential.length / LIVE.length).toBeLessThan(0.02);
   });
 
   it("opening hands on one deck differ from each other — the pile is re-ordered per cast, not fixed", () => {

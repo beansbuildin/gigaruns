@@ -25,6 +25,7 @@ import {
   REDRAW_SHADOW_COVERAGE_K,
   REDRAW_SHADOW_MIN_BUDGET,
 } from "../../src/strategy/fishing/redrawShadow.js";
+import { REDRAW_SHADOW_IN_SAMPLE_RATE_PCT } from "../../scripts/liveFishing.js";
 
 describe("the exact statistics — checked against values computable by hand", () => {
   it("binomPmf is a probability mass function", () => {
@@ -105,9 +106,9 @@ describe("the in-sample arm — reproducible from the committed corpus", () => {
     const r = inSampleRate();
     expect(REDRAW_SHADOW_COVERAGE_K).toBe(6);
     expect(REDRAW_SHADOW_MIN_BUDGET).toBe(1);
-    expect(r.plays).toBe(553); // [session 99] the 210-cast corpus
-    expect(r.fires).toBe(17);
-    expect(r.rate).toBeCloseTo(0.030741410488245932, 12);
+    expect(r.plays).toBe(592); // [session 99] the 210-cast corpus /* [session 102] was 553 */
+    expect(r.fires).toBe(18); /* [session 102] was 17 */
+    expect(r.rate).toBeCloseTo(0.030405405405405407, 12); /* [session 102] was 0.030741410488245932 (17/553) */
   });
 
   it("⚠ the live loop's PRINTED in-sample rate is this number, not a stale one", () => {
@@ -115,6 +116,10 @@ describe("the in-sample arm — reproducible from the committed corpus", () => {
     // line as an operator hint. It was hard-coded at 2.7% in session 90 and the
     // corpus has grown by 42 casts since, so it had drifted to 3.07% by the
     // time anyone compared the two. Pinned here so the next drift is loud.
-    expect(Number((100 * inSampleRate().rate).toFixed(1))).toBe(3.1);
+    // [session 102] Asserted against the CONSTANT rather than a second
+    // literal. The session-99 version wrote `3.1` here too, so the pin and the
+    // thing it pins had to be edited together by hand — one more place to go
+    // stale. Now the only number in the loop is the one the loop prints.
+    expect((100 * inSampleRate().rate).toFixed(1)).toBe(REDRAW_SHADOW_IN_SAMPLE_RATE_PCT);
   });
 });
