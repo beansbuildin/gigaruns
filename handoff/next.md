@@ -1,66 +1,95 @@
-# BRIEF — session 102 — the 20-cast live fishing batch (§C, carried from sessions 100-101, QUESTIONS.md §55)
+# BRIEF — session 103 — dungeon batch: up to 4 juiced runs, one at a time, human go-ahead before each (rule 11)
 
-**This document replaces the session-101 `next.md`.** Session 101 is executed
-and closed — QUESTIONS.md §58 (§A+§B), §59 (§D), STATE.md session 101. §A
-(events-coverage) and §B (proc effect sizes) are DONE, and the user's
-mid-session addition, §D (status-effect mechanics), is also DONE. All three
-are dungeon-side findings (combat procs and statuses in Forbidden Woods) and
-touch nothing about this session's task. §C is the only carried item, and it
-is now the whole brief.
+**This document replaces the session-102 `next.md`.** Session 102 is executed
+and closed — QUESTIONS.md §60, STATE.md session 102. §C (the 20-cast fishing
+batch) is DONE. **This session's task is dungeon-side only — fishing is out of
+scope**, whatever the fishing ledger reads.
 
 **Confirm the reset before doing anything else — do not assume the clock.**
-Session 101 read the fishing ledger at 20/20 spent, 09:54 PT, with the
-11:00 PT rollover not yet arrived at that point. A full day has since
-passed, so this is very likely stale — but CLAUDE.md rule 4 / rule 13
-discipline stands regardless of how obvious the answer looks: run
-`npx tsx scripts/checkFishingCaps.ts` first and go by what it reports, not
-by elapsed wall-clock time. If it still reads 20/20, this session is blocked
-again — say so plainly and stop; do not idle-wait for a clock that has
-already been wrong once this week.
+STATE.md session 102 is dated 2026-08-26 and read the dungeon corpus at 79
+attempts, 0 runs that day. A day has passed and the 11:00 PT rollover has
+very likely happened, but CLAUDE.md rule 13 discipline stands regardless of
+how obvious the answer looks: run `npx tsx scripts/checkDungeonToday.ts`
+first and go by what `dayProgressEntities` reports, not by elapsed
+wall-clock time. If it reads anything other than 0/12, say so plainly before
+doing anything else — that means runs already happened today outside this
+brief's tracking, and the "up to 4" below shrinks by that many.
 
 ---
 
-# §C — The 20-cast fishing batch (QUESTIONS.md §55)
+# The batch — up to 4 juiced Tier-3 runs, never chained
 
-**Volume, not targeting — §50's ruling still stands.** §55 set this at 20
-casts, the full daily cap, explicitly as a volume decision, not a shaped
-attempt to observe the 0.85 necessity gate (open since session 99, still
-zero opportunities across four small batches). Report whatever the gate
-does or doesn't do as an observation of ordinary play at higher volume, not
-as a targeted test.
+**Rule 11 governs this whole session, and this brief is not the go-ahead it
+requires.** The Ask-first list is explicit: starting any dungeon run needs an
+explicit human go-ahead **for that run**, and "approval for one run is never
+approval for the next." This document scopes what the batch is and how to
+report it — it does not pre-authorize any of the four runs. Get the go-ahead
+live, from the user, in this session, before every single run, including the
+first.
 
-1. `checkFishingCaps.ts` first (above, non-negotiable). Then `--dry-run` per
-   standing rule-4 discipline — the necessity gate, the retired tripwire,
-   and the durability preflight (live since session 100) are all real code
-   paths worth exercising dry before spending anything.
-2. Run the full 20-cast batch. Oils are pre-authorized and autonomous within
-   `config/bot.json`'s standing policy — `dendren.oils.policyApproved: true`,
-   Relaxing Oil (937) only, capped at 2/cast, `maxPerCast: 3` overall. No new
-   approval is needed for this batch; this is the same standing permission
-   sessions 97-99 already ran under.
-3. Report at standard depth:
-   - Catch rate with a binomial CI. The corpus baseline is 210 casts / 80
-     caught (38.1%) as of the last report regen — n=20 finally has real
-     power against that, compared to the 2-9 cast batches run this quarter.
-   - How many opportunities the 0.85 necessity gate got and what it did
-     each time.
-   - Opening-turn focus spend against the 0.83 baseline.
-   - Updated cumulative redraw-shadow count (still tracking toward §51's
-     ~350-decision target for 80% power).
-4. **The durability bracket.** `data/rodDurability.jsonl` currently holds
-   two `before` readings, both dry-run, both 38 — confirming zero casts have
-   been spent on Golkan (itemId 812, the standing rod per §53) since session
-   99's 40→38 over 2 casts. This is the first batch that can take a real
-   `before` AND `after` reading around actual live casts in the same
-   session. Take both, and report the resulting decrement rate against that
-   existing 40→38/2-casts, n=1 figure — this is what turns it into a bracket
-   with an actual sample instead of one data point.
-5. **After the batch, or after any live command that reports denied,
-   blocked, or interrupted:** re-read the ledger (`checkFishingCaps.ts`)
-   before reporting what happened. A tool-level denial racing execution is
-   not proof nothing ran (CLAUDE.md rule 13, session 61) — go by the
-   server's own count of casts spent, never by what the harness said back,
-   and never re-issue a denied command on the strength of the denial alone.
+1. `checkDungeonToday.ts` first (above, non-negotiable). Then `--dry-run` per
+   rule 4 — exercise the juiced-entry path, the potion auto-load, and the
+   in-room tier gate dry before spending anything.
+2. **Ask the user directly: "Ready for run 1 of up to 4?"** Do not proceed on
+   the strength of this brief alone. Wait for an explicit yes — a denial, a
+   "not yet," or silence is not one.
+3. Run one juiced Tier-3 entry per rule 11's four conditions, all of them:
+   60-energy juiced entry, `--juiced-index=3`, 3x Big Heal Juice auto-loaded
+   from `config/bot.json`'s `forbiddenWoods.potions` (itemId 131), and
+   `--runs=1` — never more than one run per go-ahead. Do not allocate skill
+   points; that is the user's, between runs, per rule 11 and the standing
+   "never allocate them yourself" instruction.
+4. **Stop. Report the run before asking about the next one.** Room reached,
+   outcome (death / clear / incomplete), Hard Core, Dendren Root, energy
+   spent, boon picks taken (confirm rule 8: highest non-Perpetual tier
+   in-room, no-modifiers at the final room — Forbidden Woods `maxRoom` is
+   16), potions used, any status effects logged (`Burn` / `Weak` /
+   `Vulnerable` / `Regen` / `SecondWind` / `Steadfast`, with `amount` — §59)
+   and any of the five proc booleans that fired (`blockProc` / `evadeProc` /
+   `critProc` / `intuitionProc` / `tenacityProc` — §57/§58).
+5. **Ask again before the next run** — same question, same explicit wait.
+   Repeat through run 4, or until the user says stop, or until
+   `checkDungeonToday.ts` reports the daily cap reached
+   (`dayProgressEntities` at 12), whichever comes first.
+
+## Why these runs, beyond the daily allowance
+
+The dungeon corpus has taken 0 live runs since session 99 — three sessions of
+fishing-only work. Nothing here needs a fresh experimental design; a handful
+of standing measurements from §58/§59 are thin specifically for lack of
+volume, not for lack of a rule to test, and ordinary play adds to them for
+free:
+
+- **`SecondWind`'s trigger** — magnitude exact, trigger undetermined, n=10
+  fires only.
+- **`Steadfast` debuff immunity** — consistent (0/11 vs an expected ~0.3) but
+  "underpowered and proves nothing" per §59 at that n.
+- **`tenacity`/`intuition` mechanics** — still ruled out as damage
+  mitigation, still no positive mechanic identified.
+- **Room-10 opponent-model confidence** — reads `confidence=low` at n=5
+  (§56 — left open, no action ordered, but every deep run adds to it
+  passively).
+
+**None of this licenses shaping a run toward anything.** Rule 8's
+tier-taking, the boon-priority config (`orbRule: "wide"`), and rule 11's
+juiced-entry are unchanged and un-gamed. Report whatever these four runs
+produce as ordinary play at higher volume — the same posture session 102
+took reporting the fishing necessity-gate's first firing (§55/§60), not a
+targeted test of any of the four items above.
+
+## After the batch, or after any run that comes back denied, blocked, or interrupted
+
+- **Re-read `checkDungeonToday.ts` before reporting what happened.** CLAUDE.md
+  rule 13: a permission denial racing execution is not proof nothing ran — go
+  by the server's own `dayProgressEntities` count, never by what the harness
+  said back, and never re-issue a denied run on the strength of the denial
+  alone.
+- Regenerate `handoff/reports/dungeon-runs.md` (`scripts/dungeonReport.ts`)
+  and report the corpus deltas: attempt count (79 → ?), death-room
+  histogram, total Hard Core / Dendren Root / energy.
+- If the status-effect or proc-boolean counts moved enough to change §58's or
+  §59's n's meaningfully, state the new n's explicitly — "more data" is not a
+  number.
 
 ---
 
@@ -69,8 +98,8 @@ as a targeted test.
 Full suite (`--maxWorkers=4` — the default over-subscribes this machine and
 produces false timeout failures, session 100's finding), `tsc --noEmit`,
 `git diff --check`, secret scan. State explicitly, at the top of the recap:
-whether the ledger read reset or was still exhausted on arrival, the batch's
-catch rate and CI, the necessity-gate and redraw-shadow figures, and the
-durability bracket's new decrement rate. If the ledger was still exhausted,
-say so plainly and stop there — that is an acceptable, expected outcome, not
-a failure to report around.
+how many of the (up to) 4 runs actually happened and why it stopped where it
+did (user said stop / ledger capped / a fail-closed condition tripped), each
+run's room-reached and outcome, and the updated corpus totals. If the ledger
+read anything other than 0/12 on arrival, say so plainly at the very top,
+before anything else.
