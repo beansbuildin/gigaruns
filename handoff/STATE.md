@@ -1,4 +1,4 @@
-# STATE — session 103 — 2026-08-27 (UTC fixture dates; game day rolled 11:00 PT 2026-08-26) — code at commit <RECAP_SHA>
+# STATE — session 103 — 2026-08-27 (UTC fixture dates; game day rolled 11:00 PT 2026-08-26) — code at commit 0d6fa8d99dc414decbe5f6847fc2cad74520366e
 
 ## Status
 Brief was a single item: **the dungeon batch — up to 4 juiced Tier-3 runs, one

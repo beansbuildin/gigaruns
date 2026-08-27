@@ -303,3 +303,7 @@ Nothing in `src/`, `tests/` or `scripts/` reads `.evidence` — it is
 documentation only. Not fixed here: the fix is a choice between weakening the
 comment and writing the missing assertion, and that is not a call to make in
 the middle of a corpus ratchet.
+
+---
+
+Recap commit: `0d6fa8d99dc414decbe5f6847fc2cad74520366e`
