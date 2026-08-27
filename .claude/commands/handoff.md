@@ -28,6 +28,14 @@ assumption at the top of a session compounds all the way to the recap.
 wrote the brief from the last recap and may be working off something that has
 since changed or turned out to be wrong. Reality beats the plan.
 
+**Check the brief against `STATE.md`'s "Settled — do not re-open" digest before
+you start.** [session 104] The digest exists because a brief asked for a
+measurement that had shipped three sessions earlier, quoting the problem
+statement of the very entry that answered it — and the check that would have
+caught it took four minutes. If the brief proposes something the digest lists,
+say so at the top of the session and work only the part that is genuinely open.
+The digest is pointers; `DECISIONS.md` and `QUESTIONS.md` hold the evidence.
+
 **If `next.md` is missing or stale** (older than the last session log), don't
 guess — work the next unblocked task in `TASKS.md` and note it in the recap.
 

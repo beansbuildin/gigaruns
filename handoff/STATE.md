@@ -14,6 +14,56 @@ default over-subscribes this machine and produces FALSE timeouts — session 100
 unchanged). `tsc --noEmit` clean, `git diff --check` clean, secret scan **0 hits
 on all four patterns over the diff**, `discoveredShipsClean` 8/8.
 
+## Settled — do not re-open
+Pointers only — `DECISIONS.md` and `QUESTIONS.md` own the evidence. **An entry
+here means a brief proposing it as NEW work is wrong.** Carried forward and
+edited each session, never rewritten (see `/recap` step 3). Entries marked
+**[USER]** are user directives an agent may not re-open at all.
+
+- **Proc effect sizes.** `block` = `floor(ATK/2)`, `evasion` = full negate,
+  `lck` = `2 x ATK` — MEASURED, exact, control 0/4111. §58, §62. Re-opens as:
+  *"diff the HP deltas on fired vs unfired exchanges."*
+- **`tenacity` / `intuition` as damage mitigation.** RULED OUT, both, with no
+  positive mechanic. §58, §62. Re-opens as: *"find what tenacity does."* What
+  is genuinely open is the heal AMOUNTS and tenacity pick-ORDER — nothing else.
+- **The six statuses.** `Burn`/`Weak`/`Vulnerable`/`Regen`/`SecondWind` exact;
+  **`lifesteal` DOES NOT EXIST**; `amount: 0` is INERT. §59. Re-opens as:
+  *"measure the status effects"* or any task listing lifesteal.
+- **`triggeredBoons`.** CLOSED as an evidence channel — 0 non-empty of 10,616.
+  DECISIONS 2026-08-26. Re-opens as: *"settle whether triggeredBoons populates."*
+  **No runs may be spent on it.**
+- **`data.events` absence.** EXPECTED, not a capture gap; the 5308 states
+  partition exactly and n=1919 stands. §58 §1. Re-opens as: *"check whether
+  proc evidence is being dropped."*
+- **`SecondWind` / `Steadfast`.** Ordinary volume WILL NOT settle these — that
+  is a positive finding, not missing data. DECISIONS 2026-08-27. Re-opens as:
+  *"grow n on SecondWind/Steadfast through normal play."*
+- **Redraw.** CLOSED — `redrawEnabled` stays false, the counterfactual bound is
+  retired, and §28's gap 1 is STRUCTURALLY unreachable from a shadow at any
+  volume. §49, §51. Re-opens as: *"run more redraw shadow analysis."*
+- **[USER] Rule 8 — highest non-Perpetual tier, lowest at the final room.**
+  Reversed on new evidence 2026-08-20. Re-opens as: *"revert to lowest-tier"*
+  or *"fix the falling sim coverage."* The coverage fall is the PRICE of the
+  rule, not a regression.
+- **[USER] Rule 11 — entry tier is Tier-1 (`--juiced-index=1`), 0 rings.**
+  Session 104. `data.index` is the TIER; `entryData` is ordered 2, 1, 3, so
+  array position is NOT tier. Re-opens as: *"correct the juiced index"* — a
+  positional 'fix' selects Tier 2 and spends silver rings.
+- **[USER] Rule 12 — energy is not a constraint** (~1368/day via ROMs; the
+  endpoint reports only the regen pool). Re-opens as: *"we are blocked on
+  energy."* Exercise `--dry-run` before reporting any blocker.
+- **[USER] Auth Path B / EOA / `viem`.** RETIRED, not deferred — the account is
+  an AGW with no user-held key. DECISIONS 2026-08-20. Re-opens as: *"finish the
+  EOA auth path."* `tests/clientSurface.test.ts` fails if a signer returns.
+- **[USER] The rod.** Golkan, being REPAIRED not replaced; `CORPUS_DECK` stays
+  Shroom until the corpus is majority-Golkan. §53, §61.3. Re-opens as:
+  *"repoint CORPUS_DECK"* or *"pick a new rod."*
+- **[USER] Unspent skill XP.** CLOSED, not deferred. §61.1. Re-opens as:
+  *"the account has unallocated skill points worth spending."*
+- **Suite invocation.** `vitest run --maxWorkers=4`; the default
+  over-subscribes this machine and produces FALSE timeout failures.
+  DECISIONS 2026-08-26. Re-opens as: *"the suite is red."*
+
 ## What works
 - **Part A — the proc effect sizes RE-VERIFY at +184 exchanges** (1919 → 2103),
   `npx tsx scripts/procEffectSize.ts`. `block` = `floor(ATK/2)` (partial
@@ -66,9 +116,8 @@ on all four patterns over the diff**, `discoveredShipsClean` 8/8.
   DERIVATION, not an observation.** Every juiced `start_run` this bot has ever
   sent used `index: 3` — **34 of 34** across the whole log corpus.
 - Carried, untouched: §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE
-  QUOTED**; `CORPUS_DECK` still Shroom; `triggeredBoons` still never populates;
-  `SecondWind` (n=10) and `Steadfast` (n=23) still unmoved and still will not
-  yield to ordinary volume (session 103).
+  QUOTED.** (The rest of the standing carry-forwards now live in the digest
+  above rather than being restated here each session.)
 
 ## Corrections to SPEC.md
 - **None. `SPEC.md` and `SPEC-fishing.md` were not touched, and neither was
@@ -100,8 +149,7 @@ on all four patterns over the diff**, `discoveredShipsClean` 8/8.
 - **Empty `run-` fixture dirs from `--dry-run` are expected, not corpus
   pollution** — 4 exist now, 3 predate this session. They hold only an ignored
   `raw/`, so git never sees them and `loadExchanges` skips them.
-- Standing, none re-opened: redraw CLOSED; `--dry-run` before claiming a
-  blocker; do not revert rule 8; +19.40pp SUSPENDED.
+- Standing dead ends are in the digest above; none were re-opened.
 
 ## Metrics
 - **Live: 0 dungeon runs, 0 fishing casts, 0 energy, 0 items.** Ledger 0/12 on
@@ -121,11 +169,14 @@ on all four patterns over the diff**, `discoveredShipsClean` 8/8.
 - Corpus unchanged: 83 dungeon attempts, 230 fishing casts.
 
 ## Open questions for Claude
-1. **Where did the brief's stale premise come from, and can that be closed at
-   the source?** Part A cost most of a session re-establishing that §58 was
-   already answered. The recap → brief path lost it in one hop. Is there
-   something the recap should carry (a "settled, do not re-open" digest) that
-   would have prevented it?
+1. **ANSWERED IN-SESSION, and already implemented — nothing to decide.** The
+   user directed that the recap carry a "settled, do not re-open" digest. It is
+   now the section above, `/recap` step 3 makes it CARRIED FORWARD rather than
+   rewritten, and `/handoff` tells the next agent to check the brief against it
+   before starting. **What is still worth watching: does it actually get
+   maintained?** A digest that is copied forward unedited decays into
+   wallpaper. If a future session adds nothing to it and drops nothing from it,
+   that is the signal it has stopped working.
 2. **Should the first live Tier-1 run be shaped to MEASURE the payout?** The
    ~quarter figure is a derivation and Tier-1 has never been run here. One run
    gives an observed Hard Core number against session 103's 30,960 baseline —

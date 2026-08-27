@@ -59,8 +59,32 @@ similar scripts should print real identifiers to the terminal for the human
 running them, but nothing you write to a committed file should ever contain
 one.
 
-**3. Overwrite `handoff/STATE.md`** with the template below. Under ~150 lines.
-It is read fresh every cycle and must stand alone.
+**3. Overwrite `handoff/STATE.md`** with the template below. **Under ~150 lines
+for the body, plus the digest** (capped separately at ~15 entries — session 104
+raised the total budget rather than letting a new required section quietly eat
+the old one). It is read fresh every cycle and must stand alone.
+
+**The "Settled — do not re-open" digest is CARRIED FORWARD, not rewritten.**
+[Added session 104, by user directive, after a brief spent most of a session
+asking for a measurement session 101 had already shipped — the recap -> brief
+hop lost it in one step, because nothing in the recap said it was done.]
+
+Copy the previous STATE.md's digest across verbatim, then edit it:
+
+- **Add** what this session settled — but only what a brief could plausibly
+  propose as new work. Not everything settled; a digest of everything is a
+  digest of nothing.
+- **The `Re-opens as:` clause is the load-bearing half.** Write the phrasing a
+  brief would actually use, not a description of the topic. It is what lets a
+  reader match a proposal against the list instead of recognising a theme.
+- **Mark user directives as such.** An agent may not re-open those at all; it
+  can only note disagreement in a recap (CLAUDE.md, `/handoff`).
+- **Drop** an entry once it has been folded into `CLAUDE.md`, `SPEC.md` or a
+  test that would fail — those enforce themselves and no longer need a
+  reminder. Say in the recap which entries you dropped and why.
+- **Cap it at ~15 entries.** If it is over, the oldest quiet ones have earned
+  their way out; an unbounded digest stops being read, which is the same
+  failure it exists to prevent.
 
 **4. Append `handoff/log/session-NN.md`** — same content plus anything verbose
 (full error dumps, EV tables, response bodies). No length limit here.
@@ -83,6 +107,14 @@ line each: `YYYY-MM-DD — <decision> — <reason>`.
 Task <N> "<name>": **GATE PASS | GATE FAIL | IN PROGRESS**
 Next per TASKS.md: Task <N+1>
 Overall: <one sentence a stranger could act on>
+
+## Settled — do not re-open
+<Pointers ONLY. DECISIONS.md and QUESTIONS.md own the evidence; restating it
+here creates a second source of truth that can drift. An entry here means a
+brief proposing it as NEW work is wrong.>
+
+- **<topic>** — <verdict in one clause>. <§ or DECISIONS date>. Re-opens as:
+  *"<the phrasing a brief would actually use>"*.
 
 ## What works
 - <capability> — verified by <how>

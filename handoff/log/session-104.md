@@ -368,3 +368,71 @@ dirs now exist; three predate this session. `loadExchanges` skips them.
    against side 1 for nothing, and this is the first analysis to exploit it.
 4. **`dropMultiplier` is captured, schema-validated, and read by nothing.** It
    is the number the whole tier decision turns on, and no code consumes it.
+
+---
+
+## 7. Addendum — the "settled, do not re-open" digest (user directive, in-session)
+
+Open question 1 above was put to the user during the recap and **answered yes**
+in the same session. Implemented rather than deferred to a brief.
+
+**The failure it addresses, stated precisely.** Part A of this session's brief
+asked for a measurement session 101 had shipped. The chain that produced it:
+session 101 answered the question and recorded it in QUESTIONS.md §58 and four
+DECISIONS entries — but **session 103's recap never mentioned it**, because
+session 103 was a dungeon batch and the proc work was not its topic. Claude
+(chat) writes each brief from the last recap. So the answer existed in the repo
+and was invisible at exactly the point where the next task gets chosen. **One
+hop, and only one, is where it was lost.**
+
+That is why the fix is in the recap and not in DECISIONS.md: DECISIONS.md
+already had the answer. What it did not have was any reason for the brief
+writer to look.
+
+### What was changed
+
+- **`.claude/commands/gigarecap.md`** — new `## Settled — do not re-open`
+  section in the STATE.md template, placed **directly after `## Status`** so it
+  is read before any planning, and step 3 gains the maintenance rules.
+- **`.claude/commands/handoff.md`** — the session-start reader is told to check
+  the brief against the digest before starting, with this session as the
+  worked example.
+- **`handoff/STATE.md`** — the digest itself, 14 entries, populated from
+  DECISIONS.md and QUESTIONS.md.
+
+### The three design decisions, and why
+
+1. **Pointers only, never restated evidence.** A digest that summarises its
+   sources becomes a second source of truth and drifts from them. Each entry is
+   topic + one-clause verdict + where the evidence lives.
+2. **The `Re-opens as:` clause is the load-bearing half, and it is the part
+   most likely to be dropped by a future maintainer as redundant.** It names
+   *the phrasing a brief would actually use* — "diff the HP deltas on fired vs
+   unfired exchanges" — rather than describing the topic. A reader matches a
+   proposal against a phrase; recognising a theme is exactly what failed here,
+   since this session's brief did name §58 and still got it backwards.
+3. **CARRIED FORWARD, not rewritten.** STATE.md is overwritten every session,
+   which is why nothing survived three sessions in the first place. The digest
+   is copied across verbatim and then edited — add what was settled, drop what
+   has been folded into `CLAUDE.md`/`SPEC.md`/a failing test, cap at ~15.
+
+**The `[USER]` marking is a distinction the digest would be wrong without.**
+Some entries are settled evidence an agent may re-examine with better data
+(proc effect sizes); others are user directives an agent may not re-open at all
+and can only disagree with in a recap (rules 8, 11, 12; the rod; the skill XP).
+Collapsing those into one list would either over-freeze the measurements or
+under-protect the directives.
+
+**Cost, stated rather than hidden:** STATE.md is now **210 lines** against a
+stated cap of ~150. Roughly 4 lines of newly-redundant carry-forward text were
+removed, and the rest is the digest. **The cap in `/recap` was raised
+explicitly** — ~150 for the body plus a separately-capped digest — because
+letting a new required section silently consume the old budget is how the next
+session ends up cutting findings to fit.
+
+### The honest risk
+
+**A digest copied forward unedited decays into wallpaper**, and it will be read
+every session whether or not it is maintained. The tripwire is recorded in
+STATE.md's open question 1: if a session adds nothing and drops nothing, that
+is the signal it has stopped working — not a sign that nothing was settled.
