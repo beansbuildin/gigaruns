@@ -1,4 +1,4 @@
-# session 104 — 2026-08-27 — proc effect sizes re-verified + the standing entry tier switched to Tier-1 — GATE PASS (both parts)
+# session 104 — 2026-08-27 — proc effect sizes re-verified + the standing entry tier switched to Tier-1 — GATE PASS (both parts) — code at commit ca0342da7e3c2d9e671d12c5754a986ae8f34954
 
 Brief: `handoff/next.md`, two parts, both dungeon-side, both offline.
 **Zero live spend — no dungeon runs, no fishing casts, no items consumed.**

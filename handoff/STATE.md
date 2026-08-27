@@ -1,4 +1,4 @@
-# STATE — session 104 — 2026-08-27 — commit <SHA>
+# STATE — session 104 — 2026-08-27 — code at commit ca0342da7e3c2d9e671d12c5754a986ae8f34954
 
 ## Status
 Brief had two parts, both dungeon-side, both offline. **Part A GATE PASS,
