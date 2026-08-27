@@ -1682,11 +1682,39 @@ attacker `currentATK`" that is exact on 2211/2285 no-proc exchanges.
 the rule matched **zero** times. Confidence intervals are wide at these
 volumes and QUESTIONS.md §58 reports them wide; the separation is the claim.
 
+**[session 104 §A] RE-VERIFIED AT +184 EXCHANGES, AND TENACITY'S ONE CONFOUND
+IS REMOVED.** Corpus 1919 -> 2103. All three rules hold unchanged and the
+matched control still matches **zero** times, now across **4111** exchanges.
+`intuition` reproduces its independently-known result (5 of 6 non-blocked fires
+took full ATK; the sixth was `block`), which is the sanity check on the method
+rather than a new finding.
+
+The new half: **tenacity split by whether `AddTenacity` was picked**, because
+session 103 found its proc RATE moving with the boon at n=4 runs and pooling
+could therefore have mixed two populations.
+
+```
+  AddTenacity raises the RATE, does not gate it   20/380 vs 4/551, p=2.23e-05
+  enemies NEVER pick boons (0 of 5820 states)     -> a boon-free control arm
+  the OnHeal association SURVIVES that arm        4/23 vs 62/1125, p=0.0386
+  the DAMAGE verdict is unchanged in both arms    fired 16/19 track the null
+```
+
+**Pooling had not hidden a damage effect in either arm** — which is the
+question the split was asked to answer. `p` is anti-conservative (exchanges
+cluster within runs, and are not independent), so the DIRECTION is the finding
+and the figure is not. Pick ORDER remains untested: this splits on presence
+only. QUESTIONS.md §62.
+
 **What is still missing:**
 
 - **`tenacity` and `intuition` mechanics.** Both are ruled OUT as damage
   mitigation, which is progress, but neither has a positive verdict. Both fire
   ~6-19 times in the whole corpus, so both need volume, not cleverness.
+  [session 104] Tenacity's OnHeal association is now on 10 heals rather than 6
+  and is no longer explicable as the `AddTenacity` boon — but it is still an
+  ASSOCIATION, the heal amounts are still unbounded, and it is still not a
+  mechanic.
 - **`SecondWind`'s TRIGGER condition** — magnitude exact, trigger unknown. Not
   lethality and not a fixed HP threshold (fired at 40/40 vs 10 incoming, held
   at 40/40 vs 14). n=10.

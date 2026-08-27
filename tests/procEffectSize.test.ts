@@ -24,7 +24,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { dealtDamage, loadExchanges, scoreRules, wilson, type Exchange } from "../scripts/procEffectSize.js";
+import { dealtDamage, loadExchanges, scoreRules, tenacityByBoon, wilson, type Exchange } from "../scripts/procEffectSize.js";
 
 /** Enough runs to carry hundreds of exchanges and a control in the hundreds, well under a second. */
 const RUN_DIRS_SCANNED = 20;
@@ -130,6 +130,63 @@ describe("what tenacity and intuition are NOT", () => {
       (e: Exchange) => dealtDamage(e, 1) && typeof e.atk[1] === "number" && e.taken[0] === 0,
     );
     expect(negated.length).toBe(0);
+  });
+});
+
+describe("tenacity, split by the AddTenacity boon [session 104, QUESTIONS.md §62]", () => {
+  const cells = tenacityByBoon(exchanges);
+
+  it("the ENEMY side is a structurally boon-free arm — enemies never pick boons at all", () => {
+    // 0 of 5820 states carrying a players[] have a non-empty `pickedBoons` on
+    // players[1], whole corpus. This is what makes the split a control rather
+    // than a re-labelling: side 1's tenacity is always the bare stat, so any
+    // effect surviving there cannot be the boon's doing.
+    //
+    // Asserting a zero COUNT is normally forbidden (DECISIONS 2026-08-26, the
+    // `deckShuffle` finding), and it is allowed here because this is not a
+    // chance event — no capture path exists by which an enemy acquires a boon.
+    for (const ex of exchanges) expect(ex.boons[1]).toEqual([]);
+    for (const c of cells) if (c.side === 1 && c.withBoon) expect(c.n).toBe(0);
+  });
+
+  it("the player side does carry boons, so the split has both arms populated", () => {
+    expect(exchanges.some((e) => e.boons[0].length > 0)).toBe(true);
+  });
+
+  it("tenacity mitigates no damage in EITHER arm — the §58 verdict survives the split", () => {
+    // The concern the split exists to rule out is that pooling mixed two
+    // populations. On the damage question it did not: with the boon and
+    // without it, a status-clean tenacity fire with no other proc takes the
+    // attacker's plain currentATK. Vacuously true on a slice containing none,
+    // which is why it is safe to scan a bounded slice.
+    for (const side of [0, 1] as const) {
+      const attacker = (1 - side) as 0 | 1;
+      const fired = exchanges.filter(
+        (e) =>
+          e.flags[`tenacityProc${side}`] &&
+          e.statusClean &&
+          !["block", "evade", "crit"].some((f) => e.flags[`${f}Proc${side}`] || e.flags[`${f}Proc${attacker}`]),
+      );
+      for (const ex of fired) {
+        if (!dealtDamage(ex, attacker) || typeof ex.atk[attacker] !== "number") continue;
+        expect(ex.taken[side]).toBe(ex.atk[attacker]);
+      }
+    }
+  });
+
+  it("counts every tenacity>0 exchange exactly once across the eight cells", () => {
+    // The cells partition — side x boon x fired. A double-count here would
+    // inflate whichever arm it landed in, which is exactly the error the
+    // split is meant to detect elsewhere.
+    for (const side of [0, 1] as const) {
+      const direct = exchanges.filter((e) => (e.stat[side].tenacity ?? 0) > 0).length;
+      const summed = cells.filter((c) => c.side === side).reduce((a, c) => a + c.n, 0);
+      expect(summed).toBe(direct);
+    }
+  });
+
+  it("never reports more heals than exchanges in a cell", () => {
+    for (const c of cells) expect(c.healed).toBeLessThanOrEqual(c.n);
   });
 });
 

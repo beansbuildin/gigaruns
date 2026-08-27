@@ -1973,7 +1973,7 @@ const USAGE = `Usage: npx tsx scripts/liveRun.ts [flags]
     with 3 Big Heal Juices, ONE run at a time, and it needs a per-run human
     go-ahead. The authorised form is:
 
-      npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1
+      npx tsx scripts/liveRun.ts --juiced --juiced-index=1 --runs=1
 
   --dry-run          decide and log, POST nothing — run this first, always
   --status           local ledger only, no network

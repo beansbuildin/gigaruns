@@ -4872,3 +4872,154 @@ was the fragile part, not the finding).
 for the corpus totals, `scripts/redrawShadowAnalysis.ts` for §3's figures.
 `data/rodDurability.jsonl` holds the paired before/after readings under one
 `batchId` with `dryRun: false`.
+
+---
+
+## §61 ANSWERED [conversation with the user, 2026-08-27, outside a numbered session] — THREE SESSION-103 OPEN QUESTIONS CLOSED: SKILL XP IGNORED, LOADOUT STABLE, ROD REPAIRED NOT REPLACED
+
+Recorded here rather than left in a brief, per the §52–§56 convention.
+
+1. **STATE.md session 103's open question 3 (11,111 unspent skill XP) — IGNORE
+   IT.** Not a task and not a recommendation to revisit later; the question is
+   CLOSED, not deferred. CLAUDE.md's "never allocate skill points yourself"
+   rule is unaffected in either direction — it was never the thing in doubt.
+   Do not re-raise unspent XP as a finding in a future recap.
+
+2. **STATE.md session 103's open question 1 (gear/loadout stability) —
+   RESOLVED: the loadout HOLDS STEADY going forward.** Session 103 caught the
+   account re-speccing twice inside one batch (40/22 -> 45/20 before run 1,
+   -> 50/17 between runs 3 and 4), and asked whether that is how the account is
+   played. It is not; the user expects the gear settled from here.
+
+   **The consequence is asymmetric and both halves matter.** Forward: a future
+   batch may be read as ONE arm unless a new re-spec is flagged, and a new
+   loadout combo appearing in the census is now a signal to chase rather than
+   expected drift — `tests/enemies.test.ts`'s census doc comment is updated to
+   say so. Backward: **this changes nothing about the data already captured.**
+   Session 103's runs 1-3 and run 4 are still not one arm, and neither group is
+   one arm with 2026-08-26's. Do not read this answer as retroactive repair.
+
+3. **§53 / session 102's open question 1 (the fishing rod) — INFORMATIONAL, NO
+   ACTION.** The user is REPAIRING Golkan rather than replacing it,
+   specifically so the deck stays the same one across future sessions. Nothing
+   in the repo changes: `CORPUS_DECK` stays where DECISIONS 2026-08-26 put it
+   (Shroom, until the corpus is majority-Golkan). Recorded so a future reader
+   does not re-ask why the rod is not being swapped.
+
+---
+
+## §62 ANSWERED [session 104 §A] — THE PROC EFFECT SIZES HOLD AT +184 EXCHANGES, AND TENACITY'S HEAL ASSOCIATION SURVIVES THE `AddTenacity` SPLIT
+
+### 0. The brief asked for a measurement that already existed
+
+Session 104's brief framed this as "§58's own unresolved half", citing §58's
+line that rates are not mechanics. **§58 is the entry that resolved it** —
+`scripts/procEffectSize.ts` and `tests/procEffectSize.test.ts` shipped in
+session 101, and four DECISIONS entries dated 2026-08-26 carry the verdicts.
+Per CLAUDE.md rule 9 the repo wins over the brief's account of it.
+
+Two things were genuinely open, and they are what this entry adds: the corpus
+has grown by 4 runs since the measurement, and **the brief's own item 2 — the
+`AddTenacity` split — had never been done.**
+
+### 1. Re-run at the new volume: every rule holds, the control is still zero
+
+`npx tsx scripts/procEffectSize.ts`, corpus **1919 -> 2103 exchanges**
+(1314 status-clean). Null: damage taken === attacker `currentATK` on
+**2378 / 2485** no-proc exchanges.
+
+```
+  flag          predicts       status-clean       all      control (stat>0, unfired)
+  blockProc0    floor(ATK/2)    35/35  [90-100%]   60/63          0/1154
+  blockProc1    floor(ATK/2)    10/10  [72-100%]   22/25           0/721
+  evadeProc0    0                 3/3  [44-100%]     5/5           0/155
+  evadeProc1    0                 9/9  [70-100%]   22/22           0/707
+  critProc0     2*ATK           10/10  [72-100%]   17/18           0/677
+  critProc1     2*ATK           11/11  [74-100%]   16/17           0/697
+```
+
+**The verdicts are unchanged and are restated plainly, per the brief:**
+
+- **`block` — PARTIAL REDUCTION, exactly `floor(ATK/2)`.** Not a negate.
+- **`evasion` — FULL NEGATE**, 0 damage taken.
+- **`lck` — CRIT, exactly `2 x ATK`.**
+- **`tenacity` — NO measurable damage effect** (see §2).
+- **`intuition` — NO measurable damage effect**; it denies a MOVE.
+
+**The control column is still 0 on every row, now across 4111 matched control
+exchanges** — same stat non-zero, flag unfired, rule matched zero times. That
+separation, not the wide per-flag intervals, is the result.
+
+**The method's sanity check reproduces**, as the brief asked: `intuition`,
+whose mechanic §57/§58 already settled independently, comes back the same way
+— **5 of 6 non-blocked procs took the attacker's FULL ATK**, and the sixth
+also carried `blockProc0` and took exactly `floor(ATK/2)`, which is block.
+The fired/unfired approach recovers the known answer, so it is trusted on the
+others.
+
+### 2. `tenacity`, split by `AddTenacity` — the split was worth doing
+
+Session 103's dead-end note found tenacity's proc RATE moving with whether
+`AddTenacity` was picked, at n=4 runs. Pooling those into one population is
+exactly what the brief flagged as a risk, so `tenacityByBoon` splits every
+`tenacity > 0` exchange by side x boon-picked x fired:
+
+```
+  side  AddTenacity  proc       n   OnHeal   damage tracks the plain null
+  0     picked       FIRED     20      3           7/8
+  0     picked       unfired  360      7       223/231
+  0     not picked   FIRED      4      0           2/2
+  0     not picked   unfired  547      9       287/312
+  1     picked       FIRED      0      0             n/a
+  1     picked       unfired    0      0             n/a
+  1     not picked   FIRED     23      4           7/9
+  1     not picked   unfired 1125     62       550/608
+```
+
+**(a) `AddTenacity` raises the proc RATE, and this is now measured rather than
+a 4-run pattern.** Player side: **20/380 = 5.26%** with the boon vs
+**4/551 = 0.73%** without, Fisher two-sided **p = 2.23e-05**. Session 103 was
+right that the boon matters. **Caveat stated rather than buried: exchanges are
+clustered within runs and are not independent, so that p is anti-conservative.
+The direction is solid; the exact figure is not.** Pick order is still
+untested — this splits on presence only.
+
+**(b) The boon is NOT a gate. Tenacity procs without it.** 4 fires on the
+player side with no `AddTenacity`, and **23 fires on the enemy side, where
+`AddTenacity` appears in zero rows.** The boon modulates a rate; it does not
+switch the mechanic on.
+
+**(c) The enemy side is a structurally boon-free control arm — enemies never
+pick boons at all.** 0 of 5820 states carrying a `players[]` have a non-empty
+`pickedBoons` on `players[1]`, whole corpus. This is asserted as a zero count,
+which DECISIONS 2026-08-26 normally forbids, and it is allowed here **because
+it is not a chance event**: no capture path exists by which an enemy acquires
+a boon.
+
+**(d) The load-bearing result: §58's OnHeal association is NOT an artifact of
+the boon.** It survives in the arm where the boon is structurally absent —
+enemy side **4/23 = 17.4% fired vs 62/1125 = 5.5% unfired, Fisher p = 0.0386**.
+The player's boon arm agrees (3/20 vs 7/360, p = 0.0119). The player's
+boon-free arm is uninformative at 0/4 (p = 1.0) and is reported as such rather
+than read as a contradiction. **This remains an ASSOCIATION, not a mechanic:**
+it now rests on 10 heals rather than §58's 6, and the heal AMOUNTS still
+cannot be bounded.
+
+**(e) The damage verdict survives the split, which is the question the split
+was actually asked to answer.** Tenacity-fired cells: damage tracks the plain
+null **16/19**; unfired cells **1060/1151**. Same in both arms, and the
+residual is the same status-effect error term §58 and §59 already characterise.
+**Pooling did not hide a damage effect in one arm.**
+
+### 3. What this does NOT do
+
+`src/sim/combat.ts` is untouched. **CAPTURE-1's prohibition — do not stub,
+default, or flag-hide the proc branches — stands exactly as §58 left it**, and
+the brief said so explicitly. This entry re-verifies three effect sizes at
+higher volume and removes one confound from a fourth; it does not close
+CAPTURE-1 and does not authorise building the model.
+
+### 4. Reproducing
+
+`npx tsx scripts/procEffectSize.ts`. `tests/procEffectSize.test.ts` pins the
+split on a bounded slice with slice-safe assertions (25 tests, was 20).

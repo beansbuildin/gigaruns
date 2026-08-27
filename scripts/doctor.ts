@@ -206,7 +206,7 @@ async function main() {
   if (failures === 0) {
     console.log(`\n▸ All checks passed. You are ready.\n`);
     console.log(`  A dungeon run (one run, then it stops and waits for you):`);
-    console.log(`    npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1\n`);
+    console.log(`    npx tsx scripts/liveRun.ts --juiced --juiced-index=1 --runs=1\n`);
     console.log(`  Fishing:`);
     console.log(`    npx tsx scripts/liveFishing.ts --casts=1\n`);
     console.log(`  Neither will sell, burn, transfer, or send an on-chain transaction —`);

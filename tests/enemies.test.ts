@@ -97,10 +97,21 @@ describe("player loadout matches the fixtures", () => {
 
   /**
    * Not an assertion that the corpus is consistent — it is NOT, and that is the
-   * point. This records how many distinct loadouts are in there, so gear drift
-   * is a visible number instead of a silent bias on every armor fraction the sim
-   * reports. Update the count when it changes, and re-measure any baseline you
-   * were about to quote from an older session.
+   * point. This records how many distinct loadouts are in there, so a loadout
+   * change is a visible number instead of a silent bias on every armor fraction
+   * the sim reports. Update the count when it changes, and re-measure any
+   * baseline you were about to quote from an older session.
+   *
+   * [session 104, user directive] **The loadout is expected to HOLD STEADY from
+   * here.** This census used to be framed as tracking expected "drift"; the
+   * account owner has since said the gear is settled, so a new combo appearing
+   * is now a SIGNAL to chase — a re-spec the recap must flag — rather than
+   * routine noise to record and move past.
+   *
+   * This does not retroactively repair the historical corpus. Session 103's
+   * four runs still straddle two mid-batch re-specs (40/22 -> 45/20 -> 50/17),
+   * so runs 1-3 and run 4 are NOT one arm and neither group is one arm with
+   * 2026-08-26's runs. That caveat stands on the data already captured.
    */
   it("records how many distinct loadouts the corpus contains", () => {
     const seen = new Set(

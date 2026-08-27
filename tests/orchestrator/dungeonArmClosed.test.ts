@@ -1,9 +1,13 @@
 /**
  * tests/orchestrator/dungeonArmClosed.test.ts — CLAUDE.md rule 11, session 54.
  *
- * Rule 11 makes every dungeon run a 60-energy juiced Tier-3 entry needing
- * explicit per-run human approval, which an autonomous loop cannot give — so
+ * Rule 11 makes every dungeon run a 60-energy juiced entry needing explicit
+ * per-run human approval, which an autonomous loop cannot give — so
  * `scripts/orchestrator.ts` must not be able to start one.
+ *
+ * [session 104] The standing ENTRY TIER moved Tier-3 -> Tier-1 (`index: 1`,
+ * `inputItems: []`, no gold rings spent). Only the tier changed; the
+ * approval requirement and the 3-run-unit charge did not.
  *
  * The specific bug this file exists to make impossible (session 24's incident,
  * one edit away from repeating): `orchestrator.ts`'s `resolvePotionLoadout`
@@ -86,7 +90,22 @@ describe("rule 11 — the potion/juiced invariant, stated over the whole source 
     const src = read("scripts/orchestrator.ts");
     expect(src).toContain('throw new Error(`scheduler returned {kind: "dungeon"}');
     expect(src).toContain("rule 11");
-    expect(src).toContain("scripts/liveRun.ts --juiced --juiced-index=3 --runs=1");
+    expect(src).toContain("scripts/liveRun.ts --juiced --juiced-index=1 --runs=1");
+  });
+
+  it("no operator-facing hint still recommends the retired Tier-3 entry", () => {
+    // [session 104] The switch to Tier-1 is a policy the operator reads off a
+    // printed command line, so a stale hint IS the bug — nothing in code
+    // defaults the index (`--juiced-index` is required and never guessed), and
+    // a human copying `--juiced-index=3` would spend seven gold rings that the
+    // directive exists to conserve.
+    //
+    // `index` is the TIER, not an array position: `entryData` comes back
+    // ordered tier 2, 1, 3 (SPEC §3c), so nothing here may be "fixed" by
+    // reasoning about array offsets.
+    for (const rel of SOURCE_FILES) {
+      expect(read(rel), `${rel} still recommends the retired Tier-3 entry`).not.toContain("--juiced-index=3");
+    }
   });
 
   it("orchestrator.ts does not take the dungeon-side locks liveRun.ts needs", () => {

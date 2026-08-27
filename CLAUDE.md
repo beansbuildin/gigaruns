@@ -159,14 +159,39 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
 
 - **60 energy, juiced** — `--juiced` with `JUICED_COST_MULTIPLIER` 3 against
   the 20-energy base. Charges 3 of the daily 12 run-units.
-- **`--juiced-index=3`**, the Tier-3 gold-rings offering. This is the ENTRY
-  tier only and is a different choice from the in-room `enemyPathOptions` tier,
-  which rule 8 governs. They were worth distinguishing carefully while rule 8
-  said *lowest* and this said *tier 3*; since 2026-08-20 both point the same
-  way, which makes them easier to conflate, not less distinct. Do not collapse
-  them: the entry tier is chosen once at `start_run`, the room tier is chosen
-  in every room, and rule 8's final-room and Perpetual exceptions apply only to
+- **`--juiced-index=1`**, the Tier-1 offering — **`inputItems: []`, no rings
+  spent.** This is the ENTRY tier only and is a different choice from the
+  in-room `enemyPathOptions` tier, which rule 8 governs. Do not collapse them:
+  the entry tier is chosen once at `start_run`, the room tier is chosen in
+  every room, and rule 8's final-room and Perpetual exceptions apply only to
   the latter.
+
+  **[2026-08-27] This was `--juiced-index=3` from 2026-08-20 through session
+  103, and the change is a user directive, not an optimisation.** Gold-ring
+  stock covered roughly **16 more days** at the Tier-3 run rate while the Hard
+  Cores event has **42 days** left to run, so continuing would have exhausted
+  the rings with ~26 days of the event still open. Tier 1 spends none.
+
+  **The cost is real and is stated here rather than buried in a session log:
+  Hard Core income per run drops to about a QUARTER.** `dropMultiplier` is 4
+  at Tier 3 and 1 at Tier 1, and per SPEC §3c it governs Hard Core (item 845)
+  **only** — Dendren Root (item 846) answers to `isJuiced` alone and is
+  **unaffected**. For scale, session 103's four Tier-3 runs paid 30,960 Hard
+  Core; the same four at Tier 1 project to ~7,740. That projection is a
+  derivation from `dropMultiplier`, **not a measurement** — every juiced
+  `start_run` this bot has ever sent used `index: 3` (34 of 34), so Tier 1 has
+  no observed payout here yet. Measure it on the first live Tier-1 run rather
+  than quoting this number back as fact.
+
+  **`index` is the TIER, not an array position** (SPEC §3c, confirmed live
+  twice). `entryData` is returned ordered **tier 2, 1, 3**, so `entryData[1]`
+  is Tier 1 by luck and `entryData[3]` does not exist. Match on
+  `entryData[].tier`; never index the array positionally.
+
+  None of rule 11's other three conditions change. `index` and `isJuiced` are
+  independent axes (SPEC §3c/§3f, session 42): the run is still a 60-energy
+  juiced entry, still charges 3 of the 12 daily run-units, and still auto-loads
+  potions — that gate reads `--juiced` alone and never `index`.
 - **3x Big Heal Juice** (itemId 131), loaded from
   `config/bot.json`'s `forbiddenWoods.potions`.
 - **One run, then stop and hand back.** Never chain. The user allocates skill

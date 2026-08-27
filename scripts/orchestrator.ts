@@ -37,7 +37,7 @@
  * per-run approval requirement, so this script does not start dungeon runs
  * at all: `nextAction` is called with a null dungeon budget, and the
  * `dungeon` branch below fails closed. Dungeon runs go through
- * `npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1`.
+ * `npx tsx scripts/liveRun.ts --juiced --juiced-index=1 --runs=1`.
  *
  * What that deleted, deliberately, rather than leaving unreachable:
  *  - `resolvePotionLoadout()` (session 20). It gated on `config.potions`
@@ -93,7 +93,7 @@ const DUNGEON_ARM_DISABLED = null;
 const RULE_11_POINTER =
   "dungeon runs are disabled in the orchestrator (CLAUDE.md rule 11: every run is a 60-energy juiced Tier-3 entry " +
   "needing explicit human approval, which an autonomous loop cannot give). " +
-  "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1";
+  "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=1 --runs=1";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Cap on any one sleep chunk — keeps SIGINT response prompt during a long regen wait rather than blocking in one giant setTimeout. */

@@ -106,6 +106,8 @@ export interface Exchange {
   hp: [number | null, number | null];
   /** True for a side that took at least as much damage as it had HP — it died this exchange. */
   died: [boolean, boolean];
+  /** `BoonType` of every boon each side had picked as of the PRECEDING state. See `tenacityByBoon`. */
+  boons: [string[], string[]];
 }
 
 const ROLLED_STATS = ["block", "evasion", "lck", "tenacity", "intuition"] as const;
@@ -260,6 +262,14 @@ export function loadExchanges(options: LoadOptions = {}): Exchange[] {
         heal,
         hp: hp as [number | null, number | null],
         died: [0, 1].map((s) => typeof hp[s] === "number" && taken[s]! + burn[s]! >= hp[s]!) as [boolean, boolean],
+        boons: [0, 1].map((s) =>
+          (Array.isArray((bp[s] as Record<string, any>).pickedBoons)
+            ? ((bp[s] as Record<string, any>).pickedBoons as Record<string, unknown>[])
+            : []
+          )
+            .map((b) => String(b?.BoonType ?? b?.boonTypeString ?? ""))
+            .filter((t) => t !== ""),
+        ) as [string[], string[]],
       });
     }
   }
@@ -350,6 +360,60 @@ export function scoreRules(exchanges: Exchange[]): RuleResult[] {
   return results;
 }
 
+/**
+ * `tenacity`, split by whether the `AddTenacity` boon was picked on that side.
+ *
+ * [session 104] §58 measured tenacity's OnHeal association by POOLING every
+ * tenacity-fired exchange. Session 103's dead-end note then found the proc RATE
+ * moves with whether `AddTenacity` was picked and with pick order (0/48 with no
+ * boon; 6/54 with it at pick 5 of 8; 0/38 with it at pick 6 of 7; 1/44 with no
+ * boon). If the boon and the base stat drive different populations, pooling
+ * them mixes two things — so the split is reported rather than assumed away.
+ *
+ * `damageNullOk / damageNullN` is the control that matters: it counts, on the
+ * exchanges in this cell where the OTHER side owed damage, how often damage
+ * taken still equals the attacker's plain `currentATK`. Tenacity being absent
+ * from the damage path predicts this tracks the null in BOTH arms.
+ */
+export interface TenacityCell {
+  side: 0 | 1;
+  withBoon: boolean;
+  fired: boolean;
+  n: number;
+  healed: number;
+  damageNullOk: number;
+  damageNullN: number;
+}
+
+export function tenacityByBoon(exchanges: Exchange[]): TenacityCell[] {
+  const out: TenacityCell[] = [];
+  for (const side of [0, 1] as const) {
+    for (const withBoon of [true, false]) {
+      for (const fired of [true, false]) {
+        const rs = exchanges.filter(
+          (e) =>
+            (e.stat[side].tenacity ?? 0) > 0 &&
+            e.flags[`tenacityProc${side}`] === fired &&
+            e.boons[side].includes("AddTenacity") === withBoon,
+        );
+        let damageNullOk = 0;
+        let damageNullN = 0;
+        for (const ex of rs) {
+          const attacker = (1 - side) as 0 | 1;
+          if (!dealtDamage(ex, attacker) || typeof ex.atk[attacker] !== "number") continue;
+          // Any OTHER proc would move damage for its own reasons — exclude them,
+          // so this cell tests tenacity against a clean null and nothing else.
+          if (["block", "evade", "crit"].some((f) => ex.flags[`${f}Proc${side}`] || ex.flags[`${f}Proc${attacker}`])) continue;
+          damageNullN++;
+          if (ex.taken[side] === ex.atk[attacker]) damageNullOk++;
+        }
+        out.push({ side, withBoon, fired, n: rs.length, healed: rs.filter((e) => e.heal[side] !== undefined).length, damageNullOk, damageNullN });
+      }
+    }
+  }
+  return out;
+}
+
 function main(): void {
   const exchanges = loadExchanges();
   const clean = exchanges.filter((e) => e.statusClean);
@@ -389,6 +453,15 @@ function main(): void {
         `    tenacityProc${s} ${fired ? "FIRED  " : "unfired"} n=${String(rs.length).padStart(4)}   OnHeal on that side ${String(healed.length).padStart(3)} (${((100 * healed.length) / (rs.length || 1)).toFixed(1)}%, 95% CI [${(100 * lo).toFixed(1)}-${(100 * hi).toFixed(1)}%])`,
       );
     }
+  }
+
+  console.log(`\n  tenacity, SPLIT by whether AddTenacity was picked on that side [session 104]:`);
+  console.log(`    side  AddTenacity  proc       n   OnHeal   damage tracks the plain null`);
+  for (const c of tenacityByBoon(exchanges)) {
+    const nullCol = c.damageNullN === 0 ? "n/a" : `${c.damageNullOk}/${c.damageNullN}`;
+    console.log(
+      `    ${c.side}     ${(c.withBoon ? "picked" : "not picked").padEnd(11)}  ${(c.fired ? "FIRED" : "unfired").padEnd(7)} ${String(c.n).padStart(4)}   ${String(c.healed).padStart(4)}     ${nullCol.padStart(9)}`,
+    );
   }
 
   const intuition = exchanges.filter((e) => e.flags.intuitionProc0);
