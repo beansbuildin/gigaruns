@@ -1,105 +1,158 @@
-# BRIEF — session 103 — dungeon batch: up to 4 juiced runs, one at a time, human go-ahead before each (rule 11)
+# BRIEF — session 104 — dungeon: measure what the procs actually do to damage, then switch the standing entry tier to Tier-1 (0 rings)
 
-**This document replaces the session-102 `next.md`.** Session 102 is executed
-and closed — QUESTIONS.md §60, STATE.md session 102. §C (the 20-cast fishing
-batch) is DONE. **This session's task is dungeon-side only — fishing is out of
-scope**, whatever the fishing ledger reads.
+**This document replaces the session-103 `next.md`.** Session 103 is executed
+and closed — the 4-run juiced batch, STATE.md session 103. **This session is
+dungeon-side only, both parts offline/near-zero live spend — fishing is out
+of scope**, whatever the fishing ledger reads. The rod stays capped at 18
+casts/batch until it's repaired; the user is handling the repair directly,
+outside this loop, so there is nothing to check or report on the fishing side
+this session.
 
-**Confirm the reset before doing anything else — do not assume the clock.**
-STATE.md session 102 is dated 2026-08-26 and read the dungeon corpus at 79
-attempts, 0 runs that day. A day has passed and the 11:00 PT rollover has
-very likely happened, but CLAUDE.md rule 13 discipline stands regardless of
-how obvious the answer looks: run `npx tsx scripts/checkDungeonToday.ts`
-first and go by what `dayProgressEntities` reports, not by elapsed
-wall-clock time. If it reads anything other than 0/12, say so plainly before
-doing anything else — that means runs already happened today outside this
-brief's tracking, and the "up to 4" below shrinks by that many.
+**Three of session 103's open questions are closed by the user, in
+conversation, outside a numbered session — record all three as ANSWERED
+QUESTIONS.md entries before or alongside the work below, the same convention
+§52–§56 already use:**
+
+1. **Open question 3 (11,111 unspent skill XP) — IGNORE IT.** Not a task, not
+   a recommendation to revisit. The "never allocate them yourself" rule is
+   unaffected either way; this closes the question rather than deferring it.
+2. **Open question 1 (gear/loadout stability) — RESOLVED: stable going
+   forward.** The user expects the loadout to hold steady from here, unlike
+   the two mid-batch re-specs session 103 caught. This does not retroactively
+   fix the session 103 corpus (rooms 1-3 vs room 4 still are not one arm —
+   that caveat stands on the historical data), but future batches can be read
+   as one loadout unless a new re-spec is flagged, and the loadout-census
+   framing in `tests/enemies.test.ts`'s doc comments should stop hedging
+   toward "drift is expected."
+3. **Session 102's open question 1 (the fishing rod) — informational, no
+   action.** The user is repairing Golkan directly rather than replacing it,
+   specifically so the deck stays the same one for future sessions
+   (`CORPUS_DECK` stays pointed at the same rod's data once it's repointed —
+   no change needed from this brief, just recorded so a future reader
+   doesn't re-ask).
 
 ---
 
-# The batch — up to 4 juiced Tier-3 runs, never chained
+# Part A — measure the proc booleans against real damage, using the existing corpus (zero live spend)
 
-**Rule 11 governs this whole session, and this brief is not the go-ahead it
-requires.** The Ask-first list is explicit: starting any dungeon run needs an
-explicit human go-ahead **for that run**, and "approval for one run is never
-approval for the next." This document scopes what the batch is and how to
-report it — it does not pre-authorize any of the four runs. Get the go-ahead
-live, from the user, in this session, before every single run, including the
-first.
+**This is the direct continuation of §58's own unresolved half.** §58
+measured proc RATES for `blockProc`/`evadeProc`/`critProc`/`tenacityProc` (and
+settled `intuitionProc` completely, via `intuition_block` events) but said
+plainly: *"Rates are not mechanics. Knowing `blockProc0` fires 4.69% of the
+time does not say what `block` DOES when it fires (a full negate? a
+reduction? by how much?). That is a second measurement — diff the HP/shield
+deltas on fired vs unfired exchanges — and it has not been done."* The user's
+instruction this session is to do that second measurement now. The corpus
+already has what it needs: **1,919 exchanges per side**, captured and
+committed, no new run required.
 
-1. `checkDungeonToday.ts` first (above, non-negotiable). Then `--dry-run` per
-   rule 4 — exercise the juiced-entry path, the potion auto-load, and the
-   in-room tier gate dry before spending anything.
-2. **Ask the user directly: "Ready for run 1 of up to 4?"** Do not proceed on
-   the strength of this brief alone. Wait for an explicit yes — a denial, a
-   "not yet," or silence is not one.
-3. Run one juiced Tier-3 entry per rule 11's four conditions, all of them:
-   60-energy juiced entry, `--juiced-index=3`, 3x Big Heal Juice auto-loaded
-   from `config/bot.json`'s `forbiddenWoods.potions` (itemId 131), and
-   `--runs=1` — never more than one run per go-ahead. Do not allocate skill
-   points; that is the user's, between runs, per rule 11 and the standing
-   "never allocate them yourself" instruction.
-4. **Stop. Report the run before asking about the next one.** Room reached,
-   outcome (death / clear / incomplete), Hard Core, Dendren Root, energy
-   spent, boon picks taken (confirm rule 8: highest non-Perpetual tier
-   in-room, no-modifiers at the final room — Forbidden Woods `maxRoom` is
-   16), potions used, any status effects logged (`Burn` / `Weak` /
-   `Vulnerable` / `Regen` / `SecondWind` / `Steadfast`, with `amount` — §59)
-   and any of the five proc booleans that fired (`blockProc` / `evadeProc` /
-   `critProc` / `intuitionProc` / `tenacityProc` — §57/§58).
-5. **Ask again before the next run** — same question, same explicit wait.
-   Repeat through run 4, or until the user says stop, or until
-   `checkDungeonToday.ts` reports the daily cap reached
-   (`dayProgressEntities` at 12), whichever comes first.
+1. **For each of block, crit, evade, tenacity**: partition exchanges into
+   fired vs unfired for that flag, holding the attacker/defender ATK-DEF
+   inputs as comparable as the corpus allows (the same discipline §59 used
+   for `Weak`/`Vulnerable` — measure the residual against what the plain
+   stat model predicts, not a raw average). Report the effect size in the
+   same exact-fraction style §57/§58/§59 already use (`fired/n`, not a
+   rounded percentage) — a full negate, a fixed reduction, a multiplier, or
+   "no measurable effect" are all valid findings; state whichever one the
+   data actually shows.
+2. **`tenacity` needs an extra control, not just the fired/unfired diff.**
+   This session's own dead-end note found tenacity's proc RATE moves with
+   whether `AddTenacity` was picked and with pick order (run 2: 6/54 with
+   `AddTenacity` at pick 5 of 8; run 3: 0/38 with it at pick 6 of 7; runs 1
+   and 4, no `AddTenacity` pick, 0/48 and 1/44) — n=4 runs, not a rule, but
+   real enough that pooling all tenacity-fired exchanges without noting
+   `AddTenacity` presence could mix two different populations. Report the
+   damage-effect measurement broken out by that split if the corpus supports
+   it; say plainly if n is too thin to split.
+3. **`tenacity` and `intuition` were already ruled out as damage mitigation**
+   in §58 — this measurement may confirm that (no damage-side effect) rather
+   than find one. If so, that is the finding: say what tenacity firing DOES
+   change, if anything measurable at all (turn order, an energy/mana field,
+   nothing detectable in this corpus) rather than leaving it as a second
+   "ruled out, no positive mechanic" entry with nothing new added.
+4. **Cross-check against `intuition`'s already-solved mechanic as a sanity
+   control on the method itself** — §57 showed `intuitionProc0` fires
+   exactly match the corpus's `intuition_block` events, 6/6. If this
+   session's fired/unfired diff approach doesn't reproduce that known result
+   cleanly on `intuition`, the method has a problem worth finding before
+   trusting it on the three still-open flags.
+5. Reuse the existing convention — a new script alongside
+   `scripts/procEvidence.ts`/`scripts/statusEffects.ts` (or extend one of
+   them), pinned with a test the same way `tests/procEvidence.test.ts` and
+   `tests/statusEffects.test.ts` pin theirs. `npx tsx <script>` should be
+   re-runnable as volume accumulates, per the standing pattern.
+6. **This does not authorize touching `src/sim/combat.ts`.** CAPTURE-1's
+   prohibition on stubbing, defaulting, or flag-hiding the combat model
+   stands exactly as §58/§59 left it. This measurement is what CAPTURE-1
+   has been waiting on, not a green light to build the model in the same
+   session that finally measures it — write up what's now known and let a
+   future brief decide whether it's enough to build on.
+7. Add the QUESTIONS.md entry (next unused number) with the verdict per
+   proc, named plainly — "block does X, measured N/N" or "no measurable
+   damage effect, measured N/N" — not hedged.
 
-## Why these runs, beyond the daily allowance
+---
 
-The dungeon corpus has taken 0 live runs since session 99 — three sessions of
-fishing-only work. Nothing here needs a fresh experimental design; a handful
-of standing measurements from §58/§59 are thin specifically for lack of
-volume, not for lack of a rule to test, and ordinary play adds to them for
-free:
+# Part B — switch the standing dungeon entry tier from Tier-3 to Tier-1 (0 rings)
 
-- **`SecondWind`'s trigger** — magnitude exact, trigger undetermined, n=10
-  fires only.
-- **`Steadfast` debuff immunity** — consistent (0/11 vs an expected ~0.3) but
-  "underpowered and proves nothing" per §59 at that n.
-- **`tenacity`/`intuition` mechanics** — still ruled out as damage
-  mitigation, still no positive mechanic identified.
-- **Room-10 opponent-model confidence** — reads `confidence=low` at n=5
-  (§56 — left open, no action ordered, but every deep run adds to it
-  passively).
+**User directive, this session: gold ring stock covers roughly 16 more days
+at the current Tier-3 run rate, and the Hard Cores event runs for 42 more
+days.** Continuing to spend Golden Rings (items 243–249, one per faction,
+per SPEC.md §3c) on every juiced entry would exhaust them with roughly 26
+days of the event still open. **All dungeon runs switch to Tier-1 (0 rings,
+`inputItems: []`) going forward, standing until the user says otherwise** —
+the same weight as rule 11's original Tier-3 choice, and it supersedes that
+one specific number in it.
 
-**None of this licenses shaping a run toward anything.** Rule 8's
-tier-taking, the boon-priority config (`orbRule: "wide"`), and rule 11's
-juiced-entry are unchanged and un-gamed. Report whatever these four runs
-produce as ordinary play at higher volume — the same posture session 102
-took reporting the fishing necessity-gate's first firing (§55/§60), not a
-targeted test of any of the four items above.
+**What this changes, and what it does not — confirm both against the code
+before writing anything, not from this brief's description of them:**
 
-## After the batch, or after any run that comes back denied, blocked, or interrupted
-
-- **Re-read `checkDungeonToday.ts` before reporting what happened.** CLAUDE.md
-  rule 13: a permission denial racing execution is not proof nothing ran — go
-  by the server's own `dayProgressEntities` count, never by what the harness
-  said back, and never re-issue a denied run on the strength of the denial
-  alone.
-- Regenerate `handoff/reports/dungeon-runs.md` (`scripts/dungeonReport.ts`)
-  and report the corpus deltas: attempt count (79 → ?), death-room
-  histogram, total Hard Core / Dendren Root / energy.
-- If the status-effect or proc-boolean counts moved enough to change §58's or
-  §59's n's meaningfully, state the new n's explicitly — "more data" is not a
-  number.
+- `index` (`entryData`'s tier — 1/2/3) and `isJuiced` (the 60-energy, 3x
+  reward run mode) are confirmed-independent axes (SPEC.md §3c/§3f, session
+  42). Switching `index` from 3 to 1 does **not** touch `isJuiced` — the run
+  is still a 60-energy juiced entry, still consumes 3 of the 12 daily
+  run-units, still auto-loads potions (potion loading is gated on `--juiced`
+  alone, not on `index` — TASKS.md Task 14's outcome). None of rule 11's
+  other three conditions change.
+- **What does change: Hard Core income per run drops, roughly to a
+  quarter.** `dropMultiplier` is 4 at Tier 3 and 1 at Tier 1, and it governs
+  Hard Core (item 845) only — Dendren Root (item 846) responds to `isJuiced`
+  alone and is unaffected by tier (SPEC.md, session 42, confirmed on a real
+  Tier-2-vs-Tier-3 comparison). **State this plainly in the recap as the
+  cost of the switch, not as a footnote** — the account's stated reason for
+  running dungeons at all right now is the Hard Cores event, and this trades
+  ring conservation for a real cut to that same currency's earn rate.
+  Dendren Root income is unaffected.
+- **The mechanism is already live code, not new work.**
+  `buildJuicedStartRunEnvelope(dungeonId, index, consumables)` takes `index`
+  as a parameter; the `--juiced-index=N` CLI flag is fail-closed and generic
+  (TASKS.md Task 14, gate met session 43 — two bot-initiated juiced Tier-3
+  starts, and separately a Tier-2 index was captured the same session). No
+  evidence anything hardcodes `3`, but confirm this directly rather than
+  assuming rule 9 applies to this brief's own claim: grep for `juiced-index`,
+  `index: 3`, and `dropMultiplier` across `scripts/`, `src/`, and
+  `handoff/reports/dungeonReport.ts`'s generation code before shipping, in
+  case any report or reward-expectation logic silently assumes Tier-3's `4`.
+- Update `CLAUDE.md` rule 11 itself — it currently names `--juiced-index=3`
+  as the standing choice and needs to say `--juiced-index=1` instead, with
+  this session's date and the ring-scarcity reason, the same way rule 8
+  documents why "highest tier" replaced "lowest tier." Don't just change the
+  number silently; a future reader needs to know why Tier-1 is standing now
+  when every session log up to 103 ran Tier-3.
+- **`--dry-run` the new flag combination (`--juiced --juiced-index=1`)
+  before ending the session**, per rule 4 discipline — this exercises the
+  envelope-building and potion-loading paths at the new index without
+  spending anything. **Do not run a live Tier-1 dungeon run as part of this
+  brief.** The first live run at the new tier is a future session's job,
+  under the same per-run go-ahead rule 11 already requires — this brief
+  ships the switch and verifies it dry, nothing more.
 
 ---
 
 ## Recap, for the whole session
 
-Full suite (`--maxWorkers=4` — the default over-subscribes this machine and
-produces false timeout failures, session 100's finding), `tsc --noEmit`,
-`git diff --check`, secret scan. State explicitly, at the top of the recap:
-how many of the (up to) 4 runs actually happened and why it stopped where it
-did (user said stop / ledger capped / a fail-closed condition tripped), each
-run's room-reached and outcome, and the updated corpus totals. If the ledger
-read anything other than 0/12 on arrival, say so plainly at the very top,
-before anything else.
+Full suite (`--maxWorkers=4`), `tsc --noEmit`, `git diff --check`, secret
+scan. State explicitly, at the top of the recap: the proc-damage verdict for
+each of block/crit/evade/tenacity (with intuition's known result as the
+method's sanity check), and confirm the Tier-1 switch is wired and dry-run
+clean with the Hard Core cost stated in plain numbers, not just "reduced."
