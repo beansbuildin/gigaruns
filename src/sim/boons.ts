@@ -719,6 +719,86 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-25-03-30-48 state-105→state-106",
     observed: "selectedVal1 1 → no change to any player field (whole-object diff: pickedBoons append only); picked at hp 1/40, so an on-pickup heal would have been visible",
   },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // [session 103, LIVE] THREE first pairs from the day's four juiced runs,
+  // splitting across the two mechanisms session 62's §5 instrumentation asks to
+  // be recorded separately: **orb fallback 1 type (`BurningEvade`), boon
+  // priority 2 (`BurnMastery`, `ArmorDepletedVulnerable`).**
+  //
+  // The running-total line above ("sessions 60-82: orb 8, priority 6") is
+  // deliberately NOT extended. Sessions 95 and 99 added four types between them
+  // without updating it, so it is stale by four, and re-deriving it means
+  // auditing those sessions for a credit neither recorded in this file. A total
+  // left visibly stale beats a fresh-looking one that silently skips four
+  // types.
+  //
+  // `BurnMastery` is the one worth naming. It is **rank 1 of the user's
+  // boon-priority directive** — the highest-priority boon in the whole list —
+  // and this is its first pickup ever, against a single prior offer on the
+  // entire record. It was taken at 17 Hard Core over a `Legendary` `AddBlock`
+  // at 24: the priority layer correctly declining the richer payout, which is
+  // the load-bearing half of DECISIONS 2026-08-20's rule that the orb rule may
+  // never override a priority match.
+  ArmorDepletedVulnerable: {
+    // [session 103, LIVE] First pair — BOON PRIORITY 5 (Vulnerable family) at
+    // room 8 of run 3, taking 17 Hard Core out of [17, 16, 21] and overriding
+    // ranked `AddLuck`. `selectedVal1` 2, `Rare` (RARITY_CID 2). Offered once
+    // before on the entire record and never taken.
+    //
+    // Same latent shape as every entry above: the pair's ONLY difference is
+    // this boon's own append to `pickedBoons` — health, shield, all three moves
+    // and every rolled stat identical before and after. Per DECISIONS
+    // 2026-08-15 the effect is NOT inferred from the name; "Vulnerable armed
+    // once the player's own armor is depleted" is a plausible reading and it
+    // stays a reading, exactly as `ArmorDepletedWeak` — its obvious sibling,
+    // modelled back in session 42 — is still only a reading.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-27-05-58-10 state-103→state-104",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
+  BurnMastery: {
+    // [session 103, LIVE] First pair — BOON PRIORITY 1 at room 9 of run 2 (see
+    // the block comment above for why this pickup is the notable one).
+    // `selectedVal1` 1, `Rare` (RARITY_CID 2).
+    //
+    // Same latent shape: the pair's ONLY difference is the append to
+    // `pickedBoons`; health, shield, all three moves and every rolled stat are
+    // identical across it. That is worth stating plainly for THIS type in
+    // particular, because a boon the user's directive ranks first is the one a
+    // reader is most likely to assume must visibly do something at pickup. It
+    // does not. Per DECISIONS 2026-08-15 the effect is not inferred from the
+    // name — "mastery over Burn" suggests a multiplier on the Burn the corpus
+    // already models, and that suggestion is not a model.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-27-05-45-38 state-127→state-128",
+    observed: "selectedVal1 1 → no change to any player field",
+  },
+  BurningEvade: {
+    // [session 103, LIVE] TWO pairs, from two different runs, both by the ORB
+    // FALLBACK: run 1 room 5 (24 Hard Core out of [24, 17, 21], overriding
+    // ranked `AddTenacity`) and run 4 room 2 (18 out of [18, 15, 16],
+    // overriding ranked `AddLuck`). Both `selectedVal1` 8, `Rare`
+    // (RARITY_CID 2). Six prior offers on the record, never once taken.
+    //
+    // Two independent pairs is better evidence than this table usually gets —
+    // most entries here rest on n=1, and four were modelled from n=1 by
+    // explicit user directive (see `LossIntuitionUp`). Both pairs show the same
+    // thing: the only difference across each pair is the append to
+    // `pickedBoons`, with health, shield, all three moves and every rolled stat
+    // identical before and after, twice.
+    //
+    // Per DECISIONS 2026-08-15 the effect is NOT inferred from the name. "Burn
+    // applied on an evade" is a plausible reading and it stays a reading — the
+    // same denial `BurningBlock` gets, and `BurningBlock`'s own entry names
+    // that denial as the precedent it was following.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-27-05-08-27 state-057→state-058; run-2026-08-27-06-05-41 state-005→state-006",
+    observed: "selectedVal1 8 → no change to any player field, in both pairs",
+  },
 };
 
 /**
@@ -2516,6 +2596,156 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 6,
     source: "run-2026-08-26-03-46-50/state-089",
     options: [opt("AddLuck", 10), opt("UpgradeScissor", 8), opt("AddTenacity", 2)],
+  },
+
+  // [session 103] TWENTY-NINE offers from the four juiced runs of 2026-08-27
+  // (rooms reached 9, 9, 8, 7) — the largest single-session addition this table
+  // has taken. Three of them are the first pairs for `BurningEvade`,
+  // `BurnMastery` and `ArmorDepletedVulnerable`; see BOON_MODELS above.
+  {
+    room: 1,
+    source: "run-2026-08-27-05-08-27/state-017",
+    options: [opt("AddEvasion", 1), opt("AddIntuition", 1), opt("TieVulnerable", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-27-05-08-27/state-029",
+    options: [opt("UpgradePaper", 0, 4), opt("AddBurnSword", 3), opt("AddEvasion", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-27-05-08-27/state-041",
+    options: [opt("AddLuck", 2), opt("AddBlock", 2), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-27-05-08-27/state-057",
+    options: [opt("BurningEvade", 8), opt("Thorns", 5), opt("AddTenacity", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-27-05-08-27/state-069",
+    options: [opt("AddLuck", 1), opt("AddTenacity", 3), opt("AddMaxHealth", 8)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-27-05-08-27/state-089",
+    options: [opt("UpgradeScissor", 0, 8), opt("LossBlockUp", 5), opt("AddBlock", 2)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-27-05-08-27/state-107",
+    options: [opt("AddEvasion", 1), opt("BurningEvade", 8), opt("AddBlock", 12)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-27-05-08-27/state-127",
+    options: [opt("VulnerableCrit", 1), opt("AddIntuition", 5), opt("AddLuck", 1)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-27-05-45-38/state-005",
+    options: [opt("AddLifestealShield", 2), opt("AddLuck", 1), opt("AddEvasion", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-27-05-45-38/state-015",
+    options: [opt("UpgradeRock", 0, 4), opt("UpgradePaper", 12), opt("Heal", 16)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-27-05-45-38/state-025",
+    options: [opt("AddMaxHealth", 8), opt("AddTenacity", 2), opt("AddBlock", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-27-05-45-38/state-039",
+    options: [opt("WeakeningTenacity", 4), opt("AddLifestealMagic", 2), opt("AddMaxArmor", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-27-05-45-38/state-053",
+    options: [opt("AddTenacity", 12), opt("BurningEvade", 8), opt("Thorns", 5)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-27-05-45-38/state-091",
+    options: [opt("VulnerableEvade", 4), opt("AddTenacity", 2), opt("AddEvasion", 1)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-27-05-45-38/state-111",
+    options: [opt("TieWeak", 1), opt("Heal", 16), opt("AddLuck", 1)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-27-05-45-38/state-127",
+    options: [opt("TieVulnerable", 1), opt("BurnMastery", 1), opt("AddBlock", 12)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-27-05-58-10/state-005",
+    options: [opt("AddTenacity", 2), opt("AddIntuition", 1), opt("AddEvasion", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-27-05-58-10/state-019",
+    options: [opt("AddEvasion", 2), opt("AddLifestealShield", 3), opt("AddMaxHealth", 14)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-27-05-58-10/state-031",
+    options: [opt("ArmorDepletedWeak", 2), opt("AddMaxArmor", 2), opt("AddLifestealShield", 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-27-05-58-10/state-049",
+    options: [opt("Heal", 16), opt("TieVulnerable", 1), opt("UpgradePaper", 0, 8)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-27-05-58-10/state-059",
+    options: [opt("UpgradeRock", 12), opt("UpgradeRock", 8), opt("BurningBlock", 8)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-27-05-58-10/state-089",
+    options: [opt("AddTenacity", 7), opt("AddBurnMagic", 3), opt("WeakeningMastery", 10)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-27-05-58-10/state-103",
+    options: [opt("ArmorDepletedVulnerable", 2), opt("AddLuck", 2), opt("AddLifestealMagic", 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-27-06-05-41/state-005",
+    options: [opt("BurningEvade", 8), opt("AddLuck", 2), opt("WeakeningCrit", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-27-06-05-41/state-027",
+    options: [opt("IntuitionArmor", 8), opt("AddIntuition", 1), opt("AddBurnSword", 3)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-27-06-05-41/state-045",
+    options: [opt("UpgradeScissor", 12), opt("UpgradePaper", 8), opt("AddLifestealSword", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-27-06-05-41/state-057",
+    options: [opt("AddMaxArmor", 2), opt("UpgradePaper", 6), opt("AddLuck", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-27-06-05-41/state-071",
+    options: [opt("LossIntuitionUp", 5), opt("AddLifestealShield", 2), opt("AddBlock", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-27-06-05-41/state-095",
+    options: [opt("CorrosiveSword", 2), opt("Vengeance", 15), opt("UpgradeScissor", 0, 4)],
   },
 ];
 

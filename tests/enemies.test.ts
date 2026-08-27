@@ -218,6 +218,34 @@ describe("player loadout matches the fixtures", () => {
     // other two runs did not already, but it is the session-61/62 corrode
     // mechanic surfacing in THIS table for the first time.
     expect([...seen].sort()).toEqual([
+      // [session 103] NINE new combos from the four juiced runs of 2026-08-27,
+      // and **TWO of them are new starting loadouts** — the first session since
+      // 75 where the census caught the account changing under it, and the first
+      // ever to catch it changing TWICE in one day:
+      //
+      //   45/20  runs 1-3's start (was 40/22 on 2026-08-26)
+      //   50/17  run 4's start, changed again between runs 3 and 4
+      //
+      // Both steps trade armor for health, and `src/sim/enemies.ts`'s PLAYER is
+      // updated to the newer (50/17, the newest unbooned capture). ⚠ **Runs 1-3
+      // and run 4 are therefore not one arm**, and neither group is one arm
+      // with 2026-08-26's four runs — the session-75 trap, twice over. Nothing
+      // may read depth or Hard Core across those boundaries as a strategy
+      // effect.
+      //
+      // The other seven are ordinary mid-run states, every one accounted for:
+      // 50/19 is run 4's start plus AddMaxArmor(+2). 59/20 and 59/22 are run
+      // 3's AddMaxHealth(**val1 14** — the largest this table has seen; 45+14)
+      // then AddMaxArmor(+2). 53/20 is run 1's AddMaxHealth(+8) off 45/20 with
+      // armor untouched.
+      //
+      // 53/17, 53/19 and 53/22 are one trace in run 2 and it is the corrode
+      // mechanic again, described at the top of this block and re-confirmed at
+      // the documented size: 45/20 + AddMaxHealth(+8) = 53/20, corrode takes it
+      // to 53/17 (**exactly -3**), AddMaxArmor(+2) rebuilds to 53/19, and the 3
+      // comes back at the next path choice for 53/22. Session 90 predicted the
+      // decrease would land on the corrode amount; on this trace it does, and
+      // the restore is visible in the same run.
       // [session 82] ONE new combo from the four juiced runs of 2026-08-23,
       // and it is NOT a new starting loadout: 48/22 is run 4 mid-run, after a
       // single AddMaxHealth took hpMax 40 -> 48 on an unchanged armorMax 22.
@@ -272,9 +300,18 @@ describe("player loadout matches the fixtures", () => {
       "40/28", // [session 95] mid-run, 2x AddMaxArmor off the 40/22 loadout
       "40/30",
       "40/32",
-      "42/16", "42/18", "42/26", "43/17", "43/25", "48/22",
+      "42/16", "42/18", "42/26", "43/17", "43/25",
+      "45/20", // [session 103] runs 1-3's STARTING loadout
+      "48/22",
       "48/32",
-      "50/16", "54/17",
+      "50/16",
+      "50/17", // [session 103] run 4's STARTING loadout
+      "50/19", // [session 103] run 4 mid-run, 1x AddMaxArmor off 50/17
+      "53/17", // [session 103] run 2 mid-run, 53/20 after corrode -3
+      "53/19", // [session 103] run 2 mid-run, 53/17 + AddMaxArmor
+      "53/20", // [session 103] run 1 mid-run, 1x AddMaxHealth off 45/20
+      "53/22", // [session 103] run 2 mid-run, 53/19 with the corrode 3 restored
+      "54/17",
       "54/22",
       "54/25",
       "54/26",
@@ -288,6 +325,8 @@ describe("player loadout matches the fixtures", () => {
       // run: armorMax 40 is the highest this census has ever recorded, which
       // is what reaching room 10 buys rather than a change in the account.
       "54/40",
+      "59/20", // [session 103] run 3 mid-run, AddMaxHealth val1 14 off 45/20
+      "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
       "62/32",
     ]);
   });

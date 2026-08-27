@@ -138,8 +138,30 @@ export const DANGEROUS_TIER = 2;
  */
 export const PLAYER: Combatant = {
   id: "player",
-  hp: 40,
-  hpMax: 40,
+  // [session 103] TWO gear changes on 2026-08-27, updated to the newest
+  // unbooned capture (run 4's own state-000, cid 25128104, `pickedBoons: []`).
+  // Read off the wire, never inferred:
+  //
+  //   before run 1  hpMax 40 -> 45, armorMax 22 -> 20, Sword DEF 8 -> 9,
+  //                 Shield DEF 15 -> 16 (Spell untouched)
+  //   between run 3 and run 4  hpMax 45 -> 50, armorMax 20 -> 17 (every move
+  //                 untouched)
+  //
+  // Both steps trade ARMOR for HEALTH, which is the first time this table has
+  // recorded a re-spec moving consistently in one direction across two steps.
+  // The account also carried 11,111 unspent skill XP at level 15 all session
+  // (`entryWarnings.unspentSkillXp`), so a level-up is a plausible cause of the
+  // second step and is NOT asserted here — hpMax +5 with armorMax -3 is not
+  // the shape a pure level-up makes, and nothing in the capture distinguishes
+  // gear from level.
+  //
+  // ⚠ **Runs 1-3 and run 4 of 2026-08-27 are therefore NOT the same arm**, and
+  // neither is any of them the same arm as 2026-08-26's four runs. Nothing may
+  // read depth or Hard Core across those groups as a strategy effect. Exactly
+  // the trap the session-75 note below records, and the sessions 42/43 one
+  // below that.
+  hp: 50,
+  hpMax: 50,
   // [session 75] ARMOR RE-SPEC, user-stated in chat between run 3 and run 4 of
   // 2026-08-22 and captured from run 4's own `start_run` (cid 24983279). Read
   // off the wire, not inferred: armorMax 17 -> 22, block 8 -> 10, Shield gains
@@ -148,11 +170,11 @@ export const PLAYER: Combatant = {
   // **Runs 1-3 and run 4 of that session are therefore NOT the same arm**, and
   // nothing may read run 4's depth or Hard Core against the other three as a
   // strategy effect. Same trap as the sessions 42/43 re-spec recorded below.
-  armor: 22,
-  armorMax: 22,
+  armor: 17,
+  armorMax: 17,
   moves: {
-    rock: mv(25, 8), // Sword — was 26/9 from session 42 until the session-75 re-spec
-    paper: mv(10, 15), // Shield — was 6/12; the re-spec's biggest single gain
+    rock: mv(25, 9), // Sword — DEF 8 -> 9 before run 1 of session 103; ATK unchanged since session 75
+    paper: mv(10, 16), // Shield — DEF 15 -> 16 before run 1 of session 103
     scissor: mv(12, 8), // Spell — unchanged since session 42 second update
   },
   // The player starts every run with all rolled stats at zero; the only way

@@ -166,6 +166,17 @@ describe("fail-closed on unmodelled types", () => {
 
   it("names the types the corpus offered but never showed the effect of", () => {
     expect(UNMODELLED_TYPES).toEqual([
+      // [session 103] THREE moved OUT — `BurningEvade`, `BurnMastery` and
+      // `ArmorDepletedVulnerable` all got first-ever pickup pairs from this
+      // session's four juiced runs, all three LATENT (see `boons.ts`). These
+      // were old gaps, not fresh sightings: `BurnMastery` had been on this
+      // list since **session 11** — longer than any type ever removed from it,
+      // including session 82's TieWeak — and the other two since session 25.
+      // `BurningEvade` got TWO pairs in one day, from runs 1 and 4.
+      // NONE moved in: 29 offers across four runs produced no type this list
+      // did not already carry, so 18 -> 15 is a clean decrement — the same
+      // shape as session 99's, unlike sessions 75 and 82 where a new type
+      // arrived alongside the ones explained.
       // [session 99 §4] ONE moved OUT: `LossIntuitionUp`, modelled LATENT from
       // its first-ever pickup in run 2 of 2026-08-26 (see `boons.ts`). It had
       // been sighted since session 52 — a room-7 offer, the corpus's first
@@ -239,10 +250,7 @@ describe("fail-closed on unmodelled types", () => {
       // offset has now not held twice running.
       "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
       "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked // session 11: first sighting, room-1 offer, not picked
-      "ArmorDepletedVulnerable", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
-      "BurnMastery", // session 11: first sighting, room-1 offer, not picked
       "BurningCrit", // session 52: first sighting, live room-5 offer, not picked
-      "BurningEvade", // session 25: first sighting, live room-1 offer (Task 10 gate run), not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
       "CritHeal", // session 43: first sighting, live room-2 offer (bot-initiated juiced run 2), not picked
       "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
@@ -417,7 +425,22 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // not enter the clean set either. The clean TYPE set is unchanged for the
     // sixth consecutive session, and the claim above — that this table is
     // closed under the only mechanism feeding it — holds again.
-    expect(roomOne.length).toBe(219);  /* [session 99] was 207 — +12 from the four juiced runs of 2026-08-26 */
+    // [session 103] 219 -> 231: FOUR juiced runs on 2026-08-27, twelve more
+    // room-1 options, APPENDED (not regenerated) — 29 rows in the corpus and
+    // absent from the table, ZERO the other way. The twelve are
+    // AddEvasion/AddIntuition/TieVulnerable, AddLifestealShield/AddLuck/
+    // AddEvasion, AddTenacity/AddIntuition/AddEvasion and BurningEvade/
+    // AddLuck/WeakeningCrit. NONE of the twelve comes back clean: eight are
+    // rolled-stat boons (ROLLED_STATS), three are latent (STATUS_EFFECT —
+    // `BurningEvade` among them, modelled this session), and `WeakeningCrit`
+    // is still unmodelled. So the clean TYPE set is unchanged again and the
+    // claim above — that this table is closed under the only mechanism feeding
+    // it — holds. No ordinal is attached to that: the two counters this
+    // comment already carries ("sixth consecutive session of the same pattern"
+    // vs "clean TYPE set unchanged for the fifth/sixth") were both left
+    // un-narrated by session 99, so continuing either would be a guess about
+    // what that session counted.
+    expect(roomOne.length).toBe(231);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -554,7 +577,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 99 §4] +2 Heal offers from the four juiced runs of 2026-08-26,
     // at rooms 1 and 3. Appended at the array's end by insertion order, same
     // as sessions 43, 53, 60, 61 and 95.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3]);
+    // [session 103] +3 Heal offers from the four juiced runs of 2026-08-27,
+    // at rooms 2, 7 and 4 — two of them from run 2 alone. Appended at the
+    // array's end by insertion order, same as sessions 43, 53, 60, 61, 95
+    // and 99.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4]);
   });
 });
 
