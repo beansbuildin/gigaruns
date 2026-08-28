@@ -204,8 +204,14 @@ import { SESSION_99_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatc
  * EXPORTED as of this session so the test can assert against THIS constant
  * instead of a second literal of its own — the session-99 arrangement kept the
  * two in sync by hand, which is the same failure mode one level up.
+ *
+ * **[session 105] 3.0 -> 3.1**, and the export did its job on its first outing:
+ * a 21-cast day took the corpus from 592 plays / 18 fires to 605 / 19, i.e.
+ * 3.1405%, and exactly ONE literal had to move. The rate has now oscillated
+ * 3.1 -> 3.0 -> 3.1 across three batches, which is what a ~3% rate on a
+ * slowly-growing denominator looks like — do not read a direction into it.
  */
-export const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "3.0";
+export const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "3.1";
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 

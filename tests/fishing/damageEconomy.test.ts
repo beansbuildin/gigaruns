@@ -353,9 +353,18 @@ describe("the simulator's economy, same predicate", () => {
     // a third time. QUESTIONS.md §60 carries this for the user; note that
     // OIL-POLICY §0a — the arm this claim underwrites — is already SUSPENDED
     // (+19.40pp may not be quoted), so nothing in flight depends on it today.
-    expect(bare.economy.drift / LIVE.drift).toBeGreaterThan(5); /* [session 102] was 10, against ~17x; measured 9.97x */
+    // ⚠ **[session 105] THE RATIO FELL AGAIN, exactly as session 102 said to
+    // watch for: 17x -> 9.97x -> 8.48x.** The bar is NOT moved — 8.48 clears 5
+    // comfortably and the pre-registration above says a third move is the wrong
+    // response anyway. It is recorded here so the next fall is the third
+    // consecutive one against a written expectation rather than a surprise.
+    // Direction is unchanged and is still the benign one: live's drift went
+    // -0.3504 -> -0.4331 while the sim's bare arm did not move, i.e. LIVE
+    // continues to move toward the sim because the bot plays better, which is
+    // what makes the narrowing a result rather than an artefact.
+    expect(bare.economy.drift / LIVE.drift).toBeGreaterThan(5); /* [session 102] was 10, against ~17x; measured 9.97x */ /* [session 105] measured 8.48x */
     // Pinned so the NEXT move is attributable rather than merely visible.
-    expect(LIVE.drift).toBeCloseTo(-0.3504492939666239, 6); /* [session 102] first pin; pre-batch was -0.2426 */
+    expect(LIVE.drift).toBeCloseTo(-0.4330518697225573, 6); /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */
   });
 
   it("reproduces live's per-card AMOUNTS in every arm — they are read from a real capture", () => {

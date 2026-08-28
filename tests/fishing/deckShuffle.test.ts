@@ -112,7 +112,23 @@ describe("§1a — the live corpus falsifies the sequential draw pile", () => {
     // depend on the count being exactly zero. Asserting zero made the test
     // fragile in the one direction that matters — it would have gone red on a
     // coincidence and invited someone to go hunting for a bug in the loader.
-    expect(sequential.length).toBeLessThanOrEqual(1); /* [session 102] was toEqual([]) — see above */
+    //
+    // **[session 105] IT BROKE AGAIN, AT 2, AND THE BOUND IS NOW DERIVED
+    // RATHER THAN BUMPED.** Session 102 moved this from `toEqual([])` to
+    // `<= 1` — which is the same fragility one notch up, and a 21-cast day
+    // duly broke it. Re-derived on the corpus as it now stands: **253 opening
+    // hands, 2 ordered matches, lambda = 0.2076**, so P(>=2) = **1.9%** under
+    // the ordered-uniform null. Mildly unlucky, not anomalous — and under the
+    // SET null discussed above (lambda ~1.16 at this size) P(>=2) is ~32%,
+    // i.e. entirely ordinary.
+    //
+    // The bound is set at **5**, where P(>=5) is about 1 in 100,000 under the
+    // ordered null. That is far enough out that chance will not reach it for
+    // the life of this corpus, while the failure it exists to catch — a loader
+    // or model regression that actually serves the pile sequentially — would
+    // produce 253, not 5. A bound should sit between what chance can do and
+    // what the bug would do; 0 and 1 both sat below what chance can do.
+    expect(sequential.length).toBeLessThanOrEqual(5); /* [session 102] was toEqual([]) — see above */ /* [session 105] was <= 1; re-derived from the null, not bumped */
     // The discriminating claim, expressed as the ratio rather than the count.
     expect(sequential.length / LIVE.length).toBeLessThan(0.02);
   });

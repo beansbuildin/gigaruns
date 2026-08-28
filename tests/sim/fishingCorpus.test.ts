@@ -163,11 +163,19 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // catch rate moves 38.1% -> 40.9% on a single batch after barely moving
     // for several — see handoff/log/session-102.md before reading that as an
     // improvement, it is not separable from the recent era at n = 20.
-    expect(summary.casts).toBe(230); // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */
-    expect(summary.responseDocs).toBe(1341); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */
-    expect(summary.playTurns).toBe(940); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */
-    expect(summary.caught).toBe(94); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */
-    expect(summary.escaped).toBe(135); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */
+    // [session 105] 230 -> 251 across a TWENTY-ONE-cast day (18 to the rod's
+    // durability floor, then 3 more after the user repaired it): +100
+    // responseDocs, +50 playTurns, +14 caught, +7 escaped. `incomplete` is
+    // UNCHANGED at 1 for the ELEVENTH consecutive batch. The caught share of
+    // the ADDITION is 14/21 = 66.7% — again above the pooled rate, and again
+    // NOT separable from the era baseline (41/74 = 55.4% excluding this batch,
+    // Fisher p = 0.455). Note 21 casts were PLAYED but only 19 charged against
+    // the game's daily ledger: JEBAITOR (§34) fired twice.
+    expect(summary.casts).toBe(251); // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */
+    expect(summary.responseDocs).toBe(1441); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */
+    expect(summary.playTurns).toBe(990); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */
+    expect(summary.caught).toBe(108); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */
+    expect(summary.escaped).toBe(142); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -652,6 +660,31 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // handoff/log/session-102.md before treating that as a validated policy.
       "13106720", "13106726", "13106732", "13106738", "13106752",
       "13106758", "13106761",
+      // [session 105] +9 from a TWENTY-ONE-cast day — 18 casts to the rod's
+      // durability floor, then 3 more after the user repaired it mid-session.
+      // Six casts spent TWO Relaxing oils each (double-lethal firings) and
+      // three spent ONE (ordinary single-lethal). Fifteen oils, all Relaxing
+      // (937); Focus (942) remains withdrawn by policy (§35) and all 9 of its
+      // triggers recorded `oil_trigger_policy_withdrawn`.
+      //
+      // ✅ The Relaxing per-cast cap of 2 was REACHED six more times and
+      // **still did not BIND** — the composed trigger wanted exactly two on
+      // each, never three. Sixth batch running (91, 92, 96, 98, 102, 105).
+      //
+      // The 0.85 necessity gate saw FOUR opportunities (non-null
+      // `bestKillProbability`) and withheld on ONE:
+      //
+      //     p = 0.926  ->  WITHHELD, card played bare, cast CAUGHT
+      //     p = 0.757  ->  PERMITTED, oil spent
+      //     p = 0.162  ->  PERMITTED, oil spent
+      //     p = 0.041  ->  PERMITTED, oil spent
+      //
+      // That takes the live record to THREE withholds ever (2 in session 102,
+      // 1 here) and **all three were free — every withheld cast was caught.**
+      // Still n = 3; this is evidence the gate is not obviously costly, not a
+      // validation that it helps.
+      "13131266", "13131282", "13131285", "13131287", "13131289",
+      "13131292", "13131297", "13131303", "13131307",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

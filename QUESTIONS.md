@@ -5023,3 +5023,96 @@ CAPTURE-1 and does not authorise building the model.
 
 `npx tsx scripts/procEffectSize.ts`. `tests/procEffectSize.test.ts` pins the
 split on a bounded slice with slice-safe assertions (25 tests, was 20).
+
+---
+
+## §63 ANSWERED [session 105 §B1] — TENACITY PICK-ORDER IS **STRUCTURALLY REDUNDANT** GIVEN THE STAT, AND THE QUESTION IS RECOMMENDED FOR RETIREMENT
+
+Session 103 saw tenacity's proc rate move with where `AddTenacity` sat in the
+pick order (pick 5 of 8 → 6/54; pick 6 of 7 → 0/38) at n=4 runs, and correctly
+declined to fit a rule. Session 104 settled PRESENCE (§62) and left ORDER open —
+it is the one item STATE.md's settled digest names as genuinely still open on
+the tenacity thread. This closes it, offline, on the full 83-attempt corpus.
+
+### 1. The corpus is far richer than session 103's four runs
+
+**26 of 77 runs picked `AddTenacity`**, at positions spanning **1 through 9**
+(3 of the 26 picked it twice). That is not a thin corpus, and this question does
+not fail for lack of data — which makes the negative result below informative
+rather than merely underpowered.
+
+### 2. Raw pick-order DOES look like a signal — and it is the stat
+
+Player side, `tenacity > 0`, `AddTenacity` picked:
+
+```
+  pick  1    4/136 =  2.94%   runs=10
+  pick  2    0/ 76 =  0.00%   runs=6
+  pick  3    5/ 70 =  7.14%   runs=4
+  pick  4    1/ 16 =  6.25%   runs=1
+  pick  5   10/ 73 = 13.70%   runs=3
+  pick  6    0/  7 =  0.00%   runs=1
+  pick  9    0/  2 =  0.00%   runs=1
+```
+
+Session 103's shape reproduces at 5x the volume — pick 5 is the high cell, pick
+6 is zero. **It dissolves entirely under the stat.** Fire rate by the side's own
+`tenacity` value, same population:
+
+```
+  tenacity= 1   4/551 = 0.73%      tenacity= 7   4/38 = 10.53%
+  tenacity= 2   2/141 = 1.42%      tenacity= 8   4/36 = 11.11%
+  tenacity= 3   1/ 92 = 1.09%      tenacity=10   1/15 =  6.67%
+  tenacity= 4   2/ 14 =14.29%      tenacity=13   6/36 = 16.67%
+  tenacity= 5   0/  8 = 0.00%
+```
+
+Cross-tabbed, **13 of the 16 (stat, pick) cells are a SINGLE RUN**. Pick 5's
+73 exchanges are stat 13 (6/36), stat 8 (4/29) and stat 2 (0/8); pick 6's are
+all stat 8. The pick-order gradient is the stat gradient, re-indexed.
+
+### 3. Holding the stat fixed, pick order does nothing
+
+Only **3 of 8 stat strata** contain more than one pick position, and they carry
+**7 procs across 269 exchanges** between them. Within those:
+
+```
+  stat=2   early (picks 1-2)  1/101   vs  late (picks 3+)  1/40   Fisher p = 0.488
+  stat=3   early (picks 1-2)  0/ 74   vs  pick 3           1/18   Fisher p = 0.196
+  stat=8   pick 5             4/ 29   vs  pick 6           0/ 7   Fisher p = 0.566
+  pooled   early              5/204   vs  late             2/65   Fisher p = 0.677
+```
+
+Nothing, in every stratum and pooled. The `stat=8` row is session 103's own
+contrast with the stat controlled, and it is p = 0.57 — and both its cells come
+from ONE run, so its exchanges are maximally clustered and even that is
+generous.
+
+### 4. Why this is a RETIREMENT and not "underpowered"
+
+**Pick order is redundant by construction, not merely confounded.** `boons` and
+`stat` are read off the *same* preceding state, so the per-exchange `tenacity`
+value already encodes what the boon did, at the moment it applied. Picking
+`AddTenacity` 5th rather than 1st does not give a different stat — it gives the
+same stat later, and the per-exchange reading tracks exactly that. So any
+pick-order effect must appear as a residual after conditioning on the stat, and
+there is no mechanism by which one could.
+
+This is a **different** verdict from `SecondWind`/`Steadfast` (DECISIONS
+2026-08-27), which are real mechanics that ordinary volume cannot reach. Pick
+order is not waiting for volume. **Recommended for retirement; do not re-brief
+it as open.**
+
+### 5. What this does NOT say
+
+It does not settle the tenacity RATE model. The digest's standing note that
+proc rate rises with the stat "on the order of 1 percentage point per point"
+(§57) is an OBSERVATION and remains one — this section adds volume to it but
+does not promote it, and §57's "do not lift it into code" is unchanged.
+
+### 6. Reproducing
+
+`npx tsx scripts/procEffectSize.ts` — new `tenacityByPickOrder` /
+`pickOrderPower` sections. `tests/procEffectSize.test.ts` pins the collinearity
+as an invariant (informative strata < total strata) rather than as a count, so
+it survives corpus growth. 30 tests, was 25.

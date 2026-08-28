@@ -24,7 +24,17 @@
 
 import { describe, expect, it } from "vitest";
 
-import { dealtDamage, loadExchanges, scoreRules, tenacityByBoon, wilson, type Exchange } from "../scripts/procEffectSize.js";
+import {
+  dealtDamage,
+  loadExchanges,
+  pickOrderPower,
+  scoreRules,
+  tenacityByBoon,
+  tenacityByPickOrder,
+  wilson,
+  type Exchange,
+  type PickOrderCell,
+} from "../scripts/procEffectSize.js";
 
 /** Enough runs to carry hundreds of exchanges and a control in the hundreds, well under a second. */
 const RUN_DIRS_SCANNED = 20;
@@ -187,6 +197,63 @@ describe("tenacity, split by the AddTenacity boon [session 104, QUESTIONS.md §6
 
   it("never reports more heals than exchanges in a cell", () => {
     for (const c of cells) expect(c.healed).toBeLessThanOrEqual(c.n);
+  });
+});
+
+describe("tenacity by AddTenacity PICK ORDER [session 105, QUESTIONS.md §63]", () => {
+  const cells = tenacityByPickOrder(exchanges);
+
+  it("only ever reports an exchange whose side actually holds the boon and the stat", () => {
+    // The cell key is (stat, pick), so a row that included a no-boon exchange
+    // would silently pool the two arms session 104 spent a whole part
+    // separating. Checked by reconstructing the denominator independently.
+    const direct = exchanges.filter(
+      (e) => (e.stat[0].tenacity ?? 0) > 0 && e.boons[0].includes("AddTenacity"),
+    ).length;
+    expect(cells.reduce((a, c) => a + c.n, 0)).toBe(direct);
+  });
+
+  it("reports the pick position 1-based, and never one the boon list cannot supply", () => {
+    for (const c of cells) {
+      expect(c.pick).toBeGreaterThanOrEqual(1);
+      expect(c.stat).toBeGreaterThan(0);
+      expect(c.fired).toBeLessThanOrEqual(c.n);
+      expect(c.runs).toBeGreaterThanOrEqual(1);
+      expect(c.runs).toBeLessThanOrEqual(c.n);
+    }
+  });
+
+  it("pick order is COLLINEAR with the stat — most strata hold a single pick position", () => {
+    // This is the session-105 finding itself, stated as an invariant rather
+    // than a number: a run contributes ONE pick position, so a (stat, pick)
+    // cell is usually one run and pick order cannot be separated from the stat
+    // there at all. Asserted as a majority rather than an exact count, because
+    // the corpus is append-only and the exact split moves every session.
+    const power = pickOrderPower(cells);
+    expect(power.totalStrata).toBeGreaterThan(0);
+    expect(power.informativeStrata).toBeLessThan(power.totalStrata);
+  });
+
+  it("pickOrderPower counts ONLY multi-position strata, and counts them exactly", () => {
+    // Synthetic, so the arithmetic is pinned independently of the corpus.
+    const cell = (stat: number, pick: number, fired: number, n: number): PickOrderCell => ({
+      side: 0, stat, pick, n, fired, runs: 1,
+    });
+    const power = pickOrderPower([
+      cell(2, 1, 1, 10),
+      cell(2, 3, 0, 5), // stat 2 varies in position -> informative
+      cell(7, 3, 4, 38), // stat 7 does not -> excluded whatever its procs
+    ]);
+    expect(power).toEqual({
+      informativeStrata: 1,
+      totalStrata: 2,
+      firedInInformativeStrata: 1,
+      nInInformativeStrata: 15,
+    });
+  });
+
+  it("is empty of side-1 rows by construction — enemies hold no boons to order", () => {
+    expect(tenacityByPickOrder(exchanges, 1)).toEqual([]);
   });
 });
 

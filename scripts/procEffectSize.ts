@@ -414,6 +414,91 @@ export function tenacityByBoon(exchanges: Exchange[]): TenacityCell[] {
   return out;
 }
 
+/**
+ * `tenacity`, split by the POSITION at which `AddTenacity` was picked — and
+ * STRATIFIED by the side's own `tenacity` stat, which is the whole point.
+ *
+ * [session 105, QUESTIONS.md §63] Session 103 saw the proc rate move with pick
+ * order (pick 5 of 8 -> 6/54; pick 6 of 7 -> 0/38) at n=4 runs and correctly
+ * declined to fit a rule. Session 104 then settled PRESENCE and left ORDER
+ * open. This is the function that answers order, and the stratification is not
+ * a refinement — it is the answer:
+ *
+ * **Pick order is structurally redundant given the stat.** `boons` and `stat`
+ * are both read off the SAME preceding state, so the per-exchange `tenacity`
+ * value already encodes what the boon did, at the moment it applied. Anything
+ * pick order could contribute must therefore appear as a RESIDUAL after
+ * conditioning on the stat — which is exactly what a stratum with more than
+ * one pick position measures, and what a stratum with one position cannot.
+ *
+ * Cells with a single pick position are reported anyway, because their EXISTENCE
+ * is the collinearity finding: a run contributes one pick position, so most
+ * (stat, pick) cells are one run and pick order cannot be separated there at all.
+ */
+export interface PickOrderCell {
+  side: 0 | 1;
+  /** The side's `tenacity` on the preceding state. */
+  stat: number;
+  /** 1-based index of `AddTenacity` in that side's `pickedBoons`. */
+  pick: number;
+  n: number;
+  fired: number;
+  /** Distinct run dirs contributing to this cell. 1 means the cell is one run. */
+  runs: number;
+}
+
+export function tenacityByPickOrder(exchanges: Exchange[], side: 0 | 1 = 0): PickOrderCell[] {
+  const cells = new Map<string, PickOrderCell & { runSet: Set<string> }>();
+  for (const e of exchanges) {
+    const stat = e.stat[side].tenacity;
+    if (typeof stat !== "number" || stat <= 0) continue;
+    const i = e.boons[side].indexOf("AddTenacity");
+    if (i < 0) continue;
+    const key = `${stat}|${i + 1}`;
+    let c = cells.get(key);
+    if (!c) {
+      c = { side, stat, pick: i + 1, n: 0, fired: 0, runs: 0, runSet: new Set() };
+      cells.set(key, c);
+    }
+    c.n++;
+    if (e.flags[`tenacityProc${side}`]) c.fired++;
+    c.runSet.add(e.label.split("/")[0] ?? e.label);
+  }
+  return [...cells.values()]
+    .map(({ runSet, ...c }) => ({ ...c, runs: runSet.size }))
+    .sort((a, b) => a.stat - b.stat || a.pick - b.pick);
+}
+
+/**
+ * The only part of {@link tenacityByPickOrder} that can inform pick order: the
+ * strata where the stat is held fixed and the pick position still varies.
+ *
+ * `firedInInformativeStrata` is the number this question lives or dies on. Every
+ * proc outside these strata is one where pick order and the stat move together
+ * and neither can be credited.
+ */
+export function pickOrderPower(cells: PickOrderCell[]): {
+  informativeStrata: number;
+  totalStrata: number;
+  firedInInformativeStrata: number;
+  nInInformativeStrata: number;
+} {
+  const byStat = new Map<number, PickOrderCell[]>();
+  for (const c of cells) byStat.set(c.stat, [...(byStat.get(c.stat) ?? []), c]);
+  let informativeStrata = 0;
+  let fired = 0;
+  let n = 0;
+  for (const group of byStat.values()) {
+    if (group.length < 2) continue;
+    informativeStrata++;
+    for (const c of group) {
+      fired += c.fired;
+      n += c.n;
+    }
+  }
+  return { informativeStrata, totalStrata: byStat.size, firedInInformativeStrata: fired, nInInformativeStrata: n };
+}
+
 function main(): void {
   const exchanges = loadExchanges();
   const clean = exchanges.filter((e) => e.statusClean);
@@ -463,6 +548,21 @@ function main(): void {
       `    ${c.side}     ${(c.withBoon ? "picked" : "not picked").padEnd(11)}  ${(c.fired ? "FIRED" : "unfired").padEnd(7)} ${String(c.n).padStart(4)}   ${String(c.healed).padStart(4)}     ${nullCol.padStart(9)}`,
     );
   }
+
+  console.log(`\n  tenacity, by AddTenacity PICK POSITION, stratified by the stat [session 105]:`);
+  console.log(`    stat  pick   fired/n    runs   (a 1-run cell cannot separate order from the stat)`);
+  const pickCells = tenacityByPickOrder(exchanges);
+  for (const c of pickCells) {
+    console.log(
+      `    ${String(c.stat).padStart(4)}  ${String(c.pick).padStart(4)}   ${`${c.fired}/${c.n}`.padStart(7)}    ${String(c.runs).padStart(3)}`,
+    );
+  }
+  const power = pickOrderPower(pickCells);
+  console.log(
+    `    -> ${power.informativeStrata} of ${power.totalStrata} stat strata have MORE THAN ONE pick position;` +
+      ` those carry ${power.firedInInformativeStrata} proc(s) in ${power.nInInformativeStrata} exchanges.` +
+      `\n       Every other proc is one where pick order and the stat move together and neither can be credited.\n`,
+  );
 
   const intuition = exchanges.filter((e) => e.flags.intuitionProc0);
   const unmitigated = intuition.filter(

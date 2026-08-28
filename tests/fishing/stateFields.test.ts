@@ -215,6 +215,26 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // the docblock above cites and still short of pinning a multiplier.
     "13068154 t4: card 76 hit=true crit=false predicted Δ-3, actual Δ-5 (12->7/18)",
     "13068176 t8: card 6 hit=true crit=false predicted Δ-5, actual Δ-8 (17->9/21)",
+    // [session 105] The first new member in fourteen sessions, from a 21-cast
+    // day, and the SAME family again: `crit=false`, damage above the card's
+    // own effect (card 74, base 5 + lure, Δ-7 predicted).
+    //
+    // ⚠ **It is LETHAL (9->0), so the Δ in this string is CLAMPED and is NOT
+    // the number the interval below is fitted on.** The server's unclamped
+    // `FISH_HP_DIFF` for this turn is **11** (`data.result: 0`), which is why
+    // the `observed` row further down reads `{ base: 7, actual: 11 }` and not
+    // `{ 7, 9 }`. Read at face value the clamped 9 gives a ratio of 1.29,
+    // disjoint from every other row, and "one multiplier fits them all" would
+    // look FALSIFIED by a censoring artefact. It is not: 7 x 1.5 -> 11.
+    // The session-89 note above ("the same number on all three because none of
+    // them was lethal") is exactly the caveat that applies here, now that a
+    // lethal member has finally arrived to need it.
+    //
+    // Base 7 is a **NEW BASE**, which the interval test's own comment names as
+    // the only thing that can narrow the bound. It does not narrow it — its own
+    // window [1.500, 1.643) is looser than the standing one — but it is a
+    // genuine fresh chance to falsify the rule, and the rule survived it.
+    "13131265 t2: card 74 hit=true crit=false predicted Δ-7, actual Δ-9 (9->0/21)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — six documented exceptions", () => {
@@ -275,7 +295,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     expect(Math.floor((base * 5) / 3)).not.toBe(turn.play!.fishHpDiff);
   });
 
-  it("all eight exceptions fit ONE multiplier, and that interval is STILL [1.5, 1.5833)", () => {
+  it("all NINE exceptions fit ONE multiplier, and that interval is STILL [1.5, 1.5833)", () => {
     // The claim the SPEC-fishing §4 rule text now rests on: these are not eight
     // one-offs, they are one rule seen eight times. Solved as an interval rather
     // than asserted as a constant — round-half-up(base x m) == actual is
@@ -298,6 +318,14 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       { base: 2, actual: 3 },
       { base: 3, actual: 5 }, // [session 91] 13068154, card 76 — same shape as row 1
       { base: 5, actual: 8 }, // [session 91] 13068176, card 6
+      // [session 105] 13131265, card 74 — the first NEW BASE since session 89,
+      // and the first LETHAL member. `actual` is the server's UNCLAMPED
+      // `FISH_HP_DIFF` (11), not the clamped state delta (9): the fish had 9 HP
+      // and the hit was worth 11. Using the clamped 9 here would drive `hi` to
+      // 1.357 and empty the interval — a censoring artefact reported as a
+      // falsification. Same trap, same fix, as the lethal exclusion in
+      // DECISIONS 2026-08-27's `Regen` entry.
+      { base: 7, actual: 11 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 
@@ -451,7 +479,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as `oilSkipped` above: excluding those 20 traces returns 30.
     // [session 96] 40 -> 41 across the ten-cast batch.
     // [session 98] 41 -> 46 across the nine-cast batch.
-    expect(corrected.crits).toBe(55);  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */
+    expect(corrected.crits).toBe(61);  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });
