@@ -1,128 +1,167 @@
-# BRIEF — session 105 — an 18-cast fishing batch (rod durability limit — pause for repair before any further casts), plus two offline dungeon items left from session 104
+# BRIEF — session 106 — 1 fishing cast, then up to 4 juiced Tier-1 dungeon runs (pause + fresh go-ahead between each)
 
-**This document replaces the session-104 `next.md`.** Session 104 is executed
-and closed — both its parts GATE PASS, STATE.md session 104. **Before doing
-anything below, read STATE.md's "Settled — do not re-open" digest and
-`DECISIONS.md`'s 2026-08-26 block.** Session 104's own brief re-asked
-something §58 had already resolved in session 101, and STATE.md now says
-plainly: *"a future brief must not repeat it."* Nothing in this brief should
-duplicate an entry in that digest — if anything below looks like it might,
-that's this brief being wrong, not the digest being stale.
+**This document replaces the session-105 `next.md`.** Session 105 is executed
+and closed — both its parts GATE PASS, STATE.md session 105. **Before doing
+anything below, read STATE.md's "Settled — do not re-open" digest and the
+relevant `DECISIONS.md` blocks (2026-08-27 rule-11 amendment, "stable going
+forward" gear ruling).** Nothing in this brief should duplicate an entry in
+that digest — if anything below looks like it might, that's this brief being
+wrong, not the digest being stale.
 
 ---
 
-# Part A — the fishing batch, capped at 18 casts, then STOP for a rod repair
+# Part A — one fishing cast
 
-**The user's own instruction: this session pauses at 18 casts so the rod can
-be repaired before any more are spent.** This is not the daily cap (20) —
-it's the rod. Golkan read 18 durability as of session 102, decrementing
-exactly 1.00/cast (n=20, session 102), and is being repaired, not replaced
-(digest: "Golkan, being REPAIRED not replaced"). Do not request 20 casts and
-let the preflight fail closed partway through — request 18 explicitly,
-because that number is already known, and stop there even if the real
-durability reading comes back higher than expected.
-
-1. **Confirm before assuming, on both axes:**
-   - `npx tsx scripts/checkFishingCaps.ts` first — go by what `dayDocs[pondId
-     2]` actually reads, not by how much wall-clock time has passed since
-     session 102's 20/20.
-   - Read the current rod durability (whatever live path the session-100
-     preflight uses) before running anything. **18 is the expected reading,
-     not an assumption to skip verifying.** If it reads anything other than
-     18, use the real number to decide the batch size — the rule is "stop
-     before the rod hits 0," not "always run exactly 18."
-2. `--dry-run` per standing rule-4 discipline before spending anything live.
-3. Run up to 18 casts (or fewer, per step 1's real reading), under the
-   already-shipped, already-autonomous policy — no new approval needed for
-   any of these, per standing directive:
+1. **Confirm before assuming, on every axis — do not carry forward session
+   105's numbers.**
+   - `npx tsx scripts/checkFishingCaps.ts` — read `dayDocs[pondId 2]` for
+     today's actual remaining casts, whatever today's date is when this runs.
+   - Check the repo's own `dailyEnergyBudget` (252, `config/bot.json`)
+     against energy already spent **today**. Session 105 exhausted it exactly
+     (21 casts, 252/252) on 2026-08-28. If this brief executes before the
+     11:00 Pacific rollover clears that, the repo guard will refuse the cast
+     even though only 1 is requested — that is a real, expected block, not a
+     bug, and it is **not** licence to raise the 252 budget unilaterally
+     (rule 12's ask-first list covers spending above a configured budget).
+     Surface it in the recap and stop; don't self-approve a bump.
+   - Read current rod durability before casting. Repaired to 40 in session
+     105 (digest) — confirm the live reading rather than assuming it's still
+     40.
+2. `--dry-run` first, per standing rule-4 discipline.
+3. Run exactly **1** cast under the already-shipped, already-autonomous
+   policy — no new approval needed:
    - On-demand Relaxing-Oil-only necessity gate, composed with the
-     double-lethal band (shipped, session ~97-98 per the digest's redraw/oil
-     entries — do not re-derive it).
-   - Redraw stays disabled (`redrawEnabled: false`) — the digest says this is
-     CLOSED; log the shadow trigger as usual but it changes nothing live.
-4. **Stop at 18 (or the real durability ceiling), full stop — do not attempt
-   any cast beyond it even though 2 more would fit inside today's 20-cast
-   daily cap.** This is an intentional, expected mid-batch halt, not a
-   failure to report around. Say plainly that the remaining 2 casts of
-   today's daily allowance are being left unspent on purpose, pending the
-   repair.
-5. **Take a durability reading immediately after the final cast**, the same
-   paired-reading discipline session 102 used, specifically to see how the
-   preflight behaves right at the boundary (durability reaching 0, or
-   whatever floor is actually reported) rather than assuming it degrades the
-   same way it did over casts 1-18 of the original bracket. This is new
-   information session 102 couldn't get, since that batch never ran the rod
-   all the way down.
-6. Report at standard depth: catch rate with a binomial CI against the
-   corpus baseline, opening-turn focus spend, oil spend under the shipped
-   policy, and the necessity-gate opportunity count — same shape as session
-   102's report, not a new format.
-7. **After the batch, re-read `checkFishingCaps.ts` before reporting
-   anything** if any cast comes back denied, blocked, or interrupted —
-   CLAUDE.md rule 13 stands regardless of which resource (casts, durability)
-   is at issue.
+     double-lethal band (shipped) — do not re-derive it.
+   - Redraw stays disabled (`redrawEnabled: false`) — CLOSED per digest; log
+     the shadow trigger as usual, it changes nothing live.
+4. Take a durability reading immediately after.
+5. Report at standard depth even at n=1: outcome (caught/escaped), any oil
+   spend under the shipped policy, whether the necessity gate had an
+   opportunity (and fired or withheld), post-cast durability.
+6. If the cast comes back denied, blocked, or interrupted, **re-read
+   `checkFishingCaps.ts` before reporting anything** — rule 13 stands
+   regardless of which resource is at issue.
 
 ---
 
-# Part B — two offline dungeon items left from session 104, zero live spend
+# Part B — dungeon: Tier-1 juiced entry, 0 rings, one run at a time, up to 4 today
 
-Both are things STATE.md session 104 named as genuinely still open — neither
-is in the "Settled" digest, and neither should be confused with the proc
-effect-size work that digest says is done.
+This is potentially the **first live Tier-1 entry-tier run(s)**. Every fact
+below is already settled (STATE.md digest; CLAUDE.md rule 11's 2026-08-27
+amendment; `handoff/TIER1-MEASUREMENT.md`) — none of it is new work to derive,
+only to execute correctly.
 
-## B1 — tenacity pick-order, across the FULL dungeon corpus, not just session 103's 4 runs
+## What "Tier-1 offering" means — confirmed, not ambiguous
 
-Session 103 saw tenacity's fire rate move with where `AddTenacity` sat in the
-pick order (pick 5 of 8 → 6/54; pick 6 of 7 → 0/38) at n=4 runs — too thin to
-be a rule. Session 104's presence/absence split (5.26% vs 0.73%, p =
-2.23e-05, direction only per the digest's own caveat about clustered
-exchanges) answered *whether the boon is picked*, not *where in the run it
-was picked*. That's still open.
+- **`--juiced-index=1`.** `index` is the **TIER value**, read off
+  `entryData[].tier` — it is **not an array position**. `entryData` is
+  returned ordered tier **2, 1, 3**, so array position 1 happens to equal
+  Tier-1 by coincidence, array position 0 is Tier-2, and there is no
+  position 3. **Match on `entryData[].tier`, never by array index.** A
+  positional "fix" would silently select Tier-2 and spend silver rings —
+  this is exactly the mistake the digest already flags as wrong.
+- **Zero rings: `inputItems: []`.** Confirm the *actual* `start_run` request
+  body sent `index: 1` and `inputItems: []` — do not assume the flag
+  guarantees it; log and report the real body (TIER1-MEASUREMENT.md §6.3).
 
-- Pull pick-order data from the **full 83-attempt dungeon corpus**, not just
-  the 4 most recent runs — every prior run that picked `AddTenacity` at some
-  point has a recorded position, and this doesn't need new live data to
-  start looking at.
-- State plainly whether the corpus has enough `AddTenacity` picks at varied
-  positions to say anything, or whether — like `SecondWind`/`Steadfast` —
-  this is real but not reachable by mining ordinary play. Session 104's open
-  question 3 asked this explicitly; answer it rather than leaving it posed
-  again.
-- If a pattern holds, state it as a measured fired/unfired effect the same
-  way §62 did, not as a correlation. If it doesn't, say so and recommend
-  retiring the question, the same way SecondWind/Steadfast were retired in
-  the digest, rather than leaving it to be re-asked a third time.
+## The other three rule-11 conditions are unchanged by going to Tier-1
 
-## B2 — pre-register what would count as a valid Tier-1 Hard Core measurement
+`index` (entry tier) and `isJuiced` are independent axes — Tier-1 does not
+mean non-juiced:
 
-The ~quarter-of-Tier-3 figure for Tier-1's Hard Core payout is a
-**derivation** (`dropMultiplier` 4→1, projected off session 103's 30,960),
-not an observation — every juiced `start_run` this bot has ever sent used
-`index: 3`, 34 of 34. Session 104's open question 2 asked whether the first
-live Tier-1 run should be shaped to measure this, and flagged the real
-problem: loadout and room depth vary run-to-run, so one run may not separate
-the tier effect from ordinary variance.
+- **Still 60 energy, juiced** — `--juiced`, `JUICED_COST_MULTIPLIER` 3 against
+  the 20-energy base. Charges 3 of the day's 12 run-units per run.
+- **Still auto-loads 3x Big Heal Juice** (itemId 131,
+  `config/bot.json` → `forbiddenWoods.potions`, `maxPerRun: 3`) — that gate
+  reads `--juiced` alone and is unaffected by `index`.
+- **One run, then stop and hand back. Never chain.** `--runs=1`, every
+  invocation.
 
-- **Zero live spend for this item — it's a planning document, not a run.**
-  Write down, before any Tier-1 run happens, what would actually count as
-  evidence: how many runs, held against what (the same loadout across them,
-  per the user's "stable going forward" ruling), and whether comparing
-  against session 103's Tier-3 runs at the same rooms-reached is a fair
-  baseline or too confounded by the loadout changes already known to have
-  happened in that corpus.
-- This does not authorize or schedule a live Tier-1 run. That's still a
-  separate go-ahead under rule 11, whenever the user next wants one — this
-  just means the session that runs it isn't figuring out its own measurement
-  plan in real time while a run-unit ticks down.
+## The pause between runs is not a formality
+
+Per rule 11: *"approval for one run is never approval for the next."* **This
+brief is the go-ahead for run 1 only.** After each run:
+
+- Stop and report that run's result before doing anything else.
+- The user allocates skill points between runs (never allocate them
+  yourself) and decides whether/when to run the next one.
+- Do **not** auto-continue into run 2, 3, or 4 just because this brief names
+  4 as the target for the day — that number is the day's *plan*, not
+  standing pre-authorization. Treat each of runs 2-4 as needing its own
+  explicit resume from the user, exactly like run 1 needed this brief.
+- If the user doesn't reconvene for a later run, report however many of the
+  4 actually happened — that is a normal outcome, not a shortfall.
+
+## Ledger and loadout discipline, every run
+
+- `npx tsx scripts/checkDungeonToday.ts` before run 1 and again after
+  **every** run (`dayProgressEntities`). Daily ceiling is 12 run-units / 3 =
+  **exactly 4 juiced runs/day** — so 4 requested runs is the whole day's
+  allotment. If any run is denied, blocked, or interrupted, re-check the
+  ledger before reporting anything (rule 13) — do not assume it didn't run,
+  and do not re-issue it on the strength of the denial alone.
+- Record the gear reading (`hp`/`armor` max) before run 1 and re-check it
+  before each later run. Keep the loadout stable across the whole batch —
+  that's what makes all 4 runs one comparable arm rather than several
+  confounded ones (the "stable going forward" ruling, DECISIONS 2026-08-27;
+  TIER1-MEASUREMENT.md §3).
+- In-room tier picks still follow rule 8 (highest non-Perpetual tier;
+  lowest / no-modifiers at the final room) — the entry-tier choice governs
+  `start_run` only, not the per-room `enemyPathOptions` picks.
+
+## Apply the pre-registered measurement plan (`handoff/TIER1-MEASUREMENT.md`)
+
+Written session 105, zero live spend against it so far. This batch is what
+executes it — and it's what answers STATE.md session 105's **open question
+3** ("should the first live Tier-1 run be run"), so say so plainly in the
+recap.
+
+Per run, capture in this order: the ledger before/after; the gear reading;
+the actual `start_run` body (confirm `index: 1`, `inputItems: []`);
+`dropMultiplier` as returned on the entry actually used (don't assume 1
+because the flag said 1); rooms cleared (the tier-choice count, **not** the
+death room); Hard Core (845) and Dendren Root (846) totals.
+
+- **Score H/r** (Hard Core per room cleared) against the fixed decision rule:
+  **< 500 → H1 confirmed** (`dropMultiplier` governs Hard Core, ~1/4 as
+  derived); **500-800 → inconclusive**; **> 800 → H0** (the multiplier does
+  NOT govern Hard Core). **Validity condition `r >= 6`** — a run that dies in
+  room ≤ 5 is recorded but not scored, not argued into a verdict.
+- **Run the negative control every run.** Dendren Root per room should stay
+  flat at ~62/room regardless of the Hard Core verdict (it answers to
+  `isJuiced` alone, per SPEC §3c/§3f). If Root *also* falls ~4x, that
+  falsifies the `dropMultiplier`-specific story even though Hard Core moved
+  the "right" way — report that plainly instead of calling it H1.
+- One valid run already suffices per the pre-registration. With up to 4 in
+  hand, report whether they agree with each other before pooling — pool only
+  if the spread between runs is small relative to the H1/H0 gap (same
+  caveat session 103's two gear arms needed), and say explicitly if it
+  isn't.
+- Update the "~quarter of Tier-3" figure from **derivation** to **measured**
+  (or correct it) based on what actually comes back. Until this batch, it
+  may not be quoted as observed — that constraint lifts only once real
+  numbers exist.
 
 ---
 
 ## Recap, for the whole session
 
 Full suite (`--maxWorkers=4`), `tsc --noEmit`, `git diff --check`, secret
-scan. State explicitly, at the top of the recap: how many casts the fishing
-batch actually ran (18, or the real durability-limited number) and the
-post-batch durability reading; and, for the dungeon side, whether the
-pick-order question resolved, stayed open for lack of corpus support, or is
-recommended for retirement — plus the Tier-1 measurement pre-registration in
-full, ready for whoever runs that first live run.
+scan. State explicitly, at the top of the recap:
+
+- The fishing cast's outcome and post-cast durability reading — or, if
+  blocked by the exhausted 252-energy repo budget, that fact plus the
+  ledger check that confirmed it.
+- How many of the (up to) 4 dungeon runs actually happened, and why if fewer
+  than 4.
+- Per run: the `start_run` body confirmation (`index: 1`, `inputItems: []`),
+  rooms cleared, Hard Core and Dendren Root totals, H/r, and the individual
+  verdict.
+- The pooled verdict (if pooling was valid) against H1 / inconclusive / H0,
+  and the Dendren Root control result.
+- **Carried forward, unresolved — this brief does not settle either:**
+  STATE.md session 105's open question 1 (the `nextPosition` override is now
+  live and steering card choice with no user sign-off) and open question 2
+  (JEBAITOR makes the 252-energy fishing budget the binding constraint
+  again — raise it or accept losing ~1-2 casts/day). Both are ask-first;
+  flag them again rather than deciding either silently.
