@@ -106,9 +106,9 @@ describe("the in-sample arm — reproducible from the committed corpus", () => {
     const r = inSampleRate();
     expect(REDRAW_SHADOW_COVERAGE_K).toBe(6);
     expect(REDRAW_SHADOW_MIN_BUDGET).toBe(1);
-    expect(r.plays).toBe(605); // [session 99] the 210-cast corpus /* [session 102] was 553 */ /* [session 105] was 592 */
+    expect(r.plays).toBe(643); // [session 99] the 210-cast corpus /* [session 102] was 553 */ /* [session 105] was 592 */  /* [session 107] was 605 */
     expect(r.fires).toBe(19); /* [session 102] was 17 */ /* [session 105] was 18 */
-    expect(r.rate).toBeCloseTo(0.03140495867768595, 12); /* [session 102] was 0.030741410488245932 (17/553) */ /* [session 105] was 0.030405405405405407 */
+    expect(r.rate).toBeCloseTo(0.029548989113530325, 12); /* [session 102] was 0.030741410488245932 (17/553) */ /* [session 105] was 0.030405405405405407 */  /* [session 107] was 0.03140495867768595 */
   });
 
   it("⚠ the live loop's PRINTED in-sample rate is this number, not a stale one", () => {

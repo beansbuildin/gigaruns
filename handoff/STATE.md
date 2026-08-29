@@ -1,20 +1,25 @@
-# STATE — session 106 — 2026-08-28 — code at commit cff0e30a1e1f3397ef8f31666050a495bbda672f
+# STATE — session 107 — 2026-08-29 — code at commit <SHA>
 
 ## Status
-Brief had two parts. **Part A (1 fishing cast) NOT RUN — blocked, correctly, by
-the repo's own budget. Part B (up to 4 Tier-1 dungeon runs) GATE PASS.**
-Live spend: **4 juiced Tier-1 dungeon runs, 12/12 run-units, 240 energy, 0 gold
-or silver rings, 0 fishing casts, 0 oils.**
+Brief was **fishing only, on the raised 300-energy / 25-cast budget. GATE PASS.**
+Live spend: **22 fishing casts PLAYED, 20 CHARGED, 264 energy, 8 Mid Relaxing
+Oils (937), 0 dungeon runs, 0 rings, 0 Focus Oil.**
 
-**The pre-registered Tier-1 Hard Core measurement is EXECUTED and ANSWERED: H1
-CONFIRMED.** `dropMultiplier` governs Hard Core (845) and only Hard Core.
-Two of the four runs met the `r >= 6` validity bar and both scored H1; the two
-that did not are recorded and were NOT scored.
+**The batch was stopped by the GAME, not by the repo** — a server `HTTP 400
+"Player has reached max runs for fishing"` on cast 23. The raised budget behaved
+as headroom exactly as intended: **264/300 energy used, 36 spare, and it refused
+nothing.** The JEBAITOR gap the raise exists to capture came out clean at
+**2 of 22 = 9.1%**.
 
-Suite **2092 passed / 2092, 111 files** (`vitest run --maxWorkers=4`; the
-default over-subscribes this machine and produces FALSE timeouts — session 100,
-unchanged). `tsc --noEmit` clean, secret scan **0 hits on all four patterns over
-the whole 451-file staged diff, fixtures included**, `discoveredShipsClean` 8/8.
+**The session opened BLOCKED: the JWT had expired** (`exp` 2026-08-28T17:56Z,
+~20h stale, lapsed ~30 min after session 106's last dungeon run). The user
+refreshed it mid-session and everything below ran after that.
+
+Suite **2092 passed / 2092, 111 files** (`vitest run --maxWorkers=4`; the default
+over-subscribes this machine and produces FALSE timeouts — session 100,
+unchanged). `tsc --noEmit` clean, `git diff --check` clean, secret scan **0 hits
+on all four patterns** over the tracked diff AND the 222 new fixture files,
+`discoveredShipsClean` 8/8.
 
 ## Settled — do not re-open
 Pointers only — `DECISIONS.md` and `QUESTIONS.md` own the evidence. **An entry
@@ -22,18 +27,30 @@ here means a brief proposing it as NEW work is wrong.** Carried forward and
 edited each session, never rewritten (see `/recap` step 3). Entries marked
 **[USER]** are user directives an agent may not re-open at all.
 
-**Dropped this session** (folded into self-enforcing artifacts, per `/recap`
-step 3): rule 8 and rule 12 — both stated in full in CLAUDE.md, which is
-mandatory reading at session start; and Auth Path B / EOA / `viem`, enforced
-twice over by CLAUDE.md rule 3 and a failing `tests/clientSurface.test.ts`.
+**Dropped this session** (folded into tests that would fail, per `/recap` step 3):
+**Proc effect sizes** (`tests/procEffectSize.test.ts` asserts them exactly, and
+its null arm is now the exceptionless `cleanMisses === []`) and **the six
+statuses** (asserted exactly in the status tests; `lifesteal` cannot be
+reintroduced without a red suite).
 
+- **[USER] The fishing budget is 300 energy / 25 casts.** Raised from 252/20 by
+  direct user directive 2026-08-29, resolving sessions 105/106 open question 2.
+  It is HEADROOM, not a new cap — the game's 20 CHARGED casts/day still binds
+  and did, this session. Re-opens as: *"raise the fishing budget"*, *"the repo
+  ceiling cost a cast"*, or *"revert 300/25 to 252/20"*.
+- **JEBAITOR, and its gap, MEASURED.** A ~9% chance a cast does not count
+  against `dayDocs`. This session: **22 played, 20 charged, 2 lowered
+  reconciliations — 9.1%**, landing on §34's figure. Re-opens as: *"the cast
+  ledgers disagree"* or *"measure played vs charged casts"*. **A sub-25-cast
+  batch is NOT evidence the budget is too low.**
+- **Rod durability is charged per cast PLAYED, not per cast CHARGED.** 37 -> 15
+  over 22 played = exactly 1.00/cast; JEBAITOR buys a free ledger slot and NOT
+  free rod wear. DECISIONS 2026-08-29. Re-opens as: *"does JEBAITOR save
+  durability"* or *"derive the durability rate"*.
 - **Tier-1 Hard Core payout.** MEASURED, not derived: `dropMultiplier` governs
   item 845 ONLY, at an **exact 4:1 quantum**. Dendren Root (846) unmoved.
   DECISIONS 2026-08-28. Re-opens as: *"measure the first live Tier-1 run"* or
   *"the ~quarter figure is still a derivation."* It is no longer a derivation.
-- **Proc effect sizes.** `block` = `floor(ATK/2)`, `evasion` = full negate,
-  `lck` = `2 x ATK` — MEASURED, exact, control 0/4111. §58, §62. Re-opens as:
-  *"diff the HP deltas on fired vs unfired exchanges."*
 - **The no-proc null.** Damage = attacker's `currentATK` on **1645/1645
   status-clean exchanges, full corpus, zero misses ever.** DECISIONS
   2026-08-28. Re-opens as: *"the null rate is falling"* — a MIXED-population
@@ -46,9 +63,6 @@ twice over by CLAUDE.md rule 3 and a failing `tests/clientSurface.test.ts`.
   not merely underpowered. §63. Re-opens as: *"test whether tenacity's rate
   depends on where AddTenacity was picked"* or *"session 103 saw pick order
   matter."*
-- **The six statuses.** `Burn`/`Weak`/`Vulnerable`/`Regen`/`SecondWind` exact;
-  **`lifesteal` DOES NOT EXIST**; `amount: 0` is INERT. §59. Re-opens as:
-  *"measure the status effects"* or any task listing lifesteal.
 - **`triggeredBoons`.** CLOSED as an evidence channel — 0 non-empty of 10,616.
   DECISIONS 2026-08-26. Re-opens as: *"settle whether triggeredBoons populates."*
   **No runs may be spent on it.**
@@ -58,18 +72,15 @@ twice over by CLAUDE.md rule 3 and a failing `tests/clientSurface.test.ts`.
 - **Redraw.** CLOSED — `redrawEnabled` stays false, the counterfactual bound is
   retired, and §28's gap 1 is STRUCTURALLY unreachable from a shadow at any
   volume. §49, §51. Re-opens as: *"run more redraw shadow analysis."*
-- **JEBAITOR.** CLOSED — a ~9% skill making a cast not count against the daily
-  ledger; it explains the `lowered` direction of a repo-vs-game cast
-  disagreement and ONLY that. §34. Re-opens as: *"the cast ledgers disagree."*
 - **[USER] Rule 11 — entry tier is Tier-1 (`--juiced-index=1`), 0 rings.**
-  Session 104, EXERCISED LIVE 4/4 this session. `data.index` is the TIER;
+  Session 104, EXERCISED LIVE 4/4 in session 106. `data.index` is the TIER;
   `entryData` is ordered 2, 1, 3, so array position is NOT tier. Re-opens as:
   *"correct the juiced index"* — a positional 'fix' selects Tier 2 and spends
   silver rings.
-- **[USER] The rod.** Golkan, REPAIRED not replaced — 2026-08-28, 18 -> 40, and
-  read **37** at session-106 preflight. `CORPUS_DECK` stays Shroom until the
-  corpus is majority-Golkan. §53, §61.3. Re-opens as: *"repoint CORPUS_DECK"*
-  or *"pick a new rod."*
+- **[USER] The rod.** Golkan, REPAIRED not replaced. Read 37 pre-batch and
+  **15 post-batch** this session. `CORPUS_DECK` stays Shroom until the corpus is
+  majority-Golkan. §53, §61.3. Re-opens as: *"repoint CORPUS_DECK"* or *"pick a
+  new rod."*
 - **[USER] Unspent skill XP.** CLOSED, not deferred. §61.1. Re-opens as:
   *"the account has unallocated skill points worth spending."*
 - **Suite invocation.** `vitest run --maxWorkers=4`; the default
@@ -77,141 +88,97 @@ twice over by CLAUDE.md rule 3 and a failing `tests/clientSurface.test.ts`.
   DECISIONS 2026-08-26. Re-opens as: *"the suite is red."*
 
 ## What works
-- **The four runs, one arm, zero waste.** Runs 25165690 / 25165963 / 25166186 /
-  25166314, deaths at rooms 5 / 6 / 7 / 10, so **r = 4 / 5 / 6 / 9**. Ledger read
-  before and after every run: **0 -> 3 -> 6 -> 9 -> 12**, exactly +3 each.
-  **212 POSTs, 0 first-attempt failures (0/208 scored action classes).**
-  12/12 potions used.
-- **`start_run` sent `index: 1`, `isJuiced: true`, `consumables [131,131,131]`
-  on all four**, verified against the logged request body, not the flag.
-  **Zero negative `gameItemBalanceChanges` anywhere — nothing was debited**,
-  which is the real proof no rings were spent.
-- **H1 CONFIRMED on both valid runs.** H/r **260.0** (r=6) and **252.0** (r=9)
-  against a pre-registered `< 500 -> H1` and an H1 prediction of 266. Pooling
-  checked before doing it, as the plan demanded: the two sit **3.1%** apart
-  against a 300% hypothesis gap. **Pooled valid H/r = 255.2.**
-- **The exact result, which removes depth entirely.** Payout is
-  `base x 12 x dropMultiplier`. Dividing the quantum out: Tier-3 29 rooms =
-  30,960 = **48 x 645** (mean base **22.24**); Tier-1 24 rooms = 6,432 =
-  **12 x 536** (mean base **22.33**). **The base draw is the same to within
-  0.4%; the whole difference is the multiplier.** Naive HC/room 1,067.6 vs
-  268.0 -> **3.984**.
-- **The matched pair.** s103 run 4 and s106 run 3: both r=6, both gear 50/17,
-  both 3/3 potions, both juiced, differing ONLY in entry tier.
-  **HC 6,096 -> 1,560 (3.908x down); Root 309 -> 309, unchanged to the unit.**
-- **Negative control passes on all four runs and it is EXACT.** Root per room is
-  the same depth-indexed sequence in BOTH tiers — 5, 9, 14, 19, 25, 31, 37, 42,
-  **47** — credited 3x per room. Run 4's room 9 EXTENDS it one room past
-  anything Tier-3 ever captured.
-- **Loadout held: 50/17 with `pickedBoons: []` on all four `start_run`
-  responses.** First positive confirmation of DECISIONS 2026-08-27's
-  "steady going forward" ruling. The five new census combos were chased as the
-  signal that ruling demands and every one is boon growth off 50/17.
-- **Rule 12 exercised for real.** Run 3's preflight found pool **35 < 60**,
-  claimed 1 ROM doc for **352**, and continued at 387. A raw endpoint read would
-  have called that blocked.
+- **The batch, and the ceiling that stopped it.** 22 casts played across
+  14:28-14:32Z, ending on a server 400 `"Player has reached max runs for
+  fishing"` at cast 23. `checkFishingCaps.ts` read **0/20 before and 20/20
+  after**. The repo budget never bound (264/300).
+- **The JEBAITOR gap, measured four ways that agree.** `fishing_ledger_reconciled`
+  fired per cast and logged exactly **two `lowered` adjustments** (at repo-counts
+  6 and 13). 22 played is confirmed independently by: 22 `cast_over` events,
+  corpus 251 -> 273, energy 264 = 22 x 12, and rod wear 37 -> 15 = 22.
+- **Catch rate 12/22 = 54.5%**, 95% Wilson **[34.7%, 73.1%]**. Prior corpus
+  108/251 = 43.0%; the recent-100 window 59.0%. Two-proportion vs prior corpus
+  **z = 1.04, p = 0.30** — indistinguishable, as expected at n=22.
+- **Oil policy behaved exactly as shipped.** 8 Relaxing (937) over **4
+  double-lethal firings, 2 each**; stock 32 -> 24. The per-cast cap of 2 was
+  REACHED and did not BIND. **15 Focus triggers were withdrawn by policy**
+  (`oil_trigger_policy_withdrawn`, 942 absent from `allowedItemIds`) — session
+  93's fix still holding, so those casts stay in BOTH outcome arms rather than
+  being flagged OIL-POLICY-DRY.
+- **Redraw stayed disabled**: 69 shadows logged, 18 suppressed, 0 live effect.
 
 ## What's broken
-- **Nothing is red.** Three suite failures were found and all three were
-  resolved by re-deriving, not by bumping:
-- ⚠ **`procEffectSize`'s null floor FAILED at 604/688 = 87.8% against `> 0.9`
-  — and the mechanic is fine.** On status-CLEAN exchanges the null is
-  **280/280 = 100%** in-slice and **1645/1645 = 100%** full-corpus, zero misses
-  ever; every miss is status-carrying, exactly as the old comment claimed. The
-  old number was measuring SLICE COMPOSITION (dirty share 59.3% in-slice vs
-  37.9% full) because this session's boons were status-heavy. Assertion replaced
-  with the EXACT `cleanMisses === []`, which is strictly stronger.
-- ⚠ **`OBSERVED_OFFERS` +24, `UNMODELLED_TYPES` 15 -> 16.** One type moved IN
-  (`VulnerableTenacity`, run 4 room 3, offered not picked), none moved out. The
-  four runs offered unmodelled types at Tier-3's sort of rate — the entry tier
-  does not appear to narrow the reward pool.
-- ⚠ **Enemy census +5 combos, NO new starting loadout.** 50/25, 50/27, 58/17,
-  58/27, 64/27, all traced to their pickup. **`AddMaxArmor` is NOT a flat +2** —
-  +8 and +10 both appear; `AddMaxHealth` shows +8 and +14. Read `selectedVal1`.
-- **Part A never ran.** Repo `dendren.dailyEnergyBudget` 252 was exhausted at
-  252/252 while `dayDocs[pond 2]` still showed 19/20. Correct fail-closed
-  behaviour, surfaced not bypassed. See open question 2.
+- ⚠ **`guard-budget-fishing.json` recorded `runsStarted: 25` against 22 played /
+  20 charged.** So `--status` reported "25/25 used -> 0 remaining" and the
+  post-batch `checkFishingCaps` printed "repo over-counted by 5". The
+  reconciler's own in-batch trace ends **agreed at 20**, so this is the GUARD
+  counter drifting, not the reconciler. Direction is benign (it under-grants,
+  never over-grants) and it coincided with the server cap this time. **Not
+  touched** — see open question 2.
+- ⚠ **Unknown fields on `play_cards` responses: `data.nextPosition` and
+  `data.nextMovePath`**, 6 midcast + 4 terminal dumps in `logs/`. Present on the
+  pre-batch dry-run's stale terminal doc too. Did not affect play.
+- ⚠ **57 suite assertions went red on the new corpus and were RE-DERIVED, not
+  bumped.** All 9 files were pure census growth (+22 casts / +69 plays,
+  uniformly). **Every structural invariant held at the larger n** —
+  `zoneTemplate`'s exceptionless resolver 1058/1058, the focus-meter
+  reconstruction 1034/1034, `assertOpeningFocusPinned` still passing, and the
+  era split still `[94, 62, 117]` with preOil and oilSupplied FROZEN and only
+  the current era growing by exactly 22.
+- **The JWT expires and blocks the whole session.** No renewal path in-repo;
+  it is a manual copy from the user's browser.
+
+## Corrections to SPEC.md
+- **None. `SPEC.md` and `SPEC-fishing.md` were not touched** — nothing in the
+  live responses contradicted them this session.
+- Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
+- Move charges: PRESENT — unchanged, not re-measured.
+- **One source constant moved:** `REDRAW_SHADOW_IN_SAMPLE_RATE_PCT` "3.1" ->
+  "3.0" in `scripts/liveFishing.ts`. The live loop PRINTS this, and
+  `redrawShadowAnalysis.test.ts` exists to stop it going stale.
+
+## Dead ends
+- **Do not read a sub-25-cast batch as the budget being too low.** 300/25 is
+  headroom over the game's 20 CHARGED casts; 22 played is the expected shape.
+- **Do not rewrite the long `docId` array literals in
+  `tests/sim/fishingCorpus.test.ts` or `tests/fishing/oilReachability.test.ts`.**
+  Tried it here and it destroyed ~180 lines of per-session comment history;
+  restored from HEAD and APPENDED instead. The new ids sort to the end, so
+  appending preserves order.
+- **Do not guess a corpus constant and let the suite confirm it.** Tried it once
+  (`budgetZero` guessed 288, real value 284). Re-run and read the actual.
+- **Empty `cast-` fixture dirs are expected, not pollution** — 3 today: two
+  `--dry-run`s and the server-rejected cast 23. Git does not track empty dirs.
 - Carried, untouched: §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE
   QUOTED.**
 
-## Corrections to SPEC.md
-- **None. `SPEC.md` and `SPEC-fishing.md` were not touched, and SPEC §3c was
-  CONFIRMED rather than contradicted** — `dropMultiplier` governs 845 only.
-- Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
-- Move charges: PRESENT — unchanged, not re-measured.
-- **`handoff/TIER1-MEASUREMENT.md` §5 IS WRONG and is corrected in this
-  commit's log, not in the plan document** (a pre-registration is not edited
-  after the fact). It fixed the control as "Root flat at ~62/room". **Root is
-  NOT flat — it grows with room index**; 62 was a depth-average, confounded the
-  same way §2 warned HC-per-run was. The control still passes, far more sharply.
-- **`inputItems` IS NOT A REQUEST FIELD.** The brief and TIER1-MEASUREMENT §6.3
-  both ask to confirm `inputItems: []` in the `start_run` body; no such key
-  exists there. It lives on `entryData[].inputItems` (Tier 1 `[]`, Tiers 2 and 3
-  seven ids each). Confirm zero rings via absent negative balance changes.
-- **`dropMultiplier` is NOT returned on any run response** — 0 occurrences
-  across all four logs. §6.4's "don't assume 1 because the flag said 1" cannot
-  be met from the run; it is met from `entryData` plus the payout itself.
-
-## Dead ends
-- **Do not "fix" a falling MIXED-population null rate in `procEffectSize`.**
-  It is composition-bound by construction and will move whenever the last 20
-  runs' boon mix does. The clean-population invariant is the one that means
-  something and it is exact.
-- **Do not re-run the Tier-1 measurement.** Two valid runs, agreeing to 3.1%,
-  with an exact 4:1 quantum underneath and a matched pair. More runs add corpus,
-  not evidence.
-- **Do not score a run with `r <= 5`.** Runs 1 and 2 read H/r 288.0 and 290.4 —
-  the right answer — and were still not scored, because the pre-registration
-  says so and a rule kept only when it agrees with you is not a rule.
-- **Do not read `Dungeon#3` at 9 as our spend.** It is the user's manual play in
-  another dungeon (cap 9). `findRealRunsToday` keys on `#Dungeon#5`.
-- **Do not re-brief tenacity pick-order.** §63 retires it structurally.
-- **Empty `run-` fixture dirs from `--dry-run` are expected, not corpus
-  pollution.**
-
 ## Metrics
-- **Live: 4 juiced Tier-1 dungeon runs, 12/12 run-units, 240 energy committed
-  (236 observed, 4x the 1-unit regen drift), 0 rings, 0 fishing casts, 0 oils.**
-- **Hard Core (845) 6,432 over 24 rooms = 268.0/room.** Tier-3 baseline
-  30,960 over 29 = 1,067.6/room. Ratio **3.984**; quantum ratio **exactly 4**.
-- **Dendren Root (846) 1,353** — per-room sequence identical to Tier-3.
-- **Pre-registered scoring: 2 valid (r=6, r=9) -> H/r 260.0 and 252.0, both H1.
-  2 invalid (r=4, r=5) -> recorded, not scored.**
-- Rooms cleared 4 / 5 / 9 / 6 = **24**; boons taken 24; tier choices 24.
-  Perpetual offered **12 of 24 (50.0%)**, cost a tier 7.
-- Corpus **100 -> 104 dungeon run dirs; 83 -> 87 dungeon attempts.** Fishing
-  unchanged at 251 casts.
-- Suite **2068 -> 2092** (+24, all from the new corpus feeding `boons.test.ts`'s
-  per-offer cases; no test was added by hand).
+- **Live: 22 fishing casts PLAYED, 20 CHARGED to `dayDocs[pond 2]`, 264/300
+  energy, 8 Relaxing Oils, 0 dungeon runs, 0 rings.**
+- **JEBAITOR gap 2/22 = 9.1%** (95% Wilson [2.5%, 27.8%]).
+- **Catch rate 12/22 = 54.5%** [34.7%, 73.1%]; prior corpus 43.0%; p = 0.30.
+- **Rod durability 37 -> 15 = exactly 1.00 per cast PLAYED** (22), not per cast
+  charged (20). Session 105's rate was 38 -> 18 over 20 = 1.00. Two paired
+  readings now agree exactly.
+- Opening turn (n=22): aim (2,2) x11, (3,3) x4, (3,2) x3, (2,3) x3, (1,3) x1;
+  mean pHit 0.482. All turns (n=69): mean pHit 0.426. Turns/cast median 3.
+- Corpus **251 -> 273 casts; 989 -> 1058 plays.** Dungeon unchanged at 87.
+- Suite **2092 -> 2092** (unchanged count; 57 constants re-derived across 9
+  files, no test added or removed).
 
 ## Open questions for Claude
-1. **The `nextPosition` override is LIVE and steering fishing card choice** and
-   still has no user sign-off — it armed itself by accumulating validation data
-   (22/22, Wilson lower bound 85.1%, threshold 10). Carried UNCHANGED from
-   session 105; this session did not fish, so nothing new was learned. Is it
-   wanted?
-2. **The 252-energy fishing budget is now the binding constraint and it cost a
-   real cast today.** 252 = 21 x 12 was set so it could "never buy a cast the
-   server would not already refuse", but JEBAITOR makes casts free at ~9%, so
-   the game offered a 20th cast the repo could not fund. Raise it, or accept
-   losing ~1-2 casts/day? **Ask-first either way — not touched.**
+1. **The `nextPosition` override is LIVE and steering fishing card choice** with
+   still no user sign-off — it armed itself by accumulating validation data.
+   **2 more validations today, both hits.** Carried UNCHANGED from sessions
+   105/106. Is it wanted?
+2. **NEW: the fishing guard counter over-counts.** `runsStarted` reached 25 on a
+   22-played / 20-charged batch. Benign direction, but the repo's own session cap
+   and the played count disagree, and `--status` reports a number that is not the
+   casts played. Fix the counter, or is the reconciler's figure the only one that
+   should be trusted?
 3. **Is the Tier-1 arm now the baseline for everything downstream?** Session
-   103's Tier-3 numbers are no longer comparable on any payout statistic, and
-   several reports still quote them. Nothing was rewritten this session.
+   103's Tier-3 numbers are no longer comparable on any payout statistic and
+   several reports still quote them. **Third session unmentioned-and-unactioned**
+   — out of scope for a fishing session, but it is not going away.
 4. Unchanged and still deferred: session 100's open question 2 (should the live
    loop read the dungeon proc booleans in real time).
-
-## Files changed
-```
-  A  fixtures/dungeon-runs/run-2026-08-28-16-24-42   run 1, r=4  (76 files)
-  A  fixtures/dungeon-runs/run-2026-08-28-16-47-36   run 2, r=5  (106 files)
-  A  fixtures/dungeon-runs/run-2026-08-28-17-10-28   run 3, r=6  (122 files)
-  A  fixtures/dungeon-runs/run-2026-08-28-17-23-12   run 4, r=9  (144 files)
-  M  src/sim/boons.ts                +24 OBSERVED_OFFERS (first Tier-1 offers)
-  M  tests/boons.test.ts             UNMODELLED_TYPES 15->16, roomOne 231->243
-  M  tests/enemies.test.ts           +5 census combos, no new starting loadout
-  M  tests/procEffectSize.test.ts    null invariant RE-DERIVED onto clean set
-  A  handoff/TIER1-RESULT.md         the measurement, executed
-  M  handoff/reports/*.md            regenerated
-  A  handoff/scratch-session-106.md
-```

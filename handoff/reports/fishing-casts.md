@@ -1,19 +1,19 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-28T17:27:38.998Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-29T15:26:02.002Z.
 
-251 recorded casts — 108 caught (43.0%).
+273 recorded casts — 120 caught (44.0%).
 
 ## Fish caught, by name
 
-- Barnaboo: 29
-- Finley: 23
-- Plankton: 18
-- Ollie: 8
-- Kelpkin: 6
+- Barnaboo: 32
+- Finley: 24
+- Plankton: 21
+- Ollie: 9
+- Kelpkin: 7
+- Jelloid: 7
 - Zombo: 5
 - Deadfin: 4
-- Jelloid: 4
 - Skinzy: 4
 - Podge: 2
 - Gulp: 1
@@ -277,3 +277,25 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 | 13131367 | no | — |
 | 13131370 | yes | Zombo (rarity 2) |
 | 13131373 | no | — |
+| 13148587 | no | — |
+| 13148588 | yes | Barnaboo (rarity 0) |
+| 13148589 | yes | Ollie (rarity 1) |
+| 13148593 | no | — |
+| 13148595 | no | — |
+| 13148599 | yes | Plankton (rarity 0) |
+| 13148601 | yes | Kelpkin (rarity 1) |
+| 13148605 | yes | Jelloid (rarity 1) |
+| 13148610 | yes | Plankton (rarity 0) |
+| 13148612 | yes | Barnaboo (rarity 0) |
+| 13148616 | no | — |
+| 13148620 | yes | Jelloid (rarity 1) |
+| 13148624 | no | — |
+| 13148630 | no | — |
+| 13148632 | no | — |
+| 13148636 | no | — |
+| 13148641 | no | — |
+| 13148646 | no | — |
+| 13148648 | yes | Plankton (rarity 0) |
+| 13148652 | yes | Jelloid (rarity 1) |
+| 13148658 | yes | Barnaboo (rarity 0) |
+| 13148661 | yes | Finley (rarity 0) |
