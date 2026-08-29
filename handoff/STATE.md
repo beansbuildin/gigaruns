@@ -1,4 +1,4 @@
-# STATE — session 106 — 2026-08-28 — code at commit <SHA>
+# STATE — session 106 — 2026-08-28 — code at commit cff0e30a1e1f3397ef8f31666050a495bbda672f
 
 ## Status
 Brief had two parts. **Part A (1 fishing cast) NOT RUN — blocked, correctly, by
