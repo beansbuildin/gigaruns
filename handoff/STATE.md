@@ -1,4 +1,4 @@
-# STATE — session 109 — 2026-08-29 — code at commit <SHA>
+# STATE — session 109 — 2026-08-29 — code at commit 9c8e274e
 
 ## Status
 Brief was **dungeon only: the 2 remaining Tier-1 juiced runs, one at a time,
