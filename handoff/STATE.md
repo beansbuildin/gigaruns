@@ -1,4 +1,4 @@
-# STATE — session 107 — 2026-08-29 — code at commit <SHA>
+# STATE — session 107 — 2026-08-29 — code at commit 0eeae11e
 
 ## Status
 Brief was **fishing only, on the raised 300-energy / 25-cast budget. GATE PASS.**
