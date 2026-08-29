@@ -1,4 +1,4 @@
-# STATE — session 108 — 2026-08-29 — code at commit d8ed2862
+# STATE — session 108 — 2026-08-29 — code at commit 6302ad0c
 
 ## Status
 Brief was **dungeon only: 4 Tier-1 juiced runs, chained in ONE invocation.
