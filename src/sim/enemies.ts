@@ -486,6 +486,37 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       rolled: rolled(),
     },
   },
+  {
+    room: 11,
+    tier: RISKY_TIER,
+    // [session 109, LIVE] First-ever room-11 capture, superseding room 10 as
+    // the deepest this corpus has reached. The run entered room 11 and died
+    // here, so this is the enemy's OPENING state only — no post-exchange
+    // sample, and no Safe/Dangerous capture for this room.
+    //
+    // The enemy carried the `withering` buff. That does NOT contaminate the
+    // stat block: `withering` is `kind: "mechanic"` in `src/sim/enemyBuffs.ts`
+    // (applies 1 Weak on Scissor wins) and modifies no hp/armor/move number,
+    // so the figures below are the enemy's unmodified base — unlike room 9's
+    // `bloodthirsty`, which is `statOnly` and IS baked into that entry's ATK.
+    // `ENEMY_BUFF` is therefore deliberately absent from `unmodelled`.
+    //
+    // `ROLLED_STATS` remains and is the blocker: evasion 4, block 2, lck 3,
+    // tenacity 4 are 1-5% proc chances (SPEC §4e), so this battle is not
+    // scorable. That is rule 8's documented, accepted cost — highest-tier
+    // selection means deep captures arrive with rolled stats — not a
+    // regression to repair.
+    unmodelled: ["ROLLED_STATS"],
+    enemy: {
+      id: "Enemy Room 73",
+      hp: 60,
+      hpMax: 60,
+      armor: 30,
+      armorMax: 30,
+      moves: { rock: mv(24, 8), paper: mv(18, 12), scissor: mv(20, 10) },
+      rolled: rolled({ evasion: 4, block: 2, lck: 3, tenacity: 4 }),
+    },
+  },
 ];
 
 /**

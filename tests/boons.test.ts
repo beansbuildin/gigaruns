@@ -186,7 +186,16 @@ describe("recorded offers match the fixtures", () => {
     // clearing rooms 8 and 9 and producing the first-ever offers at both.
     // The title is now two rooms stale; the invariant it encodes ("offers stop
     // one room short of the deepest death") still holds at 9 vs 10.
-    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(9);
+    // [session 109] Run 2 of the two standalone Tier-1 juiced runs reached
+    // ROOM 11, superseding room 10, and produced the first-ever room-10 offer.
+    // The title is now four rooms stale; the invariant it encodes ("offers
+    // stop one room short of the deepest death") still holds at 10 vs 11.
+    //
+    // The invariant is not a coincidence — you are offered a reward for
+    // CLEARING a room, so the room you die in never yields one. It will keep
+    // holding until a run first clears its deepest room, which for a corpus of
+    // 84 deaths and 0 clears has never happened.
+    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(10);
   });
 });
 
@@ -300,7 +309,19 @@ describe("fail-closed on unmodelled types", () => {
       // no type this list had never seen, the second such session in a row
       // after sessions 87/88, and the pattern of a coverage gain being partly
       // offset has now not held twice running.
-      "AddLifestealSword", // session 43: first sighting, live room-1 offer (bot-initiated juiced run 1), not picked // live [2026-08-16/17]: first sighting, the takeover run's room-3 offer, not picked
+      // [session 109] ONE moved OUT and NONE moved in: `AddLifestealSword` got
+      // its first-ever pickup pair (run 1, room 4, taken by the orb fallback)
+      // and is modelled LATENT in `boons.ts`. The list shrinks 16 -> 15.
+      //
+      // It had been on this list since **session 43** — offered again and
+      // again and never picked — and it closes the lifesteal triple, joining
+      // the already-modelled AddLifestealShield and AddLifestealMagic. That
+      // family precedent is what separates it from `LossBlockUp`, which stays
+      // in AWAITING_MODEL_DIRECTIVE precisely because its own siblings
+      // (LossEvasionUp/LossLuckUp) are still unmodelled.
+      //
+      // The two runs offered no type this list had never seen — the third such
+      // session in a row after 106 and 108.
       "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked // session 11: first sighting, room-1 offer, not picked
       "BurningCrit", // session 52: first sighting, live room-5 offer, not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
@@ -504,7 +525,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // room-1 options — this time from a single `--runs=4` invocation rather
     // than four separate ones, so the count is the same shape for a different
     // batching. The clean TYPE set is unchanged once more.
-    expect(roomOne.length).toBe(255);
+    // [session 109] 255 -> 261: +6, exactly two runs x 3 room-1 options. The
+    // two runs were separate `--runs=1` invocations under standard rule 11,
+    // where session 108's +12 came from one `--runs=4` batch — so the count
+    // now scales with RUNS rather than with invocations, which is the same
+    // claim session 108 made from the opposite batching.
+    expect(roomOne.length).toBe(261);
 
     const clean: string[] = [];
     for (const option of roomOne) {

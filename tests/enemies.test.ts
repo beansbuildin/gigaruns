@@ -385,6 +385,43 @@ describe("player loadout matches the fixtures", () => {
       "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
       "62/32",
       "64/27", // [session 106] run 4 mid-run, 50/27 + AddMaxHealth(+14)
+      // [session 109] SIX new combos, all from run 2 (the deep run that reached
+      // room 11), and **NOT ONE is a new starting loadout.** Both runs opened
+      // on `50/17` with `pickedBoons: []` — rock 16/0, paper 6/12, scissor 12/8
+      // — byte-identical to session 108's four, read off each run's OWN
+      // start_run response rather than inferred from the other's.
+      //
+      // That confirmation is stronger than session 108's and worth the extra
+      // sentence. Session 108 noted that chaining had "removed the only window
+      // a re-spec could have occurred in"; this session HAD that window — two
+      // separate invocations with a user-facing pause between them, which is
+      // exactly where rule 11 expects skill points to be allocated — and the
+      // loadout still held. DECISIONS 2026-08-27's "holds steady" ruling now
+      // has the test it was previously missing. Both runs are ONE ARM.
+      //
+      // All six are ordinary mid-run states from a single trace, every one
+      // accounted for:
+      //
+      //   state-040  50/17 -> 74/17  AddMaxHealth(**val1 24**)
+      //   state-090  74/17 -> 74/14  corrode, exactly -3
+      //   state-094  74/14 -> 74/11  corrode again, exactly -3
+      //   state-108  74/11 -> 74/13  AddMaxArmor(+2)
+      //   state-110  74/13 -> 74/19  +6 restore at the next path choice
+      //   state-120  74/19 -> 88/19  AddMaxHealth(+14)
+      //
+      // ⚠ **AddMaxHealth val1 24 is the largest this table has ever recorded**,
+      // beating the 14 session 103 flagged. The warning above stands and just
+      // got a bigger example: read `selectedVal1`, never assume the size.
+      //
+      // The corrode trace re-confirms session 103's reading at a new depth —
+      // -3 exactly, twice, and the 6 comes back in one +6 step at the next
+      // path choice rather than in two.
+      "74/11",
+      "74/13",
+      "74/14",
+      "74/17",
+      "74/19",
+      "88/19",
     ]);
   });
 });

@@ -5152,3 +5152,83 @@ a model, and an unlisted type with a pair and no model still fails as before.
 **If the answer is yes**, add the model as `{ kind: "latent" }` with this
 section as its evidence and drop it from the set. **If no**, it stays here and
 the next pickup adds n.
+
+---
+
+## §65 — the guard-budget day-key straddle: fix it in code?
+
+**[session 109] Found at this session's first dry run, which fail-closed and
+blocked two legitimately-available runs.**
+
+`data/guard-budget.json` read `{date: "2026-08-29", energySpent: 240,
+runsStarted: 12}` while the server's `dayProgressEntities` read **6**. The dry
+run refused: `Guard tripped: session run cap reached {"attemptedRun":15,
+"cap":12}`.
+
+### Mechanism (traced in code, not inferred)
+
+`todayKey()` (`src/orchestrator/guardPersistence.ts:99`) is correctly anchored
+at 11:00 Pacific, DST-aware via `Intl`. That part is not the bug.
+
+`saveGuardBudget(energySpent, runsStarted, path)` (same file, ~line 164) writes:
+
+```ts
+const body = { date: todayKey(), energySpent, runsStarted };
+```
+
+`todayKey()` is evaluated at **write** time, but `energySpent`/`runsStarted` are
+the process's **cumulative** counters, seeded at **process start** from whatever
+day was current then. A process that crosses 11:00 PT therefore stamps the whole
+invocation's totals — including everything spent before the rollover — onto the
+new day.
+
+Session 108's single `--runs=4` invocation started 17:53Z (10:53 PT, key
+`2026-08-28`) and crossed 18:00Z (11:00 PT, key `2026-08-29`) between runs 2 and
+3. Runs 3 and 4 wrote 180/9 then 240/12 under the NEW key. The new day inherited
+two runs it never saw.
+
+### Why this matters beyond one bad file
+
+- **It is the same class as the potion-policy bug** — in-process state that only
+  misbehaves when one process spans a boundary. Rule 11's `--runs=1` hides it
+  for dungeons, which is why 108 sessions never saw it.
+- **It is NOT dungeon-only.** `scripts/liveFishing.ts:1799` uses the identical
+  `saveGuardBudget(guards.spentEnergy, guards.runCount, ...)` pattern and runs
+  **autonomously** across long cast batches, unattended, so it can straddle
+  11:00 PT with nobody watching.
+- **The failure direction is safe.** It over-counts spend and therefore BLOCKS
+  runs; it can never cause an over-spend. That is why this is a question and not
+  an emergency.
+
+### What was done this session
+
+The DATA was corrected, not the code — user-approved, and justified by CLAUDE.md
+§1 (the authoritative server count wins over local guard tracking). Set to
+`{date: "2026-08-29", energySpent: 120, runsStarted: 6}`, exactly runs 3+4. The
+next dry run then reported `real server runs today: 6/12 (matches bot-tracked
+count)` and both authorized runs proceeded normally.
+
+**There is no `--reset-guard` / reconcile flag.** `assertDungeonCapNotExhausted`
+reconciles only DOWNWARD-to-exhausted (server exhausted -> mark local exhausted);
+nothing reconciles a local ledger that is ahead of the server.
+
+### Proposed fix, if wanted
+
+Naive rebasing does not work: on a fresh process on a new day, `loadGuardBudget`
+already discards the stale file and seeds `{0,0}`, so subtracting the file's
+prior-day totals would go negative.
+
+The shape that does work is to memo, per guard-state path, the day key the
+in-memory counters belong to plus the cumulative totals at the last write:
+
+- at load, memo `lastDay = todayKey()` and `baseline = seed totals`;
+- on each save, if `todayKey() !== lastDay`, set `baseline = cumulativeAtLastSave`
+  and update `lastDay`;
+- always write `cumulative - baseline`.
+
+Fresh-process-new-day: baseline 0, writes cumulative — unchanged behaviour.
+Straddle: baseline 120/6 at the rollover, so run 3 writes 60/3. Correct in both.
+
+**Question: is this worth landing, given rule 11 pins `--runs=1` for dungeons
+and the failure direction is fail-safe? The autonomous fishing arm is the real
+argument for yes.**

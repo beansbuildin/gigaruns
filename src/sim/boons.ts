@@ -232,6 +232,36 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-22-03-51-44 state-005→state-006",
     observed: "selectedVal1 2 → no change to any player field",
   },
+  AddLifestealSword: {
+    // [session 109, LIVE] First pair — the orb fallback took it (19 Hard Core
+    // out of [14, 15, 19], orbRule "wide") in the first of this session's two
+    // Tier-1 juiced runs. Offered repeatedly since session 11 and never picked
+    // until now.
+    //
+    // Room 4 by the CORPUS convention `boonPickups` and OBSERVED_OFFERS use —
+    // the enemy still present in the `before` state, i.e. the room just
+    // cleared. `liveRun.ts`'s own log calls the same offer "room 5" because it
+    // counts the room being entered; the two are off by one by construction,
+    // not in disagreement.
+    //
+    // This COMPLETES the lifesteal triple at pickup: AddLifestealShield
+    // (session 75), AddLifestealMagic (session 25) and now the Sword sibling
+    // all measure identically — `selectedVal1 2`, zero change to any player
+    // field. So this is an established two-member family extended by
+    // measurement, NOT the name inference DECISIONS 2026-08-15 forbids; the
+    // combat effect stays unmodelled and `contaminates` says so.
+    //
+    // THE ZERO IS MEASURED, NOT A BLIND SPOT. Three boons in the SAME run
+    // moved a field under the identical whole-object diff — AddTenacity
+    // tenacity 1→3, AddEvasion evasion 0→10, AddIntuition intuition 0→4 — so
+    // the instrument was demonstrably live when it recorded nothing here.
+    // The whole-object diff of `players[0]` showed `pickedBoons` growing by
+    // one and nothing else changing at all.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-29-19-57-22 state-065→state-066",
+    observed: "selectedVal1 2 → no change to any player field",
+  },
   CorrosiveSword: {
     // [session 75, LIVE] First pair — taken TWICE in one run (rooms 2 and 3),
     // both times by the BOON-PRIORITY Sword-family rule rather than the orb
@@ -3010,6 +3040,97 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 5,
     source: "run-2026-08-29-17-53-12/state-344",
     options: [opt("AddLuck", 2), opt("AddEvasion", 2), opt("AddIntuition", 1)],
+  },
+  // [session 109, LIVE] The brief's two Tier-1 juiced runs, run separately
+  // under standard rule 11 (no chaining) — 16 new offers, in order. Run 1
+  // died at room 7 (offers 1..6); run 2 died at room 11, the DEEPEST this
+  // corpus has ever reached, and carried offers 1..10.
+  //
+  // Run 2's room-10 offer is the FIRST offer past room 9 on record, which is
+  // why the max-room pin in tests/boons.test.ts moves 9 -> 10.
+  //
+  // `AddLifestealSword` is picked here for the first time ever (run 1, room 4)
+  // and is modelled above as a result — it appears in this table as an OFFER
+  // in both runs, which is what it had always been until now.
+  {
+    room: 1,
+    source: "run-2026-08-29-19-57-22/state-005",
+    options: [opt("AddBurnShield", 5), opt("AddEvasion", 2), opt("WeakeningCrit", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-29-19-57-22/state-037",
+    options: [opt("CorrosiveShield", 2), opt("UpgradeScissor", 0, 8), opt("AddEvasion", 10)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-29-19-57-22/state-047",
+    options: [opt("AddTenacity", 2), opt("AddLifestealMagic", 2), opt("AddLuck", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-29-19-57-22/state-065",
+    options: [opt("AddLifestealShield", 2), opt("UpgradeScissor", 4), opt("AddLifestealSword", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-29-19-57-22/state-083",
+    options: [opt("UpgradePaper", 6), opt("AddEvasion", 10), opt("Thorns", 5)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-29-19-57-22/state-095",
+    options: [opt("AddBlock", 2), opt("AddLuck", 1), opt("AddIntuition", 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-29-20-04-50/state-009",
+    options: [opt("AddIntuition", 5), opt("CorrosiveSword", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-29-20-04-50/state-025",
+    options: [opt("AddBurnShield", 3), opt("AddTenacity", 2), opt("AddVulnerableSword", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-29-20-04-50/state-039",
+    options: [opt("UpgradeScissor", 8), opt("AddMaxHealth", 24), opt("AddLifestealSword", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-29-20-04-50/state-051",
+    options: [opt("Vengeance", 15), opt("AddBlock", 2), opt("SecondWind", 10)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-29-20-04-50/state-071",
+    options: [opt("AddIntuition", 2), opt("UpgradeRock", 4), opt("AddIntuition", 5)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-29-20-04-50/state-083",
+    options: [opt("AddBurnShield", 3), opt("AddLifestealMagic", 3), opt("AddBlock", 2)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-29-20-04-50/state-107",
+    options: [opt("AddMaxArmor", 2), opt("AddEvasion", 2), opt("AddVulnerableMagic", 2)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-29-20-04-50/state-119",
+    options: [opt("UpgradeRock", 0, 4), opt("AddLuck", 1), opt("AddMaxHealth", 14)],
+  },
+  {
+    room: 9,
+    source: "run-2026-08-29-20-04-50/state-151",
+    options: [opt("AddLuck", 4), opt("ArmorDepletedWeak", 2), opt("AddEvasion", 1)],
+  },
+  {
+    room: 10,
+    source: "run-2026-08-29-20-04-50/state-167",
+    options: [opt("AddBlock", 2), opt("BurnMastery", 1), opt("AddTenacity", 2)],
   },
 ];
 
