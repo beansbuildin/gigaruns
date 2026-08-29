@@ -166,6 +166,18 @@ describe("fail-closed on unmodelled types", () => {
 
   it("names the types the corpus offered but never showed the effect of", () => {
     expect(UNMODELLED_TYPES).toEqual([
+      // [session 106] ONE moved IN and NONE moved out: `VulnerableTenacity`,
+      // offered for the first time in run 4's room-3 offer
+      // (`AddMaxArmor(8) | VulnerableTenacity(4) | UpgradeRock(0,4)`) and not
+      // picked, so no pair exists to model it from. The list grows 15 -> 16.
+      //
+      // Worth stating because it is the FIRST new unmodelled type sighted from
+      // a Tier-1 entry, and it is evidence the entry tier does not narrow the
+      // offer pool: the four runs also OFFERED 6 already-listed unmodelled
+      // types across them (run 2 offered 3, run 3 one, run 4 two) at the same
+      // sort of rate Tier-3 did. Rule 8 governs which enemy tier is fought and
+      // the ENTRY tier governs the payout; neither appears to gate what the
+      // reward table can show.
       // [session 103] THREE moved OUT — `BurningEvade`, `BurnMastery` and
       // `ArmorDepletedVulnerable` all got first-ever pickup pairs from this
       // session's four juiced runs, all three LATENT (see `boons.ts`). These
@@ -261,6 +273,7 @@ describe("fail-closed on unmodelled types", () => {
       "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
       "TieDamageReduction",
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
+      "VulnerableTenacity", // session 106: first sighting, live room-3 offer (Tier-1 juiced run 4), not picked
       "WeakeningBlock",
       "WeakeningEvade", // session 09: first sighting, room-1 offers, not picked
     ]);
@@ -440,7 +453,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // vs "clean TYPE set unchanged for the fifth/sixth") were both left
     // un-narrated by session 99, so continuing either would be a guess about
     // what that session counted.
-    expect(roomOne.length).toBe(231);
+    // [session 106] 231 -> 243: +12, exactly the four Tier-1 runs' room-1
+    // offers at 3 options each. The clean TYPE set is unchanged again — the
+    // twelve are AddEvasion/AddLuck/AddBlock/AddIntuition/TieWeak-family and
+    // CorrosiveShield/BurningEvade sightings this table already carries — so
+    // the "closed under the only mechanism feeding it" claim holds through a
+    // change of ENTRY TIER, which is the first time it has been tested against
+    // one. Still no ordinal attached, for the reason the paragraph above gives.
+    expect(roomOne.length).toBe(243);
 
     const clean: string[] = [];
     for (const option of roomOne) {

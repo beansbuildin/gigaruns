@@ -229,6 +229,32 @@ describe("player loadout matches the fixtures", () => {
     // other two runs did not already, but it is the session-61/62 corrode
     // mechanic surfacing in THIS table for the first time.
     expect([...seen].sort()).toEqual([
+      // [session 106] FIVE new combos from the four juiced runs of 2026-08-28,
+      // and — the part that matters — **NOT ONE is a new starting loadout.**
+      // All four runs opened on `50/17` with `pickedBoons: []`, byte-identical
+      // to session 103 run 4's start, read off each run's OWN `start_run`
+      // response rather than inferred from one of them.
+      //
+      // That is the first positive confirmation of DECISIONS 2026-08-27's
+      // ruling that the loadout would HOLD STEADY going forward — the ruling
+      // that also made "a new census combo is a SIGNAL to chase" rather than
+      // expected drift. The signal was chased and came back clean: every combo
+      // below is ordinary mid-run growth off 50/17.
+      //
+      //   run 2  state-044  50/17 -> 50/25  AddMaxArmor(+8)
+      //   run 2  state-076  50/25 -> 50/27  AddMaxArmor(+2)
+      //   run 3  state-056  50/17 -> 58/17  AddMaxHealth(+8)
+      //   run 3  state-088  58/17 -> 58/27  AddMaxArmor(+10)
+      //   run 4  state-070  50/17 -> 50/27  AddMaxArmor(+10)
+      //   run 4  state-084  50/27 -> 64/27  AddMaxHealth(+14)
+      //
+      // ⚠ **`AddMaxArmor` is not a flat +2.** The entries above it were written
+      // around +2 pickups (sessions 95, 103); +8 and +10 both appear here. The
+      // boon's own `selectedVal1` carries the amount — read it, never assume
+      // the size. `AddMaxHealth` shows +8 and +14 the same way.
+      //
+      // All four runs are ONE ARM (50/17, 3/3 potions, juiced, Tier-1 entry),
+      // which is what makes their Hard Core poolable — handoff/log/session-106.md.
       // [session 103] NINE new combos from the four juiced runs of 2026-08-27,
       // and **TWO of them are new starting loadouts** — the first session since
       // 75 where the census caught the account changing under it, and the first
@@ -318,6 +344,8 @@ describe("player loadout matches the fixtures", () => {
       "50/16",
       "50/17", // [session 103] run 4's STARTING loadout
       "50/19", // [session 103] run 4 mid-run, 1x AddMaxArmor off 50/17
+      "50/25", // [session 106] run 2 mid-run, AddMaxArmor(+8) off 50/17
+      "50/27", // [session 106] run 2 (50/25 +2) and run 4 (50/17 +10), same combo twice
       "53/17", // [session 103] run 2 mid-run, 53/20 after corrode -3
       "53/19", // [session 103] run 2 mid-run, 53/17 + AddMaxArmor
       "53/20", // [session 103] run 1 mid-run, 1x AddMaxHealth off 45/20
@@ -336,9 +364,12 @@ describe("player loadout matches the fixtures", () => {
       // run: armorMax 40 is the highest this census has ever recorded, which
       // is what reaching room 10 buys rather than a change in the account.
       "54/40",
+      "58/17", // [session 106] run 3 mid-run, AddMaxHealth(+8) off 50/17
+      "58/27", // [session 106] run 3 mid-run, 58/17 + AddMaxArmor(+10)
       "59/20", // [session 103] run 3 mid-run, AddMaxHealth val1 14 off 45/20
       "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
       "62/32",
+      "64/27", // [session 106] run 4 mid-run, 50/27 + AddMaxHealth(+14)
     ]);
   });
 });

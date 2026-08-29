@@ -62,24 +62,57 @@ describe("the corpus slice this rests on", () => {
 });
 
 describe("the null — what an exchange does when nothing procs", () => {
-  it("damage taken equals the attacker's currentATK on the overwhelming majority", () => {
+  // [session 106] **This assertion was RE-DERIVED, not bumped.** It used to be
+  // `ok / n > 0.9` over ALL no-proc exchanges, justified by "the misses all
+  // carry a non-empty `statusEffects` array". Session 106's four juiced runs
+  // dropped that mixed rate to **604/688 = 87.8%** in this slice and failed it.
+  //
+  // Nothing had changed about the mechanic. The stated justification was
+  // already the whole story, and measuring it directly proves it: on
+  // status-CLEAN exchanges the null holds at **280/280 = 100.0%** in this slice
+  // and **1645/1645 = 100.0%** on the full corpus — ZERO misses, ever. Every
+  // single miss is status-carrying, exactly as the old comment claimed.
+  //
+  // So the old number was measuring SLICE COMPOSITION, not the rule. The
+  // status-dirty share of this bounded slice rose (408/688 = 59.3%, against
+  // 1004/2649 = 37.9% on the full corpus) because session 106's runs took
+  // status-heavy boons — CorrosiveShield, AddBurnSword, BurnMastery, TieWeak,
+  // TieVulnerable. A mixed-population rate is a function of that mix and will
+  // keep drifting with whatever the last 20 runs happened to pick.
+  //
+  // The fix is the session-105 `deckShuffle` lesson applied to a different
+  // shape: assert the invariant on the population it actually holds over, and
+  // make it EXACT. `cleanMisses === 0` is strictly stronger than `> 0.9` and
+  // cannot be satisfied by a favourable mix. The mixed rate stays computed and
+  // is reported below as an observation, deliberately NOT asserted.
+  it("damage taken equals the attacker's currentATK on EVERY status-clean exchange", () => {
     let ok = 0;
     let n = 0;
+    let cleanOk = 0;
+    let cleanN = 0;
+    const cleanMisses: string[] = [];
     for (const ex of exchanges) {
       if (Object.values(ex.flags).some(Boolean)) continue;
       for (const victim of [0, 1] as const) {
         const attacker = (1 - victim) as 0 | 1;
         if (!dealtDamage(ex, attacker) || typeof ex.atk[attacker] !== "number") continue;
         n++;
-        if (ex.taken[victim] === ex.atk[attacker]) ok++;
+        const hit = ex.taken[victim] === ex.atk[attacker];
+        if (hit) ok++;
+        if (!ex.statusClean) continue;
+        cleanN++;
+        if (hit) cleanOk++;
+        else cleanMisses.push(`${ex.label} victim=${victim} taken=${ex.taken[victim]} atk=${ex.atk[attacker]}`);
       }
     }
     expect(n).toBeGreaterThan(100);
-    // Full corpus at session 101: 2211/2285 = 96.8%. The misses all carry a
-    // non-empty `statusEffects` array — the mechanics CAPTURE-1 still lists as
-    // unmeasured. A drop below this floor means something OTHER than statuses
-    // started moving damage, which is a finding, not a flake.
-    expect(ok / n).toBeGreaterThan(0.9);
+    expect(cleanN).toBeGreaterThan(100);
+    // THE INVARIANT. A single clean miss means something other than a status
+    // moved damage — a finding, not a flake, and it names the exchange.
+    expect(cleanMisses).toEqual([]);
+    expect(cleanOk).toBe(cleanN);
+    // Observation only, not an assertion: the mixed rate is composition-bound.
+    expect(ok / n).toBeGreaterThan(0.5);
   });
 });
 
