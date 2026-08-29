@@ -1,106 +1,73 @@
-# BRIEF — session 108 — dungeon: 4 Tier-1 juiced runs, ONE invocation, chained without stopping
+# BRIEF — session 109 — the remaining 2 Tier-1 dungeon runs, one at a time, standard rule 11
 
-**This document replaces the session-107 `next.md`.** Session 107 is executed
-and closed — fishing-only batch GATE PASS on the raised 300/25 budget, 22
-casts played / 20 charged, JEBAITOR gap measured at 9.1% (STATE.md session
-107). **Before doing anything below, read STATE.md's "Settled — do not
-re-open" digest.** Nothing in this brief should duplicate an entry in that
-digest — if anything below looks like it might, that's this brief being
-wrong, not the digest being stale.
+**This document replaces the session-108 `next.md`.** Session 108 is executed
+and closed — 4 chained Tier-1 runs GATE PASS, but with a real cost: a
+potion-policy sharing bug burned 9 Big Heal Juice across runs 2-4 (STATE.md
+session 108, `DECISIONS.md` 2026-08-29). **The fix is already landed and
+verified** (`runPotionPolicyFor` in `scripts/liveRun.ts`, regression test in
+`tests/potions.test.ts`, full suite green 2121/2121) — this is not new work,
+it's a precondition to check before spending anything.
 
-**This session is dungeon only.** No fishing is authorized here.
+**Before doing anything below, read STATE.md's "Settled — do not re-open"
+digest.** Nothing in this brief should duplicate an entry in that digest — if
+anything below looks like it might, that's this brief being wrong, not the
+digest being stale.
+
+**Chaining does NOT apply this session.** Session 108's `--runs=4` was a
+one-time, dated exception and does not carry forward (DECISIONS 2026-08-29).
+This brief authorizes **`--runs=1`, twice, separately, with a stop and a
+fresh go-ahead between them** — standard rule 11.
 
 ---
 
-## Read this before running anything: today's authorization is non-standard
+## Step 0 — confirm the fix before spending anything
 
-**CLAUDE.md rule 11 normally requires `--runs=1` every invocation, with a
-full stop and a fresh human go-ahead before the next run** ("approval for one
-run is never approval for the next"). **The user has explicitly overridden
-that for this session only**, given directly in chat: *"This is time limited
-so I am authorizing for this session to play all 4 dungeons without stopping
-in between."*
+Do not run either dungeon run until this is confirmed on the actual code at
+HEAD, not assumed from the recap:
 
-Treat this as a **dated, single-session exception, not a rule change**:
+1. Confirm `scripts/liveRun.ts` calls `runPotionPolicyFor(...)` **inside**
+   the per-run loop (once per iteration), not once before it. The bug was a
+   single shared, mutated object; the fix is a fresh object per run.
+2. Run `tests/potions.test.ts` specifically and confirm all four
+   `runPotionPolicyFor` cases pass, especially "hands each run its own
+   object, so mutation cannot leak across runs."
+3. If either check fails or looks different from what's described above,
+   **stop and report it** — do not proceed to a live run on an unverified
+   fix. This step exists because the last live batch is exactly what
+   surfaced the bug; verifying in code, not by re-reading last session's
+   recap, is the point.
 
-- Run all 4 as **one invocation**, `--runs=4`, rather than four separate
-  `--runs=1` calls with a pause between. `liveRun.ts` already supports this
-  (`--runs=N`, "stage 4" in its own header) — the standing policy has simply
-  always passed 1. Nothing about the underlying mechanics changes; only the
-  batching does.
-- Record this explicitly in the recap and in `DECISIONS.md` as a **user
-  directive scoped to session 108's date, not a standing change to rule 11.**
-  The next dungeon brief still defaults to `--runs=1` with a stop between
-  runs unless the user says otherwise again — this authorization does not
-  carry forward by default.
-- Everything else about rule 11 is unchanged and still applies to all 4 runs
-  inside the single invocation (see below).
+## The 2 remaining runs
 
-## What doesn't change: the other four rule-11 conditions, on all 4 runs
+- **6 run-units are available in today's fresh window** (STATE.md session
+  108: the chained batch straddled the 11:00 PDT reset, leaving runs 3-4's
+  spend in a new window with 6/12 used) — confirm this with
+  `npx tsx scripts/checkDungeonToday.ts` first rather than assuming the
+  number is still 6; today may have moved on. **6 run-units / 3 = exactly 2
+  more juiced runs**, which is what this brief sizes for.
+- Each run is `--dry-run` first (rule 4), then `--runs=1 --juiced
+  --juiced-index=1` (Tier-1, 0 rings — settled, exercised live 8/8 already;
+  do not re-verify as if new).
+- **Stop after run 1. Report it. Get a fresh explicit go-ahead before run
+  2.** This is the standard rule-11 behavior session 108 was an exception
+  to, not the exception itself.
+- Between the two runs, the user may allocate skill points (never allocate
+  them yourself) — that's the normal reason for the pause, distinct from
+  the potion-policy fix, which is a code correctness issue, not a
+  human-decision one.
+- Still 60 energy, juiced, per run; still 3x Big Heal Juice (itemId 131)
+  auto-loaded per run. Both unchanged by anything above.
+- Rule 8 (highest non-Perpetual tier; lowest/no-modifiers at the final room)
+  governs every in-room `enemyPathOptions` pick in both runs, as always.
 
-- **`--juiced-index=1`.** `index` is the TIER value off `entryData[].tier`,
-  not an array position — `entryData` is ordered tier 2, 1, 3. Settled;
-  exercised live 4/4 already in session 106. Do not re-verify this as if it
-  were new.
-- **Zero rings.** Confirmed by the *absence* of negative
-  `gameItemBalanceChanges` on each `start_run` — session 106 found there is
-  no `inputItems` key on the request body itself (that was a correction to
-  the old measurement plan; don't ask for a field that doesn't exist).
-- **Still 60 energy, juiced**, per run — `--juiced` stays set for the whole
-  `--runs=4` invocation. `index` and `isJuiced` are independent axes; Tier-1
-  does not mean non-juiced.
-- **Still auto-loads 3x Big Heal Juice** (itemId 131,
-  `config/bot.json` → `forbiddenWoods.potions`) on every run in the batch —
-  that gate reads `--juiced` alone.
+## Report potion firing explicitly, this session especially
 
-## What chaining changes operationally: skill points and loadout
-
-- **Do not allocate skill points at any point in this batch — not between
-  runs, not at the end.** That prohibition is unconditional and this
-  authorization does not touch it. Since there is no pause between runs this
-  session, no allocation opportunity exists anyway; just don't invent one.
-- **This means gear stays exactly what it read at the start of run 1 across
-  all 4 runs** — a side effect of not stopping, and a good one: it keeps the
-  whole batch one single comparable loadout arm (the "stable going forward"
-  ruling), same as session 106's batch, with zero risk of drift between runs
-  since nothing is happening between them to drift.
-- Report the accumulated unspent skill XP at the end so the user can spend it
-  in one pass whenever they next choose to — do not treat "4 runs done" as
-  itself a natural allocation point unless the user says so.
-
-## Ledger discipline — before the batch and after, not between runs
-
-- `npx tsx scripts/checkDungeonToday.ts` **before** the invocation. Confirm
-  what's actually available today — do not assume a fresh 0/12; check
-  whatever the real `dayProgressEntities` reading is. **If fewer than 12
-  run-units (4 runs x 3) are available, say so up front and run only as many
-  full runs as the real ledger supports** — do not attempt a partial 4th run
-  or round up.
-- `--dry-run` first per standing rule-4 discipline, still worth the twenty
-  seconds even under time pressure.
-- Run `--runs=4 --juiced --juiced-index=1`.
-- `npx tsx scripts/checkDungeonToday.ts` again **after** the whole invocation
-  completes (not after each run — there's no natural pause to check at). If
-  the batch stops early (server error, three consecutive action failures,
-  daily cap reached mid-batch), that's rule 5 doing its job — report how many
-  of the 4 runs actually completed and why, same as any fail-closed stop.
-- If anything in the run is reported denied, blocked, or interrupted, re-read
-  the ledger before reporting it as not having happened — rule 13 stands
-  regardless of the batching change.
-
-## What this batch is and is not
-
-**This is not a re-run of the Tier-1 Hard Core measurement.** That's CLOSED
-(STATE.md digest: "MEASURED, not derived... It is no longer a derivation").
-Do not re-apply `TIER1-MEASUREMENT.md`'s decision rule or re-score H/r as if
-testing a hypothesis — the multiplier is settled at an exact 4:1 quantum.
-This batch is ordinary Tier-1 juiced play at the confirmed rate: bank the
-Hard Core and Dendren Root totals, rooms cleared, and boon picks as corpus,
-same as any other dungeon session, but don't frame it as evidence-gathering.
-
-Rule 8 (highest non-Perpetual tier; lowest/no-modifiers at the final room)
-still governs every in-room `enemyPathOptions` choice across all 4 runs —
-unaffected by the entry-tier setting or by the chaining.
+For each of the 2 runs, state: potions committed (should be 3, debited at
+`start_run`), potions actually fired (`use_item` count), and confirm they
+match. This is the exact number that silently diverged last session — make
+it a named line in the report both times, not just in the aggregate metrics
+table, so a recurrence would be caught immediately rather than at recap
+time.
 
 ---
 
@@ -109,19 +76,16 @@ unaffected by the entry-tier setting or by the chaining.
 Full suite (`--maxWorkers=4`), `tsc --noEmit`, `git diff --check`, secret
 scan. State explicitly, at the top of the recap:
 
-- That this session ran under a **one-time, dated exception to rule 11's
-  chaining prohibition**, explicitly authorized by the user for time
-  pressure — and that the exception does not carry forward.
-- How many of the 4 runs actually completed in the single invocation, and
-  why if fewer than 4 (ledger shortfall going in, or a mid-batch fail-closed
-  stop).
-- Per run: rooms cleared, Hard Core and Dendren Root totals, `start_run`
-  body confirmation (`index: 1`, `isJuiced: true`).
-- Total accumulated unspent skill XP at the end, ready for the user's next
-  single allocation pass.
-- **Carried forward, unresolved — this brief does not settle any of them:**
-  STATE.md's open question 1 (`nextPosition` override live, no sign-off),
-  open question 2 (fishing guard counter over-count — out of scope for a
-  dungeon session), and open question 3 (whether Tier-1 is now the baseline
-  for downstream dungeon reports — fourth session unaddressed; flag it again
-  rather than letting it go quiet).
+- Step 0's confirmation result — the fix was verified in code before any
+  spend, and how.
+- Whether both runs happened, or only the first (because the user didn't
+  reconvene, or a real block occurred) — either is a normal outcome, not a
+  shortfall.
+- Per run: potions committed vs. fired (the number above), rooms cleared,
+  Hard Core and Dendren Root totals.
+- **Carried forward, unresolved:** STATE.md's open question 1
+  (`LossBlockUp` modelling from n=1 — flagged as "the one blocking
+  question" last session; still needs a user directive, out of scope for
+  this brief to decide unilaterally), open question 3 (`nextPosition`
+  override live, no sign-off), and open question 5 (whether Tier-1 is now
+  the baseline for downstream dungeon reports — fifth session unaddressed).
