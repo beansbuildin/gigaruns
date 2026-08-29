@@ -53,10 +53,44 @@ describe("the corpus supports a boon model at all", () => {
   });
 });
 
+/**
+ * [session 108] Types with a live pickup pair that are deliberately NOT in
+ * `BOON_MODELS` yet, because modelling a type from n=1 needs an explicit user
+ * directive — the precedent is `LossIntuitionUp`, which session 99 measured,
+ * put to the account owner with its evidence, and only then modelled.
+ *
+ * **`LossBlockUp` — first-ever pickup, `run-2026-08-29-17-53-12`
+ * state-298 -> state-299, `selectedVal1` 5.** It had been OFFERED repeatedly
+ * across the corpus and never taken until now. Measured with session 89's
+ * strict check — a recursive diff of the ENTIRE raw `players[0]` object, not
+ * just the fields `toCombatant` projects — the pair's only difference in the
+ * whole object is this boon's own append to `pickedBoons`. `players[1]` is
+ * byte-identical.
+ *
+ * So it is LATENT AT PICKUP, measured, n=1. That is not the same as knowing
+ * what it does: per DECISIONS 2026-08-15 the effect is NOT inferred from the
+ * name, and `LossEvasionUp`/`LossLuckUp` are still unmodelled, so there is no
+ * established family to generalise from either. Awaiting a user directive.
+ */
+const AWAITING_MODEL_DIRECTIVE = new Set(["LossBlockUp"]);
+
 describe("every modelled boon reproduces its recorded delta", () => {
   for (const p of pickups) {
     it(`${p.picked.boonTypeString} — ${p.run} ${p.label}`, () => {
       const model = BOON_MODELS[p.picked.boonTypeString];
+      if (AWAITING_MODEL_DIRECTIVE.has(p.picked.boonTypeString)) {
+        // Pin the measurement that IS established, so the gap cannot quietly
+        // become a model: latent at pickup, whole-object diff.
+        expect(model, `${p.picked.boonTypeString} was modelled without a directive`).toBeUndefined();
+        const b = toCombatant(p.before.run.players[0]!);
+        const a = toCombatant(p.after.run.players[0]!);
+        expect(a.hp).toBe(b.hp);
+        expect(a.hpMax).toBe(b.hpMax);
+        expect(a.armor).toBe(b.armor);
+        expect(a.armorMax).toBe(b.armorMax);
+        for (const s of ROLLED) expect(a.rolled[s], s).toBe(b.rolled[s]);
+        return;
+      }
       expect(model, `${p.picked.boonTypeString} has a pair but no model`).toBeDefined();
 
       const before = toCombatant(p.before.run.players[0]!);
@@ -81,7 +115,13 @@ describe("every modelled boon reproduces its recorded delta", () => {
   }
 
   it("covers every boon type the corpus has a pair for, and models no others", () => {
-    const withPairs = [...new Set(pickups.map((p) => p.picked.boonTypeString))].sort();
+    // [session 108] Minus the types held back for a user directive — see
+    // `AWAITING_MODEL_DIRECTIVE`. Subtracting here rather than loosening the
+    // equality keeps this assertion exact: an unlisted type with a pair and
+    // no model still fails, which is the whole point of it.
+    const withPairs = [...new Set(pickups.map((p) => p.picked.boonTypeString))]
+      .filter((t) => !AWAITING_MODEL_DIRECTIVE.has(t))
+      .sort();
     expect(Object.keys(BOON_MODELS).sort()).toEqual(withPairs);
   });
 });
@@ -460,7 +500,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // the "closed under the only mechanism feeding it" claim holds through a
     // change of ENTRY TIER, which is the first time it has been tested against
     // one. Still no ordinal attached, for the reason the paragraph above gives.
-    expect(roomOne.length).toBe(243);
+    // [session 108] 243 -> 255: +12 again, and again exactly four runs x 3
+    // room-1 options — this time from a single `--runs=4` invocation rather
+    // than four separate ones, so the count is the same shape for a different
+    // batching. The clean TYPE set is unchanged once more.
+    expect(roomOne.length).toBe(255);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -501,6 +545,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // holes, the same distinction sessions 60, 61, 75, 93 and 95 drew. Wall 1
     // still has exactly SIX clean types, unchanged since session 52 and now
     // across a corpus that has grown by 71 offers since.
+    // [session 108] +1 `UpgradeRock` (eighth) and +1 `UpgradeScissor`
+    // (eleventh), from this session's four chained Tier-1 runs. Both are
+    // already-clean types RECURRING — NOT new holes, the same distinction
+    // sessions 60, 61, 75, 93, 95 and 99 drew. Wall 1 still has exactly SIX
+    // clean types, unchanged since session 52 across a corpus now grown by
+    // 94 offers since.
     expect(clean.sort()).toEqual([
       "AddMaxArmor", // [session 82] run 1's room-1 offer carried AddMaxArmor(8) — one more clean OPTION, and the clean TYPE set is still the same six.
       "AddMaxArmor",
@@ -534,6 +584,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
+      "UpgradeRock",
+      "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",

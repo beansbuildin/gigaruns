@@ -23,7 +23,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  burnRule,
+  burnMasterySplit,
   inertAtZero,
   loadStatusExchanges,
   regenRule,
@@ -38,13 +38,35 @@ const RUN_DIRS_SCANNED = 30;
 const ex = loadStatusExchanges({ maxRunDirs: RUN_DIRS_SCANNED });
 
 describe("Burn", () => {
-  it("ticks for the AFTER-state amount, without exception", () => {
-    // Against the BEFORE state this is only 303/522 with two families of
-    // exception (burn applied the same exchange; burn stacking). Against the
-    // after state it is exact. Full corpus at session 101: 522/522.
-    const r = burnRule(ex);
+  /**
+   * [session 108] This assertion used to run over the WHOLE population and be
+   * exceptionless. Session 108's batch broke it 384/396, and the 12 exceptions
+   * were not noise: every one is an exchange whose attacker held
+   * `BurnMastery`, and every one ticks 6 against a recorded amount of 3.
+   *
+   * The rule was incomplete, not wrong. Scoped to the population it actually
+   * describes it is exceptionless at a LARGER n than it ever reached combined
+   * (719/719 full corpus), and the amplified arm is pinned separately below.
+   * Do NOT "repair" this by lowering the expected count back onto the mixed
+   * population — that hides a mechanic inside an exception rate.
+   */
+  it("ticks for the AFTER-state amount, without exception, absent BurnMastery", () => {
+    const r = burnMasterySplit(ex).plain;
     expect(r.n).toBeGreaterThan(50);
     expect(r.ok).toBe(r.n);
+  });
+
+  it("is AMPLIFIED by BurnMastery, which never changes the recorded amount", () => {
+    const { mastery, pairs } = burnMasterySplit(ex);
+    // Total separation: no BurnMastery exchange ever ticks its plain amount.
+    expect(mastery.ok).toBe(0);
+    expect(mastery.n).toBeGreaterThan(0);
+    // **The open question, pinned so it cannot quietly be forgotten.** Every
+    // observation is 6-against-3, so a x2 multiplier and a flat +3 are
+    // indistinguishable. This assertion fails the moment a burn tick at any
+    // other amount lands — which is exactly the capture that would separate
+    // them. When it goes red, that is data arriving, not a regression.
+    expect(Object.keys(pairs)).toEqual(["6/3"]);
   });
 });
 

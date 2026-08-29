@@ -92,6 +92,50 @@ export function burnRule(exchanges: Exchange[]): Tally {
 }
 
 /**
+ * [session 108] **`BurnMastery` amplifies the TICK without touching the
+ * recorded AMOUNT**, which is why `burnRule` above suddenly acquired
+ * exceptions when session 108's batch landed.
+ *
+ * The split is total and has no off-diagonal cell. On the full corpus:
+ *
+ * ```
+ *   attacker holds BurnMastery = false   tick === after   719/719
+ *   attacker holds BurnMastery = true    tick === after     0/12   (all 6/3)
+ * ```
+ *
+ * So `burnRule`'s invariant was never wrong — it was INCOMPLETE, and stating
+ * it over the whole population hid a real mechanic inside an "exception rate".
+ * Split out, the no-mastery arm is exceptionless at a LARGER n than the
+ * combined rule ever managed.
+ *
+ * **What is NOT determined, and needs a capture rather than more of the same:**
+ * every one of the 12 observations is `after: 3` -> `tick: 6`, all from a
+ * single run (`run-2026-08-29-17-53-12`). A x2 multiplier and a flat +3 fit
+ * that data identically. Separating them needs a BurnMastery burn tick at any
+ * amount other than 3 — do not quote "BurnMastery doubles burn" as settled
+ * until one exists.
+ */
+export function burnMasterySplit(exchanges: Exchange[]): { plain: Tally; mastery: Tally; pairs: Record<string, number> } {
+  const plain: Tally = { ok: 0, n: 0 };
+  const mastery: Tally = { ok: 0, n: 0 };
+  const pairs: Record<string, number> = {};
+  for (const ex of exchanges) {
+    for (const side of [0, 1] as const) {
+      const after = ex.afterStatus[side].Burn;
+      const tick = ex.burn[side];
+      if (after === undefined && tick === 0) continue;
+      // The burn was applied by the OTHER side, so that is whose boons matter.
+      const held = (ex.boons?.[1 - side] ?? []).includes("BurnMastery");
+      const t = held ? mastery : plain;
+      t.n++;
+      if (tick === (after ?? 0)) t.ok++;
+      else if (held) pairs[`${tick}/${after ?? 0}`] = (pairs[`${tick}/${after ?? 0}`] ?? 0) + 1;
+    }
+  }
+  return { plain, mastery, pairs };
+}
+
+/**
  * `Weak` and `Vulnerable` as exact floor multipliers on the damage number.
  *
  * Isolated deliberately: no proc may have fired, the OTHER side must carry
@@ -262,6 +306,15 @@ function main(): void {
 
   const burn = burnRule(ex);
   console.log(`  Burn        tick === after-state amount            ${burn.ok}/${burn.n}  ${pct(burn)}`);
+  // [session 108] The combined rule above now carries exceptions, and every
+  // one of them is a BurnMastery tick. Printed split so the headline number
+  // is not read as a decaying invariant — see `burnMasterySplit`.
+  const bms = burnMasterySplit(ex);
+  console.log(`              without BurnMastery                     ${bms.plain.ok}/${bms.plain.n}  ${pct(bms.plain)}`);
+  console.log(
+    `              with BurnMastery (amplified)            ${bms.mastery.ok}/${bms.mastery.n}` +
+      `  pairs ${JSON.stringify(bms.pairs)} — x2 vs +3 UNSEPARATED (only after=3 ever seen)`,
+  );
 
   for (const s of ["Weak", "Vulnerable"] as const) {
     const r = scaleRule(ex, s);

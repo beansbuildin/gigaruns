@@ -5116,3 +5116,39 @@ does not promote it, and §57's "do not lift it into code" is unchanged.
 `pickOrderPower` sections. `tests/procEffectSize.test.ts` pins the collinearity
 as an invariant (informative strata < total strata) rather than as a count, so
 it survives corpus growth. 30 tests, was 25.
+
+---
+
+## §64 — [session 108] `LossBlockUp` needs a modelling directive
+
+**The ask, in one line: may `LossBlockUp` be modelled as `latent`, from n=1?**
+
+This is the same question session 99 asked about `LossIntuitionUp`, with the
+same evidence and the same n, and it is asked rather than assumed because that
+precedent required an explicit user directive.
+
+**What is measured.** First-ever PICKUP, `run-2026-08-29-17-53-12`
+state-298 -> state-299, `selectedVal1` 5, `Rarity: "Rare"`, `TokenId: 116`. It
+had been OFFERED many times across the corpus and never taken until now.
+Checked with session 89's strict method — a recursive diff of the ENTIRE raw
+`players[0]` object, not just the fields `toCombatant` projects — the pair's
+only difference in the whole object is this boon's own append to
+`pickedBoons`. `players[1]` is byte-identical.
+
+So: **latent at pickup, measured, n=1.**
+
+**Why it is not modelled already.** Per DECISIONS 2026-08-15 the effect is NOT
+inferred from the name, so nothing here claims it does anything on a loss.
+And there is no family to generalise from: of the four `Loss*Up` types,
+`LossIntuitionUp` is modelled (by directive) and `LossEvasionUp` /
+`LossLuckUp` remain unmodelled, having been offered but never picked.
+
+**Current state in the repo.** `tests/boons.test.ts` carries
+`AWAITING_MODEL_DIRECTIVE = new Set(["LossBlockUp"])`. The suite is GREEN and
+the gap is explicit: the test asserts the type is NOT in `BOON_MODELS` and
+separately pins the measured latent delta, so the gap cannot quietly turn into
+a model, and an unlisted type with a pair and no model still fails as before.
+
+**If the answer is yes**, add the model as `{ kind: "latent" }` with this
+section as its evidence and drop it from the set. **If no**, it stays here and
+the next pickup adds n.

@@ -1900,6 +1900,36 @@ const FISHING_GUARD_STATE_PATH = join("data", "guard-budget-fishing.json");
  * yet (genuinely zero runs today). Pure/testable — takes the already-fetched
  * response, not a client.
  */
+export type PotionPolicy = { itemId: number; threshold: number; remaining: number; used: number };
+
+/**
+ * [session 108] The potion policy handed to ONE run of a `--runs=N` batch.
+ *
+ * `runOnce`'s call site mutates the object it is given (`p.remaining--;
+ * p.used++`), so a single shared object silently disarms every run after the
+ * first: run 1 drains `remaining` to 0 and `shouldUsePotion` then returns
+ * false forever. That is not free, because `start_run` commits the
+ * consumables and the server debits them THERE — runs 2..N pay for potions
+ * they can no longer fire. Session 108's four chained runs burned 9 Big Heal
+ * Juice exactly this way (stock 14 -> 2 against only 3 `use_item` calls).
+ *
+ * Returning a fresh object per run is the whole fix. `remaining` resets to
+ * the configured count because every genuinely new run commits a fresh
+ * `consumables` array; `used` is an index into THAT array and so resets to 0.
+ * Only iteration 0 can be a `--resume-existing` of a run whose committed
+ * potions were already partly spent by an earlier invocation, so only
+ * iteration 0 honours `--potions-used=`.
+ */
+export function runPotionPolicyFor(
+  base: PotionPolicy | undefined,
+  potionCount: number,
+  iteration: number,
+  potionsUsed: number,
+): PotionPolicy | undefined {
+  if (!base) return undefined;
+  return { ...base, remaining: potionCount, used: iteration === 0 ? potionsUsed : 0 };
+}
+
 export function findRealRunsToday(today: { dayProgressEntities?: { docId: string; UINT256_CID: number }[] }, dungeonId: number): number | null {
   const row = today.dayProgressEntities?.find((e) => e.docId.endsWith(`#Dungeon#${dungeonId}`));
   return row ? row.UINT256_CID : null;
@@ -2312,6 +2342,24 @@ async function main() {
     // exits non-zero exactly as before — CLAUDE.md §5's fail-closed behavior
     // is unchanged, only the bookkeeping around it.
     let runError: unknown = null;
+    // [session 108] Rebuilt PER RUN rather than shared across the batch.
+    // `potionPolicyState` is constructed once above this loop and was passed
+    // in by reference, but `usePotionLive`'s call site mutates it
+    // (`p.remaining--; p.used++`). So run 1 draining its 3 potions left
+    // `remaining: 0` for every later run in a `--runs=N` batch, and
+    // `shouldUsePotion` returned false forever after. Runs 2..N still
+    // committed their 3x itemId 131 in `start_run`'s `consumables` — which
+    // is when the server DEBITS them, not when `use_item` fires — so they
+    // paid full price for potions they could not use. Session 108's batch
+    // burned 9 Big Heal Juice that way (stock 14 -> 2, only 3 use_item
+    // calls). Invisible for 108 sessions because rule 11 pins `--runs=1`,
+    // giving every run a fresh process and therefore fresh state.
+    //
+    // `used` is the index into THIS run's committed consumables array, so a
+    // genuinely new run always starts at 0. Only iteration 0 can be a
+    // `--resume-existing` of a run whose potions were already partly spent
+    // by an earlier invocation, so only iteration 0 honours `--potions-used=`.
+    const runPotionPolicy = runPotionPolicyFor(potionPolicyState, potionCount, i, args.potionsUsed);
     try {
       await runOnce(
         {
@@ -2350,7 +2398,7 @@ async function main() {
           // armed on every real run. Skipped on a dry run, which never POSTs
           // start_run and so has nothing to bracket.
           energyProbe: args.dryRun ? undefined : () => currentEnergy(client, me.address),
-          potionPolicy: potionPolicyState,
+          potionPolicy: runPotionPolicy,
           opponentModelPersistence,
           playCountsPersistence,
           shutdownSignal,

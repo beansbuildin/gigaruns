@@ -92,12 +92,46 @@ describe("data.events — the channel that actually carries proc evidence", () =
     expect(flagsThatFired, "no proc flag fired anywhere on the slice").toBeGreaterThanOrEqual(3);
   });
 
-  it("★ zero-stat control: no flag has EVER fired while its own stat read 0", () => {
-    // This is the assertion that turns a naming coincidence into a mapping.
+  /**
+   * [session 108] This control was absolute — "no flag has EVER fired while
+   * its own stat read 0" — and session 108's batch produced the first
+   * counterexample in the corpus's life: `intuitionProc0` fired once at
+   * `intuition: 0` (`run-2026-08-29-17-53-12/state-138.json`), with a
+   * corroborating `intuition_block` event, and with BOTH players reading 0.
+   * It is not a run-boundary reset artifact — intuition read 0 across states
+   * 134-138 of that run, so the stat was genuinely zero.
+   *
+   * **The mapping is NOT falsified, and the reason is a dose-response the
+   * absolute control never measured.** Full corpus, `intuitionProc0` by the
+   * actor's own intuition stat:
+   *
+   * ```
+   *    0   1/1716   0.06%
+   *    1   2/ 539   0.37%
+   *    2   1/  52   1.92%
+   *   10   4/  50   8.00%
+   * ```
+   *
+   * Monotone in the stat, and `lck` (the other candidate, and the account
+   * skill sitting at 6.75) shows no such trend — scattered, non-monotone. So
+   * intuition drives the flag, and the honest statement is a small nonzero
+   * BASE rate rather than a hard zero. Every other flag remains exactly 0.
+   */
+  it("★ zero-stat control: no flag except intuition has EVER fired at stat 0", () => {
     for (const [flag, ctl] of Object.entries(report.zeroStatControl)) {
       expect(ctl.n, `${flag} zero-stat observations`).toBeGreaterThan(50);
+      if (flag === "intuitionProc0") continue;
       expect(ctl.firedAtZero, `${flag} fired while its stat was 0`).toBe(0);
     }
+  });
+
+  it("pins intuition's lone zero-stat fire, so a second one is visible", () => {
+    // Deliberately an equality, not a bound. A second zero-stat intuition
+    // proc turns this red, and that is the point: at 1/1716 the base rate is
+    // a single event, and the next one materially changes what it means.
+    const ctl = report.zeroStatControl.intuitionProc0;
+    expect(ctl, "intuitionProc0 zero-stat control missing").toBeDefined();
+    expect(ctl!.firedAtZero).toBe(1);
   });
 
   it("cross-checks intuition against its own visible consequence", () => {

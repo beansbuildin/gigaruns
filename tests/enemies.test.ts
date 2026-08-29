@@ -228,6 +228,20 @@ describe("player loadout matches the fixtures", () => {
     // was mid-shred when the AddMaxArmor landed. It contributes no combo the
     // other two runs did not already, but it is the session-61/62 corrode
     // mechanic surfacing in THIS table for the first time.
+    // [session 108] ONE new combo from the four chained Tier-1 runs of
+    // 2026-08-29 — `50/14` — and the drift is again PURELY ADDITIVE: one
+    // added, ZERO removed, checked against the corpus.
+    //
+    // **It is not a new starting loadout, and it is not a re-spec.** The
+    // starting loadout was byte-identical on all four `start_run` responses
+    // (rock 16/0, paper 6/12, scissor 12/8), which is what the session-103
+    // "loadout holds steady" ruling asks to be confirmed rather than assumed —
+    // and chaining the runs removed the only window in which a re-spec could
+    // have happened. `50/14` is the session-61/62 CORRODE mechanic again,
+    // with the same shape as that section's trace:
+    //
+    //   state-175  currentMax 17 -> 14   corrode shred on an enemy win
+    //   state-183  currentMax back to 17 (room boundary)
     expect([...seen].sort()).toEqual([
       // [session 106] FIVE new combos from the four juiced runs of 2026-08-28,
       // and — the part that matters — **NOT ONE is a new starting loadout.**
@@ -341,6 +355,7 @@ describe("player loadout matches the fixtures", () => {
       "45/20", // [session 103] runs 1-3's STARTING loadout
       "48/22",
       "48/32",
+      "50/14",
       "50/16",
       "50/17", // [session 103] run 4's STARTING loadout
       "50/19", // [session 103] run 4 mid-run, 1x AddMaxArmor off 50/17
