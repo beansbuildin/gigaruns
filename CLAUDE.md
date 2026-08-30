@@ -175,10 +175,53 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
   user's judgement is that the silver-ring stock is worth spending on that
   where the gold-ring stock was not.
 
-  **⚠⚠ [2026-08-30, session 112] THE COST BELOW IS WRONG. MEASURED ON THE
-  FIRST LIVE TIER-2 RUN: exactly ONE faction is charged, THREE of it — not one
-  of each of seven.** Balances immediately before and after run 25215982
-  (faction day 20695), read twice after and stable:
+  **▸ THE COST, CURRENT AND THIRD VERSION [2026-08-30, session 113]. Tier 2
+  charges 3 rings of exactly ONE faction per juiced run, and WHICH faction
+  rotates daily.** This is a direct user statement, given in chat and treated
+  as ground truth rather than re-derived: *"the tier 2 ring cost is 3x of one
+  faction per juiced run, and each day the faction changes, that's why it was
+  described as one of the seven factions."* It resolves what session 112's
+  single measurement could not, and it explains `entryData` cleanly — the
+  seven ids at `inputAmounts: [1,…]` are the **set of factions the day
+  selection can land on**, not one entry's bill.
+
+  **Three consequences, and the third is the one that changes decisions.**
+
+  - **The runway is a WEEKLY question, not a per-run one.** A faction is
+    drained only on its own active days, so `min(balance) / 3` was never the
+    right shape. At the 2026-08-30 balances (30/30/39/39/45/54/54) and rule
+    11's 4-runs-per-day ceiling, a uniform 7-day rotation gives **2 full
+    cycles = 14 days = ~56 runs**, bound by Athena/Archon at 30 — against a
+    Tier-2 window running to day 20731. `npx tsx scripts/checkEntryTiers.ts`
+    prints this live and prints the caveat beside it. **Do not quote "30 runs
+    / 7.5 days"; it is retired**, and `tests/entryTierRunway.test.ts` fails if
+    anyone restores it.
+  - **The rotation ORDER is still unconfirmed and no number may assume it.**
+    Exactly one day has been observed (game day 20695 → Foxglove 139). A
+    single point fits every candidate formula for one choice of offset, so it
+    establishes nothing; **a run on a second day pins it.** The 56 above
+    assumes a uniform once-per-seven-days cycle — the user's model, not a
+    measurement.
+  - **TODAY'S FACTION IS NOT KNOWABLE IN ADVANCE.** Searched and not found
+    [session 113]: every key of `/game/dungeon/today` (including dungeon 5 and
+    `entryData`), `/account`, `/user/me`, and `/offchain/static`. Do not
+    re-hunt for this field. What `/offchain/static` DOES give, and is now
+    wired into `checkEntryTiers.ts` via `client.getGameDay()`, is
+    `currentDay` / `currentDayOfWeek` / `secondsTillNextDay` — the day index
+    and the rollover clock. That tells you **WHEN** the faction changes, never
+    **WHICH**. Learn the which from a balance diff after a run.
+
+  **The `3` is still unseparated, and it no longer matters here.** "3 = the
+  juiced run-unit multiplier" and "3 = a flat per-entry amount" both remain
+  open — but rule 11 mandates that every run be juiced, so both readings
+  charge 3 on every run this bot may make. The ambiguity only bites an
+  unjuiced entry, which rule 11 forbids. Do not spend a run to separate it.
+
+  **[2026-08-30, session 112 — the MEASUREMENT the above rests on. Correct as
+  far as it goes; superseded only in that it could not see tomorrow.]
+  MEASURED ON THE FIRST LIVE TIER-2 RUN: exactly ONE faction is charged,
+  THREE of it — not one of each of seven.** Balances immediately before and
+  after run 25215982 (faction day 20695), read twice after and stable:
 
   ```
   134 Chobo 39->39   135 Crusader 39->39   136 Overseer 45->45
@@ -194,9 +237,10 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
   a run on a different faction day.
 
   **So the runway arithmetic below is wrong, in the direction that
-  UNDERSTATES it.** Do not quote "30 runs / 7.5 days" and do not rewrite it
-  either until a second run identifies the next day's faction.
-  `scripts/checkEntryTiers.ts` prints the same wrong runway and now says so.
+  UNDERSTATES it.** ~~Do not rewrite it either until a second run identifies
+  the next day's faction.~~ [session 113] That hold is LIFTED — the user
+  supplied the rotation directly, so the model was rewritten without waiting
+  for a second run. "30 runs / 7.5 days" stays retired.
 
   **Also measured: NO ring debit appears on the wire.** `start_run`'s response
   has no `gameItemBalanceChanges` field at all (keys: `success, actionToken,
@@ -206,7 +250,12 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
 
   *The original claim is kept below, marked wrong, because the ORDER of the
   ids and the `inputAmounts` are still what `entryData` returns — what was
-  wrong is the inference that all seven are charged.*
+  wrong is the inference that all seven are charged.* [session 113] And the
+  reason it is worth keeping visible rather than deleting: it was **pinned by
+  a green test for two sessions**. `tests/entryTierRunway.test.ts` asserted
+  its arithmetic correctly the whole time; the model underneath was false. A
+  passing test proves the code computes what the test says, never that the
+  test says the right thing.
 
   ~~**The cost, measured live before the first run rather than assumed from
   Tier 3's shape.**~~ Tier 2's `entryData` reads

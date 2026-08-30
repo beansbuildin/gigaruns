@@ -184,6 +184,29 @@ export interface OilBudgetConfig {
    * Authorising the BUDGET is not authorising the TIMING.
    */
   policyApproved: boolean;
+  /**
+   * **[session 113] QUESTIONS §30's double-lethal band — the "spend TWO
+   * Relaxing Oils in one turn to make a 3-4 HP kill certain" override.**
+   *
+   * USER DIRECTIVE 2026-08-30: *"focus oil will not be added back on the
+   * allowlist, disable the override rule."* This selects option (b) of
+   * STATE.md session 112's open question 2 — the override is turned off so
+   * that the rule-4-approved on-demand policy's `fishHp <= 2` band is
+   * actually REACHED, rather than being starved by the override killing fish
+   * one HP band above it.
+   *
+   * **Absent or false = DISABLED.** The live path tests `=== true`, so a
+   * config that omits this key gets the approved policy. That is the opposite
+   * default from `perItemMaxPerCast` above and the asymmetry is deliberate: a
+   * forgotten ceiling can only fail toward spending LESS, a forgotten
+   * override switch would fail toward spending MORE.
+   *
+   * **This flag does not authorize anything on its own.** It is read at the
+   * TIMING site in `scripts/liveFishing.ts`, downstream of `mayConsumeOil`;
+   * `policyApproved`, `allowedItemIds` and both ceilings still gate every
+   * actual spend exactly as before.
+   */
+  doubleLethalOverride?: boolean;
 }
 
 /** Hard ceiling: the board state exposes exactly three consumable slots. */

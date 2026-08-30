@@ -425,3 +425,32 @@ export const DungeonActionRequestSchema = z.object({
     .passthrough(),
 });
 export type DungeonActionRequest = z.infer<typeof DungeonActionRequestSchema>;
+
+/**
+ * The scalar day clock off `GET /offchain/static` — [session 113] added for
+ * CLAUDE.md rule 11's faction-day rotation.
+ *
+ * `/offchain/static` is a ~900KB payload (626 `gameItems`, 543 `recipes`, 86
+ * `enemies`, 17 `lootTables`). This schema deliberately models ONLY the six
+ * top-level scalars, under `.passthrough()`, because the caller's question is
+ * "which game day is it and when does it flip" and nothing else. Widening this
+ * to the whole payload would make every unrelated server-side field addition a
+ * parse failure on a read-only preflight.
+ *
+ * `currentDay` is the same integer `dayProgressEntities[].TIMESTAMP_CID`
+ * carries (both read 20695 on 2026-08-30, session 112's run day), which is
+ * what makes it usable as the faction-day key without spending a run to learn
+ * it. `currentDayOfWeek === currentDay % 7` held on that observation; it is
+ * recorded as an observed identity, not assumed.
+ */
+export const GameDaySchema = z
+  .object({
+    serverTimestamp: z.number(),
+    currentDay: z.number().int(),
+    currentWeek: z.number().int(),
+    currentDayOfWeek: z.number().int(),
+    secondsTillNextDay: z.number(),
+    readableTimeTillNextDay: z.string(),
+  })
+  .passthrough();
+export type GameDay = z.infer<typeof GameDaySchema>;

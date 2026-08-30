@@ -62,6 +62,22 @@ const BotJsonSchema = z.object({
           // deliberately expressed by silence rather than by a number.
           perItemMaxPerCast: z.record(z.string(), z.number().int().nonnegative().max(3)).optional(),
           policyApproved: z.boolean(),
+          // [session 113] USER DIRECTIVE 2026-08-30: *"focus oil will not be
+          // added back on the allowlist, disable the override rule."* The
+          // double-lethal band (QUESTIONS §30, user override 2026-08-24) is
+          // OFF, leaving only the rule-4-approved on-demand policy under its
+          // necessity gate.
+          //
+          // **Absent means DISABLED, and that is the point of the shape.**
+          // The field is optional and the live path tests `=== true`, so the
+          // default behaviour is on-demand-only rather than "off unless
+          // configured" — a config file that forgets this key gets the
+          // approved policy, never the overridden one. That is the opposite
+          // default from `perItemMaxPerCast`, where absence means uncapped,
+          // and the difference is deliberate: a missing ceiling can only
+          // fail toward spending less, a missing override switch would fail
+          // toward spending more.
+          doubleLethalOverride: z.boolean().optional(),
         })
         .optional(),
     })
@@ -122,6 +138,12 @@ export interface BotConfig {
       /** [session 69 §4] Per-item per-cast ceiling, keyed by item id as a string. Absent id = uncapped. */
       perItemMaxPerCast?: Record<string, number>;
       policyApproved: boolean;
+      /**
+       * [session 113] QUESTIONS §30's double-lethal band. **Absent or false =
+       * DISABLED**, which is the shipped default per the user directive of
+       * 2026-08-30. Only an explicit `true` re-arms it.
+       */
+      doubleLethalOverride?: boolean;
     };
   };
 }

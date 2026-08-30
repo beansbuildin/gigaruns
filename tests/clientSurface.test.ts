@@ -48,6 +48,17 @@ const ALLOWED = new Set([
   // [session 100 §A] `GET /gear/instances/{address}` — the equipped rod's
   // `DURABILITY_CID`. A read of the account's own gear; touches nothing.
   "getGearInstances",
+  // [session 113] `GET /offchain/static` — the game's public static payload,
+  // read for its six day-clock scalars (`currentDay`, `secondsTillNextDay`,
+  // …) so CLAUDE.md rule 11's FACTION DAY can be known without spending a run.
+  //
+  // Added as the conscious act this file's header demands, not to make a red
+  // suite green. It takes no address and carries no account state — the same
+  // bytes every player gets — so it is the most inert read on the list, and
+  // `README.md`'s "never sells, burns, lists, transfers, or sends an on-chain
+  // transaction" is untouched by it. No README change accompanies this entry
+  // because the claim it makes does not move.
+  "getGameDay",
   // writes — both are game actions
   "postDungeonAction",
   "postFishingAction",

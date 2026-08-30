@@ -209,7 +209,24 @@ describe("it IS wired live — [session 90 §1b] the guard, turned around rather
     //
     // The decision this assertion protects is therefore unchanged: a revert to
     // bare `onDemandTriggers` at this call site still fails here.
-    expect(src).toContain("oilWanted = necessityGatedDoubleLethalTriggers(");
+    //
+    // ── [session 113] THE CALL IS NOW BEHIND A FLAG, AND THAT IS A THIRD
+    //    DIRECTION FOR THIS GUARD, NOT ITS DELETION ──────────────────────────
+    //
+    // USER DIRECTIVE 2026-08-30 disarmed the band: the live site is a ternary
+    // on `doubleLethalOverride === true`, falling to `conservingTriggers`.
+    // This guard has now pointed three ways — "must NOT be wired" (session
+    // 89), "must be wired" (session 90), and "must be wired BEHIND THE FLAG"
+    // (now) — and each turn was a user decision, never an agent's cleanup.
+    //
+    // So the assertion is split rather than loosened. Both halves must hold:
+    // the band is still reachable, AND it is reachable only when armed. Losing
+    // either is a silent withdrawal of a decision the account owner made —
+    // dropping the flag re-arms an override the user turned off, dropping the
+    // call deletes one they may turn back on.
+    expect(src).toContain("? necessityGatedDoubleLethalTriggers(fullOilState, PAYLOAD_OIL_EFFECTS)");
+    expect(src).toContain("const doubleLethalArmed = deps.oilBudget?.doubleLethalOverride === true;");
+    expect(src).toContain(": conservingTriggers(fullOilState, PAYLOAD_OIL_EFFECTS, RELAXING_ONLY_NECESSITY_THRESHOLDS)");
     // `onDemandTriggers` must STILL be called — it is the throw fallback, and
     // the reason every out-of-band behaviour is preserved. Its disappearance
     // would mean the degrade path went with it.

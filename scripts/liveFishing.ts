@@ -152,6 +152,8 @@ import {
 } from "../src/strategy/fishing/nextPositionArm.js";
 import {
   necessityGatedDoubleLethalTriggers,
+  conservingTriggers,
+  RELAXING_ONLY_NECESSITY_THRESHOLDS,
   onDemandTriggers,
   PAYLOAD_OIL_EFFECTS,
   type OilKind,
@@ -2418,13 +2420,30 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
             // [session 97 §1d] Was "taken by `on-demand`", which stopped being
             // true when the necessity gate shipped. The shadow is still
             // observational; what it is observational BESIDE has changed.
+            // [session 113] Named from the ARMED policy rather than hard-coded.
+            // This line has been wrong once already — session 97 §1d found it
+            // still saying "on-demand" after the necessity gate shipped — and a
+            // literal that has to be hand-edited every time the live policy
+            // changes will be wrong again. Deriving it cannot go stale.
             `Observational only; the live decision below is taken by ` +
-            `\`necessity-gated double-lethal\` regardless.`,
+            `\`${deps.oilBudget?.doubleLethalOverride === true ? "necessity-gated double-lethal" : "necessity-gated on-demand (double-lethal DISARMED)"}\` regardless.`,
         );
       }
     }
 
-    // ---- [session 97 §1d] THE LIVE TRIGGER IS NOW ------------------------
+    // ---- [session 113] THE LIVE TRIGGER IS `conservingTriggers` ----------
+    //
+    // **USER DIRECTIVE 2026-08-30 disarmed the double-lethal band.** The
+    // composed `necessityGatedDoubleLethalTriggers` described below is now
+    // reached only when `dendren.oils.doubleLethalOverride === true`, which
+    // `config/bot.json` does not set. Everything the session-97 block says
+    // about the composition is still TRUE and still the reason the disable is
+    // a clean cut: the two layers act on disjoint `fishHp` bands with no
+    // interaction term, so dropping the outer one changes behaviour on
+    // `2 < fishHp <= 4` and provably nowhere else. See the decision site
+    // below for the directive and the evidence behind it.
+    //
+    // ---- [session 97 §1d] THE LIVE TRIGGER WAS ---------------------------
     //      `necessityGatedDoubleLethalTriggers`
     //
     // **The necessity gate ships (QUESTIONS.md §39/§40), composed under the
@@ -2533,15 +2552,52 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       | "necessity-gated"
       | "double-lethal"
       | "on-demand (fallback after throw)" = "necessity-gated";
+    /**
+     * ── [session 113] THE DOUBLE-LETHAL OVERRIDE IS OFF BY DEFAULT ──────────
+     *
+     * **USER DIRECTIVE 2026-08-30:** *"focus oil will not be added back on the
+     * allowlist, disable the override rule."* That is option (b) of STATE.md
+     * session 112's open question 2, and it reverses the standing user
+     * override of 2026-08-24 (QUESTIONS §30) — which is why it needed a user
+     * to say it and could not be an agent's call.
+     *
+     * **What the reversal is FOR.** Session 112 measured that the approved
+     * on-demand policy was effectively unreachable: its Relaxing arm lives at
+     * `fishHp <= 2`, and the override kills at 3-4 with a certain two-oil
+     * pair, so the fish never descends into the approved band. Observed
+     * `fishHp`-at-decision histogram was **1:1, 2:0, 3:4, 4:5** across 96
+     * decision turns — **14 of 14 oils spent came from the override, 0 from
+     * the approved policy.** Turning the band off is what lets the policy the
+     * user actually approved be the policy that spends their oils.
+     *
+     * **The disabled arm is `conservingTriggers`, and that is exactly the
+     * composed policy minus the band — not a third behaviour.**
+     * `necessityGatedDoubleLethalTriggers` is defined as
+     * `doubleLethalOver(conservingTriggers(...))`, and that function's own
+     * case analysis (see its doc comment) proves the two layers act on
+     * DISJOINT `fishHp` bands with no interaction term. So removing the outer
+     * layer changes behaviour on `2 < fishHp <= 4` and provably nowhere else.
+     *
+     * **Default-off, not off-unless-configured.** `=== true` is the test, so a
+     * config file that omits `doubleLethalOverride` gets the approved policy.
+     * The flag is kept rather than the code deleted so the band stays legible
+     * in history and one config line re-arms it if a future user directive
+     * asks for it back — but nothing about that flag is self-arming.
+     *
+     * Evaluated per turn rather than hoisted, matching the `allowedIds` read
+     * below: `deps.oilBudget` is the config object and reading it at the
+     * decision keeps the two policy reads on the same footing.
+     */
+    const doubleLethalArmed = deps.oilBudget?.doubleLethalOverride === true;
     try {
-      oilWanted = necessityGatedDoubleLethalTriggers(
-        {
-          ...oilTimingState,
-          focusCell: { x: doc.data.focusPoint[0] ?? 1, y: doc.data.focusPoint[1] ?? 1 },
-          board: { hand: buildHand(doc), dist, gridSize },
-        },
-        PAYLOAD_OIL_EFFECTS,
-      );
+      const fullOilState = {
+        ...oilTimingState,
+        focusCell: { x: doc.data.focusPoint[0] ?? 1, y: doc.data.focusPoint[1] ?? 1 },
+        board: { hand: buildHand(doc), dist, gridSize },
+      };
+      oilWanted = doubleLethalArmed
+        ? necessityGatedDoubleLethalTriggers(fullOilState, PAYLOAD_OIL_EFFECTS)
+        : conservingTriggers(fullOilState, PAYLOAD_OIL_EFFECTS, RELAXING_ONLY_NECESSITY_THRESHOLDS);
     } catch (e) {
       // Degrade, do not die. The fallback is yesterday's shipped policy, so the
       // worst case of a throw is that this turn is decided by `on-demand` — a
@@ -2558,6 +2614,24 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
     }
     if (oilWanted.filter((k) => k === "relaxing").length >= 2) {
       if (oilTriggerSource === "necessity-gated") oilTriggerSource = "double-lethal";
+      // [session 113] With the band disarmed this is STRUCTURALLY unreachable:
+      // `conservingTriggers` only ever REMOVES entries from
+      // `onDemandTriggers`, which can emit at most ONE relaxing (its single
+      // relaxing is lethal by construction and ends the cast). So two
+      // relaxings on a disarmed turn means the composition changed underneath
+      // this site. It is reported LOUDLY rather than thrown, because throwing
+      // would abort a cast already in flight that has already spent its
+      // energy — the same reasoning as the try/catch above. The regression
+      // test that pins the unreachability is
+      // `tests/fishing/oilDoubleLethalDisabled.test.ts`.
+      if (!doubleLethalArmed) {
+        log.write({ event: "oil_double_lethal_fired_while_disarmed", turn, wanted: oilWanted, fishHp: doc.data.fishHp });
+        console.log(
+          `  ★★★ ANOMALY: two Relaxing Oils wanted on turn ${turn} with the double-lethal override ` +
+            `DISARMED (dendren.oils.doubleLethalOverride is not true). This is structurally unreachable — ` +
+            `report it. The cast CONTINUES; the per-cast cap still bounds the spend.`,
+        );
+      }
       // The event §30 asks to be able to find after the fact. Emitted at the
       // DECISION, before any POST, so a firing is on the record even if the
       // first consume then fails.

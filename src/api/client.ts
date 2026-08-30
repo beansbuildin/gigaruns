@@ -21,6 +21,7 @@ import {
   DungeonTodaySchema,
   DungeonStateOrIdleSchema,
   ItemsBalancesSchema,
+  GameDaySchema,
   GearInstancesResponseSchema,
   JuiceSchema,
   DungeonActionResponseSchema,
@@ -32,6 +33,7 @@ import {
   type DungeonToday,
   type DungeonState,
   type ItemsBalances,
+  type GameDay,
   type GearInstancesResponse,
   type Juice,
   type DungeonActionRequest,
@@ -514,6 +516,21 @@ export class GigaverseClient {
 
   async getItemsBalances(): Promise<ItemsBalances> {
     return this.get("/items/balances", ItemsBalancesSchema);
+  }
+
+  /**
+   * `GET /api/offchain/static` — CONFIRMED; the repo has cited this path for
+   * item metadata since session 11 (`scripts/parseHar.ts` reads it out of a
+   * recorded HAR), so it is not brute-forced.
+   *
+   * Read-only, and narrow ON PURPOSE — `GameDaySchema` models six scalars out
+   * of ~900KB. The only thing this call is for is CLAUDE.md rule 11's
+   * FACTION DAY: which day index the server thinks it is, and how long until
+   * it rolls. That is the one piece of the ring-cost model that can be read
+   * WITHOUT spending a run.
+   */
+  async getGameDay(): Promise<GameDay> {
+    return this.get("/offchain/static", GameDaySchema);
   }
 
   /**

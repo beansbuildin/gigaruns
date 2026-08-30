@@ -87,6 +87,23 @@ const APPROVED_BUDGET: OilBudgetConfig = {
   maxPerCast: 3,
   perItemMaxPerCast: { [String(MID_RELAXING_OIL_ITEM_ID)]: 2 },
   policyApproved: true,
+  // ⚠ [session 113] EXPLICITLY ARMED, and this line is the whole reason the
+  // file still passes. USER DIRECTIVE 2026-08-30 disarmed the double-lethal
+  // band by default; `scripts/liveFishing.ts` now tests
+  // `doubleLethalOverride === true` and otherwise runs `conservingTriggers`.
+  //
+  // **This file's subject did not change — its ARMING did.** Every assertion
+  // below is still about whether the band's MECHANICS are correct when it
+  // fires (two POSTs, two distinct slots, the session-68 mid-loop break), and
+  // those are exactly as load-bearing on an opt-in override as on a default
+  // one. What must NOT happen is someone reading these greens as evidence the
+  // band is live. It is not; `oilDoubleLethalDisabled.test.ts` pins that.
+  //
+  // Removing this line does not weaken the file, it silently changes its
+  // subject — all three band tests would then be exercising the DISARMED
+  // policy under a name that says otherwise. They fail loudly instead, which
+  // is how this line came to be written.
+  doubleLethalOverride: true,
 };
 
 /** The bottom of the band: one oil leaves the fish alive, two finish it. */
