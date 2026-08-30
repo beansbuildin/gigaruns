@@ -1,8 +1,11 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-29T20:10:16.108Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-30T01:54:02.591Z.
 
 273 recorded casts — 120 caught (44.0%).
+Total Hard Core earned: 19520 (162.7 per catch, 71.5 per cast).
+
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — measured across all 120 caught casts: rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480 — and 12 of those 120 paid an exact 2x or 4x multiple of that base with no distinguishing field on the response. See `src/sim/fishingReport.ts`'s `hardCore` doc comment.
 
 ## Fish caught, by name
 
@@ -24,278 +27,278 @@ Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` 
 
 ## Per-cast detail
 
-| docId | caught | fish |
-|---|---|---|
-| 12923189 | no | — |
-| 12923265 | no | — |
-| 12923267 | no | — |
-| 12923272 | no | — |
-| 12923274 | no | — |
-| 12925773 | no | — |
-| 12925775 | no | — |
-| 12925778 | no | — |
-| 12925779 | yes | Zombo (rarity 2) |
-| 12934447 | no | — |
-| 12942017 | yes | Finley (rarity 0) |
-| 12942020 | no | — |
-| 12942026 | no | — |
-| 12942030 | yes | Plankton (rarity 0) |
-| 12942037 | yes | Ollie (rarity 1) |
-| 12942144 | no | — |
-| 12942155 | no | — |
-| 12942159 | no | — |
-| 12942167 | yes | Finley (rarity 0) |
-| 12944907 | no | — |
-| 12944911 | no | — |
-| 12944916 | no | — |
-| 12944922 | no | — |
-| 12944926 | yes | Barnaboo (rarity 0) |
-| 12944936 | no | — |
-| 12945306 | no | — |
-| 12945310 | no | — |
-| 12945313 | no | — |
-| 12945315 | no | — |
-| 12945319 | yes | Kelpkin (rarity 1) |
-| 12956657 | no | — |
-| 12956660 | no | — |
-| 12956670 | no | — |
-| 12956675 | no | — |
-| 12956696 | no | — |
-| 12956718 | no | — |
-| 12956724 | no | — |
-| 12956727 | no | — |
-| 12956997 | no | — |
-| 12957007 | no | — |
-| 12957029 | no | — |
-| 12957031 | no | — |
-| 12957061 | no | — |
-| 12957065 | no | — |
-| 12957096 | no | — |
-| 12957105 | no | — |
-| 12957107 | no | — |
-| 12957122 | no | — |
-| 12957127 | no | — |
-| 12957129 | no | — |
-| 12975152 | no | — |
-| 12975700 | no | — |
-| 12975704 | no | — |
-| 12975708 | no | — |
-| 12975713 | no | — |
-| 12975717 | no | — |
-| 12975724 | no | — |
-| 12975728 | no | — |
-| 12975733 | no | — |
-| 12975736 | no | — |
-| 12975740 | no | — |
-| 12975744 | no | — |
-| 12975745 | no | — |
-| 12975750 | no | — |
-| 12975751 | no | — |
-| 12975753 | no | — |
-| 12975755 | no | — |
-| 12978000 | no | — |
-| 12978003 | no | — |
-| 12988700 | no | — |
-| 12988705 | yes | Finley (rarity 0) |
-| 12988708 | no | — |
-| 12988710 | no | — |
-| 12988717 | no | — |
-| 12991310 | no | — |
-| 12991312 | yes | Zombo (rarity 2) |
-| 12991317 | no | — |
-| 12991320 | yes | Finley (rarity 0) |
-| 12991326 | no | — |
-| 12991353 | no | — |
-| 12991355 | yes | Finley (rarity 0) |
-| 12991359 | no | — |
-| 12991361 | yes | Finley (rarity 0) |
-| 12991364 | no | — |
-| 12992258 | no | — |
-| 12992261 | no | — |
-| 12992267 | yes | Barnaboo (rarity 0) |
-| 12992271 | no | — |
-| 12992272 | no | — |
-| 13004295 | yes | Finley (rarity 0) |
-| 13004301 | no | — |
-| 13004305 | no | — |
-| 13004306 | no | — |
-| 13004315 | no | — |
-| 13018502 | yes | Plankton (rarity 0) |
-| 13018972 | yes | Deadfin (rarity 2) |
-| 13018980 | no | — |
-| 13018983 | yes | Barnaboo (rarity 0) |
-| 13018987 | yes | Plankton (rarity 0) |
-| 13018990 | no | — |
-| 13018993 | no | — |
-| 13019015 | no | — |
-| 13019665 | yes | Barnaboo (rarity 0) |
-| 13019672 | yes | Finley (rarity 0) |
-| 13019677 | yes | Barnaboo (rarity 0) |
-| 13019682 | yes | Ollie (rarity 1) |
-| 13019755 | no | — |
-| 13019756 | no | — |
-| 13019822 | yes | Barnaboo (rarity 0) |
-| 13022748 | yes | Barnaboo (rarity 0) |
-| 13022872 | no | — |
-| 13022874 | yes | Finley (rarity 0) |
-| 13022875 | no | — |
-| 13022876 | yes | Barnaboo (rarity 0) |
-| 13024476 | no | — |
-| 13024510 | yes | Barnaboo (rarity 0) |
-| 13024527 | yes | Plankton (rarity 0) |
-| 13024544 | no | — |
-| 13024550 | yes | Deadfin (rarity 2) |
-| 13024562 | yes | Plankton (rarity 0) |
-| 13024567 | yes | Ollie (rarity 1) |
-| 13024574 | yes | Ollie (rarity 1) |
-| 13024579 | yes | Gulp (rarity 3) |
-| 13024581 | yes | Barnaboo (rarity 0) |
-| 13025986 | no | — |
-| 13025987 | no | — |
-| 13025990 | yes | Kelpkin (rarity 1) |
-| 13025991 | yes | Jelloid (rarity 1) |
-| 13039914 | yes | Finley (rarity 0) |
-| 13039923 | no | — |
-| 13039932 | yes | Finley (rarity 0) |
-| 13041045 | no | — |
-| 13041046 | no | — |
-| 13041048 | no | — |
-| 13041050 | no | — |
-| 13041052 | no | — |
-| 13041055 | yes | Barnaboo (rarity 0) |
-| 13041058 | yes | Finley (rarity 0) |
-| 13041062 | yes | Barnaboo (rarity 0) |
-| 13041085 | yes | Glimmer (rarity 3) |
-| 13041473 | yes | Barnaboo (rarity 0) |
-| 13041474 | yes | Finley (rarity 0) |
-| 13041476 | no | — |
-| 13041477 | yes | Finley (rarity 0) |
-| 13041480 | yes | Skinzy (rarity 2) |
-| 13041482 | no | — |
-| 13041483 | yes | Barnaboo (rarity 0) |
-| 13041486 | yes | Podge (rarity 3) |
-| 13055873 | yes | Barnaboo (rarity 0) |
-| 13055875 | no | — |
-| 13055877 | no | — |
-| 13055879 | yes | Jelloid (rarity 1) |
-| 13055883 | yes | Ollie (rarity 1) |
-| 13055886 | yes | Podge (rarity 3) |
-| 13055888 | yes | Plankton (rarity 0) |
-| 13055892 | no | — |
-| 13055896 | yes | Skinzy (rarity 2) |
-| 13055900 | yes | Finley (rarity 0) |
-| 13055902 | no | — |
-| 13055908 | no | — |
-| 13055912 | no | — |
-| 13055915 | yes | Finley (rarity 0) |
-| 13055919 | yes | Plankton (rarity 0) |
-| 13055924 | yes | Barnaboo (rarity 0) |
-| 13055929 | yes | Barnaboo (rarity 0) |
-| 13055933 | no | — |
-| 13055941 | no | — |
-| 13055949 | yes | Finley (rarity 0) |
-| 13068149 | yes | Finley (rarity 0) |
-| 13068154 | yes | Globbo (rarity 3) |
-| 13068162 | no | — |
-| 13068171 | yes | Finley (rarity 0) |
-| 13068176 | no | — |
-| 13068184 | no | — |
-| 13068188 | no | — |
-| 13068190 | yes | Plankton (rarity 0) |
-| 13068194 | no | — |
-| 13068199 | no | — |
-| 13071770 | yes | Deadfin (rarity 2) |
-| 13071774 | no | — |
-| 13071780 | yes | Ollie (rarity 1) |
-| 13071782 | no | — |
-| 13071784 | no | — |
-| 13071790 | yes | Plankton (rarity 0) |
-| 13071792 | no | — |
-| 13071794 | yes | Barnaboo (rarity 0) |
-| 13071800 | no | — |
-| 13071804 | yes | Kelpkin (rarity 1) |
-| 13073296 | yes | Plankton (rarity 0) |
-| 13083672 | no | — |
-| 13083679 | no | — |
-| 13083684 | no | — |
-| 13083692 | no | — |
-| 13083699 | yes | Ollie (rarity 1) |
-| 13083708 | no | — |
-| 13083712 | yes | Barnaboo (rarity 0) |
-| 13083719 | no | — |
-| 13083724 | no | — |
-| 13083731 | yes | Finley (rarity 0) |
-| 13088831 | yes | Deadfin (rarity 2) |
-| 13088834 | yes | Jelloid (rarity 1) |
-| 13088836 | no | — |
-| 13088840 | no | — |
-| 13088843 | yes | Plankton (rarity 0) |
-| 13088844 | yes | Barnaboo (rarity 0) |
-| 13088849 | yes | Barnaboo (rarity 0) |
-| 13088850 | yes | Kelpkin (rarity 1) |
-| 13088852 | no | — |
-| 13089540 | no | — |
-| 13089546 | yes | Zombo (rarity 2) |
-| 13106708 | no | — |
-| 13106709 | yes | Barnaboo (rarity 0) |
-| 13106712 | yes | Barnaboo (rarity 0) |
-| 13106714 | no | — |
-| 13106717 | yes | Kelpkin (rarity 1) |
-| 13106720 | yes | Skinzy (rarity 2) |
-| 13106723 | no | — |
-| 13106726 | yes | Plankton (rarity 0) |
-| 13106730 | no | — |
-| 13106732 | yes | Ollie (rarity 1) |
-| 13106738 | yes | Barnaboo (rarity 0) |
-| 13106742 | yes | Finley (rarity 0) |
-| 13106748 | yes | Plankton (rarity 0) |
-| 13106752 | yes | Barnaboo (rarity 0) |
-| 13106755 | yes | Plankton (rarity 0) |
-| 13106758 | yes | Slo_mo (rarity 4) |
-| 13106761 | yes | Finley (rarity 0) |
-| 13106763 | no | — |
-| 13106764 | yes | Plankton (rarity 0) |
-| 13106766 | no | — |
-| 13131265 | yes | Barnaboo (rarity 0) |
-| 13131266 | yes | Zombo (rarity 2) |
-| 13131269 | no | — |
-| 13131271 | yes | Jelloid (rarity 1) |
-| 13131273 | no | — |
-| 13131275 | no | — |
-| 13131278 | yes | Finley (rarity 0) |
-| 13131282 | yes | Barnaboo (rarity 0) |
-| 13131285 | yes | Kelpkin (rarity 1) |
-| 13131287 | yes | Skinzy (rarity 2) |
-| 13131289 | yes | Barnaboo (rarity 0) |
-| 13131292 | yes | Plankton (rarity 0) |
-| 13131297 | yes | Plankton (rarity 0) |
-| 13131303 | yes | Barnaboo (rarity 0) |
-| 13131305 | no | — |
-| 13131307 | yes | Chompus (rarity 4) |
-| 13131311 | no | — |
-| 13131313 | yes | Plankton (rarity 0) |
-| 13131367 | no | — |
-| 13131370 | yes | Zombo (rarity 2) |
-| 13131373 | no | — |
-| 13148587 | no | — |
-| 13148588 | yes | Barnaboo (rarity 0) |
-| 13148589 | yes | Ollie (rarity 1) |
-| 13148593 | no | — |
-| 13148595 | no | — |
-| 13148599 | yes | Plankton (rarity 0) |
-| 13148601 | yes | Kelpkin (rarity 1) |
-| 13148605 | yes | Jelloid (rarity 1) |
-| 13148610 | yes | Plankton (rarity 0) |
-| 13148612 | yes | Barnaboo (rarity 0) |
-| 13148616 | no | — |
-| 13148620 | yes | Jelloid (rarity 1) |
-| 13148624 | no | — |
-| 13148630 | no | — |
-| 13148632 | no | — |
-| 13148636 | no | — |
-| 13148641 | no | — |
-| 13148646 | no | — |
-| 13148648 | yes | Plankton (rarity 0) |
-| 13148652 | yes | Jelloid (rarity 1) |
-| 13148658 | yes | Barnaboo (rarity 0) |
-| 13148661 | yes | Finley (rarity 0) |
+| docId | caught | fish | Hard Core |
+|---|---|---|---|
+| 12923189 | no | — | 0 |
+| 12923265 | no | — | 0 |
+| 12923267 | no | — | 0 |
+| 12923272 | no | — | 0 |
+| 12923274 | no | — | 0 |
+| 12925773 | no | — | 0 |
+| 12925775 | no | — | 0 |
+| 12925778 | no | — | 0 |
+| 12925779 | yes | Zombo (rarity 2) | 320 |
+| 12934447 | no | — | 0 |
+| 12942017 | yes | Finley (rarity 0) | 80 |
+| 12942020 | no | — | 0 |
+| 12942026 | no | — | 0 |
+| 12942030 | yes | Plankton (rarity 0) | 80 |
+| 12942037 | yes | Ollie (rarity 1) | 160 |
+| 12942144 | no | — | 0 |
+| 12942155 | no | — | 0 |
+| 12942159 | no | — | 0 |
+| 12942167 | yes | Finley (rarity 0) | 80 |
+| 12944907 | no | — | 0 |
+| 12944911 | no | — | 0 |
+| 12944916 | no | — | 0 |
+| 12944922 | no | — | 0 |
+| 12944926 | yes | Barnaboo (rarity 0) | 80 |
+| 12944936 | no | — | 0 |
+| 12945306 | no | — | 0 |
+| 12945310 | no | — | 0 |
+| 12945313 | no | — | 0 |
+| 12945315 | no | — | 0 |
+| 12945319 | yes | Kelpkin (rarity 1) | 160 |
+| 12956657 | no | — | 0 |
+| 12956660 | no | — | 0 |
+| 12956670 | no | — | 0 |
+| 12956675 | no | — | 0 |
+| 12956696 | no | — | 0 |
+| 12956718 | no | — | 0 |
+| 12956724 | no | — | 0 |
+| 12956727 | no | — | 0 |
+| 12956997 | no | — | 0 |
+| 12957007 | no | — | 0 |
+| 12957029 | no | — | 0 |
+| 12957031 | no | — | 0 |
+| 12957061 | no | — | 0 |
+| 12957065 | no | — | 0 |
+| 12957096 | no | — | 0 |
+| 12957105 | no | — | 0 |
+| 12957107 | no | — | 0 |
+| 12957122 | no | — | 0 |
+| 12957127 | no | — | 0 |
+| 12957129 | no | — | 0 |
+| 12975152 | no | — | 0 |
+| 12975700 | no | — | 0 |
+| 12975704 | no | — | 0 |
+| 12975708 | no | — | 0 |
+| 12975713 | no | — | 0 |
+| 12975717 | no | — | 0 |
+| 12975724 | no | — | 0 |
+| 12975728 | no | — | 0 |
+| 12975733 | no | — | 0 |
+| 12975736 | no | — | 0 |
+| 12975740 | no | — | 0 |
+| 12975744 | no | — | 0 |
+| 12975745 | no | — | 0 |
+| 12975750 | no | — | 0 |
+| 12975751 | no | — | 0 |
+| 12975753 | no | — | 0 |
+| 12975755 | no | — | 0 |
+| 12978000 | no | — | 0 |
+| 12978003 | no | — | 0 |
+| 12988700 | no | — | 0 |
+| 12988705 | yes | Finley (rarity 0) | 80 |
+| 12988708 | no | — | 0 |
+| 12988710 | no | — | 0 |
+| 12988717 | no | — | 0 |
+| 12991310 | no | — | 0 |
+| 12991312 | yes | Zombo (rarity 2) | 320 |
+| 12991317 | no | — | 0 |
+| 12991320 | yes | Finley (rarity 0) | 80 |
+| 12991326 | no | — | 0 |
+| 12991353 | no | — | 0 |
+| 12991355 | yes | Finley (rarity 0) | 80 |
+| 12991359 | no | — | 0 |
+| 12991361 | yes | Finley (rarity 0) | 80 |
+| 12991364 | no | — | 0 |
+| 12992258 | no | — | 0 |
+| 12992261 | no | — | 0 |
+| 12992267 | yes | Barnaboo (rarity 0) | 80 |
+| 12992271 | no | — | 0 |
+| 12992272 | no | — | 0 |
+| 13004295 | yes | Finley (rarity 0) | 80 |
+| 13004301 | no | — | 0 |
+| 13004305 | no | — | 0 |
+| 13004306 | no | — | 0 |
+| 13004315 | no | — | 0 |
+| 13018502 | yes | Plankton (rarity 0) | 80 |
+| 13018972 | yes | Deadfin (rarity 2) | 320 |
+| 13018980 | no | — | 0 |
+| 13018983 | yes | Barnaboo (rarity 0) | 80 |
+| 13018987 | yes | Plankton (rarity 0) | 80 |
+| 13018990 | no | — | 0 |
+| 13018993 | no | — | 0 |
+| 13019015 | no | — | 0 |
+| 13019665 | yes | Barnaboo (rarity 0) | 160 |
+| 13019672 | yes | Finley (rarity 0) | 80 |
+| 13019677 | yes | Barnaboo (rarity 0) | 80 |
+| 13019682 | yes | Ollie (rarity 1) | 160 |
+| 13019755 | no | — | 0 |
+| 13019756 | no | — | 0 |
+| 13019822 | yes | Barnaboo (rarity 0) | 80 |
+| 13022748 | yes | Barnaboo (rarity 0) | 80 |
+| 13022872 | no | — | 0 |
+| 13022874 | yes | Finley (rarity 0) | 80 |
+| 13022875 | no | — | 0 |
+| 13022876 | yes | Barnaboo (rarity 0) | 80 |
+| 13024476 | no | — | 0 |
+| 13024510 | yes | Barnaboo (rarity 0) | 80 |
+| 13024527 | yes | Plankton (rarity 0) | 80 |
+| 13024544 | no | — | 0 |
+| 13024550 | yes | Deadfin (rarity 2) | 320 |
+| 13024562 | yes | Plankton (rarity 0) | 80 |
+| 13024567 | yes | Ollie (rarity 1) | 160 |
+| 13024574 | yes | Ollie (rarity 1) | 160 |
+| 13024579 | yes | Gulp (rarity 3) | 400 |
+| 13024581 | yes | Barnaboo (rarity 0) | 80 |
+| 13025986 | no | — | 0 |
+| 13025987 | no | — | 0 |
+| 13025990 | yes | Kelpkin (rarity 1) | 160 |
+| 13025991 | yes | Jelloid (rarity 1) | 160 |
+| 13039914 | yes | Finley (rarity 0) | 160 |
+| 13039923 | no | — | 0 |
+| 13039932 | yes | Finley (rarity 0) | 80 |
+| 13041045 | no | — | 0 |
+| 13041046 | no | — | 0 |
+| 13041048 | no | — | 0 |
+| 13041050 | no | — | 0 |
+| 13041052 | no | — | 0 |
+| 13041055 | yes | Barnaboo (rarity 0) | 80 |
+| 13041058 | yes | Finley (rarity 0) | 80 |
+| 13041062 | yes | Barnaboo (rarity 0) | 80 |
+| 13041085 | yes | Glimmer (rarity 3) | 400 |
+| 13041473 | yes | Barnaboo (rarity 0) | 80 |
+| 13041474 | yes | Finley (rarity 0) | 80 |
+| 13041476 | no | — | 0 |
+| 13041477 | yes | Finley (rarity 0) | 80 |
+| 13041480 | yes | Skinzy (rarity 2) | 320 |
+| 13041482 | no | — | 0 |
+| 13041483 | yes | Barnaboo (rarity 0) | 80 |
+| 13041486 | yes | Podge (rarity 3) | 400 |
+| 13055873 | yes | Barnaboo (rarity 0) | 320 |
+| 13055875 | no | — | 0 |
+| 13055877 | no | — | 0 |
+| 13055879 | yes | Jelloid (rarity 1) | 160 |
+| 13055883 | yes | Ollie (rarity 1) | 320 |
+| 13055886 | yes | Podge (rarity 3) | 400 |
+| 13055888 | yes | Plankton (rarity 0) | 80 |
+| 13055892 | no | — | 0 |
+| 13055896 | yes | Skinzy (rarity 2) | 320 |
+| 13055900 | yes | Finley (rarity 0) | 80 |
+| 13055902 | no | — | 0 |
+| 13055908 | no | — | 0 |
+| 13055912 | no | — | 0 |
+| 13055915 | yes | Finley (rarity 0) | 80 |
+| 13055919 | yes | Plankton (rarity 0) | 160 |
+| 13055924 | yes | Barnaboo (rarity 0) | 80 |
+| 13055929 | yes | Barnaboo (rarity 0) | 80 |
+| 13055933 | no | — | 0 |
+| 13055941 | no | — | 0 |
+| 13055949 | yes | Finley (rarity 0) | 80 |
+| 13068149 | yes | Finley (rarity 0) | 80 |
+| 13068154 | yes | Globbo (rarity 3) | 400 |
+| 13068162 | no | — | 0 |
+| 13068171 | yes | Finley (rarity 0) | 320 |
+| 13068176 | no | — | 0 |
+| 13068184 | no | — | 0 |
+| 13068188 | no | — | 0 |
+| 13068190 | yes | Plankton (rarity 0) | 80 |
+| 13068194 | no | — | 0 |
+| 13068199 | no | — | 0 |
+| 13071770 | yes | Deadfin (rarity 2) | 320 |
+| 13071774 | no | — | 0 |
+| 13071780 | yes | Ollie (rarity 1) | 160 |
+| 13071782 | no | — | 0 |
+| 13071784 | no | — | 0 |
+| 13071790 | yes | Plankton (rarity 0) | 80 |
+| 13071792 | no | — | 0 |
+| 13071794 | yes | Barnaboo (rarity 0) | 80 |
+| 13071800 | no | — | 0 |
+| 13071804 | yes | Kelpkin (rarity 1) | 160 |
+| 13073296 | yes | Plankton (rarity 0) | 80 |
+| 13083672 | no | — | 0 |
+| 13083679 | no | — | 0 |
+| 13083684 | no | — | 0 |
+| 13083692 | no | — | 0 |
+| 13083699 | yes | Ollie (rarity 1) | 160 |
+| 13083708 | no | — | 0 |
+| 13083712 | yes | Barnaboo (rarity 0) | 160 |
+| 13083719 | no | — | 0 |
+| 13083724 | no | — | 0 |
+| 13083731 | yes | Finley (rarity 0) | 80 |
+| 13088831 | yes | Deadfin (rarity 2) | 320 |
+| 13088834 | yes | Jelloid (rarity 1) | 160 |
+| 13088836 | no | — | 0 |
+| 13088840 | no | — | 0 |
+| 13088843 | yes | Plankton (rarity 0) | 80 |
+| 13088844 | yes | Barnaboo (rarity 0) | 80 |
+| 13088849 | yes | Barnaboo (rarity 0) | 80 |
+| 13088850 | yes | Kelpkin (rarity 1) | 160 |
+| 13088852 | no | — | 0 |
+| 13089540 | no | — | 0 |
+| 13089546 | yes | Zombo (rarity 2) | 320 |
+| 13106708 | no | — | 0 |
+| 13106709 | yes | Barnaboo (rarity 0) | 80 |
+| 13106712 | yes | Barnaboo (rarity 0) | 80 |
+| 13106714 | no | — | 0 |
+| 13106717 | yes | Kelpkin (rarity 1) | 320 |
+| 13106720 | yes | Skinzy (rarity 2) | 320 |
+| 13106723 | no | — | 0 |
+| 13106726 | yes | Plankton (rarity 0) | 80 |
+| 13106730 | no | — | 0 |
+| 13106732 | yes | Ollie (rarity 1) | 320 |
+| 13106738 | yes | Barnaboo (rarity 0) | 160 |
+| 13106742 | yes | Finley (rarity 0) | 320 |
+| 13106748 | yes | Plankton (rarity 0) | 80 |
+| 13106752 | yes | Barnaboo (rarity 0) | 80 |
+| 13106755 | yes | Plankton (rarity 0) | 80 |
+| 13106758 | yes | Slo_mo (rarity 4) | 480 |
+| 13106761 | yes | Finley (rarity 0) | 80 |
+| 13106763 | no | — | 0 |
+| 13106764 | yes | Plankton (rarity 0) | 80 |
+| 13106766 | no | — | 0 |
+| 13131265 | yes | Barnaboo (rarity 0) | 80 |
+| 13131266 | yes | Zombo (rarity 2) | 320 |
+| 13131269 | no | — | 0 |
+| 13131271 | yes | Jelloid (rarity 1) | 160 |
+| 13131273 | no | — | 0 |
+| 13131275 | no | — | 0 |
+| 13131278 | yes | Finley (rarity 0) | 80 |
+| 13131282 | yes | Barnaboo (rarity 0) | 80 |
+| 13131285 | yes | Kelpkin (rarity 1) | 160 |
+| 13131287 | yes | Skinzy (rarity 2) | 320 |
+| 13131289 | yes | Barnaboo (rarity 0) | 80 |
+| 13131292 | yes | Plankton (rarity 0) | 80 |
+| 13131297 | yes | Plankton (rarity 0) | 80 |
+| 13131303 | yes | Barnaboo (rarity 0) | 80 |
+| 13131305 | no | — | 0 |
+| 13131307 | yes | Chompus (rarity 4) | 480 |
+| 13131311 | no | — | 0 |
+| 13131313 | yes | Plankton (rarity 0) | 80 |
+| 13131367 | no | — | 0 |
+| 13131370 | yes | Zombo (rarity 2) | 1280 |
+| 13131373 | no | — | 0 |
+| 13148587 | no | — | 0 |
+| 13148588 | yes | Barnaboo (rarity 0) | 80 |
+| 13148589 | yes | Ollie (rarity 1) | 160 |
+| 13148593 | no | — | 0 |
+| 13148595 | no | — | 0 |
+| 13148599 | yes | Plankton (rarity 0) | 80 |
+| 13148601 | yes | Kelpkin (rarity 1) | 160 |
+| 13148605 | yes | Jelloid (rarity 1) | 160 |
+| 13148610 | yes | Plankton (rarity 0) | 80 |
+| 13148612 | yes | Barnaboo (rarity 0) | 80 |
+| 13148616 | no | — | 0 |
+| 13148620 | yes | Jelloid (rarity 1) | 160 |
+| 13148624 | no | — | 0 |
+| 13148630 | no | — | 0 |
+| 13148632 | no | — | 0 |
+| 13148636 | no | — | 0 |
+| 13148641 | no | — | 0 |
+| 13148646 | no | — | 0 |
+| 13148648 | yes | Plankton (rarity 0) | 80 |
+| 13148652 | yes | Jelloid (rarity 1) | 160 |
+| 13148658 | yes | Barnaboo (rarity 0) | 80 |
+| 13148661 | yes | Finley (rarity 0) | 80 |

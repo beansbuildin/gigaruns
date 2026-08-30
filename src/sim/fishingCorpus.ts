@@ -25,6 +25,8 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import type { WireItemBalanceChange } from "./corpus.js";
+
 export type FishingActionKind = "start_run" | "play_cards" | "loot" | "unknown";
 
 /**
@@ -91,6 +93,23 @@ export interface FishingCorpusResponse {
   board: FishingBoardScalars;
   /** [session 79 §1] The draw-pile state, or `null` when this response carries no deck. */
   deck: FishingDeckState | null;
+  /**
+   * ── [session 110] THE CURRENCY THIS RESPONSE CREDITED ─────────────────────
+   *
+   * Top-level `gameItemBalanceChanges` — sibling to `data`, not inside it —
+   * carried verbatim, `[]` when the response has none. Same shape and same
+   * placement as `CorpusState.gameItemBalanceChanges` on the dungeon side, and
+   * deliberately the same DIVISION OF LABOUR: this loader records what the
+   * wire said, and `src/sim/fishingReport.ts` is the layer that knows item 845
+   * means "Hard Core". No item id is interpreted here.
+   *
+   * Fishing has credited Hard Core on every catch since the first cast ever
+   * captured (SPEC-fishing §4, live-verified session 15/16) — nothing on the
+   * wire is new. What was missing was any code in this repo that READ it, so
+   * every past session's fishing income is backfillable from fixtures already
+   * committed, with no new spend.
+   */
+  gameItemBalanceChanges: WireItemBalanceChange[];
   /** Server-stamped `doc.updatedAt`. The only sound ordering key within a cast — see `board`. */
   updatedAt: string;
 }
@@ -289,6 +308,7 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
         };
         events?: { type?: string; data?: { fish?: CaughtFish } }[];
       };
+      gameItemBalanceChanges?: WireItemBalanceChange[] | null;
     };
     const docId = body.data?.doc?.docId;
     if (typeof docId !== "string") continue; // not a fishing action response (e.g. a probe dump) — skip
@@ -334,6 +354,7 @@ export function loadFishingCorpus(root: string = join("fixtures", "fishing-casts
         focusMeterMax: numOr(d?.focusMeterMax, Number.NaN),
       },
       deck: readDeckState(d),
+      gameItemBalanceChanges: body.gameItemBalanceChanges ?? [],
       updatedAt: typeof body.data?.doc?.updatedAt === "string" ? body.data.doc.updatedAt : "",
     });
     byDoc.set(docId, cast);

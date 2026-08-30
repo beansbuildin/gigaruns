@@ -38,6 +38,7 @@ function state(
   stamp++;
   return {
     file: `s${stamp}`,
+    gameItemBalanceChanges: [],
     kind: opts.kind ?? "play_cards",
     completeCid: opts.complete ?? false,
     successCid: null,
