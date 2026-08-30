@@ -11,7 +11,14 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { acquireGuardLock, GuardPersistenceError, loadGuardBudget, saveGuardBudget, todayKey } from "../../src/orchestrator/guardPersistence.js";
+import {
+  acquireGuardLock,
+  GuardPersistenceError,
+  loadGuardBudget,
+  saveGuardBudget,
+  todayKey,
+  __resetGuardDayMemo,
+} from "../../src/orchestrator/guardPersistence.js";
 
 let dir: string;
 let path: string;
@@ -145,5 +152,172 @@ describe("acquireGuardLock", () => {
     const release = acquireGuardLock(path);
     release();
     expect(() => release()).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// [session 111, QUESTIONS §65] The day-key straddle.
+// ---------------------------------------------------------------------------
+
+describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
+  // Session 108's real timestamps, per session 109's log: the `--runs=4`
+  // invocation started 2026-08-29T17:53Z and crossed 18:00Z between runs 2
+  // and 3. PDT is UTC-7, so 17:53Z is 10:53 PT — BEFORE the 11:00 rollover,
+  // which puts it in guard day 2026-08-28, one calendar day behind the UTC
+  // date. That off-by-one is the whole reason `todayKey` exists, and getting
+  // it wrong here silently turns every case below into a no-straddle case, so
+  // the anchor assertion pins both keys before anything else runs.
+  const BEFORE_1 = new Date("2026-08-29T17:53:00Z"); // process start
+  const BEFORE_2 = new Date("2026-08-29T17:56:00Z"); // run 1 saved
+  const BEFORE_3 = new Date("2026-08-29T17:59:00Z"); // run 2 saved
+  const AFTER_1 = new Date("2026-08-29T18:03:00Z"); // run 3 saved — new guard day
+  const AFTER_2 = new Date("2026-08-29T18:07:00Z"); // run 4 saved
+
+  const read = () => JSON.parse(readFileSync(path, "utf8"));
+
+  beforeEach(() => {
+    __resetGuardDayMemo();
+  });
+
+  it("anchors the fixture: 17:59Z is guard day 2026-08-28 and 18:03Z is 2026-08-29", () => {
+    // If this ever fails, the cases below are testing nothing — same trap as
+    // CLAUDE.md rule 10, an instrument that stopped measuring.
+    expect(todayKey(BEFORE_1)).toBe("2026-08-28");
+    expect(todayKey(BEFORE_3)).toBe("2026-08-28");
+    expect(todayKey(AFTER_1)).toBe("2026-08-29");
+    expect(todayKey(AFTER_2)).toBe("2026-08-29");
+  });
+
+  it("reproduces session 108 exactly: the new day inherits ONLY the runs it saw", () => {
+    expect(loadGuardBudget(path, BEFORE_1)).toEqual({ energySpent: 0, runsStarted: 0 });
+
+    saveGuardBudget(60, 3, path, BEFORE_2);
+    expect(read()).toEqual({ date: "2026-08-28", energySpent: 60, runsStarted: 3 });
+
+    saveGuardBudget(120, 6, path, BEFORE_3);
+    expect(read()).toEqual({ date: "2026-08-28", energySpent: 120, runsStarted: 6 });
+
+    // The rollover. Cumulative counters are 180/9, but only 60/3 of that was
+    // spent on the new day.
+    saveGuardBudget(180, 9, path, AFTER_1);
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
+
+    saveGuardBudget(240, 12, path, AFTER_2);
+    // Exactly the value session 109 had to write by hand to unblock the day —
+    // runs 3+4 and nothing else. Before this fix the file read 240/12, and the
+    // next dry run fail-closed with {"attemptedRun":15,"cap":12} against a
+    // server that read 6.
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 120, runsStarted: 6 });
+    expect(read().runsStarted).not.toBe(12);
+  });
+
+  it("rebases correctly when the FIRST save of the process lands after the rollover", () => {
+    // The case that rules out memoising lazily at save time: the process loads
+    // a non-zero seed before 11:00 and does not write again until after it, so
+    // there is no pre-rollover save to learn the boundary from. The memo has to
+    // be seeded at LOAD.
+    writeFileSync(path, JSON.stringify({ date: "2026-08-28", energySpent: 60, runsStarted: 3 }));
+    expect(loadGuardBudget(path, BEFORE_1)).toEqual({ energySpent: 60, runsStarted: 3 });
+
+    saveGuardBudget(120, 6, path, AFTER_1);
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
+  });
+
+  it("FIRST LOAD WINS — a second load mid-process does not reset the baseline", () => {
+    // `liveRun.ts` and `liveFishing.ts` both load twice (a preflight read, then
+    // the real one), and `doctor.ts`/`checkFishingCaps.ts` load the same paths
+    // read-only. A re-seed after the rollover would zero the baseline and
+    // reintroduce the whole bug.
+    loadGuardBudget(path, BEFORE_1);
+    saveGuardBudget(60, 3, path, BEFORE_2);
+
+    // Post-rollover read: the file's date is now stale, so this returns a zero
+    // seed — and must NOT tell the memo that the counters start from zero.
+    expect(loadGuardBudget(path, AFTER_1)).toEqual({ energySpent: 0, runsStarted: 0 });
+
+    saveGuardBudget(120, 6, path, AFTER_2);
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
+  });
+
+  it("leaves the ordinary non-straddling case byte-identical to the old behaviour", () => {
+    loadGuardBudget(path, BEFORE_1);
+    saveGuardBudget(20, 1, path, BEFORE_2);
+    saveGuardBudget(40, 2, path, BEFORE_3);
+    expect(read()).toEqual({ date: "2026-08-28", energySpent: 40, runsStarted: 2 });
+  });
+
+  it("a fresh process on a new day still writes its cumulative total, not a negative", () => {
+    // §65 rejected naive rebasing for exactly this: `loadGuardBudget` already
+    // discards the stale file and seeds {0,0}, so subtracting the file's
+    // prior-day totals would go negative.
+    writeFileSync(path, JSON.stringify({ date: "2026-08-28", energySpent: 240, runsStarted: 12 }));
+    expect(loadGuardBudget(path, AFTER_1)).toEqual({ energySpent: 0, runsStarted: 0 });
+
+    saveGuardBudget(60, 3, path, AFTER_2);
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
+  });
+
+  it("saving with no prior load persists the cumulative unchanged", () => {
+    saveGuardBudget(40, 2, path, BEFORE_2);
+    expect(read()).toEqual({ date: "2026-08-28", energySpent: 40, runsStarted: 2 });
+  });
+
+  it("tracks the dungeon and fishing ledgers independently", () => {
+    // One process can account for both arms, and they roll over independently
+    // of each other's WRITE timing — the memo is keyed by path for this.
+    const fishingPath = join(dir, "guard-budget-fishing.json");
+    loadGuardBudget(path, BEFORE_1);
+    loadGuardBudget(fishingPath, BEFORE_1);
+
+    saveGuardBudget(60, 3, path, BEFORE_2);
+    saveGuardBudget(120, 10, fishingPath, BEFORE_2);
+
+    saveGuardBudget(120, 6, path, AFTER_1);
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
+    // The fishing ledger has not been written since the rollover, so its own
+    // pre-rollover file must be untouched.
+    expect(JSON.parse(readFileSync(fishingPath, "utf8"))).toEqual({
+      date: "2026-08-28",
+      energySpent: 120,
+      runsStarted: 10,
+    });
+
+    saveGuardBudget(156, 13, fishingPath, AFTER_2);
+    expect(JSON.parse(readFileSync(fishingPath, "utf8"))).toEqual({
+      date: "2026-08-29",
+      energySpent: 36,
+      runsStarted: 3,
+    });
+  });
+
+  it("drops the baseline instead of crashing when the counters are re-seeded downward", () => {
+    // The live path this protects: `liveFishing.ts` calls
+    // `guards.adoptServerRunCount()` after `reconcileFishingLedger`, and that
+    // setter assigns the server's count ABSOLUTELY and can lower it. A
+    // straddling autonomous batch whose reconciler had just corrected it
+    // downward would otherwise hit a negative day total. Writing the raw
+    // cumulative errs toward over-counting, which blocks runs and can never
+    // authorize a spend — and in the adopt case it is exactly the game's own
+    // number, because the reconciler guarantees that equality.
+    loadGuardBudget(path, BEFORE_1);
+    saveGuardBudget(120, 6, path, BEFORE_2);
+
+    saveGuardBudget(60, 3, path, AFTER_1);
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
+
+    // And it keeps counting forward correctly from there, with no baseline left.
+    saveGuardBudget(72, 4, path, AFTER_2);
+    expect(read()).toEqual({ date: "2026-08-29", energySpent: 72, runsStarted: 4 });
+  });
+
+  it("keeps the rebased file readable by loadGuardBudget on the new day", () => {
+    // End-to-end: the whole point is that the NEXT process reads a correct
+    // ledger. Session 109's did not, and blocked two available runs.
+    loadGuardBudget(path, BEFORE_1);
+    saveGuardBudget(120, 6, path, BEFORE_3);
+    saveGuardBudget(240, 12, path, AFTER_2);
+
+    __resetGuardDayMemo(); // a genuinely fresh process
+    expect(loadGuardBudget(path, AFTER_2)).toEqual({ energySpent: 120, runsStarted: 6 });
   });
 });

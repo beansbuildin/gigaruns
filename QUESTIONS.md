@@ -5155,7 +5155,7 @@ the next pickup adds n.
 
 ---
 
-## §65 — the guard-budget day-key straddle: fix it in code?
+## §65 ANSWERED [session 111] — FIXED IN CODE. The day-boundary memo landed; the answer to "is it worth it" was yes, and the autonomous fishing arm was the reason.
 
 **[session 109] Found at this session's first dry run, which fail-closed and
 blocked two legitimately-available runs.**
@@ -5232,3 +5232,53 @@ Straddle: baseline 120/6 at the rollover, so run 3 writes 60/3. Correct in both.
 **Question: is this worth landing, given rule 11 pins `--runs=1` for dungeons
 and the failure direction is fail-safe? The autonomous fishing arm is the real
 argument for yes.**
+
+---
+
+### ANSWERED [session 111] — landed, as designed above, with three corrections
+
+The memo is `DAY_MEMO` in `src/orchestrator/guardPersistence.ts`, keyed by
+guard-state path. `loadGuardBudget` and `saveGuardBudget` both take an optional
+`now: Date`, matching `todayKey`'s existing shape, so the boundary is testable
+without waiting for 11:00 Pacific. Ten regression cases in
+`tests/orchestrator/guardPersistence.test.ts` replay session 108's exact
+timestamps and land on `{date: "2026-08-29", energySpent: 120, runsStarted: 6}`
+— the value session 109 had to write by hand.
+
+**Correction 1 — the memo must be seeded at LOAD, not lazily at the first
+save.** §65's sketch says "at load, memo `lastDay`", and that detail is
+load-bearing rather than incidental: a process that loads a non-zero seed
+before 11:00 and does not write again until after it has no pre-rollover save
+to learn the boundary from, and a save-time memo would stamp the whole
+cumulative onto the new day — the original bug, intact. Pinned by its own case.
+
+**Correction 2 — FIRST LOAD WINS.** `liveRun.ts` and `liveFishing.ts` each call
+`loadGuardBudget` twice (a preflight/status read, then the real one), and
+`doctor.ts` and `checkFishingCaps.ts` load the same paths read-only. A second
+load re-seeding the memo after a rollover resets the baseline to zero and
+reintroduces the bug in full. `seedDayMemo` therefore skips a path it already
+knows. Pinned.
+
+**Correction 3 — a backwards move must NOT throw, and the first draft did.**
+`guards.adoptServerRunCount()` assigns the server's count ABSOLUTELY and can
+LOWER it, and `liveFishing.ts` calls it after `reconcileFishingLedger` on the
+autonomous path. Post-rollover that can put the cumulative below the baseline,
+so throwing would have crashed a straddling fishing batch at the exact moment
+it was healing itself. The baseline is what stops applying once the counters
+are re-seeded, so it is dropped and the raw cumulative is written — always
+`>=` the rebased value, so the error direction stays "over-count, block, never
+over-spend", and in the adopt case it is exactly the game's own number.
+
+**What this does NOT fix, stated so it is not read as solved.** Only the
+PERSISTED ledger is rebased. `GuardState`'s in-memory counters stay cumulative
+across the boundary, so the straddling process itself still counts the old
+day's spend against the new day's cap and stops early. That is fail-safe, and
+the next process reads a correct ledger. Re-seeding a live `GuardState`
+mid-batch is a larger change than this question asked for.
+
+**A wording correction to this section, for the record.** Above it says
+"`scripts/liveFishing.ts:1799` uses the identical `saveGuardBudget(...)`
+pattern". Line 1799 is not a write — it builds the `PersistedGuardBudget`-shaped
+input to `reconcileFishingLedger`; the write is `saveGuardBudget` at 1804, plus
+1903 and 1969. The conclusion was right (the autonomous arm reaches the bug and
+is the argument for fixing it) and all three writes go through the fix.

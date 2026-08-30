@@ -40,6 +40,29 @@
  *     silently exceeding the configured daily budget. `acquireGuardLock`
  *     below enforces one live writer per guard-state file for the life of
  *     the process, not just around one write.
+ *
+ * [session 111, QUESTIONS §65] Fix 4 — the DAY-KEY STRADDLE. `saveGuardBudget`
+ * evaluated `todayKey()` at WRITE time and wrote the process's CUMULATIVE
+ * counters under it. Those counters are seeded at PROCESS START, so a process
+ * that crosses 11:00 Pacific stamped the whole invocation's totals — including
+ * everything spent before the rollover — onto the new day. Session 108's single
+ * `--runs=4` invocation started 10:53 PT and crossed 11:00 between runs 2 and 3;
+ * the new day inherited two runs it never saw, and session 109's first dry run
+ * fail-closed with `{"attemptedRun":15,"cap":12}` against a server reading 6.
+ *
+ * The fix is the day-boundary memo below (`DAY_MEMO`): the counters are rebased
+ * at the boundary, so the pre-rollover spend stays on the day that spent it.
+ * Naive rebasing does NOT work and was rejected in §65 — on a fresh process on a
+ * new day `loadGuardBudget` already discards the stale file and seeds `{0,0}`,
+ * so subtracting the file's prior-day totals would go negative.
+ *
+ * WHAT THIS DOES NOT FIX, stated so it is not mistaken for solved: only the
+ * PERSISTED ledger is rebased. `GuardState`'s in-memory counters are still
+ * cumulative across the boundary, so the straddling process itself keeps
+ * counting the old day's spend against the new day's cap and stops early. That
+ * direction is fail-SAFE (it blocks; it can never over-spend), and the next
+ * process reads a correct ledger. Fixing the in-memory half means re-seeding a
+ * live `GuardState` mid-batch, which is a larger change than §65 asked for.
  */
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -113,6 +136,76 @@ export function todayKey(now: Date = new Date()): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
+// ---------------------------------------------------------------------------
+// The day-boundary memo — see this file's header, fix 4 (QUESTIONS §65).
+// ---------------------------------------------------------------------------
+
+type DayMemoEntry = {
+  /** The guard day the in-memory counters are currently being attributed to. */
+  day: string;
+  /** Cumulative totals belonging to PREVIOUS days; subtracted from every write. */
+  baselineEnergy: number;
+  baselineRuns: number;
+  /** Cumulative totals as of the last write — what the baseline becomes at a rollover. */
+  lastCumulativeEnergy: number;
+  lastCumulativeRuns: number;
+};
+
+/**
+ * Keyed by guard-state PATH, because one process can legitimately account for
+ * two arms at once (`guard-budget.json` and `guard-budget-fishing.json`) and
+ * they roll over independently of each other's write timing.
+ *
+ * Module state rather than a parameter, deliberately: the counters this rebases
+ * live in a `GuardState` that is handed around by reference across a whole
+ * batch, and threading a boundary token through every call site is exactly the
+ * shape that produced the potion-policy bug (a policy built once outside a
+ * `--runs=N` loop, mutated inside it). Tests reset it with
+ * `__resetGuardDayMemo`.
+ */
+const DAY_MEMO = new Map<string, DayMemoEntry>();
+
+function seedMemoEntry(path: string, seed: { energySpent: number; runsStarted: number }, day: string): DayMemoEntry {
+  const entry: DayMemoEntry = {
+    day,
+    // The seed came from THIS day's file (or is a zero seed), so none of it
+    // belongs to a previous day — baseline starts at zero and the first write
+    // persists the cumulative total unchanged. That is the pre-fix behaviour,
+    // preserved exactly for the overwhelmingly common non-straddling case.
+    baselineEnergy: 0,
+    baselineRuns: 0,
+    lastCumulativeEnergy: seed.energySpent,
+    lastCumulativeRuns: seed.runsStarted,
+  };
+  DAY_MEMO.set(path, entry);
+  return entry;
+}
+
+/**
+ * Records what day a freshly-loaded seed belongs to, and returns the seed so
+ * `loadGuardBudget` can stay a one-expression return.
+ *
+ * FIRST LOAD WINS. A second `loadGuardBudget` on the same path mid-process must
+ * NOT re-seed: `liveRun.ts` and `liveFishing.ts` both load twice (a status/
+ * preflight read and then the real one), and re-seeding after a rollover would
+ * reset the baseline to zero and reintroduce the exact bug this memo exists to
+ * fix. Read-only callers (`doctor.ts`, `checkFishingCaps.ts`) go through the
+ * same path and must likewise not disturb a live writer's accounting.
+ */
+function seedDayMemo(
+  path: string,
+  seed: { energySpent: number; runsStarted: number },
+  now: Date,
+): { energySpent: number; runsStarted: number } {
+  if (!DAY_MEMO.has(path)) seedMemoEntry(path, seed, todayKey(now));
+  return seed;
+}
+
+/** Test-only: clears the memo so cases can share a path without leaking state between them. */
+export function __resetGuardDayMemo(): void {
+  DAY_MEMO.clear();
+}
+
 /**
  * Loads today's already-spent energy/runs, or `{0, 0}` if nothing is on disk
  * yet (first run of the day — a legitimate zero seed) or the persisted date
@@ -122,8 +215,11 @@ export function todayKey(now: Date = new Date()): string {
  * `GuardPersistenceError` instead of silently returning a zero seed — see
  * this file's header comment, fix 1.
  */
-export function loadGuardBudget(path: string = DEFAULT_GUARD_STATE_PATH): { energySpent: number; runsStarted: number } {
-  if (!existsSync(path)) return { energySpent: 0, runsStarted: 0 };
+export function loadGuardBudget(
+  path: string = DEFAULT_GUARD_STATE_PATH,
+  now: Date = new Date(),
+): { energySpent: number; runsStarted: number } {
+  if (!existsSync(path)) return seedDayMemo(path, { energySpent: 0, runsStarted: 0 }, now);
 
   let raw: string;
   try {
@@ -149,8 +245,9 @@ export function loadGuardBudget(path: string = DEFAULT_GUARD_STATE_PATH): { ener
   }
 
   const parsed = result.data;
-  if (parsed.date !== todayKey()) return { energySpent: 0, runsStarted: 0 }; // a stale PRIOR day is a fresh budget, not corruption
-  return { energySpent: parsed.energySpent, runsStarted: parsed.runsStarted };
+  // A stale PRIOR day is a fresh budget, not corruption.
+  if (parsed.date !== todayKey(now)) return seedDayMemo(path, { energySpent: 0, runsStarted: 0 }, now);
+  return seedDayMemo(path, { energySpent: parsed.energySpent, runsStarted: parsed.runsStarted }, now);
 }
 
 /**
@@ -161,8 +258,55 @@ export function loadGuardBudget(path: string = DEFAULT_GUARD_STATE_PATH): { ener
  * shared `atomicWriteJson` — sibling temp file, fsynced, renamed into place
  * — see this file's header comment, fix 2, and CODEXAUDIT #5 (session 37).
  */
-export function saveGuardBudget(energySpent: number, runsStarted: number, path: string = DEFAULT_GUARD_STATE_PATH): void {
-  const body: PersistedGuardBudget = { date: todayKey(), energySpent, runsStarted };
+export function saveGuardBudget(
+  energySpent: number,
+  runsStarted: number,
+  path: string = DEFAULT_GUARD_STATE_PATH,
+  now: Date = new Date(),
+): void {
+  const day = todayKey(now);
+  const memo = DAY_MEMO.get(path) ?? seedMemoEntry(path, { energySpent, runsStarted }, day);
+
+  if (memo.day !== day) {
+    // The rollover happened between the last save and this one. Everything up
+    // to `lastCumulative` was spent on the OLD day and must not follow the
+    // counters across — rebase onto it. Using `lastCumulative` rather than the
+    // values being written now is what keeps the boundary exact: spend since
+    // the last save belongs to the new day.
+    memo.baselineEnergy = memo.lastCumulativeEnergy;
+    memo.baselineRuns = memo.lastCumulativeRuns;
+    memo.day = day;
+  }
+
+  if (energySpent < memo.baselineEnergy || runsStarted < memo.baselineRuns) {
+    // The counters moved BACKWARDS past the baseline. Within a process they are
+    // monotonic under ordinary play, so this means they were re-seeded from an
+    // authority — which is a real, live path, not a corruption: `liveFishing.ts`
+    // calls `guards.adoptServerRunCount()` after `reconcileFishingLedger`, and
+    // that setter assigns the server's own count ABSOLUTELY and can lower it.
+    //
+    // The first draft of this fix threw here. That was wrong in the one
+    // direction that matters — a straddling autonomous fishing batch whose
+    // reconciler had just corrected it downward would have CRASHED instead of
+    // healing. The baseline is what no longer applies once the counters are
+    // re-seeded, so it is dropped, and the raw cumulative is written.
+    //
+    // Safe by construction: the raw cumulative is always >= the rebased value
+    // (the baseline is non-negative), so this errs toward over-counting, which
+    // BLOCKS runs and can never authorize a spend. And in the adopt case it is
+    // not merely conservative but exactly right — `reconcileFishingLedger`
+    // guarantees the adopted count equals the game's own.
+    memo.baselineEnergy = 0;
+    memo.baselineRuns = 0;
+  }
+
+  const dayEnergy = energySpent - memo.baselineEnergy;
+  const dayRuns = runsStarted - memo.baselineRuns;
+
+  memo.lastCumulativeEnergy = energySpent;
+  memo.lastCumulativeRuns = runsStarted;
+
+  const body: PersistedGuardBudget = { date: day, energySpent: dayEnergy, runsStarted: dayRuns };
   atomicWriteJson(path, body);
 }
 
