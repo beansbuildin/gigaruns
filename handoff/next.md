@@ -1,149 +1,154 @@
-# BRIEF — session 111 — dungeon: switch to Tier-2 (silver rings), standing change, up to 4 runs one at a time
+# BRIEF — session 112 — offline wrap-up while the dungeon ledger resets, three decisions to record, two real fixes
 
-**This document replaces the session-110 `next.md`.** Session 110 is executed
-and closed — fishing-only, GATE PASS on both halves (Hard Core tracking
-built and backfilled, then 22 casts played / 20 charged). Today's dungeon
-ledger was untouched this whole time (last known 12/12, spent in session
-109 — **confirm live, don't assume it's still exhausted**, since the 11:00
-Pacific reset may have passed). **Before doing anything below, read
-STATE.md's "Settled — do not re-open" digest.** Nothing in this brief
-should duplicate an entry in that digest — if anything below looks like it
-might, that's this brief being wrong, not the digest being stale.
+**This document replaces the session-111 `next.md`.** Session 111 already
+recapped: the Tier-2 tier switch GATE PASS (documented in CLAUDE.md,
+STATE.md, DECISIONS.md; live cost read off `entryData`), but the live-run
+half DID NOT RUN — `dayProgressEntities` read 12/12 all session, the 11:00
+Pacific reset hadn't arrived. **The Tier-2 wire check (confirming the seven
+negative `gameItemBalanceChanges` on `start_run` match `entryData`) is still
+owed and is NOT this session's job to force** — see Step 4.
 
-**This session is dungeon only.** No fishing is authorized here.
+**Before doing anything below, read STATE.md's "Settled — do not re-open"
+digest.** Nothing below should duplicate an entry in it.
+
+**Zero live spend is the point of this session**, except opportunistically
+at the very end if the reset has genuinely passed by then (Step 4) — don't
+wait idle for the clock, do the offline work below first.
 
 ---
 
-## The directive: Tier-2 is now the standing entry tier, replacing Tier-1
+## Step 1 — record three decisions the user just made, directly in chat
 
-**User directive, given directly in chat, confirmed as a STANDING change
-(not scoped to one batch):** dungeon entry tier moves from Tier-1
-(`--juiced-index=1`, 0 rings) to **Tier-2 (`--juiced-index=2`, silver
-rings)**, effective this session, until the user says otherwise again.
+None of these are new investigation — they're user rulings on questions
+STATE.md had carried as open for multiple sessions. Record each with today's
+date in `DECISIONS.md` (matching the format every other dated ruling in that
+file uses) and update the STATE.md digest / relevant `QUESTIONS.md` entries
+to reflect them as answered, not open.
 
-This supersedes the settled **[USER] Rule 11 entry-tier** entry (currently:
-*"entry tier is Tier-1, 0 rings... Exercised live 10/10"*). Update it in
-place, the same way the 2026-08-27 Tier-3→Tier-1 change amended CLAUDE.md
-rule 11 rather than leaving two directives to disagree:
+1. **`nextPosition` override: KEPT ACTIVE, formally approved.** It had been
+   live and steering fishing card choice for seven sessions on self-armed
+   validation data (22/22 hits, Wilson lower bound 85.1%) with no sign-off.
+   The user's ruling: keep it running. Record this as the sign-off rule 11's
+   spirit (and STATE.md open question 4, carried sessions 105-111) was
+   waiting on. No code change — it's already live — this is documentation
+   catching up to a decision.
+2. **`LossBlockUp`: approved to model as `latent` from n=1**, same precedent
+   as `LossIntuitionUp` (session 99). QUESTIONS §64 has the evidence (whole-
+   object diff, only `pickedBoons` differs) — implement it the same way
+   `LossIntuitionUp` was implemented, same file, same pattern. Add the
+   regression case the way every other single-pair boon model in this repo
+   has one.
+3. **Oil policy: re-derive the approved on-demand policy — do NOT adopt the
+   double-lethal override.** The user's exact framing, worth keeping intact
+   in the DECISIONS entry: *"make a note of this decision today so we can
+   track results if they change, the current 60-70% catch rate is the ideal
+   target. We just want to make sure oils aren't being wasted."* This is
+   Step 2 below, not just a documentation entry — the investigation is real
+   work, do it before writing the decision up as resolved.
 
-- **Edit CLAUDE.md rule 11 directly**, adding a dated `[2026-08-30]` (or
-  whatever today's date reads) note the same shape as the existing
-  `[2026-08-27]` one: what changed, why (the user's own stated reason, plus
-  whatever ring-runway math this session produces — see below), and that it
-  is a user directive, not an optimisation.
-- **Update the STATE.md settled digest entry** to read Tier-2, and update
-  its "exercised live N/N" counter starting from this session's real count
-  rather than carrying forward the Tier-1 figure.
-- **Add a `DECISIONS.md` entry**, dated, same as every other rule-11 amendment
-  in this repo's history.
-- Do **not** touch `TIER1-MEASUREMENT.md` or `TIER1-RESULT.md` — those are
-  pre-registrations/results for the Tier-1 work already done and closed;
-  they're historical record, not something this change edits.
+## Step 2 — why did the on-demand oil trigger never fire, and are oils being wasted?
 
-## What "Tier-2 offering" means — verify before spending, do not assume by analogy
+Session 110's 22 casts produced zero firings of the approved on-demand
+trigger (`fishHp <= 2`, `src/strategy/fishing/oilTiming.ts`, rule-4 approved
+policy) and seven double-lethal firings (14 oils) from the override the sim
+does not recommend. This needs a real answer, not just a re-statement of the
+gap:
 
-The Tier-1 work established a pattern worth repeating exactly, not
-reinventing:
+1. **Determine whether the on-demand trigger's condition genuinely never
+   arose, or whether the double-lethal override is intercepting cases
+   before on-demand gets a chance to fire.** Read the actual call order in
+   `liveFishing.ts` — does double-lethal check run first and consume the
+   decision point, or are they independent checks against the same board
+   state? Use session 110's own fixtures (22 real casts,
+   `fixtures/fishing-casts/live/cast-2026-08-30-*`) to reconstruct what
+   `fishHp` was at each decision point and whether on-demand's condition was
+   ever true and simply never acted on.
+2. **State plainly which of these it is:**
+   - The condition never arose (fishHp never sat at <=2 without also being
+     double-lethal) — in which case there's no waste, the two triggers are
+     just rarely both-eligible, and the "gap" is a data artifact, not a bug.
+   - The condition arose and something suppressed it — in which case find
+     and fix that, it's a real bug.
+3. **Check for waste specifically**, since that's the user's stated
+   concern: any oil spent where a cheaper/no oil outcome would have caught
+   the same fish, or any oil spent that didn't affect the outcome. Use the
+   existing oil-timing sim tooling (`scripts/oilTimingSweep.ts`,
+   `scripts/oilDoubleLethalSweep.ts`) against the real corpus rather than
+   inventing new analysis.
+4. **Do not silently re-enable or adjust the double-lethal override's
+   priority** — the user's ruling was to re-derive the on-demand policy,
+   not adopt the override. If the investigation concludes the on-demand
+   policy itself needs a parameter change (not just documentation) to
+   actually engage, that's a new finding to report, not something to ship
+   without saying so plainly in the recap — a live-behavior change still
+   needs the same rule-4 discipline (sim first, then approval) the original
+   policy got.
+5. Write the DECISIONS.md entry for this once the investigation is done,
+   including the user's target framing (60-70% catch rate, oils-not-wasted)
+   so a future session can check results against it.
 
-- **`--juiced-index=2`.** `index` is the TIER value read off
-  `entryData[].tier`, **never an array position**. `entryData` is ordered
-  tier **2, 1, 3**, so Tier-2 happens to sit at array position 0 this
-  time — the opposite coincidence from Tier-1's position 1. Match on
-  `entryData[].tier === 2`; do not index positionally, and do not assume
-  "position 0" generalizes from this one observation either.
-- **This spends real silver rings, and the exact cost is not yet confirmed
-  live.** Session 106 found `entryData[].inputItems` holds **seven ids**
-  for both Tier 2 and Tier 3 (vs. Tier-1's empty array) — but that count was
-  read off Tier-3's entry, not Tier-2's, and has never been checked for
-  Tier-2 specifically. **Log the actual `entryData` for the Tier-2 entry
-  before the first run** — the real `inputItems` array, not an assumed
-  count — and confirm the resulting negative `gameItemBalanceChanges` on
-  `start_run` matches it exactly (the same discipline that confirmed zero
-  rings for Tier-1, now run in the direction that expects a real debit).
-- **Check the current silver ring balance before running anything, and
-  compute the runway.** This repo switched Tier-3→Tier-1 in the first place
-  specifically to stop draining a limited ring stock (gold rings then had
-  ~16 days of runway against ~42 days of event time left). The same
-  arithmetic applies in reverse now: read the live silver ring balance,
-  divide by whatever `inputItems` actually costs per run, and state days-of-
-  runway explicitly in the recap — at up to 4 runs/day if the user keeps
-  running at the daily max. This is not a gate (the user has already
-  directed the change), but it must be **visible**, the same way the
-  original gold-ring runway was, so nobody rediscovers a shortage as a
-  surprise blocker later.
-- If the live silver ring balance is insufficient for even one Tier-2 entry,
-  **fail closed and report it** — do not fall back to Tier-1 or any other
-  tier without asking; that's a real blocker, not a judgment call.
+## Step 3 — two carried code tasks that need zero live spend
 
-## What doesn't change: the other three rule-11 conditions
+1. **`chooseNewCard` deck-composition term (TASKS.md §13).** Card 84 has no
+   on-grid footprint and has now been looted twice as a guaranteed miss —
+   second observed instance, STATE.md session 111 open question 7. TASKS.md
+   §13 has the task definition; it has never been started. This is ordinary
+   feature work against `src/strategy/fishing/cardChoice.ts` and the
+   existing corpus — no live spend required to implement or test.
+2. **The fishing guard counter over-count** (STATE.md open question 8,
+   carried from session 107: `runsStarted` read 25 against a 22-played /
+   20-charged batch). This is the same *class* of bug as the day-key
+   straddle just fixed this session (`guardPersistence.ts`, `DAY_MEMO`) —
+   in-process counter state disagreeing with the server ledger — so start
+   by checking whether it's actually the SAME root cause re-surfacing under
+   a different symptom, or a genuinely separate counting bug, before
+   designing a fix. If it's separate, follow the same discipline QUESTIONS
+   §65 used: design the fix, pin it with a regression test replaying
+   session 107's actual numbers, and state explicitly whether the failure
+   direction is safe (over-counts, blocks) or unsafe (under-counts,
+   over-spends) — that framing is what made the straddle fix safe to ship
+   without a live re-test.
 
-- **Still 60 energy, juiced**, per run — `index` and `isJuiced` are
-  independent axes (SPEC §3c/§3f), unaffected by which tier is chosen.
-- **Still auto-loads 3x Big Heal Juice** (itemId 131,
-  `config/bot.json` → `forbiddenWoods.potions`) — that gate reads `--juiced`
-  alone.
-- **One run, then stop and hand back — standard rule 11, no chaining this
-  time.** `--runs=1`, every invocation. Stop after each run, report it, and
-  wait for a fresh explicit go-ahead before the next. The user's own choice
-  this session was the standard one-at-a-time pattern, not a repeat of
-  session 108's chained exception — do not chain.
-- Rule 8 (highest non-Perpetual tier; lowest/no-modifiers at the final
-  room) still governs every in-room `enemyPathOptions` pick — unaffected by
-  the entry-tier setting.
-- Skill points: never allocate them yourself. The pause between runs is the
-  user's normal opportunity to do so if they choose.
+## Step 3b — if time remains: the Tier-1/Tier-2 baseline question
 
-## Sizing: up to 4 runs today, one at a time
+STATE.md open question 3, unactioned for seven sessions: session 103's
+Tier-3 numbers aren't comparable to Tier-1 or Tier-2 on any payout
+statistic, and several reports/docs still quote them without that caveat.
+This is a documentation audit, not new measurement — grep
+`handoff/reports/`, `TIER1-RESULT.md`, and any other doc that cites
+session 103's Hard Core figures, and add an explicit non-comparability note
+wherever a raw number appears without one. Do not attempt to normalize or
+convert the numbers across tiers — just make the incomparability visible
+everywhere it currently isn't. Lower priority than Steps 1-3; do this only
+if the suite/tsc/scan cycle for the above is done with room to spare.
 
-- `npx tsx scripts/checkDungeonToday.ts` first — confirm the real
-  `dayProgressEntities` reading rather than assuming either "still 12/12
-  exhausted" or "freshly reset." Size to whatever run-units are actually
-  available, up to 4 runs (12 run-units / 3 per juiced run).
-- `--dry-run` first per standing rule-4 discipline — and this time, dry-run
-  is also how the Tier-2 `entryData`/ring-cost check above should be done
-  before any live spend.
-- After each run, re-check the ledger (rule 13) before reporting, and stop
-  for a fresh go-ahead before the next.
+## Step 4 — opportunistic only: the Tier-2 wire check, IF the reset has actually passed
 
-## A natural measurement opportunity — not a gate, don't force it
-
-This will be the account's **first-ever live Tier-2 entry** (every prior
-juiced run has used index 1 or 3; 34/34 historical + 10/10 recent). The
-Tier-1 result (`handoff/TIER1-RESULT.md`) found Hard Core payout follows
-`base x 12 x dropMultiplier` with an exact quantum per tier (12 at Tier-1,
-48 at Tier-3) and predicted, but never tested, **a quantum of 24 at Tier-2**
-(`dropMultiplier` 2) — roughly **534 Hard Core/room** at the corpus's ~22.3
-mean base. If Tier-2 runs happen to reach `r >= 6` rooms, dividing Hard Core
-by rooms cleared and checking it against ~534/room (and Dendren Root
-staying on its usual depth-indexed sequence, unaffected by tier) is worth
-noting in the recap. **This is opportunistic, not a pre-registered study
-like Tier-1 got** — the user didn't ask for one, don't build the
-`TIER1-MEASUREMENT.md`-style apparatus for it unless asked. Just don't
-throw the numbers away.
+**Do not wait for this.** Finish Steps 1-3 first. Only after that, check
+`npx tsx scripts/checkDungeonToday.ts` once. If the daily reset has genuinely
+occurred (dungeon ledger shows headroom below 12/12), the standing
+authorization from session 111's brief still applies — one Tier-2 run,
+`--dry-run` first, then live, with the specific gate that session 111 could
+not meet: **confirm the seven negative `gameItemBalanceChanges` on
+`start_run` match `entryData`'s `inputItems`/`inputAmounts`
+(`[134,137,138,135,136,139,140]`, all amount 1) exactly**, then re-read
+silver ring balances after. Stop after that one run — standard rule 11, no
+chaining, wait for a fresh go-ahead before a second. If the ledger still
+reads 12/12, say so and stop; do not poll for it repeatedly.
 
 ---
 
 ## Recap, for the whole session
 
 Full suite (`--maxWorkers=4`), `tsc --noEmit`, `git diff --check`, secret
-scan (prove the file count it covered). State explicitly, at the top of the
-recap:
+scan (`scripts/secretScan.ts`, quote its own summary verbatim the way
+session 111 did). State explicitly, at the top of the recap:
 
-- That Tier-2 is now the standing entry tier, and confirmation that
-  CLAUDE.md rule 11, the STATE.md settled digest, and DECISIONS.md were all
-  updated to say so.
-- The real `entryData`/`inputItems` cost for Tier-2, confirmed against the
-  actual negative `gameItemBalanceChanges` on `start_run` — not assumed
-  from Tier-3's count.
-- Silver ring balance before and after, and the runway calculation (days at
-  the current rate, up to 4 runs/day).
-- How many of the (up to) 4 runs actually happened, and why if fewer.
-- Per run: rooms cleared, Hard Core and Dendren Root totals, and the rough
-  quantum check against the ~534/room Tier-2 prediction if any run reached
-  r >= 6.
-- **Carried forward, unresolved:** whether the Tier-1 arm (now itself about
-  to be superseded by Tier-2 as the live baseline) is comparable to
-  anything downstream — this makes it more urgent, not less, so raise it
-  plainly rather than letting a seventh session pass silently. Also the
-  `nextPosition` override (fishing-side, out of scope for a dungeon
-  session, but don't let a seventh session of silence happen there either).
+- The three decisions recorded, each dated, each in `DECISIONS.md`.
+- Step 2's actual finding: which of the two explanations it was, whether
+  any oil waste was found, and whether the on-demand policy itself needs a
+  follow-up change (flagged, not shipped without separate approval).
+- Whether `chooseNewCard` §13 and the fishing guard counter fix landed, and
+  their test coverage.
+- Whether Step 4 happened (reset had passed) or didn't (still 12/12) —
+  either is a fine outcome, just say which.
