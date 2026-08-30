@@ -1297,7 +1297,54 @@ Two findings, one user decision, settling the task:
 
 ---
 
-### 13 — `chooseNewCard` deck-composition scoring ← scoped 2026-08-17, session 22; NOT STARTED
+### 13 — `chooseNewCard` deck-composition scoring ← scoped 2026-08-17, session 22; STILL PARKED ON DATA — first candidate BUILT 2026-08-30, session 112
+
+**[session 112] The first candidate is written, tested and NOT WIRED. The gate
+is still not meetable, and that is a data fact, not an effort fact.**
+
+`src/strategy/fishing/cardChoice.ts` now exports two pure functions over
+`hitZones ∪ critZones` and `gridSize` — no fish model, no estimator, no
+probability:
+
+- `positionalReachability(card, gridSize)` — the fraction of focus placements
+  from which the card can land ANY zone on the board.
+- `meanZoneCoverage(card, gridSize)` — mean on-grid cells covered, averaged
+  over every placement. This is the user's own manual-play heuristic as
+  recorded further down this section ("most hit/catch spots").
+
+`tests/fishing/cardReachability.test.ts` pins them against the real catalog and
+pins that `chooseNewCard` is UNCHANGED, so wiring either one in fails a test
+and sends the author back to the gate below.
+
+**Three measurements that change how this task should be read:**
+
+1. ⚠ **NO CARD IN THE CATALOG IS FOOTPRINT-LESS** — the `reachability === 0`
+   set is EMPTY across all 80 cards. STATE.md carried *"card 84 has no on-grid
+   footprint"*; card 84 is `hitZones: [7,8,9]`, hit 6, mana 1, strictly better
+   than card 3 (same zones, hit 5). `matcherHeadroom`'s guaranteed-miss set is
+   **per play and positional** — "could not hit from the cell it was fired
+   from" — never a property of the card. A rule of the form "never take a card
+   with no footprint" would govern the empty set.
+2. **The guaranteed-miss set is a census, not a defect list.** Its members
+   (1, 3, 4, 6, 84) are exactly the single-row/column cards at reachability
+   2/3, and **16 of the 80 catalog cards sit in that band**. The set grows
+   whenever one of that fifth of the catalog is fired from a dead cell, so it
+   will keep growing and must not be read as accruing bugs.
+3. **The one recorded bad CHOICE is separated by coverage, not reachability.**
+   Session 92's offer `{35, 30, 31}` → chose 35. All three are equally
+   reachable (8/9), so reachability is silent; coverage is 2.22 for card 35
+   against 2.67 for cards 30 and 31. `chooseNewCard` picked 35 because its 8 —
+   a crit on the SINGLE zone `[2]` — outscores a 6 spread over five zones. That
+   is the concrete flaw, and it is a **currency** flaw (a one-zone crit scored
+   against a five-zone hit as the same event), not a deck-composition one.
+
+**What is still missing is unchanged and is DATA**: enough real card choices to
+take the validation floor from 1 into double digits. Neither function above can
+manufacture that, so per CLAUDE.md rule 6 this stays parked.
+
+---
+
+*(original scoping below, unchanged)*
 
 **Scoped, not implemented, per the session-22 brief's own instruction ("only
 write code after scoping is written down... if scoping reveals this needs

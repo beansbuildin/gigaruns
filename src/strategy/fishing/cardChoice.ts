@@ -706,6 +706,75 @@ export function chooseCard(
  * miss penalty, rarity synergy with the rest of the deck matter more than
  * raw damage/mana?) deliberately left open rather than guessed at.
  */
+/**
+ * ── [session 112, TASKS.md §13] POSITIONAL REACHABILITY ────────────────────
+ *
+ * **The fraction of focus placements from which this card can land ANY zone
+ * on the board.** Pure geometry over `hitZones ∪ critZones` and `gridSize`:
+ * no fish model, no probability, no estimator. A card scoring 1 can be fired
+ * from anywhere; a card scoring 6/9 whiffs BY CONSTRUCTION from three of the
+ * nine focus cells, whatever the fish is doing.
+ *
+ * ## Why this exists, and what it is NOT
+ *
+ * `chooseNewCard` below scores `max(hitEffect, critEffect) / manaCost` and is
+ * blind to this entirely. That blindness has a recorded cost: session 92's
+ * offer `{35, 30, 31}` went to **card 35**, whose 8 comes from a crit on a
+ * SINGLE zone `[2]`, over cards 30 and 31 whose 6 covers five zones each —
+ * a one-zone crit and a five-zone hit compared as if they were the same
+ * event. The bot had already played card 35 into a guaranteed miss, and then
+ * took a second copy of it.
+ *
+ * ⚠ **CORRECTION, and it changes what a fix may do** [session 112]. STATE.md
+ * carried this as *"card 84 has no on-grid footprint"*. Checked against
+ * `fixtures/fishing-casts/cards.json`, card 84 is `hitZones: [7,8,9]`, hit 6,
+ * mana 1 — an ordinary card, strictly better than card 3 (same zones, hit 5).
+ * `matcherHeadroom`'s set is PER PLAY and POSITIONAL: "could not hit **from
+ * the cell it was fired from**". Nothing in the catalog is footprint-less.
+ * So a rule of the form "never take a card with no footprint" would be a rule
+ * about the empty set, and the real quantity is this fraction.
+ *
+ * ## NOT WIRED INTO `chooseNewCard`, deliberately
+ *
+ * TASKS.md §13's gate requires a candidate to beat the current heuristic on
+ * sim catch rate or turns-to-catch with non-overlapping 95% CI, and §13 is
+ * parked on a DATA floor — real card choices reaching double digits — not on
+ * missing code. Per CLAUDE.md rule 6 that gate is not meetable by working
+ * harder offline, so this ships as a measured, tested quantity that §13 can
+ * score when it unparks, and changes no live decision today.
+ */
+export function positionalReachability(card: FishingCardLike, gridSize: number): number {
+  const zones = [...card.hitZones, ...card.critZones];
+  if (zones.length === 0) return 0;
+  const cells = allCells(gridSize);
+  const reachable = cells.filter((f) => zonesToCells(f, zones, gridSize).length > 0).length;
+  return reachable / cells.length;
+}
+
+/**
+ * [session 112] The mean number of on-grid cells this card covers, averaged
+ * over every focus placement — the finer-grained sibling of
+ * `positionalReachability`.
+ *
+ * Reachability answers "can it hit at all from here", which is the question
+ * the guaranteed-miss set asks. This answers "how much board does it cover",
+ * which is the user's own manual-play heuristic as recorded in TASKS.md §13
+ * ("pick the offered card with the most hit/catch spots"). They disagree:
+ * a card reaching from every cell but covering one zone scores 1.0 here and
+ * 1.0 there, while a five-zone card that whiffs from one row scores lower on
+ * reachability and much higher on coverage. Both are reported rather than
+ * blended, because §13's gate has to be able to tell them apart.
+ *
+ * Same standing: measured, tested, NOT wired live.
+ */
+export function meanZoneCoverage(card: FishingCardLike, gridSize: number): number {
+  const zones = [...card.hitZones, ...card.critZones];
+  if (zones.length === 0) return 0;
+  const cells = allCells(gridSize);
+  const total = cells.reduce((a, f) => a + zonesToCells(f, zones, gridSize).length, 0);
+  return total / cells.length;
+}
+
 export function chooseNewCard(offers: readonly FishingCardLike[]): FishingCardLike {
   if (offers.length === 0) throw new Error("chooseNewCard: no offers");
   const valueOf = (c: FishingCardLike): number => {
