@@ -5119,7 +5119,28 @@ it survives corpus growth. 30 tests, was 25.
 
 ---
 
-## §64 — [session 108] `LossBlockUp` needs a modelling directive
+## §64 ANSWERED [session 112] — YES. Modelled `latent` from n=1 by user directive, on the `LossIntuitionUp` precedent.
+
+**The ruling, 2026-08-30 (DECISIONS same date).** `LossBlockUp` is in
+`BOON_MODELS` as `{ kind: "latent" }` with `contaminates: ["STATUS_EFFECT"]`.
+`AWAITING_MODEL_DIRECTIVE` in `tests/boons.test.ts` is now EMPTY — the
+mechanism stays, because an unlisted type that gains a pair and no model must
+still fail. Evidence below was re-verified against the corpus before the model
+landed (CLAUDE.md rule 9), not taken from the brief.
+
+`contaminates` is the load-bearing half: the PICKUP is modelled, the loss
+conditional the name gestures at is NOT, so every exchange after it stays
+unscorable rather than being scored as though the boon were inert. Per
+DECISIONS 2026-08-15 the effect is still not inferred from the name.
+
+**If this type is ever observed moving a field on a second pickup, the
+`BOON_MODELS` entry is what to revisit.** `LossEvasionUp` and `LossLuckUp`
+remain unmodelled — offered, never picked — so there is still no family
+precedent, which is exactly why a directive was required rather than assumed.
+
+*The original ask and its evidence are kept below, unchanged.*
+
+---
 
 **The ask, in one line: may `LossBlockUp` be modelled as `latent`, from n=1?**
 
