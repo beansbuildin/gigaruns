@@ -1,4 +1,4 @@
-# STATE — session 111 — 2026-08-30 — code at commit 3057aa95
+# STATE — session 111 — 2026-08-30 — code at commit 3057aa95, recap at 4f960561
 
 ## Status
 Brief was **dungeon only: switch the standing entry tier Tier-1 → Tier-2 and
