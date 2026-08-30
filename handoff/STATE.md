@@ -81,10 +81,15 @@ its own 15-line rationale in the test and cannot be silently re-ratcheted.
   spent on it.**
 - **`SecondWind` / `Steadfast`.** Ordinary volume WILL NOT settle these — a
   positive finding, not missing data. DECISIONS 2026-08-27.
-- **[USER] Rule 11 entry tier is Tier-1 (`--juiced-index=1`), 0 rings.**
-  `data.index` is the TIER; `entryData` is ordered 2, 1, 3. Exercised live
-  **10/10**. Re-opens as: *"correct the juiced index"* — a positional 'fix'
-  selects Tier 2 and spends silver rings.
+- **[USER] Rule 11 entry tier is Tier-2 (`--juiced-index=2`), one of EACH of
+  the seven silver rings per run.** STANDING change 2026-08-30, superseding
+  the Tier-1 setting that ran 2026-08-27 → session 110 (exercised 10/10 there).
+  `data.index` is the TIER; `entryData` is ordered 2, 1, 3, so **`entryData[0]`
+  is Tier 2 by coincidence just as `entryData[1]` was Tier 1** — match on
+  `.tier`, never on position. Exercised live **0/0** at Tier 2 so far.
+  Runway is set by the SCARCEST faction, not the ring total: 30 runs on
+  2026-08-30 balances. Re-opens as: *"switch the entry tier back to Tier-1 to
+  stop spending rings"* or *"correct the juiced index"*.
 - **[USER] Unspent skill XP.** CLOSED, not deferred. §61.1 forbids re-raising
   it. Re-opens as: *"report the accumulated unspent skill XP."*
 - **Suite invocation.** `vitest run --maxWorkers=4`. DECISIONS 2026-08-26.

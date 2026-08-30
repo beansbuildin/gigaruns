@@ -152,21 +152,48 @@ question using a field that predates it, or say plainly that the logs cannot
 date this. The same trap applies to any before/after comparison that straddles
 a capture improvement.
 
-**11. Every live dungeon run is a 60-energy juiced Tier-3 entry, with 3 Big
+**11. Every live dungeon run is a 60-energy juiced Tier-2 entry, with 3 Big
 Heal Juices, and it stops for approval when it finishes.**
 User directive, 2026-08-20, standing until the user says otherwise. There is no
 such thing as a plain dungeon run any more. Four conditions, all of them:
 
 - **60 energy, juiced** — `--juiced` with `JUICED_COST_MULTIPLIER` 3 against
   the 20-energy base. Charges 3 of the daily 12 run-units.
-- **`--juiced-index=1`**, the Tier-1 offering — **`inputItems: []`, no rings
-  spent.** This is the ENTRY tier only and is a different choice from the
-  in-room `enemyPathOptions` tier, which rule 8 governs. Do not collapse them:
-  the entry tier is chosen once at `start_run`, the room tier is chosen in
-  every room, and rule 8's final-room and Perpetual exceptions apply only to
-  the latter.
+- **`--juiced-index=2`**, the Tier-2 offering — **one of EACH of the seven
+  silver rings per run.** This is the ENTRY tier only and is a different
+  choice from the in-room `enemyPathOptions` tier, which rule 8 governs. Do
+  not collapse them: the entry tier is chosen once at `start_run`, the room
+  tier is chosen in every room, and rule 8's final-room and Perpetual
+  exceptions apply only to the latter.
 
-  **[2026-08-27] This was `--juiced-index=3` from 2026-08-20 through session
+  **[2026-08-30] This was `--juiced-index=1` from 2026-08-27 through session
+  110, and the change is a user directive, not an optimisation.** It is a
+  STANDING change, not a dated one-off like session 108's chaining exception —
+  it holds until the user says otherwise. Tier 2 doubles Hard Core income
+  against Tier 1 (`dropMultiplier` 2 vs 1, and per DECISIONS 2026-08-28 that
+  multiplier is an EXACT quantum on item 845 and moves nothing else), and the
+  user's judgement is that the silver-ring stock is worth spending on that
+  where the gold-ring stock was not.
+
+  **The cost, measured live before the first run rather than assumed from
+  Tier 3's shape.** Tier 2's `entryData` reads
+  `inputItems: [134,137,138,135,136,139,140]`, `inputAmounts: [1,1,1,1,1,1,1]`
+  — **all seven silver rings, one each, per run.** Not "seven ids" in the
+  loose sense session 106 recorded off Tier 3: it is one ring from every
+  faction simultaneously, so **the RUNWAY IS SET BY THE SCARCEST FACTION, not
+  by the total.** On 2026-08-30 the balances were 33/39/42/30/30/57/54
+  (Chobo/Crusader/Overseer/Athena/Archon/Foxglove/Summoner), so the stock was
+  **30 runs — 7.5 days at the 4-runs-per-day ceiling — against a Tier-2
+  offering window running to day 20731, ~37 days out.** That shortfall is the
+  same arithmetic that drove the Tier-3 → Tier-1 switch, and it is recorded
+  here so nobody rediscovers it as a surprise blocker. Re-read the balances
+  rather than trusting these numbers — `npx tsx scripts/checkEntryTiers.ts`
+  prints the live cost, the balances and the runway — because
+  `inputsBasedOnFactionDay: true` means the required list is a per-day thing
+  and must never be cached.
+
+  **[2026-08-27, superseded above but kept because its reasoning still binds]
+  This was `--juiced-index=3` from 2026-08-20 through session
   103, and the change is a user directive, not an optimisation.** Gold-ring
   stock covered roughly **16 more days** at the Tier-3 run rate while the Hard
   Cores event has **42 days** left to run, so continuing would have exhausted
@@ -182,11 +209,18 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
   `start_run` this bot has ever sent used `index: 3` (34 of 34), so Tier 1 has
   no observed payout here yet. Measure it on the first live Tier-1 run rather
   than quoting this number back as fact.
+  **[2026-08-30] That measurement is DONE and this caveat is discharged** —
+  session 106 measured the 4:1 quantum live (DECISIONS 2026-08-28,
+  `handoff/TIER1-RESULT.md`), so "a quarter of Tier 3" may be quoted as
+  observed. Left in place only because the paragraph is a superseded record;
+  do not act on its instruction.
 
   **`index` is the TIER, not an array position** (SPEC §3c, confirmed live
   twice). `entryData` is returned ordered **tier 2, 1, 3**, so `entryData[1]`
-  is Tier 1 by luck and `entryData[3]` does not exist. Match on
-  `entryData[].tier`; never index the array positionally.
+  is Tier 1 by luck, **`entryData[0]` is Tier 2 by a DIFFERENT coincidence**,
+  and `entryData[3]` does not exist. Two tiers in a row landing on a
+  positional index that happens to work is exactly how this becomes a silent
+  bug. Match on `entryData[].tier`; never index the array positionally.
 
   None of rule 11's other three conditions change. `index` and `isJuiced` are
   independent axes (SPEC §3c/§3f, session 42): the run is still a 60-energy

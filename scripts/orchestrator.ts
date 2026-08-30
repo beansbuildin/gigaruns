@@ -32,12 +32,17 @@
  *
  * [session 54] THE DUNGEON ARM IS CLOSED — CLAUDE.md rule 11.
  *
- * Every dungeon run is now a 60-energy juiced Tier-3 entry that stops for
+ * Every dungeon run is now a 60-energy juiced Tier-2 entry that stops for
  * human approval before the next one. An autonomous loop cannot satisfy a
  * per-run approval requirement, so this script does not start dungeon runs
  * at all: `nextAction` is called with a null dungeon budget, and the
  * `dungeon` branch below fails closed. Dungeon runs go through
- * `npx tsx scripts/liveRun.ts --juiced --juiced-index=1 --runs=1`.
+ * `npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1`.
+ *
+ * [session 111] The tier in that command line has now moved twice
+ * (3 -> 1 on 2026-08-27, 1 -> 2 on 2026-08-30) and BOTH times this header
+ * was the thing left saying "Tier-3". It is operator-facing text, so a stale
+ * tier here is the bug, not a cosmetic drift — see the pinning test.
  *
  * What that deleted, deliberately, rather than leaving unreachable:
  *  - `resolvePotionLoadout()` (session 20). It gated on `config.potions`
@@ -91,9 +96,9 @@ const DUNGEON_ARM_DISABLED = null;
 
 /** The one message every closed-dungeon path prints, so there is a single place to fix if the pointer changes. */
 const RULE_11_POINTER =
-  "dungeon runs are disabled in the orchestrator (CLAUDE.md rule 11: every run is a 60-energy juiced Tier-3 entry " +
+  "dungeon runs are disabled in the orchestrator (CLAUDE.md rule 11: every run is a 60-energy juiced Tier-2 entry " +
   "needing explicit human approval, which an autonomous loop cannot give). " +
-  "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=1 --runs=1";
+  "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Cap on any one sleep chunk — keeps SIGINT response prompt during a long regen wait rather than blocking in one giant setTimeout. */

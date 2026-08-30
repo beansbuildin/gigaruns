@@ -9,6 +9,12 @@
  * `inputItems: []`, no gold rings spent). Only the tier changed; the
  * approval requirement and the 3-run-unit charge did not.
  *
+ * [session 111] It moved again, Tier-1 -> Tier-2 (`index: 2`, one of EACH of
+ * the seven silver rings per run). Same shape of change, same invariants
+ * untouched — and the second time in three sessions that an operator-facing
+ * command line had to be chased, which is why the assertions below name the
+ * CURRENT tier positively rather than only forbidding the last retired one.
+ *
  * The specific bug this file exists to make impossible (session 24's incident,
  * one edit away from repeating): `orchestrator.ts`'s `resolvePotionLoadout`
  * gated on `config.potions` ALONE, while `liveRun.ts`'s `main()` gates on the
@@ -90,21 +96,36 @@ describe("rule 11 — the potion/juiced invariant, stated over the whole source 
     const src = read("scripts/orchestrator.ts");
     expect(src).toContain('throw new Error(`scheduler returned {kind: "dungeon"}');
     expect(src).toContain("rule 11");
-    expect(src).toContain("scripts/liveRun.ts --juiced --juiced-index=1 --runs=1");
+    expect(src).toContain("scripts/liveRun.ts --juiced --juiced-index=2 --runs=1");
   });
 
-  it("no operator-facing hint still recommends the retired Tier-3 entry", () => {
+  it("no operator-facing hint still recommends a retired entry tier (3 or 1)", () => {
     // [session 104] The switch to Tier-1 is a policy the operator reads off a
     // printed command line, so a stale hint IS the bug — nothing in code
     // defaults the index (`--juiced-index` is required and never guessed), and
     // a human copying `--juiced-index=3` would spend seven gold rings that the
     // directive exists to conserve.
     //
+    // [session 111] Tier-1 JOINED the retired set when the standing tier moved
+    // to 2, and the failure direction reversed with it: a stale `=1` no longer
+    // over-spends, it silently UNDER-spends and halves the Hard Core payout
+    // the new directive was chosen for. Both are wrong; neither is safe.
+    //
+    // Comments are stripped (`readCode`) rather than raw text scanned, because
+    // `src/sim/boons.ts` records — correctly, as history — that its 24
+    // session-106 offers came from a `--juiced-index=1` entry. A HISTORICAL
+    // note naming a retired tier is fine; an INSTRUCTION naming one is not.
+    //
     // `index` is the TIER, not an array position: `entryData` comes back
     // ordered tier 2, 1, 3 (SPEC §3c), so nothing here may be "fixed" by
-    // reasoning about array offsets.
-    for (const rel of SOURCE_FILES) {
-      expect(read(rel), `${rel} still recommends the retired Tier-3 entry`).not.toContain("--juiced-index=3");
+    // reasoning about array offsets — and note that position now "works" for
+    // Tier 2 (`entryData[0]`) exactly as it used to for Tier 1
+    // (`entryData[1]`), which makes the positional read look MORE correct
+    // than it is.
+    for (const retired of ["--juiced-index=3", "--juiced-index=1"]) {
+      for (const rel of SOURCE_FILES) {
+        expect(readCode(rel), `${rel} still recommends the retired ${retired} entry`).not.toContain(retired);
+      }
     }
   });
 

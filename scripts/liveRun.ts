@@ -1999,11 +1999,14 @@ const KNOWN_ARGS = [
 
 const USAGE = `Usage: npx tsx scripts/liveRun.ts [flags]
 
-  ⚠ CLAUDE.md rule 11: every dungeon run is a 60-energy juiced Tier-3 entry
+  ⚠ CLAUDE.md rule 11: every dungeon run is a 60-energy juiced Tier-2 entry
     with 3 Big Heal Juices, ONE run at a time, and it needs a per-run human
     go-ahead. The authorised form is:
 
-      npx tsx scripts/liveRun.ts --juiced --juiced-index=1 --runs=1
+      npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1
+
+    Tier 2 SPENDS one of each of the seven silver rings per run. --juiced-index
+    is the TIER, never an array position.
 
   --dry-run          decide and log, POST nothing — run this first, always
   --status           local ledger only, no network
