@@ -1,4 +1,4 @@
-# session 110 — 2026-08-29 — fishing Hard Core instrumentation + a 15-cast batch — GATE PASS (both parts)
+# session 110 — 2026-08-29/30 — fishing Hard Core instrumentation + a 22-cast day — GATE PASS (both parts)
 
 Brief: `handoff/next.md` (session-110), fishing only. **No dungeon work was
 authorized and none was done** — the dungeon ledger was already 12/12 from
@@ -382,3 +382,117 @@ reports 0 hits and cannot demonstrate it read anything has reported nothing.
    approved on-demand trigger.** The single-lethal condition simply never
    arose across 67 decision points.
 6. **Three of nine catches paid 4x**, against a 10% base rate.
+
+---
+
+## 5. [session 110b] The day's closing 7 casts — rod repaired, cap reached
+
+The user repaired the rod between the two halves and authorized the remaining
+7 casts. Everything re-confirmed live before spending, per rule 12:
+
+```
+local now: 2026-08-30 08:03 PDT
+guard day (11:00 PT rollover): 2026-08-29   hours until next reset: 2.95
+GAME ledger  (dayDocs pond 2):  13 / 20     REPO ledger: 13 casts, 180 energy
+ledgers agree.  VERDICT: 7 cast(s) available this guard-day.
+rod durability: rod 812 reads DURABILITY_CID 40   <- repaired, was 0
+· resuming today's fishing budget: 180 energy / 13 casts already spent
+```
+
+**With a 40-durability rod the binding constraint reverted to the cast cap.**
+That is the same reasoning as the first half run backwards, and it is why the
+batch was 7 and not more: the rod could have covered 40.
+
+### 5a. The run
+
+```
+▸ rod durability after: 33 (before: 40, casts this batch: 20)
+▸ done. energy spent (guard-tracked) 264, casts 20
+```
+
+(The `casts this batch: 20` is the guard's cumulative guard-day counter, which
+correctly resumed at 13 — it is not this invocation's count. The durability
+delta, 40 - 33 = 7, is.)
+
+7 fixture directories, 7 `cast_over` events, 38 POSTs, exit 0, **0
+first-attempt failures, 0 sanity rows.**
+
+| # | outcome | turns | fish | Hard Core |
+|---|---|---|---|---|
+| 1 | caught | 1 | Finley (r0) | 80 |
+| 2 | caught | 2 | Plankton (r0) | 80 |
+| 3 | caught | 1 | Ollie (r1) | 160 |
+| 4 | escaped | 4 | — | 0 |
+| 5 | escaped | 9 | — | 0 |
+| 6 | caught | 2 | Plankton (r0) | **160 (x2)** |
+| 7 | caught | 3 | Ollie (r1) | 160 |
+
+**5/7 = 71.4%**, 95% Wilson [35.9%, 91.8%]. **640 Hard Core**, 128.0 per catch.
+One 2x multiple (a rarity-0 Plankton at 160).
+
+### 5b. No JEBAITOR this half — and that resolves the first half's rate
+
+All seven `fishing_ledger_reconciled` events read `agreed`; `gameCasts` walked
+13 → 19 in lockstep with `repoCastsBefore`. **7 played, 7 charged.**
+
+So the day is **2 procs in 22 casts = 9.1%**, against the first half's
+apparent 13.3% on n=15. That lands exactly on §34's ~9% and on session 107's
+own 2/22. **The first half's 13.3% was small-n noise, not a rising rate** —
+worth recording because a reader seeing only the first batch would have had a
+mildly alarming number.
+
+### 5c. Oils — the override did all the work again, and that is now a finding
+
+Two double-lethal firings, 2 oils each, **4 Relaxing**, stock **23 → 19**:
+
+```
+  fish 4/16, relaxingHeld 23   -> fish 2/16 -> fish 0/16   CAUGHT
+  fish 3/15, relaxingHeld 21   -> fish 1/15 -> fish 0/15   CAUGHT
+```
+
+**Stock read 23 at the start of this half against 14 at the end of the last
+one.** The user crafted 9 more between the two. Recorded because the number
+moved without the bot moving it.
+
+**Across the whole day — 22 casts, 7 firings, 14 oils — the approved on-demand
+single-lethal trigger (`fishHp <= 2`) fired ZERO times.** Every oil came from
+the double-lethal band, which is the user override of QUESTIONS §30 that the
+sim does not recommend. The approved policy is not broken; its condition simply
+never arose, because the double-lethal band at `fishHp <= 4` intercepts the
+board first and kills the fish before it can reach 2. That is a structural
+relationship, not a coincidence, and it means **the oil arm's outcome data is
+measuring the override rather than the policy the user approved under rule 4.**
+Raised as open question 1.
+
+### 5d. Guard-day totals, both halves
+
+| | played | charged | caught | rate | Hard Core | oils | energy |
+|---|---|---|---|---|---|---|---|
+| batch 1 | 15 | 13 | 9 | 60.0% | 2,640 | 10 | 180 |
+| batch 2 | 7 | 7 | 5 | 71.4% | 640 | 4 | 84 |
+| **day** | **22** | **20** | **14** | **63.6%** | **3,280** | **14** | **264** |
+
+Day catch rate 95% Wilson **[43.0%, 80.3%]**. Energy 264 of the 300 budget.
+**Ledgers agree at 20/20 — the day is fully spent.**
+
+### 5e. The second ratchet — 56 more assertions
+
+Same nine files, same convention (`/* [session 110b] was X */`). Two movements
+worth naming beyond the counts:
+
+- **`castEra`'s focusDry "whole meter on move one" tell moved 2 → 3.** It had
+  held at 2 since session 92, when its single reappearance was called an
+  isolated cast. It is now three. Still small, but it is no longer a lone
+  event and the next batch should be watched.
+- **`redrawCounterfactual`'s threshold-6 band recorded a RESCUE**, not another
+  wasted firing — `rescues` 10 → 11 against `wasted` unchanged at 6. The
+  previous three batches had moved only `fires` and `wasted`.
+
+### 5f. Verification, re-run against the final commit
+
+```
+npx tsc --noEmit                  clean
+npx vitest run --maxWorkers=4     111 files, 2147 passed / 2147
+git diff --check                  clean
+secret scan (50 staged files)     0/4, positive control 104 'docId' hits
+```

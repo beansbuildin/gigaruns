@@ -6,12 +6,15 @@ income and backfill it, then (1) the fishing batch. GATE PASS on both.** No
 dungeon work was authorized and none was done — today's dungeon ledger was
 already 12/12 from session 109.
 
-Live spend: **15 fishing casts, 180 energy, 10 Relaxing Oils, 15 rod
-durability, 0 dungeon runs.** Fishing ledger **13/20 charged** (15 played —
-JEBAITOR), rolling over 11:00 Pacific. **The rod is now at 0 and no further
-fishing is possible until the user repairs it.**
+**[session 110b] The user repaired the rod (0 -> 40) and authorized the day's
+remaining 7 casts, which ran clean. The guard-day is now FULLY SPENT at 20/20.**
 
-Suite **2147 passed / 2147, 111 files** (`vitest run --maxWorkers=4`; the
+Live spend, both halves: **22 fishing casts played / 20 charged, 264 energy,
+14 Relaxing Oils, 22 rod durability, 0 dungeon runs.** Fishing ledger **20/20 —
+exhausted**, next window 11:00 Pacific. Rod ends the day at **33**, so the next
+fishing session is NOT durability-blocked.
+
+Suite **2147 passed / 2147, 111 files** (re-run against the final commit) (`vitest run --maxWorkers=4`; the
 default over-subscribes this machine and produces FALSE timeouts — unchanged).
 `tsc --noEmit` clean, `git diff --check` clean, secret scan **0 hits on all
 four patterns over 117 files with a positive control (127 `docId` hits) proving
@@ -101,29 +104,42 @@ for two sessions).
   |---|---|---|---|---|---|
   | **session 102** (2026-08-26 PT) | 20 | 14 | **2,560** | 182.9 | 128.0 |
   | **session 105** (2026-08-28 PT) | 21 | 14 | **3,360** | 240.0 | 160.0 |
-  | **this batch** | 15 | 9 | **2,640** | 293.3 | 176.0 |
-  | **full corpus, now** | 288 | 129 | **22,160** | 171.8 | 76.9 |
+  | **this session, batch 1** | 15 | 9 | **2,640** | 293.3 | 176.0 |
+  | **this session, batch 2** | 7 | 5 | **640** | 128.0 | 91.4 |
+  | **this session, whole day** | 22 | 14 | **3,280** | 234.3 | 149.1 |
+  | **full corpus, now** | 295 | 134 | **22,800** | 170.1 | 77.3 |
 
-- **Step 1 — the batch.** `--casts=15`, one clean exit, **15/15 played, 101
-  POSTs, 0 first-attempt failures, 0 sanity rows**, no fail-closed stop.
-  Catch rate **9/15 = 60.0%**, 95% Wilson **[35.7%, 80.2%]** — overlapping
+- **Step 1 — the batch, in two authorized halves.** `--casts=15` then, after
+  the user repaired the rod, `--casts=7`. Both clean exits, **22/22 played,
+  139 POSTs, 0 first-attempt failures, 0 sanity rows**, no fail-closed stop.
+  Day catch rate **14/22 = 63.6%**, 95% Wilson **[43.0%, 80.3%]** — overlapping
   sessions 102 (70.0%), 105 (66.7%) and 107 (54.5%) at every point.
-- **Sized to the rod and it was the right call.** 20 casts were available and
-  the budget allows 25, but durability read **15** live. 15 → 0 over 15 played
-  re-confirms **1.00/cast** for a fourth batch.
-- **The oil policy behaved exactly as shipped.** 10 Relaxing (937), stock
-  24 → 14, **0.67/cast**, all ten in **five double-lethal firings** (2 each).
-  The on-demand single-lethal trigger **did not fire once**; the per-cast cap
-  of 2 was reached without binding again; **0 `oil_trigger_no_stock`**, so no
-  cast left the outcome arms. 23 Focus triggers correctly dropped as
-  WITHDRAWN-BY-POLICY.
-- **Rule 13 exercised.** Server ledger read after the batch: `dayDocs[pond 2]`
-  13/20, repo ledger 13 — **agree**.
+- **Sized to the rod and it was the right call.** Batch 1: 20 casts available
+  and the budget allows 25, but durability read **15** live, so 15 was the
+  size. **1.00/cast re-confirmed twice more** — 15 → 0, then 40 → 33 over 7 —
+  making it a fifth and sixth confirming batch.
+- **The cast cap, not the rod, closed the day.** With a 40-durability rod the
+  binding constraint reverted to `dayDocs`, and all 7 remaining casts charged
+  (**no JEBAITOR proc in the second half**, against 2 of 15 in the first).
+- **The oil policy behaved exactly as shipped.** 14 Relaxing (937) over the
+  day, **0.64/cast**, all fourteen in **seven double-lethal firings** (2 each).
+  The per-cast cap of 2 was reached without binding again; **0
+  `oil_trigger_no_stock`**, so no cast left the outcome arms; 32 Focus triggers
+  correctly dropped as WITHDRAWN-BY-POLICY.
+- **Rule 13 exercised after each half.** `dayDocs[pond 2]` 13/20 then 20/20,
+  repo ledger agreeing at both, and all 22 reconcile events accounted for.
 
 ## What's broken
-- ⚠ **The rod is at 0. Fishing cannot run again until the user repairs it.**
-  Not a fault — the batch was sized to spend it — but it is a hard blocker on
-  the next fishing session, and 7 daily casts expire unspent at 11:00 PT.
+- ⚠ **The APPROVED on-demand single-lethal trigger did not fire once in 22
+  casts.** Every one of the day's 14 oils came from the **double-lethal**
+  band — the user override the sim does not recommend (QUESTIONS §30). The
+  policy the user actually approved (rule 4) has now gone a full day
+  unexercised while the override did all the work. Not a malfunction; the
+  `fishHp <= 2` condition simply never arose. But it means the oil arm's
+  outcome data is measuring the override, not the approved policy.
+- ⚠ **Oil stock rose 14 → 23 between the two halves without the bot moving
+  it** — the user crafted more. Recorded so a future reader does not read it
+  as an accounting error.
 - ⚠ **The guard-budget day-key straddle is UNFIXED IN CODE**, and
   `liveFishing.ts:1799` uses the identical pattern while running autonomously.
   Failure direction is SAFE (over-counts → blocks casts, never over-spends).
@@ -166,19 +182,26 @@ for two sessions).
   QUOTED.**
 
 ## Metrics
-- **Live: 15 fishing casts played / 13 charged, 180 energy, 10 Relaxing Oils,
-  2,640 Hard Core, 0 dungeon runs, 0 rings.**
-- Catch rate **60.0%** (9/15), 95% Wilson [35.7%, 80.2%].
-- **0 first-attempt failures / 101 POSTs.** JEBAITOR **2 of 15 = 13.3%**.
-- Rod durability **15 → 0 = 1.00/cast**, n=15, fourth confirming batch.
-- Corpus **273 → 288 fishing casts, 120 → 129 caught**; dungeon unchanged at 93.
+- **Live: 22 fishing casts played / 20 charged, 264 energy, 14 Relaxing Oils,
+  3,280 Hard Core, 0 dungeon runs, 0 rings.** Day closed at 20/20.
+- Catch rate **63.6%** (14/22), 95% Wilson [43.0%, 80.3%]. By half: 9/15 =
+  60.0%, then 5/7 = 71.4%.
+- **0 first-attempt failures / 139 POSTs.** JEBAITOR **2 of 22 = 9.1%** — 2 in
+  the first half, **0 in the second**, landing exactly on §34's ~9%.
+- Rod durability **15 → 0**, repaired to 40, then **40 → 33**. 1.00/cast on
+  both, n=22 this session, fifth and sixth confirming batches.
+- Corpus **273 → 295 fishing casts, 120 → 134 caught**; dungeon unchanged at 93.
 - Suite **2138 → 2147** (+9: 7 Hard Core regression cases, 2 ladder-derivation
-  cases). **58 pre-existing assertions re-derived** across 9 files.
+  cases). **114 pre-existing assertions re-derived** across 9 files, in two
+  passes (58 after the first batch, 56 after the second).
 
 ## Open questions for Claude
-1. **The rod needs repairing before any further fishing.** Nothing in this repo
-   can do it. **This blocks the next fishing session entirely** — a brief that
-   asks for casts without it will fail at the preflight.
+1. **Should the approved on-demand oil policy be re-derived, or the
+   double-lethal override formally adopted?** 22 casts produced **zero**
+   single-lethal firings and 7 double-lethal ones. The oil arm is measuring the
+   override, and the approved policy is effectively dormant. This is a user
+   decision (rule 4 — timing policy needs approval), not an agent one.
+   **New this session.**
 2. **Fix the guard-budget rollover straddle in code?** QUESTIONS §65 has the
    design. It bit twice in two sessions and reaches autonomous fishing.
    **The one concrete carried task.**
