@@ -1,4 +1,4 @@
-# STATE — session 110 — 2026-08-29 — code at commit <RECAP_SHA>
+# STATE — session 110 — 2026-08-29 — code at commit 93ecba12
 
 ## Status
 Brief was **fishing only, two steps: (0) fix fishing's never-tracked Hard Core
