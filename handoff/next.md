@@ -1,154 +1,168 @@
-# BRIEF — session 112 — offline wrap-up while the dungeon ledger resets, three decisions to record, two real fixes
+# BRIEF — session 113 — confirm & fix the Tier-2 ring model, disable the oil override, then fishing (up to 25) then the remaining 3 dungeons
 
-**This document replaces the session-111 `next.md`.** Session 111 already
-recapped: the Tier-2 tier switch GATE PASS (documented in CLAUDE.md,
-STATE.md, DECISIONS.md; live cost read off `entryData`), but the live-run
-half DID NOT RUN — `dayProgressEntities` read 12/12 all session, the 11:00
-Pacific reset hadn't arrived. **The Tier-2 wire check (confirming the seven
-negative `gameItemBalanceChanges` on `start_run` match `entryData`) is still
-owed and is NOT this session's job to force** — see Step 4.
-
-**Before doing anything below, read STATE.md's "Settled — do not re-open"
-digest.** Nothing below should duplicate an entry in it.
-
-**Zero live spend is the point of this session**, except opportunistically
-at the very end if the reset has genuinely passed by then (Step 4) — don't
-wait idle for the clock, do the offline work below first.
+**This document replaces the session-112 `next.md`.** Session 112 closed with
+a real correction still incomplete: the Tier-2 ring-cost paragraph in
+CLAUDE.md was fixed once (from "one of each of seven" to "measured 3 of one
+faction, unseparated from the multiplier, rotation unconfirmed") but the
+user has now supplied the missing piece directly. **Before doing anything
+below, read STATE.md's "Settled — do not re-open" digest.** Nothing below
+should duplicate an entry in it.
 
 ---
 
-## Step 1 — record three decisions the user just made, directly in chat
+## Step 1 — confirm and implement: Tier-2 costs 3 of ONE faction, and the faction rotates daily
 
-None of these are new investigation — they're user rulings on questions
-STATE.md had carried as open for multiple sessions. Record each with today's
-date in `DECISIONS.md` (matching the format every other dated ruling in that
-file uses) and update the STATE.md digest / relevant `QUESTIONS.md` entries
-to reflect them as answered, not open.
+**User's direct statement, given in chat, to be treated as ground truth and
+implemented, not re-derived from scratch:** *"the tier 2 ring cost is 3x of
+one faction per juiced run, and each day the faction changes, that's why it
+was described as one of the seven factions."* This resolves STATE.md
+session 112's open question 1 and explains `entryData[].inputItems` holding
+all seven faction ids at `inputAmounts: [1,...]` — that's the set of
+*possible* factions the day-selection can land on, each at a base amount of
+1, multiplied by the juiced multiplier (3) for whichever one is active
+today. It is not "sum all seven" and it is not "read entryData literally as
+the bill."
 
-1. **`nextPosition` override: KEPT ACTIVE, formally approved.** It had been
-   live and steering fishing card choice for seven sessions on self-armed
-   validation data (22/22 hits, Wilson lower bound 85.1%) with no sign-off.
-   The user's ruling: keep it running. Record this as the sign-off rule 11's
-   spirit (and STATE.md open question 4, carried sessions 105-111) was
-   waiting on. No code change — it's already live — this is documentation
-   catching up to a decision.
-2. **`LossBlockUp`: approved to model as `latent` from n=1**, same precedent
-   as `LossIntuitionUp` (session 99). QUESTIONS §64 has the evidence (whole-
-   object diff, only `pickedBoons` differs) — implement it the same way
-   `LossIntuitionUp` was implemented, same file, same pattern. Add the
-   regression case the way every other single-pair boon model in this repo
-   has one.
-3. **Oil policy: re-derive the approved on-demand policy — do NOT adopt the
-   double-lethal override.** The user's exact framing, worth keeping intact
-   in the DECISIONS entry: *"make a note of this decision today so we can
-   track results if they change, the current 60-70% catch rate is the ideal
-   target. We just want to make sure oils aren't being wasted."* This is
-   Step 2 below, not just a documentation entry — the investigation is real
-   work, do it before writing the decision up as resolved.
+1. **Update CLAUDE.md rule 11's cost paragraph again** — this is now the
+   THIRD state that paragraph has been in (7-rings-of-each → measured-3-
+   unseparated → this). Follow the file's own convention: keep the prior
+   wrong/incomplete versions struck through with their dates, add this
+   version as the current one, dated today, citing that it's a direct user
+   statement resolving what session 112 left open.
+2. **Fix `scripts/checkEntryTiers.ts`'s runway math to model rotation, not a
+   static per-run cost.** The correct model: each calendar day, exactly ONE
+   faction is charged, 3 rings per juiced run that day (up to 12/day at the
+   4-run/day cap). The runway is therefore bounded by whichever faction has
+   the least stock **relative to how often the rotation lands on it**, not
+   by a flat "min balance / 3-per-run" figure. Since the rotation's exact
+   period/order is still unconfirmed (session 112 only observed one day,
+   Foxglove), the honest thing to compute and print is: current per-faction
+   balances, days-of-runway IF that faction were hit every day (a
+   worst-case per-faction figure), and an explicit statement that the
+   TRUE runway depends on the unconfirmed rotation order. Don't manufacture
+   a single confident number the data doesn't support yet.
+3. **Investigate whether today's active faction is knowable in advance**,
+   before spending — check `entryData` and any other field on the dungeon
+   state/today-progress response for a day-index or faction-selector field,
+   rather than only learning it after the fact from a balance diff. If
+   found, wire it into `checkEntryTiers.ts` so future runway reads don't
+   need trial and error. If not found after a real check (not just absence
+   from the one response already logged), say so and move on — don't spend
+   time hunting for a field that may not exist.
+4. **Record a `DECISIONS.md` entry, dated today**, stating this is a direct
+   user-supplied correction (not independently re-derived) and citing it as
+   the resolution to session 112's open question 1. Update the STATE.md
+   digest entry to match.
+5. **This session's dungeon runs (Step 4) are where this gets confirmed
+   live** — expect the charged faction to still show as Foxglove (same
+   calendar day as session 112, if today hasn't rolled over) or a
+   *different* faction (if it has), and either outcome is consistent with
+   the user's model. Log the actual faction and amount debited on every run
+   this session as the confirming measurement, and say explicitly in the
+   recap whether it matched "3 of one faction" — it should, by
+   construction, but verify rather than assume.
 
-## Step 2 — why did the on-demand oil trigger never fire, and are oils being wasted?
+## Step 2 — implement: disable the double-lethal oil override, on-demand only
 
-Session 110's 22 casts produced zero firings of the approved on-demand
-trigger (`fishHp <= 2`, `src/strategy/fishing/oilTiming.ts`, rule-4 approved
-policy) and seven double-lethal firings (14 oils) from the override the sim
-does not recommend. This needs a real answer, not just a re-statement of the
-gap:
+**User's directive, given directly:** *"focus oil will not be added back on
+the allowlist, disable the override rule."* This resolves STATE.md session
+112's open question 2, choosing option (b).
 
-1. **Determine whether the on-demand trigger's condition genuinely never
-   arose, or whether the double-lethal override is intercepting cases
-   before on-demand gets a chance to fire.** Read the actual call order in
-   `liveFishing.ts` — does double-lethal check run first and consume the
-   decision point, or are they independent checks against the same board
-   state? Use session 110's own fixtures (22 real casts,
-   `fixtures/fishing-casts/live/cast-2026-08-30-*`) to reconstruct what
-   `fishHp` was at each decision point and whether on-demand's condition was
-   ever true and simply never acted on.
-2. **State plainly which of these it is:**
-   - The condition never arose (fishHp never sat at <=2 without also being
-     double-lethal) — in which case there's no waste, the two triggers are
-     just rarely both-eligible, and the "gap" is a data artifact, not a bug.
-   - The condition arose and something suppressed it — in which case find
-     and fix that, it's a real bug.
-3. **Check for waste specifically**, since that's the user's stated
-   concern: any oil spent where a cheaper/no oil outcome would have caught
-   the same fish, or any oil spent that didn't affect the outcome. Use the
-   existing oil-timing sim tooling (`scripts/oilTimingSweep.ts`,
-   `scripts/oilDoubleLethalSweep.ts`) against the real corpus rather than
-   inventing new analysis.
-4. **Do not silently re-enable or adjust the double-lethal override's
-   priority** — the user's ruling was to re-derive the on-demand policy,
-   not adopt the override. If the investigation concludes the on-demand
-   policy itself needs a parameter change (not just documentation) to
-   actually engage, that's a new finding to report, not something to ship
-   without saying so plainly in the recap — a live-behavior change still
-   needs the same rule-4 discipline (sim first, then approval) the original
-   policy got.
-5. Write the DECISIONS.md entry for this once the investigation is done,
-   including the user's target framing (60-70% catch rate, oils-not-wasted)
-   so a future session can check results against it.
+1. **Focus Oil (942) stays off `allowedItemIds`** — no change needed there,
+   it's already off (session 93). Just confirm it's still off; don't
+   re-add it.
+2. **Disable the double-lethal override** — find its actual trigger site
+   (the logic `OIL-DOUBLE-LETHAL.md` documents, likely in
+   `src/strategy/fishing/oilTiming.ts` or `scripts/liveFishing.ts`'s oil
+   decision point) and turn it off, leaving only the rule-4-approved
+   on-demand policy active (Relaxing Oil at `fishHp <= 2`, gated by the
+   necessity gate). Prefer a config flag or clearly-named constant over
+   deleting the code outright, so it stays legible in history and easy to
+   re-enable if a future user directive asks for it back — but make the
+   *default behavior* on-demand-only, not "off unless configured."
+3. **Add a regression test** confirming the override no longer fires —
+   same discipline as every other fix this repo has shipped (a test that
+   fails if the override silently comes back).
+4. **Record a `DECISIONS.md` entry, dated today**, with the user's exact
+   framing preserved (target 60-70% catch rate, oils not wasted,
+   double-lethal explicitly rejected in favor of the approved on-demand
+   policy actually firing).
+5. **This session's fishing batch (Step 3) is the first live test of this
+   change** — report explicitly whether on-demand actually fires now that
+   nothing intercepts its band, and whether the catch rate stays inside the
+   60-70% target with a real trigger instead of a dormant one.
 
-## Step 3 — two carried code tasks that need zero live spend
+## Step 3 — fishing: up to 25 casts, under the new oil policy
 
-1. **`chooseNewCard` deck-composition term (TASKS.md §13).** Card 84 has no
-   on-grid footprint and has now been looted twice as a guaranteed miss —
-   second observed instance, STATE.md session 111 open question 7. TASKS.md
-   §13 has the task definition; it has never been started. This is ordinary
-   feature work against `src/strategy/fishing/cardChoice.ts` and the
-   existing corpus — no live spend required to implement or test.
-2. **The fishing guard counter over-count** (STATE.md open question 8,
-   carried from session 107: `runsStarted` read 25 against a 22-played /
-   20-charged batch). This is the same *class* of bug as the day-key
-   straddle just fixed this session (`guardPersistence.ts`, `DAY_MEMO`) —
-   in-process counter state disagreeing with the server ledger — so start
-   by checking whether it's actually the SAME root cause re-surfacing under
-   a different symptom, or a genuinely separate counting bug, before
-   designing a fix. If it's separate, follow the same discipline QUESTIONS
-   §65 used: design the fix, pin it with a regression test replaying
-   session 107's actual numbers, and state explicitly whether the failure
-   direction is safe (over-counts, blocks) or unsafe (under-counts,
-   over-spends) — that framing is what made the straddle fix safe to ship
-   without a live re-test.
+1. **Confirm before assuming, on every axis.** `npx tsx
+   scripts/checkFishingCaps.ts` first — read the real remaining casts, not
+   an assumed fresh 25 or an assumed exhausted 0. Confirm the fishing guard
+   over-count fix (session 112) reads correctly — this is its first live
+   exercise since landing, per STATE.md open question 4, so watch for it
+   specifically rather than assuming it's fine.
+   - Read current rod durability live before sizing the batch.
+2. `--dry-run` first, per standing rule-4 discipline — and this time also
+   confirms Step 2's oil-policy change is actually wired before any live
+   cast spends anything.
+3. Run the batch: on-demand Relaxing-Oil-only policy (double-lethal now
+   disabled), redraw stays disabled (CLOSED). Size to whatever the live
+   caps/durability allow, up to 25 casts / 300 energy — headroom, not a
+   target.
+4. Report at standard depth, plus the Step 2 confirmation: catch rate with
+   CI, oil spend broken out by WHICH trigger fired (on-demand vs. — there
+   should be no double-lethal firings at all now), Hard Core total (now
+   tracked, per session 110), casts played vs. charged, post-batch rod
+   durability.
+5. Rule 13 discipline on any denied/blocked/interrupted cast, as always.
 
-## Step 3b — if time remains: the Tier-1/Tier-2 baseline question
+## Step 4 — dungeon: the remaining 3 Tier-2 runs today, one at a time
 
-STATE.md open question 3, unactioned for seven sessions: session 103's
-Tier-3 numbers aren't comparable to Tier-1 or Tier-2 on any payout
-statistic, and several reports/docs still quote them without that caveat.
-This is a documentation audit, not new measurement — grep
-`handoff/reports/`, `TIER1-RESULT.md`, and any other doc that cites
-session 103's Hard Core figures, and add an explicit non-comparability note
-wherever a raw number appears without one. Do not attempt to normalize or
-convert the numbers across tiers — just make the incomparability visible
-everywhere it currently isn't. Lower priority than Steps 1-3; do this only
-if the suite/tsc/scan cycle for the above is done with room to spare.
+Session 112 already spent 3 of today's 12 run-units (1 run). **9
+run-units remain = 3 more juiced runs**, matching what the user asked for.
+Standard rule 11 — no chaining authorized this time, stop between each.
 
-## Step 4 — opportunistic only: the Tier-2 wire check, IF the reset has actually passed
-
-**Do not wait for this.** Finish Steps 1-3 first. Only after that, check
-`npx tsx scripts/checkDungeonToday.ts` once. If the daily reset has genuinely
-occurred (dungeon ledger shows headroom below 12/12), the standing
-authorization from session 111's brief still applies — one Tier-2 run,
-`--dry-run` first, then live, with the specific gate that session 111 could
-not meet: **confirm the seven negative `gameItemBalanceChanges` on
-`start_run` match `entryData`'s `inputItems`/`inputAmounts`
-(`[134,137,138,135,136,139,140]`, all amount 1) exactly**, then re-read
-silver ring balances after. Stop after that one run — standard rule 11, no
-chaining, wait for a fresh go-ahead before a second. If the ledger still
-reads 12/12, say so and stop; do not poll for it repeatedly.
+1. `npx tsx scripts/checkDungeonToday.ts` first — confirm 9 run-units
+   actually remain rather than assuming (today may have rolled over since
+   session 112, in which case a fresh 12 would be available — if so, still
+   cap this brief's ask at 3 runs since that's what was requested, and note
+   the extra headroom rather than spending it without asking).
+2. `--dry-run` first, then `--runs=1 --juiced --juiced-index=2` per run.
+3. **Before each run**, log whatever the entry data/preflight shows about
+   today's active faction if Step 1.3 found a way to know it in advance;
+   otherwise this is only knowable after the fact from the balance diff.
+4. **After each run**, read silver ring balances and confirm exactly 3 of
+   ONE faction moved (per Step 1's model) — report which faction, every
+   run. If a run ever shows a different pattern (more than one faction
+   moved, or an amount other than 3), stop and report it as a falsification
+   of the just-confirmed model rather than averaging it away.
+5. Stop after each run, report it, and get a fresh explicit go-ahead before
+   the next — standard rule 11, same as every session except 108's one-time
+   exception.
+6. Rule 8 (highest non-Perpetual tier; lowest/no-modifiers at the final
+   room) governs every in-room pick, unaffected by any of the above.
 
 ---
 
 ## Recap, for the whole session
 
-Full suite (`--maxWorkers=4`), `tsc --noEmit`, `git diff --check`, secret
-scan (`scripts/secretScan.ts`, quote its own summary verbatim the way
-session 111 did). State explicitly, at the top of the recap:
+Full suite (`--maxWorkers=4`, UNSANDBOXED per session 112's finding —
+`profile.test.ts` false-fails sandboxed), `tsc --noEmit`, `git diff
+--check`, secret scan (`scripts/secretScan.ts`, quote its summary verbatim).
+State explicitly, at the top of the recap:
 
-- The three decisions recorded, each dated, each in `DECISIONS.md`.
-- Step 2's actual finding: which of the two explanations it was, whether
-  any oil waste was found, and whether the on-demand policy itself needs a
-  follow-up change (flagged, not shipped without separate approval).
-- Whether `chooseNewCard` §13 and the fishing guard counter fix landed, and
-  their test coverage.
-- Whether Step 4 happened (reset had passed) or didn't (still 12/12) —
-  either is a fine outcome, just say which.
+- Step 1: the corrected rule-11 cost paragraph, the runway model change,
+  whether an advance faction-indicator field was found, and confirmation
+  from Step 4's live runs that "3 of one faction" held.
+- Step 2: the override-disable change, its regression test, and Step 3's
+  live confirmation that on-demand actually fired (or didn't, and why).
+- Step 3: casts played/charged, catch rate, oil trigger breakdown, Hard
+  Core total, rod durability, and the fishing-guard-fix's first live
+  behavior.
+- Step 4: how many of the 3 runs happened, per-run faction/amount debited,
+  rooms/Hard Core/Dendren Root per run.
+- **Carried forward, unresolved:** whether Tier-1/Tier-3 numbers are a
+  usable baseline for anything downstream (STATE.md open question 3,
+  eighth session unactioned) and whether `chooseNewCard`'s currency flaw
+  should be fixed independently of TASKS §13's data-gated term (open
+  question 5) — neither is this session's job, but don't let them go
+  unmentioned again.
