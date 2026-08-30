@@ -1,18 +1,18 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-30T02:41:12.572Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-30T15:09:18.841Z.
 
-288 recorded casts — 129 caught (44.8%).
-Total Hard Core earned: 22160 (171.8 per catch, 76.9 per cast).
+295 recorded casts — 134 caught (45.4%).
+Total Hard Core earned: 22800 (170.1 per catch, 77.3 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 129 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480 — and 15 of those 129 paid an exact small multiple of that base (up to 4x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 134 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480 — and 16 of those 134 paid an exact small multiple of that base (up to 4x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
 - Barnaboo: 34
-- Finley: 25
-- Plankton: 23
-- Ollie: 9
+- Finley: 26
+- Plankton: 25
+- Ollie: 11
 - Jelloid: 9
 - Kelpkin: 8
 - Zombo: 5
@@ -317,3 +317,10 @@ Total Hard Core earned: 22160 (171.8 per catch, 76.9 per cast).
 | 13156428 | yes | Jelloid (rarity 1) | 640 |
 | 13156430 | no | — | 0 |
 | 13156433 | yes | Barnaboo (rarity 0) | 80 |
+| 13165228 | yes | Finley (rarity 0) | 80 |
+| 13165232 | yes | Plankton (rarity 0) | 80 |
+| 13165235 | yes | Ollie (rarity 1) | 160 |
+| 13165237 | no | — | 0 |
+| 13165240 | no | — | 0 |
+| 13165241 | yes | Plankton (rarity 0) | 160 |
+| 13165243 | yes | Ollie (rarity 1) | 160 |

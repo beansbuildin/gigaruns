@@ -381,7 +381,7 @@ describe("the simulator's economy, same predicate", () => {
     // what makes the narrowing a result rather than an artefact.
     expect(bare.economy.drift / LIVE.drift).toBeGreaterThan(5); /* [session 102] was 10, against ~17x; measured 9.97x */ /* [session 105] measured 8.48x */
     // Pinned so the NEXT move is attributable rather than merely visible.
-    expect(LIVE.drift).toBeCloseTo(-0.5005181347150259, 6); /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */
+    expect(LIVE.drift).toBeCloseTo(-0.5187436676798379, 6); /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */  /* [session 110b] was -0.5005181347150259 */
   });
 
   it("reproduces live's per-card AMOUNTS in every arm — they are read from a real capture", () => {
