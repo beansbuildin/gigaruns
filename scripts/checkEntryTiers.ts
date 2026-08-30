@@ -9,6 +9,10 @@
  *
  * The number that matters is NOT the ring total. Tier 2 costs one of EACH of
  * the seven silver rings per run, so the runway is the SCARCEST faction's
+ * — ⚠ [session 112] MEASURED WRONG, see the warning at the print site: one
+ * faction is charged 3x per run, not one of each of seven. This header
+ * describes what `entryData` SAYS, which is still what it says; the runway
+ * printed from it is a lower bound.
  * balance; a reader who sums the seven gets an answer ~9x too generous.
  * `minBalance` below is the whole point of the file.
  */
@@ -84,6 +88,27 @@ async function main() {
           `bound by ${scarcest.id} ${RING_NAMES[scarcest.id] ?? ""}`,
       );
       console.log(`      (the ${total} rings held in total is NOT the runway — one of each is spent per run)`);
+      // ⚠⚠ [session 112] THE LINE ABOVE IS MEASURED WRONG AND IS LEFT IN PLACE
+      // DELIBERATELY, with this warning beside it, because the right number is
+      // not known yet and a confident wrong number is worse than a flagged one.
+      //
+      // The first live Tier-2 run (25215982, faction day 20695) charged ONE
+      // faction THREE times — Foxglove 57 -> 54 — and left the other six
+      // untouched. `entryData` says `inputAmounts: [1,1,1,1,1,1,1]` across
+      // seven ids, and `inputsBasedOnFactionDay: true` is very likely why: the
+      // list reads as the SUPERSET over faction-days, not a single entry's
+      // bill. So `runwayRuns`' scarcest-faction arithmetic understates the
+      // runway, by a factor nobody can state at n=1.
+      //
+      // Separating "3 = the juiced run-unit multiplier" from "3 = a flat
+      // per-entry amount" needs a run on a DIFFERENT faction day. Until then
+      // this prints a LOWER BOUND, and says so rather than being silently
+      // trusted. `tests/entryTierRunway.test.ts` still pins the arithmetic as
+      // arithmetic — it was never the thing in doubt.
+      console.log(
+        `      ⚠ RUNWAY IS A LOWER BOUND AND LIKELY FAR TOO LOW — session 112 measured ONE faction\n` +
+          `        charged 3x per run (Foxglove 57->54), the other six untouched. CLAUDE.md rule 11.`,
+      );
     }
     if (entry.inputsBasedOnFactionDay) {
       console.log(`    ⚠ inputsBasedOnFactionDay: true — this list is per-day. Re-read it; never cache it.`);

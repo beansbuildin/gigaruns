@@ -228,11 +228,16 @@ describe("recorded offers match the fixtures", () => {
     // The title is now four rooms stale; the invariant it encodes ("offers
     // stop one room short of the deepest death") still holds at 10 vs 11.
     //
+    // [session 112] The first Tier-2 ENTRY run reached ROOM 13, superseding
+    // room 11, and produced the first-ever room-11 AND room-12 offers. The
+    // title is now SIX rooms stale; the invariant it encodes ("offers stop one
+    // room short of the deepest death") still holds at 12 vs 13.
+    //
     // The invariant is not a coincidence — you are offered a reward for
     // CLEARING a room, so the room you die in never yields one. It will keep
     // holding until a run first clears its deepest room, which for a corpus of
-    // 84 deaths and 0 clears has never happened.
-    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(10);
+    // 85 deaths and 0 clears has never happened.
+    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(12);
   });
 });
 
@@ -360,6 +365,14 @@ describe("fail-closed on unmodelled types", () => {
       // The two runs offered no type this list had never seen — the third such
       // session in a row after 106 and 108.
       //
+      // [session 112b] A SECOND type moved OUT in the same session, and by a
+      // DIFFERENT route: `VulnerableTenacity` got its first-ever pickup pair
+      // on the room-12 offer of the Tier-2 entry run (taken by BOON PRIORITY
+      // 5) and is modelled LATENT. Unlike `LossBlockUp` it needed no user
+      // directive — six Vulnerable-family members are already modelled, so it
+      // follows the `AddLifestealSword` family precedent above. The list
+      // shrinks 14 -> 13.
+      //
       // [session 112] ONE moved OUT and NONE moved in: `LossBlockUp` is
       // modelled `latent` by explicit user directive (QUESTIONS.md §64
       // ANSWERED, DECISIONS 2026-08-30), on the `LossIntuitionUp` precedent
@@ -379,7 +392,7 @@ describe("fail-closed on unmodelled types", () => {
       "Thorns", // session 52: first sighting, live room-5 offer (juiced run 2), not picked
       "TieDamageReduction",
       "VulnerableMastery", // session 12: first sighting, live room-2 offer, not picked
-      "VulnerableTenacity", // session 106: first sighting, live room-3 offer (Tier-1 juiced run 4), not picked
+ // session 106: first sighting, live room-3 offer (Tier-1 juiced run 4), not picked
       "WeakeningBlock",
       "WeakeningEvade", // session 09: first sighting, room-1 offers, not picked
     ]);
@@ -575,7 +588,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // where session 108's +12 came from one `--runs=4` batch — so the count
     // now scales with RUNS rather than with invocations, which is the same
     // claim session 108 made from the opposite batching.
-    expect(roomOne.length).toBe(261);
+    // [session 112] 261 -> 264: +3, exactly ONE run x 3 room-1 options, under
+    // rule 11's `--runs=1`. Consistent with the per-RUN scaling above at the
+    // smallest possible increment, and the first datum for it at a Tier-2
+    // ENTRY — the room-1 offer is AddIntuition/Regen/Thorns, all three of them
+    // types this table already carries, so the clean TYPE set is unchanged and
+    // the "closed under the only mechanism feeding it" claim survives a second
+    // change of entry tier.
+    expect(roomOne.length).toBe(264);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -724,7 +744,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // at rooms 2, 7 and 4 — two of them from run 2 alone. Appended at the
     // array's end by insertion order, same as sessions 43, 53, 60, 61, 95
     // and 99.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4]);
+    // [session 112] +2 Heal offers from the single Tier-2 entry run, at rooms
+    // 2 and 9 — both `Heal(50)`, and NEITHER was picked (BOON PRIORITY and the
+    // orb rule took other options). Room 9 is Heal's second-deepest sighting,
+    // behind the two room-7s. Appended at the array's end by insertion order,
+    // same as every session since 43.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9]);
   });
 });
 

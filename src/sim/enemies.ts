@@ -517,6 +517,64 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       rolled: rolled({ evasion: 4, block: 2, lck: 3, tenacity: 4 }),
     },
   },
+  {
+    room: 12,
+    tier: RISKY_TIER,
+    // [session 112, LIVE] First-ever room-12 capture, from the first Tier-2
+    // ENTRY run this project has played (run 25215982). Note the two tiers are
+    // unrelated: the Tier-2 *entry* is CLAUDE.md rule 11's `--juiced-index=2`,
+    // while this `tier: RISKY_TIER` is the in-room `enemyPathOptions` pick
+    // rule 8 governs. Rule 8 took the highest offered, and the highest offered
+    // here was 1.
+    //
+    // The enemy carried the `warden` buff. That does NOT contaminate the stat
+    // block: `warden` is `kind: "mechanic"` in `src/sim/enemyBuffs.ts`
+    // (applies 1 Vulnerable on Shield wins) and modifies no hp/armor/move
+    // number, so the figures below are the enemy's unmodified base — the same
+    // reasoning room 11's entry records for `withering`. `ENEMY_BUFF` is
+    // therefore deliberately absent from `unmodelled`.
+    //
+    // `ROLLED_STATS` remains and is the blocker: evasion 4, block 2, lck 2,
+    // tenacity 2 are 1-5% proc chances (SPEC §4e), so this battle is not
+    // scorable. Rule 8's documented, accepted cost, not a regression.
+    unmodelled: ["ROLLED_STATS"],
+    enemy: {
+      id: "Enemy Room 74",
+      hp: 62,
+      hpMax: 62,
+      armor: 28,
+      armorMax: 28,
+      moves: { rock: mv(20, 10), paper: mv(24, 8), scissor: mv(18, 10) },
+      rolled: rolled({ evasion: 4, block: 2, lck: 2, tenacity: 2 }),
+    },
+  },
+  {
+    room: 13,
+    tier: DANGEROUS_TIER,
+    // [session 112, LIVE] First-ever room-13 capture and the deepest this
+    // corpus has reached, superseding room 11. The run entered room 13 and
+    // died here, so this is the enemy's OPENING state only — no post-exchange
+    // sample, and no Safe/Risky capture for this room.
+    //
+    // `vampiric` is likewise `kind: "mechanic"` (heals 4 HP on Sword wins) and
+    // bakes nothing into the numbers below. `ENEMY_BUFF` deliberately absent.
+    //
+    // ⚠ The rolled stats here are the HEAVIEST the corpus has ever recorded —
+    // evasion 8, block 8, lck 7, tenacity 3, roughly double room 11's. Worth
+    // naming because it is the shape rule 8 predicts: taking the highest tier
+    // at every room means the deepest captures arrive with the largest rolled
+    // stats, so coverage falls fastest exactly where new depth is gained.
+    unmodelled: ["ROLLED_STATS"],
+    enemy: {
+      id: "Enemy Room 75",
+      hp: 65,
+      hpMax: 65,
+      armor: 35,
+      armorMax: 35,
+      moves: { rock: mv(25, 10), paper: mv(20, 12), scissor: mv(22, 13) },
+      rolled: rolled({ evasion: 8, block: 8, lck: 7, tenacity: 3 }),
+    },
+  },
 ];
 
 /**

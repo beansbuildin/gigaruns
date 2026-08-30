@@ -380,11 +380,26 @@ describe("player loadout matches the fixtures", () => {
       // is what reaching room 10 buys rather than a change in the account.
       "54/40",
       "58/17", // [session 106] run 3 mid-run, AddMaxHealth(+8) off 50/17
+      // [session 112] THREE new combos, all from the first Tier-2 ENTRY run
+      // (25215982, the room-13 run), and **NOT ONE is a new starting
+      // loadout** — it opened on `50/17`, unchanged, so the session-104 user
+      // directive's "a new combo is a signal to chase" is NOT triggered.
+      // These are ordinary mid-run maxima: 58/25 and 58/33 off 50/17 via
+      // AddMaxHealth(+8) then AddMaxArmor, and 72/33 after a second
+      // AddMaxHealth(+14).
+      //
+      // 72 hpMax and 33 armorMax are both the highest this census has ever
+      // recorded for HP; 33 sits below session 103's 54/40 on armor. That is
+      // what reaching room 13 buys — depth compounding boon pickups — not a
+      // change in the account.
+      "58/25",
       "58/27", // [session 106] run 3 mid-run, 58/17 + AddMaxArmor(+10)
+      "58/33",
       "59/20", // [session 103] run 3 mid-run, AddMaxHealth val1 14 off 45/20
       "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
       "62/32",
       "64/27", // [session 106] run 4 mid-run, 50/27 + AddMaxHealth(+14)
+      "72/33", // [session 112] room-13 run, 58/33 + AddMaxHealth(+14)
       // [session 109] SIX new combos, all from run 2 (the deep run that reached
       // room 11), and **NOT ONE is a new starting loadout.** Both runs opened
       // on `50/17` with `pickedBoons: []` — rock 16/0, paper 6/12, scissor 12/8

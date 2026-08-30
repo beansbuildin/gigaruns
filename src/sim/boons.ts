@@ -750,6 +750,34 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-25-03-30-48 state-009→state-010",
     observed: "selectedVal1 2 → no change to any player field (whole-object diff: pickedBoons append only)",
   },
+  VulnerableTenacity: {
+    // [session 112, LIVE] FIRST-EVER pickup, from the first Tier-2 ENTRY run
+    // (run 25215982, `run-2026-08-30-18-30-25` state-211 → state-212).
+    // `Rarity: "Rare"` (RARITY_CID 2), `selectedVal1` 4, `TokenId` 118. First
+    // OFFERED in session 106 and declined; taken here by BOON PRIORITY 5, the
+    // Vulnerable family, over ranked `AddIntuition`.
+    //
+    // **Modelled WITHOUT a fresh user directive, and the distinction matters.**
+    // The n=1 directive requirement (`LossIntuitionUp` session 99,
+    // `LossBlockUp` session 112) applies where there is NO family to generalise
+    // from. The Vulnerable family has six members already modelled latent
+    // above and below this entry, so this follows the `AddLifestealSword`
+    // precedent (session 109): a family precedent is what separates it from
+    // the `Loss*Up` case.
+    //
+    // `latent` is measured with session 89's strict check — a recursive diff of
+    // the ENTIRE raw `players[0]` object, not just the fields `toCombatant`
+    // projects. The pair's only difference in the whole object is this boon's
+    // own append to `pickedBoons`; `players[1]` is byte-identical.
+    //
+    // Per DECISIONS 2026-08-15 the effect is NOT inferred from the name:
+    // nothing here claims a Vulnerable is applied on anything, and
+    // `contaminates` carries that ignorance forward.
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-30-18-30-25 state-211→state-212",
+    observed: "selectedVal1 4 → no change to any player field (whole-object diff: pickedBoons append only)",
+  },
   VulnerableCrit: {
     // [session 94, LIVE] `Rare` (RARITY_CID 2), val1 1. The Crit member of the
     // Vulnerable family; `VulnerableEvade`, `AddVulnerableShield`,
@@ -3176,6 +3204,80 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     room: 10,
     source: "run-2026-08-29-20-04-50/state-167",
     options: [opt("AddBlock", 2), opt("BurnMastery", 1), opt("AddTenacity", 2)],
+  },
+  // ── [session 112, LIVE] TWELVE rows from the first Tier-2 ENTRY run ───────
+  // (run 25215982, `run-2026-08-30-18-30-25`), which reached ROOM 13 — the
+  // deepest this corpus has gone, superseding room 11. Rooms 11 and 12 are
+  // first-ever offers at those depths.
+  //
+  // The depth invariant this table encodes — "offers stop one room short of
+  // the deepest death" — still holds and was re-checked rather than assumed:
+  // the run died in room 13 and its deepest offer is room 12.
+  //
+  // ⚠ One row carries a first-ever PICKED type: `VulnerableTenacity` (the
+  // room-12 offer, `state-211`), taken by BOON PRIORITY 5 over ranked
+  // `AddIntuition`. It IS modelled — `latent`, on the Vulnerable family's own
+  // precedent rather than a fresh user directive; see its `BOON_MODELS` entry
+  // and DECISIONS 2026-08-30.
+  {
+    room: 1,
+    source: "run-2026-08-30-18-30-25/state-004",
+    options: [opt("AddIntuition", 1), opt("Regen", 2), opt("Thorns", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-30-18-30-25/state-026",
+    options: [opt("Heal", 50), opt("AddMaxHealth", 8), opt("AddLifestealMagic", 3)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-30-18-30-25/state-048",
+    options: [opt("AddMaxArmor", 8), opt("Regen", 2), opt("CorrosiveMagic", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-30-18-30-25/state-058",
+    options: [opt("UpgradeRock", 0, 4), opt("AddTenacity", 2), opt("AddEvasion", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-30-18-30-25/state-078",
+    options: [opt("UpgradePaper", 4), opt("UpgradeScissor", 4), opt("UpgradeScissor", 0, 4)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-30-18-30-25/state-102",
+    options: [opt("AddEvasion", 2), opt("AddIntuition", 1), opt("AddLifestealSword", 2)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-30-18-30-25/state-116",
+    options: [opt("ArmorDepletedWeak", 2), opt("Regen", 3), opt("AddMaxArmor", 8)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-30-18-30-25/state-136",
+    options: [opt("AddBlock", 5), opt("AddEvasion", 1), opt("BurningEvade", 8)],
+  },
+  {
+    room: 9,
+    source: "run-2026-08-30-18-30-25/state-156",
+    options: [opt("AddBurnMagic", 3), opt("Heal", 50), opt("UpgradePaper", 0, 6)],
+  },
+  {
+    room: 10,
+    source: "run-2026-08-30-18-30-25/state-178",
+    options: [opt("AddTenacity", 2), opt("UpgradeScissor", 0, 4), opt("AddBlock", 2)],
+  },
+  {
+    room: 11,
+    source: "run-2026-08-30-18-30-25/state-194",
+    options: [opt("SecondWind", 10), opt("AddMaxHealth", 14), opt("CorrosiveShield", 2)],
+  },
+  {
+    room: 12,
+    source: "run-2026-08-30-18-30-25/state-210",
+    options: [opt("AddIntuition", 4), opt("AddEvasion", 10), opt("VulnerableTenacity", 4)],
   },
 ];
 

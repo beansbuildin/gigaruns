@@ -175,13 +175,46 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
   user's judgement is that the silver-ring stock is worth spending on that
   where the gold-ring stock was not.
 
-  **The cost, measured live before the first run rather than assumed from
-  Tier 3's shape.** Tier 2's `entryData` reads
+  **⚠⚠ [2026-08-30, session 112] THE COST BELOW IS WRONG. MEASURED ON THE
+  FIRST LIVE TIER-2 RUN: exactly ONE faction is charged, THREE of it — not one
+  of each of seven.** Balances immediately before and after run 25215982
+  (faction day 20695), read twice after and stable:
+
+  ```
+  134 Chobo 39->39   135 Crusader 39->39   136 Overseer 45->45
+  137 Athena 30->30  138 Archon   30->30   140 Summoner 54->54
+  139 Foxglove 57->54   <-- the ONLY one that moved, -3
+  ```
+
+  Six of seven factions were untouched. `entryData` carries
+  `inputsBasedOnFactionDay: true`, so the seven-id `inputItems` list is
+  plausibly the SUPERSET across faction-days with one faction live per day.
+  The **3** matches the juiced run-unit multiplier exactly, but whether it is
+  the multiplier or a flat per-entry amount is **UNSEPARATED at n=1** and needs
+  a run on a different faction day.
+
+  **So the runway arithmetic below is wrong, in the direction that
+  UNDERSTATES it.** Do not quote "30 runs / 7.5 days" and do not rewrite it
+  either until a second run identifies the next day's faction.
+  `scripts/checkEntryTiers.ts` prints the same wrong runway and now says so.
+
+  **Also measured: NO ring debit appears on the wire.** `start_run`'s response
+  has no `gameItemBalanceChanges` field at all (keys: `success, actionToken,
+  message, data{run, events, entity}`), and across the whole run log that field
+  mentions only 845 and 846. The ring spend is only observable by reading
+  balances before and after.
+
+  *The original claim is kept below, marked wrong, because the ORDER of the
+  ids and the `inputAmounts` are still what `entryData` returns — what was
+  wrong is the inference that all seven are charged.*
+
+  ~~**The cost, measured live before the first run rather than assumed from
+  Tier 3's shape.**~~ Tier 2's `entryData` reads
   `inputItems: [134,137,138,135,136,139,140]`, `inputAmounts: [1,1,1,1,1,1,1]`
-  — **all seven silver rings, one each, per run.** Not "seven ids" in the
+  — ~~**all seven silver rings, one each, per run.** Not "seven ids" in the
   loose sense session 106 recorded off Tier 3: it is one ring from every
   faction simultaneously, so **the RUNWAY IS SET BY THE SCARCEST FACTION, not
-  by the total.** On 2026-08-30 the balances were 33/39/42/30/30/57/54
+  by the total.**~~ On 2026-08-30 the balances were 33/39/42/30/30/57/54
   (Chobo/Crusader/Overseer/Athena/Archon/Foxglove/Summoner), so the stock was
   **30 runs — 7.5 days at the 4-runs-per-day ceiling — against a Tier-2
   offering window running to day 20731, ~37 days out.** That shortfall is the

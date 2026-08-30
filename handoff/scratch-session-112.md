@@ -142,3 +142,69 @@ Two things that would have been silent bugs:
   `rolledOverInProcess` and suppresses the write for the rest of the process.
   Cost: one extra real rejection in the rare straddle-then-capped-again case.
   Same trade session 111 took.
+
+## Step 4: the Tier-2 run RAN — and the ring cost is NOT what rule 11 says
+
+One authorized run, explicit user go-ahead this session. Reached **room 13**,
+108 actions, **0 first-attempt failures**, energy 78 → 20 (committed 60,
+observed 58 — passive regen, expected). `dayProgressEntities` **0 → 3** of 12.
+`start_run` body confirmed correct: `index: 2, isJuiced: true,
+consumables: [131,131,131]`. Run id 25215982, faction day **20695**.
+
+### The brief's gate is UNMEETABLE AS WORDED — the field does not exist
+
+The gate was "confirm the seven negative `gameItemBalanceChanges` on
+`start_run` match `inputItems`/`inputAmounts`". **`start_run`'s response has no
+`gameItemBalanceChanges` field at all.** Its keys are
+`success, actionToken, message, data{run, events, entity}`; `data.events` is
+`[{"type":"dungeon_started","data":{"dungeonId":25215982}}]`.
+
+Across the ENTIRE run log, `gameItemBalanceChanges` mentions only **845
+(+6768)** and **846 (+1179)**. **No ring id ever appears.** The ring debit is
+not reported on the wire at any point.
+
+### ⚠⚠ THE COST IS ONE FACTION × 3, NOT ONE OF EACH OF SEVEN
+
+Balances read live immediately before and after, twice after (stable, not lag):
+
+```
+id   faction            before   after   delta
+134  Chobo Silver         39       39      0
+135  Crusader Silver      39       39      0
+136  Overseer Silver      45       45      0
+137  Athena Silver        30       30      0
+138  Archon Silver        30       30      0
+139  Foxglove Silver      57       54     -3   <-- the only one that moved
+140  Summoner Silver      54       54      0
+                        total 294 -> 291   -3
+```
+
+**Six of the seven factions were not charged at all.** CLAUDE.md rule 11 and
+`scripts/checkEntryTiers.ts` both state one of EACH per run, and both derive
+the runway from that. Rule 11's own text says the runway is 30 runs bound by
+the scarcest faction. **That arithmetic is wrong**, and it is wrong in the
+direction that UNDERSTATES the runway by a lot.
+
+**The leading reading, and it is a hypothesis at n=1, not a measurement.**
+`entryData` carries `inputsBasedOnFactionDay: true`. So the seven-id
+`inputItems` list is plausibly the SUPERSET across faction-days, with exactly
+ONE faction actually charged on any given day — today (day 20695) Foxglove.
+The **3** is unexplained but matches the juiced run-unit multiplier exactly
+(`JUICED_COST_MULTIPLIER` 3, and `dayProgressEntities` moved 3).
+
+**Two readings the next run must separate**, and it takes a run on a DIFFERENT
+faction day to do it:
+- 3 = juiced multiplier → an unjuiced Tier-2 entry would cost 1.
+- 3 = flat per-entry amount for the active faction, multiplier-independent.
+
+Do NOT rewrite the runway number until a second run on a different day says
+which faction is charged then. What is certain today: **the cost is not one of
+each of seven, and no ring debit appears on the wire.**
+
+### Hard Core payout: 6768, and it is NOT comparable to session 103
+
+One Tier-2 run to room 13 paid **6768** Hard Core (item 845) and 1179 Dendren
+Root (846). Session 103's four Tier-3 runs paid 30,960 (7,740/run). **These are
+not comparable** — different tier, different depth, different room count. This
+is STATE.md open question 3 in live form; the number is recorded, no ratio is
+claimed from it.
