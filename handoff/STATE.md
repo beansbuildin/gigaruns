@@ -1,4 +1,4 @@
-# STATE — session 110 — 2026-08-29 — code at commit 77de83c6
+# STATE — session 110 — 2026-08-29/30 — code at commit <RECAP_SHA>
 
 ## Status
 Brief was **fishing only, two steps: (0) fix fishing's never-tracked Hard Core
@@ -27,29 +27,27 @@ here means a brief proposing it as NEW work is wrong.** Carried forward and
 edited each session, never rewritten. Entries marked **[USER]** are user
 directives an agent may not re-open at all.
 
-**Dropped this session** (all four now self-enforcing, none at risk of being
+**Dropped this session** (all now self-enforcing, none at risk of being
 re-proposed): **`AddLifestealSword` is modelled** and **room 11 / `Enemy Room
-73`** (both are in `src/sim/` with tests that fail if removed); **the loadout
-holds steady**; and **consumables are debited at `start_run`** (measured, quiet
-for two sessions).
+73`** (both in `src/sim/` with tests that fail if removed); **the loadout holds
+steady**; **consumables are debited at `start_run`** (measured, quiet for two
+sessions); and **`damageEconomy`'s widened meanDamage band**, which now carries
+its own 15-line rationale in the test and cannot be silently re-ratcheted.
 
 - **Fishing's Hard Core income is TRACKED and BACKFILLED, and the amount is
   NOT a constant.** It tracks fish rarity — base 0→80, 1→160, 2→320, 3→400,
-  4→480 — and 15 of 129 catches paid an exact 2x or 4x multiple with no
-  distinguishing field on the response. Escaped casts pay 0 (measured, 159/159).
+  4→480 — and 16 of 134 catches paid an exact 2x or 4x multiple with no
+  distinguishing field on the response. Escaped casts pay 0 (measured, 161/161).
   DECISIONS 2026-08-29. Re-opens as: *"add a Hard Core column to the fishing
   report"*, *"measure what fishing pays per catch"*, or *"is it 320 per catch"*
   — the last is the session-15/16 single data point and is rarity 2 only.
-- **A fishing batch must be sized to ROD DURABILITY, not to the cast cap.** The
-  durability preflight runs ONCE before the batch, never per cast, so a batch
-  longer than the rod does not halt — it drives the rod past 0. 1.00/cast is a
-  closed bracket (now n=75 over four batches). Re-opens as: *"run the full
-  20/25 casts"* when the rod reads less than that.
-- **`damageEconomy`'s meanDamage band was WIDENED 5.5 → 6.0 on a mechanism,
-  not ratcheted.** Looted cards run 5–11 damage against a base deck of 5s, and
-  the deck has grown 10 → 18, so the mean rises monotonically with play.
-  Re-opens as: *"mean damage is drifting, find the bug"* — check deck size
-  first. It is a magnitude band and must not become a re-derived pin.
+- **A fishing batch is sized to WHICHEVER of rod durability and the cast cap
+  binds first.** The durability preflight runs ONCE before the batch, never per
+  cast, so a batch longer than the rod does not halt — it drives the rod past 0.
+  1.00 per cast PLAYED is a closed bracket (n=97 over six batches). With a
+  healthy rod the `dayDocs` cap binds instead, which is what closed 2026-08-29
+  at 20/20. Re-opens as: *"run the full 20/25 casts"* when the rod reads less
+  than that.
 - **[USER] Chaining is a ONE-TIME, DATED exception, not a rule change.**
   Rule 11 pins `--runs=1` with a stop between runs. DECISIONS 2026-08-29.
   Re-opens as: *"chain the runs like last time."*
@@ -148,7 +146,7 @@ for two sessions).
   QUESTIONS §64 asks for the directive. **Third session blocking**, carried
   unchanged from 108 and 109.
 - ⚠ **Card 84 has no on-grid footprint and the bot may still loot it.** It
-  JOINED the guaranteed-miss set this batch (was `[1,3,4,6,35]`).
+  JOINED the guaranteed-miss set in the first batch (was `[1,3,4,6,35]`).
   `chooseNewCard` has no deck-composition term — TASKS.md §13, still NOT
   STARTED. This is the second observed instance of the shape §13 exists to
   price, not a quantified cost.
@@ -158,8 +156,8 @@ for two sessions).
 ## Corrections to SPEC.md
 - **None. `SPEC.md` and `SPEC-fishing.md` were not touched** — nothing in the
   live responses contradicted them. `SPEC-fishing.md` §4's claim that fishing
-  credits Hard Core on every catch was CONFIRMED at corpus scale (129/129
-  catches, 0/159 non-catches), not corrected.
+  credits Hard Core on every catch was CONFIRMED at corpus scale (134/134
+  catches, 0/161 non-catches), not corrected.
 - **A brief correction, not a spec one:** the brief dated session 102 to
   2026-08-25; the log header and the fixtures both say **2026-08-26 PT**.
 - Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
@@ -176,8 +174,9 @@ for two sessions).
   It is derived from the records now.
 - **Do not read the non-1x Hard Core multiples as an era change.** They are
   absent before 2026-08-21 (0/14) and 12/106 after, which is not separable from
-  a flat ~10% rate at that n. This batch's 3-of-9 has P=0.053 against that base
-  rate — suggestive, not a finding.
+  a flat ~10% rate at that n. The first batch's 3-of-9 has P=0.053 against that
+  base rate — suggestive, not a finding — and the closing 7 casts produced just
+  1 of 5, which pulls the day back toward the base rate rather than away.
 - Carried, untouched: §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE
   QUOTED.**
 
@@ -225,15 +224,16 @@ for two sessions).
 
 ## Files changed
 ```
- src/sim/fishingCorpus.ts                   |  21 +
- src/sim/fishingReport.ts                   |  90 +-
- scripts/liveFishing.ts                     |   2 +-
- tests/sim/fishingReport.test.ts            | 172 +-
+ src/sim/fishingCorpus.ts                   |  21 +   (carry gameItemBalanceChanges)
+ src/sim/fishingReport.ts                   | 132 +   (hardCore + derived ladder)
+ scripts/liveFishing.ts                     |   2 +-  (shadow in-sample rate)
+ tests/sim/fishingReport.test.ts            | 190 +   (+9 new cases)
+ tests/sim/fishingCorpus.test.ts            |  32 +-
  tests/fishing/{castEra,damageEconomy,matcherHeadroom,oilReachability,
    redrawCounterfactual,redrawShadowAnalysis,stateFields,zoneTemplate}.test.ts
-                                            | 316 +-   (the ratchet)
- tests/sim/fishingCorpus.test.ts            |  20 +-
- handoff/reports/fishing-casts.md           | 584 +-
- fixtures/fishing-casts/live/cast-2026-08-30-*  | 97 files (new, 15 casts)
- 117 files changed, 64272 insertions(+), 530 deletions(-)
+                                            | ~600 +- (114 assertions, 2 passes)
+ handoff/reports/fishing-casts.md           | 600 +-  (regenerated, Hard Core col)
+ handoff/{STATE.md,DECISIONS.md,log/session-110.md}
+ fixtures/fishing-casts/live/cast-2026-08-30-*  | 138 files (new, 22 casts)
+ 158 files changed
 ```
