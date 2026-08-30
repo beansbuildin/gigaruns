@@ -192,3 +192,62 @@ that counter. It reads the game's own number.
 - 1 cast remains on today's game ledger. Not spent — the batch was sized to
   the cap and the last cast was the JEBAITOR gap reopening it, not headroom
   the batch declined.
+
+## Step 3b — the corpus re-baseline, and TWO substantive findings inside it
+
+⚠ **I committed the batch before running the suite, and it was RED — 55
+assertions across 9 files.** They are corpus-census pins and the corpus grew by
+20 casts, so re-baselining is correct — but the check should have come first
+and the commit message asserted a green suite it had not seen. Corrected in the
+follow-up commit rather than amended, so the sequence stays visible.
+
+**The control held.** `preOil [94, 410, 184]` and `oilSupplied [62, 235, 4]`
+are BYTE-IDENTICAL; all 20 new casts classified `focusDry`. That is the era
+ruling (§32 — a consumable-supply boundary, not a policy date) confirmed out of
+sample for a **TENTH consecutive batch**. Instrument did not drift; the corpus
+grew on one side only.
+
+### ⭐ FINDING 1 — a pinned claim was FALSIFIED, exactly as its own comment invited
+
+`redrawCounterfactual.test.ts`'s "at BOTH thresholds the conditioned arm nets
+positive where the unconditional nets ~nothing" carried the note *"Asserted as
+an inequality so a future corpus can falsify it loudly instead of by a number
+sliding."* **A corpus did.**
+
+- `b6` net (K=6 conditioned): **11, UNMOVED** — its whole `toMatchObject` is
+  byte-identical across the batch.
+- `all3` net (unconditional): **8 → 12** (rescues 19→23, sacrifices 8→11).
+
+So `b6 > all3` inverted **not because the conditioned arm got worse but
+because the unconditional arm caught up and passed it.** That is the more
+interesting of the two possible failures. K=10 still carries the claim, and by
+a WIDER margin (23 vs 12). The thesis is not dead — it is **threshold-dependent
+in a way nobody had measured**, and K=6 is no longer evidence for it. Re-pinned
+as exact values on both sides plus an explicit `toBeLessThan` marking the
+inversion, so the next growth reports what each arm did rather than collapsing
+two independently-moving numbers into one pass/fail.
+
+### ⭐ FINDING 2 — card 87 joined the guaranteed-miss set, and it is a CENSUS entry
+
+Checked rather than pattern-matched: card 87 is `hitZones: [3,6,9]`, crit `[]`,
+positional reachability **6/9 = 0.667** — the single-COLUMN band, **byte-
+identical zones to card 6**, which has been a member since the set was pinned.
+Per DECISIONS 2026-08-30 the set is a census of low-reachability cards, not
+defective ones, and 16 of 80 sit in that band. Six of the seven members are now
+at 0.667; card 35 (0.889) stays the lone exception and is there for the
+CURRENCY reason §13 exists to price, not the reachability one.
+
+### One bound raised, with the crossing recorded
+
+`damageEconomy.test.ts`: `|bare.meanDamage - LIVE.meanDamage|` = **0.5477**
+against a bound of 0.5 — first crossing. Same direction as `LIVE.drift`
+(-0.5187 → -0.5647): live keeps moving, the sim's bare arm does not, so a gap
+between them widens by construction. Raised to **0.7** — headroom for about one
+more batch, deliberately not a round number far above the observation. ⚠ Also
+corrected: the prose said "within a tenth" while the bound was 0.5, and had
+been stale for some time. A third crossing should be investigated, not raised.
+
+### `REDRAW_SHADOW_IN_SAMPLE_RATE_PCT` moved 3.0 → 2.8
+
+It lives in `scripts/liveFishing.ts`, not in the test — the test imports it, so
+the pin and the thing pinned cannot drift apart. Recomputed on 315 casts.

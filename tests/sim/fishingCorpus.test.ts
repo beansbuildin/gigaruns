@@ -171,11 +171,11 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // NOT separable from the era baseline (41/74 = 55.4% excluding this batch,
     // Fisher p = 0.455). Note 21 casts were PLAYED but only 19 charged against
     // the game's daily ledger: JEBAITOR (§34) fired twice.
-    expect(summary.casts).toBe(295); // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
-    expect(summary.responseDocs).toBe(1691); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
-    expect(summary.playTurns).toBe(1148); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
-    expect(summary.caught).toBe(134); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
-    expect(summary.escaped).toBe(160); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
+    expect(summary.casts).toBe(315);  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
+    expect(summary.responseDocs).toBe(1804);  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
+    expect(summary.playTurns).toBe(1227);  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
+    expect(summary.caught).toBe(146);  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
+    expect(summary.escaped).toBe(168);  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -705,6 +705,28 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // single-lethal trigger did not fire in either half of the day.
       "13165228",
       "13165235",
+      // ⭐ [session 113] +2 from the twenty-cast batch — and these two are
+      // unlike every oil cast above them, which is why they get their own note
+      // rather than a count.
+      //
+      // **THE DOUBLE-LETHAL OVERRIDE WAS DISARMED FOR THIS BATCH** (user
+      // directive 2026-08-30, `dendren.oils.doubleLethalOverride` absent). So
+      // for the first time in this list, the oils were NOT spent by the
+      // override: both are single, both are the rule-4-approved on-demand
+      // trigger, and **`oil_double_lethal_fired` is zero across the batch**.
+      //
+      // Both fired at `fishHp` 1 — inside the approved `fishHp <= 2` band that
+      // session 112 showed the override had been STARVING by killing at 3-4
+      // one band above it — with `bestKillProbability` 0.5795 and 0.6298, both
+      // under the 0.85 threshold, so the necessity gate correctly did not
+      // withhold them. **ONE oil each; the per-cast cap of 2 was not reached
+      // at all**, which breaks the "reached but never binding" streak in the
+      // only way that is good news: nothing wanted two.
+      //
+      // Twenty casts, TWO oils. The previous twenty-cast batch (session 102)
+      // spent thirteen.
+      "13172282",
+      "13172283",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;
