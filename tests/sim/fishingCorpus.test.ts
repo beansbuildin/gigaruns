@@ -171,11 +171,11 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // NOT separable from the era baseline (41/74 = 55.4% excluding this batch,
     // Fisher p = 0.455). Note 21 casts were PLAYED but only 19 charged against
     // the game's daily ledger: JEBAITOR (§34) fired twice.
-    expect(summary.casts).toBe(273); // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */
-    expect(summary.responseDocs).toBe(1552); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */
-    expect(summary.playTurns).toBe(1059); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */
-    expect(summary.caught).toBe(120); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */
-    expect(summary.escaped).toBe(152); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */
+    expect(summary.casts).toBe(288); // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */
+    expect(summary.responseDocs).toBe(1653); // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */
+    expect(summary.playTurns).toBe(1126); // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */
+    expect(summary.caught).toBe(129); // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */
+    expect(summary.escaped).toBe(158); // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -690,6 +690,16 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       "13148605",
       "13148620",
       "13148652",
+      // [session 110] +5 from this session's 15-cast batch — the five casts
+      // that spent Relaxing Oil. All ten oils went in FIVE double-lethal
+      // firings (2 oils each); the on-demand single-lethal trigger did not
+      // fire once, and the per-cast cap of 2 was reached without binding for
+      // the umpteenth time.
+      "13156408",
+      "13156421",
+      "13156427",
+      "13156428",
+      "13156433",
 ]);
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

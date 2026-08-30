@@ -235,4 +235,26 @@ describe("buildFishingMarkdown", () => {
     expect(markdown).toContain(`Total Hard Core earned: ${rows.reduce((a, b) => a + b, 0)} `);
     expect(markdown).toContain("Total Hard Core earned: 1360 (680.0 per catch, 453.3 per cast).");
   });
+
+  it("derives the rarity ladder and the multiple count from the records, not from a written constant", () => {
+    // The prose paragraph was hardcoded when first written and was stale one
+    // session later. It is derived now, so this asserts the DERIVATION: two
+    // rarity-0 catches establish 80 as that rarity's base, and the third —
+    // paying 320 — is counted as a multiple rather than moving the base.
+    const records = [
+      summarizeFishingCast(cast("1", { caught: true, rarity: 0, hardCore: 80 })),
+      summarizeFishingCast(cast("2", { caught: true, rarity: 0, hardCore: 80 })),
+      summarizeFishingCast(cast("3", { caught: true, rarity: 0, hardCore: 320 })),
+      summarizeFishingCast(cast("4", { caught: true, rarity: 2, hardCore: 320 })),
+      summarizeFishingCast(cast("5", { caught: false })),
+    ];
+    const markdown = buildFishingMarkdown(records, { generatedAt: "TEST" });
+    expect(markdown).toContain("across all 4 caught casts the base is rarity 0 -> 80, 2 -> 320");
+    expect(markdown).toContain("1 of those 4 paid an exact small multiple of that base (up to 4x)");
+  });
+
+  it("omits the ladder paragraph entirely when nothing was caught", () => {
+    const markdown = buildFishingMarkdown([summarizeFishingCast(cast("1", { caught: false }))], { generatedAt: "TEST" });
+    expect(markdown).not.toContain("per-catch amount");
+  });
 });

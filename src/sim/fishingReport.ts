@@ -95,6 +95,46 @@ export function summarizeFishingRollup(records: FishingCastRecord[]): FishingRol
   };
 }
 
+/**
+ * ── [session 110] THE RARITY LADDER, DERIVED RATHER THAN WRITTEN ────────────
+ *
+ * The per-catch Hard Core amount is not a constant — it tracks the fish's
+ * rarity, and a minority of catches pay an exact small multiple of that base.
+ * Both halves are DERIVED from the records being rendered rather than quoted
+ * from a session's measurement, because a hardcoded sentence about "all 120
+ * caught casts" is wrong the moment the next batch lands. It was, within one
+ * session of being written.
+ *
+ * The base for a rarity is the MINIMUM amount observed at that rarity. That is
+ * a claim about the data in front of it, not a model: if a future batch ever
+ * observes something below a current base, the base moves and the multiple
+ * count moves with it, which is the correct behaviour for a report.
+ */
+function hardCoreLadderLines(records: FishingCastRecord[]): string[] {
+  const caught = records.filter((r) => r.caught && r.rarity != null && r.hardCore > 0);
+  if (caught.length === 0) return [];
+
+  const base = new Map<number, number>();
+  for (const r of caught) {
+    const cur = base.get(r.rarity!);
+    if (cur === undefined || r.hardCore < cur) base.set(r.rarity!, r.hardCore);
+  }
+  const ladder = [...base.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([rarity, amount]) => `${rarity} -> ${amount}`)
+    .join(", ");
+  const multiples = caught.filter((r) => r.hardCore > base.get(r.rarity!)!);
+
+  return [
+    `**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all ${caught.length} ` +
+      `caught casts the base is rarity ${ladder} — and ${multiples.length} of those ${caught.length} paid an ` +
+      `exact small multiple of that base (up to ${Math.max(...multiples.map((r) => r.hardCore / base.get(r.rarity!)!), 1)}x) ` +
+      "with no distinguishing field on the response. Both the ladder and the multiple count are derived from " +
+      "the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.",
+    "",
+  ];
+}
+
 export interface FishingMarkdownOptions {
   generatedAt?: string;
 }
@@ -117,13 +157,7 @@ export function buildFishingMarkdown(records: FishingCastRecord[], opts: Fishing
       `${(rollup.totalCasts > 0 ? rollup.totalHardCore / rollup.totalCasts : 0).toFixed(1)} per cast).`,
   );
   lines.push("");
-  lines.push(
-    "**The per-catch amount is NOT a constant.** It tracks the fish's rarity — measured across all 120 " +
-      "caught casts: rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480 — and 12 of those 120 paid an " +
-      "exact 2x or 4x multiple of that base with no distinguishing field on the response. See " +
-      "`src/sim/fishingReport.ts`'s `hardCore` doc comment.",
-  );
-  lines.push("");
+  lines.push(...hardCoreLadderLines(records));
 
   const names = Object.keys(rollup.totalByName).sort((a, b) => rollup.totalByName[b]! - rollup.totalByName[a]!);
   if (names.length > 0) {

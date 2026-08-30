@@ -1,22 +1,22 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-30T01:54:02.591Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-08-30T02:41:12.572Z.
 
-273 recorded casts — 120 caught (44.0%).
-Total Hard Core earned: 19520 (162.7 per catch, 71.5 per cast).
+288 recorded casts — 129 caught (44.8%).
+Total Hard Core earned: 22160 (171.8 per catch, 76.9 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — measured across all 120 caught casts: rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480 — and 12 of those 120 paid an exact 2x or 4x multiple of that base with no distinguishing field on the response. See `src/sim/fishingReport.ts`'s `hardCore` doc comment.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 129 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480 — and 15 of those 129 paid an exact small multiple of that base (up to 4x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Barnaboo: 32
-- Finley: 24
-- Plankton: 21
+- Barnaboo: 34
+- Finley: 25
+- Plankton: 23
 - Ollie: 9
-- Kelpkin: 7
-- Jelloid: 7
+- Jelloid: 9
+- Kelpkin: 8
 - Zombo: 5
-- Deadfin: 4
+- Deadfin: 5
 - Skinzy: 4
 - Podge: 2
 - Gulp: 1
@@ -302,3 +302,18 @@ Total Hard Core earned: 19520 (162.7 per catch, 71.5 per cast).
 | 13148652 | yes | Jelloid (rarity 1) | 160 |
 | 13148658 | yes | Barnaboo (rarity 0) | 80 |
 | 13148661 | yes | Finley (rarity 0) | 80 |
+| 13156399 | no | — | 0 |
+| 13156404 | no | — | 0 |
+| 13156406 | yes | Kelpkin (rarity 1) | 640 |
+| 13156408 | yes | Finley (rarity 0) | 80 |
+| 13156411 | yes | Barnaboo (rarity 0) | 80 |
+| 13156412 | yes | Deadfin (rarity 2) | 320 |
+| 13156415 | yes | Plankton (rarity 0) | 80 |
+| 13156416 | no | — | 0 |
+| 13156420 | no | — | 0 |
+| 13156421 | yes | Jelloid (rarity 1) | 640 |
+| 13156424 | no | — | 0 |
+| 13156427 | yes | Plankton (rarity 0) | 80 |
+| 13156428 | yes | Jelloid (rarity 1) | 640 |
+| 13156430 | no | — | 0 |
+| 13156433 | yes | Barnaboo (rarity 0) | 80 |
