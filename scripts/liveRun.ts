@@ -1003,7 +1003,10 @@ export async function runOnce(deps: LiveRunDeps, opts: { stage2Only?: boolean; r
       guards.recordActionResult(true);
       guards.recordRunStarted(runUnits);
       guards.recordEnergySpent(estimatedCost);
-      saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath); // [session 09] persist immediately — see guardPersistence.ts
+      // [session 09] persist immediately — see guardPersistence.ts
+      saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath, {
+        serverCapReached: guards.capReachedByServer,
+      });
     };
 
     /**
@@ -1959,7 +1962,11 @@ async function assertDungeonCapNotExhausted(
   const realRunsToday = findRealRunsToday(today, config.dungeonId);
   if (realRunsToday !== null && realRunsToday >= config.maxRunsPerSession) {
     guards.recordServerCapReached();
-    saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath);
+    // [session 112] Persisted as a flag, not as a forged run count — see
+    // `GuardState.recordServerCapReached`.
+    saveGuardBudget(guards.spentEnergy, guards.runCount, guardStatePath, {
+      serverCapReached: guards.capReachedByServer,
+    });
     log.write({ event: "server_cap_reached", mode: "dungeon", realRunsToday, cap: config.maxRunsPerSession });
     throw new GuardTrip("session run cap reached", {
       source: "server GET /game/dungeon/today",

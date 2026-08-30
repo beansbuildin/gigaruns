@@ -59,20 +59,22 @@ describe("the corpus supports a boon model at all", () => {
  * directive — the precedent is `LossIntuitionUp`, which session 99 measured,
  * put to the account owner with its evidence, and only then modelled.
  *
- * **`LossBlockUp` — first-ever pickup, `run-2026-08-29-17-53-12`
- * state-298 -> state-299, `selectedVal1` 5.** It had been OFFERED repeatedly
- * across the corpus and never taken until now. Measured with session 89's
- * strict check — a recursive diff of the ENTIRE raw `players[0]` object, not
- * just the fields `toCombatant` projects — the pair's only difference in the
- * whole object is this boon's own append to `pickedBoons`. `players[1]` is
- * byte-identical.
+ * **[session 112] The set is EMPTY, and that is the state to keep it in.**
+ * `LossBlockUp` was its only member for four sessions; the user gave the
+ * directive on 2026-08-30 (QUESTIONS.md §64 ANSWERED, DECISIONS 2026-08-30)
+ * and it is now modelled `latent` on the `LossIntuitionUp` precedent. Its
+ * measured pickup delta is no longer pinned here — it is pinned by the
+ * parametrized suite below, which now runs the FULL model assertion against
+ * it, and by `LossBlockUp is latent at pickup` further down.
  *
- * So it is LATENT AT PICKUP, measured, n=1. That is not the same as knowing
- * what it does: per DECISIONS 2026-08-15 the effect is NOT inferred from the
- * name, and `LossEvasionUp`/`LossLuckUp` are still unmodelled, so there is no
- * established family to generalise from either. Awaiting a user directive.
+ * **The mechanism stays because it is not about `LossBlockUp`.** An empty set
+ * still subtracts nothing from the exhaustiveness assertion, so an unlisted
+ * type that gains a pair and no model still fails — which is the property
+ * this construction exists for. The next n=1 type awaiting a directive is
+ * added here, and the branch below is what keeps its gap explicit rather than
+ * letting a red wall test be the only signal.
  */
-const AWAITING_MODEL_DIRECTIVE = new Set(["LossBlockUp"]);
+const AWAITING_MODEL_DIRECTIVE = new Set<string>();
 
 describe("every modelled boon reproduces its recorded delta", () => {
   for (const p of pickups) {
@@ -152,6 +154,41 @@ describe("AddBurnSword's empty delta is a result, not an omission", () => {
     expect(after.hpMax).toBe(before.hpMax);
     expect(after.armorMax).toBe(before.armorMax);
     for (const s of ROLLED) expect(after.rolled[s], s).toBe(before.rolled[s]);
+  });
+});
+
+describe("LossBlockUp is latent at pickup — modelled from n=1 by directive", () => {
+  // [session 112] The regression case every single-pair boon model in this
+  // repo carries. The parametrized suite above already asserts that
+  // `applyBoon` reproduces the recorded delta; this pins the MEASUREMENT that
+  // the directive was granted on, so that if a future pickup shows this boon
+  // moving a field, the failure names `LossBlockUp` rather than arriving as a
+  // generic model mismatch.
+  //
+  // QUESTIONS.md §64 is the ask, DECISIONS 2026-08-30 the ruling. n=1: this is
+  // the corpus's only pickup of this type.
+  it("changes no player field at pickup, and is the only pickup of its type", () => {
+    const picks = pickups.filter((p) => p.picked.boonTypeString === "LossBlockUp");
+    expect(picks.length, "n=1 is what the directive was granted on").toBe(1);
+    const pick = picks[0]!;
+    expect(pick.picked.selectedVal1).toBe(5);
+
+    const before = toCombatant(pick.before.run.players[0]!);
+    const after = toCombatant(pick.after.run.players[0]!);
+    expect(after.hp).toBe(before.hp);
+    expect(after.armor).toBe(before.armor);
+    expect(after.hpMax).toBe(before.hpMax);
+    expect(after.armorMax).toBe(before.armorMax);
+    for (const s of ROLLED) expect(after.rolled[s], s).toBe(before.rolled[s]);
+  });
+
+  it("is modelled latent, and still contaminates — the pickup is known, the loss conditional is not", () => {
+    const model = BOON_MODELS.LossBlockUp;
+    expect(model, "the directive landed; see DECISIONS 2026-08-30").toBeDefined();
+    expect(model!.effect).toEqual({ kind: "latent" });
+    // Per DECISIONS 2026-08-15 the name is not evidence. Modelling the pickup
+    // must NOT silently score the run after it as if the boon were inert.
+    expect(model!.contaminates).toContain("STATUS_EFFECT");
   });
 });
 
@@ -316,18 +353,26 @@ describe("fail-closed on unmodelled types", () => {
       // It had been on this list since **session 43** — offered again and
       // again and never picked — and it closes the lifesteal triple, joining
       // the already-modelled AddLifestealShield and AddLifestealMagic. That
-      // family precedent is what separates it from `LossBlockUp`, which stays
+      // family precedent is what separated it from `LossBlockUp`, which stayed
       // in AWAITING_MODEL_DIRECTIVE precisely because its own siblings
       // (LossEvasionUp/LossLuckUp) are still unmodelled.
       //
       // The two runs offered no type this list had never seen — the third such
       // session in a row after 106 and 108.
+      //
+      // [session 112] ONE moved OUT and NONE moved in: `LossBlockUp` is
+      // modelled `latent` by explicit user directive (QUESTIONS.md §64
+      // ANSWERED, DECISIONS 2026-08-30), on the `LossIntuitionUp` precedent
+      // rather than on a family precedent — its siblings `LossEvasionUp` and
+      // `LossLuckUp` are STILL unmodelled and still on this list, which is the
+      // asymmetry the session-109 note above describes. The list shrinks
+      // 15 -> 14. **No new measurement**: the pickup pair is session 108's,
+      // unchanged; what arrived is the directive.
       "AddWeakShield", // session 53: first sighting, live room-3 offer (juiced run 2), not picked // session 11: first sighting, room-1 offer, not picked
       "BurningCrit", // session 52: first sighting, live room-5 offer, not picked
       "BurningTenacity", // session 16: first sighting, live room-1 offer (Task 12 Stage B potion-timing run), not picked // session 20: first sighting, the corpus's first-ever room-4 offer, not picked
       "CritHeal", // session 43: first sighting, live room-2 offer (bot-initiated juiced run 2), not picked
       "IntuitionArmor", // session 24: first sighting, live room-4 offer (Task 10 orchestrator gate run), not picked
-      "LossBlockUp", // session 20: first sighting, live room-2 offer, not picked
       "LossEvasionUp", // session 82: FIRST-EVER TYPE, live room-4 offer on run 1, not picked
       "LossLuckUp", // session 43: first sighting, live room-3 offer (bot-initiated juiced run 2), not picked
       "RegenMastery", // session 53: first sighting, live room-4 offer (juiced run 2), not picked

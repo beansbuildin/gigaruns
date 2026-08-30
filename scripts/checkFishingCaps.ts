@@ -74,6 +74,16 @@ async function main() {
   console.log("");
   console.log(`GAME ledger  (dayDocs pond ${DENDREN_POND_ID}):  ${serverCasts ?? "NOT FOUND"} / ${serverCap}`);
   console.log(`REPO ledger  (${FISHING_GUARD_STATE_PATH}): ${guard.runsStarted} casts, ${guard.energySpent} energy`);
+  // [session 112] Reported separately from the count, because it IS separate.
+  // Until this session the exhaustion was encoded by writing
+  // `dendren.maxCastsPerSession` into `runsStarted`, so this report's own
+  // "repo over-counted by N" line described a config knob rather than a
+  // miscount — see `GuardState.recordServerCapReached`.
+  console.log(
+    `SERVER cap flag:                             ${
+      guard.serverCapReached ? "SET — the server refused a cast for its own daily cap today" : "not set"
+    }`,
+  );
   console.log("");
   for (const d of dayDocs) console.log(`  dayDocs[pondId ${d.pondId}] = ${d.casts}`);
   console.log("");

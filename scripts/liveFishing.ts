@@ -1801,7 +1801,10 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
   );
   if (reconciliation.adjusted) {
     guards.adoptServerRunCount(reconciliation.seed.runsStarted);
-    if (!dryRun) saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
+    if (!dryRun)
+      saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath, {
+        serverCapReached: guards.capReachedByServer,
+      });
     console.log(`  ★ ${reconciliation.note}`);
   }
   log.write({
@@ -1900,7 +1903,9 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       // afterward. This is the guard's ledger of record; the before/after read
       // in `main()` is a diagnostic only. See src/orchestrator/energyAccounting.ts.
       guards.recordEnergySpent(dendren.energyCostPerCast);
-      saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
+      saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath, {
+        serverCapReached: guards.capReachedByServer,
+      });
     };
 
     const started = await runActionTransaction<FishingState, FishingActionResponse>({
@@ -1966,8 +1971,15 @@ export async function runOneCast(deps: LiveFishingDeps): Promise<CastRunResult> 
       // over one exhausted mode.
       if (/reached max runs/i.test(message)) {
         guards.recordServerCapReached();
-        saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath);
-        log.write({ event: "server_cap_reached", mode: "fishing", message });
+        // [session 112] The exhaustion is persisted as its OWN flag now. It
+        // used to be persisted by forging `runsStarted` up to
+        // `maxCastsPerSession` — which is what session 107 read as "repo
+        // over-counted by 5" (22 played, 20 charged, file said 25). See
+        // `GuardState.recordServerCapReached`.
+        saveGuardBudget(guards.spentEnergy, guards.runCount, deps.guardStatePath, {
+          serverCapReached: guards.capReachedByServer,
+        });
+        log.write({ event: "server_cap_reached", mode: "fishing", message, runsStarted: guards.runCount });
         throw new GuardTrip("session run cap reached", { source: "server start_run rejection", message });
       }
       log.write({ event: "action_failed", reason: "start_run rejected", error: message, body: detail.body });
@@ -3420,7 +3432,19 @@ function printStatus(config: BotConfig): void {
   const castsRemaining = Math.max(0, config.dendren.maxCastsPerSession - seed.runsStarted);
   const energyRemaining = Math.max(0, config.dendren.dailyEnergyBudget - seed.energySpent);
   console.log(`  fishing casts:   ${seed.runsStarted}/${config.dendren.maxCastsPerSession} used  ->  ${castsRemaining} remaining`);
-  console.log(`  fishing energy:  ${seed.energySpent}/${config.dendren.dailyEnergyBudget} used  ->  ${energyRemaining} remaining\n`);
+  console.log(`  fishing energy:  ${seed.energySpent}/${config.dendren.dailyEnergyBudget} used  ->  ${energyRemaining} remaining`);
+  // [session 112] The server's verdict is its own line because it is its own
+  // FACT. Session 107 printed "25/25 used -> 0 remaining" for a day with 22
+  // casts played and 20 charged — the 25 was `maxCastsPerSession` forged into
+  // the count by `recordServerCapReached`, not a number of casts. The count
+  // above is now a count; this line is the exhaustion.
+  if (seed.serverCapReached) {
+    console.log(
+      `  ★★★ the SERVER refused a cast today for its own daily cap — this mode is done until 11:00 PT,\n` +
+        `      regardless of the ${castsRemaining} the repo budget above still shows.`,
+    );
+  }
+  console.log("");
 }
 
 async function currentEnergy(client: GigaverseClient, address: string): Promise<number> {

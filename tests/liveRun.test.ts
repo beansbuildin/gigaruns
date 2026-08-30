@@ -1628,7 +1628,13 @@ describe("runOnce — dungeon cap reconciliation against GET /game/dungeon/today
     await assertion;
 
     expect(calls.some((c) => c.method === "POST")).toBe(false); // no start_run was attempted
-    expect(deps.guards.runCount).toBe(TEST_CONFIG.maxRunsPerSession); // marked exhausted for the rest of the day too
+    // [session 112] Exhaustion is its own flag now. This assertion used to read
+    // `runCount === maxRunsPerSession`, which was the FORGED count that made
+    // session 107's fishing ledger say 25 for a 20-cast day — see
+    // `GuardState.recordServerCapReached`. The protection is identical; what
+    // changed is that the count is no longer the thing carrying it.
+    expect(deps.guards.capReachedByServer, "marked exhausted for the rest of the day too").toBe(true);
+    expect(deps.guards.runCount, "and the count was not forged").toBe(0);
   });
 
   it("the server-cap trip is classified as a budget trip, not a genuine anomaly", async () => {

@@ -804,8 +804,23 @@ describe("runOneCast — server-cap rejection backstop (session 29, CODEXREVIEW 
       expect(isBudgetGuardTrip(e as GuardTrip)).toBe(true);
     }
 
-    expect(deps.guards.runCount).toBe(20); // marked exhausted for the rest of the persisted day
-    expect(loadGuardBudget(guardStatePath)).toEqual({ energySpent: 0, runsStarted: 20 }); // persisted, visible to a later invocation
+    // ── [session 112] THIS ASSERTION WAS THE BUG, WRITTEN DOWN ─────────────
+    // It used to read `expect(deps.guards.runCount).toBe(20)` with the comment
+    // "marked exhausted for the rest of the persisted day". No cast was played
+    // in this test — the real count is ZERO. The 20 was `maxRunsPerSession`
+    // forged into the counter by `recordServerCapReached`, and the test
+    // asserted the forgery as though it were an accounting fact.
+    //
+    // That is exactly what session 107 then read off a real day: 22 casts
+    // played, 20 charged by the game, `guard-budget-fishing.json` saying 25
+    // because `dendren.maxCastsPerSession` is 25.
+    expect(deps.guards.runCount, "no cast was played, so the count is zero").toBe(0);
+    expect(deps.guards.capReachedByServer, "marked exhausted for the rest of the persisted day").toBe(true);
+    expect(loadGuardBudget(guardStatePath)).toEqual({
+      energySpent: 0,
+      runsStarted: 0,
+      serverCapReached: true, // persisted, visible to a later invocation
+    });
     rmSync(dir, { recursive: true, force: true });
   });
 

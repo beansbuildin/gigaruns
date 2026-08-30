@@ -92,18 +92,43 @@ describe("GuardState — runUnits (session 42, Task 14 — a juiced run consumes
 });
 
 describe("GuardState — recordServerCapReached (session 29, CODEXREVIEW #6)", () => {
-  it("marks the session cap exhausted, so a subsequent assertCanStartRun trips", () => {
+  it("marks the mode exhausted, so a subsequent assertCanStartRun trips", () => {
     const g = new GuardState(BUDGET);
     expect(g.runCount).toBe(0);
     g.recordServerCapReached();
-    expect(g.runCount).toBe(BUDGET.maxRunsPerSession);
     expect(() => g.assertCanStartRun(1)).toThrow(GuardTrip);
   });
 
-  it("is monotonic — never lowers a count already at or past the cap", () => {
-    const g = new GuardState(BUDGET, { runsStarted: BUDGET.maxRunsPerSession });
+  // ── [session 112] THE REGRESSION THAT SESSION 107 ACTUALLY SAW ──────────
+  it("does NOT forge a run count — the session-107 over-count", () => {
+    // Session 107: 22 casts played, 20 charged by the game, reconciler trace
+    // ended *agreed at 20*, and `guard-budget-fishing.json` was left reading
+    // `runsStarted: 25` because `dendren.maxCastsPerSession` is 25.
+    // `--status` then printed "25/25 used -> 0 remaining".
+    //
+    // The forged value was `maxRunsPerSession`, so it is reproduced by using a
+    // cap that is NOT equal to the real count — 25 against 20 here, exactly
+    // the session-107 numbers.
+    const g = new GuardState({ ...BUDGET, maxRunsPerSession: 25 }, { runsStarted: 20 });
     g.recordServerCapReached();
-    expect(g.runCount).toBe(BUDGET.maxRunsPerSession);
+    expect(g.runCount, "the count stays the count").toBe(20);
+    expect(g.capReachedByServer, "the exhaustion travels beside it").toBe(true);
+    expect(() => g.assertCanStartRun(1), "and still fails closed").toThrow(GuardTrip);
+  });
+
+  it("is monotonic within a day — a second call cannot unset it", () => {
+    const g = new GuardState(BUDGET, { runsStarted: 2 });
+    g.recordServerCapReached();
+    g.recordServerCapReached();
+    expect(g.capReachedByServer).toBe(true);
+    expect(g.runCount, "and never disturbs the count").toBe(2);
+  });
+
+  it("seeds from a persisted flag, so a later invocation on the same day fails closed", () => {
+    const g = new GuardState(BUDGET, { runsStarted: 0, serverCapReached: true });
+    // Count says there is room; the server says there is not. The server wins.
+    expect(g.runCount).toBe(0);
+    expect(() => g.assertCanStartRun(1)).toThrow(/server daily cap reached/);
   });
 
   it("the resulting trip is classified as a budget trip, not a genuine anomaly", () => {

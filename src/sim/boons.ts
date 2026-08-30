@@ -592,6 +592,49 @@ export const BOON_MODELS: Record<string, BoonModel> = {
     evidence: "run-2026-08-24-01-04-21 state-105→state-106",
     observed: "selectedVal1 2 → no change to any player field (whole-object diff: pickedBoons append only)",
   },
+  LossBlockUp: {
+    // ───────────────────────────────────────────────────────
+    // [session 108, LIVE] FIRST-EVER pickup, `run-2026-08-29-17-53-12`
+    // state-298 → state-299. `selectedVal1` 5, `Rarity: "Rare"`,
+    // `TokenId: 116`. It had been OFFERED many times across the corpus and
+    // never taken until then.
+    //
+    // MODELLED FROM n=1 BY EXPLICIT USER DIRECTIVE [session 112,
+    // 2026-08-30], on the precedent `LossIntuitionUp` set in session 99 —
+    // same evidence, same n, and the same requirement that the directive be
+    // explicit rather than assumed. QUESTIONS.md §64 is the ask; the ruling
+    // is recorded in DECISIONS.md rather than left to be inferred from this
+    // model's existence. **If this type is ever observed moving a field on a
+    // second pickup, this is the entry to revisit.**
+    //
+    // `latent` is a MEASURED result here, not a fallback. The check was
+    // session 89's stricter one — a recursive diff of the ENTIRE raw
+    // `players[0]` object across the pair, not just the fields `toCombatant`
+    // projects — and this boon's own append to `pickedBoons` is the only
+    // difference in the whole object. `players[1]` is byte-identical.
+    //
+    // Per DECISIONS 2026-08-15 the effect is NOT inferred from the name, so
+    // nothing here claims it does anything on a loss. `contaminates:
+    // ["STATUS_EFFECT"]` is what carries that ignorance forward rather than
+    // burying it: the PICKUP is modelled, the conditional the name gestures
+    // at is not, and every exchange after it stays unscorable instead of
+    // being scored as though the boon were inert.
+    //
+    // ⚠ Do NOT re-ask this on `triggeredBoons` — QUESTIONS §57 / DECISIONS
+    // 2026-08-26: that field is non-empty on 0 of 10,616 occurrences
+    // corpus-wide, so its emptiness here evidences nothing about this boon.
+    // The channel that would show a proc is `data.events[]`'s `use_move`
+    // rows, the same redirection `LossIntuitionUp` carries.
+    //
+    // Of the four `Loss*Up` types, `LossIntuitionUp` and this one are now
+    // modelled by directive; `LossEvasionUp` and `LossLuckUp` remain
+    // unmodelled, having been offered but never picked.
+    // ───────────────────────────────────────────────────────
+    effect: { kind: "latent" },
+    contaminates: ["STATUS_EFFECT"],
+    evidence: "run-2026-08-29-17-53-12 state-298→state-299",
+    observed: "selectedVal1 5 → no change to any player field (whole-object diff: pickedBoons append only)",
+  },
   LossIntuitionUp: {
     // ─────────────────────────────────────────────────────────────────────
     // [session 99 §4, LIVE] FIRST-EVER pickup, from run 2 of 2026-08-26
@@ -2922,10 +2965,12 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
   // re-checked rather than assumed: run 1 died at room 10 and its deepest
   // offer is room 9, so `Math.max(room)` is unchanged at 9.
   //
-  // ⚠ One row carries a first-ever PICKED type: `LossBlockUp` (room 12 of
-  // this list, `state-298`). It had been offered many times and never taken,
-  // and is deliberately still absent from `BOON_MODELS` — see the
-  // `AWAITING_MODEL_DIRECTIVE` note in `tests/boons.test.ts`.
+  // ⚠ One row carries a first-ever PICKED type: `LossBlockUp` (the 12th row
+  // of this list, `state-298`). It had been offered many times and never
+  // taken. **[session 112] It is now MODELLED**, `latent` by explicit user
+  // directive on the `LossIntuitionUp` precedent — see its entry in
+  // `BOON_MODELS` and DECISIONS 2026-08-30. `AWAITING_MODEL_DIRECTIVE` in
+  // `tests/boons.test.ts` is consequently empty.
   {
     room: 1,
     source: "run-2026-08-29-17-53-12/state-011",

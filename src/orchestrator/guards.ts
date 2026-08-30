@@ -46,11 +46,21 @@ export interface SessionBudget {
 export interface GuardSeed {
   energySpent?: number;
   runsStarted?: number;
+  /**
+   * [session 112] True when the SERVER has already said this mode's daily cap
+   * is spent — carried across invocations so a later process on the same
+   * persisted day fails closed instead of eating a second real rejection.
+   *
+   * This used to be encoded by writing `maxRunsPerSession` into `runsStarted`.
+   * See `recordServerCapReached` for why that was wrong.
+   */
+  serverCapReached?: boolean;
 }
 
 export class GuardState {
   private energySpent: number;
   private runsStarted: number;
+  private serverCapReached: boolean;
   private consecutiveFailures = 0;
   private lastStateKey: string | null = null;
 
@@ -60,6 +70,7 @@ export class GuardState {
   ) {
     this.energySpent = seed.energySpent ?? 0;
     this.runsStarted = seed.runsStarted ?? 0;
+    this.serverCapReached = seed.serverCapReached ?? false;
   }
 
   get spentEnergy(): number {
@@ -68,6 +79,15 @@ export class GuardState {
 
   get runCount(): number {
     return this.runsStarted;
+  }
+
+  /**
+   * [session 112] Whether the server has declared this mode exhausted for the
+   * persisted day. Kept beside the count rather than folded into it — see
+   * `recordServerCapReached`.
+   */
+  get capReachedByServer(): boolean {
+    return this.serverCapReached;
   }
 
   /**
@@ -80,6 +100,18 @@ export class GuardState {
    * this guard instead of silently under-counted.
    */
   assertCanStartRun(estimatedEnergyCost: number, runUnits = 1): void {
+    // [session 112] The server's own verdict outranks the local count, and is
+    // checked FIRST so the trip names the real reason. Before this flag
+    // existed the same protection was obtained by inflating `runsStarted` to
+    // the cap, which tripped this very line — the behaviour is preserved, the
+    // corruption of the count is not.
+    if (this.serverCapReached) {
+      throw new GuardTrip("server daily cap reached", {
+        runsStarted: this.runsStarted,
+        cap: this.budget.maxRunsPerSession,
+        source: "server rejection recorded earlier this persisted day",
+      });
+    }
     if (this.runsStarted + runUnits > this.budget.maxRunsPerSession) {
       throw new GuardTrip("session run cap reached", {
         attemptedRun: this.runsStarted + runUnits,
@@ -104,17 +136,47 @@ export class GuardState {
    * [session 29, CODEXREVIEW #6] Call when the SERVER (not local tracking)
    * has confirmed this mode's daily cap is exhausted — a start_run/cast
    * rejection whose message names the real cap (e.g. fishing's "Player has
-   * reached max runs for fishing", session 27). Marks this mode exhausted
-   * for the rest of the persisted day by setting the tracked run count to
-   * the configured cap, so a LATER invocation on the same persisted day
-   * (once this is saved via `saveGuardBudget`) fails closed locally instead
-   * of attempting and eating a second real rejection. This is a backstop
-   * for whatever the 11am-Pacific date key (`guardPersistence.ts`) still
-   * misses — the primary defense — not a replacement for it. Monotonic: never
-   * lowers a count that's already at or past the cap.
+   * reached max runs for fishing", session 27). Marks this mode exhausted for
+   * the rest of the persisted day, so a LATER invocation on the same day
+   * (once saved via `saveGuardBudget`) fails closed locally instead of
+   * attempting and eating a second real rejection.
+   *
+   * ── [session 112] IT NO LONGER FORGES A COUNT, AND THAT WAS A REAL BUG ──
+   *
+   * This method used to be `this.runsStarted = Math.max(this.runsStarted,
+   * this.budget.maxRunsPerSession)`. That encoded a BOOLEAN ("the server says
+   * we are done") by writing a POLICY CONSTANT into a counter whose persisted
+   * meaning is "how many casts the GAME has counted today" — the quantity
+   * `fishingLedgerReconcile.ts` reconciles against `dayDocs`. Two different
+   * measurement systems, one field.
+   *
+   * Session 107 is what it looks like from outside: a batch of **22 casts
+   * played, 20 charged by the game**, whose reconciler trace ended *agreed at
+   * 20*, left `guard-budget-fishing.json` reading **`runsStarted: 25`** —
+   * because `dendren.maxCastsPerSession` is 25. `liveRun.ts --status` then
+   * printed "25/25 used -> 0 remaining" and `checkFishingCaps.ts` printed
+   * "repo over-counted by 5". The 5 was not a miscount; it was the gap
+   * between a config knob and a server ledger.
+   *
+   * **Failure direction: SAFE.** An inflated count can only refuse casts, never
+   * authorize one. And on the fishing path it was not even protective —
+   * `reconcileFishingLedger` runs before the next batch and `adoptServerRunCount`
+   * is deliberately non-monotonic, so it lowered the forged 25 straight back to
+   * the game's 20. The sentinel therefore bought nothing live and cost the
+   * accuracy of every surface that reads the file WITHOUT reconciling
+   * (`--status`, `checkFishingCaps`). That is the whole harm, and it is why
+   * the flag now travels beside the count instead of inside it.
+   *
+   * **This is NOT the session-111 day-key straddle resurfacing.** That bug was
+   * about WHEN a counter is stamped (the 11:00 PT boundary); this one is about
+   * WHAT value is stamped. `guardPersistence.ts`'s `DAY_MEMO` fix is unrelated
+   * and unaffected.
+   *
+   * Monotonic: once set, never cleared. Only a new persisted day clears it,
+   * which is `loadGuardBudget`'s job, not this one's.
    */
   recordServerCapReached(): void {
-    this.runsStarted = Math.max(this.runsStarted, this.budget.maxRunsPerSession);
+    this.serverCapReached = true;
   }
 
   /**
@@ -208,6 +270,16 @@ export function assertKnownEnum<T extends string>(value: string, allowed: readon
  */
 const BUDGET_GUARD_REASONS: ReadonlySet<string> = new Set([
   "session run cap reached",
+  // [session 112] The server's own daily cap, split out of the line above.
+  // Until this session a server-cap rejection was recorded by inflating
+  // `runsStarted` to the configured maximum, so it surfaced as "session run
+  // cap reached" — already in this set, which is why the split has to add the
+  // new reason HERE and not only in `assertCanStartRun`. Missing it would turn
+  // a designed daily stop into an anomaly and, per
+  // `runWithAccounting.ts`, take the whole orchestrator down over one
+  // exhausted mode — the exact failure session 29 added this classifier to
+  // prevent.
+  "server daily cap reached",
   "daily energy budget would be exceeded",
   "daily energy budget exceeded",
 ]);

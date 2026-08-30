@@ -82,6 +82,17 @@ const PersistedGuardBudgetSchema = z.object({
   date: z.string(),
   energySpent: z.number().nonnegative(),
   runsStarted: z.number().int().nonnegative(),
+  /**
+   * [session 112] The server's own "this mode is done for the day" verdict,
+   * kept as its own field so `runsStarted` can stay a COUNT.
+   *
+   * `.optional()` is deliberate and permanent, not a migration step: every
+   * file written before this session lacks the key, and an absent key means
+   * "no server rejection recorded", which is exactly the right reading of a
+   * day that predates the flag. `GuardState.recordServerCapReached`'s comment
+   * has the bug this replaces.
+   */
+  serverCapReached: z.boolean().optional(),
 });
 
 export type PersistedGuardBudget = z.infer<typeof PersistedGuardBudgetSchema>;
@@ -149,6 +160,24 @@ type DayMemoEntry = {
   /** Cumulative totals as of the last write — what the baseline becomes at a rollover. */
   lastCumulativeEnergy: number;
   lastCumulativeRuns: number;
+  /**
+   * [session 112] True once this process has observed a day rollover on this
+   * path. While set, `saveGuardBudget` refuses to persist `serverCapReached`.
+   *
+   * The flag is a property of a DAY, but the caller passes a bare boolean off
+   * `GuardState.capReachedByServer`, which — like the in-memory counters, and
+   * for the same reason (session 111 / QUESTIONS §65) — is cumulative across
+   * the boundary and cannot say WHICH day it was set on. After a rollover a
+   * `true` is therefore ambiguous: it may be yesterday's exhaustion, and
+   * writing it would open the new day already blocked.
+   *
+   * So it is dropped, which is the SAFE ambiguity to resolve: the straddling
+   * process still refuses casts (its in-memory flag is untouched), and the
+   * next process starts from a clean file. The cost is one extra real server
+   * rejection in the rare case where a straddling process is genuinely capped
+   * again on the new day — the same trade session 111 took for the counters.
+   */
+  rolledOverInProcess: boolean;
 };
 
 /**
@@ -176,6 +205,7 @@ function seedMemoEntry(path: string, seed: { energySpent: number; runsStarted: n
     baselineRuns: 0,
     lastCumulativeEnergy: seed.energySpent,
     lastCumulativeRuns: seed.runsStarted,
+    rolledOverInProcess: false,
   };
   DAY_MEMO.set(path, entry);
   return entry;
@@ -192,11 +222,11 @@ function seedMemoEntry(path: string, seed: { energySpent: number; runsStarted: n
  * fix. Read-only callers (`doctor.ts`, `checkFishingCaps.ts`) go through the
  * same path and must likewise not disturb a live writer's accounting.
  */
-function seedDayMemo(
+function seedDayMemo<T extends { energySpent: number; runsStarted: number }>(
   path: string,
-  seed: { energySpent: number; runsStarted: number },
+  seed: T,
   now: Date,
-): { energySpent: number; runsStarted: number } {
+): T {
   if (!DAY_MEMO.has(path)) seedMemoEntry(path, seed, todayKey(now));
   return seed;
 }
@@ -215,11 +245,25 @@ export function __resetGuardDayMemo(): void {
  * `GuardPersistenceError` instead of silently returning a zero seed — see
  * this file's header comment, fix 1.
  */
+export interface LoadedGuardBudget {
+  energySpent: number;
+  runsStarted: number;
+  /**
+   * [session 112] True when the server rejected a start on THIS persisted day
+   * for having hit its own cap. Read it instead of inferring exhaustion from
+   * `runsStarted` reaching a configured maximum — that inference is what
+   * session 107's "repo over-counted by 5" actually was.
+   */
+  serverCapReached: boolean;
+}
+
+const ZERO_SEED = (): LoadedGuardBudget => ({ energySpent: 0, runsStarted: 0, serverCapReached: false });
+
 export function loadGuardBudget(
   path: string = DEFAULT_GUARD_STATE_PATH,
   now: Date = new Date(),
-): { energySpent: number; runsStarted: number } {
-  if (!existsSync(path)) return seedDayMemo(path, { energySpent: 0, runsStarted: 0 }, now);
+): LoadedGuardBudget {
+  if (!existsSync(path)) return seedDayMemo(path, ZERO_SEED(), now);
 
   let raw: string;
   try {
@@ -246,8 +290,19 @@ export function loadGuardBudget(
 
   const parsed = result.data;
   // A stale PRIOR day is a fresh budget, not corruption.
-  if (parsed.date !== todayKey(now)) return seedDayMemo(path, { energySpent: 0, runsStarted: 0 }, now);
-  return seedDayMemo(path, { energySpent: parsed.energySpent, runsStarted: parsed.runsStarted }, now);
+  if (parsed.date !== todayKey(now)) return seedDayMemo(path, ZERO_SEED(), now);
+  return seedDayMemo(
+    path,
+    {
+      energySpent: parsed.energySpent,
+      runsStarted: parsed.runsStarted,
+      // Absent key == no rejection recorded. A NEW day zeroes it above along
+      // with the counts, which is the only way it is ever cleared — see
+      // `GuardState.recordServerCapReached`, which is monotonic within a day.
+      serverCapReached: parsed.serverCapReached ?? false,
+    },
+    now,
+  );
 }
 
 /**
@@ -258,12 +313,19 @@ export function loadGuardBudget(
  * shared `atomicWriteJson` — sibling temp file, fsynced, renamed into place
  * — see this file's header comment, fix 2, and CODEXAUDIT #5 (session 37).
  */
+/** [session 112] `now` is test-only; `serverCapReached` is `GuardState.capReachedByServer`. */
+export interface SaveGuardBudgetOptions {
+  now?: Date;
+  serverCapReached?: boolean;
+}
+
 export function saveGuardBudget(
   energySpent: number,
   runsStarted: number,
   path: string = DEFAULT_GUARD_STATE_PATH,
-  now: Date = new Date(),
+  opts: SaveGuardBudgetOptions = {},
 ): void {
+  const now = opts.now ?? new Date();
   const day = todayKey(now);
   const memo = DAY_MEMO.get(path) ?? seedMemoEntry(path, { energySpent, runsStarted }, day);
 
@@ -276,6 +338,7 @@ export function saveGuardBudget(
     memo.baselineEnergy = memo.lastCumulativeEnergy;
     memo.baselineRuns = memo.lastCumulativeRuns;
     memo.day = day;
+    memo.rolledOverInProcess = true;
   }
 
   if (energySpent < memo.baselineEnergy || runsStarted < memo.baselineRuns) {
@@ -307,6 +370,11 @@ export function saveGuardBudget(
   memo.lastCumulativeRuns = runsStarted;
 
   const body: PersistedGuardBudget = { date: day, energySpent: dayEnergy, runsStarted: dayRuns };
+  // [session 112] Written only when TRUE. A `false` key on every file would be
+  // noise, and absent already reads as false — see the schema's comment. The
+  // flag is deliberately NOT rebased at a day boundary the way the counters
+  // are: a rollover means a new day, and a new day is not capped.
+  if (opts.serverCapReached && !memo.rolledOverInProcess) body.serverCapReached = true;
   atomicWriteJson(path, body);
 }
 

@@ -34,7 +34,7 @@ afterEach(() => {
 
 describe("loadGuardBudget", () => {
   it("returns a zero seed when nothing is on disk yet", () => {
-    expect(loadGuardBudget(path)).toEqual({ energySpent: 0, runsStarted: 0 });
+    expect(loadGuardBudget(path)).toEqual({ energySpent: 0, runsStarted: 0, serverCapReached: false });
   });
 
   // [session 28, CODEXREVIEW #2] REVERSED: a file that EXISTS but is
@@ -54,12 +54,12 @@ describe("loadGuardBudget", () => {
 
   it("returns a zero seed when the persisted date is not today — fresh budget per day", () => {
     writeFileSync(path, JSON.stringify({ date: "2000-01-01", energySpent: 40, runsStarted: 2 }));
-    expect(loadGuardBudget(path)).toEqual({ energySpent: 0, runsStarted: 0 });
+    expect(loadGuardBudget(path)).toEqual({ energySpent: 0, runsStarted: 0, serverCapReached: false });
   });
 
   it("returns the persisted spend when the date matches today", () => {
     writeFileSync(path, JSON.stringify({ date: todayKey(), energySpent: 40, runsStarted: 2 }));
-    expect(loadGuardBudget(path)).toEqual({ energySpent: 40, runsStarted: 2 });
+    expect(loadGuardBudget(path)).toEqual({ energySpent: 40, runsStarted: 2, serverCapReached: false });
   });
 });
 
@@ -97,19 +97,19 @@ describe("todayKey — 11am Pacific rollover (session 29, CODEXREVIEW #6)", () =
 describe("saveGuardBudget", () => {
   it("round-trips through loadGuardBudget", () => {
     saveGuardBudget(20, 1, path);
-    expect(loadGuardBudget(path)).toEqual({ energySpent: 20, runsStarted: 1 });
+    expect(loadGuardBudget(path)).toEqual({ energySpent: 20, runsStarted: 1, serverCapReached: false });
   });
 
   it("overwrites rather than accumulates on repeated calls", () => {
     saveGuardBudget(20, 1, path);
     saveGuardBudget(40, 2, path);
-    expect(loadGuardBudget(path)).toEqual({ energySpent: 40, runsStarted: 2 });
+    expect(loadGuardBudget(path)).toEqual({ energySpent: 40, runsStarted: 2, serverCapReached: false });
   });
 
   it("creates the parent directory if it doesn't exist", () => {
     const nested = join(dir, "nested", "guard-budget.json");
     saveGuardBudget(5, 1, nested);
-    expect(loadGuardBudget(nested)).toEqual({ energySpent: 5, runsStarted: 1 });
+    expect(loadGuardBudget(nested)).toEqual({ energySpent: 5, runsStarted: 1, serverCapReached: false });
   });
 
   // [session 28, CODEXREVIEW #2] Atomic write: no sibling temp file should
@@ -189,20 +189,20 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
   });
 
   it("reproduces session 108 exactly: the new day inherits ONLY the runs it saw", () => {
-    expect(loadGuardBudget(path, BEFORE_1)).toEqual({ energySpent: 0, runsStarted: 0 });
+    expect(loadGuardBudget(path, BEFORE_1)).toEqual({ energySpent: 0, runsStarted: 0, serverCapReached: false });
 
-    saveGuardBudget(60, 3, path, BEFORE_2);
+    saveGuardBudget(60, 3, path, { now: BEFORE_2 });
     expect(read()).toEqual({ date: "2026-08-28", energySpent: 60, runsStarted: 3 });
 
-    saveGuardBudget(120, 6, path, BEFORE_3);
+    saveGuardBudget(120, 6, path, { now: BEFORE_3 });
     expect(read()).toEqual({ date: "2026-08-28", energySpent: 120, runsStarted: 6 });
 
     // The rollover. Cumulative counters are 180/9, but only 60/3 of that was
     // spent on the new day.
-    saveGuardBudget(180, 9, path, AFTER_1);
+    saveGuardBudget(180, 9, path, { now: AFTER_1 });
     expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
 
-    saveGuardBudget(240, 12, path, AFTER_2);
+    saveGuardBudget(240, 12, path, { now: AFTER_2 });
     // Exactly the value session 109 had to write by hand to unblock the day —
     // runs 3+4 and nothing else. Before this fix the file read 240/12, and the
     // next dry run fail-closed with {"attemptedRun":15,"cap":12} against a
@@ -217,9 +217,9 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
     // there is no pre-rollover save to learn the boundary from. The memo has to
     // be seeded at LOAD.
     writeFileSync(path, JSON.stringify({ date: "2026-08-28", energySpent: 60, runsStarted: 3 }));
-    expect(loadGuardBudget(path, BEFORE_1)).toEqual({ energySpent: 60, runsStarted: 3 });
+    expect(loadGuardBudget(path, BEFORE_1)).toEqual({ energySpent: 60, runsStarted: 3, serverCapReached: false });
 
-    saveGuardBudget(120, 6, path, AFTER_1);
+    saveGuardBudget(120, 6, path, { now: AFTER_1 });
     expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
   });
 
@@ -229,20 +229,20 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
     // read-only. A re-seed after the rollover would zero the baseline and
     // reintroduce the whole bug.
     loadGuardBudget(path, BEFORE_1);
-    saveGuardBudget(60, 3, path, BEFORE_2);
+    saveGuardBudget(60, 3, path, { now: BEFORE_2 });
 
     // Post-rollover read: the file's date is now stale, so this returns a zero
     // seed — and must NOT tell the memo that the counters start from zero.
-    expect(loadGuardBudget(path, AFTER_1)).toEqual({ energySpent: 0, runsStarted: 0 });
+    expect(loadGuardBudget(path, AFTER_1)).toEqual({ energySpent: 0, runsStarted: 0, serverCapReached: false });
 
-    saveGuardBudget(120, 6, path, AFTER_2);
+    saveGuardBudget(120, 6, path, { now: AFTER_2 });
     expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
   });
 
   it("leaves the ordinary non-straddling case byte-identical to the old behaviour", () => {
     loadGuardBudget(path, BEFORE_1);
-    saveGuardBudget(20, 1, path, BEFORE_2);
-    saveGuardBudget(40, 2, path, BEFORE_3);
+    saveGuardBudget(20, 1, path, { now: BEFORE_2 });
+    saveGuardBudget(40, 2, path, { now: BEFORE_3 });
     expect(read()).toEqual({ date: "2026-08-28", energySpent: 40, runsStarted: 2 });
   });
 
@@ -251,14 +251,14 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
     // discards the stale file and seeds {0,0}, so subtracting the file's
     // prior-day totals would go negative.
     writeFileSync(path, JSON.stringify({ date: "2026-08-28", energySpent: 240, runsStarted: 12 }));
-    expect(loadGuardBudget(path, AFTER_1)).toEqual({ energySpent: 0, runsStarted: 0 });
+    expect(loadGuardBudget(path, AFTER_1)).toEqual({ energySpent: 0, runsStarted: 0, serverCapReached: false });
 
-    saveGuardBudget(60, 3, path, AFTER_2);
+    saveGuardBudget(60, 3, path, { now: AFTER_2 });
     expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
   });
 
   it("saving with no prior load persists the cumulative unchanged", () => {
-    saveGuardBudget(40, 2, path, BEFORE_2);
+    saveGuardBudget(40, 2, path, { now: BEFORE_2 });
     expect(read()).toEqual({ date: "2026-08-28", energySpent: 40, runsStarted: 2 });
   });
 
@@ -269,10 +269,10 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
     loadGuardBudget(path, BEFORE_1);
     loadGuardBudget(fishingPath, BEFORE_1);
 
-    saveGuardBudget(60, 3, path, BEFORE_2);
-    saveGuardBudget(120, 10, fishingPath, BEFORE_2);
+    saveGuardBudget(60, 3, path, { now: BEFORE_2 });
+    saveGuardBudget(120, 10, fishingPath, { now: BEFORE_2 });
 
-    saveGuardBudget(120, 6, path, AFTER_1);
+    saveGuardBudget(120, 6, path, { now: AFTER_1 });
     expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
     // The fishing ledger has not been written since the rollover, so its own
     // pre-rollover file must be untouched.
@@ -282,7 +282,7 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
       runsStarted: 10,
     });
 
-    saveGuardBudget(156, 13, fishingPath, AFTER_2);
+    saveGuardBudget(156, 13, fishingPath, { now: AFTER_2 });
     expect(JSON.parse(readFileSync(fishingPath, "utf8"))).toEqual({
       date: "2026-08-29",
       energySpent: 36,
@@ -300,13 +300,13 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
     // authorize a spend — and in the adopt case it is exactly the game's own
     // number, because the reconciler guarantees that equality.
     loadGuardBudget(path, BEFORE_1);
-    saveGuardBudget(120, 6, path, BEFORE_2);
+    saveGuardBudget(120, 6, path, { now: BEFORE_2 });
 
-    saveGuardBudget(60, 3, path, AFTER_1);
+    saveGuardBudget(60, 3, path, { now: AFTER_1 });
     expect(read()).toEqual({ date: "2026-08-29", energySpent: 60, runsStarted: 3 });
 
     // And it keeps counting forward correctly from there, with no baseline left.
-    saveGuardBudget(72, 4, path, AFTER_2);
+    saveGuardBudget(72, 4, path, { now: AFTER_2 });
     expect(read()).toEqual({ date: "2026-08-29", energySpent: 72, runsStarted: 4 });
   });
 
@@ -314,10 +314,81 @@ describe("saveGuardBudget — the 11:00 Pacific day-key straddle", () => {
     // End-to-end: the whole point is that the NEXT process reads a correct
     // ledger. Session 109's did not, and blocked two available runs.
     loadGuardBudget(path, BEFORE_1);
-    saveGuardBudget(120, 6, path, BEFORE_3);
-    saveGuardBudget(240, 12, path, AFTER_2);
+    saveGuardBudget(120, 6, path, { now: BEFORE_3 });
+    saveGuardBudget(240, 12, path, { now: AFTER_2 });
 
     __resetGuardDayMemo(); // a genuinely fresh process
-    expect(loadGuardBudget(path, AFTER_2)).toEqual({ energySpent: 120, runsStarted: 6 });
+    expect(loadGuardBudget(path, AFTER_2)).toEqual({ energySpent: 120, runsStarted: 6, serverCapReached: false });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [session 112] The server-cap flag — the fix for session 107's over-count.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("serverCapReached is persisted beside the count, not inside it", () => {
+  const GUARD_DAY = new Date("2026-08-29T20:00:00Z"); // 13:00 PT — safely inside one guard day
+
+  it("replays session 107: 22 played / 20 charged leaves the count at 20, not 25", () => {
+    // The bug: `recordServerCapReached` set `runsStarted = maxRunsPerSession`
+    // (`dendren.maxCastsPerSession` = 25), so the file said 25 for a day whose
+    // reconciler trace ended *agreed at 20*. `--status` printed
+    // "25/25 used -> 0 remaining"; `checkFishingCaps` printed
+    // "repo over-counted by 5".
+    //
+    // What the loop writes now is the reconciled count plus a flag.
+    saveGuardBudget(264, 20, path, { now: GUARD_DAY, serverCapReached: true });
+
+    const onDisk = JSON.parse(readFileSync(path, "utf8"));
+    expect(onDisk.runsStarted, "the count is the GAME's count").toBe(20);
+    expect(onDisk.serverCapReached).toBe(true);
+
+    __resetGuardDayMemo(); // a genuinely later invocation, same guard day
+    const seed = loadGuardBudget(path, GUARD_DAY);
+    expect(seed).toEqual({ energySpent: 264, runsStarted: 20, serverCapReached: true });
+  });
+
+  it("omits the key entirely when the cap was not reached — absent reads as false", () => {
+    saveGuardBudget(100, 5, path, { now: GUARD_DAY });
+    const onDisk = JSON.parse(readFileSync(path, "utf8"));
+    expect("serverCapReached" in onDisk, "no noise on the ordinary path").toBe(false);
+    __resetGuardDayMemo();
+    expect(loadGuardBudget(path, GUARD_DAY).serverCapReached).toBe(false);
+  });
+
+  it("reads a pre-session-112 file, which has no key at all, as not capped", () => {
+    // Every file written before this session looks like this. It must load,
+    // not throw — the schema field is optional permanently, not for a migration.
+    writeFileSync(path, JSON.stringify({ date: todayKey(GUARD_DAY), energySpent: 40, runsStarted: 2 }));
+    __resetGuardDayMemo();
+    expect(loadGuardBudget(path, GUARD_DAY)).toEqual({ energySpent: 40, runsStarted: 2, serverCapReached: false });
+  });
+
+  it("does NOT carry the flag across the 11:00 PT rollover — a new day is not capped", () => {
+    const BEFORE = new Date("2026-08-29T17:00:00Z"); // 10:00 PT, day 2026-08-28
+    const AFTER = new Date("2026-08-29T19:00:00Z"); // 12:00 PT, day 2026-08-29
+    __resetGuardDayMemo();
+    loadGuardBudget(path, BEFORE);
+    saveGuardBudget(100, 5, path, { now: BEFORE, serverCapReached: true });
+    expect(JSON.parse(readFileSync(path, "utf8")).serverCapReached).toBe(true);
+
+    // Same process straddles the boundary. The counters rebase (session 111's
+    // DAY_MEMO); the flag must not survive, or the new day starts blocked.
+    saveGuardBudget(120, 6, path, { now: AFTER, serverCapReached: true });
+    const after = JSON.parse(readFileSync(path, "utf8"));
+    expect(after.date).toBe(todayKey(AFTER));
+    expect(after.serverCapReached, "a rolled-over day is a fresh day").toBeUndefined();
+
+    // And it must stay dropped for EVERY later write in this process, not just
+    // the first one after the boundary. `GuardState.capReachedByServer` is
+    // still true in memory and keeps being passed in; the memo is what knows
+    // it can no longer be trusted to belong to today.
+    saveGuardBudget(140, 7, path, { now: AFTER, serverCapReached: true });
+    expect(JSON.parse(readFileSync(path, "utf8")).serverCapReached).toBeUndefined();
+  });
+
+  it("a stale prior-day file loads as a zero seed, flag included", () => {
+    writeFileSync(path, JSON.stringify({ date: "2020-01-01", energySpent: 99, runsStarted: 25, serverCapReached: true }));
+    __resetGuardDayMemo();
+    expect(loadGuardBudget(path, GUARD_DAY)).toEqual({ energySpent: 0, runsStarted: 0, serverCapReached: false });
   });
 });
