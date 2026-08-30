@@ -338,6 +338,18 @@ quietly.
   (`tests/clientSurface.test.ts` fails the build if that changes). The rule's
   own document was the last place the claim survived.
 - Run `npx tsc --noEmit` and the test suite before declaring a task done.
+- **The recap secret scan is `npx tsx scripts/secretScan.ts` — do not hand-roll
+  another shell pipeline.** [session 111] Three sessions ran three different
+  ad-hoc scans and reported three incomparable file counts; one of them had
+  read zero bytes (session 109) and one covered 1.3% of the tree while its
+  recap line read as full coverage (session 110's `files in session diff:
+  117`). The script defaults to `--scope=tracked`, **prints the scope next to
+  the count**, and fails closed on an unexplained hit, on a zero-file sweep, or
+  on a matcher that stops matching its own synthetic sample. Quote its output
+  verbatim in the recap; a scan whose scope is not stated has not been
+  reported. `--scope=diff --ref=<sha>` narrows it to one session's changes, but
+  that is an ADDITION to the whole-tree run, never a substitute — a diff scan
+  cannot see a secret that landed in an earlier session.
 - At recap time, re-run the full test suite against the FINAL commit you're
   about to hand off — not against your last in-session check. Session 18
   found `main` claiming a passing count that was stale by one out-of-band
