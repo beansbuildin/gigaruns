@@ -1,25 +1,47 @@
-# STATE — session 110 — 2026-08-29/30 — code at commit f5a925d0
+# STATE — session 111 — 2026-08-30 — code at commit 3057aa95
 
 ## Status
-Brief was **fishing only, two steps: (0) fix fishing's never-tracked Hard Core
-income and backfill it, then (1) the fishing batch. GATE PASS on both.** No
-dungeon work was authorized and none was done — today's dungeon ledger was
-already 12/12 from session 109.
+Brief was **dungeon only: switch the standing entry tier Tier-1 → Tier-2 and
+run up to 4 juiced runs, one at a time.**
 
-**[session 110b] The user repaired the rod (0 -> 40) and authorized the day's
-remaining 7 casts, which ran clean. The guard-day is now FULLY SPENT at 20/20.**
+- **The tier switch and its preflight: GATE PASS.** Documented in all three
+  places the brief named, and the Tier-2 cost was read off the LIVE `entryData`
+  before any spend.
+- **The live-run half: DID NOT RUN, and its gate is UNMET.** The brief asked
+  for the cost to be confirmed against the actual negative
+  `gameItemBalanceChanges` on `start_run`. That requires a run, and no run was
+  possible: `dayProgressEntities` for dungeon 5 read **12/12** all session (the
+  11:00 Pacific reset had not yet arrived — session opened 08:50 PDT, closed
+  10:16 PDT). Confirmed twice, by `checkDungeonToday.ts` and by a `--dry-run`
+  that tripped `session run cap reached {"attemptedRun":15,"cap":12}`.
+  **This is not a soft pass. The ring debit is UNVERIFIED against the wire.**
 
-Live spend, both halves: **22 fishing casts played / 20 charged, 264 energy,
-14 Relaxing Oils, 22 rod durability, 0 dungeon runs.** Fishing ledger **20/20 —
-exhausted**, next window 11:00 Pacific. Rod ends the day at **33**, so the next
-fishing session is NOT durability-blocked.
+With the dungeon arm blocked, the user redirected the session to two code
+tasks, both **GATE PASS**: the secret-scan instrument, and QUESTIONS §65.
 
-Suite **2147 passed / 2147, 111 files** (re-run against the final commit) (`vitest run --maxWorkers=4`; the
+**Live spend: 0 dungeon runs, 0 rings, 0 energy, 0 fishing casts.** Nothing was
+played. Dungeon ledger 12/12; fishing 20/20 from session 110.
+
+Suite **2195 passed / 2195, 113 files** (2147 → 2195, +48) (`vitest run --maxWorkers=4`; the
 default over-subscribes this machine and produces FALSE timeouts — unchanged).
-`tsc --noEmit` clean, `git diff --check` clean, secret scan **0 hits on all
-four patterns over 117 files with a positive control (127 `docId` hits) proving
-the scan actually read them**, `discoveredShipsClean` 8/8, `.gitignore` verified
-on all seven required paths.
+`tsc --noEmit` clean, `git diff --check` clean, `discoveredShipsClean` 8/8,
+`.gitignore` verified on all seven required paths.
+
+**Secret scan, quoting the instrument verbatim** (`npx tsx scripts/secretScan.ts`):
+
+```
+> secret scan — scope: tracked
+  files scanned:        9118
+  CONTROL A (read):     8758 file(s) contain "docId"
+  CONTROL B (matchers): all rules verified against synthetic samples
+  0 unexplained across all 8 rules; 14 allowlisted hits, each printed
+> PASS
+```
+
+Re-run at `--scope=diff --ref=389ed4d4~2`: **14 files, 0 unexplained.** The
+recap's own four literal patterns over the session's added lines: `0x…{4,}` 0,
+`noobId\s*\d+` 0, `eyJ` 0, `PRIVATE` 4 — all four the scanner's own rule text
+and test sample, not a key.
 
 ## Settled — do not re-open
 Pointers only — `DECISIONS.md` and `QUESTIONS.md` own the evidence. **An entry
@@ -27,13 +49,18 @@ here means a brief proposing it as NEW work is wrong.** Carried forward and
 edited each session, never rewritten. Entries marked **[USER]** are user
 directives an agent may not re-open at all.
 
-**Dropped this session** (all now self-enforcing, none at risk of being
-re-proposed): **`AddLifestealSword` is modelled** and **room 11 / `Enemy Room
-73`** (both in `src/sim/` with tests that fail if removed); **the loadout holds
-steady**; **consumables are debited at `start_run`** (measured, quiet for two
-sessions); and **`damageEconomy`'s widened meanDamage band**, which now carries
-its own 15-line rationale in the test and cannot be silently re-ratcheted.
+**Dropped this session:** none. **Two entries CHANGED STATE** rather than
+leaving: the entry tier (Tier-1 → Tier-2, below) and the guard-budget straddle
+(open task → fixed). The secret-scan work did NOT earn an entry — it is folded
+into CLAUDE.md's working style, which every session reads, and the digest rule
+says drop what a standing document already enforces.
 
+- **The guard-budget day-key straddle is FIXED IN CODE.** `DAY_MEMO` in
+  `guardPersistence.ts` rebases at the 11:00 PT boundary; 10 cases replay
+  session 108's timestamps. QUESTIONS §65 ANSWERED, DECISIONS 2026-08-30.
+  Re-opens as: *"fix the guard-budget rollover straddle"* — done. **The
+  in-memory half is knowingly unfixed and is fail-safe; do NOT restore the
+  backwards-move throw the first draft had, it crashes autonomous fishing.**
 - **Fishing's Hard Core income is TRACKED and BACKFILLED, and the amount is
   NOT a constant.** It tracks fish rarity — base 0→80, 1→160, 2→320, 3→400,
   4→480 — and 16 of 134 catches paid an exact 2x or 4x multiple with no
@@ -44,18 +71,11 @@ its own 15-line rationale in the test and cannot be silently re-ratcheted.
 - **A fishing batch is sized to WHICHEVER of rod durability and the cast cap
   binds first.** The durability preflight runs ONCE before the batch, never per
   cast, so a batch longer than the rod does not halt — it drives the rod past 0.
-  1.00 per cast PLAYED is a closed bracket (n=97 over six batches). With a
-  healthy rod the `dayDocs` cap binds instead, which is what closed 2026-08-29
-  at 20/20. Re-opens as: *"run the full 20/25 casts"* when the rod reads less
-  than that.
+  1.00 per cast PLAYED is a closed bracket (n=97 over six batches). Re-opens
+  as: *"run the full 20/25 casts"* when the rod reads less than that.
 - **[USER] Chaining is a ONE-TIME, DATED exception, not a rule change.**
   Rule 11 pins `--runs=1` with a stop between runs. DECISIONS 2026-08-29.
   Re-opens as: *"chain the runs like last time."*
-- **The guard-budget day-key straddle, FIXED IN DATA not in code.** A process
-  crossing 11:00 PT stamps its CUMULATIVE counters onto the new day.
-  DECISIONS 2026-08-29, QUESTIONS §65. Re-opens as: *"the guard ledger and the
-  server disagree"* — the correction is done; the CODE FIX is genuinely open
-  and is the one carried task.
 - **`BurnMastery` amplifies the burn TICK, not the recorded amount.** 719/719
   exact without it, 0/12 with. **x2 vs +3 is UNSEPARATED.** DECISIONS
   2026-08-29. Re-opens as: *"burn has exceptions again"* — *"BurnMastery
@@ -65,8 +85,8 @@ its own 15-line rationale in the test and cannot be silently re-ratcheted.
   2026-08-29. Re-opens as: *"a proc flag fired at stat 0, the mapping is
   broken."* It is a base rate.
 - **JEBAITOR, and its gap, MEASURED.** ~9% of casts do not count against
-  `dayDocs` (this session: 2 of 15 = 13.3%). Re-opens as: *"the cast ledgers
-  disagree."* **A sub-25-cast batch is NOT evidence the budget is too low.**
+  `dayDocs` (2 of 22 twice over). Re-opens as: *"the cast ledgers disagree."*
+  **A sub-25-cast batch is NOT evidence the budget is too low.**
 - **Tier-1 Hard Core payout.** MEASURED, not derived: `dropMultiplier` governs
   item 845 ONLY, at an exact 4:1 quantum. DECISIONS 2026-08-28. Re-opens as:
   *"measure the first live Tier-1 run."*
@@ -82,163 +102,155 @@ its own 15-line rationale in the test and cannot be silently re-ratcheted.
 - **`SecondWind` / `Steadfast`.** Ordinary volume WILL NOT settle these — a
   positive finding, not missing data. DECISIONS 2026-08-27.
 - **[USER] Rule 11 entry tier is Tier-2 (`--juiced-index=2`), one of EACH of
-  the seven silver rings per run.** STANDING change 2026-08-30, superseding
-  the Tier-1 setting that ran 2026-08-27 → session 110 (exercised 10/10 there).
-  `data.index` is the TIER; `entryData` is ordered 2, 1, 3, so **`entryData[0]`
-  is Tier 2 by coincidence just as `entryData[1]` was Tier 1** — match on
-  `.tier`, never on position. Exercised live **0/0** at Tier 2 so far.
-  Runway is set by the SCARCEST faction, not the ring total: 30 runs on
-  2026-08-30 balances. Re-opens as: *"switch the entry tier back to Tier-1 to
-  stop spending rings"* or *"correct the juiced index"*.
+  the seven silver rings per run.** STANDING change 2026-08-30, superseding the
+  Tier-1 setting that ran 2026-08-27 → session 110. `data.index` is the TIER;
+  `entryData` is ordered 2, 1, 3, so **`entryData[0]` is Tier 2 by coincidence
+  just as `entryData[1]` was Tier 1** — match on `.tier`, never on position.
+  **Exercised live 0/0 at Tier 2.** Runway is set by the SCARCEST faction, not
+  the ring total. Re-opens as: *"switch the entry tier back to Tier-1 to stop
+  spending rings"* or *"correct the juiced index"*.
 - **[USER] Unspent skill XP.** CLOSED, not deferred. §61.1 forbids re-raising
   it. Re-opens as: *"report the accumulated unspent skill XP."*
 - **Suite invocation.** `vitest run --maxWorkers=4`. DECISIONS 2026-08-26.
 
 ## What works
-- **Step 0 — Hard Core tracking, built on the dungeon side's own split.**
-  `fishingCorpus.ts` carries the wire's top-level `gameItemBalanceChanges`
-  verbatim (same field and placement as `CorpusState`); `fishingReport.ts` is
-  the layer that knows 845 means Hard Core, importing `ITEM_HARD_CORE` from
-  `dungeonReport.ts` rather than re-declaring it. Backfilled the whole corpus
-  with **no new spend** and cross-checked against an independent Python
-  aggregation — both give **19,520 over 273 casts** pre-batch.
-
-  | population | casts | caught | Hard Core | per catch | per cast |
-  |---|---|---|---|---|---|
-  | **session 102** (2026-08-26 PT) | 20 | 14 | **2,560** | 182.9 | 128.0 |
-  | **session 105** (2026-08-28 PT) | 21 | 14 | **3,360** | 240.0 | 160.0 |
-  | **this session, batch 1** | 15 | 9 | **2,640** | 293.3 | 176.0 |
-  | **this session, batch 2** | 7 | 5 | **640** | 128.0 | 91.4 |
-  | **this session, whole day** | 22 | 14 | **3,280** | 234.3 | 149.1 |
-  | **full corpus, now** | 295 | 134 | **22,800** | 170.1 | 77.3 |
-
-- **Step 1 — the batch, in two authorized halves.** `--casts=15` then, after
-  the user repaired the rod, `--casts=7`. Both clean exits, **22/22 played,
-  139 POSTs, 0 first-attempt failures, 0 sanity rows**, no fail-closed stop.
-  Day catch rate **14/22 = 63.6%**, 95% Wilson **[43.0%, 80.3%]** — overlapping
-  sessions 102 (70.0%), 105 (66.7%) and 107 (54.5%) at every point.
-- **Sized to the rod and it was the right call.** Batch 1: 20 casts available
-  and the budget allows 25, but durability read **15** live, so 15 was the
-  size. **1.00/cast re-confirmed twice more** — 15 → 0, then 40 → 33 over 7 —
-  making it a fifth and sixth confirming batch.
-- **The cast cap, not the rod, closed the day.** With a 40-durability rod the
-  binding constraint reverted to `dayDocs`, and all 7 remaining casts charged
-  (**no JEBAITOR proc in the second half**, against 2 of 15 in the first).
-- **The oil policy behaved exactly as shipped.** 14 Relaxing (937) over the
-  day, **0.64/cast**, all fourteen in **seven double-lethal firings** (2 each).
-  The per-cast cap of 2 was reached without binding again; **0
-  `oil_trigger_no_stock`**, so no cast left the outcome arms; 32 Focus triggers
-  correctly dropped as WITHDRAWN-BY-POLICY.
-- **Rule 13 exercised after each half.** `dayDocs[pond 2]` 13/20 then 20/20,
-  repo ledger agreeing at both, and all 22 reconcile events accounted for.
+- **Tier-2 is the standing entry tier, documented in all three places.**
+  CLAUDE.md rule 11 amended in place with a dated `[2026-08-30]` note (the same
+  shape as the `[2026-08-27]` one, which is kept and labelled superseded);
+  STATE.md digest updated; three DECISIONS entries. Rule 11's heading also
+  fixed — it still said "Tier-3 entry", stale since 2026-08-27.
+- **The Tier-2 cost, read LIVE off `entryData` before any spend.**
+  `inputItems: [134,137,138,135,136,139,140]`, `inputAmounts: [1,1,1,1,1,1,1]`,
+  `dropMultiplier: 2`, `inputsBasedOnFactionDay: true`. That is **one of each
+  of the seven silver rings per run** — session 106's "seven ids each" was read
+  off Tier 3 and is right about the count, but the SHAPE is what matters.
+- **The runway, and the trap in it.** Balances 33/39/42/30/30/57/54
+  (Chobo/Crusader/Overseer/Athena/Archon/Foxglove/Summoner) = **285 rings but
+  only 30 RUNS**, bound by Athena and Archon at 30 each. **7.5 days at 4
+  runs/day**, against a Tier-2 offering window ending day 20731 (~37 days from
+  today's 20694). Summing the balances is wrong by 9.5x. Gold, same reading:
+  min 19 → 19 Tier-3 runs.
+- **`scripts/checkEntryTiers.ts`** — read-only, prints the live per-tier cost,
+  balances and runway, so rule 11's "re-read it, never cache it" is a command
+  rather than a note. Its runway arithmetic is pure and pinned by
+  `tests/entryTierRunway.test.ts`, including the sum-vs-min trap.
+- **`scripts/secretScan.ts`** — the recap scan as one instrument. Names its
+  scope beside the count, and fails closed on an unexplained hit, a zero-file
+  sweep, or a matcher that stops matching its own sample. Rules are the inverse
+  of `src/api/redact.ts`; samples are built at runtime so the scanner needs no
+  exemption for itself.
+- **QUESTIONS §65 fixed** — see the digest entry. `doctor.ts` and
+  `liveRun.ts --status` both read the live ledgers correctly after the change,
+  and `data/guard-budget*.json` were not touched.
 
 ## What's broken
-- ⚠ **The APPROVED on-demand single-lethal trigger did not fire once in 22
-  casts.** Every one of the day's 14 oils came from the **double-lethal**
-  band — the user override the sim does not recommend (QUESTIONS §30). The
-  policy the user actually approved (rule 4) has now gone a full day
-  unexercised while the override did all the work. Not a malfunction; the
-  `fishHp <= 2` condition simply never arose. But it means the oil arm's
-  outcome data is measuring the override, not the approved policy.
-- ⚠ **Oil stock rose 14 → 23 between the two halves without the bot moving
-  it** — the user crafted more. Recorded so a future reader does not read it
-  as an accounting error.
-- ⚠ **The guard-budget day-key straddle is UNFIXED IN CODE**, and
-  `liveFishing.ts:1799` uses the identical pattern while running autonomously.
-  Failure direction is SAFE (over-counts → blocks casts, never over-spends).
-  QUESTIONS §65 has the fix design. Carried UNCHANGED from session 109.
+- ⚠ **The Tier-2 ring debit is UNVERIFIED on the wire.** The cost is read from
+  `entryData`; the brief's actual gate — matching it against the negative
+  `gameItemBalanceChanges` on `start_run` — needs a run and is UNMET. **The
+  first live Tier-2 run must check this**, the same discipline that confirmed
+  zero rings for Tier-1, now run expecting a real debit.
+- ⚠ **The in-memory half of the guard straddle is unfixed, deliberately.** A
+  straddling process still counts the old day's spend against the new day's cap
+  and stops early. Fail-safe; the next process reads a correct ledger.
+- ⚠ **The APPROVED on-demand single-lethal oil trigger did not fire once in 22
+  casts** (session 110). All 14 oils came from the double-lethal override the
+  sim does not recommend. The oil arm is measuring the override, not the policy
+  approved under rule 4. Carried unchanged.
+- ⚠ **The fishing guard counter over-counts**, separately from the straddle
+  just fixed (session 107 saw `runsStarted` 25 on a 22-played / 20-charged
+  batch). Carried from 107, untouched.
 - ⚠ **`LossBlockUp` has a live pickup pair and no model** — deliberately.
-  QUESTIONS §64 asks for the directive. **Third session blocking**, carried
-  unchanged from 108 and 109.
-- ⚠ **Card 84 has no on-grid footprint and the bot may still loot it.** It
-  JOINED the guaranteed-miss set in the first batch (was `[1,3,4,6,35]`).
+  QUESTIONS §64 asks for the directive. **Fourth session blocking.**
+- ⚠ **Card 84 has no on-grid footprint and the bot may still loot it.**
   `chooseNewCard` has no deck-composition term — TASKS.md §13, still NOT
-  STARTED. This is the second observed instance of the shape §13 exists to
-  price, not a quantified cost.
-- **The JWT expires and blocks the whole session.** Valid to 2026-09-04T18:48Z.
-  No renewal path in-repo; manual copy from the browser.
+  STARTED. Second observed instance, not a quantified cost.
+- **The JWT expires and blocks the whole session.** Valid to 2026-09-04T18:48Z
+  (121.6h at 09:00 PDT). No renewal path in-repo; manual copy from the browser.
 
 ## Corrections to SPEC.md
-- **None. `SPEC.md` and `SPEC-fishing.md` were not touched** — nothing in the
-  live responses contradicted them. `SPEC-fishing.md` §4's claim that fishing
-  credits Hard Core on every catch was CONFIRMED at corpus scale (134/134
-  catches, 0/161 non-catches), not corrected.
-- **A brief correction, not a spec one:** the brief dated session 102 to
-  2026-08-25; the log header and the fixtures both say **2026-08-26 PT**.
+- **None. `SPEC.md` was not touched** — nothing contradicted it. SPEC §3c's
+  claim that tier 2 requires one Silver Ring per faction (items 134–140) was
+  **CONFIRMED live**, not corrected, and so was the `entryData` ordering
+  (tier 2, 1, 3).
+- **Two corrections to other repo documents**, recorded rather than silently
+  fixed: QUESTIONS §65 mis-cited `liveFishing.ts:1799` as a `saveGuardBudget`
+  call (it builds the reconciler's input; the writes are 1804/1903/1969), and
+  CLAUDE.md rule 11's heading had said "Tier-3" since 2026-08-27.
 - Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
 - Move charges: PRESENT — unchanged, not re-measured.
 
 ## Dead ends
-- **Do not key the Hard Core credit on the terminal response or on one
-  `message`.** It arrives on `"Cards played successfully."` 68 times and on
-  `"Item used successfully."` 52 times (an oil that landed the kill in the same
-  action). `summarizeFishingCast` SUMS over the cast's responses for exactly
-  this reason.
-- **Do not hardcode the rarity ladder into report prose.** Step 0 did, writing
-  "all 120 caught casts"; the batch made it stale **within the same session**.
-  It is derived from the records now.
-- **Do not read the non-1x Hard Core multiples as an era change.** They are
-  absent before 2026-08-21 (0/14) and 12/106 after, which is not separable from
-  a flat ~10% rate at that n. The first batch's 3-of-9 has P=0.053 against that
-  base rate — suggestive, not a finding — and the closing 7 casts produced just
-  1 of 5, which pulls the day back toward the base rate rather than away.
+- **Do not allowlist the secret scanner against its own rules.** The obvious
+  fix for a scanner holding literal sample secrets is an exemption for itself,
+  and that creates the one file where a real secret could hide behind a
+  legitimate one. Samples are concatenated at runtime instead. The self-check
+  caught the TEST file twice: splitting the VALUE is not enough when the rule
+  is keyed on a LABEL, because the code that builds the label matches it.
+- **Do not write a literal NUL into TypeScript source.** The first draft split
+  `-z` output on a raw NUL, which made git and grep treat the scanner as
+  binary — so it would have skipped its own file. Use `"\x00"`. Pinned.
+- **Do not compute allowlist staleness on a narrow scope.** On `--scope=diff`
+  an exemption's file is usually just absent, and the naive check flagged all
+  six and told the reader to delete live exemptions.
+- **Do not throw when the guard counters move backwards.** The first draft did.
+  `guards.adoptServerRunCount()` assigns the server's count ABSOLUTELY and can
+  LOWER it, on the AUTONOMOUS fishing path — so the throw would have crashed a
+  straddling batch at the moment it was healing itself.
+- **Do not memoise the day boundary lazily at first save.** A process that
+  loads a non-zero seed before 11:00 and does not write again until after has
+  no pre-rollover save to learn the boundary from; the memo must be seeded at
+  LOAD, and a second load must not re-seed it.
 - Carried, untouched: §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE
   QUOTED.**
 
 ## Metrics
-- **Live: 22 fishing casts played / 20 charged, 264 energy, 14 Relaxing Oils,
-  3,280 Hard Core, 0 dungeon runs, 0 rings.** Day closed at 20/20.
-- Catch rate **63.6%** (14/22), 95% Wilson [43.0%, 80.3%]. By half: 9/15 =
-  60.0%, then 5/7 = 71.4%.
-- **0 first-attempt failures / 139 POSTs.** JEBAITOR **2 of 22 = 9.1%** — 2 in
-  the first half, **0 in the second**, landing exactly on §34's ~9%.
-- Rod durability **15 → 0**, repaired to 40, then **40 → 33**. 1.00/cast on
-  both, n=22 this session, fifth and sixth confirming batches.
-- Corpus **273 → 295 fishing casts, 120 → 134 caught**; dungeon unchanged at 93.
-- Suite **2138 → 2147** (+9: 7 Hard Core regression cases, 2 ladder-derivation
-  cases). **114 pre-existing assertions re-derived** across 9 files, in two
-  passes (58 after the first batch, 56 after the second).
+- **Live: 0 dungeon runs, 0 rings, 0 energy, 0 fishing casts.** Nothing played.
+  Dungeon ledger 12/12 all session; fishing 20/20 from session 110.
+- Suite **2147 → 2195 (+48)**, files 111 → 113. Breakdown: +6 entry-tier
+  runway, +32 secret scan, +10 guard straddle.
+- Secret scan: **9118 files (tracked), 0 unexplained, 14 allowlisted**;
+  14 files (diff scope), 0 unexplained. Control A 8758, control B all 8 rules.
+- Silver rings 285 held / **30 runs** of runway; gold 200 held / **19 runs**.
+- No sim runs, no fixtures added, no corpus change.
 
 ## Open questions for Claude
-1. **Should the approved on-demand oil policy be re-derived, or the
-   double-lethal override formally adopted?** 22 casts produced **zero**
-   single-lethal firings and 7 double-lethal ones. The oil arm is measuring the
-   override, and the approved policy is effectively dormant. This is a user
-   decision (rule 4 — timing policy needs approval), not an agent one.
-   **New this session.**
-2. **Fix the guard-budget rollover straddle in code?** QUESTIONS §65 has the
-   design. It bit twice in two sessions and reaches autonomous fishing.
-   **The one concrete carried task.**
-3. **`LossBlockUp` — may it be modelled as `latent` from n=1?** QUESTIONS §64.
-   Same n and measurement as session 99's `LossIntuitionUp`, which the user
-   approved. **Third session blocking.**
+1. **The first live Tier-2 run still owes the wire check.** Confirm the seven
+   negative `gameItemBalanceChanges` on `start_run` match
+   `inputItems`/`inputAmounts` exactly, and re-read the balances after. **This
+   is the brief's own unmet gate, not a nice-to-have.**
+2. **The Tier-2 runway is 7.5 days against a ~37-day offering window.** Same
+   arithmetic that drove Tier-3 → Tier-1. Not a blocker and not an agent's
+   call, but the user should see it before day ~8.
+3. **Is the Tier-1 arm now the baseline for anything downstream?** Session
+   103's Tier-3 numbers are not comparable on any payout statistic and several
+   reports still quote them — and Tier-1 is now itself superseded. **Seventh
+   session unactioned**; raise it plainly rather than letting an eighth pass.
 4. **The `nextPosition` override is LIVE and steering fishing card choice**
-   with still no user sign-off. Carried UNCHANGED from sessions 105–109 —
-   **sixth session**. It logged `ARMED (no miss on record)` again this batch.
-5. **Is the Tier-1 dungeon arm now the baseline for everything downstream?**
-   Session 103's Tier-3 numbers are not comparable on any payout statistic and
-   several reports still quote them. **Sixth session unactioned.**
-6. **Should `chooseNewCard` get a deck-composition term (TASKS.md §13)?** Card
-   84 joined the no-on-grid-footprint set this batch, and the bot has now been
-   observed looting a guaranteed-miss card twice.
-7. **BurnMastery: x2 or flat +3?** Unseparable; arrives on its own through
-   play. Spend no runs on it.
+   with still no user sign-off. **Seventh session** carried unchanged.
+5. **Should the approved on-demand oil policy be re-derived, or the
+   double-lethal override formally adopted?** A user decision (rule 4), not an
+   agent one. Carried from 110.
+6. **`LossBlockUp` — may it be modelled as `latent` from n=1?** QUESTIONS §64.
+   **Fourth session blocking.**
+7. **Should `chooseNewCard` get a deck-composition term (TASKS.md §13)?**
 8. **The fishing guard counter over-counts**, separately from the straddle
-   (session 107 saw `runsStarted` 25 on a 22-played / 20-charged batch).
-   Carried from 107.
+   fixed this session. Carried from 107.
 
 ## Files changed
 ```
- src/sim/fishingCorpus.ts                   |  21 +   (carry gameItemBalanceChanges)
- src/sim/fishingReport.ts                   | 132 +   (hardCore + derived ladder)
- scripts/liveFishing.ts                     |   2 +-  (shadow in-sample rate)
- tests/sim/fishingReport.test.ts            | 190 +   (+9 new cases)
- tests/sim/fishingCorpus.test.ts            |  32 +-
- tests/fishing/{castEra,damageEconomy,matcherHeadroom,oilReachability,
-   redrawCounterfactual,redrawShadowAnalysis,stateFields,zoneTemplate}.test.ts
-                                            | ~600 +- (114 assertions, 2 passes)
- handoff/reports/fishing-casts.md           | 600 +-  (regenerated, Hard Core col)
- handoff/{STATE.md,DECISIONS.md,log/session-110.md}
- fixtures/fishing-casts/live/cast-2026-08-30-*  | 138 files (new, 22 casts)
- 158 files changed
+ CLAUDE.md                                   |  68 +-   (rule 11 -> Tier-2; scan rule)
+ QUESTIONS.md                                |  52 +-   (§65 ANSWERED)
+ handoff/DECISIONS.md                        |  13 +    (13 entries)
+ handoff/STATE.md                            |  13 +-
+ scripts/checkEntryTiers.ts                  | 101 +    (new)
+ scripts/secretScan.ts                       | 460 +    (new)
+ scripts/doctor.ts                           |   2 +-   (Tier-2 hint)
+ scripts/liveRun.ts                          |   7 +-   (USAGE: Tier-2)
+ scripts/orchestrator.ts                     |  13 +-   (Tier-2 pointer)
+ src/orchestrator/guardPersistence.ts        | 156 +-   (DAY_MEMO, §65)
+ tests/entryTierRunway.test.ts               |  66 +    (new, 6)
+ tests/secretScan.test.ts                    | 264 +    (new, 32)
+ tests/orchestrator/guardPersistence.test.ts | 176 +-   (+10)
+ tests/orchestrator/dungeonArmClosed.test.ts |  31 +-
+ 14 files changed, 1387 insertions(+), 35 deletions(-)
 ```
