@@ -1,4 +1,4 @@
-# STATE — session 112 — 2026-08-30 — code at commit b0d9b6a7
+# STATE — session 112 — 2026-08-30 — code at commit b0d9b6a7, recap at 71bad3d1
 
 ## Status
 Brief was **offline wrap-up + three user decisions + two carried fixes**, with
