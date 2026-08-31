@@ -1,4 +1,4 @@
-# STATE — session 114 — 2026-08-31 — commit <SHA>
+# STATE — session 114 — 2026-08-31 — commit d5b77f3c
 
 ## Status
 Brief was three steps: confirm the day rolled, spend ONE juiced Tier-2 run to get
