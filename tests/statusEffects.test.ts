@@ -116,7 +116,7 @@ describe("Burn", () => {
  * full-corpus miss count is asserted to equal it. The +5 over the Weak
  * prediction is left as evidence ABOUT `Vengeance` rather than discarded: it
  * is the first quantitative observation of that status, and it is recorded in
- * QUESTIONS.md §66 rather than modelled from n=1.
+ * QUESTIONS.md §67 rather than modelled from n=1.
  */
 const MODELLED_STATUSES = new Set(["Weak", "Vulnerable", "Burn", "Regen", "SecondWind"]);
 const noUnmodelledStatus = ex.filter(

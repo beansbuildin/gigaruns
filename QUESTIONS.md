@@ -5303,3 +5303,81 @@ pattern". Line 1799 is not a write — it builds the `PersistedGuardBudget`-shap
 input to `reconcileFishingLedger`; the write is `saveGuardBudget` at 1804, plus
 1903 and 1969. The conclusion was right (the autonomous arm reaches the bug and
 is the argument for fixing it) and all three writes go through the fix.
+
+---
+
+## §66 OPEN [session 113] — `CritHeal`: model it from n=1, or wait for a second pair?
+
+**A user directive is needed. An agent may not decide this** — the
+`LossIntuitionUp` (session 99) and `LossBlockUp` (session 112) precedents both
+required an explicit one for exactly this call, and both are recorded in
+`DECISIONS.md`.
+
+**What is established, verified against the fixture rather than assumed from
+the family.** `run-2026-08-31-03-04-33`, `state-011.json` → `state-012.json`:
+
+```
+health   {"current":50,"starting":30,"currentMax":50,"startingMax":30}   UNCHANGED
+armor    null                                                            UNCHANGED
+rock / paper / scissor                                                   BYTE-IDENTICAL
+pickedBoons  0 -> 1
+new boon  {"BoonType":"CritHeal","Rarity":"Rare","selectedVal1":6,
+           "val1Min":6,"val1Max":6,"TokenId":95,"UINT256_CID":31}
+```
+
+So **the pickup is a latent no-op** — nothing observable moves at pickup. That
+is the same evidence, at the same n, as the two types already modelled by
+directive.
+
+**⚠ What is NOT established, and the trap to avoid.** The name says "heal on
+crit". **Per DECISIONS 2026-08-14/15 the effect is never inferred from the
+name.** The conditional the name gestures at is entirely unobserved; measuring
+it needs crit-landing exchanges AFTER the pickup, which this run does not
+contain. `selectedVal1` is 6, and whether that is a heal amount, a percentage,
+a proc chance or something else is unknown.
+
+**The two options, stated so the answer can be a single word.**
+
+- **(a) Model it `latent` now**, as `LossBlockUp` was: the pickup is modelled,
+  the conditional is not, and every exchange after the pickup stays UNSCORABLE
+  rather than being scored as if the boon were inert. This is the conservative
+  option despite sounding like the aggressive one.
+- **(b) Wait for a second pair.** Costs nothing but time; `CritHeal` currently
+  sits in `AWAITING_MODEL_DIRECTIVE` in `tests/boons.test.ts`, which pins the
+  latent measurement and fails if anyone models it without a directive.
+
+**Current state: (b), by default, because no directive exists.**
+
+---
+
+## §67 OPEN [session 113] — `Vengeance`: the first quantitative observation, and it is n=1
+
+**No decision is being asked for.** This is recorded so the observation is not
+lost and so a future session does not rediscover it as a `Weak` regression.
+
+`run-2026-08-31-03-26-52/state-116.json` is the corpus's **first exchange where
+`Weak` and `Vengeance` are carried together**, and it is the **only exception
+`Weak`'s multiplier rule has ever had**:
+
+```
+attacker status  {"Regen":0,"SecondWind":10,"Weak":1,"Vengeance":25}
+ATK 30    floor(30 * 0.75) = 22 predicted    27 TAKEN     residue +5
+```
+
+**This is contamination, not falsification.** `scaleRule` excludes the other
+side's `Weak`/`Vulnerable` and this side's opposite scaler, and nothing else —
+so any unmodelled damage-affecting status is scored as though the multiplier
+were acting alone. Excluding exchanges where either combatant carries an
+unmodelled status restores **54/54, 100%**, and
+`tests/statusEffects.test.ts` asserts that exclusion is EXACTLY the
+unmodelled-status set so it cannot widen.
+
+**What would resolve it.** More `Vengeance` exchanges, ideally without `Weak`,
+so its own contribution is separable. Three statuses are currently unmodelled
+and all three are rare: `Vengeance` (2 runs), `Intimidating` (1),
+`Steadfast` (1). ⚠ **Do NOT fit an effect to the +5**: with one observation,
+"+5 flat", "+ATK/6", and "Vengeance overrides Weak entirely" (30 → 27 is not
+that, but a fourth reading might be) are all unseparated, and `Vengeance: 25`'s
+amount field has not been shown to be a magnitude at all — for `Weak` and
+`Vulnerable` the amount is a COUNTDOWN, not a magnitude, which is precisely the
+trap `statusEffects.test.ts` already warns about.

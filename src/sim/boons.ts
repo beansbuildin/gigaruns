@@ -3304,7 +3304,7 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
   // ⭐ Contains the corpus's FIRST `CritHeal` pickup (run-2026-08-31-03-04-33,
   // state-011 -> state-012, `selectedVal1` 6, Rarity Rare). It is held back
   // from `BOON_MODELS` awaiting a user directive — `AWAITING_MODEL_DIRECTIVE`
-  // in `tests/boons.test.ts`, QUESTIONS.md §65, on the `LossIntuitionUp` /
+  // in `tests/boons.test.ts`, QUESTIONS.md §66, on the `LossIntuitionUp` /
   // `LossBlockUp` precedent.
   {
     room: 1,

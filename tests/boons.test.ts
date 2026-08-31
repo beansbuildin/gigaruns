@@ -91,7 +91,7 @@ const AWAITING_MODEL_DIRECTIVE = new Set<string>([
   // 2026-08-14/15: the effect is never inferred from the name. What is
   // established is the pickup delta (nothing) — the conditional the name
   // gestures at is unobserved, and would need crit-landing exchanges after
-  // the pickup to measure. QUESTIONS.md §65.
+  // the pickup to measure. QUESTIONS.md §66.
   "CritHeal",
 ]);
 
