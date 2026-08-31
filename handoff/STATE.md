@@ -1,4 +1,4 @@
-# STATE — session 113 — 2026-08-30/31 — code at commit a889697f
+# STATE — session 113 — 2026-08-30/31 — code at commit 5b160304
 
 ## Status
 Brief was four steps: implement the Tier-2 ring rotation model, disable the
