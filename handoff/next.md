@@ -1,168 +1,134 @@
-# BRIEF — session 113 — confirm & fix the Tier-2 ring model, disable the oil override, then fishing (up to 25) then the remaining 3 dungeons
+# BRIEF — session 114 — confirm the Tier-2 rotation order on the first post-reset day, then remaining Tier-2 runs if authorized
 
-**This document replaces the session-112 `next.md`.** Session 112 closed with
-a real correction still incomplete: the Tier-2 ring-cost paragraph in
-CLAUDE.md was fixed once (from "one of each of seven" to "measured 3 of one
-faction, unseparated from the multiplier, rotation unconfirmed") but the
-user has now supplied the missing piece directly. **Before doing anything
-below, read STATE.md's "Settled — do not re-open" digest.** Nothing below
-should duplicate an entry in it.
+**This document replaces the session-113 `next.md`.** Session 113 closed
+113 complete: ring model implemented and confirmed 4/4 live, double-lethal
+override disabled and confirmed live, fishing and three Tier-2 runs all
+GATE PASS. **Before doing anything below, read STATE.md's "Settled — do
+not re-open" digest — it is long and every entry in it is closed.**
+
+The one thing session 113 could not do is baked into this brief: it spent
+all three of its runs on the SAME faction day (game day 20695, Foxglove),
+so the rotation order is still n=1 — every candidate day→faction offset
+still fits. **The daily reset (dungeon cap + faction day) lands
+2026-08-31 18:00 UTC / 11:00 Pacific.** Any run authorized after that
+instant, on a new faction day, is the second data point that turns this
+from a 7-way unknown into a solved map. STATE.md calls this "the
+highest-value cheap measurement available" — it is free in the sense that
+it rides on a run you'd spend anyway, not in the sense that it doesn't
+need a run.
+
+---
+
+## Step 0 — confirm the day actually rolled before assuming anything
+
+**Do not trust the pre-reset clock reading; re-check live.** Session 113's
+scratch notes read `secondsTillNextDay` from `/offchain/static` at 23:16
+UTC on 2026-08-30 and projected the rollover to 18:00 UTC on 08-31 — that
+is a projection, not an observation of the new day.
+
+1. `client.getGameDay()` (or `npx tsx scripts/checkDungeonToday.ts`, which
+   wraps it) — read `currentDay` live. Compare against 20695.
+   - **If `currentDay` is still 20695**: the reset has not landed yet (or
+     landed later than projected). Stop. Do not spend a run trying to
+     force a measurement — report the actual value and how long until
+     `secondsTillNextDay` says it will roll, and wait for a session after
+     that.
+   - **If `currentDay` has advanced**: proceed to Step 1. This is the
+     confirmation that a new faction day is live.
+2. Read current silver-ring balances for all seven factions before
+   spending anything, so the before/after diff is clean. Session 113 left
+   these at Foxglove 45, all others at their session-113 closing values —
+   pull the live numbers fresh rather than assuming the log is current.
+3. `npx tsx scripts/checkDungeonToday.ts` — confirm the run-unit cap reset
+   to 12/12 (fresh day) rather than assuming it did. If it did NOT reset
+   alongside the day advancing, that's itself a finding — report it rather
+   than reconciling it silently.
+
+## Step 1 — the measurement: one juiced Tier-2 run on the new day
+
+**Only if Step 0 confirms a new `currentDay`.**
+
+1. Before spending: if session 113's Step 1.3 search for an advance
+   faction-indicator field found nothing (per STATE.md — it found
+   nothing, search marked COMPLETE, do not re-hunt it), this faction is
+   only knowable after the fact from the balance diff. Don't re-run that
+   search.
+2. `--dry-run` first, per standing rule 4.
+3. One juiced Tier-2 run: `--runs=1 --juiced --juiced-index=2`. No
+   chaining — rule 11, stop after this one run regardless of how much cap
+   remains.
+4. **After the run**, read silver-ring balances again. Report:
+   - which single faction moved (expect exactly one, per the confirmed
+     3-of-one-faction model — if more than one moved or the amount isn't
+     3, that's a falsification of session 113's model, not noise; stop
+     and report it as such rather than averaging it away)
+   - the new `currentDay` and `currentDayOfWeek`, alongside the faction
+     that moved — this pair IS the second point on the day→faction map
+   - whether Foxglove (yesterday's faction) or a different faction moved.
+     Either outcome is informative; a repeat of Foxglove on a new day
+     would itself be worth flagging since it narrows the period rather
+     than just the offset.
+5. Rule 8 governs the in-room picks (highest non-Perpetual tier,
+   lowest/no-modifiers at the final room), unaffected by any of the above.
+6. Stop after this run and report. Getting a second faction-day point does
+   not by itself authorize the remaining 3 runs in today's fresh cap —
+   get explicit go-ahead before spending further, standard rule 11.
+
+## Step 2 — if authorized to continue: remaining Tier-2 runs
+
+Only proceed here on explicit go-ahead after Step 1's report, same
+discipline as every session except 108's one-time exception.
+
+1. `--dry-run` first, then `--runs=1 --juiced --juiced-index=2` per run,
+   one at a time, stop and report between each.
+2. After each run, confirm the SAME faction moves again (it should — the
+   faction is fixed for the whole calendar day, only the day-to-day
+   identity is what Step 1 is measuring) and the amount is still exactly
+   3. A change mid-day would be a bigger finding than the rotation
+   measurement itself — stop and report rather than continuing.
+3. Rule 13 discipline on any denied/blocked/interrupted run, as always.
+
+## Step 3 — fishing, if there's headroom and it's requested
+
+Not pre-authorized by this brief — session 113 already ran a 20-cast
+batch under the new oil policy and closed it out GATE PASS. Only run more
+fishing this session if the user asks for it live; otherwise leave it for
+its own brief so this session stays focused on the rotation measurement.
 
 ---
 
-## Step 1 — confirm and implement: Tier-2 costs 3 of ONE faction, and the faction rotates daily
+## Carry forward — do not let these go unmentioned again
 
-**User's direct statement, given in chat, to be treated as ground truth and
-implemented, not re-derived from scratch:** *"the tier 2 ring cost is 3x of
-one faction per juiced run, and each day the faction changes, that's why it
-was described as one of the seven factions."* This resolves STATE.md
-session 112's open question 1 and explains `entryData[].inputItems` holding
-all seven faction ids at `inputAmounts: [1,...]` — that's the set of
-*possible* factions the day-selection can land on, each at a base amount of
-1, multiplied by the juiced multiplier (3) for whichever one is active
-today. It is not "sum all seven" and it is not "read entryData literally as
-the bill."
+Neither is this session's job, but STATE.md and TASKS.md both flag that
+they keep getting closed out unmentioned. Say a sentence on each in the
+recap even if the answer is "still not this session":
 
-1. **Update CLAUDE.md rule 11's cost paragraph again** — this is now the
-   THIRD state that paragraph has been in (7-rings-of-each → measured-3-
-   unseparated → this). Follow the file's own convention: keep the prior
-   wrong/incomplete versions struck through with their dates, add this
-   version as the current one, dated today, citing that it's a direct user
-   statement resolving what session 112 left open.
-2. **Fix `scripts/checkEntryTiers.ts`'s runway math to model rotation, not a
-   static per-run cost.** The correct model: each calendar day, exactly ONE
-   faction is charged, 3 rings per juiced run that day (up to 12/day at the
-   4-run/day cap). The runway is therefore bounded by whichever faction has
-   the least stock **relative to how often the rotation lands on it**, not
-   by a flat "min balance / 3-per-run" figure. Since the rotation's exact
-   period/order is still unconfirmed (session 112 only observed one day,
-   Foxglove), the honest thing to compute and print is: current per-faction
-   balances, days-of-runway IF that faction were hit every day (a
-   worst-case per-faction figure), and an explicit statement that the
-   TRUE runway depends on the unconfirmed rotation order. Don't manufacture
-   a single confident number the data doesn't support yet.
-3. **Investigate whether today's active faction is knowable in advance**,
-   before spending — check `entryData` and any other field on the dungeon
-   state/today-progress response for a day-index or faction-selector field,
-   rather than only learning it after the fact from a balance diff. If
-   found, wire it into `checkEntryTiers.ts` so future runway reads don't
-   need trial and error. If not found after a real check (not just absence
-   from the one response already logged), say so and move on — don't spend
-   time hunting for a field that may not exist.
-4. **Record a `DECISIONS.md` entry, dated today**, stating this is a direct
-   user-supplied correction (not independently re-derived) and citing it as
-   the resolution to session 112's open question 1. Update the STATE.md
-   digest entry to match.
-5. **This session's dungeon runs (Step 4) are where this gets confirmed
-   live** — expect the charged faction to still show as Foxglove (same
-   calendar day as session 112, if today hasn't rolled over) or a
-   *different* faction (if it has), and either outcome is consistent with
-   the user's model. Log the actual faction and amount debited on every run
-   this session as the confirming measurement, and say explicitly in the
-   recap whether it matched "3 of one faction" — it should, by
-   construction, but verify rather than assume.
-
-## Step 2 — implement: disable the double-lethal oil override, on-demand only
-
-**User's directive, given directly:** *"focus oil will not be added back on
-the allowlist, disable the override rule."* This resolves STATE.md session
-112's open question 2, choosing option (b).
-
-1. **Focus Oil (942) stays off `allowedItemIds`** — no change needed there,
-   it's already off (session 93). Just confirm it's still off; don't
-   re-add it.
-2. **Disable the double-lethal override** — find its actual trigger site
-   (the logic `OIL-DOUBLE-LETHAL.md` documents, likely in
-   `src/strategy/fishing/oilTiming.ts` or `scripts/liveFishing.ts`'s oil
-   decision point) and turn it off, leaving only the rule-4-approved
-   on-demand policy active (Relaxing Oil at `fishHp <= 2`, gated by the
-   necessity gate). Prefer a config flag or clearly-named constant over
-   deleting the code outright, so it stays legible in history and easy to
-   re-enable if a future user directive asks for it back — but make the
-   *default behavior* on-demand-only, not "off unless configured."
-3. **Add a regression test** confirming the override no longer fires —
-   same discipline as every other fix this repo has shipped (a test that
-   fails if the override silently comes back).
-4. **Record a `DECISIONS.md` entry, dated today**, with the user's exact
-   framing preserved (target 60-70% catch rate, oils not wasted,
-   double-lethal explicitly rejected in favor of the approved on-demand
-   policy actually firing).
-5. **This session's fishing batch (Step 3) is the first live test of this
-   change** — report explicitly whether on-demand actually fires now that
-   nothing intercepts its band, and whether the catch rate stays inside the
-   60-70% target with a real trigger instead of a dormant one.
-
-## Step 3 — fishing: up to 25 casts, under the new oil policy
-
-1. **Confirm before assuming, on every axis.** `npx tsx
-   scripts/checkFishingCaps.ts` first — read the real remaining casts, not
-   an assumed fresh 25 or an assumed exhausted 0. Confirm the fishing guard
-   over-count fix (session 112) reads correctly — this is its first live
-   exercise since landing, per STATE.md open question 4, so watch for it
-   specifically rather than assuming it's fine.
-   - Read current rod durability live before sizing the batch.
-2. `--dry-run` first, per standing rule-4 discipline — and this time also
-   confirms Step 2's oil-policy change is actually wired before any live
-   cast spends anything.
-3. Run the batch: on-demand Relaxing-Oil-only policy (double-lethal now
-   disabled), redraw stays disabled (CLOSED). Size to whatever the live
-   caps/durability allow, up to 25 casts / 300 energy — headroom, not a
-   target.
-4. Report at standard depth, plus the Step 2 confirmation: catch rate with
-   CI, oil spend broken out by WHICH trigger fired (on-demand vs. — there
-   should be no double-lethal firings at all now), Hard Core total (now
-   tracked, per session 110), casts played vs. charged, post-batch rod
-   durability.
-5. Rule 13 discipline on any denied/blocked/interrupted cast, as always.
-
-## Step 4 — dungeon: the remaining 3 Tier-2 runs today, one at a time
-
-Session 112 already spent 3 of today's 12 run-units (1 run). **9
-run-units remain = 3 more juiced runs**, matching what the user asked for.
-Standard rule 11 — no chaining authorized this time, stop between each.
-
-1. `npx tsx scripts/checkDungeonToday.ts` first — confirm 9 run-units
-   actually remain rather than assuming (today may have rolled over since
-   session 112, in which case a fresh 12 would be available — if so, still
-   cap this brief's ask at 3 runs since that's what was requested, and note
-   the extra headroom rather than spending it without asking).
-2. `--dry-run` first, then `--runs=1 --juiced --juiced-index=2` per run.
-3. **Before each run**, log whatever the entry data/preflight shows about
-   today's active faction if Step 1.3 found a way to know it in advance;
-   otherwise this is only knowable after the fact from the balance diff.
-4. **After each run**, read silver ring balances and confirm exactly 3 of
-   ONE faction moved (per Step 1's model) — report which faction, every
-   run. If a run ever shows a different pattern (more than one faction
-   moved, or an amount other than 3), stop and report it as a falsification
-   of the just-confirmed model rather than averaging it away.
-5. Stop after each run, report it, and get a fresh explicit go-ahead before
-   the next — standard rule 11, same as every session except 108's one-time
-   exception.
-6. Rule 8 (highest non-Perpetual tier; lowest/no-modifiers at the final
-   room) governs every in-room pick, unaffected by any of the above.
-
----
+- **Whether the Tier-1/Tier-3 arm is a usable baseline for anything
+  downstream.** Ninth session unactioned as of session 113 (STATE.md open
+  question 3) — this would be the tenth if it goes unmentioned again.
+- **`chooseNewCard`'s currency flaw** (a one-zone crit scored against a
+  five-zone hit as the same event). TASKS §13 — first candidate fix is
+  built but NOT wired, gate still not meetable; this is a DATA problem,
+  not a code problem, and stays parked without a user directive. Do not
+  attempt to wire it without one.
 
 ## Recap, for the whole session
 
-Full suite (`--maxWorkers=4`, UNSANDBOXED per session 112's finding —
-`profile.test.ts` false-fails sandboxed), `tsc --noEmit`, `git diff
---check`, secret scan (`scripts/secretScan.ts`, quote its summary verbatim).
 State explicitly, at the top of the recap:
 
-- Step 1: the corrected rule-11 cost paragraph, the runway model change,
-  whether an advance faction-indicator field was found, and confirmation
-  from Step 4's live runs that "3 of one faction" held.
-- Step 2: the override-disable change, its regression test, and Step 3's
-  live confirmation that on-demand actually fired (or didn't, and why).
-- Step 3: casts played/charged, catch rate, oil trigger breakdown, Hard
-  Core total, rod durability, and the fishing-guard-fix's first live
-  behavior.
-- Step 4: how many of the 3 runs happened, per-run faction/amount debited,
-  rooms/Hard Core/Dendren Root per run.
-- **Carried forward, unresolved:** whether Tier-1/Tier-3 numbers are a
-  usable baseline for anything downstream (STATE.md open question 3,
-  eighth session unactioned) and whether `chooseNewCard`'s currency flaw
-  should be fixed independently of TASKS §13's data-gated term (open
-  question 5) — neither is this session's job, but don't let them go
-  unmentioned again.
+- Step 0: the live `currentDay` reading, whether it had advanced past
+  20695, and the fresh run-unit cap reading.
+- Step 1 (only if Step 0 confirmed a new day): which faction moved, the
+  amount, the new day's `currentDay`/`currentDayOfWeek`, and what that
+  does or doesn't resolve about the rotation order/period — don't
+  overclaim from n=2; say plainly what is and isn't determined yet.
+- Step 2, if run: per-run faction/amount confirmation, rooms, Hard Core,
+  Dendren Root.
+- Step 3, only if it happened.
+- The two carry-forward items above, addressed by name even if the answer
+  is "not this session."
+
+Full suite (`--maxWorkers=4`, UNSANDBOXED — `profile.test.ts` false-fails
+sandboxed), `tsc --noEmit`, `git diff --check`, secret scan
+(`scripts/secretScan.ts`, quote its summary verbatim) — standard closeout,
+same as every session.
