@@ -37,6 +37,27 @@ import {
 const RUN_DIRS_SCANNED = 30;
 const ex = loadStatusExchanges({ maxRunDirs: RUN_DIRS_SCANNED });
 
+/**
+ * [session 114] **The corpus-wide claims run on the WHOLE corpus.**
+ *
+ * `maxRunDirs` takes `allDirs.slice(-maxRunDirs)` — the LAST N run dirs — so
+ * every count keyed on it silently depends on WHICH runs are in the window,
+ * not just how many. Session 114 added four runs and the window slid four,
+ * which broke assertions without the corpus losing anything. The same slide
+ * hit `procEvidence.test.ts` harder, and that file's header now carries the
+ * general lesson.
+ *
+ * The specific defect here was narrower and worse: the Weak-exception test's
+ * own comment read *"exactly one miss on the whole corpus"* while `full` was
+ * a 30-dir slice. It was not measuring what it said. On the actual corpus the
+ * claim is TRUE and better supported — 95/96, exactly one miss — so this
+ * change strengthens the assertion rather than rescuing it.
+ *
+ * The slice stays for everything whose subject is a population sample rather
+ * than a universal claim.
+ */
+const exAll = loadStatusExchanges({});
+
 describe("Burn", () => {
   /**
    * [session 108] This assertion used to run over the WHOLE population and be
@@ -83,7 +104,7 @@ describe("Burn", () => {
     // an amount where x2 and the (now-dead) +3 disagree is no longer the only
     // interesting case. An odd plain amount, for instance, would say whether
     // the doubling floors or rounds.
-    expect(Object.keys(pairs).sort()).toEqual(["4/2", "6/3"]);
+    expect(Object.keys(pairs).sort()).toEqual(["10/5", "4/2", "6/3", "8/4"]);  /* [session 114] was ["4/2", "6/3"] — 10/5 and 8/4 arrived together in the room-14 run; BOTH satisfy x2 (10 = 5*2, 8 = 4*2), so the multiplier survives a doubling of the pair set. Still NO odd plain amount, so floor-vs-round is STILL unseparated. */
     // The multiplier, asserted against every observed pair rather than against
     // the two literals above — so it is the RELATIONSHIP that is pinned, not
     // the sample. This is what a future pair has to keep satisfying.
@@ -119,28 +140,31 @@ describe("Burn", () => {
  * QUESTIONS.md §67 rather than modelled from n=1.
  */
 const MODELLED_STATUSES = new Set(["Weak", "Vulnerable", "Burn", "Regen", "SecondWind"]);
-const noUnmodelledStatus = ex.filter(
-  (e) => ![0, 1].some((s) => Object.keys(e.beforeStatus[s as 0 | 1]).some((k) => !MODELLED_STATUSES.has(k))),
-);
+const noUnmodelledStatusOf = (xs: typeof ex) =>
+  xs.filter(
+    (e) => ![0, 1].some((s) => Object.keys(e.beforeStatus[s as 0 | 1]).some((k) => !MODELLED_STATUSES.has(k))),
+  );
+/** [session 114] The whole-corpus clean set — see `exAll`. Weak 83/83, Vulnerable 45/45. */
+const noUnmodelledStatusAll = noUnmodelledStatusOf(exAll);
 
 describe("Weak and Vulnerable are exact floor multipliers", () => {
   it.each([
     ["Weak", WEAK_MULTIPLIER],
     ["Vulnerable", VULNERABLE_MULTIPLIER],
   ] as const)("%s scales damage by %s, floored", (status, _mult) => {
-    const r = scaleRule(noUnmodelledStatus, status);
+    const r = scaleRule(noUnmodelledStatusAll, status);
     expect(r.ok).toBe(r.n);
     expect(r.n).toBeGreaterThan(10);
   });
 
   it("⚠ the ONLY Weak exception carries an unmodelled status — the exclusion cannot widen", () => {
-    const full = scaleRule(ex, "Weak");
-    const clean = scaleRule(noUnmodelledStatus, "Weak");
-    expect(full.n - full.ok).toBe(1); // exactly one miss on the whole corpus
-    expect(clean.n - clean.ok).toBe(0); // and it is not in the clean set
+    const full = scaleRule(exAll, "Weak");
+    const clean = scaleRule(noUnmodelledStatusAll, "Weak");
+    expect(full.n - full.ok).toBe(1); // exactly one miss on the whole corpus — NOW ACTUALLY THE WHOLE CORPUS (95/96)
+    expect(clean.n - clean.ok).toBe(0); // and it is not in the clean set (83/83)
     // Vulnerable has no exception at all, clean or not — asserted so the
     // filter is not silently carrying it.
-    expect(scaleRule(ex, "Vulnerable").ok).toBe(scaleRule(ex, "Vulnerable").n);
+    expect(scaleRule(exAll, "Vulnerable").ok).toBe(scaleRule(exAll, "Vulnerable").n); // 51/51
   });
 
   it.each(["Weak", "Vulnerable"] as const)(
@@ -150,7 +174,7 @@ describe("Weak and Vulnerable are exact floor multipliers", () => {
       // reading it that way here is the natural mistake. Amounts 1-4 all give
       // the same multiplier. If a future corpus ever splits by amount, this
       // fails and the rule above needs re-deriving rather than patching.
-      const r = scaleRule(noUnmodelledStatus, status);
+      const r = scaleRule(noUnmodelledStatusAll, status);
       for (const [, t] of Object.entries(r.byAmount)) expect(t.ok).toBe(t.n);
     },
   );
@@ -227,40 +251,114 @@ describe("Regen", () => {
  * exclusion is asserted to be EXACTLY the co-present-Regen set below, so it
  * cannot quietly widen into "drop whatever fails".
  */
-const withoutRegen = ex.filter((e) =>
+/**
+ * [session 114] **A SECOND heal source entered the corpus, and the exclusion is
+ * now a two-member CENSUS rather than a one-member one.**
+ *
+ * Session 113 excluded co-present `Regen` and explained the held arm fully.
+ * Session 114's room-14 run broke it again — 12 held-arm misses, all
+ * player-side, all carrying `Intimidating: 2`, all healing exactly 2:
+ *
+ * ```
+ * held-arm misses by co-present status:  { Regen: 4, Intimidating: 12 }
+ * ```
+ *
+ * Identical on the 30-dir slice and on the whole corpus, so it is not a window
+ * artifact. Excluding both, BOTH arms are exceptionless on the full corpus —
+ * spent 19/19, held 44/44 — which is a larger clean sample than session 113
+ * had, not a rescued one.
+ *
+ * ⚠ **`Intimidating` is NOT modelled here and this file does not claim it
+ * heals.** What is recorded is that a side carrying it healed on 12 of 12
+ * occasions and that the amount matched the status's own `amount` (2) every
+ * time — which at a SINGLE amount cannot separate "heals its amount" from
+ * "heals a flat 2", the same trap `BurnMastery` sat in at 6/3 for five
+ * sessions. It is a candidate heal source awaiting a user directive
+ * (QUESTIONS.md §68), exactly as `CritHeal` and `LossBlockUp` were.
+ *
+ * **Why this is a census and not the exclusion "widening".** DECISIONS
+ * 2026-08-30 forbids fixing an exception by dropping whatever fails. The guard
+ * against that is the composition assertion below: the excluded set must be
+ * EXACTLY {Regen: 4, Intimidating: 12} and the full-corpus miss count must
+ * equal the excluded count. A third source cannot be quietly absorbed — it
+ * turns this red, which is how `Intimidating` itself was found.
+ */
+const CO_PRESENT_HEAL_SOURCES = ["Regen", "Intimidating"] as const;
+
+const withoutCoPresentHeal = exAll.filter((e) =>
   [0, 1].every((s) => {
     const st = e.beforeStatus[s as 0 | 1];
-    return st.SecondWind === undefined || st.Regen === undefined || st.Regen === 0;
+    if (st.SecondWind === undefined) return true;
+    return CO_PRESENT_HEAL_SOURCES.every((k) => st[k] === undefined || st[k] === 0);
   }),
 );
 
+/** The held-arm misses, decomposed by which other status the side was carrying. */
+function heldMissCensus(xs: typeof exAll): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const e of xs) {
+    for (const s of [0, 1] as const) {
+      if (!e.beforeStatus[s].SecondWind) continue;
+      if (e.afterStatus[s].SecondWind === 0) continue;
+      if (e.heal[s] === undefined) continue;
+      for (const k of Object.keys(e.beforeStatus[s])) {
+        if (k === "SecondWind") continue;
+        out[k] = (out[k] ?? 0) + 1;
+      }
+    }
+  }
+  return out;
+}
+
 describe("SecondWind", () => {
   it("heals exactly its stored amount when spent, and spends to 0", () => {
-    const r = secondWindRule(withoutRegen);
+    const r = secondWindRule(withoutCoPresentHeal);
     expect(r.spentHealsFullAmount.ok).toBe(r.spentHealsFullAmount.n);
-    expect(r.spentHealsFullAmount.n).toBe(9);
+    expect(r.spentHealsFullAmount.n).toBe(19);  /* [session 114] was 9 (30-dir slice, Regen-only exclusion) */
   });
 
   it("does nothing at all while it is held", () => {
-    const r = secondWindRule(withoutRegen);
+    const r = secondWindRule(withoutCoPresentHeal);
     expect(r.heldDoesNothing.ok).toBe(r.heldDoesNothing.n);
-    expect(r.heldDoesNothing.n).toBe(16);
+    expect(r.heldDoesNothing.n).toBe(44);  /* [session 114] was 16 */
   });
 
-  it("⚠ the ONLY exceptions are co-present Regen — pinned so the exclusion cannot widen", () => {
-    // The exclusion above is only honest if it is exactly the undefined-
-    // measurement set. Asserted both ways: the full corpus has 5 more
-    // observations than the filtered one, and every one of them carries Regen.
-    const full = secondWindRule(ex);
-    const filtered = secondWindRule(withoutRegen);
-    expect(full.spentHealsFullAmount.n - filtered.spentHealsFullAmount.n).toBe(1);
-    expect(full.heldDoesNothing.n - filtered.heldDoesNothing.n).toBe(4);
-    // ...and the full-corpus miss count equals the excluded count exactly, so
-    // nothing that PASSES is being thrown away and nothing that FAILS remains.
+  it("⚠ the exceptions are EXACTLY two co-present heal sources — pinned so the exclusion cannot widen", () => {
+    // The exclusion is only honest if it is exactly the undefined-measurement
+    // set. Asserted three ways: the census names the sources and their counts,
+    // the excluded observation counts match, and the full-corpus miss count
+    // equals the excluded count — so nothing that PASSES is thrown away and
+    // nothing that FAILS remains.
+    expect(heldMissCensus(exAll)).toEqual({ Regen: 4, Intimidating: 12 });
+
+    const full = secondWindRule(exAll);
+    const filtered = secondWindRule(withoutCoPresentHeal);
+    expect(full.spentHealsFullAmount.n - filtered.spentHealsFullAmount.n).toBe(7);
+    expect(full.heldDoesNothing.n - filtered.heldDoesNothing.n).toBe(40);
+
     const misses =
       full.spentHealsFullAmount.n - full.spentHealsFullAmount.ok +
       (full.heldDoesNothing.n - full.heldDoesNothing.ok);
-    expect(misses).toBe(5);
+    expect(misses).toBe(17);  /* [session 114] was 5 — +12 Intimidating */
+  });
+
+  it("⚠ every `Intimidating` held-arm miss healed exactly the status's own amount", () => {
+    // The observation, stated at the strength it actually has. NOT a model:
+    // every occurrence is at amount 2, so "heals its amount" and "heals a flat
+    // 2" are indistinguishable here. A single observation at any other amount
+    // separates them, and turns this red rather than sliding a number.
+    const seen: { amount: number; heal: number }[] = [];
+    for (const e of exAll) {
+      for (const s of [0, 1] as const) {
+        const st = e.beforeStatus[s];
+        if (!st.SecondWind || e.afterStatus[s].SecondWind === 0) continue;
+        if (e.heal[s] === undefined || st.Intimidating === undefined) continue;
+        seen.push({ amount: st.Intimidating, heal: e.heal[s]! });
+      }
+    }
+    expect(seen.length).toBe(12);
+    for (const o of seen) expect(o.heal).toBe(o.amount);
+    expect(new Set(seen.map((o) => o.amount))).toEqual(new Set([2]));
   });
 
   // Deliberately no test of the TRIGGER condition. It fired at 40/40 HP against

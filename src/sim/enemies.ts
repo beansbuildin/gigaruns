@@ -604,6 +604,39 @@ export const ROOM_ENEMIES: EnemyProfile[] = [
       rolled: rolled({ evasion: 8, block: 8, lck: 7, tenacity: 3 }),
     },
   },
+  {
+    room: 14,
+    tier: DANGEROUS_TIER,
+    // [session 114, LIVE] First-ever room-14 capture and the deepest this
+    // corpus has reached across 101 attempts, superseding session 112's room
+    // 13. Run `run-2026-08-31-19-12-22` entered room 14 and died here, so this
+    // is the enemy's OPENING state only — no post-exchange sample, and no
+    // Safe/Risky capture for this room.
+    //
+    // `vampiric` again — `kind: "mechanic"` (heals 4 HP on Sword wins), which
+    // modifies no hp/armor/move value and so bakes nothing into the numbers
+    // below. Same reasoning as rooms 11 and 13; `ENEMY_BUFF` deliberately
+    // absent from `unmodelled` for that reason.
+    //
+    // ⚠ The rolled stats are NOT a new maximum, and that is worth recording
+    // because the room-13 entry above predicted they would be. evasion 6,
+    // block 4, lck 6, tenacity 7 — LIGHTER than room 13's 8/8/7/3 on three of
+    // four axes, with only tenacity higher. So "deeper room => heavier rolls"
+    // is NOT monotone, and the room-13 note should be read as an observation
+    // about that capture rather than a trend. `tenacity` being the one that
+    // rose is inert for damage either way (§58/§62/§63 ruled it out as
+    // mitigation).
+    unmodelled: ["ROLLED_STATS"],
+    enemy: {
+      id: "Enemy Room 76",
+      hp: 70,
+      hpMax: 70,
+      armor: 38,
+      armorMax: 38,
+      moves: { rock: mv(28, 8), paper: mv(24, 14), scissor: mv(20, 16) },
+      rolled: rolled({ evasion: 6, block: 4, lck: 6, tenacity: 7 }),
+    },
+  },
 ];
 
 /**

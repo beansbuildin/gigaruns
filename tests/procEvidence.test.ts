@@ -44,6 +44,35 @@ const RUN_DIRS_SCANNED = 20;
 
 const report = buildProcEvidenceReport({ maxRunDirs: RUN_DIRS_SCANNED });
 
+/**
+ * [session 114] **The zero-stat control runs on the FULL corpus, deliberately,
+ * while everything else in this file keeps the slice.**
+ *
+ * The control's own sentence is *"no flag except intuition has EVER fired at
+ * stat 0"*, and `maxRunDirs` takes `allDirs.slice(-maxRunDirs)` — the LAST N
+ * run dirs. A bounded slice structurally cannot answer an "ever" question: it
+ * answers "recently", and the two diverge silently the moment the window
+ * moves past the evidence.
+ *
+ * That is not hypothetical — it is what happened. Session 114 added four runs,
+ * the window slid four dirs, and BOTH assertions below broke without the
+ * corpus losing a thing:
+ *
+ *   slice(20):  intuitionProc0 n= 518  firedAtZero=0   <- the fact vanished
+ *   full(126):  intuitionProc0 n=2234  firedAtZero=1   <- still right there
+ *
+ * The slice also stopped seeing three flags ENTIRELY (`blockProc0`,
+ * `critProc0`, `tenacityProc0` have no key at all in it) because recent runs
+ * never carry those stats at 0 — so a control that "passed" on the slice was
+ * silently checking six flags where the corpus has nine. A control that
+ * quietly narrows its own scope is worse than one that fails.
+ *
+ * The growth rationale in this file's header still stands for every other
+ * assertion here and they are unchanged. This one buys correctness with one
+ * extra full parse.
+ */
+const fullCorpus = buildProcEvidenceReport({});
+
 describe("triggeredBoons — the field that gates nothing", () => {
   it("has never been non-empty, on any player, in any captured state", () => {
     // Full corpus at session 100: 0 of 10,616. This slice re-proves the zero
@@ -118,7 +147,13 @@ describe("data.events — the channel that actually carries proc evidence", () =
    * BASE rate rather than a hard zero. Every other flag remains exactly 0.
    */
   it("★ zero-stat control: no flag except intuition has EVER fired at stat 0", () => {
-    for (const [flag, ctl] of Object.entries(report.zeroStatControl)) {
+    // [session 114] FULL corpus — see `fullCorpus` above. Nine flags, not the
+    // slice's six, and the floor is per-flag observations on all of them.
+    expect(Object.keys(fullCorpus.zeroStatControl).sort()).toEqual([
+      "blockProc0", "blockProc1", "critProc0", "critProc1", "evadeProc0",
+      "evadeProc1", "intuitionProc0", "tenacityProc0", "tenacityProc1",
+    ]);
+    for (const [flag, ctl] of Object.entries(fullCorpus.zeroStatControl)) {
       expect(ctl.n, `${flag} zero-stat observations`).toBeGreaterThan(50);
       if (flag === "intuitionProc0") continue;
       expect(ctl.firedAtZero, `${flag} fired while its stat was 0`).toBe(0);
@@ -129,7 +164,7 @@ describe("data.events — the channel that actually carries proc evidence", () =
     // Deliberately an equality, not a bound. A second zero-stat intuition
     // proc turns this red, and that is the point: at 1/1716 the base rate is
     // a single event, and the next one materially changes what it means.
-    const ctl = report.zeroStatControl.intuitionProc0;
+    const ctl = fullCorpus.zeroStatControl.intuitionProc0;
     expect(ctl, "intuitionProc0 zero-stat control missing").toBeDefined();
     expect(ctl!.firedAtZero).toBe(1);
   });

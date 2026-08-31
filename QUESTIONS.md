@@ -5381,3 +5381,76 @@ that, but a fourth reading might be) are all unseparated, and `Vengeance: 25`'s
 amount field has not been shown to be a magnitude at all — for `Weak` and
 `Vulnerable` the amount is a COUNTDOWN, not a magnitude, which is precisely the
 trap `statusEffects.test.ts` already warns about.
+
+---
+
+## §68 OPEN [session 114] — `Intimidating` heals. Model it, or hold for a directive?
+
+**The observation, and it is much stronger than the usual n=1 boon case.**
+`SecondWind`'s held-arm rule (`heal === undefined` while SecondWind is held)
+broke on 12 exchanges this session. Every one of them is the same shape:
+
+```
+run-2026-08-31-19-12-22  side0 (the player)
+  SecondWind held at 5, Intimidating: 2, heal = 2      x12
+```
+
+Twelve of twelve. `tenacityProc` is false on eleven of them, so a known heal
+source does not explain it. The other four held-arm misses in the whole corpus
+are the previously-known co-present `Regen` cases, and the census is now exactly
+`{ Regen: 4, Intimidating: 12 }` — identical on the 30-dir slice and on the full
+2912-exchange corpus, so it is not a windowing artifact.
+
+**What is NOT established, and it is the same trap `BurnMastery` sat in.**
+Every observation is at `Intimidating: 2` with `heal` 2, so **"heals its own
+amount" and "heals a flat 2" are indistinguishable.** `BurnMastery` looked
+settled at 6-against-3 for five sessions and was only separated when a
+4-against-2 tick arrived this session. One `Intimidating` observation at any
+other amount separates these two readings immediately.
+
+**Also unestablished: the trigger.** All twelve are consecutive exchanges within
+a single fight, so "heals every exchange while the status is up" and "heals on
+some condition that happened to hold twelve times running" are not separated
+either.
+
+⚠ **The NAME is not evidence** (DECISIONS 2026-08-14/15). "Intimidating" does
+not suggest healing at all, which cuts both ways: it is no reason to doubt the
+measurement, and no reason to infer anything beyond it.
+
+**The ask.** `statusEffects.test.ts` now pins the observation exactly (12/12,
+amount === heal, amount set === {2}) and EXCLUDES these exchanges from the
+SecondWind arms as an undefined measurement, which is what session 113's
+"the exclusion cannot widen" rule requires — the exclusion is a two-member
+census, asserted by composition, not a filter that drops whatever fails.
+Nothing is modelled. Should `Intimidating` be added to `MODELLED_STATUSES` as a
+per-exchange heal of its `amount`, or held until an observation at a different
+amount arrives?
+
+---
+
+## §69 OPEN [session 114] — `BurningTenacity`: the fourth n=1 boon awaiting a directive
+
+`run-2026-08-31-19-12-22` state-051 → state-052 (the room-14 run). First-ever
+pair for this type. **Verified latent no-op at pickup**, checked against the
+fixture rather than assumed from the family: hp/hpMax/armor/armorMax unchanged,
+all five ROLLED stats unchanged, `rock`/`paper`/`scissor` byte-identical.
+`selectedVal1` 8, `selectedVal2` 0, Rarity "Rare", TokenId 119.
+
+Added to `AWAITING_MODEL_DIRECTIVE` on the now-thrice-used precedent
+(`LossIntuitionUp` §99, `LossBlockUp` §112/§64, `CritHeal` §66/113).
+
+⚠ **Two name-based inferences to refuse specifically**, because this name
+gestures at two things this repo has already measured. It contains "Burn", and
+`BurnMastery` was solved this session — that is a STATUS the corpus measures
+directly, not a licence to assume a boon sharing three letters does anything
+similar. It contains "Tenacity", and `tenacity` as damage mitigation was RULED
+OUT in §58/§62/§63. What is established here is the pickup delta, which is
+nothing.
+
+**Relevant new evidence for the precedent itself:** `LossBlockUp`, modelled
+`latent` from n=1 by directive in session 112, got its SECOND pickup this
+session (`run-2026-08-31-18-38-03` state-073 → state-074) and reproduced the
+first exactly — same `selectedVal1` 5, same TokenId 116, same latent no-op. So
+the directive-granted reading held out of sample the first time it was tested.
+That is evidence the `latent` default is usually right; it is not evidence that
+an agent should apply it without asking, which is what the precedent forbids.

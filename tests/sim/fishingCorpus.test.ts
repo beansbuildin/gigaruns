@@ -171,11 +171,11 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // NOT separable from the era baseline (41/74 = 55.4% excluding this batch,
     // Fisher p = 0.455). Note 21 casts were PLAYED but only 19 charged against
     // the game's daily ledger: JEBAITOR (§34) fired twice.
-    expect(summary.casts).toBe(315);  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
-    expect(summary.responseDocs).toBe(1804);  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
-    expect(summary.playTurns).toBe(1227);  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
-    expect(summary.caught).toBe(146);  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
-    expect(summary.escaped).toBe(168);  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
+    expect(summary.casts).toBe(339);  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
+    expect(summary.responseDocs).toBe(1942);  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
+    expect(summary.playTurns).toBe(1321);  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
+    expect(summary.caught).toBe(160);  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
+    expect(summary.escaped).toBe(178);  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -526,208 +526,19 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
     // cap of 2 did not bind and has still never bound. So the batch added 2 oil
     // casts and only 1 oil-arm catch; the arm went 10/12 -> 11/14, not 12/14.
     expect(oilCasts.map((c) => c.docId)).toEqual([
-      "12975152", "13019015", "13019665", "13019677", "13019682",
-      "13022748", "13022874", "13022876",
-      "13024476", "13024510", "13024550", "13024562", "13024574", "13024581",
-      "13025987", "13025990",
-      // [session 80] +3 from the nine-cast batch: `13041046` (two Focus),
-      // `13041055` (one), `13041058` (THREE — the third cast ever to walk all
-      // three slots). Focus stock fell 8 -> 6 over the batch; the Relaxing
-      // per-cast cap of 2 still has never bound, though `13041058` is the first
-      // cast on record where the on-demand policy WANTED a relaxing oil and was
-      // refused by the 3/3 per-cast budget instead.
-      "13041046", "13041055", "13041058",
-      // [session 81] +4 from the eight-cast batch: `13041473`, `13041480`,
-      // `13041482`, `13041483`. The Relaxing per-cast cap of 2 still has never
-      // bound. `13041480` is the batch's lethal-trigger consume (fish at 1/15,
-      // one Relaxing, CAUGHT) — the second such firing on record after session
-      // 65's, and it confirms the mechanism again without calibrating a rate.
-      "13041473", "13041480", "13041482", "13041483",
-      // [session 90] +10 from session 87's twelve-cast batch — the largest
-      // single addition of oil casts on record, taking the oil arm from 23
-      // casts to 33. TWELVE oils across the ten: nine casts spent one each,
-      // and `13055883` walked ALL THREE slots — the FOURTH cast ever to do so
-      // (after `13024476`, `13041058`, and session 69's pair), and this is now
-      // a recurring shape rather than the curiosity it was at n=1.
-      //
-      // ⚠ **Not re-verified for this batch: whether the Relaxing per-cast cap
-      // of 2 ever bound.** Every earlier note here asserts it never has. This
-      // corpus view carries `consumablesUsed` and `slotsUsed` but NOT item
-      // ids, so the claim cannot be checked from here, and it is left as a
-      // known-unchecked rather than restated on the strength of the batches
-      // before it. It matters more now than it did: session 90 wired
-      // `doubleLethalTriggers`, which is the first policy that can ever want
-      // two Relaxing Oils in one cast.
-      "13055873", "13055879", "13055883", "13055886", "13055892",
-      "13055896", "13055900", "13055915", "13055924", "13055929",
-      // [session 91] +2 from the ten-cast batch, and they are exactly the
-      // session's TWO DOUBLE-LETHAL FIRINGS — `13068171` (fish 4/29) and
-      // `13068190` (fish 4/17), each spending two Relaxing Oils in a single
-      // turn. Every other oil trigger in the batch was a Focus one against
-      // zero stock, so it recorded OIL-POLICY-DRY and spent nothing.
-      //
-      // ✅ **This ANSWERS the known-unchecked flagged directly above.** The
-      // Relaxing per-cast cap of 2 was REACHED for the first time on record —
-      // and it still did not BIND: `doubleLethalTriggers` wanted exactly two,
-      // never three, so the cap refused nothing. Both casts show
-      // `consumablesUsed` 2 across slots 0 and 1, which is the shape session
-      // 90's `oilDoubleLethalLive.test.ts` predicted from mocks, now seen live.
-      "13068171", "13068190",
-      // [session 92] +4 from the ten-cast batch, and they are the session's
-      // THREE double-lethal firings plus one ordinary on-demand lethal:
-      // `13071770` (2), `13071790` (2), `13071794` (2), `13071804` (1).
-      // Seven oils, all Relaxing (937) — Focus (942) stock was zero throughout
-      // and refused twice, so every Focus trigger recorded OIL-POLICY-DRY.
-      //
-      // ✅ The Relaxing per-cast cap of 2 was REACHED three times and **still
-      // did not BIND** — `doubleLethalTriggers` wanted exactly two on each,
-      // never three. That is the second consecutive batch to reach it without
-      // binding, so "reached but never binding" is now a repeated observation
-      // rather than session 91's single one.
-      //
-      // ⚠⚠ **ALL FOUR ARE INVISIBLE TO `castEra.ts`'s `firedOil`/
-      // `oilsConsumed`** — see QUESTIONS.md §33. The oils landed the kill, so
-      // `castTrace` (which skips `use_fishing_item` responses) ends the trace
-      // before the increment. **This corpus view reads the raw states and gets
-      // all four right**, which is the finding that matters for §33: the
-      // correct source already exists in this repo, and only the trace-derived
-      // path is blind.
-      "13071770", "13071790", "13071794", "13071804",
-      // [session 93] +1 from the single-cast batch: `13073296`, ONE Relaxing oil,
-      // the first cast ever played with Focus Oil withdrawn by policy rather than
-      // absent for stock. The lethal trigger landed the kill on the closing turn —
-      // the exact shape §33 had been blind to, now counted correctly.
-      "13073296",
-      // [session 96] +1 from the ten-cast batch: `13083731`, TWO Relaxing oils
-      // across slots 0 and 1 — the batch's single DOUBLE-LETHAL firing (fish
-      // at 4/16, turn 1, CAUGHT on that turn).
-      //
-      // ✅ The Relaxing per-cast cap of 2 was REACHED and **still did not
-      // BIND** — `doubleLethalTriggers` wanted exactly two, never three. That
-      // is the THIRD batch to reach it without binding (91, 92, 96), so the
-      // pattern is now well past the point of being a coincidence.
-      //
-      // The other nine casts of the batch spent nothing: Focus (942) is
-      // WITHDRAWN BY POLICY (§35), so all nine of its triggers recorded
-      // `oil_trigger_policy_withdrawn` rather than OIL-POLICY-DRY — the
-      // session-93 distinction working as designed across a full batch for the
-      // first time.
-      "13083731",
-      // [session 98] +4 from the NINE-cast batch (`SESSION_98_LIMITS` — capped
-      // by the rod's headroom, not the ledger): `13088831`, `13088834`,
-      // `13088849`, `13088850`. TWO Relaxing oils each, slots 0 and 1 — and
-      // all four are DOUBLE-LETHAL firings, which is the most in any single
-      // batch on record (the previous high was session 92's three).
-      //
-      // ✅ The Relaxing per-cast cap of 2 was REACHED four more times and
-      // **still did not BIND** — the composed trigger wanted exactly two on
-      // each, never three. Fourth batch running (91, 92, 96, 98).
-      //
-      // ⚠ Worth reading beside QUESTIONS.md §46: this is the first batch
-      // played with the necessity threshold at the user's 0.85, and the gate
-      // withheld NOTHING here — not because it is inert, but because all four
-      // of its opportunities were in the double-lethal band on turns the bot
-      // was nowhere near 85% sure of, and the single-lethal band (the arm the
-      // corpus measurement is about) never came up at all. Zero of this
-      // batch's `oil_shadow` records carry a non-null `bestKillProbability`.
-      "13088831", "13088834", "13088849", "13088850",
-      // [session 102] +7 from the TWENTY-cast batch — the full daily cap, and
-      // the largest batch this corpus has ever taken. Six casts spent TWO
-      // Relaxing oils each (slots 0 and 1, all double-lethal firings) and
-      // `13106758` spent ONE, an ordinary single-lethal. Thirteen oils, all
-      // Relaxing (937); Focus (942) remains withdrawn by policy (§35) and
-      // every one of its 19 triggers recorded `oil_trigger_policy_withdrawn`.
-      //
-      // ✅ The Relaxing per-cast cap of 2 was REACHED six more times and
-      // **still did not BIND** — the composed trigger wanted exactly two on
-      // each, never three. Fifth batch running (91, 92, 96, 98, 102).
-      //
-      // ✅✅ **THIS ANSWERS THE ⚠ DIRECTLY ABOVE, and it is the first time the
-      // corpus can.** Session 98's note recorded that the 0.85 necessity gate
-      // withheld nothing because *"zero of this batch's `oil_shadow` records
-      // carry a non-null `bestKillProbability`"* — the single-lethal band
-      // never came up. This batch produced THREE such records, and the gate
-      // WITHHELD ON TWO of them:
-      //
-      //     p = 0.9830  ->  WITHHELD, card played bare, cast CAUGHT
-      //     p = 0.5457  ->  PERMITTED, oil spent (this is `13106758`), CAUGHT
-      //     p = 0.9937  ->  WITHHELD, card played bare, cast CAUGHT
-      //
-      // Neither withhold is a stock or cap artefact: the first had 40 Relaxing
-      // held with zero oils spent all batch, and the second was turn 1 of a
-      // fresh cast. So the gate's first live firings cost nothing observable —
-      // all three casts were caught either way. n = 2 withholds; see
-      // handoff/log/session-102.md before treating that as a validated policy.
-      "13106720", "13106726", "13106732", "13106738", "13106752",
-      "13106758", "13106761",
-      // [session 105] +9 from a TWENTY-ONE-cast day — 18 casts to the rod's
-      // durability floor, then 3 more after the user repaired it mid-session.
-      // Six casts spent TWO Relaxing oils each (double-lethal firings) and
-      // three spent ONE (ordinary single-lethal). Fifteen oils, all Relaxing
-      // (937); Focus (942) remains withdrawn by policy (§35) and all 9 of its
-      // triggers recorded `oil_trigger_policy_withdrawn`.
-      //
-      // ✅ The Relaxing per-cast cap of 2 was REACHED six more times and
-      // **still did not BIND** — the composed trigger wanted exactly two on
-      // each, never three. Sixth batch running (91, 92, 96, 98, 102, 105).
-      //
-      // The 0.85 necessity gate saw FOUR opportunities (non-null
-      // `bestKillProbability`) and withheld on ONE:
-      //
-      //     p = 0.926  ->  WITHHELD, card played bare, cast CAUGHT
-      //     p = 0.757  ->  PERMITTED, oil spent
-      //     p = 0.162  ->  PERMITTED, oil spent
-      //     p = 0.041  ->  PERMITTED, oil spent
-      //
-      // That takes the live record to THREE withholds ever (2 in session 102,
-      // 1 here) and **all three were free — every withheld cast was caught.**
-      // Still n = 3; this is evidence the gate is not obviously costly, not a
-      // validation that it helps.
-      "13131266", "13131282", "13131285", "13131287", "13131289",
-      "13131292", "13131297", "13131303", "13131307",
-      // [session 107] +4 from this session's 22-cast batch — the four casts that spent Relaxing Oil (two double-lethal firings, 8 oils total).
-      "13148589",
-      "13148605",
-      "13148620",
-      "13148652",
-      // [session 110] +5 from this session's 15-cast batch — the five casts
-      // that spent Relaxing Oil. All ten oils went in FIVE double-lethal
-      // firings (2 oils each); the on-demand single-lethal trigger did not
-      // fire once, and the per-cast cap of 2 was reached without binding for
-      // the umpteenth time.
-      "13156408",
-      "13156421",
-      "13156427",
-      "13156428",
-      "13156433",
-      // [session 110b] +2 from the day's closing 7-cast batch — two more
-      // double-lethal firings (2 oils each), stock 23 -> 19. The on-demand
-      // single-lethal trigger did not fire in either half of the day.
-      "13165228",
-      "13165235",
-      // ⭐ [session 113] +2 from the twenty-cast batch — and these two are
-      // unlike every oil cast above them, which is why they get their own note
-      // rather than a count.
-      //
-      // **THE DOUBLE-LETHAL OVERRIDE WAS DISARMED FOR THIS BATCH** (user
-      // directive 2026-08-30, `dendren.oils.doubleLethalOverride` absent). So
-      // for the first time in this list, the oils were NOT spent by the
-      // override: both are single, both are the rule-4-approved on-demand
-      // trigger, and **`oil_double_lethal_fired` is zero across the batch**.
-      //
-      // Both fired at `fishHp` 1 — inside the approved `fishHp <= 2` band that
-      // session 112 showed the override had been STARVING by killing at 3-4
-      // one band above it — with `bestKillProbability` 0.5795 and 0.6298, both
-      // under the 0.85 threshold, so the necessity gate correctly did not
-      // withhold them. **ONE oil each; the per-cast cap of 2 was not reached
-      // at all**, which breaks the "reached but never binding" streak in the
-      // only way that is good news: nothing wanted two.
-      //
-      // Twenty casts, TWO oils. The previous twenty-cast batch (session 102)
-      // spent thirteen.
-      "13172282",
-      "13172283",
-]);
+      "12975152", "13019015", "13019665", "13019677", "13019682", "13022748", "13022874",
+      "13022876", "13024476", "13024510", "13024550", "13024562", "13024574", "13024581",
+      "13025987", "13025990", "13041046", "13041055", "13041058", "13041473", "13041480",
+      "13041482", "13041483", "13055873", "13055879", "13055883", "13055886", "13055892",
+      "13055896", "13055900", "13055915", "13055924", "13055929", "13068171", "13068190",
+      "13071770", "13071790", "13071794", "13071804", "13073296", "13083731", "13088831",
+      "13088834", "13088849", "13088850", "13106720", "13106726", "13106732", "13106738",
+      "13106752", "13106758", "13106761", "13131266", "13131282", "13131285", "13131287",
+      "13131289", "13131292", "13131297", "13131303", "13131307", "13148589", "13148605",
+      "13148620", "13148652", "13156408", "13156421", "13156427", "13156428", "13156433",
+      "13165228", "13165235", "13172282", "13172283", "13185535", "13185601", "13185622",
+      "13185678", "13187635", "13187637",
+]);  /* [session 114] was 74 docIds -> 80; +6 oil casts from the four 2026-08-31 batches */
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;
       expect(c.consumablesUsed).toBe(used);

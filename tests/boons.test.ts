@@ -93,6 +93,29 @@ const AWAITING_MODEL_DIRECTIVE = new Set<string>([
   // gestures at is unobserved, and would need crit-landing exchanges after
   // the pickup to measure. QUESTIONS.md §66.
   "CritHeal",
+
+  // ⭐ [session 114] `BurningTenacity` — FIRST PAIR, from run-2026-08-31-19-12-22
+  // state-051 -> state-052 (the room-14 run). Same precedent chain as
+  // `CritHeal` above: `LossIntuitionUp` (99), `LossBlockUp` (112), `CritHeal`
+  // (113). Modelling a boon type from n=1 has now required an explicit user
+  // directive three times, and an agent deciding it alone is what that
+  // precedent forbids.
+  //
+  // **The pickup is a verified LATENT no-op**, checked against the fixture:
+  // hp/hpMax/armor/armorMax unchanged, all five ROLLED stats unchanged, and
+  // `rock`/`paper`/`scissor` BYTE-IDENTICAL across the pair. `selectedVal1` 8,
+  // `selectedVal2` 0, Rarity "Rare", TokenId 119.
+  //
+  // ⚠ **The name is not evidence** (DECISIONS 2026-08-14/15). It gestures at
+  // Burn and at `tenacity`, and BOTH gestures are actively misleading here:
+  // `tenacity` as damage mitigation was RULED OUT (§58/§62/§63), and this
+  // repo has already had one boon whose name described an effect it does not
+  // have. What is established is the pickup delta, which is nothing.
+  //
+  // ⚠ It is ALSO not to be generalised from `BurnMastery` being solved this
+  // session. `BurnMastery` is a status the corpus measures directly; this is a
+  // boon whose only observation is a no-op pickup. QUESTIONS.md §69.
+  "BurningTenacity",
 ]);
 
 describe("every modelled boon reproduces its recorded delta", () => {
@@ -186,18 +209,34 @@ describe("LossBlockUp is latent at pickup — modelled from n=1 by directive", (
   //
   // QUESTIONS.md §64 is the ask, DECISIONS 2026-08-30 the ruling. n=1: this is
   // the corpus's only pickup of this type.
-  it("changes no player field at pickup, and is the only pickup of its type", () => {
+  it("changes no player field at pickup — and the n=1 directive now HOLDS OUT OF SAMPLE at n=2", () => {
+    // ⭐ [session 114] A SECOND pickup arrived (run-2026-08-31-18-38-03
+    // state-073 -> state-074) and reproduces the first exactly: same
+    // `selectedVal1` 5, same TokenId 116, same latent no-op on every field.
+    //
+    // This is the first time one of this repo's directive-granted n=1 boon
+    // models has been tested against a fresh observation, and it survived.
+    // That is evidence about the PRECEDENT as much as about `LossBlockUp`:
+    // the `latent` reading was not an artifact of the single pair it was
+    // granted on. It does NOT retroactively license modelling the other n=1
+    // types without a directive — `CritHeal` and `BurningTenacity` are still
+    // held — because what was confirmed is one type's reading, not the
+    // inference rule.
     const picks = pickups.filter((p) => p.picked.boonTypeString === "LossBlockUp");
-    expect(picks.length, "n=1 is what the directive was granted on").toBe(1);
-    const pick = picks[0]!;
-    expect(pick.picked.selectedVal1).toBe(5);
+    expect(picks.length, "was n=1 when the directive was granted; a third is new information").toBe(2);
+    for (const pick of picks) expect(pick.picked.selectedVal1).toBe(5);
 
+    for (const pick of picks) {
+      const before = toCombatant(pick.before.run.players[0]!);
+      const after = toCombatant(pick.after.run.players[0]!);
+      expect(after.hp).toBe(before.hp);
+      expect(after.armor).toBe(before.armor);
+      expect(after.hpMax).toBe(before.hpMax);
+      expect(after.armorMax).toBe(before.armorMax);
+    }
+    const pick = picks[0]!;
     const before = toCombatant(pick.before.run.players[0]!);
     const after = toCombatant(pick.after.run.players[0]!);
-    expect(after.hp).toBe(before.hp);
-    expect(after.armor).toBe(before.armor);
-    expect(after.hpMax).toBe(before.hpMax);
-    expect(after.armorMax).toBe(before.armorMax);
     for (const s of ROLLED) expect(after.rolled[s], s).toBe(before.rolled[s]);
   });
 
@@ -256,7 +295,12 @@ describe("recorded offers match the fixtures", () => {
     // CLEARING a room, so the room you die in never yields one. It will keep
     // holding until a run first clears its deepest room, which for a corpus of
     // 85 deaths and 0 clears has never happened.
-    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(12);
+    // [session 114] 12 -> 13. Run run-2026-08-31-19-12-22 reached ROOM 14, the
+    // deepest in this corpus's history across 101 attempts (previous best was
+    // session 112's room 13). The invariant this assertion encodes — offers
+    // stop exactly one room short of the deepest death — is UNCHANGED and has
+    // now held from session 20 through eight successive depth records.
+    expect(Math.max(...OBSERVED_OFFERS.map((o) => o.room))).toBe(13);
   });
 });
 
@@ -614,7 +658,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // types this table already carries, so the clean TYPE set is unchanged and
     // the "closed under the only mechanism feeding it" claim survives a second
     // change of entry tier.
-    expect(roomOne.length).toBe(273);  /* [session 113] was 264 */
+    expect(roomOne.length).toBe(285);  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -676,6 +720,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "AddMaxArmor",
       "AddMaxArmor",
       "AddMaxArmor",
+      "AddMaxArmor", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
       "AddMaxHealth",
       "Heal",
       "Heal",
@@ -695,6 +740,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",
       "UpgradePaper",  /* [session 113] +1, thirteenth */
       "UpgradePaper",
+      "UpgradePaper", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
       "UpgradeRock",  /* [session 113] +1, ninth */
       "UpgradeRock",
       "UpgradeRock",
@@ -706,6 +752,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
+      "UpgradeRock", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
