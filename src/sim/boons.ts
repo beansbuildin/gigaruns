@@ -3279,6 +3279,128 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-08-30-18-30-25/state-210",
     options: [opt("AddIntuition", 4), opt("AddEvasion", 10), opt("VulnerableTenacity", 4)],
   },
+
+  // ── [session 113] NINETEEN OFFERS, FROM THREE TIER-2 RUNS ON 2026-08-31 ───
+  //
+  // Generated from the corpus and APPENDED, not typed and not regenerated
+  // wholesale — sessions 93/95's precedent, for its reason: this table carries
+  // per-entry historical annotations going back to session 03.
+  //
+  // ⚠ **ADDITIVITY WAS VERIFIED BEFORE THE APPEND, NOT ASSUMED FROM IT.** The
+  // multiset diff against the corpus read **19 rows in the corpus and absent
+  // here, and ZERO rows here and absent from the corpus** — the table was
+  // incomplete, never wrong. Same check, same result shape, as session 95.
+  //
+  // **The room-max pin is UNCHANGED at 12.** The three runs died at rooms 7, 6
+  // and 9, so the deepest of these 19 is short of session 112's room-12 offer
+  // and `Math.max(...OBSERVED_OFFERS.map(o => o.room))` still reads 12.
+  //
+  // ⚠⚠ **RUNS 1-2 AND RUN 3 ARE NOT THE SAME ARM** — a +1 ATK change to Sword
+  // and Shield landed between them (see `PLAYER` in `src/sim/enemies.ts`).
+  // These rows are pooled here because an OFFER table records what the server
+  // offered at a room, which the player's loadout does not enter. Do NOT pool
+  // the runs for anything that does.
+  //
+  // ⭐ Contains the corpus's FIRST `CritHeal` pickup (run-2026-08-31-03-04-33,
+  // state-011 -> state-012, `selectedVal1` 6, Rarity Rare). It is held back
+  // from `BOON_MODELS` awaiting a user directive — `AWAITING_MODEL_DIRECTIVE`
+  // in `tests/boons.test.ts`, QUESTIONS.md §65, on the `LossIntuitionUp` /
+  // `LossBlockUp` precedent.
+  {
+    room: 1,
+    source: "run-2026-08-31-02-47-41/state-005",
+    options: [opt("AddIntuition", 1), opt("AddBlock", 2), opt("UpgradeRock", 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-31-02-47-41/state-023",
+    options: [opt("VulnerableBlock", 4), opt("AddLuck", 4), opt("AddBurnSword", 3)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-31-02-47-41/state-045",
+    options: [opt("UpgradeScissor", 8), opt("TieVulnerable", 1), opt("UpgradeRock", 0, 6)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-31-02-47-41/state-057",
+    options: [opt("UpgradeScissor", 12), opt("Vengeance", 25), opt("AddTenacity", 7)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-31-02-47-41/state-067",
+    options: [opt("AddIntuition", 1), opt("CorrosiveMagic", 2), opt("IntuitionArmor", 8)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-31-02-47-41/state-081",
+    options: [opt("AddEvasion", 1), opt("AddWeakMagic", 2), opt("TieVulnerable", 1)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-31-03-04-33/state-011",
+    options: [opt("AddIntuition", 1), opt("AddTenacity", 2), opt("CritHeal", 6)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-31-03-04-33/state-029",
+    options: [opt("UpgradePaper", 0, 8), opt("AddMaxArmor", 2), opt("UpgradePaper", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-31-03-04-33/state-047",
+    options: [opt("BurningTenacity", 8), opt("AddTenacity", 2), opt("AddLuck", 10)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-31-03-04-33/state-073",
+    options: [opt("AddEvasion", 1), opt("LossIntuitionUp", 5), opt("AddLuck", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-31-03-04-33/state-087",
+    options: [opt("AddIntuition", 1), opt("AddBurnSword", 3), opt("AddBlock", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-08-31-03-26-52/state-011",
+    options: [opt("UpgradePaper", 0, 4), opt("AddLuck", 1), opt("Regen", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-08-31-03-26-52/state-033",
+    options: [opt("CorrosiveSword", 2), opt("UpgradeRock", 4), opt("SecondWind", 5)],
+  },
+  {
+    room: 3,
+    source: "run-2026-08-31-03-26-52/state-041",
+    options: [opt("AddIntuition", 2), opt("UpgradePaper", 0, 4), opt("UpgradeRock", 0, 8)],
+  },
+  {
+    room: 4,
+    source: "run-2026-08-31-03-26-52/state-063",
+    options: [opt("SecondWind", 10), opt("AddBlock", 2), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    room: 5,
+    source: "run-2026-08-31-03-26-52/state-077",
+    options: [opt("AddBlock", 2), opt("AddBurnMagic", 3), opt("Vengeance", 25)],
+  },
+  {
+    room: 6,
+    source: "run-2026-08-31-03-26-52/state-099",
+    options: [opt("AddIntuition", 1), opt("AddTenacity", 2), opt("BurnMastery", 1)],
+  },
+  {
+    room: 7,
+    source: "run-2026-08-31-03-26-52/state-109",
+    options: [opt("AddBurnMagic", 3), opt("AddTenacity", 7), opt("AddTenacity", 3)],
+  },
+  {
+    room: 8,
+    source: "run-2026-08-31-03-26-52/state-123",
+    options: [opt("LossBlockUp", 5), opt("AddBurnMagic", 3), opt("AddTenacity", 2)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

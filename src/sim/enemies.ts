@@ -172,9 +172,38 @@ export const PLAYER: Combatant = {
   // strategy effect. Same trap as the sessions 42/43 re-spec recorded below.
   armor: 17,
   armorMax: 17,
+  // ── [session 113] GEAR/LEVEL CHANGE, and its TIMING IS PINNED TO WITHIN
+  //    ONE RUN — which is the useful part, not the numbers ──────────────────
+  //
+  // Read off the wire from every unbooned `state-000` on record, not inferred:
+  //
+  //   run-2026-08-30-18-30-25 (session 112)  rock 25/9  paper 10/16
+  //   run-2026-08-31-02-47-41 (today, #1)    rock 25/9  paper 10/16
+  //   run-2026-08-31-03-04-33 (today, #2)    rock 25/9  paper 10/16
+  //   run-2026-08-31-03-26-52 (today, #3)    rock 26/9  paper 11/16   <-- moved
+  //
+  // So the change landed **between run 2 and run 3 of 2026-08-31**, in the
+  // ~22-minute gap between them. `hpMax` 50, `armorMax` 17 and Spell are all
+  // untouched; only Sword and Shield ATK moved, +1 each.
+  //
+  // **+1 ATK on two moves with nothing else touched is the shape of a SKILL
+  // POINT, not of the armor-for-health re-specs recorded above** — those moved
+  // hpMax and armorMax in opposite directions. It is not asserted as one:
+  // nothing in the capture distinguishes gear from level, the same limit
+  // session 103's note records. What IS worth stating is that CLAUDE.md rule
+  // 11 exists precisely because the user allocates between runs, and this is
+  // the first time that allocation has been caught in the act, bounded to a
+  // single inter-run gap rather than to a whole session.
+  //
+  // ⚠⚠ **RUNS 1-2 AND RUN 3 OF 2026-08-31 ARE NOT THE SAME ARM.** Run 3 went
+  // deepest of the three (room 9 against 7 and 6) and paid the most Hard Core
+  // (+8800 against +2976 and +2496) — and **none of that may be read as a
+  // strategy or tier effect**, because the loadout changed underneath it. Nor
+  // may run 3 be compared to session 112's room-13 run. Same trap as every
+  // re-spec note above; it is simply the first one that lands mid-session.
   moves: {
-    rock: mv(25, 9), // Sword — DEF 8 -> 9 before run 1 of session 103; ATK unchanged since session 75
-    paper: mv(10, 16), // Shield — DEF 15 -> 16 before run 1 of session 103
+    rock: mv(26, 9), // Sword — ATK 25 -> 26 between runs 2 and 3 of session 113; DEF 8 -> 9 before run 1 of session 103
+    paper: mv(11, 16), // Shield — ATK 10 -> 11 between runs 2 and 3 of session 113; DEF 15 -> 16 before run 1 of session 103
     scissor: mv(12, 8), // Spell — unchanged since session 42 second update
   },
   // The player starts every run with all rolled stats at zero; the only way

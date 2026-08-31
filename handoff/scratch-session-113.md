@@ -251,3 +251,165 @@ been stale for some time. A third crossing should be investigated, not raised.
 
 It lives in `scripts/liveFishing.ts`, not in the test — the test imports it, so
 the pin and the thing pinned cannot drift apart. Recomputed on 315 casts.
+
+## Step 4 — the Tier-2 runs
+
+### Run 1 — the ring model CONFIRMED, n 1 -> 2
+
+```
+id   faction     before  after  delta
+134  Chobo         39     39      0
+135  Crusader      39     39      0
+136  Overseer      45     45      0
+137  Athena        30     30      0
+138  Archon        30     30      0
+139  Foxglove      54     51     -3   <-- the ONLY one that moved
+140  Summoner      54     54      0
+                total 291 -> 288
+```
+
+Re-read after and stable. **Exactly one faction, exactly 3** — identical to
+session 112's measurement, on the same faction day (20695), as predicted.
+
+- **Room 7**, 45 actions, **0 first-attempt failures** across all eight action
+  classes (rock 0/15, scissor 0/12, paper 0/6, path_* 0/6, reward_* 0/6).
+- Hard Core **+2976** (280472 -> 283448), Dendren Root **+309** (945 -> 1254).
+- Run-units **3 -> 6** of 12. Energy 236 -> 177 (committed 60, observed 59 —
+  passive regen, expected and not asserted).
+- Rule 8: **6 of 6 TIER-CHECK lines OK**, no Perpetual filter triggered.
+- EV support **0/36** decisions fully modelled — EXPECTED under rule 8, which
+  selects modified enemies; not a fault, and per CLAUDE.md rule 8 this falling
+  coverage is the accepted price of the rule, not a regression to fix.
+
+⚠ **Room 7 against session 112's room 13, same tier and same entry. Nothing is
+drawn from that pair.** Two runs at n=1 each; the Hard Core difference (+2976
+vs +6768) tracks the depth difference and is not evidence about anything else.
+
+### Run 2 — model confirmed a THIRD time (n 2 -> 3)
+
+Foxglove **51 -> 48**, exactly -3; six factions untouched. Total 288 -> 285.
+
+- **Room 6**, 43 actions, **0 first-attempt failures** across nine classes.
+- Hard Core **+2496** (283448 -> 285944), Dendren Root **+216**.
+- Run-units **6 -> 9** of 12. Energy 181 -> 121 — committed 60, **observed 60,
+  exact**. Worth noting beside run 1's 59: the drift is not systematic, it is
+  whether a passive-regen tick lands inside the run.
+- Rule 8: **5 of 5 TIER-CHECK OK**.
+- ⚠ One boon type picked that is **still UNMODELLED** (1 of 5 picked; 2
+  unmodelled types offered; `UNMODELLED_TYPES` size 13). Logged, not acted on
+  — modelling a new type from n=1 needs a user directive, per the
+  `LossBlockUp` / `LossIntuitionUp` precedent (DECISIONS 2026-08-30).
+
+### Run 3 — model confirmed a FOURTH time; deepest of the three
+
+Foxglove **48 -> 45**, -3; six untouched. Total 285 -> 282.
+
+- **Room 9**, **68 actions**, **0 first-attempt failures** across nine classes.
+- Hard Core **+8800** (285944 -> 294744), Dendren Root **+546**.
+- Run-units **9 -> 12** of 12 — today's cap now fully spent.
+- Rule 8: **8 of 8 TIER-CHECK OK**. Energy 163 -> 104 (committed 60, observed 59).
+
+### Ring model, final tally for the session
+
+| run | Foxglove | others | total |
+|-----|----------|--------|-------|
+| s112 | 57 -> 54 | all 0 | 294 -> 291 |
+| #1  | 54 -> 51 | all 0 | 291 -> 288 |
+| #2  | 51 -> 48 | all 0 | 288 -> 285 |
+| #3  | 48 -> 45 | all 0 | 285 -> 282 |
+
+**4 for 4 on "exactly ONE faction, exactly 3".** All on faction day 20695, so
+the AMOUNT and the ONE-FACTION SHAPE are now well established and the ROTATION
+ORDER is still n=1 and untouched.
+
+## Step 4b — the dungeon corpus re-baseline, THREE real findings
+
+⭐ **This time the suite was run BEFORE committing.** 9 failures, and three of
+them were not census at all.
+
+### ⭐⭐ FINDING A — BurnMastery is a x2 MULTIPLIER. The flat-+3 reading is DEAD.
+
+`statusEffects.test.ts` carried: *"Every observation is 6-against-3, so a x2
+multiplier and a flat +3 are indistinguishable. This assertion fails the moment
+a burn tick at any other amount lands... When it goes red, that is data
+arriving, not a regression."*
+
+**It went red.** A **4-against-2** tick landed:
+
+```
+plain 2  ->  x2 gives 4 ✅  |  flat +3 gives 5 ❌ (observed 4)
+plain 3  ->  x2 gives 6 ✅  |  flat +3 gives 6 ✅  (why 6/3 could never separate)
+```
+
+Now asserted as the RELATIONSHIP (`amplified === plain * 2` over every observed
+pair) rather than as the two literals, so a future pair has to keep satisfying
+it. An odd plain amount would next say whether the doubling floors or rounds.
+
+### ⭐ FINDING B — a mid-session GEAR CHANGE, pinned to ONE inter-run gap
+
+Read off every unbooned `state-000`:
+
+```
+s112 run       rock 25/9  paper 10/16
+today run #1   rock 25/9  paper 10/16
+today run #2   rock 25/9  paper 10/16
+today run #3   rock 26/9  paper 11/16   <-- moved
+```
+
+So it landed in the ~22 minutes between runs 2 and 3. `hpMax`/`armorMax`/Spell
+untouched; +1 ATK on two moves is the shape of a SKILL POINT, not of the
+armor-for-health re-specs on record — **not asserted as one**, nothing in the
+capture distinguishes gear from level.
+
+⚠⚠ **RUNS 1-2 AND RUN 3 ARE NOT THE SAME ARM.** Run 3 went deepest (room 9 vs
+7 and 6) and paid the most Hard Core (+8800 vs +2976 and +2496) and **none of
+that may be read as a tier or strategy effect.** CLAUDE.md rule 11 exists
+because the user allocates between runs; this is the first time it has been
+caught in the act, bounded to a single gap rather than a whole session.
+
+### ⭐ FINDING C — two rule exceptions, BOTH from unmodelled co-present statuses
+
+Neither is a falsification, and neither was filtered away silently.
+
+**Weak: 58/59.** The miss is `run-...-03-26-52/state-116`: ATK 30, predicted
+`floor(30*0.75)=22`, **27 taken**, attacker carrying **`Vengeance: 25`**.
+`scaleRule`'s exclusion list covers the other side's Weak/Vulnerable and this
+side's opposite scaler — **and nothing else**, so any unmodelled
+damage-affecting status is scored as if the multiplier were alone. Restricting
+to exchanges with no unmodelled status: **54/54, 100%.** The +5 residue is kept
+as the first quantitative observation of `Vengeance` (QUESTIONS §66), not
+discarded.
+
+**SecondWind: 9/10 spent, 16/20 held.** All five exceptions carry **`Regen`
+co-present** — the corpus's first such exchanges. Held arm fully explained: its
+rule is `heal === undefined` and these heal **1**, which is Regen's. Spent arm's
+one exception is NOT fully explained and is flagged: SecondWind 10->0, Regen
+1->0, recorded `heal` 1, but **HP moved 26 -> 35 (+9)**, consistent with 10+1
+healed against 2 taken — so the HP arithmetic supports a full spend and the
+`heal` FIELD under-reports when two heals land in one exchange. A capture
+limitation, not a mechanic claim. Without co-present Regen: **9/9 and 16/16.**
+
+⚠ Both exclusions are asserted to be EXACTLY the undefined-measurement set (the
+full-corpus miss count must equal the excluded count), so neither can quietly
+widen into "drop whatever fails".
+
+### ⭐ CritHeal — first pair, held for a user directive
+
+`run-...-03-04-33` state-011 -> 012. **Verified latent**: health {50/30/50/30},
+armor null, all three moves BYTE-IDENTICAL; `pickedBoons` +1; `selectedVal1` 6,
+Rarity Rare, TokenId 95. Added to `AWAITING_MODEL_DIRECTIVE` on the
+`LossIntuitionUp`/`LossBlockUp` precedent. ⚠ Its NAME says "heal on crit" and
+that is **not evidence** (DECISIONS 2026-08-14/15).
+
+### The offer table — additivity verified, then appended
+
+**19 rows in the corpus and absent from the table; ZERO rows in the table and
+absent from the corpus.** Incomplete, never wrong — session 95's exact check.
+Room-max pin UNCHANGED at 12. Wall 1 still has exactly SIX clean types
+(unchanged since session 52, now across a corpus grown by 113 offers).
+
+### Two scenario answers changed, both from the +1 Shield ATK
+
+`the-lost-run-position` foe HP 28 -> 27 (11-8=3 carries, not 2);
+`enemy-one-hit-but-armored` chip armor 2 -> 1 (Shield eats 11 of 12). Both
+scenarios' POINTS unchanged, armor model untouched — an input moved.

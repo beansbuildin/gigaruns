@@ -85,9 +85,15 @@ describe("terminal cases", () => {
     // unchanged and is the reason this is an edit rather than a rewrite: a
     // Shield win still cannot reach a 1-HP enemy through 12 armor, which is
     // what "one hit from death is false" means. Only the residue moved.
+    // [session 113] Shield ATK 10 -> 11 (a +1 that landed between runs 2 and 3
+    // of 2026-08-31; see `PLAYER` in src/sim/enemies.ts), so it now eats 11 of
+    // the 12 armor and leaves 1. **The scenario's point is again unchanged** —
+    // a Shield win still cannot reach a 1-HP enemy through 12 armor — and the
+    // armor model is untouched. Only the residue moved, 2 -> 1, for the second
+    // time and for the same reason.
     const chip = resolveExchange(state, "paper", "rock").state.foe;
     expect(chip.hp).toBe(1);
-    expect(chip.armor).toBe(2);
+    expect(chip.armor).toBe(1); /* [session 113] was 2 */
   });
 
   it("self-one-hit-from-death: any lost exchange kills us", () => {
@@ -168,8 +174,12 @@ describe("armor scenarios", () => {
     // position is a real recorded one and "can our Shield make progress here"
     // is exactly the question it was kept to answer. The armor model itself is
     // untouched: 10 - 8 = 2 is the same overflow rule as before.
+    // [session 113] Shield ATK 10 -> 11, so 11 - 8 = 3 carries into HP instead
+    // of 2. Recorded as a CHANGED ANSWER for the same reason as above, and the
+    // overflow rule is again untouched — the arithmetic is the same, one of
+    // its inputs moved.
     const { state: next } = resolveExchange(state, "paper", "rock");
     expect(next.foe.armor).toBe(0);
-    expect(next.foe.hp).toBe(28);
+    expect(next.foe.hp).toBe(27); /* [session 113] was 28 */
   });
 });

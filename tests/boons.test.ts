@@ -74,7 +74,26 @@ describe("the corpus supports a boon model at all", () => {
  * added here, and the branch below is what keeps its gap explicit rather than
  * letting a red wall test be the only signal.
  */
-const AWAITING_MODEL_DIRECTIVE = new Set<string>();
+const AWAITING_MODEL_DIRECTIVE = new Set<string>([
+  // ⭐ [session 113] `CritHeal` — FIRST PAIR, from run-2026-08-31-03-04-33
+  // state-011 -> state-012. Held back for a user directive on the
+  // `LossIntuitionUp` (session 99) / `LossBlockUp` (session 112) precedent:
+  // modelling a boon type from n=1 has twice required an explicit directive,
+  // and an agent deciding it alone is exactly what that precedent forbids.
+  //
+  // **The pickup is a verified LATENT no-op**, checked against the fixture
+  // rather than assumed from the family: `health` {50/30/50/30},
+  // `armor` null, and all three of `rock`/`paper`/`scissor` are BYTE-IDENTICAL
+  // across the pair; `pickedBoons` grows by exactly one; `selectedVal1` 6,
+  // `Rarity` "Rare", `TokenId` 95.
+  //
+  // ⚠ **Its NAME says "heal on crit" and that is not evidence.** DECISIONS
+  // 2026-08-14/15: the effect is never inferred from the name. What is
+  // established is the pickup delta (nothing) — the conditional the name
+  // gestures at is unobserved, and would need crit-landing exchanges after
+  // the pickup to measure. QUESTIONS.md §65.
+  "CritHeal",
+]);
 
 describe("every modelled boon reproduces its recorded delta", () => {
   for (const p of pickups) {
@@ -595,7 +614,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // types this table already carries, so the clean TYPE set is unchanged and
     // the "closed under the only mechanism feeding it" claim survives a second
     // change of entry tier.
-    expect(roomOne.length).toBe(264);
+    expect(roomOne.length).toBe(273);  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -642,6 +661,15 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // sessions 60, 61, 75, 93, 95 and 99 drew. Wall 1 still has exactly SIX
     // clean types, unchanged since session 52 across a corpus now grown by
     // 94 offers since.
+    // [session 113] +1 `UpgradeRock` (ninth) and +1 `UpgradePaper` (thirteenth),
+    // from this session's three Tier-2 runs of 2026-08-31. Both are
+    // already-clean types RECURRING — NOT new holes, the same distinction
+    // sessions 60, 61, 75, 93, 95, 99 and 108 drew. **Wall 1 still has exactly
+    // SIX clean types, unchanged since session 52** across a corpus now grown
+    // by 113 offers since. ⚠ Note this pools runs 1-2 and run 3, which are
+    // NOT the same arm (a +1 ATK change landed between them) — sound here
+    // because a clean-OPTION census is about what the server offered at room
+    // 1, which the player's loadout does not enter.
     expect(clean.sort()).toEqual([
       "AddMaxArmor", // [session 82] run 1's room-1 offer carried AddMaxArmor(8) — one more clean OPTION, and the clean TYPE set is still the same six.
       "AddMaxArmor",
@@ -665,7 +693,9 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
+      "UpgradePaper",  /* [session 113] +1, thirteenth */
       "UpgradePaper",
+      "UpgradeRock",  /* [session 113] +1, ninth */
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock",
