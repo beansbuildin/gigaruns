@@ -1297,7 +1297,20 @@ Two findings, one user decision, settling the task:
 
 ---
 
-### 13 — `chooseNewCard` deck-composition scoring ← scoped 2026-08-17, session 22; STILL PARKED ON DATA — first candidate BUILT 2026-08-30, session 112
+### 13 — `chooseNewCard` deck-composition scoring ← scoped 2026-08-17, session 22; STILL PARKED ON DATA — first candidate BUILT 2026-08-30, session 112; CURRENCY SUB-FLAW FIXED 2026-09-01, session 115
+
+**[session 115, OFFLINE, direct user directive] Point 3 below — the currency
+flaw — is FIXED, narrowly, in `chooseNewCard` itself. This is NOT the §13
+swap.** `positionalReachability`/`meanZoneCoverage` are still not wired in and
+the data-floor gate below is still not meetable. See DECISIONS.md 2026-09-01
+for the full entry. `chooseNewCard` now weights each effect by the zone count
+that earns it (`hitEffect × hitZones.length` vs `critEffect × critZones.length`)
+instead of comparing raw amounts — the session-92 offer `{35, 30, 31}` now
+picks 30, not 35. ⚠ **This session had no shell on the real repo and could not
+run the project's own suite** — verified in an isolated sandbox instead (copy
+of `cardChoice.ts` + its 3 direct deps + the 2 affected test files + the real
+`cards.json`, 45/45 passing, clean `tsc --noEmit`). Run the real suite before
+trusting this beyond that.
 
 **[session 112] The first candidate is written, tested and NOT WIRED. The gate
 is still not meetable, and that is a data fact, not an effort fact.**
@@ -1313,8 +1326,11 @@ probability:
   recorded further down this section ("most hit/catch spots").
 
 `tests/fishing/cardReachability.test.ts` pins them against the real catalog and
-pins that `chooseNewCard` is UNCHANGED, so wiring either one in fails a test
-and sends the author back to the gate below.
+pins that `chooseNewCard` does not use EITHER of them, so wiring either one in
+fails a test and sends the author back to the gate below. **[session 115]**
+`chooseNewCard`'s own formula did change since (see above) — the pin now
+checks specifically that these two functions stay unwired, not that
+`chooseNewCard` is byte-identical to its session-17 original.
 
 **Three measurements that change how this task should be read:**
 
@@ -1331,16 +1347,21 @@ and sends the author back to the gate below.
    whenever one of that fifth of the catalog is fired from a dead cell, so it
    will keep growing and must not be read as accruing bugs.
 3. **The one recorded bad CHOICE is separated by coverage, not reachability.**
-   Session 92's offer `{35, 30, 31}` → chose 35. All three are equally
-   reachable (8/9), so reachability is silent; coverage is 2.22 for card 35
-   against 2.67 for cards 30 and 31. `chooseNewCard` picked 35 because its 8 —
-   a crit on the SINGLE zone `[2]` — outscores a 6 spread over five zones. That
-   is the concrete flaw, and it is a **currency** flaw (a one-zone crit scored
-   against a five-zone hit as the same event), not a deck-composition one.
+   Session 92's offer `{35, 30, 31}` → chose 35 (at the time). All three are
+   equally reachable (8/9), so reachability is silent; coverage is 2.22 for
+   card 35 against 2.67 for cards 30 and 31. `chooseNewCard` picked 35 because
+   its 8 — a crit on the SINGLE zone `[2]` — outscored a 6 spread over five
+   zones. That was the concrete flaw, and it was a **currency** flaw (a
+   one-zone crit scored against a five-zone hit as the same event), not a
+   deck-composition one. **FIXED 2026-09-01, session 115** — see above and
+   DECISIONS.md. This point is now history, kept for the record.
 
-**What is still missing is unchanged and is DATA**: enough real card choices to
-take the validation floor from 1 into double digits. Neither function above can
-manufacture that, so per CLAUDE.md rule 6 this stays parked.
+**What is still missing is unchanged and is DATA, for the §13 SWAP** (wiring
+in `positionalReachability`/`meanZoneCoverage` themselves): enough real card
+choices to take the validation floor from 1 into double digits. Neither
+function above can manufacture that, so per CLAUDE.md rule 6 the swap itself
+stays parked — only the narrower currency sub-flaw in point 3 has been
+addressed, independently, on a direct user directive.
 
 ---
 

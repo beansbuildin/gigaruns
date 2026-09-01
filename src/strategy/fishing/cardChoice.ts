@@ -698,13 +698,38 @@ export function chooseCard(
  * (QUESTIONS.md §10 — the `loot` action, confirmed live this session).
  * This is a ONE-TIME permanent deck addition, not an in-cast tactical
  * pick, so `chooseCard`'s EV-against-a-live-distribution machinery doesn't
- * apply — there's no fish position to aim at yet. Simple, defensible
- * placeholder: argmax raw hit-power per mana (`max(hitEffect, critEffect)
- * / manaCost`), the same "damage efficiency" intuition `chooseCard` uses
- * when mana-constrained. Not sim-validated against a full-deck-composition
- * objective — that's a real question (does this card's grid coverage,
- * miss penalty, rarity synergy with the rest of the deck matter more than
- * raw damage/mana?) deliberately left open rather than guessed at.
+ * apply — there's no fish position to aim at yet. **Original placeholder
+ * (session 17 → session 114): argmax raw hit-power per mana
+ * (`max(hitEffect, critEffect) / manaCost`)**, the same "damage efficiency"
+ * intuition `chooseCard` uses when mana-constrained.
+ *
+ * **[session 115] CURRENCY FIX, direct user directive — STATE.md session
+ * 114 open question 5 / TASKS.md §13.** The placeholder above had a
+ * recorded flaw: it compared `hitEffect` and `critEffect` as the same unit
+ * regardless of how many zones each one can land in — session 92's offer
+ * `{35, 30, 31}` picked card 35 for its 8-damage crit on a SINGLE zone
+ * `[2]`, over cards 30/31's 6-damage hit spread across FIVE zones each,
+ * because 8 > 6 in raw terms even though 30/31 threaten far more of the
+ * board. Fixed by weighting each effect's amount by the zone count that
+ * earns it (`hitEffect × hitZones.length` vs `critEffect × critZones.length`,
+ * take the max, then `/ manaCost` as before) — a card's power only counts
+ * for as much board as it can actually land on.
+ *
+ * **This is a narrow patch, explicitly NOT the full TASKS §13 swap.** It
+ * does not wire in `positionalReachability`/`meanZoneCoverage` below
+ * (session 112, still parked behind §13's real-data gate — CLAUDE.md rule
+ * 6, only 2 live card choices on record project-wide) and makes no claim
+ * to have cleared that gate. It only stops comparing a one-zone event and
+ * a five-zone event as identical currency, which is wrong regardless of
+ * deck composition. Recomputed against the real catalog (session 115):
+ * offer `{35, 30, 31}` now scores 35→15, 30→30, 31→30 and picks **30**
+ * (first `>` win in `offers.reduce`, tied with 31) — see
+ * `tests/fishing/cardReachability.test.ts`.
+ *
+ * Still NOT sim-validated against a full-deck-composition objective —
+ * that's the same real question §13 leaves open (does grid coverage, miss
+ * penalty, rarity synergy with the rest of the deck matter more than raw
+ * damage/mana?) — deliberately left there rather than guessed at.
  */
 /**
  * ── [session 112, TASKS.md §13] POSITIONAL REACHABILITY ────────────────────
@@ -778,7 +803,11 @@ export function meanZoneCoverage(card: FishingCardLike, gridSize: number): numbe
 export function chooseNewCard(offers: readonly FishingCardLike[]): FishingCardLike {
   if (offers.length === 0) throw new Error("chooseNewCard: no offers");
   const valueOf = (c: FishingCardLike): number => {
-    const power = Math.max(amountOf(c.hitEffects), amountOf(c.critEffects));
+    // [session 115 currency fix] weight each effect by the zone count that
+    // earns it before comparing hit vs crit — see the doc comment above.
+    const hitWeighted = amountOf(c.hitEffects) * c.hitZones.length;
+    const critWeighted = amountOf(c.critEffects) * c.critZones.length;
+    const power = Math.max(hitWeighted, critWeighted);
     return c.manaCost > 0 ? power / c.manaCost : power;
   };
   return offers.reduce((best, c) => (valueOf(c) > valueOf(best) ? c : best));

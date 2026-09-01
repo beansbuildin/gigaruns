@@ -215,8 +215,11 @@ describe("argmax EV, not argmax P_hit — session 15 [RE-DERIVED]", () => {
   });
 });
 
-describe("chooseNewCard — session 17, QUESTIONS.md §10", () => {
-  it("picks the offer with the highest hit-power per mana", () => {
+describe("chooseNewCard — session 17, QUESTIONS.md §10; currency-weighted session 115", () => {
+  it("picks the offer with the highest zone-weighted hit-power per mana", () => {
+    // All three share realCard79's 4 hitZones, so the zone-count factor is
+    // the same on every offer here and cancels out of the ordering — this
+    // test is unaffected by the session 115 fix.
     const cheapWeak: FishingCardLike = { ...realCard79, id: 7, manaCost: 1, hitEffects: [{ amount: 3 }] };
     const pricedStrong: FishingCardLike = { ...realCard79, id: 14, manaCost: 2, hitEffects: [{ amount: 8 }] }; // 4/mana
     const pricedWeak: FishingCardLike = { ...realCard79, id: 23, manaCost: 3, hitEffects: [{ amount: 3 }] }; // 1/mana
@@ -224,13 +227,39 @@ describe("chooseNewCard — session 17, QUESTIONS.md §10", () => {
   });
 
   it("uses critEffect when it beats hitEffect", () => {
+    // [session 115] Both effects are now weighted by the zone count that
+    // earns them (hitZones.length / critZones.length), so a crit only
+    // "beats" a hit once its zone-weighted total does. realCard79 has 4
+    // hitZones and no critZones by default; critCard adds one critZone so
+    // its crit has a real footprint to be weighted against.
+    // hitCard:  hitWeighted = 5*4 = 20, critWeighted = 5*0  = 0  -> 20
+    // critCard: hitWeighted = 5*4 = 20, critWeighted = 30*1 = 30 -> 30
     const hitCard: FishingCardLike = { ...realCard79, id: 1, manaCost: 1, hitEffects: [{ amount: 5 }], critEffects: [{ amount: 5 }] };
-    const critCard: FishingCardLike = { ...realCard79, id: 2, manaCost: 1, hitEffects: [{ amount: 5 }], critEffects: [{ amount: 20 }] };
+    const critCard: FishingCardLike = {
+      ...realCard79,
+      id: 2,
+      manaCost: 1,
+      hitEffects: [{ amount: 5 }],
+      critZones: [5],
+      critEffects: [{ amount: 30 }],
+    };
     expect(chooseNewCard([hitCard, critCard]).id).toBe(2);
   });
 
   it("throws on an empty offer list rather than picking nothing", () => {
     expect(() => chooseNewCard([])).toThrow(/no offers/);
+  });
+
+  it("[session 115 regression] no longer picks a one-zone crit over a wider hit of equal raw amount", () => {
+    // The exact shape of the session-92 flaw, isolated from the real
+    // catalog's card 35 (see cardReachability.test.ts for the live-data
+    // version): a card whose only edge is a crit on ONE zone, against a
+    // card that hits the SAME amount across THREE zones for the same mana.
+    // The old `max(hitEffect, critEffect)/manaCost` formula tied them (5 vs
+    // 5) and kept whichever came first; the fix must prefer the wider one.
+    const oneZoneCrit: FishingCardLike = { ...realCard79, id: 91, manaCost: 1, hitZones: [], hitEffects: [], critZones: [2], critEffects: [{ amount: 5 }] };
+    const threeZoneHit: FishingCardLike = { ...realCard79, id: 92, manaCost: 1, hitZones: [1, 4, 7], hitEffects: [{ amount: 5 }], critZones: [], critEffects: [] };
+    expect(chooseNewCard([oneZoneCrit, threeZoneHit]).id).toBe(92);
   });
 });
 

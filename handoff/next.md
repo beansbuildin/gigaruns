@@ -1,134 +1,148 @@
-# BRIEF — session 114 — confirm the Tier-2 rotation order on the first post-reset day, then remaining Tier-2 runs if authorized
+# BRIEF — session 115 — verify the offline `chooseNewCard` fix for real, then the day-20697 rotation point if the reset has landed
 
-**This document replaces the session-113 `next.md`.** Session 113 closed
-113 complete: ring model implemented and confirmed 4/4 live, double-lethal
-override disabled and confirmed live, fishing and three Tier-2 runs all
-GATE PASS. **Before doing anything below, read STATE.md's "Settled — do
-not re-open" digest — it is long and every entry in it is closed.**
+**This document replaces the session-114 `next.md`.** Session 114 closed
+complete: the rotation measurement landed (day 20696 charged Summoner, not
+Foxglove — the faction DOES rotate, n=2 now), three more authorized runs and
+24 fishing casts ran clean. **Both daily caps are now exhausted** (12/12
+dungeon run-units, fishing charged out) as of day 20696. **Before doing
+anything below, read STATE.md's "Settled — do not re-open" digest.**
 
-The one thing session 113 could not do is baked into this brief: it spent
-all three of its runs on the SAME faction day (game day 20695, Foxglove),
-so the rotation order is still n=1 — every candidate day→faction offset
-still fits. **The daily reset (dungeon cap + faction day) lands
-2026-08-31 18:00 UTC / 11:00 Pacific.** Any run authorized after that
-instant, on a new faction day, is the second data point that turns this
-from a 7-way unknown into a solved map. STATE.md calls this "the
-highest-value cheap measurement available" — it is free in the sense that
-it rides on a run you'd spend anyway, not in the sense that it doesn't
-need a run.
+**Something changed OFFLINE, between sessions, and it is this session's
+FIRST job to verify it for real — see Step 0.** With both live caps already
+spent, the user gave a direct chat directive to fix `chooseNewCard`'s
+currency flaw (STATE.md session 114 open question 5 / TASKS.md §13 point 3):
+the old formula compared a one-zone crit and a five-zone hit as the same
+"power," which is exactly the recorded session-92 bad choice. The fix —
+weight each effect by the zone count that earns it — was written, and the
+two affected test files were updated, and both were verified **only in an
+isolated sandbox** (the offline session had no shell on this repo and no
+live JWT). **The real suite has never run against this change. Do not trust
+it, do not build on it, until Step 0 confirms it for real.** Full details:
+DECISIONS.md 2026-09-01, TASKS.md §13.
 
 ---
 
-## Step 0 — confirm the day actually rolled before assuming anything
+## Step 0 — verify the offline `chooseNewCard` fix for real, FIRST, before anything else
 
-**Do not trust the pre-reset clock reading; re-check live.** Session 113's
-scratch notes read `secondsTillNextDay` from `/offchain/static` at 23:16
-UTC on 2026-08-30 and projected the rollover to 18:00 UTC on 08-31 — that
-is a projection, not an observation of the new day.
+1. `git status` / `git diff` — confirm what actually landed:
+   `src/strategy/fishing/cardChoice.ts`, `tests/fishing/cardChoice.test.ts`,
+   `tests/fishing/cardReachability.test.ts`, plus the DECISIONS.md and
+   TASKS.md entries dated 2026-09-01. Read the diff, don't assume the
+   description above is exact.
+2. Full suite (`vitest run --maxWorkers=4`, UNSANDBOXED — `profile.test.ts`
+   false-fails sandboxed), `tsc --noEmit`, `git diff --check`. The isolated
+   sandbox check claimed 45/45 on the two affected files and a clean
+   subset typecheck — **confirm the FULL 2297+ suite is still green**, not
+   just those two files; a dependency this session didn't know to check
+   could still break.
+3. Secret scan (`scripts/secretScan.ts`), quote its summary verbatim, same
+   as every session's closeout.
+4. Report explicitly: did the real suite agree with the sandbox check, or
+   did anything the isolated verification couldn't see turn up? If the
+   real suite disagrees with the sandbox result in any way, STOP, do not
+   proceed to Step 1, and report the discrepancy in detail — that is a
+   bigger finding than any of this session's live measurements.
+5. This step spends nothing live and can run regardless of the day/cap
+   state below.
 
-1. `client.getGameDay()` (or `npx tsx scripts/checkDungeonToday.ts`, which
-   wraps it) — read `currentDay` live. Compare against 20695.
-   - **If `currentDay` is still 20695**: the reset has not landed yet (or
-     landed later than projected). Stop. Do not spend a run trying to
-     force a measurement — report the actual value and how long until
-     `secondsTillNextDay` says it will roll, and wait for a session after
-     that.
-   - **If `currentDay` has advanced**: proceed to Step 1. This is the
-     confirmation that a new faction day is live.
-2. Read current silver-ring balances for all seven factions before
-   spending anything, so the before/after diff is clean. Session 113 left
-   these at Foxglove 45, all others at their session-113 closing values —
-   pull the live numbers fresh rather than assuming the log is current.
+## Step 1 — confirm the day actually rolled before spending anything live
+
+**Do not proceed past here until Step 0 is clean.**
+
+1. `client.getGameDay()` (or `npx tsx scripts/checkDungeonToday.ts`) — read
+   `currentDay` live. Compare against session 114's closing value, 20696.
+   - **If `currentDay` is still 20696**: the reset hasn't landed. Stop —
+     there is nothing live to spend this session. Report the countdown
+     and end here; Step 0's verification is still this session's real
+     output even with zero live actions.
+   - **If `currentDay` has advanced**: proceed to Step 2.
+2. Read fresh silver-ring balances for all seven factions before spending
+   anything — do not assume session 114's closing numbers still hold.
+   Session 114 itself found +6 out-of-band movement (Overseer +3, Athena
+   +3) between sessions 113 and 114 from user/game activity, not the bot —
+   so read the post-run diff as "which faction went down by exactly 3,"
+   not "which faction moved."
 3. `npx tsx scripts/checkDungeonToday.ts` — confirm the run-unit cap reset
-   to 12/12 (fresh day) rather than assuming it did. If it did NOT reset
-   alongside the day advancing, that's itself a finding — report it rather
-   than reconciling it silently.
+   to 12/12 rather than assuming it did.
 
-## Step 1 — the measurement: one juiced Tier-2 run on the new day
+## Step 2 — the measurement: one juiced Tier-2 run on the new day
 
-**Only if Step 0 confirms a new `currentDay`.**
+**Only if Step 1 confirms a new `currentDay`.**
 
-1. Before spending: if session 113's Step 1.3 search for an advance
-   faction-indicator field found nothing (per STATE.md — it found
-   nothing, search marked COMPLETE, do not re-hunt it), this faction is
-   only knowable after the fact from the balance diff. Don't re-run that
-   search.
+1. **Day 20697 predicts Chobo (134)**, per the two-point candidate
+   `faction = ((dayOfWeek + 1) mod 7) + 1` (STATE.md session 114). This
+   would be the THIRD point on the rotation map, and a non-adjacent one is
+   worth more than another consecutive day — but if the reset skipped a
+   day (more than one day has passed since 20696), say so explicitly and
+   treat the actual `currentDay` as what it is, not as the assumed 20697.
 2. `--dry-run` first, per standing rule 4.
 3. One juiced Tier-2 run: `--runs=1 --juiced --juiced-index=2`. No
-   chaining — rule 11, stop after this one run regardless of how much cap
-   remains.
-4. **After the run**, read silver-ring balances again. Report:
-   - which single faction moved (expect exactly one, per the confirmed
-     3-of-one-faction model — if more than one moved or the amount isn't
-     3, that's a falsification of session 113's model, not noise; stop
-     and report it as such rather than averaging it away)
-   - the new `currentDay` and `currentDayOfWeek`, alongside the faction
-     that moved — this pair IS the second point on the day→faction map
-   - whether Foxglove (yesterday's faction) or a different faction moved.
-     Either outcome is informative; a repeat of Foxglove on a new day
-     would itself be worth flagging since it narrows the period rather
-     than just the offset.
-5. Rule 8 governs the in-room picks (highest non-Perpetual tier,
-   lowest/no-modifiers at the final room), unaffected by any of the above.
-6. Stop after this run and report. Getting a second faction-day point does
-   not by itself authorize the remaining 3 runs in today's fresh cap —
-   get explicit go-ahead before spending further, standard rule 11.
+   chaining — rule 11, stop after this one run regardless of cap remaining.
+4. **After the run**, read silver-ring balances again. Report which single
+   faction moved and by how much (expect exactly one faction, exactly 3 —
+   a different pattern is a falsification of the confirmed model, not
+   noise), the new `currentDay`/`currentDayOfWeek`, and whether it matches
+   the Chobo prediction. Either outcome (matches or doesn't) is real
+   information about the rotation's period/order — say plainly what is and
+   isn't determined with n=3.
+5. Rule 8 governs in-room picks throughout, unaffected by any of the above.
+6. Stop after this run and report. A third rotation point does not by
+   itself authorize further runs — get explicit go-ahead, standard rule 11.
 
-## Step 2 — if authorized to continue: remaining Tier-2 runs
+## Step 3 — if authorized to continue: remaining Tier-2 runs, Tier-1/Tier-3 baseline
 
-Only proceed here on explicit go-ahead after Step 1's report, same
-discipline as every session except 108's one-time exception.
+Only on explicit go-ahead after Step 2's report.
 
-1. `--dry-run` first, then `--runs=1 --juiced --juiced-index=2` per run,
-   one at a time, stop and report between each.
-2. After each run, confirm the SAME faction moves again (it should — the
-   faction is fixed for the whole calendar day, only the day-to-day
-   identity is what Step 1 is measuring) and the amount is still exactly
-   3. A change mid-day would be a bigger finding than the rotation
-   measurement itself — stop and report rather than continuing.
+1. **STATE.md session 114 flags the Tier-1/Tier-3 baseline question (open
+   Q4) as now a cheap, well-defined experiment** — there is a five-run
+   same-arm Tier-2 anchor (s113 run 3 + all four of s114's runs), so a
+   single Tier-1 or Tier-3 run on THIS SAME loadout would give the first
+   clean cross-tier read. If the user authorizes spending one of the
+   remaining runs on this instead of another Tier-2 run, that is
+   explicitly sanctioned by STATE.md — ask rather than assume either way.
+2. Otherwise, remaining Tier-2 runs: `--dry-run` first, then `--runs=1
+   --juiced --juiced-index=2` per run, one at a time, stop and report
+   between each. Confirm the SAME faction moves again by exactly 3 each
+   time — a mid-day change would be a bigger finding than the rotation
+   measurement itself.
 3. Rule 13 discipline on any denied/blocked/interrupted run, as always.
 
-## Step 3 — fishing, if there's headroom and it's requested
+## Step 4 — fishing, only if requested
 
-Not pre-authorized by this brief — session 113 already ran a 20-cast
-batch under the new oil policy and closed it out GATE PASS. Only run more
-fishing this session if the user asks for it live; otherwise leave it for
-its own brief so this session stays focused on the rotation measurement.
+Not pre-authorized by this brief — session 114 already closed out a
+24-cast batch. Only run more if the user asks for it live this session.
 
 ---
 
 ## Carry forward — do not let these go unmentioned again
 
-Neither is this session's job, but STATE.md and TASKS.md both flag that
-they keep getting closed out unmentioned. Say a sentence on each in the
-recap even if the answer is "still not this session":
-
-- **Whether the Tier-1/Tier-3 arm is a usable baseline for anything
-  downstream.** Ninth session unactioned as of session 113 (STATE.md open
-  question 3) — this would be the tenth if it goes unmentioned again.
-- **`chooseNewCard`'s currency flaw** (a one-zone crit scored against a
-  five-zone hit as the same event). TASKS §13 — first candidate fix is
-  built but NOT wired, gate still not meetable; this is a DATA problem,
-  not a code problem, and stays parked without a user directive. Do not
-  attempt to wire it without one.
+- **`BurnMastery` floor-vs-round** still needs an ODD plain (non-crit,
+  non-multiplied) amount to separate the two readings — named by session
+  113, still absent after session 114's four more pairs (STATE.md open Q6).
+- **`Intimidating` (§68), `BurningTenacity` (§69), `CritHeal` (§66)** — all
+  three hold at their DEFAULT (latent/hold) per standing rule; do not model
+  any of them without an explicit user directive. Say this plainly in the
+  recap rather than letting them go unmentioned.
+- **`chooseNewCard`'s currency flaw is NO LONGER on this list** — see Step
+  0. Only mention it again if Step 0's real-suite verification found a
+  problem the offline sandbox check missed.
 
 ## Recap, for the whole session
 
 State explicitly, at the top of the recap:
 
-- Step 0: the live `currentDay` reading, whether it had advanced past
-  20695, and the fresh run-unit cap reading.
-- Step 1 (only if Step 0 confirmed a new day): which faction moved, the
-  amount, the new day's `currentDay`/`currentDayOfWeek`, and what that
-  does or doesn't resolve about the rotation order/period — don't
-  overclaim from n=2; say plainly what is and isn't determined yet.
-- Step 2, if run: per-run faction/amount confirmation, rooms, Hard Core,
-  Dendren Root.
-- Step 3, only if it happened.
-- The two carry-forward items above, addressed by name even if the answer
-  is "not this session."
+- Step 0: the real suite/typecheck/secret-scan result for the offline
+  `chooseNewCard` fix — this is the load-bearing item, first.
+- Step 1: the live `currentDay` reading and whether it had advanced.
+- Step 2 (only if a new day): which faction moved, the amount, and
+  whether day 20697 matched the Chobo prediction.
+- Step 3, if run: per-run detail, and whether a run went to the
+  Tier-1/Tier-3 baseline experiment instead of another Tier-2 run.
+- Step 4, only if it happened.
+- The three carry-forward items above, addressed by name.
 
-Full suite (`--maxWorkers=4`, UNSANDBOXED — `profile.test.ts` false-fails
-sandboxed), `tsc --noEmit`, `git diff --check`, secret scan
-(`scripts/secretScan.ts`, quote its summary verbatim) — standard closeout,
-same as every session.
+Full suite (`--maxWorkers=4`, UNSANDBOXED), `tsc --noEmit`, `git diff
+--check`, secret scan (`scripts/secretScan.ts`, quote its summary
+verbatim) — standard closeout. Note this already happened once in Step 0;
+re-run it at close only if Steps 1-4 changed anything beyond Step 0's
+state.

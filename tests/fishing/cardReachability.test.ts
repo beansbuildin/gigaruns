@@ -8,6 +8,14 @@
  * DATA floor (real card choices reaching double digits), not on missing code,
  * so these ship as measured quantities for §13 to score when it unparks —
  * CLAUDE.md rule 6.
+ *
+ * **[session 115] `chooseNewCard` itself changed since — a SEPARATE, narrower
+ * fix, not §13's swap.** It now weights each effect by the zone count that
+ * earns it, which happens to also fix the session-92 case below. That is a
+ * currency-comparison bug fix (direct user directive — STATE.md session 114
+ * open Q5), not `positionalReachability`/`meanZoneCoverage` getting wired in
+ * — both remain untouched and still feed no live decision. See
+ * `src/strategy/fishing/cardChoice.ts`'s `chooseNewCard` doc comment.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -85,12 +93,19 @@ describe("positionalReachability — pure geometry, no model", () => {
 
 describe("meanZoneCoverage — the user's own manual heuristic, TASKS.md §13", () => {
   it("separates the session-92 offer that reachability CANNOT", () => {
-    // Offer {35, 30, 31}; the bot chose 35, and had already played 35 into a
-    // guaranteed miss. `chooseNewCard` scores max(hit, crit)/mana, so card
-    // 35's 8 — a crit on the SINGLE zone [2] — beat the 6 that cards 30 and
-    // 31 deliver across five zones each.
+    // Offer {35, 30, 31}; live session 92 picked 35, and had already played
+    // it into a guaranteed miss. At the time `chooseNewCard` scored
+    // max(hit, crit)/mana, so card 35's 8 — a crit on the SINGLE zone [2] —
+    // beat the 6 that cards 30 and 31 deliver across five zones each.
+    //
+    // [session 115] `chooseNewCard`'s OWN currency fix (zone-weighted, see
+    // its doc comment) now also picks the wider card here — but that is a
+    // coincidence of this particular offer, not this file's functions
+    // getting wired in. Recomputed from the real catalog: 35 -> 5*3=15 (its
+    // hitZones [1,4,7] beat its 8*1=8 crit once weighted), 30 -> 6*5=30,
+    // 31 -> 6*5=30. `reduce`'s strict `>` keeps the first max, so 30 wins.
     const offer = [card(35), card(30), card(31)];
-    expect(chooseNewCard(offer).id, "the shipped heuristic still picks 35").toBe(35);
+    expect(chooseNewCard(offer).id, "the zone-weighted heuristic now picks 30").toBe(30);
 
     // All three are equally REACHABLE, so reachability is silent here...
     for (const c of offer) expect(positionalReachability(c, GRID)).toBeCloseTo(8 / 9, 10);
@@ -109,15 +124,23 @@ describe("meanZoneCoverage — the user's own manual heuristic, TASKS.md §13", 
   });
 });
 
-describe("chooseNewCard is UNCHANGED by this session", () => {
-  it("still scores max(hit, crit) per mana, blind to both new quantities", () => {
-    // The regression that matters: §13 is parked on data, so nothing here may
-    // alter a live decision. If someone wires a reachability or coverage term
-    // into `chooseNewCard`, this fails and sends them to §13's gate first.
-    // Card 16: nine zones, hit 1 — reachability 1. Card 84: one row, hit 6 —
-    // reachability 2/3. Power/mana picks the narrow one; both new quantities
-    // say the opposite. (Card 110's lone crit zone is 5, the focus cell
-    // itself, so it is reachable from EVERY cell — not the contrast wanted.)
+describe("chooseNewCard is still BLIND to positionalReachability/meanZoneCoverage (session 115)", () => {
+  it("still ignores both geometry functions below — only its OWN zone-weighting changed", () => {
+    // The regression that matters: §13 is still parked on data, so NEITHER
+    // function in this file may alter a live decision. If someone wires
+    // positionalReachability or meanZoneCoverage into `chooseNewCard`
+    // itself, this test stops being the right one to prove it — it only
+    // shows chooseNewCard's own (now zone-weighted) formula disagrees with
+    // reachability here, not that reachability/coverage feed it.
+    //
+    // Card 16: nine hitZones, hit 1/zone -> zone-weighted 1*9=9.
+    // Card 84: three hitZones (one row), hit 6/zone -> zone-weighted 6*3=18.
+    // 18 > 9, so the narrow, high-power-per-zone card still wins — the
+    // session 115 fix rewards zone count, but not enough to flip a case
+    // where the narrow card's per-zone power dominates this hard. Card 84's
+    // reachability (2/3) is still LOWER than card 16's (1) — the two
+    // quantities below still disagree with `chooseNewCard`'s pick, which is
+    // exactly what "not wired in" means.
     const lowPowerWideReach = { ...card(16), id: 9001 };
     const highPowerNarrow = { ...card(84), id: 9002 };
     expect(chooseNewCard([lowPowerWideReach, highPowerNarrow]).id).toBe(9002);
