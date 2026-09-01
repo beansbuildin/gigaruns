@@ -232,7 +232,11 @@ async function main() {
     );
     console.log(
       `      Spread across factions is ${r.scarcest.balance}-${r.richest.balance}, so the TRUE runway lands\n` +
-        `      inside that band depending on the rotation ORDER — which is UNCONFIRMED (one day observed).`,
+        `      inside that band depending on the rotation ORDER — which is UNCONFIRMED.\n` +
+        `      [session 115] Two days are now on record, but they are ADJACENT: day 20695 charged\n` +
+        `      Foxglove (139), day 20696 charged Summoner (140). Adjacent points constrain almost\n` +
+        `      nothing — many orders still fit. A NON-adjacent third point is worth more than another\n` +
+        `      consecutive one.`,
     );
     console.log(
       `      ⚠ Do NOT quote the ${r.runsUntilScarcestDries} as exact. It assumes each faction is charged\n` +
