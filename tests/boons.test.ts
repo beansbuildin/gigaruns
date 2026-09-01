@@ -658,7 +658,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // types this table already carries, so the clean TYPE set is unchanged and
     // the "closed under the only mechanism feeding it" claim survives a second
     // change of entry tier.
-    expect(roomOne.length).toBe(285);  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
+    // [session 116] 285 -> 288: +3, exactly ONE run x 3 room-1 options, the
+    // same smallest-increment shape session 112 recorded and the second datum
+    // for per-RUN scaling at a Tier-2 ENTRY. The room-1 offer is
+    // UpgradeRock(0,4)/UpgradePaper(6)/TieVulnerable(1); `TieVulnerable` is
+    // not clean and was already known not to be, so the clean TYPE set is
+    // unchanged (the assertion below) and these are already-clean types
+    // RECURRING, not new holes.
+    expect(roomOne.length).toBe(288);  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -741,6 +748,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",  /* [session 113] +1, thirteenth */
       "UpgradePaper",
       "UpgradePaper", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
+      "UpgradePaper", // [session 116] already-clean type RECURRING from the single Tier-2 run of 2026-09-01 — the clean SET is still the same SIX, unchanged since session 52
       "UpgradeRock",  /* [session 113] +1, ninth */
       "UpgradeRock",
       "UpgradeRock",
@@ -753,6 +761,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock",
       "UpgradeRock", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
+      "UpgradeRock", // [session 116] already-clean type RECURRING from the single Tier-2 run of 2026-09-01 — the clean SET is still the same SIX, unchanged since session 52
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
@@ -826,7 +835,15 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // orb rule took other options). Room 9 is Heal's second-deepest sighting,
     // behind the two room-7s. Appended at the array's end by insertion order,
     // same as every session since 43.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9]);
+    // [session 116] +1 Heal offer from the single Tier-2 run of 2026-09-01, at
+    // room 8 — `Heal(50)`, Epic. Appended at the array's end by insertion
+    // order, same as every session since 43.
+    //
+    // ⭐ **It was PICKED**, which the two session-112 Heals were not: it is the
+    // 8th entry of `pickedBoons` in `run-2026-09-01-22-35-10/state-108`. Room 8
+    // is now Heal's second-deepest sighting, between the room-9 offer session
+    // 112 recorded and the two room-7s.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8]);
   });
 });
 

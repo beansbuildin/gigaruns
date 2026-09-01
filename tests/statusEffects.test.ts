@@ -100,11 +100,18 @@ describe("Burn", () => {
     //
     // The pair set is still asserted exactly rather than loosened to "contains
     // 4/2", for the same reason it was exact before: a THIRD distinct pair
-    // would be new information again — it would test x2 at a fresh amount, and
-    // an amount where x2 and the (now-dead) +3 disagree is no longer the only
-    // interesting case. An odd plain amount, for instance, would say whether
-    // the doubling floors or rounds.
-    expect(Object.keys(pairs).sort()).toEqual(["10/5", "4/2", "6/3", "8/4"]);  /* [session 114] was ["4/2", "6/3"] — 10/5 and 8/4 arrived together in the room-14 run; BOTH satisfy x2 (10 = 5*2, 8 = 4*2), so the multiplier survives a doubling of the pair set. Still NO odd plain amount, so floor-vs-round is STILL unseparated. */
+    // would be new information again — it would test x2 at a fresh amount.
+    //
+    // ⚠ [session 116] **The old rationale for this pin named a capture that
+    // cannot exist, and it is retired.** It read: *"An odd plain amount, for
+    // instance, would say whether the doubling floors or rounds."* Both halves
+    // are wrong. Odd plain amounts are already HERE — `6/3` (n=18) and `10/5`
+    // (n=4) — so the capture was never missing; and floor-vs-round is not a
+    // separable pair of hypotheses at all, because every Burn amount and tick
+    // in the corpus is an integer and `floor(2p) === round(2p) === 2p` for
+    // every integer `p`. The pin stays, on the live rationale above; the dead
+    // sub-question does not. See scripts/statusEffects.ts and DECISIONS.
+    expect(Object.keys(pairs).sort()).toEqual(["10/5", "4/2", "6/3", "8/4"]);  /* [session 116] Set UNCHANGED by the 2026-09-01 Tier-2 run, which added no new pair but raised n 52 total; x2 now holds over {2,3,4,5}. [session 114] was ["4/2", "6/3"] — 10/5 and 8/4 arrived together in the room-14 run; BOTH satisfy x2 (10 = 5*2, 8 = 4*2), so the multiplier survives a doubling of the pair set. That entry also claimed "NO odd plain amount" while listing 10/5 and 6/3, which are odd — corrected above. */
     // The multiplier, asserted against every observed pair rather than against
     // the two literals above — so it is the RELATIONSHIP that is pinned, not
     // the sample. This is what a future pair has to keep satisfying.

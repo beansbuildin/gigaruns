@@ -108,12 +108,31 @@ export function burnRule(exchanges: Exchange[]): Tally {
  * Split out, the no-mastery arm is exceptionless at a LARGER n than the
  * combined rule ever managed.
  *
- * **What is NOT determined, and needs a capture rather than more of the same:**
- * every one of the 12 observations is `after: 3` -> `tick: 6`, all from a
- * single run (`run-2026-08-29-17-53-12`). A x2 multiplier and a flat +3 fit
- * that data identically. Separating them needs a BurnMastery burn tick at any
- * amount other than 3 — do not quote "BurnMastery doubles burn" as settled
- * until one exists.
+ * **[session 113] The x2 multiplier is CONFIRMED and the flat-+3 reading is
+ * FALSIFIED** — a `4`-against-`2` tick landed, where x2 predicts 4 and +3
+ * predicts 5. The paragraph this replaces asked for exactly that capture and
+ * got it. `BurnMastery doubles burn` may now be quoted as settled.
+ *
+ * ⚠ **[session 116] The follow-on "does the doubling FLOOR or ROUND?" question
+ * is VACUOUS, and was never a data gap.** Sessions 113/114 named an odd plain
+ * amount as the capture that would separate them and carried it forward three
+ * times. Two things are wrong with that, and the second is the one that
+ * matters:
+ *
+ * - **Odd plain amounts were already present when the question was asked.**
+ *   The pair set is `{6/3, 4/2, 8/4, 10/5}` — `3` (n=18, since session 113)
+ *   and `5` (n=4, since session 114) are both odd. Session 114's own
+ *   DECISIONS entry recorded that pair set and wrote "Still NO odd plain
+ *   amount" on the same line.
+ * - **No capture could ever separate them.** Every `Burn` amount and every
+ *   tick in the corpus is an INTEGER — checked across all 14 distinct values
+ *   observed (1..12, 14, 24), zero non-integers — and for integer `p`,
+ *   `floor(2p) === round(2p) === 2p` identically. Floor and round are not two
+ *   hypotheses here; they are the same function on this domain.
+ *
+ * Per CLAUDE.md rule 6, that makes it an unmeetable request, not open work.
+ * It is CLOSED. Re-opens only if a NON-INTEGER burn amount is ever observed,
+ * which would make the two readings differ for the first time.
  */
 export function burnMasterySplit(exchanges: Exchange[]): { plain: Tally; mastery: Tally; pairs: Record<string, number> } {
   const plain: Tally = { ok: 0, n: 0 };
@@ -313,7 +332,7 @@ function main(): void {
   console.log(`              without BurnMastery                     ${bms.plain.ok}/${bms.plain.n}  ${pct(bms.plain)}`);
   console.log(
     `              with BurnMastery (amplified)            ${bms.mastery.ok}/${bms.mastery.n}` +
-      `  pairs ${JSON.stringify(bms.pairs)} — x2 vs +3 UNSEPARATED (only after=3 ever seen)`,
+      `  pairs ${JSON.stringify(bms.pairs)} — x2 CONFIRMED (session 113); floor-vs-round is VACUOUS, not open`,
   );
 
   for (const s of ["Weak", "Vulnerable"] as const) {

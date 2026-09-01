@@ -3588,6 +3588,83 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     options: [opt("AddBlock", 2), opt("Regen", 2), opt("UpgradePaper", 4)],
   },
 
+  // ── [session 116] +12 rows, from the single Tier-2 run of 2026-09-01 ───────
+  //
+  // **Additivity verified BEFORE the append**, the check sessions 93/95/113/114
+  // used and with the same result: **12 offers in the corpus and absent here,
+  // and ZERO here that the corpus does not contain.** The table was INCOMPLETE,
+  // never wrong. Appended rather than regenerated wholesale, for the reason
+  // every block above gives: the entries carry per-row annotations going back
+  // to session 03 and a rewrite would discard them to save nothing.
+  //
+  // **The room-max pin is UNCHANGED at 13.** These 12 stop at room 12 — the run
+  // (`run-2026-09-01-22-35-10`) died in room 13, so its last offer is room 12,
+  // one short of session 114's room-13 entry. The invariant this table has held
+  // since session 20 — offers stop exactly one room short of the death — holds
+  // on this run too, and does so WITHOUT moving the maximum.
+  //
+  // Unlike sessions 113/114 these rows POOL nothing: there is exactly one run,
+  // so the per-room sequence here is a single trajectory rather than a mixture.
+  {
+    room: 1,
+    source: "run-2026-09-01-22-35-10/state-015",
+    options: [opt("UpgradeRock", 0, 4), opt("UpgradePaper", 6), opt("TieVulnerable", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-01-22-35-10/state-027",
+    options: [opt("AddBurnSword", 5), opt("Regen", 4), opt("UpgradeRock", 0, 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-01-22-35-10/state-043",
+    options: [opt("AddEvasion", 2), opt("AddIntuition", 1), opt("AddEvasion", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-01-22-35-10/state-049",
+    options: [opt("AddBurnSword", 5), opt("AddLifestealShield", 2), opt("ArmorDepletedVulnerable", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-01-22-35-10/state-059",
+    options: [opt("AddLuck", 5), opt("AddBlock", 3), opt("AddMaxHealth", 8)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-01-22-35-10/state-071",
+    options: [opt("UpgradeRock", 6), opt("UpgradeRock", 8), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    room: 7,
+    source: "run-2026-09-01-22-35-10/state-087",
+    options: [opt("AddBurnMagic", 5), opt("AddLuck", 5), opt("AddEvasion", 10)],
+  },
+  {
+    room: 8,
+    source: "run-2026-09-01-22-35-10/state-107",
+    options: [opt("AddEvasion", 1), opt("UpgradePaper", 0, 4), opt("Heal", 50)],
+  },
+  {
+    room: 9,
+    source: "run-2026-09-01-22-35-10/state-117",
+    options: [opt("AddEvasion", 1), opt("Regen", 1), opt("UpgradeScissor", 8)],
+  },
+  {
+    room: 10,
+    source: "run-2026-09-01-22-35-10/state-131",
+    options: [opt("AddBlock", 2), opt("AddIntuition", 5), opt("TieWeak", 1)],
+  },
+  {
+    room: 11,
+    source: "run-2026-09-01-22-35-10/state-143",
+    options: [opt("Vengeance", 25), opt("UpgradeRock", 0, 4), opt("AddBlock", 3)],
+  },
+  {
+    room: 12,
+    source: "run-2026-09-01-22-35-10/state-159",
+    options: [opt("AddTenacity", 2), opt("AddTenacity", 3), opt("AddIntuition", 1)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

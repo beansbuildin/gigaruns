@@ -323,14 +323,14 @@ export function scoreRules(exchanges: Exchange[]): RuleResult[] {
     stat: string,
     statSide: 0 | 1,
     matches: (atk: number, taken: number) => boolean,
-    excludeFlag: string,
+    excludeFlags: readonly string[],
   ): void => {
     const eligible = (ex: Exchange, fired: boolean) =>
       ex.flags[flag] === fired &&
       dealtDamage(ex, attacker) &&
       typeof ex.atk[attacker] === "number" &&
       ex.atk[attacker]! > 0 &&
-      !ex.flags[excludeFlag];
+      !excludeFlags.some((f) => ex.flags[f]);
 
     const firedAll = exchanges.filter((ex) => eligible(ex, true));
     const firedClean = firedAll.filter((ex) => ex.statusClean);
@@ -352,10 +352,31 @@ export function scoreRules(exchanges: Exchange[]): RuleResult[] {
   for (const s of [0, 1] as const) {
     const foe = (1 - s) as 0 | 1;
     // block/evasion sit on the VICTIM; the attacker is the other side.
-    run(`blockProc${s}`, "floor(ATK/2)", foe, s, "block", s, (a, t) => t === Math.floor(a / 2), `critProc${foe}`);
-    run(`evadeProc${s}`, "0", foe, s, "evasion", s, (_a, t) => t === 0, `critProc${foe}`);
+    run(`blockProc${s}`, "floor(ATK/2)", foe, s, "block", s, (a, t) => t === Math.floor(a / 2), [`critProc${foe}`]);
+    run(`evadeProc${s}`, "0", foe, s, "evasion", s, (_a, t) => t === 0, [`critProc${foe}`]);
     // lck sits on the ATTACKER.
-    run(`critProc${s}`, "2*ATK", s, foe, "lck", s, (a, t) => t === 2 * a, `blockProc${foe}`);
+    //
+    // ⭐ [session 116, LIVE] **`evadeProc${foe}` is excluded here because EVADE
+    // DOMINATES CRIT — and that was measured, not assumed.** Across the whole
+    // corpus, an exchange whose victim evaded takes **0 damage 53/53 times**
+    // (16 on side 0, 37 on side 1; 18/18 restricted to status-clean), and the
+    // crit co-fires are INSIDE that 53 rather than exceptions to it.
+    //
+    // This exclusion is a DEFECT FIX, not a rescue. `critProc` already excluded
+    // `blockProc${foe}` — the same kind of victim-side proc that overrides the
+    // attacker's arithmetic — and evade was simply never in the list, because
+    // until this session the two had never co-fired on a status-clean exchange.
+    // The census is why the gap stayed invisible: evade+crit co-fires number
+    // **3 in the entire corpus**, and all 3 arrived in the room-13 Tier-2 run
+    // of 2026-09-01 (`state-128`: enemy ATK 16, crit predicts 32, observed 0).
+    //
+    // Note the asymmetry, deliberately left alone: `evadeProc` excludes
+    // `critProc${foe}` above and does NOT need to — its rule holds over the
+    // co-fires too. Removing that would make evade's claim strictly stronger at
+    // a larger n, which is a separate change and not this one. See session 113's
+    // `scaleRule` entry: an incomplete exclusion list is the defect, never the
+    // multiplier.
+    run(`critProc${s}`, "2*ATK", s, foe, "lck", s, (a, t) => t === 2 * a, [`blockProc${foe}`, `evadeProc${foe}`]);
   }
   return results;
 }
