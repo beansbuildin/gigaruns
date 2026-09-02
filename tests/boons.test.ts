@@ -669,7 +669,11 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // increment of the same session and the third datum for per-RUN scaling at
     // a Tier-2 entry. The offer is AddBlock(2)/Regen(3)/UpgradeScissor(0,4);
     // `UpgradeScissor` is already clean, so the clean SET is again unchanged.
-    expect(roomOne.length).toBe(291);  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
+    // [session 116, run 3] 291 -> 294: +3, third single-run increment of the
+    // session. ⭐ The offer is AddLuck(1)/Regen(2)/AddTenacity(2) — NO clean
+    // type among the three — so this count moves while the clean census below
+    // does not. First case this session where the two come apart.
+    expect(roomOne.length).toBe(294);  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {

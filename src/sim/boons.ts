@@ -3707,6 +3707,42 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-09-02-00-29-23/state-069",
     options: [opt("AddBlock", 5), opt("IntuitionArmor", 9), opt("VulnerableEvade", 4)],
   },
+  // ── [session 116, run 3] +4 rows, from the THIRD Tier-2 run of 2026-09-01 ──
+  //
+  // **Additivity verified BEFORE the append**: **4 offers in the corpus and
+  // absent here, ZERO here that the corpus does not contain.** Third such
+  // check this session, third clean result.
+  //
+  // Own block again, not pooled: three runs on ONE faction day, dying at rooms
+  // 13, 6 and 5 on an identical loadout, entry tier and boon policy. That
+  // spread is the point — do not read the descent as a trend, n=3.
+  //
+  // **The room-max pin is UNCHANGED at 13** — these stop at room 4.
+  //
+  // ⭐ The room-1 offer here is AddLuck(1)/Regen(2)/AddTenacity(2) — **not one
+  // clean type among the three**, so this is the first single-run increment of
+  // the session that moves `roomOne.length` (+3) while adding NOTHING to the
+  // clean census. The two counts are independent and this run shows it.
+  {
+    room: 1,
+    source: "run-2026-09-02-01-51-49/state-009",
+    options: [opt("AddLuck", 1), opt("Regen", 2), opt("AddTenacity", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-02-01-51-49/state-025",
+    options: [opt("AddLifestealMagic", 2), opt("AddLifestealShield", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-02-01-51-49/state-047",
+    options: [opt("AddTenacity", 2), opt("AddEvasion", 5), opt("ArmorDepletedWeak", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-02-01-51-49/state-071",
+    options: [opt("WeakeningCrit", 1), opt("AddEvasion", 5), opt("AddIntuition", 1)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>
