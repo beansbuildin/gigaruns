@@ -3743,6 +3743,46 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-09-02-01-51-49/state-071",
     options: [opt("WeakeningCrit", 1), opt("AddEvasion", 5), opt("AddIntuition", 1)],
   },
+  // ── [session 116, run 4] +4 rows, from the FOURTH Tier-2 run of 2026-09-01 ─
+  //
+  // **Additivity verified BEFORE the append**: **4 offers in the corpus and
+  // absent here, ZERO here that the corpus does not contain.** Fourth check
+  // this session, fourth clean result.
+  //
+  // Own block, not pooled. This run closed the daily cap at 12/12 run-units.
+  // Deaths across the day's four runs: rooms **13, 6, 5, 5** — one loadout,
+  // one entry tier, one boon policy, one faction day. n=4 is still not a
+  // trend; it IS a usable picture of the Tier-2 arm's own spread.
+  //
+  // **The room-max pin is UNCHANGED at 13** — these stop at room 4.
+  //
+  // ⚠ The room-2 offer carries **`CritHeal(6)`** — QUESTIONS §66, held LATENT
+  // pending a user directive. It was OFFERED and NOT picked, so nothing about
+  // its status changes here; recorded so the sighting is not lost.
+  //
+  // Room-1 is AddWeakSword(2)/AddTenacity(2)/TieVulnerable(1) — again no clean
+  // type, so `roomOne.length` moves (+3) and the clean census does not, the
+  // second run in a row to separate them.
+  {
+    room: 1,
+    source: "run-2026-09-02-02-21-23/state-017",
+    options: [opt("AddWeakSword", 2), opt("AddTenacity", 2), opt("TieVulnerable", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-02-02-21-23/state-031",
+    options: [opt("AddLuck", 1), opt("CritHeal", 6), opt("AddBlock", 12)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-02-02-21-23/state-053",
+    options: [opt("AddIntuition", 1), opt("UpgradePaper", 0, 6), opt("AddBlock", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-02-02-21-23/state-071",
+    options: [opt("AddTenacity", 3), opt("AddEvasion", 1), opt("CorrosiveSword", 2)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>
