@@ -3665,6 +3665,48 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-09-01-22-35-10/state-159",
     options: [opt("AddTenacity", 2), opt("AddTenacity", 3), opt("AddIntuition", 1)],
   },
+  // ── [session 116, run 2] +5 rows, from the SECOND Tier-2 run of 2026-09-01 ──
+  //
+  // **Additivity verified BEFORE the append**, same check and same result as
+  // every block since session 93: **5 offers in the corpus and absent here,
+  // ZERO here that the corpus does not contain.**
+  //
+  // Kept as its OWN block rather than merged into the +12 above, because the
+  // two runs are separate trajectories on the same faction day and pooling
+  // them would hide that. This run died in room 6 — against the first run's
+  // room 13 on an identical loadout, entry tier and boon policy, which is the
+  // variance this corpus keeps demonstrating and is worth leaving visible.
+  //
+  // **The room-max pin is UNCHANGED at 13** — these stop at room 5, well short.
+  //
+  // ⚠ The room-5 offer carries `IntuitionArmor(9)` and `VulnerableEvade(4)`,
+  // and the room-2 offer `BurnMastery(1)`; all are OFFERS, none was picked, so
+  // `UNMODELLED_TYPES` is untouched at 13.
+  {
+    room: 1,
+    source: "run-2026-09-02-00-29-23/state-005",
+    options: [opt("AddBlock", 2), opt("Regen", 3), opt("UpgradeScissor", 0, 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-02-00-29-23/state-017",
+    options: [opt("BurnMastery", 1), opt("AddLifestealMagic", 2), opt("AddBlock", 3)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-02-00-29-23/state-037",
+    options: [opt("AddVulnerableSword", 2), opt("AddBlock", 2), opt("AddBurnShield", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-02-00-29-23/state-061",
+    options: [opt("AddEvasion", 1), opt("AddTenacity", 2), opt("AddBlock", 7)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-02-00-29-23/state-069",
+    options: [opt("AddBlock", 5), opt("IntuitionArmor", 9), opt("VulnerableEvade", 4)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

@@ -357,18 +357,25 @@ export function scoreRules(exchanges: Exchange[]): RuleResult[] {
     // lck sits on the ATTACKER.
     //
     // ⭐ [session 116, LIVE] **`evadeProc${foe}` is excluded here because EVADE
-    // DOMINATES CRIT — and that was measured, not assumed.** Across the whole
-    // corpus, an exchange whose victim evaded takes **0 damage 53/53 times**
-    // (16 on side 0, 37 on side 1; 18/18 restricted to status-clean), and the
-    // crit co-fires are INSIDE that 53 rather than exceptions to it.
+    // DOMINATES CRIT — and that was measured, not assumed.** An exchange whose
+    // victim evaded takes **ZERO damage, without exception**, and the crit
+    // co-fires are INSIDE that population rather than exceptions to it.
+    //
+    // The CLAIM is exceptionlessness; the COUNT below is a snapshot and is
+    // expected to grow with the corpus. Do not read a larger number here later
+    // as a change — read a NON-zero miss as one. (This file has already shipped
+    // one caption that froze a count and went stale; see the BurnMastery note
+    // in scripts/statusEffects.ts for what that costs.) At session 116, two
+    // runs in: **54/54 whole-corpus, 18/18 status-clean.**
     //
     // This exclusion is a DEFECT FIX, not a rescue. `critProc` already excluded
     // `blockProc${foe}` — the same kind of victim-side proc that overrides the
     // attacker's arithmetic — and evade was simply never in the list, because
     // until this session the two had never co-fired on a status-clean exchange.
-    // The census is why the gap stayed invisible: evade+crit co-fires number
-    // **3 in the entire corpus**, and all 3 arrived in the room-13 Tier-2 run
-    // of 2026-09-01 (`state-128`: enemy ATK 16, crit predicts 32, observed 0).
+    // The census is why the gap stayed invisible: evade+crit co-fires numbered
+    // **3 in the entire corpus** when this was written, all 3 from the room-13
+    // Tier-2 run of 2026-09-01 (`state-128`: enemy ATK 16, crit predicts 32,
+    // observed 0) — a rate that had kept them from ever meeting before.
     //
     // Note the asymmetry, deliberately left alone: `evadeProc` excludes
     // `critProc${foe}` above and does NOT need to — its rule holds over the
