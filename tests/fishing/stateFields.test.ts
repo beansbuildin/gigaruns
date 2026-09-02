@@ -495,7 +495,11 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // [session 96] 40 -> 41 across the ten-cast batch.
     // [session 98] 41 -> 46 across the nine-cast batch.
     // [session 116] 84 -> 85 across the twenty-five-cast day (two batches).
-    expect(corrected.crits).toBe(86) /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */
+    // [session 118] 86 -> 88 across the day-20698 eight-cast batch. Same
+    // attribution as every entry above: each is `critEffects` at a cell inside
+    // the card's TRANSLATED `critZones`, and the transposed control below still
+    // scores strictly fewer, so the zone table is still doing the discriminating.
+    expect(corrected.crits).toBe(88) /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

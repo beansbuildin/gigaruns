@@ -399,6 +399,20 @@ describe("player loadout matches the fixtures", () => {
       "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
       "62/32",
       "64/27", // [session 106] run 4 mid-run, 50/27 + AddMaxHealth(+14)
+      // [session 118, runs 2-4] ONE new combo from the three remaining
+      // day-20698 runs, PURELY ADDITIVE: one added, ZERO removed.
+      //
+      // **Not a new starting loadout.** Runs 3 and 4 each opened on `50/17`
+      // with `pickedBoons: []`, read off their OWN state-000, matching run 1
+      // and the session 106/116 starts — four runs, one day, one start.
+      //
+      //   run 3  state-056  hpMax 50 -> 58   AddMaxHealth(8), room 3
+      //   run 4  state-074  hpMax 50 -> 58   AddMaxHealth(8), room 5
+      //   run 4  state-124  hpMax 58 -> 66   AddMaxHealth(8), room 8  <- 66/17
+      //
+      // Ordinary stacked AddMaxHealth growth, and unlike run 1 there is NO
+      // corrode excursion in either trace — armMax never leaves 17.
+      "66/17",
       "72/33", // [session 112] room-13 run, 58/33 + AddMaxHealth(+14)
       // [session 109] SIX new combos, all from run 2 (the deep run that reached
       // room 11), and **NOT ONE is a new starting loadout.** Both runs opened

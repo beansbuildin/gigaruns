@@ -180,11 +180,18 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // times** — and the skill has been LEVELLED, its `value` now reading 15.75
     // against 6.75 on 2026-08-24 and 2.25 on 2026-08-21. Events matched
     // uncharged casts 8-for-8 in this day alone.
-    expect(summary.casts).toBe(367) /* [s116b] was 364 */;  /* [session 116] was 339 */  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
-    expect(summary.responseDocs).toBe(2113) /* [s116b] was 2101 */;  /* [session 116] was 1942 */  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
-    expect(summary.playTurns).toBe(1445) /* [s116b] was 1437 */;  /* [session 116] was 1321 */  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
-    expect(summary.caught).toBe(177) /* [s116b] was 176 */;  /* [session 116] was 160 */  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
-    expect(summary.escaped).toBe(189) /* [s116b] was 187 */;  /* [session 116] was 178 */  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
+        // [session 118] The day-20698 batch: **8 casts PLAYED, 7 CHARGED** against
+    // dayDocs[pondId 2] — JEBAITOR (§34) spared one. 5 of 8 caught (62.5%),
+    // inside the user's 60-70% target framing. Every delta below is checked
+    // against the batch log rather than accepted as whatever the corpus said:
+    // +8 casts, +45 responseDocs (= the log's 45 post_response events),
+    // +31 playTurns (= its 31 decision events), +5 caught (= its 5 cast_over
+    // rows with outcome "caught"). All four reconcile exactly.
+expect(summary.casts).toBe(375) /* [session 118] was 367 */ /* [s116b] was 364 */;  /* [session 116] was 339 */  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
+    expect(summary.responseDocs).toBe(2158) /* [session 118] was 2113 */ /* [s116b] was 2101 */;  /* [session 116] was 1942 */  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
+    expect(summary.playTurns).toBe(1476) /* [session 118] was 1445 */ /* [s116b] was 1437 */;  /* [session 116] was 1321 */  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
+    expect(summary.caught).toBe(182) /* [session 118] was 177 */ /* [s116b] was 176 */;  /* [session 116] was 160 */  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
+    expect(summary.escaped).toBe(192) /* [session 118] was 189 — +3, the batch's 3 escapes; 182+192+1 = 375 so the partition still closes */ /* [s116b] was 187 */;  /* [session 116] was 178 */  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -547,6 +554,10 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       "13148620", "13148652", "13156408", "13156421", "13156427", "13156428", "13156433",
       "13165228", "13165235", "13172282", "13172283", "13185535", "13185601", "13185622",
       "13185678", "13187635", "13187637", "13208252", "13208300",
+      // [session 118] +1: the day-20698 batch spent Relaxing Oil (937) on a
+      // lethal trigger at 1/25 fish HP and CAUGHT the fish. The per-cast cap
+      // of 2 still did not bind and has still never bound.
+      "13222306",
 ]);  /* [session 114] was 74 docIds -> 80; +6 oil casts from the four 2026-08-31 batches */
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

@@ -683,7 +683,13 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // this is the THIRD consecutive run to move this count while leaving the
     // clean census below untouched. The two coming apart is now the norm at
     // Tier 2, not the exception session 116 first flagged it as.
-    expect(roomOne.length).toBe(300);  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
+    // [session 118, runs 2-4] 300 -> 309: +9, three runs x 3 room-1 options,
+    // closing day 20698 at 12/12 run-units. Unlike run 1, these DO move the
+    // clean census below: run 2's room-1 offer contains `UpgradeRock` and run
+    // 4's contains both `Heal` and `UpgradeScissor`, all three already-clean
+    // types RECURRING — so the two counts come back together here after three
+    // consecutive runs of moving apart. No new clean TYPE appears.
+    expect(roomOne.length).toBe(309);  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -752,6 +758,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "Heal",
       "Heal",
       "Heal",
+      "Heal", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 4, Heal(16), and it was PICKED)
       "UpgradePaper",
       "UpgradePaper",
       "UpgradePaper",
@@ -780,6 +787,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock",
       "UpgradeRock", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
       "UpgradeRock", // [session 116] already-clean type RECURRING from the single Tier-2 run of 2026-09-01 — the clean SET is still the same SIX, unchanged since session 52
+      "UpgradeRock", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 2)
+      "UpgradeRock", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 3)
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
@@ -792,6 +801,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor", // [session 116, run 2] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52
+      "UpgradeScissor", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 4)
     ]);
   });
 
@@ -862,7 +872,14 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // 8th entry of `pickedBoons` in `run-2026-09-01-22-35-10/state-108`. Room 8
     // is now Heal's second-deepest sighting, between the room-9 offer session
     // 112 recorded and the two room-7s.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8]);
+    // [session 118] +1 Heal offer from the day-20698 run 4 of 2026-09-02, at
+    // room 1 — `Heal(16)`. Appended at the array's end by insertion order,
+    // same as every session since 43.
+    //
+    // ⭐ **It was PICKED** (run 4's room-1 take, `Heal(16)` over `AddEvasion(1)`
+    // and `UpgradeScissor(8)`), the second consecutive session in which the
+    // corpus's new Heal was taken rather than merely offered.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1]);
   });
 });
 

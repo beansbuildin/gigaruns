@@ -1,23 +1,23 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-02T18:49:40.084Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-02T23:31:36.964Z.
 
-367 recorded casts — 177 caught (48.2%).
-Total Hard Core earned: 32480 (183.5 per catch, 88.5 per cast).
+375 recorded casts — 182 caught (48.5%).
+Total Hard Core earned: 33600 (184.6 per catch, 89.6 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 177 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 25 of those 177 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 182 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 26 of those 182 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Barnaboo: 42
+- Barnaboo: 43
+- Plankton: 33
 - Finley: 32
-- Plankton: 32
-- Ollie: 15
-- Jelloid: 14
+- Ollie: 16
+- Jelloid: 15
 - Kelpkin: 12
+- Zombo: 6
 - Deadfin: 6
 - Skinzy: 6
-- Zombo: 5
 - Gulp: 3
 - Glimmer: 2
 - Podge: 2
@@ -398,3 +398,11 @@ Total Hard Core earned: 32480 (183.5 per catch, 88.5 per cast).
 | 13209305 | no | — | 0 |
 | 13209306 | no | — | 0 |
 | 13209308 | yes | Finley (rarity 0) | 80 |
+| 13222291 | no | — | 0 |
+| 13222293 | no | — | 0 |
+| 13222295 | yes | Plankton (rarity 0) | 80 |
+| 13222297 | yes | Barnaboo (rarity 0) | 80 |
+| 13222299 | yes | Jelloid (rarity 1) | 160 |
+| 13222302 | no | — | 0 |
+| 13222303 | yes | Ollie (rarity 1) | 160 |
+| 13222306 | yes | Zombo (rarity 2) | 640 |

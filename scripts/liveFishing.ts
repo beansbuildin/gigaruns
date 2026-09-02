@@ -213,7 +213,7 @@ import { SESSION_99_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatc
  * 3.1 -> 3.0 -> 3.1 across three batches, which is what a ~3% rate on a
  * slowly-growing denominator looks like — do not read a direction into it.
  */
-export const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "2.6"; /* [session 116] was "2.8" — recomputed on the 364-cast corpus */ /* [session 113] was "3.0" — recomputed on the 315-cast corpus */ /* [session 107] was "3.1" — recomputed on the 273-cast corpus */  /* [session 110] was "3.0" — recomputed on the 288-cast corpus */  /* [session 110b] was "2.9" — recomputed on the 295-cast corpus */
+export const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "2.5"; /* [session 118] was "2.6" — recomputed on the 375-cast corpus */ /* [session 116] was "2.8" — recomputed on the 364-cast corpus */ /* [session 113] was "3.0" — recomputed on the 315-cast corpus */ /* [session 107] was "3.1" — recomputed on the 273-cast corpus */  /* [session 110] was "3.0" — recomputed on the 288-cast corpus */  /* [session 110b] was "2.9" — recomputed on the 295-cast corpus */
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 

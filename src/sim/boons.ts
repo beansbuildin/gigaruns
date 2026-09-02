@@ -3860,6 +3860,142 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-09-02-18-44-30/state-155",
     options: [opt("AddVulnerableSword", 2), opt("AddBlock", 3), opt("AddLifestealMagic", 2)],
   },
+  // ── [session 118, run 2] +6 rows, from the SECOND day-20698 run of 2026-09-02 ─
+  //
+  // **Additivity verified BEFORE the append**: 6 in the corpus and absent here,
+  // ZERO here the corpus does not contain. Multiset diff, second clean result.
+  //
+  // Own block, not pooled. Run 25290994, died room 7 of 16 — a room-1..6 ladder.
+  //
+  // ⚠ `BurningTenacity(8)` is OFFERED again at room 6 and again **NOT** picked
+  // (`AddIntuition(1)` taken). Second sighting this session, second decline;
+  // QUESTIONS §69 stays LATENT and nothing about its status changes.
+  //
+  // ⚠ `BurningEvade(8)` at room 4 is likewise offered and NOT picked.
+  {
+    room: 1,
+    source: "run-2026-09-02-19-38-47/state-009",
+    options: [opt("AddEvasion", 1), opt("UpgradeRock", 0, 8), opt("CorrosiveMagic", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-02-19-38-47/state-029",
+    options: [opt("AddBlock", 2), opt("UpgradeRock", 4), opt("UpgradeScissor", 0, 6)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-02-19-38-47/state-051",
+    options: [opt("ArmorDepletedVulnerable", 2), opt("AddLuck", 2), opt("AddBlock", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-02-19-38-47/state-059",
+    options: [opt("AddBlock", 2), opt("AddTenacity", 3), opt("BurningEvade", 8)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-02-19-38-47/state-083",
+    options: [opt("AddLuck", 2), opt("AddLuck", 5), opt("AddLifestealSword", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-02-19-38-47/state-103",
+    options: [opt("BurningTenacity", 8), opt("AddIntuition", 1), opt("UpgradeScissor", 8)],
+  },
+  // ── [session 118, run 3] +4 rows, from the THIRD day-20698 run of 2026-09-02 ──
+  //
+  // **Additivity verified BEFORE the append**: 4 in the corpus and absent here,
+  // ZERO here the corpus does not contain. Third clean result this session.
+  //
+  // Own block, not pooled. Run 25293207, the day's shortest — a room-1..4
+  // ladder, died room 5 of 16. This run's final state carries NO `ROOM_NUM_CID`,
+  // so its depth is derived from reward count (4 rewards -> 4 rooms cleared), a
+  // rule checked against the two runs today where the field IS present:
+  // run 1 gave 11 rewards / room 12, run 2 gave 6 / room 7. Both exact.
+  //
+  // ⚠ `BurningEvade(8)` at room 2 WAS picked here — unlike run 2's room-4
+  // sighting, which was declined. It is not a latent-boon question (§69 is
+  // BurningTenacity, a different type), so this needs no directive.
+  {
+    room: 1,
+    source: "run-2026-09-02-21-28-58/state-003",
+    options: [opt("UpgradeRock", 0, 8), opt("AddLifestealShield", 4), opt("ArmorDepletedWeak", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-02-21-28-58/state-021",
+    options: [opt("BurningEvade", 8), opt("AddLuck", 5), opt("AddLifestealShield", 3)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-02-21-28-58/state-055",
+    options: [opt("UpgradePaper", 6), opt("AddMaxHealth", 8), opt("AddEvasion", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-02-21-28-58/state-069",
+    options: [opt("AddWeakSword", 2), opt("SecondWind", 5), opt("AddIntuition", 1)],
+  },
+  // ── [session 118, run 4] +9 rows, from the FOURTH day-20698 run of 2026-09-02 ─
+  //
+  // **Additivity verified BEFORE the append**: 9 in the corpus and absent here,
+  // ZERO here the corpus does not contain. Fourth clean result, fourth check.
+  //
+  // Own block, not pooled. Run 25293207's successor closed the day at 12/12
+  // run-units — a room-1..9 ladder, died room 10 of 16.
+  //
+  // The day's four runs died at rooms **12, 7, 5, 10** with Hard Core
+  // **5784 / 3168 / 1992 / 4632** — one loadout, one entry tier, one boon
+  // policy, one faction day, and a **2.9x** spread between best and worst. That
+  // is the second day in a row to measure this (session 116 saw 3.2x), and it is
+  // why the Tier-1/Tier-3 baseline is NOT separable by a single cross-tier run.
+  //
+  // **The room-max pin is UNCHANGED at 13** — the day's deepest ladder is 11.
+  {
+    room: 1,
+    source: "run-2026-09-02-22-16-24/state-009",
+    options: [opt("AddEvasion", 1), opt("Heal", 16), opt("UpgradeScissor", 8)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-02-22-16-24/state-027",
+    options: [opt("VulnerableCrit", 1), opt("AddLuck", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-02-22-16-24/state-043",
+    options: [opt("AddLuck", 1), opt("Vengeance", 15), opt("TieVulnerable", 1)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-02-22-16-24/state-061",
+    options: [opt("AddWeakMagic", 2), opt("AddIntuition", 1), opt("AddIntuition", 5)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-02-22-16-24/state-073",
+    options: [opt("AddMaxHealth", 8), opt("Vengeance", 25), opt("UpgradeRock", 4)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-02-22-16-24/state-087",
+    options: [opt("AddBlock", 12), opt("UpgradeScissor", 0, 4), opt("AddBurnSword", 5)],
+  },
+  {
+    room: 7,
+    source: "run-2026-09-02-22-16-24/state-107",
+    options: [opt("AddBlock", 2), opt("AddBurnSword", 3), opt("AddBlock", 7)],
+  },
+  {
+    room: 8,
+    source: "run-2026-09-02-22-16-24/state-123",
+    options: [opt("AddLifestealSword", 2), opt("LossEvasionUp", 5), opt("AddMaxHealth", 8)],
+  },
+  {
+    room: 9,
+    source: "run-2026-09-02-22-16-24/state-155",
+    options: [opt("TieWeak", 1), opt("RegenMastery", 1), opt("AddEvasion", 2)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>
