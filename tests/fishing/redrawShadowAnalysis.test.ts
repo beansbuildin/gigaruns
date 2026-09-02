@@ -106,9 +106,9 @@ describe("the in-sample arm — reproducible from the committed corpus", () => {
     const r = inSampleRate();
     expect(REDRAW_SHADOW_COVERAGE_K).toBe(6);
     expect(REDRAW_SHADOW_MIN_BUDGET).toBe(1);
-    expect(r.plays).toBe(808); // [session 99] the 210-cast corpus /* [session 102] was 553 */ /* [session 105] was 592 */  /* [session 107] was 605 */  /* [session 110] was 643 */  /* [session 110b] was 687 */  /* [session 113] was 699 */
+    expect(r.plays).toBe(888); /* [session 116] was 808 — the 364-cast corpus */ // [session 99] the 210-cast corpus /* [session 102] was 553 */ /* [session 105] was 592 */  /* [session 107] was 605 */  /* [session 110] was 643 */  /* [session 110b] was 687 */  /* [session 113] was 699 */
     expect(r.fires).toBe(23); /* [session 102] was 17 */ /* [session 105] was 18 */  /* [session 110] was 19 */  /* [session 110b] was 20 */
-    expect(r.rate).toBeCloseTo(0.028465346534653466, 12); /* [session 102] was 0.030741410488245932 (17/553) */ /* [session 105] was 0.030405405405405407 */  /* [session 107] was 0.03140495867768595 */  /* [session 110] was 0.029548989113530325 */  /* [session 110b] was 0.02911208151382824 */  /* [session 113] was 0.030042918454935622 */
+    expect(r.rate).toBeCloseTo(0.0259009009009009, 12); /* [session 116] was 0.028465346534653466 (23/808); fires UNCHANGED at 23 across a 25-cast day, so the rate fell purely on the denominator */ /* [session 102] was 0.030741410488245932 (17/553) */ /* [session 105] was 0.030405405405405407 */  /* [session 107] was 0.03140495867768595 */  /* [session 110] was 0.029548989113530325 */  /* [session 110b] was 0.02911208151382824 */  /* [session 113] was 0.030042918454935622 */
   });
 
   it("⚠ the live loop's PRINTED in-sample rate is this number, not a stale one", () => {

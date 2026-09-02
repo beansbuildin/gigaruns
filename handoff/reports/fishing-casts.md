@@ -1,29 +1,31 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-02T02:23:57.159Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-02T03:36:21.922Z.
 
-339 recorded casts — 160 caught (47.2%).
-Total Hard Core earned: 28400 (177.5 per catch, 83.8 per cast).
+364 recorded casts — 176 caught (48.4%).
+Total Hard Core earned: 32400 (184.1 per catch, 89.0 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 160 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480 — and 23 of those 160 paid an exact small multiple of that base (up to 4x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 176 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 25 of those 176 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Barnaboo: 40
-- Finley: 30
-- Plankton: 28
-- Ollie: 12
+- Barnaboo: 42
+- Plankton: 32
+- Finley: 31
+- Ollie: 15
+- Jelloid: 14
 - Kelpkin: 12
-- Jelloid: 12
 - Deadfin: 6
+- Skinzy: 6
 - Zombo: 5
-- Skinzy: 5
 - Gulp: 3
+- Glimmer: 2
 - Podge: 2
 - Globbo: 2
-- Glimmer: 1
 - Slo_mo: 1
 - Chompus: 1
+- Sherrif Bubblesmoke: 1
+- Goober: 1
 
 ## Per-cast detail
 
@@ -368,3 +370,28 @@ Total Hard Core earned: 28400 (177.5 per catch, 83.8 per cast).
 | 13187635 | yes | Jelloid (rarity 1) | 160 |
 | 13187636 | yes | Barnaboo (rarity 0) | 80 |
 | 13187637 | yes | Deadfin (rarity 2) | 320 |
+| 13208250 | yes | Barnaboo (rarity 0) | 80 |
+| 13208252 | yes | Glimmer (rarity 3) | 400 |
+| 13208259 | no | — | 0 |
+| 13208264 | yes | Jelloid (rarity 1) | 160 |
+| 13208266 | no | — | 0 |
+| 13208271 | no | — | 0 |
+| 13208273 | yes | Ollie (rarity 1) | 160 |
+| 13208279 | yes | Skinzy (rarity 2) | 320 |
+| 13208284 | no | — | 0 |
+| 13208291 | no | — | 0 |
+| 13208300 | yes | Plankton (rarity 0) | 80 |
+| 13208698 | yes | Ollie (rarity 1) | 160 |
+| 13208700 | yes | Sherrif Bubblesmoke (rarity 4) | 480 |
+| 13208704 | no | — | 0 |
+| 13208707 | yes | Plankton (rarity 0) | 80 |
+| 13208712 | no | — | 0 |
+| 13208714 | yes | Plankton (rarity 0) | 80 |
+| 13208716 | yes | Goober (rarity 5) | 560 |
+| 13208718 | no | — | 0 |
+| 13208720 | yes | Ollie (rarity 1) | 800 |
+| 13208723 | yes | Jelloid (rarity 1) | 160 |
+| 13208724 | yes | Barnaboo (rarity 0) | 80 |
+| 13208727 | yes | Plankton (rarity 0) | 80 |
+| 13208729 | yes | Finley (rarity 0) | 320 |
+| 13208734 | no | — | 0 |

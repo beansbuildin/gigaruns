@@ -424,8 +424,23 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
         if (crit !== undefined) critAmounts.add(crit);
       }
     }
-    // The half of DECISIONS' claim that stands: no card HITS for 9.
-    expect(hitAmounts.has(9)).toBe(false);
+    // ⭐⭐ [session 116, LIVE] **THE HALF THAT STOOD NO LONGER DOES: A CARD
+    // HITS FOR 9.** This assertion read `.toBe(false)` from session 80 through
+    // session 115 and is now flipped on live data, not loosened.
+    //
+    // The card is **id 14** — `hitEffects` amount 9, `critEffects` EMPTY — and
+    // it entered the deck THIS SESSION: `chooseNewCard` picked it in the second
+    // fishing batch of 2026-09-01 (loot `cards: [14]`), after which it appears
+    // in casts 13208727 / 13208729 / 13208734 and nowhere earlier.
+    //
+    // **Nothing above needs revisiting.** Session 80's reasoning was that a
+    // base-9 shot was UNREACHABLE and so could not separate the rules; the
+    // correction was that `critEffects` reaches it too, and the base-9 CRIT
+    // duly landed and settled the member. That settlement stands on its own
+    // evidence. What has changed is only that the hit path can now reach 9 as
+    // well, which makes the separator reachable from BOTH sources rather than
+    // one — a strengthening of reachability, not a threat to the conclusion.
+    expect(hitAmounts.has(9)).toBe(true);  /* [session 116] was false, from session 80 to 115 — card 14, added by chooseNewCard this session */
     // The half that did not: cards CRIT for 9, and one of them settled it.
     expect(critAmounts.has(9)).toBe(true);
     // The next separator, between the two survivors: a base of 6, 8 or 10.
@@ -479,7 +494,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as `oilSkipped` above: excluding those 20 traces returns 30.
     // [session 96] 40 -> 41 across the ten-cast batch.
     // [session 98] 41 -> 46 across the nine-cast batch.
-    expect(corrected.crits).toBe(84);  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */
+    // [session 116] 84 -> 85 across the twenty-five-cast day (two batches).
+    expect(corrected.crits).toBe(85);  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

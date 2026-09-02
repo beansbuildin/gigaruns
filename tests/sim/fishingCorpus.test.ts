@@ -171,11 +171,20 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // NOT separable from the era baseline (41/74 = 55.4% excluding this batch,
     // Fisher p = 0.455). Note 21 casts were PLAYED but only 19 charged against
     // the game's daily ledger: JEBAITOR (§34) fired twice.
-    expect(summary.casts).toBe(339);  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
-    expect(summary.responseDocs).toBe(1942);  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
-    expect(summary.playTurns).toBe(1321);  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
-    expect(summary.caught).toBe(160);  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
-    expect(summary.escaped).toBe(178);  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
+    // [session 116] 339 -> 364 across a TWENTY-FIVE-cast day in two batches
+    // (11 then 14): +159 responseDocs, +116 playTurns, +16 caught, +9 escaped.
+    // `incomplete` is UNCHANGED at 1 once again. The caught share of the
+    // ADDITION is 16/25 = 64.0%, inside the user's stated 60-70% framing and
+    // not separable from the era baseline. ⚠ **25 casts were PLAYED but only
+    // 17 charged against the game's daily ledger: JEBAITOR (§34) fired EIGHT
+    // times** — and the skill has been LEVELLED, its `value` now reading 15.75
+    // against 6.75 on 2026-08-24 and 2.25 on 2026-08-21. Events matched
+    // uncharged casts 8-for-8 in this day alone.
+    expect(summary.casts).toBe(364);  /* [session 116] was 339 */  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
+    expect(summary.responseDocs).toBe(2101);  /* [session 116] was 1942 */  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
+    expect(summary.playTurns).toBe(1437);  /* [session 116] was 1321 */  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
+    expect(summary.caught).toBe(176);  /* [session 116] was 160 */  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
+    expect(summary.escaped).toBe(187);  /* [session 116] was 178 */  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -537,7 +546,7 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       "13131289", "13131292", "13131297", "13131303", "13131307", "13148589", "13148605",
       "13148620", "13148652", "13156408", "13156421", "13156427", "13156428", "13156433",
       "13165228", "13165235", "13172282", "13172283", "13185535", "13185601", "13185622",
-      "13185678", "13187635", "13187637",
+      "13185678", "13187635", "13187637", "13208252", "13208300",
 ]);  /* [session 114] was 74 docIds -> 80; +6 oil casts from the four 2026-08-31 batches */
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;
