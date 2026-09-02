@@ -1,43 +1,36 @@
-# STATE — session 115 — 2026-09-01 — commit 7f33c415
+# STATE — session 116 — 2026-09-01 — commit <SHA>
 
 ## Status
-Brief was: **Step 0**, verify the OFFLINE `chooseNewCard` currency fix against
-the real repo (it had only ever run in an isolated sandbox); **Step 1**, read
-the live day and stop if it had not rolled.
+No numbered TASKS.md gate was worked. The brief was operational: check the JWT,
+read the live day, and take the day-20697 rotation point. **All of it PASSED**,
+and the user then authorized three more dungeon runs and 28 fishing casts.
 
-- **Step 0: GATE PASS.** The real suite agrees with the offline sandbox in
-  every respect. No discrepancy. Suite **2297 → 2298** (the offline commit
-  added exactly one test), the two affected files **45/45** — the exact count
-  the sandbox claimed. Independently re-derived the substantive claim against
-  the real 80-card catalog rather than trusting the test the same offline
-  session wrote.
-- **Step 1: the day had NOT rolled. Stop-condition fired as written.**
-  `currentDay` **20696**, `dayOfWeek` 4 — unchanged from session 114's close.
-  Next day was 01:19:25 out at read time. Dungeon 5 at **12/12** run-units.
-- **Steps 2-4 NOT ENTERED. LIVE SPEND THIS SESSION: ZERO.** No runs, no casts,
-  no rings, no energy. The user chose to close rather than hold ~75 minutes for
-  the reset, so day 20697's third rotation point passes to the next session
-  with a full 12/12 cap.
+- **Step 0 JWT: PASS.** Valid to **2026-09-04T18:48:43Z**, 68.4h at session open.
+- **Step 1 day: PASS.** Rolled to **20697** (`dayOfWeek` 5), ledger a fresh 0/12.
+- **Step 2 rotation point: PASS.** Chobo predicted, Chobo charged.
+- **Steps 3/4: four dungeon runs and 28 casts, all user-authorized one at a time.**
 
-Suite **2298 passed / 2298, 115 files**. `tsc --noEmit` clean, `git diff
---check` clean, `.gitignore` verified on all seven required paths,
-`tests/discoveredShipsClean.test.ts` 8/8.
+**EVERYTHING SPENDABLE TODAY IS SPENT.** Dungeon **12/12** run-units, fishing
+**20/20** charged casts. Nothing further is possible until 11:00 Pacific.
 
-⚠ **Re-run the suite UNSANDBOXED** — sandbox breaks `tsx` (EPERM on its IPC
-socket) and `git` (`.gitconfig`). Use `--maxWorkers=4`.
+Suite **2323 passed / 2323, 115 files**. `tsc --noEmit` clean, `git diff --check`
+clean, `.gitignore` verified on all seven paths, `discoveredShipsClean` 8/8.
+
+⚠ **Re-run the suite UNSANDBOXED** — sandbox breaks `tsx` (EPERM) and `git`.
+Use `--maxWorkers=4`.
 
 **Secret scan, quoting the instrument verbatim** (`npx tsx scripts/secretScan.ts`):
 
 ```
 > secret scan — scope: tracked
-  files scanned:        10524
-  CONTROL A (read):     10161 file(s) contain "docId"
+  files scanned:        11123
+  CONTROL A (read):     10759 file(s) contain "docId"
   CONTROL B (matchers): all rules verified against synthetic samples
   0 unexplained across all 8 rules; 14 allowlisted hits, each printed
 > PASS — no unexplained hits, both controls healthy.
 ```
 
-At `--scope=diff --ref=5d526ef7`: **6 files, 0 unexplained**, control A 2.
+At `--scope=diff --ref=c0a2e4e7`: **616 files, 0 unexplained, PASS.**
 
 ## Settled — do not re-open
 Pointers only — `DECISIONS.md` and `QUESTIONS.md` own the evidence. **An entry
@@ -45,145 +38,171 @@ here means a brief proposing it as NEW work is wrong.** Carried forward and
 edited each session, never rewritten. **[USER]** = a user directive an agent may
 not re-open at all.
 
-**Dropped this session:** "TODAY'S FACTION IS NOT KNOWABLE IN ADVANCE" — it is
-written verbatim into **CLAUDE.md rule 11** ("Do not re-hunt for this field"),
-which is the stated drop criterion. ⚠ **Session 114 announced this same drop and
-then did not execute it** — the entry stayed in its digest. Executed now.
+**Dropped this session:** the `chooseNewCard` currency-fix entry — it is now
+enforced by a passing test AND was exercised on 17 live card choices, which is
+the stated drop criterion. Also dropped **`BurnMastery` floor-vs-round** from
+"What's broken": it is CLOSED as vacuous (below), not pending.
 
-- ✅ **[NEW] `chooseNewCard`'s currency flaw is FIXED and VERIFIED on the real
-  suite.** Commit `c3cc71aa` (offline) + this session's verification.
-  DECISIONS 2026-09-01. Re-opens as: *"fix `chooseNewCard`'s currency flaw"* or
-  *"the offline `chooseNewCard` fix still needs real-suite verification"* —
-  both are done. **The §13 SWAP is a different thing and IS still parked.**
+- ⭐ **[NEW] The day→faction rotation is `faction = dayOfWeek + 2`, solved UP TO
+  THE WRAP.** 20695→5 Foxglove, 20696→6 Summoner, 20697→7 Chobo, on a
+  SERVER-published faction index. DECISIONS 2026-09-01. Re-opens as: *"the
+  day→faction map is unsolved"* — it is solved except the 7→1 wrap. **Day 20698
+  predicts Crusader (135) and is the ONLY observation that tests the wrap.**
+- ⭐ **[NEW] `BurnMastery` floor-vs-round is VACUOUS and CLOSED — no capture
+  could ever settle it.** Every burn amount is an integer and
+  `floor(2p)===round(2p)`. Re-opens as: *"BurnMastery needs an odd plain amount"*
+  — odd amounts were already present (6/3 n=18, 10/5 n=4) when it was asked.
+- ⭐ **[NEW] Evade DOMINATES crit; `critProc`'s exclusion list was the defect.**
+  Evade zeroes damage 56/56. DECISIONS 2026-09-01. Re-opens as: *"critProc's 2×ATK
+  rule has exceptions"*.
+- ⭐ **[NEW][USER] The fishing budget is 360 energy / 30 casts, STANDING.**
+  Re-opens as: *"the fishing budget is 300/25"*.
 - **[USER] Tier 2 costs 3 rings of ONE faction per juiced run, rotating daily.**
-  8 for 8 across two faction days. DECISIONS 2026-08-30/31. Re-opens as:
-  *"Tier 2 costs one of each of the seven silver rings"* or *"the charged
-  faction is fixed"*.
-- ⚠ **The rotation ORDER is n=2 and NOT solved.** 20695→Foxglove(139),
-  20696→Summoner(140) — **ADJACENT days**, so many orders still fit. Re-opens
-  as: *"the day→faction map is solved"*. **Day 20697 predicts Chobo (134); a
-  NON-adjacent point is worth more than another adjacent one.**
+  **12 for 12** across three faction days. Re-opens as: *"Tier 2 costs one of
+  each of the seven silver rings"* or *"the charged faction is fixed"*.
+- **[NEW] The charged faction does NOT change mid-day.** Four same-day charges.
+  Re-opens as: *"check whether the faction rotates within a day"*.
 - **[USER] The double-lethal oil override is DISABLED; Focus Oil off the
   allowlist.** Re-opens as: *"turn the double-lethal band back on"*.
-- **[USER] Oil target framing: 60-70% catch rate, oils not wasted.** ⚠ Re-opens
-  as: *"the disable cost us catch rate"* — **63.6 / 60.0 / 58.3% across three
-  batches are NOT distinguishable**.
-- **A new boon type from n=1 needs a USER DIRECTIVE.** Precedent used four
-  times. `CritHeal` (§66), `Intimidating` (§68), `BurningTenacity` (§69) are all
-  held. Re-opens as: *"model the remaining latent boons"*.
-- **TASKS §13's SWAP is parked on DATA, not code.** `positionalReachability` /
-  `meanZoneCoverage` built, NOT wired; a test fails if anyone wires them.
-  Re-opens as: *"wire in the reachability/coverage scoring"*.
+- **[USER] Oil target framing: 60-70% catch rate.** This session 17/28 = 60.7%.
+  Re-opens as: *"the disable cost us catch rate"*.
+- **A new boon type from n=1 needs a USER DIRECTIVE.** `CritHeal` (§66),
+  `Intimidating` (§68), `BurningTenacity` (§69) all held. Re-opens as: *"model
+  the remaining latent boons"*.
+- **TASKS §13's SWAP is parked on DATA, not code.** A test fails if anyone wires
+  `positionalReachability`/`meanZoneCoverage` in. Re-opens as: *"wire in the
+  reachability/coverage scoring"*.
 - **[USER] Chaining is a ONE-TIME, DATED exception.** Rule 11 pins `--runs=1`.
-- **`triggeredBoons`.** CLOSED — 0 non-empty of 10,616. No runs may be spent.
-- **`tenacity` / `intuition` as damage mitigation RULED OUT.** §58, §62, §63.
+- **`triggeredBoons`.** CLOSED — 0 non-empty of 10,616.
+- **`tenacity`/`intuition` as damage mitigation RULED OUT.** §58, §62, §63.
 - **[USER] Unspent skill XP.** CLOSED, §61.1 forbids re-raising it.
 - **Suite invocation.** `vitest run --maxWorkers=4`, UNSANDBOXED.
 
 ## What works
-- **The offline `chooseNewCard` fix, verified for real.** Suite 2298/2298 (115
-  files) against 114's 2297/115 — one test added, nothing broken. The two
-  affected files 45/45, matching the sandbox's claim exactly. `tsc` clean,
-  `git diff --check` clean on both the working tree and the commit.
-- **Independent re-derivation of the fix's headline claim**, not trusting the
-  same session's own test. Loaded `fixtures/fishing-casts/cards.json` (80
-  cards) and called `chooseNewCard` on the recorded session-92 offer:
-  `35 → 5×3=15`, `30 → 6×5=30`, `31 → 6×5=30`, **picks 30**. Matches
-  DECISIONS 2026-09-01. The session-92 bad choice is corrected.
-- ⭐ **The fix also flips card 35 against ITSELF** — weighted, its own hit (15)
-  beats its own crit (8), which the raw formula had backwards. Not previously
-  recorded anywhere; the flaw was one notch wider than the write-up said.
-- **Ring balances show NO out-of-band drift since 114 closed.** Live: Archon 30,
-  Athena 33, Chobo 39, Crusader 39, Summoner 42, Foxglove 45, Overseer 48 —
-  **total 276**, matching 114's closing 288→276 faction-for-faction. (114 itself
-  saw +6 of drift over its gap; this gap saw none. Drift is real but not
-  constant — keep reading, don't start assuming either way.)
-- **The day reading, corroborated from a SECOND document.** `checkEntryTiers`
-  said day 20696; `dayProgressEntities` independently carried a Dungeon#3 row
-  stamped `TIMESTAMP_CID: 20696`, written well after 114 closed.
+- **The rotation prediction, made in advance and confirmed.** Day 20697 was
+  predicted to charge Chobo (134) before the run; `134 Chobo 42→39` and all six
+  others unchanged. Three consecutive days now give faction index 5→6→7 against
+  the index `/offchain/static` publishes itself (recipes `500006`,
+  `FACTION_CID_array`) — not one read off id order.
+- **The ring model at 12/12.** Four runs, four single-faction −3 charges, six
+  factions untouched every time.
+- **`scripts/liveRun.ts` end to end, four times.** Dry-run guards, juiced Tier-2
+  entry, 3x Big Heal Juice, rule-8 tier picks, 0/81 first-attempt failures.
+- **`scripts/liveFishing.ts` end to end, 28 casts.** Oils Relaxing-only on lethal
+  triggers; Focus triggers correctly logged as policy-withdrawn, NOT dry-bag.
+- ⭐ **Fail-closed behaviour DEMONSTRATED, not asserted.** After the budget was
+  raised to 30 casts the GAME's 20-charge cap bound: `HTTP 400 "Player has
+  reached max runs for fishing"`, **0 energy spent on the refused attempt**,
+  guard tripped, loop stopped, `SERVER cap flag: SET`.
+- **Two pinned rules broke correctly and both were real findings** (evade/crit,
+  and a card hitting for 9) — see Corrections.
 
 ## What's broken
-- ⚠ **The rotation ORDER is a 2-point fit on ADJACENT days.** Not a map.
-- ⚠ **`Intimidating` cannot separate "heals its amount" from "heals a flat 2"**
-  — all 12 observations are at amount 2. Its TRIGGER is also unseparated.
-- ⚠ **`BurnMastery` floor-vs-round** still needs an ODD plain amount. No runs
-  were spent this session, so no new pairs — named for the third session.
-- ⚠ **`LIVE.drift` has moved monotonically more negative across seven pins.**
-  Band widened to the order of magnitude. **If the sign flips or it reaches -1,
-  re-derive — do not widen again.**
-- ⚠ **`redrawCounterfactual`'s K=6 arm is no longer frozen**; only
-  `sacrifices: 0` is durable. K=10 still carries the thesis.
-- ⚠ **A cosmetic label nit in `liveFishing.ts`**, deliberately NOT fixed: the
-  rod-durability line pairs a play-driven delta with a charge-driven count.
-- **The JWT expires and blocks the whole session.** Valid to 2026-09-04T18:48Z
-  — **three days out. The next session is likely the last one before it dies.**
+- ⚠ **The rotation WRAP (7→1) is UNTESTED.** Three CONSECUTIVE points fit
+  "index +1 daily", but nothing has crossed faction 7. Day 20698 tests it.
+- ⚠ **The Tier-2 arm's own within-day spread is 3.2x.** Four runs, one day, one
+  loadout: rooms 13/6/5/5 and Hard Core 6552/2712/2160/2040. **This is why the
+  Tier-1/Tier-3 baseline is NOT the cheap experiment it has been called for
+  eleven sessions** — one cross-tier run cannot separate `dropMultiplier` from
+  this. Budget several runs per arm or drop it.
+- ⚠ **`Intimidating` cannot separate "heals its amount" from "heals a flat 2"** —
+  all 12 observations are at amount 2.
+- ⚠ **`LIVE.drift` moved again, −0.6017 → −0.6473.** Still negative, still short
+  of −1, so a pin update. **If the sign flips or it reaches −1, re-derive.**
+- ⚠ **`redrawCounterfactual`'s K=6 arm is not frozen**; K=10 carries the thesis,
+  and `sacrifices` held at 7 across all 28 casts while everything else moved.
+- ⚠ **A cosmetic label nit in `liveFishing.ts` is now ACTIVELY misleading.** The
+  rod line printed `38 (before: 49, casts this batch: 6)` — durability fell 11
+  (play-driven) against a count of 6 (charge-driven). Deliberately unfixed for
+  three sessions; JEBAITOR at 15.75 makes the gap worse every batch.
+- **The JWT expires 2026-09-04T18:48Z — ~62h from this recap. The next session
+  is likely the last one before it dies.**
 
 ## Corrections to SPEC.md
-- **`SPEC.md` was not touched, and neither was CLAUDE.md.** No live captures
-  were made, so nothing could contradict the spec. Second session running that
-  rule 11 needed no revision.
-- **A stale evidence count in the instrument itself, FIXED.**
-  `scripts/checkEntryTiers.ts:235` printed *"the rotation ORDER — which is
-  UNCONFIRMED (one day observed)"*. True when written; false the moment session
-  114 measured day 20696. The measurement landed, the printed warning didn't —
-  so the script was **understating its own evidence to the next session that
-  reads it**. Replaced with the real state: two days on record, adjacent, a
-  non-adjacent third point worth more than another consecutive one. No test
-  pinned the string; `tests/entryTierRunway.test.ts` 13/13 still green.
+- **`SPEC.md` was not touched.** No live response contradicted it this session;
+  every correction below is to this repo's own tests and scripts.
+- ⭐ **`scripts/procEffectSize.ts`: `critProc`'s exclusion list was INCOMPLETE.**
+  It excluded `blockProc${foe}` but not `evadeProc${foe}`. `state-128`: enemy ATK
+  16, crit predicts 32, **observed 0**, because evade co-fired. Measured, not
+  assumed: evade zeroes damage **56/56** corpus-wide (19/19 status-clean). Fixed
+  by making `excludeFlag` a list. Invisible until now because all 3 evade+crit
+  co-fires in the corpus arrived in one run.
+- ⭐ **`tests/fishing/stateFields.test.ts`: "no card HITS for 9" is FALSIFIED.**
+  Card **14** (hit 9, `critEffects` empty) was added by `chooseNewCard` itself.
+  Session 80's reachability conclusion is untouched — the hit path reaching 9
+  STRENGTHENS it.
+- ⭐ **`scripts/statusEffects.ts` printed a caption stale by three sessions** —
+  `"x2 vs +3 UNSEPARATED (only after=3 ever seen)"`, printed directly beside the
+  pairs `4/2`, `8/4`, `10/5` that disprove it. Same class as session 115's
+  `checkEntryTiers.ts` fix.
+- **`damageEconomy`'s clamp bar was RE-DERIVED, not widened**, on its first
+  breach since session 91 (0.0517 vs 0.05). An ABSOLUTE gap bar tightens on its
+  own as `|drift|` grows, so it was composition-bound — DECISIONS 2026-08-28's
+  lesson in a second place. Now `gap/|drift| < 0.1`, measured 0.0799.
 - Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
-- Move charges: PRESENT — unchanged, not re-measured (no live runs).
+- Move charges: PRESENT — unchanged.
 
 ## Dead ends
-- **Do not treat the day→faction formula as solved.** Two adjacent points.
-- **Do not re-hunt the advance faction-indicator field.** Search complete,
-  CLAUDE.md rule 11.
+- **Do not treat the rotation as fully solved.** The wrap is untested.
+- **Do not re-hunt the advance faction-indicator field.** CLAUDE.md rule 11.
 - **Do not look for the ring debit on the wire.** Read balances before/after.
-- **Do not trust a "dropped this session" note without checking the digest
-  below it.** Session 114's did not match its own list.
-- **Do not run the suite sandboxed** — `tsx` and `git` both fail under it.
-  `$TMPDIR` also differs by sandbox mode, so a scratch script written to
-  `$TMPDIR` cannot resolve repo-relative imports; write it inside the repo.
+- **Do not ask for an odd plain amount for `BurnMastery`.** They exist, and the
+  question is unanswerable regardless.
+- **Do not widen `damageEconomy`'s clamp bar again.** A breach re-examines the
+  claim. Pre-registered in the test.
+- **Do not call the Tier-1/Tier-3 baseline cheap.** See What's broken.
+- **Do not run the suite sandboxed** — `tsx` and `git` both fail.
 - Carried: §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE QUOTED.**
 
 ## Metrics
-- **Live: ZERO.** No dungeon runs, no fishing casts, no rings, no energy spent.
-  Day 20696, 12/12 run-units already gone from session 114.
-- Suite **2297 → 2298 (+1, from the offline commit)**, files 115. Affected
-  files 45/45. `entryTierRunway` 13/13, `discoveredShipsClean` 8/8.
-- Secret scan: **10,524 files (tracked), 0 unexplained, 14 allowlisted**;
-  6 files (diff scope vs `5d526ef7`), 0 unexplained.
-- Silver rings 276, unchanged. Corpus unchanged: 101 dungeon attempts, 339
-  fishing casts.
+- **Dungeon, live: 4 juiced Tier-2 runs, 12/12 run-units, 240 energy.** Deaths
+  rooms 13/6/5/5. Hard Core **13,464**, Dendren Remnant **1,677**. Rings: 12
+  Chobo (42→30). 0/81 first-attempt action failures on run 1.
+- **Fishing, live: 28 casts PLAYED, 20 CHARGED, 8 spared by JEBAITOR. 17/28 =
+  60.7% caught.** 336 energy. 17 live card choices by the fixed `chooseNewCard`.
+- **JEBAITOR `value` = 15.75** (was 6.75 on 08-24, 2.25 on 08-21), read off the
+  server's own `start_run` response. Events matched uncharged casts **8-for-8**
+  this day; **10-for-10** including §34's original two.
+- Suite **2323 passed / 2323**, files 115 (was 2298/115).
+- Corpus: **105 dungeon attempts** (was 101), **367 fishing casts** (was 339).
+- Silver rings **270** (was 282). Chobo now ties Archon as scarcest at 30.
+- **136 corpus pins re-derived** across 9 test files (59 + 77), every count pin
+  verified to move UPWARD.
 
 ## Open questions for Claude
-1. **The rotation map needs a THIRD point, ideally NON-adjacent.** Day 20697
-   predicts **Chobo (134)** — free on any authorized run. Because this session
-   spent nothing, the next session starts with a **full 12/12 cap**, so it can
-   take the third point AND have three runs left over.
-2. ⚠ **The JWT expires 2026-09-04T18:48Z.** Three days. A brief that assumes
-   live access beyond that will fail at the first call; consider making "refresh
-   the JWT" the explicit first step of the next brief.
-3. **`Intimidating` (§68): model it as a per-exchange heal, or hold?** Evidence
-   12/12, but a single observation at a different amount separates the two
-   readings. Default: hold. Unchanged — no new data.
-4. **`BurningTenacity` (§69) and `CritHeal` (§66) both await directives.**
-5. **Is the Tier-1/Tier-3 arm a baseline for anything downstream?** ELEVENTH
-   session. Still cheap and well-defined: a five-run same-arm Tier-2 anchor
-   exists, so one Tier-1 or Tier-3 run on THIS loadout gives the first clean
-   cross-tier read.
-6. **`BurnMastery` floor-vs-round** still needs an ODD plain amount.
-7. **Was `chooseNewCard` worth fixing blind?** It is fixed and verified, but the
-   validation floor is still **2 live card choices project-wide**. The fix is
-   defensible on argument, not on data — the same footing §13's swap is parked
-   for. Worth deciding whether that asymmetry is intended.
+1. ⚠ **THE JWT EXPIRES 2026-09-04T18:48Z, ~62h out.** Make refreshing it the
+   explicit first step of the next brief. It is a USER action; a session cannot
+   refresh its own, and every live call fails the moment it dies.
+2. **Day 20698 tests the rotation WRAP and predicts Crusader (135).** This is the
+   single highest-value observation available and it is free on any authorized
+   run. If the next session runs at all, it should take this.
+3. **Is the Tier-1/Tier-3 baseline worth keeping on the list at all?** Twelfth
+   session. This session finally produced the number that judges it: a 3.2x
+   within-arm spread on ONE day. Either budget several runs per arm, or retire
+   it — but it should stop being carried as "cheap and well-defined".
+4. **`Intimidating` (§68), `BurningTenacity` (§69), `CritHeal` (§66)** all still
+   await directives; `CritHeal(6)` was OFFERED again this session and declined.
+   Default: hold.
+5. **The `liveFishing.ts` rod-durability label** pairs a play-driven delta with a
+   charge-driven count. Now that JEBAITOR is at 15.75 the two diverge on most
+   batches. Worth one line to fix — but it is cosmetic and has been declined
+   before, so it needs a decision rather than another mention.
+6. **Was `chooseNewCard` worth fixing blind?** STATE 115 put the validation floor
+   at 2 live choices; this session added **17**, and one of the cards it picked
+   (id 14) falsified a standing corpus claim. The asymmetry with §13's parked
+   swap is now much starker and is worth deciding deliberately.
 
 ## Files changed
 ```
- handoff/STATE.md                | rewritten
- handoff/DECISIONS.md            |   2 +
- handoff/scratch-session-115.md  | 100 +   (new)
- handoff/log/session-115.md      | new
- scripts/checkEntryTiers.ts      |   6 +-  (stale n=1 warning -> n=2, adjacent)
+ config/bot.json                            |  budget 300->360, 25->30 casts
+ handoff/DECISIONS.md                       |  11 entries appended
+ handoff/STATE.md                           |  rewritten
+ handoff/log/session-116.md                 |  new
+ scripts/procEffectSize.ts                  |  critProc exclusion list -> list
+ scripts/statusEffects.ts                   |  stale caption + vacuity note
+ scripts/liveFishing.ts                     |  in-sample rate 2.8 -> 2.6
+ src/sim/boons.ts                           |  +25 OBSERVED_OFFERS rows (4 blocks)
+ tests/ (10 files)                          |  136 corpus pins + 3 real findings
+ fixtures/dungeon-runs/ (5 dirs)            |  4 runs + 1 dry-run
+ fixtures/fishing-casts/live/ (28 dirs)     |  28 casts
 ```
-(Plus the pre-existing offline commit `c3cc71aa`, verified but not re-touched:
-`src/strategy/fishing/cardChoice.ts`, its 2 test files, TASKS.md, DECISIONS.md.)
