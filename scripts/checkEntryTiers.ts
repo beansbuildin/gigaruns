@@ -233,10 +233,17 @@ async function main() {
     console.log(
       `      Spread across factions is ${r.scarcest.balance}-${r.richest.balance}, so the TRUE runway lands\n` +
         `      inside that band depending on the rotation ORDER — which is UNCONFIRMED.\n` +
-        `      [session 115] Two days are now on record, but they are ADJACENT: day 20695 charged\n` +
-        `      Foxglove (139), day 20696 charged Summoner (140). Adjacent points constrain almost\n` +
-        `      nothing — many orders still fit. A NON-adjacent third point is worth more than another\n` +
-        `      consecutive one.`,
+        `      [session 117] FOUR days are on record and the ARITHMETIC map is FALSIFIED:\n` +
+        `        day 20695 dow3 -> f5 Foxglove | 20696 dow4 -> f6 Summoner\n` +
+        `        day 20697 dow5 -> f7 Chobo    | 20698 dow6 -> f3 ATHENA  <- predicted f1, got f3\n` +
+        `      Three consecutive days advanced +1, so session 116 fitted "faction = dayOfWeek + 2".\n` +
+        `      Day 20698 was that fit\u2019s own nominated wrap test and it FAILED: 7 is followed by 3,\n` +
+        `      not by 1. Crusader (135) never moved. What SURVIVED and is now 13/13 is the charge\n` +
+        `      SHAPE — exactly ONE faction, exactly ${RINGS_PER_JUICED_RUN}. What died is the ORDER.\n` +
+        `      Still fitting: (a) a fixed 7-permutation with fragment 5->6->7->3, leaving {1,2,4}\n` +
+        `      for dow 0/1/2 in one of 6 orders; (b) per-day pseudo-random, under which the three\n` +
+        `      +1 steps were a ~2% coincidence; (c) a period that is not 7. The runway figure above\n` +
+        `      assumes (a). Do NOT re-fit an arithmetic rule to the four points without a 5th.`,
     );
     console.log(
       `      ⚠ Do NOT quote the ${r.runsUntilScarcestDries} as exact. It assumes each faction is charged\n` +

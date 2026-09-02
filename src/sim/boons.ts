@@ -3783,6 +3783,83 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-09-02-02-21-23/state-071",
     options: [opt("AddTenacity", 3), opt("AddEvasion", 1), opt("CorrosiveSword", 2)],
   },
+  // ── [session 118] +11 rows, from the day-20698 Tier-2 run of 2026-09-02 ────
+  //
+  // **Additivity verified BEFORE the append**: **11 offers in the corpus and
+  // absent here, ZERO here that the corpus does not contain.** Computed as a
+  // MULTISET diff, not a set diff, so a repeated offer cannot mask a removal.
+  //
+  // Own block, not pooled. One run (id 25289721), died room 12 of 16, so this
+  // is an unbroken room-1..11 ladder — one offer per room cleared, the first
+  // single run in the corpus to contribute a contiguous eleven.
+  //
+  // **The room-max pin is UNCHANGED at 13** — these stop at room 11.
+  //
+  // ⚠ The room-4 offer carries **`BurningTenacity(8)`** — QUESTIONS §69, held
+  // LATENT pending a user directive. It was OFFERED and **NOT** picked
+  // (`AddBlock(2)` was taken), so nothing about its status changes here;
+  // recorded so the sighting is not lost, exactly as session 116 recorded the
+  // `CritHeal(6)` sighting it declined.
+  //
+  // Rule 8 and the boon priority both behaved as written across the ladder:
+  // AddMaxHealth(24) at room 2 and AddMaxArmor(8) at room 8 are priority-family
+  // takes, room 11 is the Sword family, and the rest fell through to the WIDE
+  // orb rule.
+  {
+    room: 1,
+    source: "run-2026-09-02-18-44-30/state-007",
+    options: [opt("TieWeak", 1), opt("AddTenacity", 3), opt("AddLuck", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-02-18-44-30/state-023",
+    options: [opt("AddLuck", 2), opt("AddMaxHealth", 24), opt("UpgradeRock", 0, 8)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-02-18-44-30/state-033",
+    options: [opt("UpgradePaper", 4), opt("AddBlock", 2), opt("VulnerableEvade", 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-02-18-44-30/state-043",
+    options: [opt("BurningTenacity", 8), opt("AddTenacity", 7), opt("AddBlock", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-02-18-44-30/state-059",
+    options: [opt("AddLuck", 1), opt("AddBurnSword", 5), opt("ArmorDepletedVulnerable", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-02-18-44-30/state-079",
+    options: [opt("AddTenacity", 5), opt("BurningBlock", 8), opt("AddIntuition", 1)],
+  },
+  {
+    room: 7,
+    source: "run-2026-09-02-18-44-30/state-095",
+    options: [opt("AddLuck", 1), opt("AddWeakMagic", 2), opt("UpgradeRock", 0, 6)],
+  },
+  {
+    room: 8,
+    source: "run-2026-09-02-18-44-30/state-105",
+    options: [opt("AddLifestealSword", 2), opt("TieVulnerable", 1), opt("AddMaxArmor", 8)],
+  },
+  {
+    room: 9,
+    source: "run-2026-09-02-18-44-30/state-117",
+    options: [opt("UpgradeScissor", 8), opt("UpgradeRock", 0, 8), opt("UpgradeRock", 4)],
+  },
+  {
+    room: 10,
+    source: "run-2026-09-02-18-44-30/state-137",
+    options: [opt("AddLifestealShield", 2), opt("AddTenacity", 3), opt("AddBlock", 2)],
+  },
+  {
+    room: 11,
+    source: "run-2026-09-02-18-44-30/state-155",
+    options: [opt("AddVulnerableSword", 2), opt("AddBlock", 3), opt("AddLifestealMagic", 2)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

@@ -180,7 +180,17 @@ describe("the profile seam — what is NOT converted, counted so it cannot grow 
     // [session 101 §B] 26 -> 27: `scripts/procEffectSize.ts`, for exactly the
     // same reason and on the same terms — it reads the committed corpus and
     // takes `runsRoot` as a parameter with that default.
-    expect([...unconverted].sort().length).toBe(27);
+    // [session 118 §B] 27 -> 28: `scripts/lossDecompositionReport.ts`, landed
+    // by the out-of-band session-117 commit 0755d156, whose own message flagged
+    // that it had "not yet run against the real repo's suite". Raised rather
+    // than converted on the sessions 100/101 terms, which it meets exactly: its
+    // `join("data", "run-reports", ...)` is byte-for-byte the construction its
+    // sibling `scripts/fishingReport.ts:18` already uses from inside this same
+    // inventory, and `writeReports()` takes both paths as parameters defaulting
+    // to those constants, so a caller wanting another tree passes one.
+    // Converting it alone would split the three report scripts across two
+    // conventions for no portability gain.
+    expect([...unconverted].sort().length).toBe(28);
   });
 
   it("the three entry points are NOT in the unconverted set", () => {

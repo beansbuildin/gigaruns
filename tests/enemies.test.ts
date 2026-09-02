@@ -436,6 +436,29 @@ describe("player loadout matches the fixtures", () => {
       "74/14",
       "74/17",
       "74/19",
+      // [session 118] TWO new combos from the day-20698 Tier-2 run of
+      // 2026-09-02 (run 25289721), and the drift is again PURELY ADDITIVE:
+      // two added, ZERO removed, checked against the corpus.
+      //
+      // **Neither is a new starting loadout.** The run opened on `50/17` with
+      // `pickedBoons: []`, byte-identical to the session 106 and 116 starts,
+      // read off this run's OWN `start_run` response (state-000) rather than
+      // inferred from an earlier one — the session-103 "loadout holds steady"
+      // ruling confirmed rather than assumed, for the third session running.
+      //
+      // Both are fully accounted for by boons this run actually picked, and
+      // the trace separates the two mechanics cleanly:
+      //
+      //   state-024  hpMax  50 -> 74   AddMaxHealth(24) taken in room 2 (+24)
+      //   state-106  armMax 17 -> 25   AddMaxArmor(8)  taken in room 8 (+8)
+      //   state-114  armMax 25 -> 22   CORRODE shred on an enemy win (-3)
+      //   state-120  armMax back to 25 (room boundary)
+      //
+      // So `74/25` is ordinary AddMaxArmor growth and `74/22` is the
+      // session-61/62 corrode mechanic surfacing in this table again, with the
+      // same shed-then-restore shape session 108 recorded for `50/14`.
+      "74/22",
+      "74/25",
       "88/19",
     ]);
   });
