@@ -19,19 +19,17 @@
  * this directly and the replay adds nothing here.
  *
  *   npx tsx scripts/lossDecomposition.ts
+ *
+ * [session 117, OFFLINE] `terminalReason`/`Reason` moved to
+ * `src/sim/fishing/lossDecompositionReport.ts` (imported back below rather
+ * than kept as a second copy) so `scripts/lossDecompositionReport.ts` — the
+ * persisted counterpart this file's own headline table was missing — can
+ * share the exact same classification instead of re-deriving it. The
+ * classification itself, and everything below it, is UNCHANGED.
  */
 
 import { loadCastTraces, isCleanTrace, type CastTrace } from "../src/sim/fishing/castTrace.js";
-
-type Reason = "caught" | "escaped (fish at full HP)" | "mana out" | "truncated / unresolved";
-
-function terminalReason(t: CastTrace): Reason {
-  const last = t.turns[t.turns.length - 1]!;
-  if (t.caught) return "caught";
-  if (last.fishHp >= last.fishMaxHp) return "escaped (fish at full HP)";
-  if (last.mana <= 0) return "mana out";
-  return "truncated / unresolved";
-}
+import { terminalReason, type TerminalReason as Reason } from "../src/sim/fishing/lossDecompositionReport.js";
 
 function mean(xs: number[]): number {
   return xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length;
