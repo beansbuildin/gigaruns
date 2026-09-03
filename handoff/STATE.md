@@ -13,10 +13,10 @@ and the server contradicted it.
 - **Step 0 JWT: PASS.** Valid to **2026-09-04T18:48:43Z**, 41.5h at recap.
 - **Step 1 day: PASS.** Day **20698**, `dayOfWeek 6`, fresh 0/12, no ring drift.
 - **Step 2 wrap test: FAIL.** Predicted Crusader (135); **Athena (137)** charged.
-- **Steps 3/4: 3 more runs and 21 fishing casts, each user-authorized.**
+- **Steps 3/4: 3 more runs and 23 fishing casts, each user-authorized.**
 
-**Dungeon 12/12 run-units — day closed. Fishing 18/20 charged, but THE ROD IS AT
-0 DURABILITY**, which blocks further fishing regardless of the 2 remaining casts.
+**EVERYTHING SPENDABLE TODAY IS SPENT.** Dungeon **12/12** run-units, fishing
+**20/20** charged casts. Nothing further until 11:00 Pacific.
 
 Suite **2364 passed / 2364, 116 files**. `tsc --noEmit` clean, `git diff --check`
 clean, `.gitignore` verified on all seven paths, `discoveredShipsClean` 8/8.
@@ -52,10 +52,12 @@ closed at 0 non-empty of 10,616 and quiet for many sessions.
   2026-09-02. Re-opens as: *"the rotation is solved, just confirm the wrap"* or
   *"faction = dayOfWeek + 2"* — it is **not** solved, and three consecutive +1
   steps did not survive contact with the fourth day.
-- ⭐ **[NEW] The rod hit 0 DURABILITY.** Fishing is blocked on gear, not on the
-  cast cap. Re-opens as: *"fish the remaining 2 casts"* — they are not
-  reachable without the user repairing/replacing the rod, which is not an
-  autonomous action.
+- ⭐ **[NEW] Rod durability RECOVERS on its own timescale — 0 is NOT a standing
+  blocker.** Rod 812 read 0 at 01:10Z (guard halted correctly, `status: halt`)
+  and the SAME `GearInstance#812_..._766077e9` read **50** at 02:12Z, ~62
+  minutes later, with two further casts played straight off it. Whether that is
+  timed regeneration or a user repair is **UNKNOWN** — the logs cannot separate
+  them. Re-opens as: *"fishing is blocked until the rod is repaired"*.
 - ⭐ **[NEW] `data.nextPosition` / `data.nextMovePath` are NOT a server change.**
   Known-but-rare since commit `e5f43cfa` (session 26); the 2026-08-31 log
   already shows 6 events in 7 casts. Only session 26's "~2/30 casts" rate
@@ -116,12 +118,17 @@ closed at 0 non-empty of 10,616 and quiet for many sessions.
   for dow 0/1/2 in one of 6 orders; (b) per-day pseudo-random, under which the
   three +1 steps were a ~2% coincidence; (c) a period that is not 7. **The
   runway figure printed by `checkEntryTiers.ts` assumes (a).**
-- ⚠ **THE ROD IS AT 0 DURABILITY.** First time this repo has driven it to zero.
-  Blocks all further fishing; 2 charged casts remain but are unreachable.
+- ⚠ **Rod durability is a REAL mid-batch halt but its recovery is UNMODELLED.**
+  Rod 812 hit 0 and the guard stopped the loop correctly. It was back at 50
+  ~62 minutes later on the same instance. Nothing in this repo predicts when a
+  rod will run dry or when it comes back, so a long batch can still halt
+  part-way with no warning.
 - ⚠ **The `liveFishing.ts` rod label is now at its worst**, printing
   `0 (before: 13, casts this batch: 18)` — a play-driven delta of 13 beside a
   charge-driven, session-cumulative count of 18. Carried unfixed for four
-  sessions; hitting zero is exactly when it misleads most.
+  sessions; hitting zero is exactly when it misleads most. The final batch then
+  printed `48 (before: 50, casts this batch: 20)`, where **neither** number
+  describes that batch's 2 casts.
 - ⚠ **`LIVE.drift` moved again, −0.6417 → −0.6593**, third consecutive move.
   Still negative, still short of −1, so a pin update per STATE's own rule.
 - ⚠ **`Intimidating` still cannot separate "heals its amount" from "heals a flat
@@ -169,21 +176,23 @@ closed at 0 non-empty of 10,616 and quiet for many sessions.
   rooms **12/7/5/10**. Hard Core **15,576**, Dendren Remnant **2,142**. Rings:
   12 Athena (33→21). **0/255 first-attempt action failures.**
 - **Within-arm spread, one day/loadout/tier: 2.9x** (5784/3168/1992/4632).
-- **Fishing, live: 21 casts PLAYED, 18 CHARGED, 3 spared by JEBAITOR. 14/21 =
-  66.7% caught.** 252 energy. Rod durability 13→0.
+- **Fishing, live: 23 casts PLAYED, 20 CHARGED (the full daily cap), 3 spared
+  by JEBAITOR. 15/23 = 65.2% caught.** 276 energy. Rod 21→13→0→(50)→48.
 - Suite **2364 passed / 2364**, files 116 (was 2323/115 — the +1 file and +22
   tests are the out-of-band commit `0755d156`, not this session).
-- Corpus: **109 dungeon attempts** (was 105), **388 fishing casts** (was 367).
+- Corpus: **109 dungeon attempts** (was 105), **390 fishing casts** (was 367).
 - Silver rings **258** (was 270). Athena now scarcest at 21.
-- **~150 corpus pins re-derived** across 11 test files, in two waves. Every
+- **~160 corpus pins re-derived** across 11 test files, in three waves. Every
   integer count verified to move UPWARD; every set diff verified PURELY
   ADDITIVE by MULTISET diff, so a repeated row cannot mask a removal.
 
 ## Open questions for Claude
 1. ⚠ **THE JWT EXPIRES 2026-09-04T18:48Z, 41.5h out.** It is a USER action. The
    next session is very likely the last one that can do live work.
-2. ⚠ **THE ROD IS AT 0.** Fishing cannot resume until the user repairs or
-   replaces it. Ask directly rather than planning casts that cannot happen.
+2. **Does rod durability regenerate on a timer, or did the user repair it?**
+   Rod 812 went 0 → 50 in ~62 minutes on the same instance. This is worth one
+   question to the user, because the answer decides whether a long fishing
+   batch can plan around a mid-batch dry-out or must simply expect to halt.
 3. **Day 20699 is the next rotation point and it is now worth MORE, not less.**
    It discriminates the three survivors: under (a) the fixed permutation it must
    be one of Crusader/Overseer/Archon (f1/f2/f4); anything else kills (a)
@@ -210,6 +219,6 @@ closed at 0 non-empty of 10,616 and quiet for many sessions.
  handoff/STATE.md                           |  rewritten
  handoff/log/session-118.md                 |  new
  fixtures/dungeon-runs/ (5 dirs)            |  4 runs + 1 dry-run
- fixtures/fishing-casts/live/ (21 dirs)     |  21 casts
+ fixtures/fishing-casts/live/ (23 dirs)     |  23 casts
  667 files changed, 444446 insertions(+), 174 deletions(-)
 ```

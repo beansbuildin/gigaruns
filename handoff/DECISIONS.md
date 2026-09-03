@@ -2921,10 +2921,24 @@ the clamp bar was NOT widened** — third consecutive move; still NEGATIVE and
 still short of −1, the two conditions STATE names for a re-derivation, so a pin
 update is the written response. The bare/LIVE ratio still clears its bar of 5.
 
-2026-09-02 — **The fishing rod reached 0 durability** — 13→0 across the day's
-second batch. Fishing is now blocked on GEAR, not on the 20/day charge cap (2
-charged casts remain unreachable). Repairing or replacing gear is a user action,
-not an autonomous one.
+2026-09-02 — **The fishing rod ran dry mid-session and RECOVERED ~62 minutes
+later on the same instance; 0 durability is NOT a standing blocker** — rod 812
+(`GearInstance#812_..._766077e9`) fell 21→13→0, and `liveFishing.ts`'s preflight
+correctly halted (`status: halt`, `stop: true`). The SAME instance then read 50
+at 02:12Z and two further casts ran normally. **Whether that is timed
+regeneration or a user repair is UNKNOWN** and the logs cannot separate them —
+do not assert either without asking.
+
+2026-09-02 — **CORRECTION, recorded because the wrong version was committed
+first: reporting the dry rod as a standing blocker requiring a user repair was
+an error of the exact kind CLAUDE.md rule 12 names** — a guard reports the state
+NOW, never that the state is permanent. Rule 12 is written about energy; this is
+the same failure against a different resource, so read it as the general rule.
+Re-running the loop cost nothing and settled it in seconds.
+
+2026-09-02 — **The day closed at 20/20 charged fishing casts** — 23 played, 20
+charged (3 spared by JEBAITOR), 15 caught = 65.2%, inside the user's 60–70%
+framing. Fishing is blocked by the CAP, not by gear, until 11:00 PT.
 
 2026-09-02 — **A `vitest | tail` pipeline reported exit 0 over 3 real test
 failures** — the exit status belonged to `tail` and the truncation hid 2 of the

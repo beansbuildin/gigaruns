@@ -187,11 +187,11 @@ describe("loadFishingCorpus / summarizeFishingCorpus — against the real commit
     // +8 casts, +45 responseDocs (= the log's 45 post_response events),
     // +31 playTurns (= its 31 decision events), +5 caught (= its 5 cast_over
     // rows with outcome "caught"). All four reconcile exactly.
-expect(summary.casts).toBe(388) /* [session 118] was 367 */ /* [s116b] was 364 */;  /* [session 116] was 339 */  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
-    expect(summary.responseDocs).toBe(2224) /* [session 118] was 2113 */ /* [s116b] was 2101 */;  /* [session 116] was 1942 */  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
-    expect(summary.playTurns).toBe(1518) /* [session 118] was 1445 */ /* [s116b] was 1437 */;  /* [session 116] was 1321 */  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
-    expect(summary.caught).toBe(191) /* [session 118] was 177 */ /* [s116b] was 176 */;  /* [session 116] was 160 */  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
-    expect(summary.escaped).toBe(196) /* [session 118] was 189 — +3, the batch's 3 escapes; 182+192+1 = 375 so the partition still closes */ /* [s116b] was 187 */;  /* [session 116] was 178 */  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
+expect(summary.casts).toBe(390) /* [session 118] was 367 */ /* [s116b] was 364 */;  /* [session 116] was 339 */  /* [session 113] was 295 */ // [session 98] was 199; was 189  /* [session 99] was 208 */ /* [session 101] was 210 */ /* [session 102] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */
+    expect(summary.responseDocs).toBe(2233) /* [session 118] was 2113 */ /* [s116b] was 2101 */;  /* [session 116] was 1942 */  /* [session 113] was 1691 */ // [session 98] was 1149; was 1091  /* [session 99] was 1212 */ /* [session 101] was 1224 */ /* [session 102] was 1341 */  /* [session 107] was 1441 */  /* [session 110] was 1552 */  /* [session 110b] was 1653 */
+    expect(summary.playTurns).toBe(1523) /* [session 118] was 1445 */ /* [s116b] was 1437 */;  /* [session 116] was 1321 */  /* [session 113] was 1148 */ // [session 98] was 821; [session 96] was 778  /* [session 99] was 861 */ /* [session 101] was 870 */ /* [session 102] was 940 */  /* [session 107] was 990 */  /* [session 110] was 1059 */  /* [session 110b] was 1126 */
+    expect(summary.caught).toBe(192) /* [session 118] was 177 */ /* [s116b] was 176 */;  /* [session 116] was 160 */  /* [session 113] was 134 */ // [session 98] was 73; [session 96] was 70  /* [session 99] was 79 */ /* [session 101] was 80 */ /* [session 102] was 94 */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */
+    expect(summary.escaped).toBe(197) /* [session 118] was 189 — +3, the batch's 3 escapes; 182+192+1 = 375 so the partition still closes */ /* [s116b] was 187 */;  /* [session 116] was 178 */  /* [session 113] was 160 */ // [session 98] was 125; [session 96] was 118  /* [session 99] was 128 */ /* [session 101] was 129 */ /* [session 102] was 135 */  /* [session 107] was 142 */  /* [session 110] was 152 */  /* [session 110b] was 158 */
     expect(summary.incomplete).toBe(1); // UNCHANGED
     // The three outcomes partition, asserted as an identity so a future
     // regeneration cannot quietly lose a cast into an unclassified state.
@@ -561,6 +561,8 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       // [session 118b] +2 from the second day-20698 batch: two more Relaxing
       // Oil (937) casts on lethal triggers. Per-cast cap of 2 still unbound.
       "13222880", "13222883",
+      // [session 118c] +1 from the final 2-cast batch.
+      "13223400",
 ]);  /* [session 114] was 74 docIds -> 80; +6 oil casts from the four 2026-08-31 batches */
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

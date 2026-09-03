@@ -116,25 +116,63 @@ Batch 1 (8 casts, authorized after I proposed 20 and the user cut it to 8):
 **8 played, 7 charged**, JEBAITOR spared 1, **5 caught = 62.5%**.
 Batch 2 (13 casts): **13 played, 11 charged**, 2 spared, **9 caught = 69.2%**.
 
-**Day total: 21 played, 18 charged, 14 caught = 66.7%** — inside the user's
-60–70% framing. 252 energy. Ledger 18/20.
+Batch 3 (2 casts, after the rod recovered): **2 played, 2 charged, 1 caught**.
 
-Oils behaved exactly to policy: Relaxing (937) on lethal triggers only, 3 oil
+**Day total: 23 played, 20 charged, 15 caught = 65.2%** — inside the user's
+60–70% framing. 276 energy. Ledger 20/20, the full daily cap.
+
+Oils behaved exactly to policy: Relaxing (937) on lethal triggers only, 4 oil
 casts total; **17 Focus triggers logged `oil_trigger_policy_withdrawn`**, which
 is the session-93 fix working — a withdrawn trigger is NOT a dry bag and does
 not flag the cast out of both outcome arms. Per-cast cap of 2 still has never
 bound. `config/bot.json` was not touched and remains in its standing state.
 
-**⚠ THE ROD REACHED 0 DURABILITY** (13 → 0 across batch 2). This is a hard
-blocker on further fishing independent of the 2 charged casts still available
-game-side. Nothing here repairs or replaces gear and doing so is not an
-autonomous action — it is the user's call.
+**⚠ THE ROD RAN DRY MID-SESSION — and then came back. Both halves matter.**
 
-**⚠ And the rod label is now at its most misleading**, printing
-`0 (before: 13, casts this batch: 18)`: a play-driven delta of 13 beside a
-charge-driven, session-cumulative count of 18. STATE has carried this as
-"actively misleading" for four sessions; the moment it reads zero is the moment
-it matters most.
+Rod 812 (`GearInstance#812_1787690500_766077e9`, slot 14) fell 21 → 13 → 0 across
+batches 1 and 2. The guard behaved exactly as designed and **halted**:
+
+```
+{"event":"rod_durability_preflight","phase":"after","status":"halt","stop":true,
+ "detail":"rod 812 reads DURABILITY_CID 0 — it has RUN DRY. This is the Shroom
+ (811) state: the server deals BASE_DECK, not the rod grant, so every
+ damage-keyed sim number would describe a rod that is not in play
+ (QUESTIONS.md §29).","durability":0,"rodItemId":812,"slot":14}
+```
+
+**I then reported that as a standing blocker requiring a user repair, and that
+was WRONG.** ~62 minutes later the user asked for two more casts; the preflight
+read the **SAME instance** at **50**, and both casts ran normally:
+
+```
+01:10:05Z  after   dur=  0   GearInstance#812_1787690500_766077e9   status halt
+02:12:55Z  before  dur= 50   GearInstance#812_1787690500_766077e9   status ok
+02:13:22Z  after   dur= 48   GearInstance#812_1787690500_766077e9   status ok
+```
+
+**Whether that is timed regeneration or a user repair is UNKNOWN** — the logs
+cannot separate them, and the instance id is identical either way, so a repair
+did not mint a new rod. Do not assert one without asking.
+
+**This is CLAUDE.md rule 12's lesson recurring in a new place.** Rule 12 is
+written about energy: exercise the real gate before reporting a blocker. The
+gate here (`liveFishing.ts`'s own preflight) was correct at the instant it
+fired, but I extrapolated one reading into a standing state requiring human
+action. Running the loop cost nothing and answered it in seconds. **The general
+form: a guard tells you the state NOW; it never tells you the state is
+permanent.**
+
+Final batch: **2 casts, 1 caught, 1 escaped.** The day closed at **20/20**
+charged — fishing is now genuinely blocked, by the CAP, until 11:00 PT.
+
+**Day fishing total: 23 played, 20 charged, 15 caught = 65.2%**, inside the
+user's 60–70% framing. 276 energy, 3 casts spared by JEBAITOR.
+
+**And the rod label reached its worst reading of all.** Batch 2 printed
+`0 (before: 13, casts this batch: 18)`; batch 3 printed
+`48 (before: 50, casts this batch: 20)` — in the final line **neither** number
+describes that batch's 2 casts, because the delta is play-driven and per-batch
+while the count is charge-driven and session-cumulative.
 
 ## §5 — the surprise that was NOT a finding (rule 10 in action)
 
@@ -171,9 +209,9 @@ Also note the suite baseline moved **without this session touching it**: 115
 files/2323 tests → 116/2345 at HEAD, entirely from `0755d156`. That is exactly
 CLAUDE.md's session-18 stale-count trap, caught by re-running at HEAD.
 
-## §7 — corpus pins: ~150 across 11 files, in two waves
+## §7 — corpus pins: ~160 across 11 files, in THREE waves
 
-Adding 4 dungeon runs and 21 fishing casts moved pins in
+Adding 4 dungeon runs and 23 fishing casts moved pins in
 `boons`, `enemies`, `castEra`, `redrawCounterfactual`, `redrawShadowAnalysis`,
 `oilReachability`, `matcherHeadroom`, `zoneTemplate`, `stateFields`,
 `damageEconomy`, `fishingCorpus`, `noHardcodedPaths`.
@@ -218,7 +256,7 @@ Substantive rather than mechanical:
   Still NEGATIVE and short of −1 — the two conditions STATE names — so a pin
   update, not a re-derivation. The bare/LIVE ratio still clears its bar of 5.
   **The clamp bar was NOT widened.**
-- **`liveFishing`** `REDRAW_SHADOW_IN_SAMPLE_RATE_PCT` "2.6" → "2.5" on 388 casts.
+- **`liveFishing`** `REDRAW_SHADOW_IN_SAMPLE_RATE_PCT` "2.6" → "2.5" on 390 casts.
 
 ## §8 — a tooling trap worth recording
 

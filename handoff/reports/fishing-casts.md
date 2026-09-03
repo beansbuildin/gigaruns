@@ -1,17 +1,17 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-03T01:10:07.561Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-03T02:13:24.984Z.
 
-388 recorded casts — 191 caught (49.2%).
-Total Hard Core earned: 34960 (183.0 per catch, 90.1 per cast).
+390 recorded casts — 192 caught (49.2%).
+Total Hard Core earned: 35040 (182.5 per catch, 89.8 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 191 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 26 of those 191 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 192 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 26 of those 192 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
 - Barnaboo: 45
+- Finley: 34
 - Plankton: 34
-- Finley: 33
 - Ollie: 17
 - Kelpkin: 15
 - Jelloid: 15
@@ -419,3 +419,5 @@ Total Hard Core earned: 34960 (183.0 per catch, 90.1 per cast).
 | 13222899 | yes | Plankton (rarity 0) | 80 |
 | 13222903 | yes | Barnaboo (rarity 0) | 80 |
 | 13222907 | yes | Kelpkin (rarity 1) | 160 |
+| 13223400 | yes | Finley (rarity 0) | 80 |
+| 13223406 | no | — | 0 |
