@@ -2867,3 +2867,67 @@ essentially all POSTs, which a max could pass.
 2026-09-02 (session 117, OFFLINE, addendum) — **The "left undone, deliberately" item two entries up is now DONE, direct user authorization.** Asked whether to wire `lossDecomposition.ts`'s terminal-reason breakdown into `regenerateReports.ts`, given it touches the loop that runs after every live cast — user answered **"Yes, wire it in now."** Landed as a third report, same shape as `fishingReport.ts`/`dungeonReport.ts`: `src/sim/fishing/lossDecompositionReport.ts` (pure functions — `terminalReason`/`summarizeCastTrace`/`summarizeLossDecompositionRollup`/`buildLossDecompositionMarkdown`, no filesystem) and `scripts/lossDecompositionReport.ts` (the thin CLI wrapper — `buildRecords`/`writeReports`/`main()` — that reads/writes `data/run-reports/fishing-loss-decomposition.jsonl` and `handoff/reports/fishing-loss-decomposition.md`). `scripts/lossDecomposition.ts` (session 48) now IMPORTS `terminalReason`/`TerminalReason` from the new src file instead of keeping a second copy — classification and everything else in that file is unchanged. `scripts/regenerateReports.ts` calls the new report's `buildRecords`/`writeReports` as a third step inside the same non-fatal try/catch as the other two, so a failure there still can't turn a clean run non-zero-exit.
 
 **Verified in the isolated sandbox before delivery, same discipline as the rest of this session**: `npx tsc --noEmit` clean across the whole sandbox project; the 11 new tests in `tests/sim/lossDecompositionReport.test.ts` (`terminalReason`'s 4-way classification including the fish-full-before-mana-out check order, `summarizeCastTrace`, `summarizeLossDecompositionRollup` including the empty-set/no-NaN case, `buildLossDecompositionMarkdown` including the zero-records case) all pass; `npx tsx scripts/lossDecompositionReport.ts` run against the same real 167-file/28-cast session-116 corpus writes both output files and reproduces the exact numbers recorded three entries up (16 caught, 9 escaped fish-full, 2 mana out, 1 truncated, 14/28 ever `focusMeter` 0); the refactored `scripts/lossDecomposition.ts` re-run against the same corpus reproduces the same numbers, confirming the import-based refactor didn't change its behavior. **Not run**: the real repo's full suite, `tsc` project-wide, or the secret scan — `device_bash` still cannot mount this repo, so nothing here has been checked against the actual 2323-test suite or the other ~115 test files it lives alongside. Flagged for the next live brief to run for real before trusting it beyond this write-up.
+
+## 2026-09-02 — session 118
+
+2026-09-02 — **The day→faction rotation map `faction = dayOfWeek + 2` is
+FALSIFIED at the wrap** — day 20698 (`dayOfWeek 6`) was predicted, in advance
+and in writing, to charge Crusader (135); the server charged **Athena (137)**,
+33→30, sole mover, Crusader untouched. The known map is now dow 3→f5, 4→f6,
+5→f7, **6→f3**: three consecutive `+1` steps and then a wrap to 3, not 1. This
+re-opens exactly as STATE 116's own entry said it would if the wrap test failed,
+so it is a sanctioned re-opening and not a silent reversal.
+
+2026-09-02 — **The rotation ORDER is UNSOLVED; three readings survive and no
+number may assume one** — (a) a fixed 7-permutation with fragment 5→6→7→3,
+leaving {1,2,4} for dow 0/1/2 in one of 6 orders; (b) per-day pseudo-random,
+under which three consecutive `+1` steps were a ~2% (1/49) coincidence; (c) a
+period that is not 7. `scripts/checkEntryTiers.ts` prints its runway under (a)
+and now says so explicitly. **Do not re-fit an arithmetic rule without a 5th day.**
+
+2026-09-02 — **The ring CHARGE SHAPE is confirmed at 16/16 and is INDEPENDENT of
+the order** — four runs on day 20698 each charged exactly ONE faction exactly 3
+(Athena 33→21 = 12 across four runs), six factions untouched every time. The
+order died; the shape did not. Keeping the two claims separate is what let one
+be falsified without discarding the other.
+
+2026-09-02 — **The charged faction does not change mid-day, fourth same-day
+confirmation** — four charges on day 20698, all Athena, in a second independent
+session after session 116's four.
+
+2026-09-02 — **The Tier-1/Tier-3 baseline is NOT a cheap experiment — SECOND
+independent day of evidence** — within-arm spread on one day, one loadout, one
+entry tier, one boon policy was **2.9x** (Hard Core 5784/3168/1992/4632, deaths
+rooms 12/7/5/10), against session 116's 3.2x. A single cross-tier run cannot
+separate `dropMultiplier` from this. Budget several runs per arm or retire it.
+
+2026-09-02 — **`data.nextPosition` / `data.nextMovePath` are NOT a server
+change** — flagged UNKNOWN 20 times this session, but commit `e5f43cfa`
+(session 26) already recorded them as known-but-rare, and the 2026-08-31 log
+shows 6 events in 7 casts. Only session 26's "~2/30 casts" rate characterisation
+is stale, and it went stale several sessions ago. CLAUDE.md rule 10 applied
+before reporting a change; no false finding was made.
+
+2026-09-02 — **`tests/noHardcodedPaths.test.ts` ratchet raised 27 → 28 for
+`scripts/lossDecompositionReport.ts`** — raised rather than converted on the
+sessions 100/101 terms it meets exactly: byte-for-byte the same
+`join("data", ...)` construction as its already-inventoried sibling
+`scripts/fishingReport.ts:18`, and `writeReports()` takes both paths as
+parameters defaulting to those constants. This discharges the debt that
+out-of-band commit `0755d156` flagged in its own message.
+
+2026-09-02 — **`damageEconomy`'s `LIVE.drift` pin updated −0.6417 → −0.6593, and
+the clamp bar was NOT widened** — third consecutive move; still NEGATIVE and
+still short of −1, the two conditions STATE names for a re-derivation, so a pin
+update is the written response. The bare/LIVE ratio still clears its bar of 5.
+
+2026-09-02 — **The fishing rod reached 0 durability** — 13→0 across the day's
+second batch. Fishing is now blocked on GEAR, not on the 20/day charge cap (2
+charged casts remain unreachable). Repairing or replacing gear is a user action,
+not an autonomous one.
+
+2026-09-02 — **A `vitest | tail` pipeline reported exit 0 over 3 real test
+failures** — the exit status belonged to `tail` and the truncation hid 2 of the
+3. Capture the suite to a file and read vitest's own `$?`. Related: `$TMPDIR`
+differs between sandboxed and unsandboxed Bash, so use an absolute scratchpad
+path when a file crosses that boundary.
