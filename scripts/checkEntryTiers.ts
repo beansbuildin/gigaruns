@@ -233,17 +233,29 @@ async function main() {
     console.log(
       `      Spread across factions is ${r.scarcest.balance}-${r.richest.balance}, so the TRUE runway lands\n` +
         `      inside that band depending on the rotation ORDER — which is UNCONFIRMED.\n` +
-        `      [session 117] FOUR days are on record and the ARITHMETIC map is FALSIFIED:\n` +
+        `      [session 121] FIVE days are on record. The ARITHMETIC map stays FALSIFIED;\n` +
+        `      the PERMUTATION hypothesis (a) was tested on a pre-registered prediction and SURVIVED:\n` +
         `        day 20695 dow3 -> f5 Foxglove | 20696 dow4 -> f6 Summoner\n` +
         `        day 20697 dow5 -> f7 Chobo    | 20698 dow6 -> f3 ATHENA  <- predicted f1, got f3\n` +
+        `        day 20699 dow7 -> f4 ARCHON   <- pre-registered {f1,f2,f4}; got f4. (a) HOLDS.\n` +
         `      Three consecutive days advanced +1, so session 116 fitted "faction = dayOfWeek + 2".\n` +
         `      Day 20698 was that fit\u2019s own nominated wrap test and it FAILED: 7 is followed by 3,\n` +
-        `      not by 1. Crusader (135) never moved. What SURVIVED and is now 13/13 is the charge\n` +
+        `      not by 1. Crusader (135) never moved. What SURVIVED and is now 17/17 is the charge\n` +
         `      SHAPE — exactly ONE faction, exactly ${RINGS_PER_JUICED_RUN}. What died is the ORDER.\n` +
-        `      Still fitting: (a) a fixed 7-permutation with fragment 5->6->7->3, leaving {1,2,4}\n` +
-        `      for dow 0/1/2 in one of 6 orders; (b) per-day pseudo-random, under which the three\n` +
-        `      +1 steps were a ~2% coincidence; (c) a period that is not 7. The runway figure above\n` +
-        `      assumes (a). Do NOT re-fit an arithmetic rule to the four points without a 5th.`,
+        `      ⚠ THE PASS IS WEAK EVIDENCE AND WAS SAID TO BE, IN ADVANCE. Under (b) a random draw\n` +
+        `        lands in the predicted 3-of-7 set 43% of the time, so day 20699 is a Bayes factor of\n` +
+        `        only ~2.3 for (a) over (b). A FAIL would have been decisive; a pass is not a solve.\n` +
+        `      Still fitting: (a) a fixed 7-permutation, now with fragment 5->6->7->3->4 and only\n` +
+        `      {1,2} left, for dow 1 and dow 2, in one of just 2 orders (was 6); (b) per-day\n` +
+        `      pseudo-random; (c) a period that is not 7. The runway figure above assumes (a).\n` +
+        `      ⚠ dayOfWeek is 1-INDEXED — MEASURED, not assumed. Sessions 117/118 printed the\n` +
+        `        remaining slots as "dow 0/1/2" on the assumption that dow 6 is followed by dow 0.\n` +
+        `        The server returned dow 7 for day 20699. dow = day mod 7 with 0 mapped to 7, so the\n` +
+        `        two OPEN days are dow 1 (day 20700) and dow 2 (day 20701), never a dow 0.\n` +
+        `      ▸ NEXT TEST, and under (a) it is the LAST one needed: day 20700 (dow 1) must charge\n` +
+        `        Crusader (135) or Overseer (136). Either answer SOLVES the order under (a), because\n` +
+        `        dow 2 then takes whichever is left. Anything else kills (a) outright.\n` +
+        `      Do NOT re-fit an arithmetic rule to the five points.`,
     );
     console.log(
       `      ⚠ Do NOT quote the ${r.runsUntilScarcestDries} as exact. It assumes each faction is charged\n` +

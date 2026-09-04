@@ -65,3 +65,46 @@ weak evidence for (a); a FAIL is strong evidence against it. Say so in the recap
 rather than reporting a pass as a solve. **Do not re-fit an arithmetic rule to
 five points** — STATE's Dead ends section, and it already produced one confident
 wrong answer.
+
+---
+
+## RESULT — measured 2026-09-04T04:32Z, AFTER the run
+
+**Run 25324264, death @ room 9, Hard Core 4368, Dendren Root 546, 60 energy.
+0/61 first-attempt action failures. Server ledger `dayProgressEntities` 3 of 12.**
+
+### The balance diff — read twice, stable both times
+```
+134 Chobo    30 -> 30    135 Crusader 39 -> 39    136 Overseer 51 -> 51
+137 Athena   21 -> 21    138 Archon   30 -> 27  <-- the ONLY mover, -3
+139 Foxglove 45 -> 45    140 Summoner 42 -> 42
+```
+
+### Verdict against the pre-registration
+- **Hypothesis (a) SURVIVES.** Archon is **f4**, and f4 was one of the three
+  factions named in advance. Predicted set was {f1 Crusader, f2 Overseer,
+  f4 Archon}; the server charged f4 at exactly the predicted 30 -> 27.
+- **The charge SHAPE holds, now 17/17.** Exactly one faction, exactly 3, six
+  untouched. Falsifier 2 did not fire.
+- **The pass is WEAK, exactly as pre-registered.** Under (b) a random draw lands
+  in a 3-of-7 set 43% of the time — a Bayes factor of only ~2.3 for (a) over (b).
+  This is not a solve and was said in advance not to be one.
+
+### What it DID buy: the order is down from 6 candidate permutations to 2
+Fragment is now **5 -> 6 -> 7 -> 3 -> 4**. Only {f1 Crusader, f2 Overseer}
+remain, for the only two unobserved slots.
+
+### A SECOND finding, unplanned — dayOfWeek is 1-INDEXED, and the repo assumed 0
+The brief and `checkEntryTiers.ts`'s caption both said day 20699 would be
+`dayOfWeek 0`. **The server returned 7.** `dow = day mod 7`, with 0 mapped to 7
+(20699 = 7 x 2957 exactly). So the two open slots are **dow 1 (day 20700)** and
+**dow 2 (day 20701)** — there is no dow 0 and never was. Caption corrected.
+
+### THE NEXT TEST IS THE LAST ONE NEEDED — and the JWT barely reaches it
+Day **20700, dow 1**, must charge **Crusader or Overseer** under (a). Either
+answer SOLVES the order, because dow 2 then takes whichever is left. Anything
+else kills (a) outright.
+
+⚠ **The window is ~55 minutes wide.** Day 20700 opens at 11:00 PT (18:00Z) and
+the JWT expires 2026-09-04T18:48:43Z. A session starting at the rollover can
+take the point; a session starting an hour later cannot.

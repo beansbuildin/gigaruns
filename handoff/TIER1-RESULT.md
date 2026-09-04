@@ -8,6 +8,27 @@ corrected *here*.
 **Executed session 106, 2026-08-28. Four juiced Tier-1 runs, 12/12 run-units,
 240 energy, 0 rings.**
 
+> ## ⛔ THE FOLLOW-ON BASELINE EXPERIMENT IS RETIRED — [USER] directive, session 121, 2026-09-03
+>
+> **This document's own question is CLOSED and stays closed: H1 confirmed, 4:1
+> exact.** What is retired is the *separate*, later experiment that grew out of
+> it — the **Tier-1/Tier-3 whole-run income baseline**, which proposed comparing
+> total per-run yield across entry tiers on matched loadouts.
+>
+> It was open for thirteen sessions and never budgeted. Two independent days
+> measured the **within-arm** spread on one day, one loadout, one entry tier, one
+> boon policy: **3.2x** (session 116) and **2.9x** (session 118). A single
+> cross-tier run cannot separate a tier effect from that, and the repeated
+> proposal to get "the first clean read" from one run was the thing STATE kept
+> having to knock down.
+>
+> Asked directly and decided: **retire it by name.** The decision-relevant
+> quantity was never the whole-run total — it was `dropMultiplier`, and that is
+> measured exactly, below, on a pre-registered rule. Do not re-open this as
+> *"one cross-tier run gives the first clean read"* or *"the Tier-1/Tier-3
+> baseline is still unmeasured"*. It is not unmeasured; it is **abandoned as
+> underpowered**, which is a different thing and the reason this note names it.
+
 ---
 
 ## Verdict: **H1 CONFIRMED.**

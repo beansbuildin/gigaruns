@@ -936,8 +936,30 @@ export interface RodDurabilityRecord {
   phase: "before" | "after";
   /** Ties the two readings of one batch together. */
   batchId: string;
-  /** Casts this process had actually played at the moment of the reading. */
+  /**
+   * ⚠ **NOT what this field's name and its pre-session-121 doc comment say.**
+   *
+   * It holds `guards.runCount` — the guard's DAY-CUMULATIVE CHARGED cast total,
+   * loaded from the persisted budget file at process start, not this process's
+   * play. The old comment read "Casts this process had actually played at the
+   * moment of the reading", which is true only for the first batch of a day.
+   *
+   * Kept with its original meaning rather than redefined, so the 47 rows written
+   * before session 121 stay comparable with everything after. **A decrement-rate
+   * fit must use `batchCastsPlayed`, not this** — and rows from before session
+   * 121 lack that field, so they can only be fitted when they are known to be a
+   * day's first batch.
+   */
   castsSoFar: number;
+  /**
+   * [session 121] Casts this PROCESS actually played between the `before` and
+   * `after` readings — the correct denominator for a durability-per-cast fit.
+   *
+   * PLAYED, not charged: a cast spared by JEBAITOR still turned the rod.
+   * Always 0 on a `before` row. Optional because the 47 rows that predate this
+   * field do not carry it.
+   */
+  batchCastsPlayed?: number;
   /**
    * True when the reading came from a `--dry-run`. Such a row is a REAL
    * reading (the GET is real) but its batch never spent a cast, so a rate fit
@@ -3654,6 +3676,7 @@ async function main() {
       phase: "before",
       batchId,
       castsSoFar: 0,
+      batchCastsPlayed: 0,
       dryRun: args.dryRun,
       rodItemId: rodReading.rodItemId,
       docId: rodReading.docId,
@@ -3742,6 +3765,19 @@ async function main() {
   }
 
   let lastFixturesDir = "";
+  // [session 121] Casts this PROCESS actually played, counted unconditionally.
+  //
+  // Every other batch tally below is gated on `--oil-batch`, and the rod
+  // durability label needed a count that is live on an ordinary batch too.
+  // It exists because the label was printing `guards.runCount` — the guard's
+  // DAY-CUMULATIVE CHARGED total, loaded from the persisted budget file — beside
+  // a durability delta driven by THIS batch's play. Session 118's final batch
+  // printed `48 (before: 50, casts this batch: 20)` after playing 2 casts:
+  // neither the 20 nor the implied rate described that batch.
+  //
+  // PLAYED, not charged: a cast spared by JEBAITOR still turns the rod, and it
+  // is the rod this number is being divided into.
+  let batchCastsPlayed = 0;
   // [session 64 §2b] Batch tallies. Only read when --oil-batch is set.
   let batchOilsConsumed = 0;
   let batchCleanCasts = 0;
@@ -3848,6 +3884,10 @@ async function main() {
       console.log(`\n▸ stopped by SIGINT mid-cast — the cast is left resumable, not force-completed.`);
       break;
     }
+    // [session 121] Placed after the dry-run and shutdown breaks on purpose:
+    // neither of those turned the rod, so neither may appear in the denominator
+    // of the durability-per-cast rate this counter feeds.
+    batchCastsPlayed++;
 
     // ── [session 64 §2b] THE BATCH'S HALT CHECK ──────────────────────────────
     //
@@ -3977,9 +4017,25 @@ async function main() {
     try {
       const gearAfter = await client.getGearInstances(me.address);
       const afterReading = readRodDurability(gearAfter.entities);
+      // [session 121] Every number on this line now describes THE SAME BATCH,
+      // and the one that does not is labelled as the day figure it is.
+      //
+      // The old line read `48 (before: 50, casts this batch: 20)` after a
+      // 2-cast batch: a play-driven delta beside the guard's day-cumulative
+      // CHARGED count. Flagged in three consecutive STATE files as misleading
+      // exactly when durability is low, which is when it is read. Fixed on a
+      // user directive, session 121.
+      const durBefore = rodReading.durability;
+      const durAfter = afterReading.durability;
+      const delta = durBefore !== null && durAfter !== null ? durAfter - durBefore : null;
+      const perCast =
+        delta !== null && batchCastsPlayed > 0 ? ` = ${(-delta / batchCastsPlayed).toFixed(2)}/cast` : "";
       console.log(
-        `▸ rod durability after: ${afterReading.durability ?? "unreadable"} ` +
-          `(before: ${rodReading.durability ?? "unreadable"}, casts this batch: ${guards.runCount})`,
+        `▸ rod durability after: ${durAfter ?? "unreadable"} ` +
+          `(before: ${durBefore ?? "unreadable"}, ` +
+          `delta ${delta === null ? "unreadable" : delta > 0 ? `+${delta}` : delta} ` +
+          `over ${batchCastsPlayed} cast(s) played this batch${perCast}; ` +
+          `day charged total ${guards.runCount})`,
       );
       log.write({ event: "rod_durability_preflight", phase: "after", ...afterReading });
       appendRodDurability(
@@ -3988,6 +4044,7 @@ async function main() {
           phase: "after",
           batchId,
           castsSoFar: guards.runCount,
+          batchCastsPlayed,
           dryRun: false,
           rodItemId: afterReading.rodItemId,
           docId: afterReading.docId,

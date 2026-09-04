@@ -163,6 +163,90 @@ describe("the paired durability ledger", () => {
     }
   });
 
+  // ── [session 121] THE DENOMINATOR BUG, pinned against the REAL corpus ─────
+  //
+  // The pair above proves the arithmetic is *reachable*. It does not prove the
+  // arithmetic is *right*, and for three sessions it was not: `before` rows are
+  // written with a hard-coded `castsSoFar: 0` while `after` rows carry
+  // `guards.runCount`, the guard's DAY-CUMULATIVE CHARGED total loaded from the
+  // persisted budget file. The difference is therefore the DAY's charged count,
+  // not the batch's play, and the two coincide only on a day's FIRST batch.
+  //
+  // This is CLAUDE.md rule 11's own lesson landing on a different field: the
+  // round-trip test above passed the entire time, on invented numbers chosen so
+  // that 20 casts and a 20-point drop gave a tidy 1. A green test proves the code
+  // computes what the test says, never that the test says the right thing.
+  describe("the denominator — why a fit must use `batchCastsPlayed`", () => {
+    it("reproduces the real 2026-09-03 pair whose implied rate is 10x too low", () => {
+      const dir = mkdtempSync(join(tmpdir(), "gigaruns-roddur-"));
+      const path = join(dir, "rodDurability.jsonl");
+      try {
+        // Verbatim shape of `data/rodDurability.jsonl`'s last real pair, session
+        // 118's closing 2-cast batch. Durability 50 -> 48 over TWO casts played,
+        // while `castsSoFar` went 0 -> 20 because 20 was the day's charged total.
+        const base = {
+          at: "2026-09-03T02:12:55.000Z",
+          batchId: "2026-09-03T02:12:55.000Z",
+          dryRun: false,
+          rodItemId: GOLKAN_ROD,
+          docId: "GearInstance#812_1787690500_766077e9",
+          status: "ok",
+        };
+        appendRodDurability({ ...base, phase: "before", castsSoFar: 0, batchCastsPlayed: 0, durability: 50 }, path);
+        appendRodDurability({ ...base, phase: "after", castsSoFar: 20, batchCastsPlayed: 2, durability: 48 }, path);
+
+        const rows = loadRodDurability(path);
+        const before = rows.find((r) => r.phase === "before")!;
+        const after = rows.find((r) => r.phase === "after")!;
+        const drop = before.durability! - after.durability!;
+
+        // The OLD denominator. Pinned as WRONG on purpose — if someone
+        // "simplifies" the fit back onto `castsSoFar`, this is the number they
+        // would silently start reporting.
+        expect(drop / (after.castsSoFar - before.castsSoFar)).toBeCloseTo(0.1, 6);
+        // The right one, off the same rows.
+        expect(drop / after.batchCastsPlayed!).toBe(1);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("`before` rows carry a zero `batchCastsPlayed` — nothing was played yet", () => {
+      const dir = mkdtempSync(join(tmpdir(), "gigaruns-roddur-"));
+      const path = join(dir, "rodDurability.jsonl");
+      try {
+        appendRodDurability(
+          { at: "x", phase: "before", batchId: "b", castsSoFar: 0, batchCastsPlayed: 0, dryRun: false, rodItemId: GOLKAN_ROD, docId: "d", durability: 40, status: "ok" },
+          path,
+        );
+        expect(loadRodDurability(path)[0]!.batchCastsPlayed).toBe(0);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("stays optional, so the 47 rows written before session 121 still load", () => {
+      const dir = mkdtempSync(join(tmpdir(), "gigaruns-roddur-"));
+      const path = join(dir, "rodDurability.jsonl");
+      try {
+        // A pre-session-121 row, verbatim: no `batchCastsPlayed` key at all.
+        appendFileSync(
+          path,
+          `${JSON.stringify({ at: "2026-08-26T18:00:00.000Z", phase: "after", batchId: "b", castsSoFar: 20, dryRun: false, rodItemId: GOLKAN_ROD, docId: "d", durability: 20, status: "ok" })}\n`,
+          "utf8",
+        );
+        const rows = loadRodDurability(path);
+        expect(rows).toHaveLength(1);
+        // `undefined`, not 0 — an absent measurement must not read as "played
+        // nothing", which would make an old row look like a division by zero
+        // rather than like a row that cannot be fitted.
+        expect(rows[0]!.batchCastsPlayed).toBeUndefined();
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
   it("survives a corrupt line rather than losing the log", () => {
     const dir = mkdtempSync(join(tmpdir(), "gigaruns-roddur-"));
     const path = join(dir, "rodDurability.jsonl");
