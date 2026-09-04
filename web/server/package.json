@@ -1,0 +1,24 @@
+{
+  "name": "giga-web-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-only backend for the Giga bot's web UI. Binds to 127.0.0.1 only — never hosted, never holds anyone else's token. See ../README.md.",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}
