@@ -1,24 +1,24 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-04T04:32:43.805Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-04T06:29:33.219Z.
 
-390 recorded casts — 192 caught (49.2%).
-Total Hard Core earned: 35040 (182.5 per catch, 89.8 per cast).
+410 recorded casts — 203 caught (49.5%).
+Total Hard Core earned: 37360 (184.0 per catch, 91.1 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 192 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 26 of those 192 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 203 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 29 of those 203 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Barnaboo: 45
-- Finley: 34
-- Plankton: 34
-- Ollie: 17
-- Kelpkin: 15
+- Barnaboo: 46
+- Finley: 37
+- Plankton: 35
+- Ollie: 19
+- Kelpkin: 18
 - Jelloid: 15
 - Zombo: 6
 - Deadfin: 6
 - Skinzy: 6
-- Gulp: 4
+- Gulp: 5
 - Glimmer: 2
 - Podge: 2
 - Globbo: 2
@@ -421,3 +421,23 @@ Total Hard Core earned: 35040 (182.5 per catch, 89.8 per cast).
 | 13222907 | yes | Kelpkin (rarity 1) | 160 |
 | 13223400 | yes | Finley (rarity 0) | 80 |
 | 13223406 | no | — | 0 |
+| 13242345 | no | — | 0 |
+| 13242348 | no | — | 0 |
+| 13242350 | no | — | 0 |
+| 13242353 | yes | Finley (rarity 0) | 160 |
+| 13242356 | yes | Plankton (rarity 0) | 80 |
+| 13242358 | yes | Finley (rarity 0) | 80 |
+| 13242362 | no | — | 0 |
+| 13242363 | yes | Gulp (rarity 3) | 400 |
+| 13242366 | no | — | 0 |
+| 13242368 | no | — | 0 |
+| 13243307 | yes | Ollie (rarity 1) | 640 |
+| 13243319 | yes | Finley (rarity 0) | 80 |
+| 13243331 | yes | Barnaboo (rarity 0) | 80 |
+| 13243341 | yes | Ollie (rarity 1) | 160 |
+| 13243346 | no | — | 0 |
+| 13243354 | yes | Kelpkin (rarity 1) | 160 |
+| 13243359 | no | — | 0 |
+| 13243369 | yes | Kelpkin (rarity 1) | 160 |
+| 13243375 | no | — | 0 |
+| 13243384 | yes | Kelpkin (rarity 1) | 320 |

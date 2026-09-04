@@ -321,13 +321,13 @@ describe("SecondWind", () => {
   it("heals exactly its stored amount when spent, and spends to 0", () => {
     const r = secondWindRule(withoutCoPresentHeal);
     expect(r.spentHealsFullAmount.ok).toBe(r.spentHealsFullAmount.n);
-    expect(r.spentHealsFullAmount.n).toBe(19);  /* [session 114] was 9 (30-dir slice, Regen-only exclusion) */
+    expect(r.spentHealsFullAmount.n).toBe(25);  /* [session 121] was 19 — +6 from the four day-20699 Tier-2 runs. The `ok === n` assertion above HELD across all six, so this is the rule reproducing on new observations, not a pin loosened to fit. */  /* [session 114] was 9 (30-dir slice, Regen-only exclusion) */
   });
 
   it("does nothing at all while it is held", () => {
     const r = secondWindRule(withoutCoPresentHeal);
     expect(r.heldDoesNothing.ok).toBe(r.heldDoesNothing.n);
-    expect(r.heldDoesNothing.n).toBe(44);  /* [session 114] was 16 */
+    expect(r.heldDoesNothing.n).toBe(52);  /* [session 121] was 44 — +8 from the four day-20699 Tier-2 runs, `ok === n` again HELD across all eight. */  /* [session 114] was 16 */
   });
 
   it("⚠ the exceptions are EXACTLY two co-present heal sources — pinned so the exclusion cannot widen", () => {

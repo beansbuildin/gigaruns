@@ -235,9 +235,18 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // window [1.500, 1.643) is looser than the standing one — but it is a
     // genuine fresh chance to falsify the rule, and the rule survived it.
     "13131265 t2: card 74 hit=true crit=false predicted Δ-7, actual Δ-9 (9->0/21)",
+    // [session 121] SEVENTH exception, from the day-20699 20-cast day.
+    // Predicted Δ-6, actual Δ-9 — a ratio of EXACTLY 1.5, the same standing
+    // multiplier every other non-lethal row here carries, so it is the rule
+    // recurring rather than a new one. Base 6 is a NEW BASE, and like base 7
+    // above it is a genuine fresh chance to falsify and does not narrow the
+    // bound: 6 x 1.5 = 9 exactly, an integer, so it cannot distinguish 1.5 from
+    // a neighbouring multiplier the way a base with a fractional product could.
+    // Not lethal (26 -> 17 of 27), so no clamping caveat applies.
+    "13242353 t6: card 87 hit=true crit=false predicted Δ-6, actual Δ-9 (26->17/27)",
   ];
 
-  it("fishHp moves by exactly the played card's FISH_HP effect — six documented exceptions", () => {
+  it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
     const r = auditFishHp(traces);
     expect(r.scored).toBeGreaterThanOrEqual(308);
     expect(r.violations).toEqual(KNOWN_CRIT_ANOMALIES);
@@ -295,7 +304,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     expect(Math.floor((base * 5) / 3)).not.toBe(turn.play!.fishHpDiff);
   });
 
-  it("all NINE exceptions fit ONE multiplier, and that interval is STILL [1.5, 1.5833)", () => {
+  it("all TEN exceptions fit ONE multiplier, and that interval is STILL [1.5, 1.5833)", () => {
     // The claim the SPEC-fishing §4 rule text now rests on: these are not eight
     // one-offs, they are one rule seen eight times. Solved as an interval rather
     // than asserted as a constant — round-half-up(base x m) == actual is
@@ -326,6 +335,13 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // falsification. Same trap, same fix, as the lethal exclusion in
       // DECISIONS 2026-08-27's `Regen` entry.
       { base: 7, actual: 11 },
+      // [session 121] The SECOND base-6 row (13242353). It changes NOTHING
+      // about the interval and that is worth stating rather than glossing: the
+      // upper bound 19/12 was already "set by the base-6 row" per the assertion
+      // below, and a duplicate of the row that sets a bound cannot tighten it.
+      // The value is as a fresh falsification chance the rule survived, not as
+      // narrowing.
+      { base: 6, actual: 9 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 
@@ -499,7 +515,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(91) /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */
+    expect(corrected.crits).toBe(95) /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

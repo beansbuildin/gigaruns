@@ -238,7 +238,21 @@ describe("the live damage economy, re-derived from the corpus", () => {
     // The modal play, which is what the catalog says it should be: a 5-damage
     // hit or a 3-point heal. `fixtures/fishing-casts/cards.json` gives the
     // Shroom deck six cards at exactly 5/−3.
-    expect(modeOf(LIVE.damageHist).value).toBe(5);
+    // ⚠ [session 121] **5 -> 6, and the flip is NOT a deck change.** Checked
+    // before re-pinning, because this assertion reads as "the catalog says the
+    // modal play is a 5-damage hit" and a moved mode would look like the
+    // catalog being wrong. `splitByDealtDeck` puts ZERO traces in `unknown`, so
+    // every new cast is still the same known rod deck — the rod the user
+    // replaced in session 119 deals the same cards.
+    //
+    // What actually happened is that **5 and 6 were never far apart and this
+    // pin was effectively a coin-flip.** Before today: 5 appeared 155 times and
+    // 6 appeared 149, a 4% gap over 345 traces. Today's 20 casts dealt 16 sixes
+    // and 3 fives, giving 6:165 / 5:158 — so the mode flipped on a margin of 7.
+    // Expect it to flip back; it carries much less information than its
+    // prominence here suggests, and a future session should not read a flip as
+    // a finding.
+    expect(modeOf(LIVE.damageHist).value).toBe(6);  /* [session 121] was 5 */
     expect(modeOf(LIVE.healHist).value).toBe(3);
   });
 
@@ -434,7 +448,19 @@ describe("the simulator's economy, same predicate", () => {
     // names for a re-derivation — so this is a pin update, the third in a row.
     // The bare/LIVE ratio above is re-measured rather than assumed and still
     // clears its bar of 5.
-    expect(LIVE.drift).toBeCloseTo(-0.6850220264317181, /* [session 118] was -0.6417445482866043 */ /* [s116b] was -0.6473354231974922 */ 6);  /* [session 116] was -0.6017241379310345 */ /* [session 113] was -0.5187436676798379 */ /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */  /* [session 110b] was -0.5005181347150259 */
+    // ⚠⚠ [session 121] **FOURTH CONSECUTIVE MOVE: -0.6850 -> -0.6882.** Named
+    // explicitly rather than pinned silently, on the session-121 brief's own
+    // instruction that a fourth move is worth naming. It is STILL negative and
+    // STILL short of -1 — the two conditions STATE names for a re-derivation —
+    // so the written response remains a pin update, and this note is not a
+    // request to re-derive. What it IS: the drift has now moved in the same
+    // direction on four consecutive sessions (-0.6017 -> -0.6473 -> -0.6593 ->
+    // -0.6850 -> -0.6882), and a monotone four-step walk is no longer obviously
+    // noise. The day-20699 twenty casts alone read -0.7436 against the prior
+    // corpus's -0.6850, so the new data is pulling steadily downward rather
+    // than scattering. If it crosses -1, STATE's own rule fires and this stops
+    // being a pin.
+    expect(LIVE.drift).toBeCloseTo(-0.6881944444444444, /* [session 121] was -0.6850220264317181 */ /* [session 118] was -0.6417445482866043 */ /* [s116b] was -0.6473354231974922 */ 6);  /* [session 116] was -0.6017241379310345 */ /* [session 113] was -0.5187436676798379 */ /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */  /* [session 110b] was -0.5005181347150259 */
   });
 
   it("reproduces live's per-card AMOUNTS in every arm — they are read from a real capture", () => {

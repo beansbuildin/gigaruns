@@ -361,6 +361,7 @@ describe("player loadout matches the fixtures", () => {
       "50/19", // [session 103] run 4 mid-run, 1x AddMaxArmor off 50/17
       "50/25", // [session 106] run 2 mid-run, AddMaxArmor(+8) off 50/17
       "50/27", // [session 106] run 2 (50/25 +2) and run 4 (50/17 +10), same combo twice
+      "50/29", // [session 121] NEW, from the day-20699 juiced Tier-2 runs (1-2). Purely ADDITIVE. Not a new STARTING loadout — armour accrued in-run, the same shape sessions 106/118 recorded.
       "53/17", // [session 103] run 2 mid-run, 53/20 after corrode -3
       "53/19", // [session 103] run 2 mid-run, 53/17 + AddMaxArmor
       "53/20", // [session 103] run 1 mid-run, 1x AddMaxHealth off 45/20
@@ -398,6 +399,8 @@ describe("player loadout matches the fixtures", () => {
       "59/20", // [session 103] run 3 mid-run, AddMaxHealth val1 14 off 45/20
       "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
       "62/32",
+      "64/17", // ⭐ [session 121] NEW, and CHASED rather than recorded, per the session-104 user directive that a new combo is now a SIGNAL. It is NOT a re-spec: both day-20699 runs 3 and 4 START at 50/17 (state-000 of run-2026-09-04-06-04-39 and run-2026-09-04-06-16-39, both with empty pickedBoons), so the starting loadout is UNCHANGED and `PLAYER` needs no edit. 64/17 is 50/17 mid-run after `AddMaxHealth(14)` at state-036 — the largest single hpMax pickup in the corpus, which is why this looks like a level-up and is not one.
+      "64/25", // [session 121] NEW, same run, state-046: 64/17 after `AddMaxArmor(8)`. Mid-run, same shape as 34/20 above. 65 -> 67 combos; multiset diff shows two insertions and NO removal.
       "64/27", // [session 106] run 4 mid-run, 50/27 + AddMaxHealth(+14)
       // [session 118, runs 2-4] ONE new combo from the three remaining
       // day-20698 runs, PURELY ADDITIVE: one added, ZERO removed.

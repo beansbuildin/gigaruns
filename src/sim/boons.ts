@@ -3996,6 +3996,167 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-09-02-22-16-24/state-155",
     options: [opt("TieWeak", 1), opt("RegenMastery", 1), opt("AddEvasion", 2)],
   },
+  // ── [session 121] +15 rows, from the TWO day-20699 Tier-2 runs of 2026-09-04 ─
+  //
+  // **Additivity verified BEFORE the append**: **15 offers in the corpus and
+  // absent here, ZERO here that the corpus does not contain.** Computed as a
+  // MULTISET diff both ways, not a set diff, so a repeated offer cannot mask a
+  // removal.
+  //
+  // Two runs, both juiced Tier-2 entries on game day 20699 (the rotation-point
+  // day, DECISIONS 2026-09-03): run 25324264 died room 9 and contributes an
+  // unbroken room-1..8 ladder; run 25325352 died room 8 and contributes
+  // room-1..7. One offer per room cleared, as always.
+  //
+  // ⭐ **Two types were PICKED FOR THE FIRST TIME and both are held LATENT
+  // pending a user directive** — `RegenMastery` (run 2, room 1) and
+  // `VulnerableMastery` (run 2, room 7). Neither is a first SIGHTING: both have
+  // been on the offer table repeatedly and declined (RegenMastery 7x,
+  // VulnerableMastery 2x, rows above). What is new is a before/after PAIR, and
+  // a pair is the only thing that can produce a delta. Both pickups are
+  // verified LATENT no-ops against the fixtures. They are listed in
+  // `tests/boons.test.ts`'s `AWAITING_MODEL_DIRECTIVE`, with the evidence, and
+  // are deliberately NOT in `BOON_MODELS` — modelling a type from n=1 has now
+  // required an explicit user directive four times (`LossIntuitionUp` s99,
+  // `LossBlockUp` s112, `CritHeal` s113, `BurningTenacity` s114).
+  //
+  // Rule 8 and the boon priority both behaved as written across both ladders:
+  // AddMaxArmor takes at run 1 rooms 4/5 and run 2 rooms 5/6 are priority-family
+  // picks, and the rest fell through to the WIDE orb rule.
+  {
+    room: 1,
+    source: "run-2026-09-04-04-28-39/state-013",
+    options: [opt("AddEvasion", 1), opt("AddBlock", 2), opt("AddTenacity", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-04-04-28-39/state-027",
+    options: [opt("AddLuck", 1), opt("AddTenacity", 3), opt("AddLifestealShield", 3)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-04-04-28-39/state-061",
+    options: [opt("AddBlock", 3), opt("AddTenacity", 2), opt("AddBlock", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-04-04-28-39/state-073",
+    options: [opt("AddMaxArmor", 2), opt("LossIntuitionUp", 5), opt("AddTenacity", 12)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-04-04-28-39/state-085",
+    options: [opt("AddMaxArmor", 10), opt("AddEvasion", 4), opt("UpgradeScissor", 8)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-04-04-28-39/state-101",
+    options: [opt("UpgradeRock", 12), opt("AddIntuition", 5), opt("UpgradeRock", 0, 8)],
+  },
+  {
+    room: 7,
+    source: "run-2026-09-04-04-28-39/state-111",
+    options: [opt("VulnerableTenacity", 4), opt("AddLifestealMagic", 3), opt("AddIntuition", 4)],
+  },
+  {
+    room: 8,
+    source: "run-2026-09-04-04-28-39/state-123",
+    options: [opt("UpgradePaper", 0, 4), opt("Heal", 50), opt("AddLuck", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-09-04-05-21-36/state-009",
+    options: [opt("AddEvasion", 1), opt("RegenMastery", 1), opt("UpgradeScissor", 0, 4)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-04-05-21-36/state-031",
+    options: [opt("TieVulnerable", 1), opt("AddLifestealMagic", 2), opt("AddWeakMagic", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-04-05-21-36/state-051",
+    options: [opt("AddLuck", 10), opt("AddBlock", 2), opt("AddTenacity", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-04-05-21-36/state-063",
+    options: [opt("UpgradeScissor", 0, 4), opt("AddBurnSword", 3), opt("AddIntuition", 1)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-04-05-21-36/state-075",
+    options: [opt("AddMaxArmor", 8), opt("AddLuck", 10), opt("ArmorDepletedWeak", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-04-05-21-36/state-089",
+    options: [opt("AddLifestealSword", 2), opt("AddMaxArmor", 2), opt("AddBurnShield", 5)],
+  },
+  {
+    room: 7,
+    source: "run-2026-09-04-05-21-36/state-103",
+    options: [opt("VulnerableMastery", 10), opt("SecondWind", 5), opt("AddLifestealShield", 2)],
+  },
+  // ── [session 121, runs 3-4] +9 rows, closing day 20699 at 12/12 run-units ────
+  //
+  // **Additivity verified BEFORE the append**: 9 offers in the corpus and absent
+  // here, ZERO here the corpus does not contain. MULTISET diff both ways.
+  //
+  // Run 25326311 died room 7 (rooms 1..6) and run 25326514 died room 4
+  // (rooms 1..3). Four juiced Tier-2 runs on this day in total, 24 rows.
+  //
+  // ⚠ Run 3 is where the census picked up `64/17` and `64/25`
+  // (`tests/enemies.test.ts`) — an `AddMaxHealth(14)` at room 3 followed by an
+  // `AddMaxArmor(8)` at room 4, both MID-RUN. Both of this pair's runs start at
+  // 50/17, so the starting loadout is unchanged and no re-spec occurred; the
+  // session-104 directive to treat a new combo as a signal was followed and the
+  // signal resolved benign.
+  {
+    room: 1,
+    source: "run-2026-09-04-06-04-39/state-009",
+    options: [opt("SecondWind", 5), opt("AddBurnShield", 3), opt("AddBlock", 3)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-04-06-04-39/state-023",
+    options: [opt("AddTenacity", 12), opt("AddVulnerableShield", 2), opt("UpgradeScissor", 0, 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-04-06-04-39/state-035",
+    options: [opt("AddTenacity", 2), opt("AddMaxHealth", 8), opt("AddMaxHealth", 14)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-04-06-04-39/state-045",
+    options: [opt("AddBlock", 5), opt("AddMaxArmor", 8), opt("UpgradeRock", 8)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-04-06-04-39/state-059",
+    options: [opt("CorrosiveMagic", 2), opt("AddBlock", 2), opt("AddIntuition", 1)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-04-06-04-39/state-073",
+    options: [opt("UpgradePaper", 0, 8), opt("TieVulnerable", 1), opt("CorrosiveShield", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-09-04-06-16-39/state-011",
+    options: [opt("AddEvasion", 4), opt("AddTenacity", 2), opt("AddBlock", 7)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-04-06-16-39/state-025",
+    options: [opt("WeakeningMastery", 10), opt("UpgradePaper", 6), opt("Regen", 1)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-04-06-16-39/state-045",
+    options: [opt("AddTenacity", 2), opt("UpgradePaper", 4), opt("UpgradeScissor", 0, 4)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

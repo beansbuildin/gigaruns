@@ -116,6 +116,61 @@ const AWAITING_MODEL_DIRECTIVE = new Set<string>([
   // session. `BurnMastery` is a status the corpus measures directly; this is a
   // boon whose only observation is a no-op pickup. QUESTIONS.md §69.
   "BurningTenacity",
+
+  // ⭐ [session 121] `RegenMastery` — FIRST PICKUP PAIR, from
+  // run-2026-09-04-05-21-36 state-009 -> state-010 (day-20699 Tier-2 run,
+  // room 1). Fifth type on
+  // the same precedent chain: `LossIntuitionUp` (99), `LossBlockUp` (112),
+  // `CritHeal` (113), `BurningTenacity` (114). Modelling a type from n=1 has
+  // now required an explicit user directive four times.
+  //
+  // **The pickup is a verified LATENT no-op**, checked against the fixture
+  // rather than assumed from the family: `health` {48/30/50/30} and `shield`
+  // {9/12/17/12} BOTH byte-identical across the pair, `rock`/`paper`/`scissor`
+  // byte-identical, and every ROLLED stat unchanged (tenacity 1, intuition 0,
+  // evasion 3.5, block 10 on both sides). `pickedBoons` grows by exactly one.
+  // `selectedVal1` 1, `selectedVal2` 0, Rarity "Rare", TokenId 111.
+  //
+  // **NOT a first SIGHTING — a first PICKUP.** The type has been on the offer
+  // table at least SEVEN times across the corpus (`OBSERVED_OFFERS` rows at
+  // src/sim/boons.ts:1900, 2070, 2411, 2482, 2522, 2537, 3997) and was declined
+  // every time, which is why it has no pair until now. The distinction matters:
+  // a first sighting tells you a type exists, a first pickup is the only thing
+  // that can produce a before/after delta at all.
+  //
+  // Worth recording from those sightings: `selectedVal1` is **1 in all of
+  // them**, matching `val1Min === val1Max === 1` in the boon definition. So the
+  // value does not roll, and a future measurement will not need to control for
+  // it.
+  //
+  // ⚠ **The name is not evidence** (DECISIONS 2026-08-14/15). "Regen" gestures
+  // at healing over time, and a `val1` of 1 is consistent with almost any
+  // reading of that — per turn, per room, a multiplier, or nothing at all.
+  // Nothing in the pickup separates them, and `Mastery` siblings do NOT settle
+  // it either: `BurnMastery` is modelled and doubles a burn amount, which would
+  // make this a multiplier on an effect the player may not even have.
+  "RegenMastery",
+
+  // ⭐ [session 121] `VulnerableMastery` — FIRST PICKUP PAIR, from the SAME
+  // run, state-103 -> state-104 (room 7). Same precedent chain, same treatment.
+  //
+  // **Also a first PICKUP, not a first sighting** — offered and declined at
+  // least twice before (src/sim/boons.ts:1243, 1554), both times at
+  // `selectedVal1` 10, matching `val1Min === val1Max === 10`. The value does
+  // not roll.
+  //
+  // **The pickup is a verified LATENT no-op**, checked against the fixture:
+  // `health` {18/30/50/30} and `shield` {12/12/27/12} byte-identical,
+  // `rock`/`paper`/`scissor` byte-identical, every ROLLED stat unchanged.
+  // `pickedBoons` 6 -> 7. `selectedVal1` **10**, `selectedVal2` 0, Rarity
+  // "Rare", TokenId 110.
+  //
+  // ⚠ **The 10 is the reason to be careful, not a reason to guess.** The
+  // modelled `Vulnerable` family carries small integers, so a 10 here reads
+  // naturally as a percentage or a multiplier — and reading it either way from
+  // one observation is exactly the inference the precedent forbids. Measuring
+  // it needs post-pickup exchanges where Vulnerable is actually applied.
+  "VulnerableMastery",
 ]);
 
 describe("every modelled boon reproduces its recorded delta", () => {
@@ -689,7 +744,21 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // 4's contains both `Heal` and `UpgradeScissor`, all three already-clean
     // types RECURRING — so the two counts come back together here after three
     // consecutive runs of moving apart. No new clean TYPE appears.
-    expect(roomOne.length).toBe(309);  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
+    // [session 121] 309 -> 315: +6, two runs x 3 room-1 options, the day-20699
+    // Tier-2 pair. The clean census below is UNTOUCHED — run 1's room-1 offer is
+    // AddEvasion(1)/AddBlock(2)/AddTenacity(2) and run 2's is
+    // AddEvasion(1)/RegenMastery(1)/UpgradeScissor(0,4). Only `UpgradeScissor`
+    // is a clean type and it is an already-clean type RECURRING, so no new
+    // clean TYPE appears and the set stays at the same six it has been since
+    // session 52.
+    // [session 121, runs 3-4] 315 -> 321: +6 more, closing day 20699 at 12/12
+    // run-units. 24 room-1 options from four runs on one day. The clean census
+    // below is untouched by this pair too — run 3's room-1 offer is
+    // AddBlock(2)/AddEvasion(4)/AddIntuition(1) and run 4's is
+    // SecondWind(5)/AddBurnShield(3)/AddBlock(3), with NO clean type in either.
+    // So across the whole day: 4 runs moved this count by 12, and moved the
+    // clean census by 1.
+    expect(roomOne.length).toBe(321);  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -802,6 +871,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeScissor",
       "UpgradeScissor", // [session 116, run 2] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52
       "UpgradeScissor", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 4)
+      "UpgradeScissor", // [session 121] already-clean type RECURRING from the day-20699 run 25325352 room-1 offer (AddEvasion(1)/RegenMastery(1)/UpgradeScissor(0,4)) — the clean SET is still the same SIX, unchanged since session 52. The OTHER day-20699 run contributed NO clean room-1 option, so the option census (315) and this one moved by different amounts again, the pattern session 116 first flagged and session 118 called the norm at Tier 2.
     ]);
   });
 
@@ -879,7 +949,19 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // ⭐ **It was PICKED** (run 4's room-1 take, `Heal(16)` over `AddEvasion(1)`
     // and `UpgradeScissor(8)`), the second consecutive session in which the
     // corpus's new Heal was taken rather than merely offered.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1]);
+    // [session 121] +1 Heal offer from the day-20699 run 25324264, at **room 8**
+    // — `Heal(50)`, the largest `selectedVal1` this type has ever been recorded
+    // at (previous sightings run 8-24). Appended at the array's end by insertion
+    // order, same as every session since 43.
+    //
+    // ⚠ **It was NOT picked**, which ENDS the two-session streak the note above
+    // records. The room-8 take was `AddLuck(2)` over `Heal(50)` and
+    // `UpgradePaper(0,4)` — `pickedBoons[7]` in
+    // `run-2026-09-04-04-28-39/state-124`, verified against the fixture rather
+    // than read off the run log. Recorded plainly because the previous two notes
+    // celebrated the streak, and a streak that quietly stops being mentioned is
+    // how a stale claim survives.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8]);
   });
 });
 
