@@ -8,7 +8,7 @@ precedent and STATE's "What works" says to repeat it.
 
 STATE recorded expiry `2026-09-04T18:48:43Z`. **The user refreshed it.**
 `scripts/doctor.ts` at 2026-09-05T16:54Z: *"token present and valid for another
-167.8h"* (~7 days). Authenticated as `coinpie` /
+167.8h"* (~7 days). Authenticated as `<USER>` /
 `<ADDRESS REDACTED>`. Step 0 PASSES; live work proceeds.
 
 > ⚠ **[session 122] The bare wallet address was written here in the
@@ -21,8 +21,8 @@ STATE recorded expiry `2026-09-04T18:48:43Z`. **The user refreshed it.**
 > **Not rotated, and no rotation is possible or needed**: it is the
 > account's public on-chain address, visible on any block explorer, not
 > a credential. CLAUDE.md rule 3's rotation instruction is about the
-> JWT, which was never printed — `doctor.ts` shows only `eyJhbGci...`
-> plus a length.
+> JWT, which was never printed — `doctor.ts` shows only a truncated
+> 8-character prefix plus a length.
 >
 > **Fixed forward rather than by rewriting history, deliberately.**
 > `4d68bc84` is the pre-registration whose whole value is that it is a

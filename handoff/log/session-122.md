@@ -1,4 +1,7 @@
-# STATE — session 122 — 2026-09-05 — commit <SHA>
+# session 122 — 2026-09-05 — day-20700 rotation SOLVED — GATE PASS
+
+Full recap. `handoff/STATE.md` carries the same content in shorter form;
+everything verbose lives here.
 
 ## Status
 No numbered TASKS.md gate; tasks 1–14 are GATE MET or parked on data (§13). The
@@ -231,3 +234,176 @@ green test respectively, and self-enforce. Also dropped **`data.nextPosition`**
  fixtures/                      |  4 runs + 2 dry-runs, 24 fishing casts
  729 files changed, 483855 insertions(+), 211 deletions(-)
 ```
+
+---
+
+## Verbose appendix
+
+### A. The pre-registration, and why it counted
+
+Committed as `4d68bc84` at ~16:58Z. First `start_run` POSTed at 17:01Z. The
+prediction named a **2-of-7** set — Crusader (135) 39→36 **or** Overseer (136)
+51→48 — and explicitly declined to predict which, because either branch forces
+the other faction into dow 2 and therefore solves the permutation.
+
+Falsifiers were stated separately for two claims, which matters because they can
+die independently (session 118 is the precedent):
+
+1. **ORDER** dies if the mover is any faction already claimed by dow 3–7.
+2. **CHARGE SHAPE** (then 17/17) dies if more than one faction moves, or if the
+   amount is not exactly 3.
+
+Result: Crusader, sole mover, −3, read twice and stable. Order PASSES, shape
+survives and is now **21/21** after the day's four runs.
+
+### B. The four ring reads, in order
+
+```
+before  f4 138 Archon 18 | f3 137 Athena 21 | f7 134 Chobo    30
+        f1 135 Crusader 39 | f6 140 Summoner 42 | f5 139 Foxglove 45
+        f2 136 Overseer 51                                total 246
+run 1   Crusader 39 -> 36   (six others byte-identical)
+run 2   Crusader 36 -> 33   (six others byte-identical)
+run 3   Crusader 33 -> 30   (six others byte-identical)
+run 4   Crusader 30 -> 27   (six others byte-identical)   total 234
+```
+
+### C. The `Dungeon#3` question, resolved by measurement not assumption
+
+Flagged in the pre-registration commit as UNRESOLVED, with an explicit note not
+to assume the convenient reading. `checkDungeonToday.ts` showed dungeon 5 at
+`null` but a sibling `DayCount#…#Dungeon#3` at `UINT256_CID: 9`, updated 23
+minutes before the session's first read, by something that is not this bot.
+
+Two readings differed by three runs: per-dungeon (4 juiced runs available) or
+shared (9 of 12 gone, so 1). After run 1, `Dungeon#5` read **3** while
+`Dungeon#3` stayed at **9** — **the counters are independent**. The convenient
+reading was right, which is not the same as it having been safe to assume.
+
+### D. The gear-durability finding, in full
+
+Six new `hpMax/armorMax` census combos. Five are ordinary mid-run growth:
+
+```
+run 2  state-042  50/27 -> 50/35  AddMaxArmor(+8)
+run 2  state-136  50/35 -> 58/35  AddMaxHealth(+8)
+run 2  state-140  58/35 -> 58/32  corrode shred
+run 2  state-142  58/32 -> 58/29  corrode shred
+run 2  state-160  58/29 -> 58/35  room boundary restore
+```
+
+The sixth is not growth — it is a NEW OPENING:
+
+```
+run 1  50/50 arm 17/17   rock 26/10  paper 11/17  scissor 12/8
+run 2  50/50 arm 17/17   rock 26/10  paper 11/17  scissor 12/8
+run 3  50/50 arm 17/17   rock 26/10  paper 11/17  scissor 12/8
+run 4  45/45 arm 17/17   rock 16/10  paper  6/17  scissor 12/8   <-- broken gear
+```
+
+`pickedBoons: []` on all four. `startingATK`/`startingDEF` identical on all four
+(rock 16/0, paper 6/12, scissor 12/8) — it is the CURRENT values, which carry
+the gear bonus, that collapsed toward the class base.
+
+`GET /gear/instances/{address}` at the time:
+
+```
+slot  2  dur 22  item 109      slot  3  dur 44  item 110
+slot  6  dur 19  item 204      slot  6  dur 30  item 208
+slot  8  dur  0  item 50   <- "Stone Rod", a FISHING item, superseded
+slot 11  dur  0  item 640  <- "Golkan Eradicator Head", Epic, Forbidden Woods
+slot 12  dur 48  item 641  <- its BODY counterpart, healthy
+slot 13  dur  6  item 905      slot 13  dur 14  item 901
+slot 14  dur 28  item 812  <- the fishing rod, Claim E confirmed
+slot 15  dur  4  item 954      slot 15  dur 10  item 954
+```
+
+So the head wore to 0 during run 3 and run 4 opened without **+10 Sword ATK,
++5 Shield ATK and +5 max HP**. The attribution is inferred from the delta and
+from 640 being the one equipped dungeon piece at 0 — the static catalog gives
+the item's name and rarity but **no stat block**, so it is not directly
+confirmed.
+
+**After the user repaired it mid-session, slot 11 read `dur 70`.**
+
+### E. `PLAYER` was stale, and the staleness was MASKED
+
+Separate from the breakage, and older than it:
+
+```
+run-2026-08-31-03-26-52  rock 26/9   paper 11/16
+run-2026-09-05-17-01-10  rock 26/10  paper 11/17   <-- moved, BETWEEN sessions
+```
+
+`tests/enemies.test.ts` pins these against the newest unbooned capture and would
+have caught it on the first run of the day. It did not, because the `hpMax`
+assertion sits ABOVE the move loop in the same `it` block and failed first on
+run 4's 45. The move mismatch only printed once run 4 was excluded for an
+unrelated reason.
+
+**This recurred within the same session.** `tests/fishing/damageEconomy.test.ts`
+line 440's ratio assertion failed and aborted its block, so the `LIVE.drift` pin
+on line 463 never ran and appeared green while being 0.035 wrong.
+
+### F. Knock-on scenario repairs from the `PLAYER` DEF change
+
+Both are the same mechanism session 42 already recorded, one notch further:
+
+- `src/sim/scenarios.ts` `mutual-one-hit-from-death`: `me.hp` 3 → **2**. Sword
+  DEF 9→10 means a rock/rock tie regens 10 against the enemy's 12 ATK, so
+  overflow is 2 and hp 3 SURVIVED — the scenario had stopped being mutually
+  lethal. Cannot go below 1; if Sword DEF ever reaches 12 this construction
+  needs a different enemy.
+- `tests/strategy.test.ts`: `hp` 5 → **4**. At hp 5 the margin had decayed to
+  **0.1** (rock −666.6 vs paper −666.7) — the test was passing on a coin flip.
+  hp 4 restores session 42's own stated figures exactly (−722.2 vs −666.7).
+
+### G. `LIVE.drift` — the fifth move and the crossed bar
+
+```
+-0.6417 -> -0.6593 -> -0.6850 -> -0.6882 -> -0.7230
+```
+
+Five moves, all the same direction. `|drift|` 0.723, so the MAGNITUDE arm did
+not fire; the DIRECTION arm did. Re-derived.
+
+Separately, `bare.economy.drift / LIVE.drift` fell **17x -> 9.97x -> 8.48x ->
+4.83x**, through its bar of 5. Session 102 pre-registered the response in its
+own words: *"if the ratio keeps falling, the answer is to re-examine the
+conclusion, NOT to move the bar a third time."* So the bar was **not moved**;
+the assertion became a pin at 4.830349605884868 and the conclusion went to
+QUESTIONS §67. `bare` has not moved at all — the ratio fell because LIVE's own
+drift grew.
+
+### H. The rod discriminator, preserved by accident
+
+The brief pre-registered it and I planned to protect it by waiting for the
+18:00Z rollover so all casts fell in one game day. The user redirected to fish
+immediately, to use day 20700's otherwise-wasted cap. That looked like it would
+cost the measurement — and it did not, because the **server's own 20-cast cap**
+stopped charging at 20 while play continued to 23:
+
+```
+rod 28 -> 5   over 23 PLAYED / 20 CHARGED
+per PLAYED   predicts 28 - 23 = 5   OBSERVED
+per CHARGED  predicts 28 - 20 = 8
+```
+
+Cast 24 was refused: `HTTP 400 — "Player has reached max runs for fishing"`, and
+the guard tripped closed (rule 5).
+
+### I. Corpus re-derivation
+
+~113 pins across 14 test files, all with `[session 122] was X` provenance.
+
+- `OBSERVED_OFFERS` 507 → 540: **ADDED 33, REMOVED 0**, multiset-checked both ways.
+- Loadout census +6, docId sets +3 (`13267011/22/32`) and +3 oil casts.
+- The `BurnMastery` pair set looked like it SHRANK 4 → 2. It did not: that
+  assertion ran on `maxRunDirs: 30`, a SLIDING WINDOW, and today's runs pushed
+  the older pairs out. Switched to `exAll` — n 12 → 64, full set
+  `{6/3: 18, 4/2: 38, 8/4: 4, 10/5: 4}` unchanged, `mastery.ok` 0 on both. The
+  tell was that the doc comment's own counts were full-corpus figures.
+- ⚠ **One automated pass introduced a bug and it was caught by re-running**: it
+  rewrote a histogram KEY (`[2, 22]` → `[3, 24]`) instead of only the count.
+  Corrected to `[[0,149],[1,101],[2,24],[3,3]]`. Bulk pin edits need a verifying
+  re-run, not just a green-looking diff.
