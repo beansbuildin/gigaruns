@@ -1,31 +1,33 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-04T06:29:33.219Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-05T18:12:45.005Z.
 
-410 recorded casts — 203 caught (49.5%).
-Total Hard Core earned: 37360 (184.0 per catch, 91.1 per cast).
+433 recorded casts — 217 caught (50.1%).
+Total Hard Core earned: 44160 (203.5 per catch, 102.0 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 203 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 29 of those 203 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 217 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 36 of those 217 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Barnaboo: 46
-- Finley: 37
+- Barnaboo: 48
+- Finley: 38
 - Plankton: 35
-- Ollie: 19
-- Kelpkin: 18
-- Jelloid: 15
+- Ollie: 21
+- Kelpkin: 19
+- Jelloid: 18
 - Zombo: 6
 - Deadfin: 6
 - Skinzy: 6
 - Gulp: 5
+- Podge: 3
+- Globbo: 3
 - Glimmer: 2
-- Podge: 2
-- Globbo: 2
+- Sherrif Bubblesmoke: 2
 - Slo_mo: 1
 - Chompus: 1
-- Sherrif Bubblesmoke: 1
 - Goober: 1
+- Gideon: 1
+- Grotto: 1
 
 ## Per-cast detail
 
@@ -441,3 +443,26 @@ Total Hard Core earned: 37360 (184.0 per catch, 91.1 per cast).
 | 13243369 | yes | Kelpkin (rarity 1) | 160 |
 | 13243375 | no | — | 0 |
 | 13243384 | yes | Kelpkin (rarity 1) | 320 |
+| 13267000 | yes | Ollie (rarity 1) | 160 |
+| 13267005 | yes | Kelpkin (rarity 1) | 320 |
+| 13267008 | yes | Globbo (rarity 3) | 400 |
+| 13267011 | no | — | 0 |
+| 13267014 | yes | Ollie (rarity 1) | 160 |
+| 13267019 | no | — | 0 |
+| 13267022 | yes | Barnaboo (rarity 0) | 160 |
+| 13267025 | yes | Finley (rarity 0) | 80 |
+| 13267027 | no | — | 0 |
+| 13267028 | no | — | 0 |
+| 13267032 | no | — | 0 |
+| 13267034 | yes | Podge (rarity 3) | 1600 |
+| 13267037 | yes | Gideon (rarity 4) | 480 |
+| 13267040 | no | — | 0 |
+| 13267043 | no | — | 0 |
+| 13267049 | yes | Jelloid (rarity 1) | 320 |
+| 13267055 | yes | Jelloid (rarity 1) | 160 |
+| 13267057 | no | — | 0 |
+| 13267061 | yes | Barnaboo (rarity 0) | 80 |
+| 13267066 | yes | Sherrif Bubblesmoke (rarity 4) | 960 |
+| 13267070 | yes | Jelloid (rarity 1) | 800 |
+| 13267074 | no | — | 0 |
+| 13267079 | yes | Grotto (rarity 5) | 1120 |

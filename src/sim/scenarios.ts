@@ -104,7 +104,17 @@ export const SCENARIOS: Scenario[] = [
     // armor BEFORE the enemy's 12 ATK lands (overflow 3, not the old 12);
     // hp 5 survived that overflow, hp 3 doesn't. Foe's hp is unaffected —
     // it dies to the player's much larger rock ATK (26) regardless.
-    state: { me: tweak(player(), { hp: 3, armor: 0 }), foe: tweak(enemy(1), { hp: 5, armor: 0 }), room: 1 },
+    // [session 122] Lowered again, 3 → 2, for the SAME reason one notch
+    // further: Sword DEF grew 9 → 10 between sessions, so the tie now regens
+    // 10 against the enemy's 12 ATK and the overflow is 2, not 3. hp 3
+    // SURVIVES that and the scenario stopped being mutually lethal — the
+    // assertion caught it, which is what it is for.
+    //
+    // ⚠ **This scenario is pinned to PLAYER's Sword DEF and will need lowering
+    // again on the next DEF increase.** It cannot go below 1, so if Sword DEF
+    // ever reaches the enemy's 12 ATK the construction stops working and the
+    // scenario needs a different enemy, not a smaller hp.
+    state: { me: tweak(player(), { hp: 2, armor: 0 }), foe: tweak(enemy(1), { hp: 5, armor: 0 }), room: 1 },
   },
   {
     name: "zero-charge-enemy-sword",

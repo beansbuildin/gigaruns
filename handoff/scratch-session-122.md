@@ -9,7 +9,27 @@ precedent and STATE's "What works" says to repeat it.
 STATE recorded expiry `2026-09-04T18:48:43Z`. **The user refreshed it.**
 `scripts/doctor.ts` at 2026-09-05T16:54Z: *"token present and valid for another
 167.8h"* (~7 days). Authenticated as `coinpie` /
-`0x4F03eA409e546d9aB7EAa6C9B481bcB99C8547E5`. Step 0 PASSES; live work proceeds.
+`<ADDRESS REDACTED>`. Step 0 PASSES; live work proceeds.
+
+> ⚠ **[session 122] The bare wallet address was written here in the
+> pre-registration commit `4d68bc84` and is redacted above.**
+> `scripts/secretScan.ts` caught it at closeout as the ONLY unexplained
+> hit across 12,329 tracked files — the repo redacts addresses
+> everywhere else (fixtures carry `0xUSER`), so this was a genuine
+> break in that convention, and it was mine.
+>
+> **Not rotated, and no rotation is possible or needed**: it is the
+> account's public on-chain address, visible on any block explorer, not
+> a credential. CLAUDE.md rule 3's rotation instruction is about the
+> JWT, which was never printed — `doctor.ts` shows only `eyJhbGci...`
+> plus a length.
+>
+> **Fixed forward rather than by rewriting history, deliberately.**
+> `4d68bc84` is the pre-registration whose whole value is that it is a
+> tamper-evident timestamp predating `start_run`; amending it to tidy a
+> public address would destroy the thing it exists to prove. The commit
+> stands, the leak is disclosed here, and the decision to rewrite
+> history is the user's, not an agent's.
 
 ## Step 1 — live readings, all five brief claims CHECKED
 

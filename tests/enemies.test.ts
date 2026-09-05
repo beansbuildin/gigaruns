@@ -73,8 +73,54 @@ describe("player loadout matches the fixtures", () => {
    * correctly — this takes the chronologically LAST such state across the
    * whole corpus, not just the last directory's first file.
    */
+  /**
+   * ⚠ [session 122] **Runs whose opening was taken with BROKEN GEAR, excluded
+   * by name. The premise directly above — "gear itself only changes BETWEEN
+   * sessions" — is FALSIFIED, and this is the correction.**
+   *
+   * Gear has DURABILITY, and a piece that reaches 0 stops granting its bonus
+   * MID-SESSION, between one run and the next. On day 20700 the four juiced
+   * runs opened 50/50, 50/50, 50/50, **45/45**, `pickedBoons: []` on all four.
+   *
+   * ⚠ It is NOT only `hpMax` that moved — the run-4 opening lost move ATK too:
+   *
+   *   runs 1-3  rock 26/10  paper 11/17  scissor 12/8  hpMax 50
+   *   run 4     rock 16/10  paper  6/17  scissor 12/8  hpMax 45
+   *
+   * Sword ATK -10, Shield ATK -5, max HP -5, with every DEF and Spell
+   * untouched. The `startingATK`/`startingDEF` fields are identical across all
+   * four (rock 16/0, paper 6/12, scissor 12/8) — it is the CURRENT values,
+   * which carry the gear bonus, that collapsed toward the class base.
+   *
+   * The cause was chased, not guessed, per the standing rule that a new census
+   * combo is a SIGNAL: `GET /gear/instances/{address}` shows **item 640,
+   * "Golkan Eradicator Head" (Epic, Forbidden Woods), slot 11, DURABILITY_CID
+   * 0** — its body counterpart 641 in slot 12 still reads 48. It wore to 0
+   * during run 3, so run 4 opened without its bonuses — **+10 Sword ATK,
+   * +5 Shield ATK and +5 max HP**, which is what the run-3-to-run-4 delta
+   * gives once it is read off `currentATK` rather than `startingATK`.
+   *
+   * **[USER 2026-09-05] `PLAYER.hpMax` HOLDS AT 50 and this run is excluded**,
+   * because 45 is a transient broken-gear state and the head is to be
+   * repaired — the same treatment the fishing rod already gets. Re-pinning to
+   * 45 would have made every simulation model a degraded character and then
+   * needed reverting on repair.
+   *
+   * ⚠ **Delete this exclusion when the head is repaired**, and do NOT extend it
+   * to a run that merely looks inconvenient. The test of whether an entry
+   * belongs here is a gear row at `DURABILITY_CID: 0`, read live — not a
+   * surprising number in the census.
+   *
+   * The attribution is INFERRED from the run-3-to-run-4 delta and item 640
+   * being the one equipped piece at 0 durability; the static catalog publishes
+   * the item's name and rarity but no stat block, so it is not confirmed
+   * directly. Item 50 also reads 0, but it is the superseded "Stone Rod", a
+   * FISHING item in slot 8 — not dungeon gear, and not a candidate.
+   */
+  const DEGRADED_GEAR_RUNS = new Set<string>(["run-2026-09-05-17-22-39"]);
+
   const newestOpening = () => {
-    const runs = loadCorpus().filter((r) => r.states.length > 0);
+    const runs = loadCorpus().filter((r) => r.states.length > 0 && !DEGRADED_GEAR_RUNS.has(r.name));
     const unboonedStates = runs.flatMap((r) => r.states).filter((s) => !(s.run.players[0]!.pickedBoons ?? []).length);
     return unboonedStates[unboonedStates.length - 1]!;
   };
@@ -243,6 +289,43 @@ describe("player loadout matches the fixtures", () => {
     //   state-175  currentMax 17 -> 14   corrode shred on an enemy win
     //   state-183  currentMax back to 17 (room boundary)
     expect([...seen].sort()).toEqual([
+      // ⭐ [session 122] SIX new combos from day 20700's four juiced Tier-2
+      // runs — `45/14`, `45/17`, `50/35`, `58/29`, `58/32`, `58/35` — PURELY
+      // ADDITIVE (six added, ZERO removed, multiset-checked both ways).
+      //
+      // **Five are ordinary mid-run growth. ONE IS A NEW STARTING LOADOUT, and
+      // it is the first time this census has caught a real one since the
+      // session-103 "loadout holds steady" ruling.** The signal was chased
+      // rather than recorded, per session 106's standing instruction:
+      //
+      //   run 2  state-042  50/27 -> 50/35  AddMaxArmor(+8)
+      //   run 2  state-136  50/35 -> 58/35  AddMaxHealth(+8)
+      //   run 2  state-140  58/35 -> 58/32  corrode shred (armorMax)
+      //   run 2  state-142  58/32 -> 58/29  corrode shred (armorMax)
+      //   run 2  state-160  58/29 -> 58/35  room boundary restore
+      //   run 4  state-000  (start)  45/17  <-- NOT growth. A NEW OPENING.
+      //   run 4  state-014  45/17 -> 45/14  corrode shred, then back at 026
+      //
+      // Run 4 opened at **45/45 armor 17/17** where runs 1-3 all opened
+      // **50/50 armor 17/17**, `pickedBoons: []` on all four. Sword ATK also
+      // fell 26 -> 16 and Shield ATK 11 -> 6; every DEF and Spell held. The
+      // `starting*` fields are identical across all four — it is the CURRENT
+      // values, which carry the gear bonus, that collapsed to the class base.
+      //
+      // **Cause: gear durability, read live rather than inferred from the
+      // census.** `GET /gear/instances/{address}` shows item **640 "Golkan
+      // Eradicator Head"** (Epic, Forbidden Woods) at slot 11,
+      // `DURABILITY_CID: 0`; its body counterpart 641 at slot 12 still reads
+      // 48. It wore out during run 3 and stopped granting its +5 max HP.
+      //
+      // **This falsifies the long-standing premise that gear only changes
+      // BETWEEN sessions** — see `DEGRADED_GEAR_RUNS` above, which excludes
+      // run 4 from `newestOpening()` so `PLAYER.hpMax` holds at 50 pending
+      // the user's repair ([USER] 2026-09-05).
+      //
+      // The 45/x combos STAY in this census. It records what the corpus
+      // contains, and the corpus does contain them; it is the LOADOUT BASELINE
+      // that is held at 50, which is a different question.
       // [session 106] FIVE new combos from the four juiced runs of 2026-08-28,
       // and — the part that matters — **NOT ONE is a new starting loadout.**
       // All four runs opened on `50/17` with `pickedBoons: []`, byte-identical
@@ -352,6 +435,8 @@ describe("player loadout matches the fixtures", () => {
       "40/30",
       "40/32",
       "42/16", "42/18", "42/26", "43/17", "43/25",
+      "45/14",
+      "45/17",
       "45/20", // [session 103] runs 1-3's STARTING loadout
       "48/22",
       "48/32",
@@ -361,7 +446,8 @@ describe("player loadout matches the fixtures", () => {
       "50/19", // [session 103] run 4 mid-run, 1x AddMaxArmor off 50/17
       "50/25", // [session 106] run 2 mid-run, AddMaxArmor(+8) off 50/17
       "50/27", // [session 106] run 2 (50/25 +2) and run 4 (50/17 +10), same combo twice
-      "50/29", // [session 121] NEW, from the day-20699 juiced Tier-2 runs (1-2). Purely ADDITIVE. Not a new STARTING loadout — armour accrued in-run, the same shape sessions 106/118 recorded.
+      "50/29",
+      "50/35", // [session 121] NEW, from the day-20699 juiced Tier-2 runs (1-2). Purely ADDITIVE. Not a new STARTING loadout — armour accrued in-run, the same shape sessions 106/118 recorded.
       "53/17", // [session 103] run 2 mid-run, 53/20 after corrode -3
       "53/19", // [session 103] run 2 mid-run, 53/17 + AddMaxArmor
       "53/20", // [session 103] run 1 mid-run, 1x AddMaxHealth off 45/20
@@ -394,8 +480,11 @@ describe("player loadout matches the fixtures", () => {
       // what reaching room 13 buys — depth compounding boon pickups — not a
       // change in the account.
       "58/25",
-      "58/27", // [session 106] run 3 mid-run, 58/17 + AddMaxArmor(+10)
+      "58/27",
+      "58/29",
+      "58/32", // [session 106] run 3 mid-run, 58/17 + AddMaxArmor(+10)
       "58/33",
+      "58/35",
       "59/20", // [session 103] run 3 mid-run, AddMaxHealth val1 14 off 45/20
       "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
       "62/32",

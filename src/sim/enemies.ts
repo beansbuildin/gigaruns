@@ -201,9 +201,30 @@ export const PLAYER: Combatant = {
   // strategy or tier effect**, because the loadout changed underneath it. Nor
   // may run 3 be compared to session 112's room-13 run. Same trap as every
   // re-spec note above; it is simply the first one that lands mid-session.
+  // ── [session 122] +1 DEF on Sword and Shield, BETWEEN SESSIONS ───────────
+  //
+  // Read off every unbooned `state-000` on record, not inferred:
+  //
+  //   run-2026-08-31-03-26-52 (session 113, #3)  rock 26/9   paper 11/16
+  //   run-2026-09-05-17-01-10 (session 122, #1)  rock 26/10  paper 11/17  <-- moved
+  //
+  // So it landed in the five-day gap between sessions, not mid-session, and
+  // `hpMax` 50 / `armorMax` 17 / Spell are untouched. Gear or a skill point —
+  // nothing in the capture distinguishes them, the same limit every note above
+  // records. **Runs before 2026-09-05 are NOT the same arm as runs after.**
+  //
+  // ⚠⚠ **This had been stale since 2026-09-05 run 1 and was MASKED, which is
+  // the part worth remembering.** `tests/enemies.test.ts` pins these against
+  // the newest unbooned capture and would have caught it immediately — but the
+  // same session's run 4 broke a gear piece, and the `hpMax` assertion above
+  // the move loop failed FIRST, so the move mismatch never got a chance to
+  // print. It surfaced only once the degraded run was excluded for an
+  // unrelated reason. **An assertion ordered after a failing one is not a
+  // passing assertion**; when a test goes red, fix the first failure and RERUN
+  // rather than assuming the rest of the test was fine.
   moves: {
-    rock: mv(26, 9), // Sword — ATK 25 -> 26 between runs 2 and 3 of session 113; DEF 8 -> 9 before run 1 of session 103
-    paper: mv(11, 16), // Shield — ATK 10 -> 11 between runs 2 and 3 of session 113; DEF 15 -> 16 before run 1 of session 103
+    rock: mv(26, 10), // Sword — ATK 25 -> 26 between runs 2 and 3 of session 113; DEF 8 -> 9 before run 1 of session 103, 9 -> 10 before session 122
+    paper: mv(11, 17), // Shield — ATK 10 -> 11 between runs 2 and 3 of session 113; DEF 15 -> 16 before run 1 of session 103, 16 -> 17 before session 122
     scissor: mv(12, 8), // Spell — unchanged since session 42 second update
   },
   // The player starts every run with all rolled stats at zero; the only way

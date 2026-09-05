@@ -78,7 +78,25 @@ describe("Burn", () => {
   });
 
   it("is AMPLIFIED by BurnMastery, which never changes the recorded amount", () => {
-    const { mastery, pairs } = burnMasterySplit(ex);
+    // ⚠ [session 122] **Runs on `exAll`, not the 30-dir slice, and the switch
+    // FIXED a red assertion without touching the pinned set.** Session 122's
+    // four runs sled the `maxRunDirs: 30` window forward and pushed the runs
+    // carrying `6/3` and `10/5` out of it, so the slice-derived set collapsed
+    // to `{4/2, 8/4}` and this assertion went red. **The corpus lost nothing** —
+    // this is precisely the sliding-window trap the file header documents from
+    // session 114, firing again on a different assertion.
+    //
+    // The tell that the SLICE was wrong rather than the pin: the doc comment on
+    // `burnMasterySplit` cites `3` at n=18 and `5` at n=4, and those are
+    // FULL-CORPUS counts (full: `{6/3: 18, 4/2: 38, 8/4: 4, 10/5: 4}`, n=64).
+    // The rationale had been written against the whole corpus while the
+    // assertion ran on a 12-observation slice of it.
+    //
+    // "Which pairs has BurnMastery EVER produced" is a universal claim, so by
+    // this file's own stated policy — the slice stays only for population
+    // samples — it belongs on `exAll`. Strictly stronger: n 12 -> 64, and
+    // `mastery.ok` is 0 on both, so total separation is unweakened.
+    const { mastery, pairs } = burnMasterySplit(exAll);
     // Total separation: no BurnMastery exchange ever ticks its plain amount.
     expect(mastery.ok).toBe(0);
     expect(mastery.n).toBeGreaterThan(0);

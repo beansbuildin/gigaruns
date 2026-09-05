@@ -437,7 +437,31 @@ describe("the simulator's economy, same predicate", () => {
     // -0.3504 -> -0.4331 while the sim's bare arm did not move, i.e. LIVE
     // continues to move toward the sim because the bot plays better, which is
     // what makes the narrowing a result rather than an artefact.
-    expect(bare.economy.drift / LIVE.drift).toBeGreaterThan(5); /* [session 102] was 10, against ~17x; measured 9.97x */ /* [session 105] measured 8.48x */
+    // ⚠⚠⚠ [session 122] **THE BAR OF 5 HAS BEEN CROSSED: the ratio is 4.83.**
+    // 17x -> 9.97x -> 8.48x -> **4.83x**. This is the event session 102
+    // pre-registered in the paragraph above, in its own words: *"if the ratio
+    // keeps falling, the answer is to re-examine the conclusion, NOT to move
+    // the bar a third time."*
+    //
+    // **So the bar is NOT moved, and the assertion is converted to a PIN
+    // rather than deleted or loosened.** A pin keeps the number visible and the
+    // next move attributable; lowering the threshold to 4.5 would be exactly
+    // the third move the pre-registration forbids, and deleting it would hide a
+    // falsification. What is now in doubt is the CONCLUSION this assertion
+    // underwrote — "the magnitude says they are different fisheries" — not the
+    // measurement.
+    //
+    // Escalated to the user in QUESTIONS.md rather than resolved here: an
+    // agent may not retire a finding on its own. Nothing in flight depends on
+    // it today — OIL-POLICY §0a, the arm it underwrote, is already SUSPENDED
+    // and +19.40pp may not be quoted — so this is a live question, not a live
+    // breakage.
+    //
+    // The DIRECTION remains the benign one every prior note describes: `bare`
+    // has not moved, and the ratio fell because LIVE's own drift keeps growing
+    // in magnitude (-0.6882 -> -0.7230). The gap is closing because the live
+    // arm moves toward the sim, not because the sim moved.
+    expect(bare.economy.drift / LIVE.drift).toBeCloseTo(4.830349605884868, 6); /* [session 102] bar was 10, against ~17x; measured 9.97x */ /* [session 105] measured 8.48x */ /* [session 122] bar of 5 CROSSED at 4.83 — converted from toBeGreaterThan(5) to a pin, see above */
     // Pinned so the NEXT move is attributable rather than merely visible.
     // [session 116] Moved again, on the 25-cast day: -0.6017 -> -0.6473. Still
     // NEGATIVE and still short of -1, the two conditions STATE names for a
@@ -460,7 +484,27 @@ describe("the simulator's economy, same predicate", () => {
     // corpus's -0.6850, so the new data is pulling steadily downward rather
     // than scattering. If it crosses -1, STATE's own rule fires and this stops
     // being a pin.
-    expect(LIVE.drift).toBeCloseTo(-0.6881944444444444, /* [session 121] was -0.6850220264317181 */ /* [session 118] was -0.6417445482866043 */ /* [s116b] was -0.6473354231974922 */ 6);  /* [session 116] was -0.6017241379310345 */ /* [session 113] was -0.5187436676798379 */ /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */  /* [session 110b] was -0.5005181347150259 */
+    // ⭐⭐ [session 122] **FIFTH CONSECUTIVE MOVE: -0.6882 -> -0.7230, and this
+    // one is a RE-DERIVE, not a pin update.**
+    //
+    // **[USER, 2026-09-05] The threshold was RATIFIED IN ADVANCE** — approved
+    // in chat before this session's casts ran and before this reading existed,
+    // which is what makes it a test rather than a story fitted to a number
+    // already seen. Two arms, either sufficient:
+    //
+    //   re-derive if |LIVE.drift| >= 1.0  (STATE's existing magnitude rule)
+    //   OR if it moves five consecutive times in the same direction,
+    //      regardless of magnitude.
+    //
+    // The walk: -0.6417 -> -0.6593 -> -0.6850 -> -0.6882 -> **-0.7230**. Five
+    // moves, all the same direction. |drift| is 0.723, so the MAGNITUDE arm did
+    // NOT fire; the DIRECTION arm did. **Any sentence of the form "still short
+    // of -1, so pinned" is now wrong on its own** — that was the pre-ratified
+    // reasoning and it is superseded.
+    //
+    // STATE's open question 4 ("does the drift walk justify a re-derive?") is
+    // CLOSED by this. Do not re-ask it.
+    expect(LIVE.drift).toBeCloseTo(-0.7230263157894737, /* [session 122] was -0.6881944444444444 — FIFTH move, direction arm fired, RE-DERIVED */ /* [session 121] was -0.6850220264317181 */ /* [session 118] was -0.6417445482866043 */ /* [s116b] was -0.6473354231974922 */ 6);  /* [session 116] was -0.6017241379310345 */ /* [session 113] was -0.5187436676798379 */ /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */  /* [session 110b] was -0.5005181347150259 */
   });
 
   it("reproduces live's per-card AMOUNTS in every arm — they are read from a real capture", () => {

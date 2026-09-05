@@ -351,7 +351,17 @@ describe("decide — contract", () => {
     // it despite the lethal branch; HP 5 keeps rock's score close enough to
     // Shield's (-722.2 vs -666.7) that the death-avoidance logic this test
     // exists to check is still the deciding factor, not raw EV dominance.
-    const s = state({ hp: 5, armor: 0 }, 1, { hp: 30, armor: 12 });
+    // [session 122] HP lowered again, 5 → 4, for the SAME reason: Sword DEF
+    // grew 9 → 10 between sessions and rock's score at HP 5 crossed Shield's,
+    // so the engine played rock and the assertion fired. **HP 4 restores
+    // session 42's stated numbers EXACTLY** — rock -722.2 against Shield's
+    // -666.7, the very figures in the note above.
+    //
+    // ⚠ Worth seeing why this keeps happening: at HP 5 the margin had decayed
+    // to **0.1** (rock -666.6 vs paper -666.7). A one-point DEF change was
+    // always going to flip it, and the test was passing on a coin-flip margin
+    // rather than on the mechanism it names. HP 4 restores a ~55-point gap.
+    const s = state({ hp: 4, armor: 0 }, 1, { hp: 30, armor: 12 });
     const d = decide(s, new OpponentModel(), cfg());
     const rock = d.table.find((r) => r.move === "rock")!;
     const lethal = rock.cells.find((c) => c.foeMove === "paper")!;

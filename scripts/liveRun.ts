@@ -2332,6 +2332,55 @@ async function main() {
     console.log(`  · --no-rom-claim: skipping the energy preflight; the pool is used exactly as-is.`);
   }
 
+  // ── [session 122, USER] GEAR-DURABILITY PREFLIGHT ─────────────────────────
+  //
+  // Reports equipped gear at 0 durability BEFORE a run, because on day 20700 a
+  // piece wore out mid-session and it was only noticed AFTERWARDS, in a census
+  // diff, two hours later. Item 640 "Golkan Eradicator Head" reached 0 during
+  // run 3, and run 4 therefore opened at hpMax 45 with Sword ATK 26 -> 16 and
+  // Shield ATK 11 -> 6. Three runs' worth of results are comparable; the fourth
+  // is a different arm, and nothing at the time said so.
+  //
+  // **Reports, does NOT block.** A worn piece is a legitimate state to play in
+  // and the user may well want the run anyway — this is the same posture as the
+  // energy preflight, which resolves what it can and prints what it cannot.
+  // Failing closed here would turn a cosmetic degradation into a stopped bot,
+  // which CLAUDE.md rule 12's lesson explicitly warns against.
+  //
+  // A read, not an action: `GET /gear/instances/{address}` costs nothing and
+  // sends no token.
+  try {
+    const gear = await client.getGearInstances(me.address);
+    const rows = ((gear as unknown as { entities?: unknown[] }).entities ?? []) as {
+      EQUIPPED_TO_SLOT_CID?: number;
+      DURABILITY_CID?: number;
+      GAME_ITEM_ID_CID?: number;
+    }[];
+    const worn = rows.filter((r) => (r.EQUIPPED_TO_SLOT_CID ?? -1) >= 0 && r.DURABILITY_CID === 0);
+    if (worn.length === 0) {
+      console.log(`  ▸ gear preflight: all ${rows.filter((r) => (r.EQUIPPED_TO_SLOT_CID ?? -1) >= 0).length} equipped piece(s) have durability remaining.`);
+    } else {
+      const list = worn.map((w) => `item ${w.GAME_ITEM_ID_CID} (slot ${w.EQUIPPED_TO_SLOT_CID})`).join(", ");
+      console.log(`  ⚠ gear preflight: ${worn.length} equipped piece(s) at DURABILITY 0 — ${list}`);
+      console.log(
+        `  · a worn DUNGEON piece stops applying its bonuses, which makes runs after it broke a ` +
+          `DIFFERENT ARM from runs before. Not a blocker; the run proceeds.`,
+      );
+      // ⚠ Every worn piece is listed, dungeon or not, because **the slot
+      // taxonomy is NOT established**. Session 122 has exactly one confirmed
+      // mapping — item 640 in slot 11 is dungeon armor, and its loss cost
+      // hpMax and two moves' ATK. Slots 8/14/15 hold fishing gear (the rod and
+      // Clover Lures) on the same account, so some of what prints here will be
+      // irrelevant to a dungeon run. Narrowing this to a dungeon-slot allowlist
+      // from n=1 is precisely the inference this repo's boon precedent forbids;
+      // widen it only once more slots have been observed affecting `PLAYER`.
+
+    }
+  } catch (err) {
+    // Never let a diagnostic read stop a run the user authorized.
+    console.log(`  · gear preflight unavailable (${err instanceof Error ? err.message : String(err)}) — continuing.`);
+  }
+
   for (let i = 0; i < targetRuns; i++) {
     if (shutdownSignal.requested) {
       console.log(`\n▸ stopped by SIGINT before run ${i + 1}/${targetRuns}.`);

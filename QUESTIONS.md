@@ -5454,3 +5454,42 @@ first exactly — same `selectedVal1` 5, same TokenId 116, same latent no-op. So
 the directive-granted reading held out of sample the first time it was tested.
 That is evidence the `latent` default is usually right; it is not evidence that
 an agent should apply it without asking, which is what the precedent forbids.
+
+---
+
+## §67 [session 122] The bare/LIVE drift ratio has crossed its pre-registered bar of 5. The CONCLUSION needs your call, not the measurement.
+
+**Status: escalated, not resolved. An agent may not retire a finding on its own.**
+
+`tests/fishing/damageEconomy.test.ts`'s "THE FINDING" assertion held that the
+*magnitude* of the drift — not its sign — is what says the live fishery and the
+simulator's bare-deck arm are **different fisheries**. It asserted
+`bare.economy.drift / LIVE.drift > 5`.
+
+**The ratio has now fallen through that bar: 17x → 9.97x → 8.48x → 4.83x.**
+
+Session 102 pre-registered exactly this, in its own words:
+
+> *"if the ratio keeps falling, the answer is to re-examine the conclusion, NOT
+> to move the bar a third time."*
+
+**So the bar was NOT moved.** The assertion was converted from
+`toBeGreaterThan(5)` to a pin at the measured 4.830349605884868, which keeps the
+number visible and the next move attributable. Lowering it to 4.5 would be the
+third move the pre-registration forbids; deleting it would hide a falsification.
+
+**What is actually in doubt is the conclusion, not the measurement.** And the
+direction is the benign one every prior note describes: `bare` has not moved at
+all. The ratio fell because LIVE's own drift keeps growing in magnitude
+(−0.6882 → −0.7230, the fifth consecutive same-direction move). The gap is
+closing because the live arm is moving toward the sim — the bot playing better —
+not because the sim moved.
+
+**Nothing in flight depends on this today.** OIL-POLICY §0a, the arm this claim
+underwrote, is already SUSPENDED, and +19.40pp may not be quoted. This is a live
+question, not a live breakage.
+
+**The question for you:** does "different fisheries" still hold at 4.83x, or is
+the honest reading now that the two arms are converging and the claim should be
+retired or restated? Either answer is fine; what an agent must not do is pick
+one quietly.
