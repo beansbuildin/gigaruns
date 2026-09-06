@@ -3143,3 +3143,26 @@ So live play can only ever settle LARGE differences, and the real effect is far 
 2026-09-05 (session 123, recap) — **Session 123 closed: dungeon 12/12 run-units, fishing 20/20 charged (24 played), suite 2463/2463.** GATE PASS on the day-20701 dow-2 confirmation, pre-registered as `ccb5f123`. Rotation fully measured; shape 25/25. Hard Core 20,208 (dungeon) + 2,880 (fishing); Dendren Root 3,054. Two of the brief's six checkable claims came back WRONG (B: balances rose out of band to 243; E: the rod was swapped), which is the rule-9 check earning its place twice in one session.
 
 2026-09-05 (session 123, recap) — **STATE's "Settled" digest DROPPED two entries.** `PLAYER.hpMax HOLDS AT 50` is discharged on its own written condition (the head was repaired), so it is now an ordinary live pin rather than a standing rule and self-enforces through `tests/enemies.test.ts`. The `Dungeon#3` entry is closed by the [USER] out-of-scope directive and its content is deliberately not restated anywhere.
+
+2026-09-06 (session 124) — **⭐ THE TWO WEAR SETS ARE DISJOINT, MEASURED, AND MAKE EVERY BREAK FORECASTABLE.** Session 123 measured the dungeon half. Session 124 measured the fishing half and, critically, showed the two do not overlap:
+
+```
+DUNGEON  slots 11, 12, 13x2   -3 per RUN      n=5 runs    (640, 641, 905, 901)
+FISHING  slots 14, 15x2       -1 per PLAYED cast   n=16 casts   (rod 923, 954 x2)
+```
+
+**Neither set moves under the other activity**, and that is measured, not assumed: rod 923 held at 40 across session 123's four dungeon runs, and the slot-15 pair held at 4/9 across session 124's dungeon run, while the four dungeon pieces held across all 16 fishing casts. **A rod-only repair therefore does NOT reopen a full fishing day** — session 124 closed with 954(a) at 4 while the rod read 40.
+
+**Three forecasts were pre-registered off these rates (`e8769d3b`) and ALL THREE HELD EXACTLY.** Item 901 at durability 2 was named in advance as breaking on run 1; it did. Rod 923 at 16 was named as reaching 0 on played cast 16; it did, at −1.00/cast on all eight checkpoints. **`floor(durability / rate)` predicts the BREAK RUN correctly, and this is now the standing way to plan a session.**
+
+⚠ **One correction to the arithmetic: durability CLAMPS AT 0, it does not go negative.** Item 901's last step was 2 → 0, a delta of −2, not −3. So `floor(d/rate)` gives the right BREAK EVENT but the wrong final READING. Do not use it to predict a durability number.
+
+2026-09-06 (session 124) — **THE FISH-TO-ZERO HALT FIRED FOR THE FIRST TIME**, and the guard behaved exactly as written: `liveFishing.ts` exits 1 on the preflight with *"rod 923 reads DURABILITY_CID 0 — it has RUN DRY"*, before any POST. It had existed unexercised since ~session 100.
+
+⚠ **The halt's safety DEPENDS ON AN UNDOCUMENTED COUPLING, and that is the durable finding here.** Rod durability is read at PREFLIGHT and after the batch — **the between-casts `batchVerdict` does not read it at all.** With `SESSION_99_LIMITS.castCap = 2` the preflight re-runs every two casts, so the halt lands within one cast of zero. **A single long `--casts=N` batch without `--oil-batch` would play straight past zero onto a dry rod**, which makes the server deal `BASE_DECK` — injecting a third deck into the corpus mid-batch, which is precisely the confound QUESTIONS §71 is about. **Run fishing as repeated small `--oil-batch` invocations, not one long batch.**
+
+⚠ **Related trap, found the same way: `--casts=N` is SILENTLY OVERRIDDEN by `--oil-batch`.** `scripts/liveFishing.ts` sets `authorizedCasts = batchLimits.castCap ?? args.casts`, so `--casts=15 --oil-batch` plays TWO casts — while the banner still prints "15 cast(s)" from `args.casts`. The banner and the actual cap disagree.
+
+2026-09-06 (session 124) — **A LIVE INSTRUMENT CONTRADICTED THE SETTLED RECORD FOR A FULL SESSION, and this is the second instance of that species in two sessions.** `scripts/checkEntryTiers.ts` was still printing *"dow2 -> f2 Overseer (136) <- FORCED BY ELIMINATION. **NOT MEASURED.**"* and *"SIX days are MEASURED and the seventh is FORCED"* — a full session after session 123 measured the dow-2 cell live on day 20701. Corrected, along with the stale `21/21` shape count and "the six points".
+
+**The general rule, which generalises CLAUDE.md rule 10:** rule 10 warns that a LOG FIELD's first appearance can fake a behaviour change. This is the same defect one layer up — **an instrument's PROSE goes stale and then gets quoted back as evidence**, because it is printed by live tooling and therefore reads as a fresh measurement. **When a measurement lands, grep the scripts that print claims about it, not just the markdown.** Session 124 applied this to its own new tool immediately: `scripts/redrawDeckSlice.ts` originally printed §71's dichotomy as its footer, and that was rewritten in the same session once the numbers refuted the framing.

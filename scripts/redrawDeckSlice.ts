@@ -8,13 +8,30 @@
  * Session 123's batch was the first played on the DENDREN rod, and the K=10
  * redraw margin collapsed to zero in the same session
  * (`tests/fishing/redrawCounterfactual.test.ts`). Those two facts are
- * confounded: the corpus the margin pools over now straddles a deck change,
- * and **a margin that closes across a deck change is the deck change until
- * shown otherwise**. §71 names the discriminator — recompute on post-swap
- * casts alone:
+ * confounded: the corpus the margin pools over straddles a deck change, and
+ * **a margin that closes across a deck change is the deck change until shown
+ * otherwise**. §71 names a discriminator — recompute on post-swap casts alone:
  *
  *  - margin STAYS at zero on Dendren-only casts  -> the collapse is the thesis
  *  - margin REOPENS on Dendren-only casts        -> the zero was the pooling
+ *
+ * ## ⚠ THAT DICHOTOMY IS FALSE, AND THIS FILE IS WHAT SHOWED IT
+ *
+ * Both branches presuppose that the PRE-swap corpus carried a POSITIVE margin
+ * which the rod swap may or may not have destroyed. **It did not.** Sliced
+ * here, GOLKAN alone — 307 traces, the largest single-deck cell — is already
+ * NEGATIVE. There was no positive margin for the swap to destroy, so §71's
+ * discriminator would have returned "margin <= 0" and been read as *"the
+ * collapse is the thesis"*: the right words for the wrong reason.
+ *
+ * Deck and POLICY ERA (`castEra.ts`) are heavily confounded, and comparing
+ * decks at CONSTANT era is what separates them: every deck is <= 0 within
+ * `focusDry`, while the positive margin sits in the two older eras. So the
+ * K=10 separation tracks the ERA, not the rod. A mechanism for that was
+ * hypothesised, measured and REJECTED — see QUESTIONS.md §71's addendum.
+ *
+ * §71 remains OPEN by USER decision (2026-09-06, HOLD). Nothing here retires
+ * or rescopes the claim; the pinned assertion stays a pin.
  *
  * ## The slice predicate, and why it is card ids and not dates
  *
@@ -30,10 +47,24 @@
 import { loadCastTraces } from "../src/sim/fishing/castTrace.js";
 import type { CastTrace } from "../src/sim/fishing/castTrace.js";
 import { redrawCounterfactual, separability } from "../src/sim/fishing/redrawCounterfactual.js";
+import { splitByDealtDeck } from "../src/sim/fishing/rodDeck.js";
 
 const DENDREN_IDS = new Set([91, 92, 93, 94, 95, 96, 97, 98, 99, 100]);
 const GOLKAN_IDS = new Set([80, 81, 84, 85, 86, 87, 74, 88, 89, 90]);
 
+/**
+ * ⚠ **`legacyRod` is NOT one deck.** It is "rod-dealt, but on neither of the
+ * two rods whose card ids we know" — an earlier rod, or more than one. It is
+ * named for what is known about it, not given a deck's name it has not earned.
+ *
+ * ⚠ **`baseDeck` is a SEPARATE axis and must not be folded into `legacyRod`.**
+ * `splitByDealtDeck` already answers "did the rod grant apply at all"; a DRY
+ * rod makes the server deal `BASE_DECK`. Those casts carry low card ids too,
+ * so a card-id predicate alone lumps them in with the early rod — this file
+ * did exactly that on its first pass, and the correction is kept visible
+ * because the mistake is the natural one: **44 of the 126 low-id traces are
+ * dry-rod base-deck casts, not an early rod at all.**
+ */
 export type Deck = "dendren" | "golkan" | "unknown";
 
 export function deckOf(t: CastTrace): Deck {
@@ -75,30 +106,42 @@ export function sliceRow(label: string, traces: readonly CastTrace[]): SliceRow 
 
 function main(): void {
   const all = loadCastTraces();
-  const dendren = all.filter((t) => deckOf(t) === "dendren");
-  const golkan = all.filter((t) => deckOf(t) === "golkan");
-  const unknown = all.filter((t) => deckOf(t) === "unknown");
+  // The grant axis FIRST: a dry rod is dealt BASE_DECK and is not an early rod.
+  const byGrant = splitByDealtDeck(all as never) as unknown as Record<string, CastTrace[]>;
+  const baseDeck = byGrant.base ?? [];
+  const rodDealt = byGrant.rod ?? [];
+  const dendren = rodDealt.filter((t) => deckOf(t) === "dendren");
+  const golkan = rodDealt.filter((t) => deckOf(t) === "golkan");
+  const legacyRod = rodDealt.filter((t) => deckOf(t) === "unknown");
+  const unknown = legacyRod;
 
   const rows = [
-    sliceRow("POOLED (all decks)", all),
-    sliceRow("LEGACY only (pre-Golkan)", unknown),
-    sliceRow("GOLKAN only", golkan),
-    sliceRow("DENDREN only (post-swap)", dendren),
+    sliceRow("POOLED (everything, all decks)", all),
+    sliceRow("BASE DECK (dry rod, no grant)", baseDeck),
+    sliceRow("LEGACY ROD (rod-dealt, unknown rod)", legacyRod),
+    sliceRow("GOLKAN", golkan),
+    sliceRow("DENDREN (post-swap)", dendren),
   ];
 
   console.log("\n▸ K=10 redraw margin, sliced by DECK — QUESTIONS.md §71\n");
-  console.log(`  corpus: ${all.length} trace(s) — golkan ${golkan.length}, dendren ${dendren.length}, unknown ${unknown.length}`);
+  console.log(
+    `  corpus: ${all.length} trace(s) — baseDeck(dry rod) ${baseDeck.length}, ` +
+      `legacyRod ${legacyRod.length}, golkan ${golkan.length}, dendren ${dendren.length}`,
+  );
   if (unknown.length > 0) {
-    // [session 124] These are NOT an error. They are a THIRD, EARLIER deck —
-    // base ids 1..7 plus looted cards — so the corpus spans at least three
-    // decks, not the two §71 assumes. Summarised rather than listed one per
-    // line, because 126 doc ids is noise, but the count is load-bearing.
+    // [session 124] These are NOT an error, and they are NOT one deck. They
+    // are rod-dealt casts on an earlier rod (or rods) whose card ids this repo
+    // has no fixture for — distinct again from the DRY-ROD base-deck casts,
+    // which `splitByDealtDeck` has already removed above. Summarised rather
+    // than listed one per line, because the doc ids are noise while the COUNT
+    // is load-bearing: it is what shows the corpus spans more than one change.
     const sets = new Map<string, number>();
     for (const t of unknown) {
       const k = [...t.cards.keys()].sort((a, b) => a - b).join(",");
       sets.set(k, (sets.get(k) ?? 0) + 1);
     }
-    console.log(`  ⚠ ${unknown.length} trace(s) on a THIRD, EARLIER deck (${sets.size} distinct card sets, base ids 1..7 + loot).`);
+    console.log(`  ⚠ ${unknown.length} rod-dealt trace(s) on an EARLIER, UNIDENTIFIED rod (${sets.size} distinct card sets).`);
+    console.log(`    Plus ${baseDeck.length} DRY-ROD base-deck trace(s), which are a different thing again.`);
     console.log(`    §71 frames the corpus as straddling ONE deck change. It straddles at least TWO.`);
   }
   console.log("");
@@ -110,9 +153,21 @@ function main(): void {
     console.log(`    MARGIN (b10 net - all3 net) = ${r.margin}`);
     console.log("");
   }
-  console.log("  §71: margin ZERO on the Dendren-only slice -> the collapse is the thesis.");
-  console.log("       margin POSITIVE on the Dendren-only slice -> the zero was the pooling.");
-  console.log("  ⚠ This resolves the DISCRIMINATOR. It does not authorise retiring the claim — §71 needs a USER decision.\n");
+  // ⚠ [session 124] DO NOT restore §71's own dichotomy here. It reads:
+  //   "margin ZERO on Dendren-only -> the collapse is the thesis;
+  //    margin POSITIVE on Dendren-only -> the zero was the pooling."
+  // Both branches assume the PRE-swap corpus carried a positive margin. It did
+  // not — GOLKAN alone is negative at n=307. Printing that dichotomy would make
+  // this instrument assert a framing its own numbers refute, which is the same
+  // defect session 124 found in checkEntryTiers.ts and fixed the same day.
+  console.log("  §71 READING — the dichotomy in QUESTIONS.md is NOT the right one:");
+  console.log("    Both of its branches presuppose a POSITIVE pre-swap margin. GOLKAN alone is");
+  console.log("    NEGATIVE at n=307, so there was never a positive margin for the swap to destroy.");
+  console.log("    Compare decks AT CONSTANT policy era (castEra.ts) before reading anything here.");
+  console.log("  ⚠ POWER: the small cells fire only a handful of times; only GOLKAN carries weight.");
+  console.log("  ⚠ The thresholds are fitted on the POOLED corpus with oracle labels. Slicing does NOT");
+  console.log("    re-fit them: this shows 'these pinned thresholds do not separate', NOT 'none do'.");
+  console.log("  ⚠ §71 is OPEN by USER decision (2026-09-06, HOLD). Nothing here retires or rescopes it.\n");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

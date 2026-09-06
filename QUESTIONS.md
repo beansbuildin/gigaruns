@@ -5591,3 +5591,92 @@ nothing else.
 **The question for you:** does the K=10 separation claim survive as
 "provisionally held, pending a Dendren-only recount", or should it be retired
 now? Either answer is fine; what an agent must not do is pick one quietly.
+
+---
+
+## The answer [USER, 2026-09-06] — **HOLD. §71 stays OPEN and UNCHANGED.**
+
+The user was shown the discriminator's result and the era decomposition below
+and chose **"Hold — I want more Dendren data first"** over retiring the claim
+or restating it as era-conditional. **So nothing above is retracted, nothing is
+rescoped, and the pinned assertion stays a pin.** The finding is recorded here
+as evidence attached to an open question, not as its resolution.
+
+### ⚠ §71's DICHOTOMY IS FALSE, and the answer cost ZERO CASTS
+
+`scripts/redrawDeckSlice.ts` (session 124) slices the corpus by the deck the
+server actually dealt — Dendren ids 91–100, Golkan 80–90 — **after** first
+splitting on `splitByDealtDeck`, because a DRY rod is dealt `BASE_DECK` and
+those casts carry low card ids that a card-id predicate alone lumps in with an
+early rod. This file made exactly that error on its first pass and it is
+recorded because it is the natural one: **44 of the 126 low-id traces are
+dry-rod base-deck casts, not an early rod.**
+
+Both branches of §71 assume the PRE-swap corpus carried a positive margin that
+the rod swap may or may not have destroyed. **It did not.** Measured on the
+corpus as committed before session 124 spent anything:
+
+```
+POOLED (everything)                457 traces   MARGIN  0
+GOLKAN only                        307 traces   MARGIN -5   <-- ALREADY NEGATIVE
+DENDREN only                        24 traces   MARGIN -2
+```
+
+There was no positive margin for the rod swap to destroy. §71's nominated
+discriminator would have returned "margin ≤ 0" and been read as *"the collapse
+is the thesis"* — the right words for the wrong reason.
+
+### The era decomposition, which is where the positive margin actually lives
+
+Deck and policy era are confounded, so the decks were compared at CONSTANT era.
+`focusDry` is the one era containing all three decks:
+
+```
+focusDry x legacy    12 traces   MARGIN  -1
+focusDry x golkan   265 traces   MARGIN -16
+focusDry x dendren   24 traces   MARGIN  -2
+
+by ERA alone:   preOil +6      oilSupplied +13      focusDry -19
+```
+
+**Every deck is ≤ 0 at constant era.** The positive margin tracks the POLICY
+ERA, not the rod.
+
+### A mechanism was hypothesised, MEASURED, and REJECTED
+
+The guess was that the K=10 arm (`sweepWithBudget`, conditioned on
+`budget >= 1`) stopped separating because budget-zero plays became rare.
+Measured budget-zero rates by era are **preOil 41.2%, oilSupplied 0.7%,
+focusDry 30.2%** against margins **+6 / +13 / −19** — non-monotone, and the era
+with essentially no budget-zero plays carries the LARGEST positive margin.
+**The mechanism is not established and no explanation is offered.** Recorded so
+it is not re-proposed as fresh.
+
+### The session-124 forward prediction, pre-registered at `e8769d3b`, HELD
+
+Predicted before the casts: adding ~16 Dendren casts leaves the Dendren-only
+margin **≤ 0**. Measured after, at n=40: **−4** (was −2 at n=24). It did not
+reopen. Final slice on 473 traces:
+
+```
+BASE DECK (dry rod)      44 traces   MARGIN +1
+LEGACY ROD               82 traces   MARGIN +6
+GOLKAN                  307 traces   MARGIN -5
+DENDREN (post-swap)      40 traces   MARGIN -4
+POOLED                  473 traces   MARGIN -2
+```
+
+⚠ **POWER, and it is the reason the user's HOLD is the right call.** The
+Dendren and legacy cells fire only 4–13 times; those margins are not
+distinguishable from zero. **Only the Golkan −5 at n=307 carries real weight.**
+The two arms are overlapping subsets of the same plays, so no p-value is
+quoted.
+
+⚠ **The thresholds are K=10-with-budget and K=3-unconditional, fitted on the
+POOLED corpus with oracle labels.** Slicing does not re-fit them. The claim
+supported here is *"these pinned thresholds do not separate within any single
+deck"*, **NOT** *"no threshold separates"*.
+
+**What would move this:** more Dendren casts, which is what the user asked to
+wait for. The rod ran to zero on 2026-09-06 and is awaiting a manual repair, so
+the next Dendren batch comes after that.

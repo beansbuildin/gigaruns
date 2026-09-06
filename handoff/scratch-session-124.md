@@ -154,3 +154,149 @@ n≈40 that contradicts the Golkan result at n=307 and is a finding.
 - Oils Relaxing-only; double-lethal disabled; Focus Oil off the allowlist.
 - Catch rate is NOT raised as a concern and no study is commissioned.
 - Corpus pins are updated only after the LAST fixture lands, never between runs.
+
+---
+
+# VERIFICATION — written AFTER the spend, against the pre-registration above
+
+## PREDICTION 1 — the gear-break forecast: **HELD, exactly.**
+
+Bracketed around the one dungeon run:
+
+```
+slot item   before  after  delta   forecast
+  11  640      58     55     -3    -3  ✓
+  12  641      36     33     -3    -3  ✓
+  13  905      18     15     -3    -3  ✓
+  13  901       2      0     -2*   BREAKS ON RUN 1  ✓   (* clamped at 0, not -1)
+   2  109       1      1      0    unmoved ✓
+   3  110      23     23      0    unmoved ✓
+   6  204      10     10      0    unmoved ✓
+   6  208      21     21      0    unmoved ✓
+   8   50       0      0      0    grandfathered ✓
+  15  954     4 / 9  4 / 9    0    unmoved by the DUNGEON ✓
+```
+
+**The gear halt fired on the forecast run.** No piece outside {640, 641, 905,
+901} moved, so the wearing set is re-confirmed at n=5 runs. The only detail the
+forecast did not state: **901 CLAMPS at 0 rather than going to −1**, so the
+last step is −2, not −3. Recorded because `floor(d/3)` predicts the BREAK RUN
+correctly either way but would mis-predict a durability READING.
+
+## PREDICTION 2 — the rod-break forecast: **HELD, exactly.**
+
+Rod 923: **16 → 0 over exactly 16 played casts**, −1.00/cast at all eight
+checkpoints (16→14→12→10→8→6→4→2→0). The **fish-to-zero halt then FIRED for the
+first time in this project's history** — `liveFishing.ts` exits 1 on the
+preflight with *"rod 923 reads DURABILITY_CID 0 — it has RUN DRY"*, before any
+POST.
+
+The consequence stated in advance also held: **the rod bound before the server
+cap.** 16 played / **12 charged** — JEBAITOR spared 4 — so the day still had 8
+charged casts left when the rod ran out.
+
+⚠ **BUT THE FURTHER CLAIM I DREW FROM THAT WAS WRONG, AND IS CORRECTED HERE.**
+I wrote that this session would therefore get **"no third data point on where
+the server refusal lands"**. It did. The user repaired the rod (0 → 40) and
+authorised spending the remaining charged casts, and the day ran to the
+server's own refusal after all:
+
+```
+▸ played cast 27 — HTTP 400
+  {"success":false,"message":"Player has reached max runs for fishing"}
+```
+
+**The refusal now has three observations: cast 24 (s122), 25 (s123), 27 (s124)**
+— it is not a fixed cast number, which is what JEBAITOR predicts, since the
+refusal is keyed to 20 CHARGED casts and the played count floats above it.
+The guard tripped closed on the rejection and nothing was retried.
+
+**The lesson is about the forecast, not the number.** The forecast was right
+about the rod and right that the rod would bind first; the error was treating
+a halt as the end of the day rather than as a hand-back. Do not fold a
+"therefore we cannot learn X" onto a correct prediction — the halt was a
+question for the user, and the user answered it.
+
+## PREDICTION 3 — the charge SHAPE: **HELD, exactly.**
+
+```
+139 Foxglove 45 -> 42   <-- the ONLY mover, -3
+137 Athena   21 -> 21   138 Archon   24 -> 24   135 Crusader 27 -> 27
+134 Chobo    30 -> 30   136 Overseer 42 -> 42   140 Summoner 42 -> 42
+```
+
+One faction, exactly 3, six untouched. **Shape count 25/25 -> 26/26.** The
+faction matched the measured rotation table for dow 3, as bookkeeping.
+
+## PREDICTION 4 — §71: the forward prediction **HELD**, and the user ruled HOLD.
+
+Predicted: adding ~16 Dendren casts leaves the Dendren-only margin **≤ 0**.
+Measured at n=40: **−4** (was −2 at n=24). It did not reopen.
+
+**USER DECISION 2026-09-06: HOLD.** §71 stays OPEN and UNCHANGED — not retired,
+not rescoped. The evidence is recorded in QUESTIONS.md as an addendum under the
+open question. The pinned assertion stays a pin.
+
+---
+
+## What the forecasts did NOT cover, and had to be measured
+
+**NEW: the FISHING wear set is slots 14 AND 15 — three pieces, all −1.00 per
+PLAYED cast.** Over the first 16 casts: rod 923 16→0, 954(a) 20→4, 954(b) 25→9
+— **−16 each**. Session 123 recorded slot 15 as "unmoved", but that bracket was
+around DUNGEON runs, where it genuinely does not move.
+
+**The two wear sets are DISJOINT and neither touches the other:**
+
+```
+DUNGEON  slots 11, 12, 13x2   -3 per RUN     (n=5 runs)
+FISHING  slots 14, 15x2       -1 per CAST    (n=16 casts)
+```
+
+This is the half that makes a repair plan possible: **a rod-only repair does
+not reopen a full fishing day**, because 954(a) sits at 4.
+
+## Deviations from the brief, and why
+
+- **The brief's Step 5 asked for four dungeon runs.** The gear forecast said
+  the halt fires after run 1, and it did. **One run played, 3 of 12 run-units.**
+  The user approved run 1 only, in chat, per rule 11.
+- **`--casts=N` is silently overridden by `--oil-batch`** (`castCap: 2`), so the
+  batch was run as repeated 2-cast invocations rather than one long batch. This
+  was not a workaround but the safe shape: **the per-cast halt check does NOT
+  read rod durability**, so a single long batch would have played past zero onto
+  a dry rod, dealing `BASE_DECK` and injecting a third deck into the corpus
+  mid-batch — precisely the confound §71 is about.
+- **Fishing resumed after the halt on an explicit user go-ahead**, once the rod
+  was repaired externally (0 → 40) during the dungeon run. Not assumed.
+
+---
+
+# RUN 2 — pre-registered BEFORE the spend (user go-ahead, "dungeon run 2 ready")
+
+Fresh live read taken first, per the halt rule. **Item 901 repaired 0 → 26.**
+
+⚠ **NEW OBSERVATION: a repair MINTS A NEW docId.** Item 901 went
+`GearInstance#901_1788535524_cffcabf3` → `GearInstance#901_1788535524_373feb7b`.
+**Anything keyed on docId across a repair will mis-track the piece** as a new
+one. Recorded because `checkGear.ts` prints docIds and the durability ledger
+writes them.
+
+**Halt interpretation acted on, flagged for correction rather than assumed:**
+three pieces read 0 — item 50 (grandfathered), and 954 ×2 in **slot 15**. Slot
+15 is a FISHING slot, measured unmoved by dungeon runs in session 123 and again
+today, and the pair broke doing the fishing the user authorised knowing they
+would. **So they do not block the dungeon arm.** The dungeon-wearing set
+(11, 12, 13×2) is whole.
+
+## Predictions for run 2
+
+1. **Gear.** −3 on the four dungeon pieces, nothing else moves, **no break**:
+   `640 55→52`, `641 33→30`, `905 15→12`, `901 26→23`.
+   Runs-to-zero after this run: 17 / 10 / 4 / 7 — so **905 is next to break,
+   in 4 more runs**, and nothing breaks inside this one.
+2. **Shape.** Foxglove (139) sole mover, **42 → 39**; other six unchanged.
+   Shape count **26/26 → 27/27**.
+3. **Ledger.** `dayProgressEntities` **3 → 6** of 12.
+4. **Slot 15 stays at 0** and slot 14 stays at 30 — the dungeon does not touch
+   fishing slots. This is the disjointness claim, tested a second time.

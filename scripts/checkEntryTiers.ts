@@ -233,18 +233,18 @@ async function main() {
     console.log(
       `      Spread across factions is ${r.scarcest.balance}-${r.richest.balance}, so the TRUE runway lands\n` +
         `      inside that band depending on the rotation ORDER — which is now SOLVED (below).\n` +
-        `      [session 122] ⭐ THE ROTATION IS SOLVED. SIX days are MEASURED and the seventh is FORCED.\n` +
-        `      The ARITHMETIC map stays FALSIFIED; the PERMUTATION hypothesis (a) was tested twice on\n` +
-        `      pre-registered predictions and SURVIVED both:\n` +
+        `      [session 123] ⭐ THE ROTATION IS FULLY MEASURED — ALL SEVEN CELLS, NONE FORCED.\n` +
+        `      The ARITHMETIC map stays FALSIFIED; the PERMUTATION hypothesis (a) was tested three\n` +
+        `      times on pre-registered predictions and SURVIVED all three:\n` +
         `        dow1 -> f1 Crusader (135)  <- day 20700, pre-registered {f1,f2}; got f1. DECISIVE.\n` +
-        `        dow2 -> f2 Overseer  (136) <- FORCED BY ELIMINATION. **NOT MEASURED.** See below.\n` +
+        `        dow2 -> f2 Overseer  (136) <- day 20701, MEASURED. Sole mover, -3 on all four runs.\n` +
         `        dow3 -> f5 Foxglove  (139) <- day 20695      dow4 -> f6 Summoner (140) <- day 20696\n` +
         `        dow5 -> f7 Chobo     (134) <- day 20697      dow6 -> f3 Athena   (137) <- day 20698\n` +
         `        dow7 -> f4 Archon    (138) <- day 20699, pre-registered {f1,f2,f4}; got f4. WEAK pass.\n` +
-        `      ⚠ THE dow-2 CELL IS A DERIVED PREDICTION, NOT AN OBSERVATION. Do not quote it as\n` +
-        `        measured. It is forced only GIVEN (a); if (a) is false in a way the six measured\n` +
-        `        points do not expose, dow 2 is exactly where that shows. A juiced run on any dow-2\n` +
-        `        day (20701, 20708, ...) is a free confirmatory test and the cheapest evidence left.\n` +
+        `      ⚠ [session 124] THIS BLOCK USED TO SAY THE dow-2 CELL WAS \"FORCED BY ELIMINATION,\n` +
+        `        NOT MEASURED\". Session 123 measured it on day 20701 and the text was not updated,\n` +
+        `        so a LIVE INSTRUMENT went on contradicting the settled record for a session. It is\n` +
+        `        corrected here. There is no rotation work left; a brief proposing any is wrong.\n` +
         `      ⚠ dow1->f1 and dow2->f2 are NOT the start of an identity map — dow3->f5 breaks it.\n` +
         `      Why day 20700 was decisive where day 20699 was not, and it was said so IN ADVANCE:\n` +
         `        20699 predicted a 3-of-7 set, which a random draw hits 43% of the time — a Bayes\n` +
@@ -252,13 +252,13 @@ async function main() {
         `        (29%) AND completed the permutation rather than merely surviving.\n` +
         `      Session 116 fitted "faction = dayOfWeek + 2" off three consecutive +1 steps. Day 20698\n` +
         `      was that fit\u2019s own nominated wrap test and it FAILED: 7 is followed by 3, not by 1.\n` +
-        `      What SURVIVED, and is now 21/21, is the charge SHAPE — exactly ONE faction, exactly\n` +
+        `      What SURVIVED, and is now 25/25, is the charge SHAPE — exactly ONE faction, exactly\n` +
         `      ${RINGS_PER_JUICED_RUN}. What died was the ORDER, and the order is now solved by measurement instead.\n` +
         `      Still open: (b) per-day pseudo-random and (c) a period that is not 7 are not formally\n` +
-        `      excluded — six measured points fit (a) exactly, which is strong but is not a proof.\n` +
+        `      excluded — SEVEN measured points fit (a) exactly, which is strong but is not a proof.\n` +
         `      ⚠ dayOfWeek is 1-INDEXED — MEASURED, not assumed. Sessions 117/118 printed the slots\n` +
         `        as "dow 0/1/2"; the server returned dow 7 for day 20699. dow = day mod 7, 0 -> 7.\n` +
-        `      Do NOT re-fit an arithmetic rule to the six points.`,
+        `      Do NOT re-fit an arithmetic rule to the seven points.`,
     );
     console.log(
       `      ⚠ Do NOT quote the ${r.runsUntilScarcestDries} as exact. It assumes each faction is charged\n` +
