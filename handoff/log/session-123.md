@@ -1,4 +1,7 @@
-# STATE — session 123 — 2026-09-05 — commit 485955e0
+# session 123 — 2026-09-05 — day-20701 dow-2 rotation MEASURED — GATE PASS
+
+Full recap. `handoff/STATE.md` carries the same content in shorter form;
+everything verbose lives here.
 
 ## Status
 No numbered TASKS.md gate; tasks 1–14 are GATE MET or parked on data (§13). The
@@ -195,3 +198,105 @@ it is a live pin, not a standing rule) and the **`Dungeon#3`** entry (closed by
 5. **`Intimidating` and five other latent boons still await a user directive.**
 6. **The `web/` front end has still never spawned a real script** — untouched
    since session 120.
+
+---
+
+# Verbose appendix
+
+## The four dungeon runs
+
+| run | fixture | deepest | Hard Core | Root | first-attempt failures |
+|---|---|---|---|---|---|
+| 1 | run-2026-09-05-20-04-13 | 11 | 5,592 | 840 | 0/72 |
+| 2 | run-2026-09-05-20-12-04 | 11 | 5,448 | 840 | 0/78 |
+| 3 | run-2026-09-05-20-20-10 | 10 | 4,536 | 687 | 0/66 |
+| 4 | run-2026-09-05-20-27-10 | 10 | 4,632 | 687 | 0/68 |
+| **TOTAL** | | | **20,208** | **3,054** | **0/284** |
+
+Combined 23,262. Runs 1–2 went one room deeper and earned more of both, but
+**all four are the SAME ARM** — item 905 broke during run 2 and was repaired
+before run 3, so unlike session 122 there is no degraded-loadout confound.
+
+## The gear wear census, bracketed around every run
+
+```
+slot item   start  r1   r2   r3   r4   rate
+  11  640     70   67   64   61   58   -3/run
+  12  641     48   45   42   39   36   -3/run
+  13  905      6    3    0*  21   18   -3/run   (* repaired to 24 by the user)
+  13  901     14   11    8    5    2   -3/run
+   2  109     10   10   10   10   10    0
+   3  110     32   32   32   32   32    0
+   6  227    2/0  2/0  2/0  2/0  2/0    0       (grandfathered zero)
+   8   50      0    0    0    0    0    0       (the superseded Stone Rod)
+  14  923     40   40   40   40   40    0       (the rod — dungeon does not wear it)
+  15  954   25/25  ...  unmoved              0
+```
+
+**Four pieces wear, six do not.** That identifies the dungeon-wearing set BY
+BEHAVIOUR rather than by guess, and it is what made item 905's break
+predictable: at 3 with a known −3/run, run 2 was named in advance as the run it
+would break in. Session 122 found its equivalent hours later in a census diff.
+
+## The Golkan → Dendren card map, read from `fixtures/fishing-casts/cards.json`
+
+```
+  zones                    Golkan          Dendren         delta
+  [1,2,3]                  80 +6/-3        91 +7/-4        hit +1, miss -1
+  [4,5,6]                  81 +6/-3        92 +7/-4        hit +1, miss -1
+  [7,8,9]                  84 +6/-3        93 +7/-4        hit +1, miss -1
+  [1,4,7]                  85 +6/-3        94 +7/-4        hit +1, miss -1
+  [2,5,8]                  86 +6/-3        95 +7/-4        hit +1, miss -1
+  [3,6,9]                  87 +6/-3        96 +7/-4        hit +1, miss -1
+  [1,3,7,9]                74 +7/-4        97 +9/-4        hit +2
+  [2,4,6,8]                88 +8/-4        98 +9/-5        hit +1, miss -1
+  ring (8 cells)           89 +4/-4        99 +5/-4        hit +1
+  centre crit              90 crit+12/-3  100 crit+14/-4   crit +2, miss -1
+```
+
+Identical `hitZones`, `critZones` and `manaCost` on all ten. Zero shared ids.
+
+## The two new crit anomalies, and the censoring trap they nearly triggered
+
+```
+13270062 t3: card 91  predicted Δ-7,  actual Δ-11  (24->13/26)  ratio 1.571
+13270082 t2: card 98  predicted Δ-9,  actual Δ-13  (13->0/14)   CLAMPED
+```
+
+The second is LETHAL, so its state delta of 13 is censored. The server's own
+`FISH_HP_DIFF` for that shot is **14** — read off the fixture's `events[]`.
+Using 13 would give 1.444 and drag the interval's lower bound down on an
+artefact. With 14 the ratios are **1.571 and 1.556, both above 1.5**, and the
+standing 1.33–1.67 band survives its first test on a new deck.
+
+⚠ Both rows were briefly read as a flat "+4" (7→11 and 9→13 are each +4). That
+was an artefact of the clamped number: the true pair is +4 and **+5**.
+
+## Head-to-head deck simulation
+
+```
+n = 40,000 per arm, identical seeds, shipped matcher policy (redraw=3)
+  GOLKAN   catch 93.05%   turns/cast 3.79
+  DENDREN  catch 96.29%   turns/cast 3.17
+  difference +3.23pp, 95% CI [2.92, 3.55]
+```
+
+Power to detect a difference live, 80% power, α=0.05, against a known baseline:
+
+| effect | casts | sessions at 24 played/day |
+|---|---|---|
+| 3pp (what the sim predicts) | 2,080 | ~87 |
+| 5pp | 749 | ~31 |
+| 10pp | 187 | ~8 |
+| 14pp | 96 | ~4 |
+
+`P(X ≤ 11 | n=24, p=0.606) = 0.103` — the observed 45.8% is ordinary variance.
+
+## The pin re-derivation, and why it took eight passes
+
+~100 pins moved. They were applied ITERATIVELY, not in one sweep, because
+**each failing assertion masked the next one in its own block** — the
+carry-forward lesson firing at scale. Pass counts: 24, 14, 9, 7, 4, 3, 1, 0.
+`LossBlockUp`'s third pickup is the clearest case: its count assertion failed
+first, so the latent no-op checks below it had NEVER EXECUTED. Bumping the count
+and re-running is what actually tested it — and it **holds out of sample at n=3**.

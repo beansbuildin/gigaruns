@@ -3139,3 +3139,7 @@ So live play can only ever settle LARGE differences, and the real effect is far 
 3. **The `dungeonSim` non-degeneracy band needed a THIRD widening** (0.95 → 0.96) for the third time the same cause. Widened, but its own re-derive trigger (~0.97) is now roughly one gear step away and was restated in the test.
 
 **The common failure these avoid is the same one: a bar that moves whenever it is inconvenient measures nothing.** Two of the three were pinned instead of moved; the third was moved with its stopping condition made louder.
+
+2026-09-05 (session 123, recap) — **Session 123 closed: dungeon 12/12 run-units, fishing 20/20 charged (24 played), suite 2463/2463.** GATE PASS on the day-20701 dow-2 confirmation, pre-registered as `ccb5f123`. Rotation fully measured; shape 25/25. Hard Core 20,208 (dungeon) + 2,880 (fishing); Dendren Root 3,054. Two of the brief's six checkable claims came back WRONG (B: balances rose out of band to 243; E: the rod was swapped), which is the rule-9 check earning its place twice in one session.
+
+2026-09-05 (session 123, recap) — **STATE's "Settled" digest DROPPED two entries.** `PLAYER.hpMax HOLDS AT 50` is discharged on its own written condition (the head was repaired), so it is now an ordinary live pin rather than a standing rule and self-enforces through `tests/enemies.test.ts`. The `Dungeon#3` entry is closed by the [USER] out-of-scope directive and its content is deliberately not restated anywhere.
