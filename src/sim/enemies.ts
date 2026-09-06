@@ -161,7 +161,35 @@ export const PLAYER: Combatant = {
   // the trap the session-75 note below records, and the sessions 42/43 one
   // below that.
   hp: 50,
-  hpMax: 50,
+  // ── [session 123] hpMax 50 -> 51 and Sword ATK 26 -> 27, BETWEEN SESSIONS,
+  // ON REPAIRED GEAR ────────────────────────────────────────────────────────
+  //
+  // Read off both of day 20701's unbooned `state-000` captures, which are
+  // BYTE-IDENTICAL to each other:
+  //
+  //   run-2026-09-05-17-01-10 (session 122, #1)  hpMax 50  rock 26/10  paper 11/17
+  //   run-2026-09-05-20-04-13 (session 123, #1)  hpMax 51  rock 27/10  paper 11/17
+  //   run-2026-09-05-20-12-04 (session 123, #2)  hpMax 51  rock 27/10  paper 11/17
+  //
+  // `armorMax` 17, Shield and Spell are untouched; only `hpMax` and Sword ATK
+  // moved, +1 each.
+  //
+  // ▸ **[USER 2026-09-05] THE HOLD AT 50 IS DISCHARGED, ON ITS OWN STATED
+  //   CONDITION — NOT REVERSED.** The user's directive was that `hpMax` HOLDS
+  //   AT 50 and session 122's run 4 (which opened at 45) is excluded, because
+  //   45 was a TRANSIENT BROKEN-GEAR state and the head was to be repaired.
+  //   `tests/enemies.test.ts` wrote the lift condition down: *"Delete this
+  //   exclusion when the head is repaired."* **The head IS repaired** — item
+  //   640 read durability 70 at the start of day 20701, live. So 51 is a
+  //   clean, repaired-gear reading, and pinning it is executing the directive's
+  //   own terms rather than re-pinning to the degraded 45 the directive
+  //   forbade. Those are different numbers from different arms; do not
+  //   conflate them.
+  //
+  // Gear or a skill point — nothing in the capture distinguishes them, the
+  // same limit every note above records. **Runs before day 20701 are NOT the
+  // same arm as runs after.**
+  hpMax: 51,
   // [session 75] ARMOR RE-SPEC, user-stated in chat between run 3 and run 4 of
   // 2026-08-22 and captured from run 4's own `start_run` (cid 24983279). Read
   // off the wire, not inferred: armorMax 17 -> 22, block 8 -> 10, Shield gains
@@ -223,7 +251,7 @@ export const PLAYER: Combatant = {
   // passing assertion**; when a test goes red, fix the first failure and RERUN
   // rather than assuming the rest of the test was fine.
   moves: {
-    rock: mv(26, 10), // Sword — ATK 25 -> 26 between runs 2 and 3 of session 113; DEF 8 -> 9 before run 1 of session 103, 9 -> 10 before session 122
+    rock: mv(27, 10), // Sword — ATK 26 -> 27 between sessions 122 and 123 (repaired gear); 25 -> 26 between runs 2 and 3 of session 113; DEF 8 -> 9 before run 1 of session 103, 9 -> 10 before session 122
     paper: mv(11, 17), // Shield — ATK 10 -> 11 between runs 2 and 3 of session 113; DEF 15 -> 16 before run 1 of session 103, 16 -> 17 before session 122
     scissor: mv(12, 8), // Spell — unchanged since session 42 second update
   },

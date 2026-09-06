@@ -175,6 +175,21 @@ export const MAKESHIFT_ROD = 922;
 export const SHROOM_ROD = 811;
 /** [session 99 §1] The rod the account swapped to at 2026-08-26T02:27:20Z. */
 export const GOLKAN_ROD = 812;
+/**
+ * [session 123] **The rod the account is holding NOW** — read live off
+ * `GET /gear/instances/{address}` on 2026-09-05: item 923 in slot 14 at
+ * DURABILITY 40, with Golkan (812) gone from the equipped set entirely. The
+ * user announced the swap in the same session.
+ *
+ * ⚠ **`CURRENT_ROD` is deliberately NOT repointed here.** See the warning
+ * above it — this file requires BOTH halves of the evidence (the
+ * `/offchain/static` payload AND a dealt deck in play) and only the payload
+ * half exists. Fishing was held this session on an unrelated gear repair, so
+ * no cast has been dealt a Dendren deck yet.
+ */
+export const DENDREN_ROD = 923;
+/** [session 123] Read in the same live call; never equipped on this account. */
+export const PUPPETEERS_ROD = 924;
 
 /**
  * `gameItems[].CARD_CID_array`, read live off `/offchain/static` on 2026-08-21.
@@ -192,6 +207,30 @@ export const ROD_CARD_GRANTS: Readonly<Record<number, readonly number[]>> = {
   // opened on exactly this prefix. The other six rods' grants were re-read in
   // the same call and none of them changed.
   [GOLKAN_ROD]: [74, 80, 81, 84, 85, 86, 87, 88, 89, 90],
+  // ── [session 123] The rod the account NOW HOLDS, read live off
+  // `/offchain/static` on 2026-09-05, HTTP 200. The four rods already in this
+  // table came back BYTE-IDENTICAL in the same call, which is the check that
+  // makes this new row trustworthy.
+  [DENDREN_ROD]: [91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
+  [PUPPETEERS_ROD]: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110],
+  //
+  // ⚠⚠ **THE THREE LEGACY RODS ARE READ BUT DELIBERATELY NOT ADDED, and this
+  // is session 89's documented decision, not an omission.** Their grants are:
+  //
+  //     49  "Wood Rod"     2, 4, 5, 6, 7, 8, 9, 10, 32, 34
+  //     50  "Stone Rod"    2, 5, 7, 8, 9, 10, 32, 34, 35, 37
+  //     336 "Phin's Rod"   2, 5, 7, 8, 9, 10, 28, 31, 38, 52
+  //
+  // `tests/fishing/rodDeck.test.ts` asserts the latest cast holds exactly ONE
+  // rod this table KNOWS, and it says in its own comment that "widening
+  // `ROD_CARD_GRANTS` to all eight rods would make this fail" — because the
+  // account's `GEAR_CID_array` carries **Stone Rod (50)** alongside the active
+  // rod, and `GEAR_CID_array` cannot name which one is ACTIVE. Session 123
+  // added all three anyway and the guard fired immediately and correctly,
+  // exactly as that comment predicted. The values are recorded here so the
+  // read is not repeated; adding them to the table is what must not happen.
+  // Resolve the ambiguity by SLOT (the active rod sits in slot 14) before ever
+  // reconsidering this.
 };
 
 /**
@@ -217,7 +256,95 @@ export const BASE_DECK: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
  * its grant is not dealt. Both casts of session 99's batch opened on the
  * Golkan prefix, and `GEAR_CID_array` carries 812 with 811 gone.
  */
-export const CURRENT_ROD = GOLKAN_ROD;
+/**
+ * ## ⚠⚠⚠ [session 123] THE ACCOUNT HAS SWAPPED TO THE **DENDREN ROD (923)**,
+ * ## AND THIS CONSTANT IS DELIBERATELY LEFT POINTING AT GOLKAN
+ *
+ * Read live 2026-09-05: slot 14 holds item **923 at DURABILITY 40**, and
+ * Golkan (812) is absent from the equipped set — which independently confirms
+ * this repo's documented rule that an unequipped instance reads
+ * `EQUIPPED_TO_SLOT_CID: -1`. The user announced the swap and stated that the
+ * base casting spells differ.
+ *
+ * **The repoint IS made, and here is the evidence for each half.** This
+ * file's standard, set when Golkan was adopted, is that a repoint needs BOTH
+ * halves — the static payload AND a deck actually dealt in play — because
+ * session 89's counterexample is a rod being equipped while its grant is not
+ * dealt.
+ *
+ *   - **Payload half: complete.** `/offchain/static` gives 923's
+ *     `CARD_CID_array` (91-100), and `GET /fishing/cards` (committed at
+ *     `fixtures/fishing-casts/cards.json`) gives all ten definitions.
+ *   - **Identity: complete and unambiguous.** `GET /gear/instances` shows 923
+ *     equipped at slot 14 with durability 40 and 812 absent entirely.
+ *   - **Play half: NOT YET, and it is the guard below that will close it.**
+ *     No Dendren cast has been recorded. `rodDeck.test.ts`'s "PLAY dealt a
+ *     deck this repo has seen before" is what checks it on the first one.
+ *
+ * The repoint is made on the first two because **the third cannot be obtained
+ * without it**: `readRodDurability` defaults to `CURRENT_ROD`, finds no
+ * equipped 812, and FAILS CLOSED — correctly, on a swap it had never seen —
+ * so `liveFishing.ts` refuses to cast at all while this points at Golkan.
+ * Leaving it stale does not buy caution; it buys a permanently unfishable bot.
+ * What the session-89 caution actually protects against is a MAGNITUDE
+ * re-baseline onto an unseen deck, and that risk is bounded here by the
+ * positional identity documented below.
+ *
+ * ## THE GOLKAN/DENDREN BREAK — ZERO SHARED CARD IDS, AND YET **POSITIONALLY
+ * ## IDENTICAL**. THE SAME SHAPE AS SHROOM -> GOLKAN, ONE TIER BETTER AGAIN.
+ *
+ * ```
+ *   Golkan  (812)   74, 80, 81, 84, 85, 86, 87, 88, 89, 90
+ *   Dendren (923)   91, 92, 93, 94, 95, 96, 97, 98, 99, 100
+ *                   ^ ZERO cards in common — the largest break yet by ID
+ * ```
+ *
+ * ⚠ **CORRECTION, session 123, recorded rather than quietly fixed.** This note
+ * first said the Dendren geometry was UNKNOWN and recoverable only from a
+ * DEALT DECK, on the grounds that the card definitions are absent from
+ * `/offchain/static`. **That was wrong, and the reasoning was the session-70 /
+ * session-99 mistake a third time: the right endpoint was one over.** Card
+ * definitions come from `GET /fishing/cards`, which this repo has had
+ * committed at `fixtures/fishing-casts/cards.json` all along — and it already
+ * contains ids 91-100. Nothing had to be spent or played to answer this.
+ *
+ * **Read off that catalog, every one of the ten maps 1:1 onto a Golkan card
+ * with identical `hitZones`, identical `critZones` and identical `manaCost`:**
+ *
+ * ```
+ *   zones                    Golkan          Dendren         delta
+ *   [1,2,3]                  80 +6/-3        91 +7/-4        hit +1, miss -1
+ *   [4,5,6]                  81 +6/-3        92 +7/-4        hit +1, miss -1
+ *   [7,8,9]                  84 +6/-3        93 +7/-4        hit +1, miss -1
+ *   [1,4,7]                  85 +6/-3        94 +7/-4        hit +1, miss -1
+ *   [2,5,8]                  86 +6/-3        95 +7/-4        hit +1, miss -1
+ *   [3,6,9]                  87 +6/-3        96 +7/-4        hit +1, miss -1
+ *   [1,3,7,9]                74 +7/-4        97 +9/-4        hit +2
+ *   [2,4,6,8]                88 +8/-4        98 +9/-5        hit +1, miss -1
+ *   ring (8 cells)           89 +4/-4        99 +5/-4        hit +1
+ *   centre crit              90 crit+12/-3  100 crit+14/-4   crit +2, miss -1
+ * ```
+ *
+ * **So the Shroom -> Golkan conclusion carries over verbatim, and it is the
+ * useful half:**
+ *
+ *   - **GEOMETRY-KEYED numbers TRANSFER** — zone coverage, the ring and
+ *     contextual predictors, the mined pattern library, the matcher, focus
+ *     movement. They are keyed to quantities this swap does not touch. Same
+ *     ten hit-zone sets, same mana cost of 1 on all ten.
+ *   - **DAMAGE-MAGNITUDE numbers DO NOT** — EV per card, lethality bands,
+ *     `fishMaxHp` turn counts, the necessity gate's `fishHp <= 2` arm. Every
+ *     card hits harder.
+ *   - **Eight of the ten are also WORSE ON A MISS** (-1 each), where the
+ *     Shroom -> Golkan step had exactly one such regression (card 89). Dendren
+ *     is better on the hit and worse on the miss, so it is **not** a uniform
+ *     improvement and a variance-sensitive number may move either way.
+ *
+ * **Fishing corpus records from before the swap remain a DIFFERENT ARM** for
+ * any damage-keyed quantity. A damage pin that moves after the first Dendren
+ * cast is the SWAP, not drift and not a regression.
+ */
+export const CURRENT_ROD = DENDREN_ROD;
 
 /**
  * The deck every sim script starts from. ONE definition — three scripts

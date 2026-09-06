@@ -157,3 +157,76 @@ rate session 121 bought by fixing a denominator.
 - Dungeon: **4 juiced Tier-2 runs, 12 of 12 run-units**, authorized in advance,
   one at a time with a report between each (rule 11 is not repealed by advance
   authorization).
+
+---
+
+# RESULTS — appended AFTER the pre-registration above. Nothing above was edited.
+
+## THE GATE: PASS, twice
+
+| run | Overseer (136) | other six factions | verdict |
+|---|---|---|---|
+| 1 | **54 → 51** | unmoved | sole mover, exactly −3 |
+| 2 | **51 → 48** | unmoved | sole mover, exactly −3 |
+
+Both falsifiers held: the mover was Overseer (**ORDER survives**) and exactly
+one faction moved by exactly 3 (**SHAPE survives**, now 23/23). Balances read
+twice after each run and stable.
+
+**The dow-2 cell moves from FORCED to MEASURED. All seven cells are now
+observed and the rotation needs no further runs — do not schedule an eighth.**
+
+## Gear wear rate — the pre-registered UNKNOWN, now measured at n=2
+
+| slot | item | start | after r1 | after r2 | rate |
+|---|---|---|---|---|---|
+| 11 | 640 | 70 | 67 | 64 | **−3/run** |
+| 12 | 641 | 48 | 45 | 42 | **−3/run** |
+| 13 | 905 | 6 | 3 | **0** | **−3/run** |
+| 13 | 901 | 14 | 11 | 8 | **−3/run** |
+| 2, 3, 6, 8, 14, 15 | — | | | unmoved | **0** |
+
+Exactly four pieces wear, all at −3; six do not move at all. The dungeon-wearing
+set is identified **by behaviour**, not by guess — and the rod (923) and slot 15
+were untouched by a dungeon run, consistent with 8/14/15 being fishing gear.
+**This does not license a hard-coded allowlist**; it licenses the statement that
+these four wore and those six did not.
+
+## The break was FORECAST rather than discovered — a first
+
+905 stood at 3 with the rate known, so **run 2 was named in advance as the run
+it would break in.** It read 0 afterwards. The [USER] halt fired correctly and
+for the right reason — 905 reached 0 **during** this session, unlike the two
+grandfathered pre-existing zeros. Session 122 found its equivalent hours later
+in a census diff.
+
+**The user then repaired 905 (0 → 24, read live) and authorized run 3**, so
+runs 1–3 are the same clean arm. Forecast for the rest of the day: 901 goes
+8 → 5 → 2, so **no further halt is expected today**.
+
+## Surprises worth keeping
+
+1. **Two ring balances ROSE between sessions** (Archon +6, Overseer +3) with
+   nothing spent by this bot. Claim B failed in the direction that changed the
+   gate's arithmetic. **Athena at 21 is now the scarcest silver ring.**
+2. **The rod was swapped and the fishing guard handled it correctly with no
+   code change** — `readRodDurability` found no equipped 812 and failed closed
+   with an actionable halt. A guard behaving well on a case it had never seen.
+3. **Dendren grants cards 91–100, ZERO in common with Golkan.** Largest deck
+   break yet in card ids, and unlike Shroom→Golkan its POSITIONAL geometry is
+   unknown — so geometry-keyed numbers are suspect here where they were safe
+   across the last break.
+4. **A documented trap was walked into.** Filling `ROD_CARD_GRANTS` with all
+   eight rods broke `rodDeck.test.ts` exactly as that test's own comment
+   predicted. Reverted; the read is preserved in a comment.
+5. **Carry-forward item 4 fired in the wild.** `LossBlockUp`'s count assertion
+   failed first, so the third pickup's latent checks had **never executed**.
+   Bumping the count and re-running is what actually tested it — and it
+   **holds out of sample at n=3**.
+6. **`OBSERVED_OFFERS` moved 560 → 562 between two test runs** because the live
+   runs were writing fixtures underneath. Corpus pins must be updated AFTER the
+   day's runs stop, not between them.
+7. **`hpMax` 50 → 51 and Sword ATK 26 → 27** on repaired gear, identical across
+   both of the day's clean openings. The [USER] hold at 50 is DISCHARGED on its
+   own written condition ("delete this exclusion when the head is repaired"),
+   not reversed.

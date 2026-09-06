@@ -5457,9 +5457,15 @@ an agent should apply it without asking, which is what the precedent forbids.
 
 ---
 
-## §67 [session 122] The bare/LIVE drift ratio has crossed its pre-registered bar of 5. The CONCLUSION needs your call, not the measurement.
+## §70 ANSWERED [user, 2026-09-05] — the bare/LIVE drift ratio crossed its pre-registered bar of 5. The PHRASING is retired; the CONCLUSION stands on the two big gaps instead.
 
-**Status: escalated, not resolved. An agent may not retire a finding on its own.**
+> ⚠ **FILED AS §67 BY SESSION 122 AND RENUMBERED TO §70 IN SESSION 123.** `§67`
+> was already taken by the session-113 `Vengeance` entry above (still OPEN, still
+> the incumbent, deliberately NOT renumbered). Two open questions sharing a
+> number is exactly how one of them stops being findable.
+
+**Status: ANSWERED by the user 2026-09-05. Recorded below the original text,
+which is left exactly as session 122 wrote it.**
 
 `tests/fishing/damageEconomy.test.ts`'s "THE FINDING" assertion held that the
 *magnitude* of the drift — not its sign — is what says the live fishery and the
@@ -5493,3 +5499,95 @@ question, not a live breakage.
 the honest reading now that the two arms are converging and the claim should be
 retired or restated? Either answer is fine; what an agent must not do is pick
 one quietly.
+
+---
+
+## The answer [USER, 2026-09-05]
+
+**"Different fisheries" is RETIRED AS PHRASING. The conclusion it carried is
+unchanged.** Session 102 pre-registered that a further fall means re-examining
+the conclusion rather than moving the bar; the user has now made that call, and
+it is not to be re-asked.
+
+**What changes — the wording, and only the wording:**
+
+- **Stop using "different fisheries"** as the name of the claim anywhere it is
+  stated in the present tense.
+- **The CONCLUSION is unchanged: a simulator result does not transfer to live.**
+  Nothing about how the bot runs changes.
+- **It now rests on the two gaps `OIL-POLICY.md` §0a actually cites** —
+  **meter-out 1.0% sim against 64.2% live**, and **catch ~70% against 27.6%**.
+  Session 90 already verified that §0a's text never cited the drift ratio at
+  all, so this RESTORES the real basis rather than inventing a new one. Both
+  gaps are untouched by anything measured since, and both are far larger than a
+  drift ratio.
+
+**What does NOT change:**
+
+- **The pin at `4.830349605884868` STAYS.** Deleting it would hide a
+  falsification. What it is evidence *of* is restated: it is a tracked measure
+  of **live-vs-sim convergence**, not the basis of any claim.
+- **The bar is NOT lowered to 4.5.** Still forbidden, still in Dead ends — moot
+  now, but not deleted.
+- **§0a is NOT lifted, and +19.40pp / +17.74pp MAY NOT BE QUOTED.**
+
+**The benign reading, worth keeping:** `bare` never moved. The ratio fell
+entirely because LIVE's own drift grew (fifth consecutive same-direction move,
+−0.6882 → −0.7230) — the live arm converging on the sim because the bot is
+playing better. **A measurement broke because performance improved**, which is
+why retiring the phrasing costs nothing.
+
+**Re-opens as:** *"the falling ratio shows sim and live are the same fishery"*,
+*"restore the `> 5` assertion"*, or *"different fisheries"* itself.
+
+---
+
+## §71 [session 123] The K=10 redraw margin has CLOSED TO ZERO — the assertion that was nominated to catch it, caught it. The conclusion needs your call.
+
+**Status: escalated, not resolved. An agent may not retire a finding on its own.**
+
+`tests/fishing/redrawCounterfactual.test.ts` asserted that the K=10 arm
+separates from the pooled `all3` arm:
+
+```
+expect(b10.rescues - b10.sacrifices).toBeGreaterThan(all3.rescues - all3.sacrifices);
+```
+
+**It is now an equality, so the assertion is false:**
+
+```
+  b10   rescues 40 - sacrifices  8 = 32
+  all3  rescues 47 - sacrifices 15 = 32
+```
+
+The margin has gone **4 → 2 → 0** over three sessions. Session 122 nominated
+this exact assertion, in advance and in its own words:
+
+> *"K=10 also still carries its claim (31 against 29) but that margin NARROWED
+> from 4 to 2 — worth watching, because the K=10 arm is the one the thesis now
+> rests on entirely, and it is the assertion two lines down that would catch
+> it."*
+
+**What was done, and what was deliberately NOT done.** The assertion is
+converted to a **pin of the collapsed state** (`toBe(32)` on both arms).
+Relaxing it to `toBeGreaterThanOrEqual` would have made it pass while erasing
+the very fact that it stopped discriminating — the same move session 122
+refused on the bare/LIVE drift bar, for the same reason. Deleting it would hide
+a falsification. The K=6 inversion below it still holds and is untouched.
+
+**⚠ THE CONFOUND IS LARGE AND MUST BE WEIGHED BEFORE ANY CONCLUSION.** This is
+the **first batch played on the DENDREN rod** — the account swapped rods this
+session, and the new deck is +1 on the hit and −1 on the miss for eight of its
+ten cards. The corpus this assertion pools over now straddles a deck change.
+**A redraw-economy margin that closes across a deck change is the deck change
+until shown otherwise**, so this is not yet evidence that the K=10 thesis was
+wrong on its own terms.
+
+**The cheapest way to separate the two readings** is one more Dendren-only
+batch: if the margin stays at zero on post-swap casts alone, it is the thesis;
+if it reopens, it was the pooling. That costs one ordinary fishing day and
+nothing else.
+
+**The question for you:** does the K=10 separation claim survive as
+"provisionally held, pending a Dendren-only recount", or should it be retired
+now? Either answer is fine; what an agent must not do is pick one quietly.

@@ -3,6 +3,14 @@
 Full recap. `handoff/STATE.md` carries the same content in shorter form;
 everything verbose lives here.
 
+> **[session 123 pointer — the RECORD BELOW IS UNCHANGED, only its section
+> number moved.]** The drift-ratio question this session filed as **QUESTIONS
+> §67** is now **QUESTIONS §70**. `§67` was already taken by the session-113
+> `Vengeance` entry, which is the incumbent and was NOT renumbered. Every
+> "QUESTIONS §67" below refers to the drift ratio and should be read as §70;
+> the prose is left exactly as written because a log is a record of what was
+> believed when. §70 is also now **ANSWERED** — see it for the user's call.
+
 ## Status
 No numbered TASKS.md gate; tasks 1–14 are GATE MET or parked on data (§13). The
 session worked `handoff/next.md`'s session-122 brief, which was CURRENT.

@@ -190,7 +190,16 @@ describe("the profile seam — what is NOT converted, counted so it cannot grow 
     // to those constants, so a caller wanting another tree passes one.
     // Converting it alone would split the three report scripts across two
     // conventions for no portability gain.
-    expect([...unconverted].sort().length).toBe(28);
+    //
+    // [session 123] Raised 28 -> 29 for `scripts/fishBatchReport.ts`, on the
+    // SAME sessions 100/101 terms this entry already meets: it is a read-only
+    // report script, its `join("fixtures", "fishing-casts", "live")` is the
+    // corpus location every other fishing reader already uses, and the
+    // constant is a DEFAULT — `--dir=<path>` overrides it, so a caller wanting
+    // another tree passes one rather than editing the file. Raised rather than
+    // converted for the same reason as the entry above: converting one report
+    // script alone splits them across two conventions for no portability gain.
+    expect([...unconverted].sort().length).toBe(29);
   });
 
   it("the three entry points are NOT in the unconverted set", () => {

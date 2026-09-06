@@ -244,6 +244,34 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // a neighbouring multiplier the way a base with a fractional product could.
     // Not lethal (26 -> 17 of 27), so no clamping caveat applies.
     "13242353 t6: card 87 hit=true crit=false predicted Δ-6, actual Δ-9 (26->17/27)",
+    // ⭐ [session 123] EIGHTH and NINTH exceptions, and they are the FIRST on
+    // the DENDREN deck — the account swapped rods this session (see
+    // rodDeck.ts), so both cards here (91, 98) are ids that did not exist in
+    // this corpus before today.
+    //
+    // ⚠⚠ **THE SECOND ROW IS LETHAL AND ITS CLAMPED DELTA IS THE WRONG
+    // NUMBER — the exact trap the interval block below documents.** Card 98
+    // took the fish 13 -> 0 of 14, so the STATE delta reads 13, but the
+    // server's own `FISH_HP_DIFF` for that shot is **14**. Read off the
+    // fixture's `events[]`, not inferred. Using the clamped 13 would give a
+    // ratio of 1.444 and drag the interval's lower bound down on a censoring
+    // artefact — reporting a falsification that never happened. The first row
+    // is NOT lethal (24 -> 13 of 26) so its 11 needs no correction.
+    //
+    // Unclamped ratios: **1.571** (11/7) and **1.556** (14/9). **Both are
+    // ABOVE 1.5**, so the run of exact-1.5 rows does not extend, and the truth
+    // is still an INTERVAL rather than the point value those rows made easy to
+    // believe. Both sit inside the standing 1.33-1.67 band, so the rule
+    // survives its first test on a new deck.
+    //
+    // ⚠ Both rows were briefly read here as a flat "+4", because 7 -> 11 and
+    // 9 -> 13 are each +4. That reading was an artefact of the clamped number:
+    // the true pair is +4 and **+5**, and a flat offset reproduces no earlier
+    // row anyway (card 76's 3 -> 5 would need +2). Recorded because two
+    // samples that accidentally agree are exactly how a wrong shape gets
+    // adopted.
+    "13270062 t3: card 91 hit=true crit=false predicted Δ-7, actual Δ-11 (24->13/26)",
+    "13270082 t2: card 98 hit=true crit=false predicted Δ-9, actual Δ-13 (13->0/14)", // unclamped FISH_HP_DIFF = 14
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -342,6 +370,13 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // The value is as a fresh falsification chance the rule survived, not as
       // narrowing.
       { base: 6, actual: 9 },
+      // [session 123] The first two rows from the DENDREN deck. `base 7,
+      // actual 11` is a SECOND base-7 row and, like session 121's duplicate
+      // base-6, cannot tighten a bound its own base already sets. `base 9,
+      // actual 14` is a **NEW BASE** and uses the UNCLAMPED `FISH_HP_DIFF`
+      // (14) per the rule above, not the lethal-clamped state delta (13).
+      { base: 7, actual: 11 },
+      { base: 9, actual: 14 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 
@@ -515,7 +550,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(101) /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
+    expect(corrected.crits).toBe(106) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

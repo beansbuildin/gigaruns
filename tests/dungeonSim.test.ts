@@ -369,8 +369,20 @@ describe("the Task 4 gate", () => {
     // and it will keep drifting up as the account gears: this is a
     // non-degeneracy check, and if it ever needs a bound above ~0.97 the right
     // move is to re-derive it against the enemies rather than widen it again.
+    // ⚠⚠ **[session 123] Upper bound 0.95 -> 0.96 — the THIRD widening, for the
+    // THIRD time the same cause, and the note above predicted exactly this.**
+    // `PLAYER` gained `hpMax` 50 -> 51 and Sword ATK 26 -> 27 on repaired gear
+    // (see enemies.ts's session-123 note), and a random policy now measures
+    // **0.9520** against these enemies.
+    //
+    // **The re-derive trigger is now CLOSE and is restated rather than left to
+    // be rediscovered: at ~0.97 this must be re-derived against the enemies,
+    // not widened a fourth time.** The remaining headroom is roughly one more
+    // gear step. A non-degeneracy check that only ever ratchets upward stops
+    // discriminating anything — the LOWER bound (0.3) is doing all the work by
+    // then, and the upper one is decoration.
     expect(s.scoredBattleWinRate).toBeGreaterThan(0.3);
-    expect(s.scoredBattleWinRate).toBeLessThan(0.95);
+    expect(s.scoredBattleWinRate).toBeLessThan(0.96); /* [session 123] was 0.95, measured 0.9520 */
   });
 
   it("[session 11] a scored clear is possible by construction but landed at 0 in this seeded batch", () => {

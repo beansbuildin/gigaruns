@@ -117,6 +117,27 @@ describe("player loadout matches the fixtures", () => {
    * directly. Item 50 also reads 0, but it is the superseded "Stone Rod", a
    * FISHING item in slot 8 — not dungeon gear, and not a candidate.
    */
+  /**
+   * ▸ **[session 123] THE HEAD IS REPAIRED, so this exclusion is DISCHARGED as
+   * a live gate and RETAINED only as a record of which run is a degraded
+   * arm.** Item 640 read **70** durability at the start of day 20701 — the
+   * user repaired it between sessions, which is the exact condition the note
+   * above names for lifting this ("Delete this exclusion when the head is
+   * repaired"). It is kept in the set rather than removed because the run it
+   * names IS still a degraded-arm capture and nothing is served by forgetting
+   * that; it simply no longer selects anything, since every later run is
+   * newer.
+   *
+   * ⚠ **A SECOND partial-degradation arm exists from day 20701 and is
+   * deliberately NOT added here.** Item 905 (slot 13) stood at 3 with the wear
+   * rate measured at exactly −3 per run, so it reached 0 **during** run 2 —
+   * predicted in advance for the first time rather than discovered afterwards,
+   * and the user chose to run knowing it. Run 2's `state-000` is captured
+   * BEFORE that break, so it is a valid clean opening and the selector below
+   * may use it; only its later states are partially degraded. Adding the whole
+   * run here would throw away a good opening to exclude states this selector
+   * never looks at.
+   */
   const DEGRADED_GEAR_RUNS = new Set<string>(["run-2026-09-05-17-22-39"]);
 
   const newestOpening = () => {
@@ -289,169 +310,66 @@ describe("player loadout matches the fixtures", () => {
     //   state-175  currentMax 17 -> 14   corrode shred on an enemy win
     //   state-183  currentMax back to 17 (room boundary)
     expect([...seen].sort()).toEqual([
-      // ⭐ [session 122] SIX new combos from day 20700's four juiced Tier-2
-      // runs — `45/14`, `45/17`, `50/35`, `58/29`, `58/32`, `58/35` — PURELY
-      // ADDITIVE (six added, ZERO removed, multiset-checked both ways).
-      //
-      // **Five are ordinary mid-run growth. ONE IS A NEW STARTING LOADOUT, and
-      // it is the first time this census has caught a real one since the
-      // session-103 "loadout holds steady" ruling.** The signal was chased
-      // rather than recorded, per session 106's standing instruction:
-      //
-      //   run 2  state-042  50/27 -> 50/35  AddMaxArmor(+8)
-      //   run 2  state-136  50/35 -> 58/35  AddMaxHealth(+8)
-      //   run 2  state-140  58/35 -> 58/32  corrode shred (armorMax)
-      //   run 2  state-142  58/32 -> 58/29  corrode shred (armorMax)
-      //   run 2  state-160  58/29 -> 58/35  room boundary restore
-      //   run 4  state-000  (start)  45/17  <-- NOT growth. A NEW OPENING.
-      //   run 4  state-014  45/17 -> 45/14  corrode shred, then back at 026
-      //
-      // Run 4 opened at **45/45 armor 17/17** where runs 1-3 all opened
-      // **50/50 armor 17/17**, `pickedBoons: []` on all four. Sword ATK also
-      // fell 26 -> 16 and Shield ATK 11 -> 6; every DEF and Spell held. The
-      // `starting*` fields are identical across all four — it is the CURRENT
-      // values, which carry the gear bonus, that collapsed to the class base.
-      //
-      // **Cause: gear durability, read live rather than inferred from the
-      // census.** `GET /gear/instances/{address}` shows item **640 "Golkan
-      // Eradicator Head"** (Epic, Forbidden Woods) at slot 11,
-      // `DURABILITY_CID: 0`; its body counterpart 641 at slot 12 still reads
-      // 48. It wore out during run 3 and stopped granting its +5 max HP.
-      //
-      // **This falsifies the long-standing premise that gear only changes
-      // BETWEEN sessions** — see `DEGRADED_GEAR_RUNS` above, which excludes
-      // run 4 from `newestOpening()` so `PLAYER.hpMax` holds at 50 pending
-      // the user's repair ([USER] 2026-09-05).
-      //
-      // The 45/x combos STAY in this census. It records what the corpus
-      // contains, and the corpus does contain them; it is the LOADOUT BASELINE
-      // that is held at 50, which is a different question.
-      // [session 106] FIVE new combos from the four juiced runs of 2026-08-28,
-      // and — the part that matters — **NOT ONE is a new starting loadout.**
-      // All four runs opened on `50/17` with `pickedBoons: []`, byte-identical
-      // to session 103 run 4's start, read off each run's OWN `start_run`
-      // response rather than inferred from one of them.
-      //
-      // That is the first positive confirmation of DECISIONS 2026-08-27's
-      // ruling that the loadout would HOLD STEADY going forward — the ruling
-      // that also made "a new census combo is a SIGNAL to chase" rather than
-      // expected drift. The signal was chased and came back clean: every combo
-      // below is ordinary mid-run growth off 50/17.
-      //
-      //   run 2  state-044  50/17 -> 50/25  AddMaxArmor(+8)
-      //   run 2  state-076  50/25 -> 50/27  AddMaxArmor(+2)
-      //   run 3  state-056  50/17 -> 58/17  AddMaxHealth(+8)
-      //   run 3  state-088  58/17 -> 58/27  AddMaxArmor(+10)
-      //   run 4  state-070  50/17 -> 50/27  AddMaxArmor(+10)
-      //   run 4  state-084  50/27 -> 64/27  AddMaxHealth(+14)
-      //
-      // ⚠ **`AddMaxArmor` is not a flat +2.** The entries above it were written
-      // around +2 pickups (sessions 95, 103); +8 and +10 both appear here. The
-      // boon's own `selectedVal1` carries the amount — read it, never assume
-      // the size. `AddMaxHealth` shows +8 and +14 the same way.
-      //
-      // All four runs are ONE ARM (50/17, 3/3 potions, juiced, Tier-1 entry),
-      // which is what makes their Hard Core poolable — handoff/log/session-106.md.
-      // [session 103] NINE new combos from the four juiced runs of 2026-08-27,
-      // and **TWO of them are new starting loadouts** — the first session since
-      // 75 where the census caught the account changing under it, and the first
-      // ever to catch it changing TWICE in one day:
-      //
-      //   45/20  runs 1-3's start (was 40/22 on 2026-08-26)
-      //   50/17  run 4's start, changed again between runs 3 and 4
-      //
-      // Both steps trade armor for health, and `src/sim/enemies.ts`'s PLAYER is
-      // updated to the newer (50/17, the newest unbooned capture). ⚠ **Runs 1-3
-      // and run 4 are therefore not one arm**, and neither group is one arm
-      // with 2026-08-26's four runs — the session-75 trap, twice over. Nothing
-      // may read depth or Hard Core across those boundaries as a strategy
-      // effect.
-      //
-      // The other seven are ordinary mid-run states, every one accounted for:
-      // 50/19 is run 4's start plus AddMaxArmor(+2). 59/20 and 59/22 are run
-      // 3's AddMaxHealth(**val1 14** — the largest this table has seen; 45+14)
-      // then AddMaxArmor(+2). 53/20 is run 1's AddMaxHealth(+8) off 45/20 with
-      // armor untouched.
-      //
-      // 53/17, 53/19 and 53/22 are one trace in run 2 and it is the corrode
-      // mechanic again, described at the top of this block and re-confirmed at
-      // the documented size: 45/20 + AddMaxHealth(+8) = 53/20, corrode takes it
-      // to 53/17 (**exactly -3**), AddMaxArmor(+2) rebuilds to 53/19, and the 3
-      // comes back at the next path choice for 53/22. Session 90 predicted the
-      // decrease would land on the corrode amount; on this trace it does, and
-      // the restore is visible in the same run.
-      // [session 82] ONE new combo from the four juiced runs of 2026-08-23,
-      // and it is NOT a new starting loadout: 48/22 is run 4 mid-run, after a
-      // single AddMaxHealth took hpMax 40 -> 48 on an unchanged armorMax 22.
-      //
-      // **The starting loadout is byte-identical to session 75's** — rock
-      // 25/8, paper 10/15, scissor 12/8, 40/22, block 10, read off run 1's own
-      // `start_run` and diffed against `enemies.ts` before run 2 as the brief
-      // required. So unlike session 75, all four runs here are ONE arm and may
-      // be read against each other. That is the useful output of this census
-      // on a session where nothing drifted: a stated negative, not silence.
-      // [session 75] FIVE new combos from the four juiced runs of 2026-08-22,
-      // and only ONE of them is a new starting loadout. 40/22 is the user's
-      // armor re-spec, stated in chat between runs 3 and 4 and captured from
-      // run 4's own `start_run` (armorMax 17 -> 22). The other four are
-      // MID-RUN states after AddMaxArmor / AddMaxHealth pickups, the same
-      // shape as 34/20 and 36/18 above: 40/21 and 40/27 and 40/30 from runs
-      // 1-3 on the OLD 40/17 loadout, and 54/25 / 54/27 / 54/30 / 54/32 after
-      // AddMaxHealth took hpMax to 54. 62/32 is run 4's deepest state, two
-      // AddMaxHealth and two AddMaxArmor pickups on the NEW loadout.
-      //
-      // **The re-spec means runs 1-3 and run 4 are not comparable**, and any
-      // baseline quoted across that boundary needs re-measuring — which is
-      // exactly what this census exists to make visible.
-      // [session 90] SIX new combos across sessions 83-89's runs, and — checked
-      // rather than assumed — **not one of them is a new starting loadout.**
-      // The starting set is unchanged at ten (32/15, 32/16, 34/16, 36/16,
-      // 38/16, 38/17, 40/17, 40/22, 42/16, 43/17), 40/22 is still the newest,
-      // and NO combo left the list. So this whole batch is one arm and may be
-      // read against session 82's, which is the useful output of a census on a
-      // session where the loadout did not drift.
-      //
-      // **Two of the six are DECREASES, and they land exactly on the corrode
-      // amount.** 40/19 is 40/22 minus 3 — one `onEnemyWinExchange_corrode`
-      // application at the documented amount 3 — and 40/16 is minus 6, two of
-      // them within a room. That is the mechanic described at the top of this
-      // block reproducing on new data at the right size, which is stronger
-      // evidence for the model than the original observation was.
-      //
-      // The other four are ordinary max pickups on the 40/22 loadout: 40/32
-      // (AddMaxArmor), 48/32 and 54/22 and 54/26 (AddMaxHealth, alone or with
-      // armor) — the same shape as 34/20 above.
-      "32/15", "32/16", "34/16", "34/20", "36/16", "36/18", "36/20", "38/16", "38/17", "40/11", "40/14",
+      // [session 123] The census is updated ONCE, after the day's four runs
+      // stopped writing fixtures. An earlier attempt mid-session watched
+      // this number move 560 -> 562 between two test invocations: a corpus
+      // pin cannot be settled while live runs are still appending to the
+      // corpus. Verified PURELY ADDITIVE by multiset diff BOTH WAYS at each
+      // step: 8 added then 6 added, 0 removed either time, 76 -> 84 -> 90.
+      // All fourteen trace to one cause — `hpMax` 50 -> 51 on repaired gear
+      // (see PLAYER's session-123 note) — so these are that base plus its
+      // usual AddMaxArmor pickups and mid-run booned states off it.
+      "32/15",
+      "32/16",
+      "34/16",
+      "34/20",
+      "36/16",
+      "36/18",
+      "36/20",
+      "38/16",
+      "38/17",
+      "40/11",
+      "40/14",
       "40/16",
       "40/17",
       "40/19",
       "40/21",
       "40/22",
-      "40/24", // [session 95] mid-run, 1x AddMaxArmor off the 40/22 loadout
+      "40/24",
       "40/25",
-      "40/26", // [session 95] mid-run, 1x AddMaxArmor off the 40/22 loadout
+      "40/26",
       "40/27",
-      "40/28", // [session 95] mid-run, 2x AddMaxArmor off the 40/22 loadout
+      "40/28",
       "40/30",
       "40/32",
-      "42/16", "42/18", "42/26", "43/17", "43/25",
+      "42/16",
+      "42/18",
+      "42/26",
+      "43/17",
+      "43/25",
       "45/14",
       "45/17",
-      "45/20", // [session 103] runs 1-3's STARTING loadout
+      "45/20",
       "48/22",
       "48/32",
       "50/14",
       "50/16",
-      "50/17", // [session 103] run 4's STARTING loadout
-      "50/19", // [session 103] run 4 mid-run, 1x AddMaxArmor off 50/17
-      "50/25", // [session 106] run 2 mid-run, AddMaxArmor(+8) off 50/17
-      "50/27", // [session 106] run 2 (50/25 +2) and run 4 (50/17 +10), same combo twice
+      "50/17",
+      "50/19",
+      "50/25",
+      "50/27",
       "50/29",
-      "50/35", // [session 121] NEW, from the day-20699 juiced Tier-2 runs (1-2). Purely ADDITIVE. Not a new STARTING loadout — armour accrued in-run, the same shape sessions 106/118 recorded.
-      "53/17", // [session 103] run 2 mid-run, 53/20 after corrode -3
-      "53/19", // [session 103] run 2 mid-run, 53/17 + AddMaxArmor
-      "53/20", // [session 103] run 1 mid-run, 1x AddMaxHealth off 45/20
-      "53/22", // [session 103] run 2 mid-run, 53/19 with the corrode 3 restored
+      "50/35",
+      "51/17",
+      "51/18",
+      "51/19",
+      "51/21",
+      "51/26",
+      "51/29",
+      "53/17",
+      "53/19",
+      "53/20",
+      "53/22",
       "54/17",
       "54/22",
       "54/25",
@@ -459,112 +377,37 @@ describe("player loadout matches the fixtures", () => {
       "54/27",
       "54/30",
       "54/32",
-      // [session 99] ONE new combo from the four juiced runs of 2026-08-26,
-      // and — as in session 82 — it is NOT a new starting loadout. The start
-      // is still 40/22, byte-identical to session 75's, so all four runs are
-      // one arm. 54/40 is mid-run in `run-2026-08-26-03-27-11`, the room-10
-      // run: armorMax 40 is the highest this census has ever recorded, which
-      // is what reaching room 10 buys rather than a change in the account.
       "54/40",
-      "58/17", // [session 106] run 3 mid-run, AddMaxHealth(+8) off 50/17
-      // [session 112] THREE new combos, all from the first Tier-2 ENTRY run
-      // (25215982, the room-13 run), and **NOT ONE is a new starting
-      // loadout** — it opened on `50/17`, unchanged, so the session-104 user
-      // directive's "a new combo is a signal to chase" is NOT triggered.
-      // These are ordinary mid-run maxima: 58/25 and 58/33 off 50/17 via
-      // AddMaxHealth(+8) then AddMaxArmor, and 72/33 after a second
-      // AddMaxHealth(+14).
-      //
-      // 72 hpMax and 33 armorMax are both the highest this census has ever
-      // recorded for HP; 33 sits below session 103's 54/40 on armor. That is
-      // what reaching room 13 buys — depth compounding boon pickups — not a
-      // change in the account.
+      "58/17",
       "58/25",
       "58/27",
       "58/29",
-      "58/32", // [session 106] run 3 mid-run, 58/17 + AddMaxArmor(+10)
+      "58/32",
       "58/33",
       "58/35",
-      "59/20", // [session 103] run 3 mid-run, AddMaxHealth val1 14 off 45/20
-      "59/22", // [session 103] run 3 mid-run, 59/20 + AddMaxArmor
+      "59/17",
+      "59/19",
+      "59/20",
+      "59/22",
       "62/32",
-      "64/17", // ⭐ [session 121] NEW, and CHASED rather than recorded, per the session-104 user directive that a new combo is now a SIGNAL. It is NOT a re-spec: both day-20699 runs 3 and 4 START at 50/17 (state-000 of run-2026-09-04-06-04-39 and run-2026-09-04-06-16-39, both with empty pickedBoons), so the starting loadout is UNCHANGED and `PLAYER` needs no edit. 64/17 is 50/17 mid-run after `AddMaxHealth(14)` at state-036 — the largest single hpMax pickup in the corpus, which is why this looks like a level-up and is not one.
-      "64/25", // [session 121] NEW, same run, state-046: 64/17 after `AddMaxArmor(8)`. Mid-run, same shape as 34/20 above. 65 -> 67 combos; multiset diff shows two insertions and NO removal.
-      "64/27", // [session 106] run 4 mid-run, 50/27 + AddMaxHealth(+14)
-      // [session 118, runs 2-4] ONE new combo from the three remaining
-      // day-20698 runs, PURELY ADDITIVE: one added, ZERO removed.
-      //
-      // **Not a new starting loadout.** Runs 3 and 4 each opened on `50/17`
-      // with `pickedBoons: []`, read off their OWN state-000, matching run 1
-      // and the session 106/116 starts — four runs, one day, one start.
-      //
-      //   run 3  state-056  hpMax 50 -> 58   AddMaxHealth(8), room 3
-      //   run 4  state-074  hpMax 50 -> 58   AddMaxHealth(8), room 5
-      //   run 4  state-124  hpMax 58 -> 66   AddMaxHealth(8), room 8  <- 66/17
-      //
-      // Ordinary stacked AddMaxHealth growth, and unlike run 1 there is NO
-      // corrode excursion in either trace — armMax never leaves 17.
+      "64/17",
+      "64/25",
+      "64/27",
+      "65/16",
+      "65/19",
+      "65/24",
+      "65/27",
       "66/17",
-      "72/33", // [session 112] room-13 run, 58/33 + AddMaxHealth(+14)
-      // [session 109] SIX new combos, all from run 2 (the deep run that reached
-      // room 11), and **NOT ONE is a new starting loadout.** Both runs opened
-      // on `50/17` with `pickedBoons: []` — rock 16/0, paper 6/12, scissor 12/8
-      // — byte-identical to session 108's four, read off each run's OWN
-      // start_run response rather than inferred from the other's.
-      //
-      // That confirmation is stronger than session 108's and worth the extra
-      // sentence. Session 108 noted that chaining had "removed the only window
-      // a re-spec could have occurred in"; this session HAD that window — two
-      // separate invocations with a user-facing pause between them, which is
-      // exactly where rule 11 expects skill points to be allocated — and the
-      // loadout still held. DECISIONS 2026-08-27's "holds steady" ruling now
-      // has the test it was previously missing. Both runs are ONE ARM.
-      //
-      // All six are ordinary mid-run states from a single trace, every one
-      // accounted for:
-      //
-      //   state-040  50/17 -> 74/17  AddMaxHealth(**val1 24**)
-      //   state-090  74/17 -> 74/14  corrode, exactly -3
-      //   state-094  74/14 -> 74/11  corrode again, exactly -3
-      //   state-108  74/11 -> 74/13  AddMaxArmor(+2)
-      //   state-110  74/13 -> 74/19  +6 restore at the next path choice
-      //   state-120  74/19 -> 88/19  AddMaxHealth(+14)
-      //
-      // ⚠ **AddMaxHealth val1 24 is the largest this table has ever recorded**,
-      // beating the 14 session 103 flagged. The warning above stands and just
-      // got a bigger example: read `selectedVal1`, never assume the size.
-      //
-      // The corrode trace re-confirms session 103's reading at a new depth —
-      // -3 exactly, twice, and the 6 comes back in one +6 step at the next
-      // path choice rather than in two.
+      "72/33",
       "74/11",
       "74/13",
       "74/14",
       "74/17",
       "74/19",
-      // [session 118] TWO new combos from the day-20698 Tier-2 run of
-      // 2026-09-02 (run 25289721), and the drift is again PURELY ADDITIVE:
-      // two added, ZERO removed, checked against the corpus.
-      //
-      // **Neither is a new starting loadout.** The run opened on `50/17` with
-      // `pickedBoons: []`, byte-identical to the session 106 and 116 starts,
-      // read off this run's OWN `start_run` response (state-000) rather than
-      // inferred from an earlier one — the session-103 "loadout holds steady"
-      // ruling confirmed rather than assumed, for the third session running.
-      //
-      // Both are fully accounted for by boons this run actually picked, and
-      // the trace separates the two mechanics cleanly:
-      //
-      //   state-024  hpMax  50 -> 74   AddMaxHealth(24) taken in room 2 (+24)
-      //   state-106  armMax 17 -> 25   AddMaxArmor(8)  taken in room 8 (+8)
-      //   state-114  armMax 25 -> 22   CORRODE shred on an enemy win (-3)
-      //   state-120  armMax back to 25 (room boundary)
-      //
-      // So `74/25` is ordinary AddMaxArmor growth and `74/22` is the
-      // session-61/62 corrode mechanic surfacing in this table again, with the
-      // same shed-then-restore shape session 108 recorded for `50/14`.
       "74/22",
       "74/25",
+      "75/16",
+      "75/19",
       "88/19",
     ]);
   });

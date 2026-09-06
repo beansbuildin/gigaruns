@@ -28,7 +28,7 @@ import {
   NOT_EQUIPPED_SLOT,
   type GearInstanceLike,
 } from "../../src/strategy/fishing/rodDurability.js";
-import { CURRENT_ROD, GOLKAN_ROD, SHROOM_ROD, MAKESHIFT_ROD } from "../../src/sim/fishing/rodDeck.js";
+import { CURRENT_ROD, DENDREN_ROD, GOLKAN_ROD, SHROOM_ROD, MAKESHIFT_ROD } from "../../src/sim/fishing/rodDeck.js";
 import {
   appendRodDurability,
   loadRodDurability,
@@ -53,11 +53,36 @@ const rod = (id: number, durability: number, slot = 14): GearInstanceLike => ({
 
 describe("rod durability preflight — the fail-closed gate", () => {
   it("passes the healthy Golkan reading recorded on 2026-08-26 (40, slot 14)", () => {
-    const r = readRodDurability([...BAG, rod(GOLKAN_ROD, 40)]);
+    // [session 123] `expectedRodId` is now passed EXPLICITLY. This case is a
+    // historical regression fixture — a real reading recorded on 2026-08-26 —
+    // and it used to lean on `CURRENT_ROD` happening to be Golkan. It no
+    // longer is (the account swapped to Dendren), so the parameter is named
+    // rather than inherited. Keeping the case is the point: the gate must
+    // still accept a healthy reading of whichever rod it is asked about.
+    const r = readRodDurability([...BAG, rod(GOLKAN_ROD, 40)], GOLKAN_ROD);
     expect(r.status).toBe("ok");
     expect(r.stop).toBe(false);
     expect(r.durability).toBe(40);
     expect(r.rodItemId).toBe(GOLKAN_ROD);
+    expect(r.slot).toBe(14);
+  });
+
+  it("passes the healthy DENDREN reading read live on 2026-09-05 (40, slot 14) — the rod actually held", () => {
+    // The live reading that motivated the repoint: `GET /gear/instances`
+    // returned item 923 equipped at slot 14 with DURABILITY 40, and 812 absent
+    // from the equipped set entirely. This asserts the gate accepts the
+    // CURRENT rod through its DEFAULT parameter, which is the path
+    // `liveFishing.ts` actually takes.
+    //
+    // ⚠ Both rods read 40 at slot 14 on their respective days. That is a
+    // COINCIDENCE of two unrelated readings, not a constant — do not infer a
+    // starting durability of 40 from it.
+    const r = readRodDurability([...BAG, rod(DENDREN_ROD, 40)]);
+    expect(r.status).toBe("ok");
+    expect(r.stop).toBe(false);
+    expect(r.durability).toBe(40);
+    expect(r.rodItemId).toBe(DENDREN_ROD);
+    expect(r.rodItemId).toBe(CURRENT_ROD);
     expect(r.slot).toBe(14);
   });
 
