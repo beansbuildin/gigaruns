@@ -44,10 +44,14 @@ here means a brief proposing it as NEW work is wrong.** Carried forward and
 edited each session, never rewritten. **[USER]** = a user directive an agent may
 not re-open at all.
 
-**Dropped this session:** the **rotation** entry (fully measured in 123, no work
-left, and the last instrument still claiming otherwise was fixed) and the
-**"Dendren geometry / rod is 923"** entry (discharged — the geometry is in
-`fixtures/fishing-casts/cards.json` and `CURRENT_ROD` is repointed).
+**Dropped this session — SIX, to hold the ~15 cap:** the **rotation** and
+**Dendren-geometry** entries (both discharged, and the last instrument still
+contradicting the first was fixed here); the **ARITHMETIC rotation map** and
+**mid-day faction** entries (the permutation is measured and
+`checkEntryTiers.ts` now prints it, so they self-enforce); **TASKS §13's
+parked SWAP** (it lives in `TASKS.md`); and **suite invocation** (folded into
+`CLAUDE.md`'s working style). The two `castCap` findings were MERGED — they are
+one mechanism seen twice.
 
 - ⭐ **[NEW] THE TWO WEAR SETS ARE DISJOINT AND EVERY BREAK IS FORECASTABLE.**
   **Dungeon: slots 11, 12, 13×2 at −3 per RUN. Fishing: slots 14, 15×2 at −1.00
@@ -74,17 +78,15 @@ left, and the last instrument still claiming otherwise was fixed) and the
   `splitByDealtDeck`) and 82 rod-dealt casts on an earlier, unidentified rod.
   Conflating them is the natural error and this session made it first.
   Re-opens as: *"the corpus straddles a deck change"* (singular).
-- ⭐ **[NEW] THE FISH-TO-ZERO HALT WORKS — first firing in the project's
-  history**, and its safety **DEPENDS ON `castCap: 2`**. Rod durability is
-  checked at PREFLIGHT and after the batch, **never between casts**, so a long
-  `--casts=N` batch without `--oil-batch` would play past zero onto a dry rod
-  and inject `BASE_DECK` into the corpus mid-batch. **Run fishing as repeated
-  small `--oil-batch` invocations.** Re-opens as: *"run the whole fishing day in
-  one batch"*.
-- ⭐ **[NEW] `--casts=N` is SILENTLY OVERRIDDEN by `--oil-batch`** —
-  `authorizedCasts = batchLimits.castCap ?? args.casts`, `castCap` 2 — while
-  the banner still prints `args.casts`. **The banner and the real cap
-  disagree.** Re-opens as: *"why did --casts=15 only play 2?"*.
+- ⭐ **[NEW] THE FISH-TO-ZERO HALT WORKS — first firing ever — and `castCap: 2`
+  is what makes it safe.** Rod durability is read at PREFLIGHT and after the
+  batch, **never between casts**, so a long `--casts=N` batch would play past
+  zero onto a dry rod and inject `BASE_DECK` mid-batch. Same mechanism, second
+  face: **`--casts=N` is SILENTLY OVERRIDDEN by `--oil-batch`**
+  (`authorizedCasts = batchLimits.castCap ?? args.casts`) while the banner
+  still prints `args.casts`. **Run fishing as repeated small `--oil-batch`
+  invocations.** Re-opens as: *"run the whole fishing day in one batch"* or
+  *"why did --casts=15 only play 2?"*.
 - **[USER] OTHER DUNGEONS ON THIS ACCOUNT ARE OUT OF SCOPE.** Not queried, not
   counted, not reported. The 12-run-unit ledger is PER-DUNGEON, measured.
 - **[USER] THE GEAR HALT: never abort a run in progress; after a COMPLETED run,
@@ -99,10 +101,6 @@ left, and the last instrument still claiming otherwise was fixed) and the
   piece. Re-opens as: *"repair slot 8 before fishing"*.
 - **[USER] "Different fisheries" is RETIRED AS PHRASING; the conclusion stands.**
   QUESTIONS **§70**. Re-opens as: *"restore the `> 5` assertion"*.
-- **The ARITHMETIC rotation map stays FALSIFIED.** The permutation is measured,
-  all seven cells. Re-opens as: *"faction = dayOfWeek + 2"* or *"measure the
-  rotation"*.
-- **The charged faction does NOT change mid-day.** Now **29/29** on the shape.
 - **[USER] The fishing budget is 360 energy / 30 casts, STANDING.**
 - **[USER] The double-lethal oil override is DISABLED; Focus Oil off the
   allowlist.**
@@ -111,8 +109,6 @@ left, and the last instrument still claiming otherwise was fixed) and the
   `Thorns` joined this session. Re-opens as: *"model the remaining latent boons"*.
 - **Evade DOMINATES crit**, and **evade zeroes damage 15/15** — measured this
   session. Re-opens as: *"critProc's 2×ATK rule has exceptions"*.
-- **TASKS §13's SWAP is parked on DATA, not code.**
-- **Suite invocation.** `vitest run --maxWorkers=4`, UNSANDBOXED.
 
 ## What works
 - **Pre-registration as a git commit, FOUR sessions running.** Every forecast
@@ -224,3 +220,27 @@ left, and the last instrument still claiming otherwise was fixed) and the
    from "heals a flat 2".
 6. **The `web/` front end has still never spawned a real script** — untouched
    since session 120.
+
+## Files changed
+`git diff --stat 1065bc89..HEAD`, fixtures collapsed (751 of the 775 files are
+new run/cast captures):
+
+```
+ fixtures/**                              751 files, ~528k insertions (captures)
+ src/sim/boons.ts                          200 +   OBSERVED_OFFERS +35 rows
+ scripts/redrawDeckSlice.ts                173 +   NEW — the §71 deck slice
+ scripts/checkEntryTiers.ts                 22 +-  stale dow-2 prose corrected
+ scripts/liveFishing.ts                      2 +-  shadow in-sample rate 2.5→2.4
+ tests/fishing/redrawCounterfactual.ts     127 +-  §71 pins, re-pinned not relaxed
+ tests/fishing/castEra.test.ts              62 +-  corpus pins
+ tests/fishing/oilReachability.test.ts      53 +-  corpus pins
+ tests/fishing/{matcherHeadroom,zoneTemplate,stateFields,damageEconomy,
+                redrawShadowAnalysis}.test.ts      corpus pins + 2 crit anomalies
+ tests/sim/fishingCorpus.test.ts            18 +-  +5 oil-cast docIds
+ tests/boons.test.ts                        35 +-  Thorns HELD; clean-option census
+ tests/enemies.test.ts                      12 +   +5 HP/armor combos
+ tests/procEffectSize.test.ts               22 +-  evadeProc0 excluded (filter, not claim)
+ handoff/{STATE,DECISIONS,log/session-124,scratch-session-124}.md
+ handoff/reports/*.md                              regenerated by the live scripts
+ 775 files changed, 529688 insertions(+), 340 deletions(-)
+```
