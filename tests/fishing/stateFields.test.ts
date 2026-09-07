@@ -272,6 +272,19 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // adopted.
     "13270062 t3: card 91 hit=true crit=false predicted Δ-7, actual Δ-11 (24->13/26)",
     "13270082 t2: card 98 hit=true crit=false predicted Δ-9, actual Δ-13 (13->0/14)", // unclamped FISH_HP_DIFF = 14
+    // ── [session 124] TWO MORE, from the day-20702 26-cast batch ────────────
+    // Same species as every entry above: an unflagged CRIT. `crit=false` is
+    // the SERVER's flag, and the damage matches `critEffects` rather than
+    // `hitEffects` — session 48's finding, that a crit fires an ordinary HIT
+    // event and the only tell is the magnitude.
+    //
+    // ⚠ Card 18 is the FIRST anomaly on a LOW-ID (base/legacy) card; every
+    // prior one is a rod-grant card. Card 96 is DENDREN, and its Δ-11 on a
+    // predicted Δ-7 is the same 1.571 ratio as session 123's card-91 anomaly
+    // — the two Dendren anomalies agree with each other, which is what a real
+    // crit multiplier looks like rather than a capture artefact.
+    "13289828 t1: card 18 hit=true crit=false predicted Δ-5, actual Δ-8 (13->5/20)",
+    "13289924 t1: card 96 hit=true crit=false predicted Δ-7, actual Δ-11 (18->7/28)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -377,6 +390,15 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // (14) per the rule above, not the lethal-clamped state delta (13).
       { base: 7, actual: 11 },
       { base: 9, actual: 14 },
+      // [session 124] the day-20702 batch's two. `base 5, actual 8` REPEATS
+      // the session-91 ratio exactly on a different card (18, not 6), and
+      // `base 7, actual 11` repeats session 123's card-91 pair on card 96 —
+      // the Dendren analogue of the same geometry. Neither is a new base, so
+      // neither can tighten the bound; they are kept because a REPEATED ratio
+      // on an independent card is what distinguishes a real multiplier from a
+      // capture artefact.
+      { base: 5, actual: 8 },
+      { base: 7, actual: 11 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 
@@ -550,7 +572,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(106) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
+    expect(corrected.crits).toBe(110 /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

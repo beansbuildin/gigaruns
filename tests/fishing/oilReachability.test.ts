@@ -368,9 +368,9 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
   const reachable = rows.filter((r) => r.relaxingReachable);
 
   it("finds the lethal trigger reachable on 15 of 230 casts", () => {
-    expect(rows).toHaveLength(457) /* [session 121] was 390 — +20, the whole day-20699 cap */ /* [session 118c] was 388 */ /* [session 118b] was 375 */ /* [session 118] was 367 */ /* [s116b] was 364 */;  /* [session 116] was 339 */;  /* [session 113] was 295 */ // [session 96] was 189; [session 92] was 178  // [session 98] was 199  /* [session 99] was 208 */ /* [session 102] was 210 */ /* [session 105] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */  /* [session 122] was 410 */  /* [session 123] was 433 */
-    expect(reachable).toHaveLength(21) /* [session 116] was 18 */; /* [session 102] was 13 */ /* [session 105] was 15 */  /* [session 107] was 16 */  /* [session 110b] was 17 */
-    expect(rows.reduce((n, r) => n + r.relaxingPoints, 0)).toBe(23); /* [session 116] was 20 */; /* [session 102] was 15 */ /* [session 105] was 17 */  /* [session 107] was 18 */  /* [session 110b] was 19 */
+    expect(rows).toHaveLength(483 /* [session 124] was 457 */) /* [session 121] was 390 — +20, the whole day-20699 cap */ /* [session 118c] was 388 */ /* [session 118b] was 375 */ /* [session 118] was 367 */ /* [s116b] was 364 */;  /* [session 116] was 339 */;  /* [session 113] was 295 */ // [session 96] was 189; [session 92] was 178  // [session 98] was 199  /* [session 99] was 208 */ /* [session 102] was 210 */ /* [session 105] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */  /* [session 122] was 410 */  /* [session 123] was 433 */
+    expect(reachable).toHaveLength(22) /* [session 124] was toHaveLength(21) */ /* [session 116] was 18 */; /* [session 102] was 13 */ /* [session 105] was 15 */  /* [session 107] was 16 */  /* [session 110b] was 17 */
+    expect(rows.reduce((n, r) => n + r.relaxingPoints, 0)).toBe(24 /* [session 124] was 23 */); /* [session 116] was 20 */; /* [session 102] was 15 */ /* [session 105] was 17 */  /* [session 107] was 18 */  /* [session 110b] was 19 */
   });
 
   it("THE FINDING: thirteen of the fifteen were caught anyway, so only two casts could have been converted", () => {
@@ -390,7 +390,7 @@ describe("what holding zero Mid Relaxing Oil costs — EXPECTED, not observed", 
     // two new members was caught anyway, so the numerator is STILL the same
     // two casts, eight batches running. The point estimate keeps shrinking
     // purely on the denominator, exactly as sessions 80-90 recorded.
-    expect(reachable.filter((r) => r.caught)).toHaveLength(19) /* [session 116] was 16 */; /* [session 102] was 11 */ /* [session 105] was 13 */  /* [session 107] was 14 */  /* [session 110b] was 15 */
+    expect(reachable.filter((r) => r.caught)).toHaveLength(20 /* [session 124] was 19 */) /* [session 116] was 16 */; /* [session 102] was 11 */ /* [session 105] was 13 */  /* [session 107] was 14 */  /* [session 110b] was 15 */
     expect(reachable.filter((r) => !r.caught).map((r) => r.docId).sort()).toEqual(["12975713", "12991353"]); // UNCHANGED
   });
 
@@ -469,6 +469,9 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
       "13148630", "13148646", "13156427", "13156430", "13185537", "13185618", "13187635",
       "13187637", "13208300", "13208718", "13222306", "13223400", "13223406", "13242348",
       "13242358", "13267011", "13267022", "13267032", "13270056", "13270069", "13270110",
+      // [session 124] +2 from the day-20702 26-cast batch. Verified ADDITIVE —
+      // nothing dropped out of the gap set, so the membership claim still holds.
+      "13289791", "13289836",
     ]);  /* [session 122] 42 docIds -> 45: `13267011`, `13267022`, `13267032` from the day-20700 23-cast batch. Purely ADDITIVE — no id left the set. */  /* [session 118] was 38 docIds -> 39: `13222306`, the day-20698 batch's single oil cast — Relaxing (937) on a lethal trigger at 1/25 fish HP, caught. The familiar caught-oil-ended route, not a new shape. */  /* [session 116] was 36 docIds -> 38: `13208300` (a caught oil-ended cast, the familiar route) and `13208718` */  /* [session 114] was 32 docIds -> 36 */
     // [session 79] **The newest batch contributed NO gap member, and this
     // assertion is now written to say that rather than to name one.** The
@@ -564,7 +567,7 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
    */
   it("a caught cast CAN be in the gap — one does, and only via an oil-ended cast", () => {
     const caught = corpus.filter((c) => c.responses.some((r) => r.caughtFish !== null));
-    expect(caught).toHaveLength(228) /* [session 121] was 192 — +11 caught, matching the batch logs (4 + 7) */ /* [session 118c] was 191 */ /* [session 118b] was 182 */ /* [session 118] was 177 */ /* [s116b] was 176 */ /* [session 116] was 160 */;  /* [session 113] was 134 */ /* [session 102] was 80; +14 over the twenty-cast batch */ // [session 96] -> 73 (+3 over the ten-cast batch); [session 93] -> 70, the single-cast batch caught its fish // [session 69] 26 -> 34; [session 72] -> 36; [session 79] -> 38; [session 80] -> 42; [session 81] -> 48; [session 90] -> 60; [session 91] -> 64 across the ten-cast batch (four catches, two of them the double-lethal firings).  // [session 98] was 73  /* [session 99] was 79 */ /* [session 105] was 94; +14 over the 21-cast day */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */  /* [session 122] was 203 */  /* [session 123] was 217 */
+    expect(caught).toHaveLength(241 /* [session 124] was 228 */) /* [session 121] was 192 — +11 caught, matching the batch logs (4 + 7) */ /* [session 118c] was 191 */ /* [session 118b] was 182 */ /* [session 118] was 177 */ /* [s116b] was 176 */ /* [session 116] was 160 */;  /* [session 113] was 134 */ /* [session 102] was 80; +14 over the twenty-cast batch */ // [session 96] -> 73 (+3 over the ten-cast batch); [session 93] -> 70, the single-cast batch caught its fish // [session 69] 26 -> 34; [session 72] -> 36; [session 79] -> 38; [session 80] -> 42; [session 81] -> 48; [session 90] -> 60; [session 91] -> 64 across the ten-cast batch (four catches, two of them the double-lethal firings).  // [session 98] was 73  /* [session 99] was 79 */ /* [session 105] was 94; +14 over the 21-cast day */  /* [session 107] was 108 */  /* [session 110] was 120 */  /* [session 110b] was 129 */  /* [session 122] was 203 */  /* [session 123] was 217 */
     // [session 69] TWO caught casts are now gap members, both oil-ended. The
     // count matters: session 68 had one, which a reader could file as a freak.
     // A second, from an independent batch, says the oil era produces these
@@ -603,15 +606,15 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
     // Written as the explicit decomposition rather than patched to 15, so the
     // one exceptional member stays visible instead of being absorbed.
     const escaped = corpus.filter((c) => !c.responses.some((r) => r.caughtFish !== null));
-    expect(escaped).toHaveLength(229) /* [session 121] was 198 — +9 escaped; 203 + 207 = 410 so the partition closes */ /* [session 118c] was 197 */ /* [session 118b] was 193 */ /* [session 118] was 190 */ /* [s116b] was 188 */ /* [session 116] was 179 */;  /* [session 113] was 161 */ /* [session 102] was 130; +6 over the twenty-cast batch */ // [session 96] 119 -> 126; [session 69] 88 -> 90; [session 72] -> 92; [session 79] -> 93; [session 80] -> 98; [session 81] -> 100; [session 90] -> 108; [session 91] -> 114.  // [session 98] was 126  /* [session 99] was 129 */ /* [session 105] was 136; +7 over the 21-cast day */  /* [session 107] was 143 */  /* [session 110] was 153 */  /* [session 110b] was 159 */  /* [session 122] was 207 */  /* [session 123] was 216 */
+    expect(escaped).toHaveLength(242 /* [session 124] was 229 */) /* [session 121] was 198 — +9 escaped; 203 + 207 = 410 so the partition closes */ /* [session 118c] was 197 */ /* [session 118b] was 193 */ /* [session 118] was 190 */ /* [s116b] was 188 */ /* [session 116] was 179 */;  /* [session 113] was 161 */ /* [session 102] was 130; +6 over the twenty-cast batch */ // [session 96] 119 -> 126; [session 69] 88 -> 90; [session 72] -> 92; [session 79] -> 93; [session 80] -> 98; [session 81] -> 100; [session 90] -> 108; [session 91] -> 114.  // [session 98] was 126  /* [session 99] was 129 */ /* [session 105] was 136; +7 over the 21-cast day */  /* [session 107] was 143 */  /* [session 110] was 153 */  /* [session 110b] was 159 */  /* [session 122] was 207 */  /* [session 123] was 216 */
     const terminalMeterZero = escaped.filter((c) => {
       const ordered = orderedResponses(c);
       const last = ordered[ordered.length - 1];
       return !!last && last.board.fishHp > 0 && last.board.focusMeter <= 0;
     });
-    expect(terminalMeterZero).toHaveLength(148) /* [session 121] was 129 — +5 across the day-20699 20-cast day */ /* [session 118c] was 128 */ /* [session 118b] was 127 */ /* [session 118] was 125 */ /* [s116b] was 124 */ /* [session 116] was 117 */; // [session 96] 80 -> 83.  // [session 98] was 83 /* [session 102] was 86 */ /* [session 105] was 90 */  /* [session 107] was 93 */  /* [session 110] was 100 */  /* [session 110b] was 104 */  /* [session 113] was 106 */  /* [session 122] was 134 */  /* [session 123] was 141 */
+    expect(terminalMeterZero).toHaveLength(157) /* [session 124] was toHaveLength(148) */ /* [session 121] was 129 — +5 across the day-20699 20-cast day */ /* [session 118c] was 128 */ /* [session 118b] was 127 */ /* [session 118] was 125 */ /* [s116b] was 124 */ /* [session 116] was 117 */; // [session 96] 80 -> 83.  // [session 98] was 83 /* [session 102] was 86 */ /* [session 105] was 90 */  /* [session 107] was 93 */  /* [session 110] was 100 */  /* [session 110b] was 104 */  /* [session 113] was 106 */  /* [session 122] was 134 */  /* [session 123] was 141 */
     const alreadyStrict = terminalMeterZero.filter((c) => castReachability(c, { requireTurnRemaining: true }).focusReachable);
-    expect(alreadyStrict).toHaveLength(118) /* [session 121] was 104 */ /* [session 118b] was 103 */ /* [session 118] was 101 */ /* [s116b] was 100 */ /* [session 116] was 94 */; // [session 96] 65 -> 67.  // [session 98] was 67 /* [session 102] was 70 */ /* [session 105] was 74 */  /* [session 107] was 76 */  /* [session 110] was 80 */  /* [session 110b] was 83 */  /* [session 113] was 85 */  /* [session 122] was 108 */  /* [session 123] was 113 */
+    expect(alreadyStrict).toHaveLength(125) /* [session 124] was 118 */ /* [session 121] was 104 */ /* [session 118b] was 103 */ /* [session 118] was 101 */ /* [s116b] was 100 */ /* [session 116] was 94 */; // [session 96] 65 -> 67.  // [session 98] was 67 /* [session 102] was 70 */ /* [session 105] was 74 */  /* [session 107] was 76 */  /* [session 110] was 80 */  /* [session 110b] was 83 */  /* [session 113] was 85 */  /* [session 122] was 108 */  /* [session 123] was 113 */
     // [session 102] terminalMeterZero 86 -> 90 and alreadyStrict 70 -> 74, so
     // the RESIDUE is UNCHANGED at 16 across twenty casts: all four new
     // terminal-meter-zero casts were already strict-reachable. Every one of
@@ -624,7 +627,7 @@ describe("the 16-cast gap, answered by MEMBERSHIP", () => {
     // zero casts two were already strict-reachable and one — `13083724` — was
     // not, which is exactly the new gap member named above. The gap grew by
     // that one cast and by nothing else.
-    expect(terminalMeterZero.length - alreadyStrict.length).toBe(30) /* [session 122] was 26 */ /* [session 116] was 23 */;  /* [session 121] was 25 */ // [session 96] was 15 /* [session 105] was 16 */  /* [session 107] was 17 */  /* [session 110] was 20 — the residue moved for the first time since session 96 */  /* [session 118] was 24 */  /* [session 123] was 28 */
+    expect(terminalMeterZero.length - alreadyStrict.length).toBe(32 /* [session 124] was 30 */) /* [session 122] was 26 */ /* [session 116] was 23 */;  /* [session 121] was 25 */ // [session 96] was 15 /* [session 105] was 16 */  /* [session 107] was 17 */  /* [session 110] was 20 — the residue moved for the first time since session 96 */  /* [session 118] was 24 */  /* [session 123] was 28 */
     // The whole gap is that residue PLUS the oil-ended caught casts — now
     // THREE of them, which is why this was written as a sum rather than as
     // "residue + 1". Session 68 said that form "would have read as a permanent

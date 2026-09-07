@@ -329,3 +329,27 @@ Shape count **26/26 -> 27/27**.
    **27/27 → 28/28.**
 3. **Ledger:** `dayProgressEntities` **6 → 9** of 12.
 4. **Disjointness, third test:** slot 15 stays at **0**, slot 14 stays at **30**.
+
+---
+
+# RUN 3 — VERIFIED. 4/4 again.
+
+```
+gear 640 52→49 ✓   641 30→27 ✓   905 12→9 ✓   901 23→20 ✓   (no break, as forecast)
+rings 139 39→36 ✓ sole mover, six unchanged        ledger 6→9 of 12 ✓
+slot 15 = 0, slot 14 = 30 — unmoved ✓  (DISJOINTNESS, 3rd test)
+```
+
+Run 3: deepest room **7**, **0/58** first-attempt failures. Shape **27/27 → 28/28**.
+Session dungeon: 3 runs, 9/12 run-units, **0/223** first-attempt failures.
+
+# RUN 4 — pre-registered BEFORE the spend (user go-ahead: "go ahead run 4")
+
+1. **Gear, −3 each, NO break:** `640 49→46`, `641 27→24`, `905 9→6`,
+   `901 20→17`. 905 lands on 6 — **still two runs from breaking**, so the gear
+   halt should NOT fire and the day should end on the run cap instead.
+2. **Shape:** Foxglove (139) sole mover **36 → 33**; six unchanged.
+   **28/28 → 29/29.**
+3. **Ledger:** `dayProgressEntities` **9 → 12 of 12** — the day fully spent,
+   and the SERVER should refuse any further run.
+4. **Disjointness, fourth test:** slot 15 stays **0**, slot 14 stays **30**.

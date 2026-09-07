@@ -566,7 +566,13 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       "13185678", "13187635", "13187637", "13208252", "13208300", "13222306", "13222880",
       "13222883", "13223400", "13242358", "13243331", "13243354", "13267014", "13267022",
       "13267049", "13270110", "13270141", "13270146",
-    ]);  /* [session 122] 87 docIds -> 90 */  /* [session 114] was 74 docIds -> 80; +6 oil casts from the four 2026-08-31 batches */
+      // [session 124] +5 from the day-20702 26-cast batch. Verified ADDITIVE:
+      // every docId above is still present, so nothing was reclassified out
+      // of the oil arm — the list only grew. All five are Relaxing (937),
+      // which is what the [USER] Relaxing-only policy requires, and the
+      // per-cast cap of 2 STILL has never bound.
+      "13289824", "13289919", "13289924", "13289926", "13289931",
+    ]);  /* [session 124] 95 docIds -> 100 */  /* [session 122] 87 docIds -> 90 */  /* [session 114] was 74 docIds -> 80; +6 oil casts from the four 2026-08-31 batches */
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;
       expect(c.consumablesUsed).toBe(used);
