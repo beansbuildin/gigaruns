@@ -134,8 +134,8 @@ const split = splitByEra(traces, created);
 describe("the era predicate itself", () => {
   it("dates every cast off committed fixtures", () => {
     // [session 89] 148 -> 168: session 87's twenty-cast batch.
-    expect(traces.length).toBe(457) /* [s116b] was 364 */ /* [session 116] was 339 */;  /* [session 121] was 390 */  /* [session 113] was 295 */  /* [session 92] was 178 */ // [session 93] was 188  // [session 96] was 189  // [session 98] was 199 (+9, the nine-cast batch)  /* [session 99] was 208 */ /* [session 102] was 210 */ /* [session 105] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */  /* [session 118] was 367 */  /* [session 122] was 410 */  /* [session 123] was 433 */
-    expect(created.size).toBe(457) /* [s116b] was 364 */ /* [session 116] was 339 */;  /* [session 121] was 390 */  /* [session 113] was 295 */  /* [session 92] was 178 */ // [session 93] was 188  // [session 96] was 189  // [session 98] was 199  /* [session 99] was 208 */ /* [session 102] was 210 */ /* [session 105] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */  /* [session 118] was 367 */  /* [session 122] was 410 */  /* [session 123] was 433 */
+    expect(traces.length).toBe(483 /* [session 124] was 457 */) /* [s116b] was 364 */ /* [session 116] was 339 */;  /* [session 121] was 390 */  /* [session 113] was 295 */  /* [session 92] was 178 */ // [session 93] was 188  // [session 96] was 189  // [session 98] was 199 (+9, the nine-cast batch)  /* [session 99] was 208 */ /* [session 102] was 210 */ /* [session 105] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */  /* [session 118] was 367 */  /* [session 122] was 410 */  /* [session 123] was 433 */
+    expect(created.size).toBe(483 /* [session 124] was 457 */) /* [s116b] was 364 */ /* [session 116] was 339 */;  /* [session 121] was 390 */  /* [session 113] was 295 */  /* [session 92] was 178 */ // [session 93] was 188  // [session 96] was 189  // [session 98] was 199  /* [session 99] was 208 */ /* [session 102] was 210 */ /* [session 105] was 230 */  /* [session 107] was 251 */  /* [session 110] was 273 */  /* [session 110b] was 288 */  /* [session 118] was 367 */  /* [session 122] was 410 */  /* [session 123] was 433 */
     for (const t of traces) expect(created.has(t.docId)).toBe(true);
   });
 
@@ -148,7 +148,7 @@ describe("the era predicate itself", () => {
     expect(FOCUS_DRY_BOUNDARY).toBe("2026-08-24T00:02:57.148Z");
     expect(split.preOil.length).toBe(94);
     expect(split.oilSupplied.length).toBe(62);
-    expect(split.focusDry.length).toBe(301) /* [s116b] was 208 */ /* [session 116] was 183 */;  /* [session 121] was 234 */  /* [session 113] was 139 */  /* [session 92] +10, the whole batch */ // [session 93] was 32  // [session 96] was 33  // [session 98] was 43 — the whole nine-cast batch is focusDry  /* [session 99] was 52 */ /* [session 102] was 54 */ /* [session 105] was 74 */  /* [session 107] was 95 */  /* [session 110] was 117 */  /* [session 110b] was 132 */  /* [session 118] was 211 */  /* [session 122] was 254 */  /* [session 123] was 277 */
+    expect(split.focusDry.length).toBe(327 /* [session 124] was 301 */) /* [s116b] was 208 */ /* [session 116] was 183 */;  /* [session 121] was 234 */  /* [session 113] was 139 */  /* [session 92] +10, the whole batch */ // [session 93] was 32  // [session 96] was 33  // [session 98] was 43 — the whole nine-cast batch is focusDry  /* [session 99] was 52 */ /* [session 102] was 54 */ /* [session 105] was 74 */  /* [session 107] was 95 */  /* [session 110] was 117 */  /* [session 110b] was 132 */  /* [session 118] was 211 */  /* [session 122] was 254 */  /* [session 123] was 277 */
     expect(split.preOil.length + split.oilSupplied.length + split.focusDry.length).toBe(traces.length);
   });
 
@@ -188,7 +188,7 @@ describe("the era predicate itself", () => {
       return ts.reduce((a, t) => a + budgetZeroPlays(t), 0) / plays;
     };
     expect(rate(rod(split.oilSupplied))).toBeCloseTo(0.014, 3);
-    expect(rate(rod(split.focusDry))).toBeCloseTo(0.27281191806331473, /* [s116b] was 0.2781546811397558 */ /* [session 116] was 0.27053140096618356 */ 3);  /* [session 121] was 0.26974483596597815 */  /* [session 113] was 0.24553571428571427 */  /* [session 92] was 0.365 */ // [session 93] was 0.276  // [session 96] was 0.269  // [session 98] was 0.248  /* [session 99] was 0.2670807453416149 */ /* [session 102] was 0.2529411764705882 */ /* [session 105] was 0.24166666666666667 */  /* [session 107] was 0.22413793103448276 */  /* [session 110] was 0.22284122562674094 */  /* [session 110b] was 0.23708920187793428 */  /* [session 118] was 0.276510067114094 */  /* [session 122] was 0.2763596004439512 */  /* [session 123] was 0.2782874617737003 */
+    expect(rate(rod(split.focusDry))).toBeCloseTo(0.2820730671197961 /* [session 124] was 0.27281191806331473 */, /* [s116b] was 0.2781546811397558 */ /* [session 116] was 0.27053140096618356 */ 3);  /* [session 121] was 0.26974483596597815 */  /* [session 113] was 0.24553571428571427 */  /* [session 92] was 0.365 */ // [session 93] was 0.276  // [session 96] was 0.269  // [session 98] was 0.248  /* [session 99] was 0.2670807453416149 */ /* [session 102] was 0.2529411764705882 */ /* [session 105] was 0.24166666666666667 */  /* [session 107] was 0.22413793103448276 */  /* [session 110] was 0.22284122562674094 */  /* [session 110b] was 0.23708920187793428 */  /* [session 118] was 0.276510067114094 */  /* [session 122] was 0.2763596004439512 */  /* [session 123] was 0.2782874617737003 */
     expect(rate(rod(split.focusDry)) / rate(rod(split.oilSupplied))).toBeGreaterThan(15);
   });
 
@@ -329,7 +329,7 @@ describe("GATE 1a — the focus-budget era split", () => {
     // later era ever does — and note `focusDry` does not either (0.864, max 2),
     // which is the mechanism holding while the SUPPLY is what changed. The
     // opening spend is a policy behaviour; the budget-zero rate is not.
-    expect(s.focusDry.meanFirstPlaySpend).toBeCloseTo(0.8903654485049833, /* [s116b] was 0.8509615384615384 */ /* [session 116] was 0.8415300546448088 */ 3);  /* [session 121] was 0.8589743589743589 */ // [session 93] was 0.906  // [session 96] was 0.909  // [session 98] was 0.860  /* [session 99] was 0.8846153846153846 */ /* [session 102] was 0.8518518518518519 */ /* [session 105] was 0.8513513513513513 */  /* [session 107] was 0.8105263157894737 */  /* [session 110] was 0.7948717948717948 */  /* [session 110b] was 0.8257575757575758 */  /* [session 118] was 0.8530805687203792 */  /* [session 122] was 0.8661417322834646 */  /* [session 123] was 0.8916967509025271 */
+    expect(s.focusDry.meanFirstPlaySpend).toBeCloseTo(0.8929663608562691 /* [session 124] was 0.8903654485049833 */, /* [s116b] was 0.8509615384615384 */ /* [session 116] was 0.8415300546448088 */ 3);  /* [session 121] was 0.8589743589743589 */ // [session 93] was 0.906  // [session 96] was 0.909  // [session 98] was 0.860  /* [session 99] was 0.8846153846153846 */ /* [session 102] was 0.8518518518518519 */ /* [session 105] was 0.8513513513513513 */  /* [session 107] was 0.8105263157894737 */  /* [session 110] was 0.7948717948717948 */  /* [session 110b] was 0.8257575757575758 */  /* [session 118] was 0.8530805687203792 */  /* [session 122] was 0.8661417322834646 */  /* [session 123] was 0.8916967509025271 */
     expect(s.preOil.maxFirstPlaySpend).toBe(3);
     expect(s.oilSupplied.maxFirstPlaySpend).toBe(2);
     // ⚠⚠ [session 92] **A FINDING, NOT DRIFT — this went 2 -> 3.** One cast in
@@ -348,7 +348,7 @@ describe("GATE 1a — the focus-budget era split", () => {
     // 3 of 62 while Focus Oil was in stock (4.8%), 9 of 22 without it (40.9%),
     // against preOil's 56 of 94 (59.6%). The incidence tracks the consumable.
     expect(s.oilSupplied.castsEverFrozen).toBe(3);
-    expect(s.focusDry.castsEverFrozen).toBe(84) /* [s116b] was 59 */ /* [session 116] was 50 */;  /* [session 121] was 64 */  /* [session 113] was 36 */  // [session 96] was 10  // [session 98] was 12 /* [session 102] was 16 */ /* [session 105] was 22 */  /* [session 107] was 25 */  /* [session 110] was 29 */  /* [session 110b] was 34 */  /* [session 118] was 60 */  /* [session 122] was 70 */  /* [session 123] was 77 */
+    expect(s.focusDry.castsEverFrozen).toBe(95 /* [session 124] was 84 */) /* [s116b] was 59 */ /* [session 116] was 50 */;  /* [session 121] was 64 */  /* [session 113] was 36 */  // [session 96] was 10  // [session 98] was 12 /* [session 102] was 16 */ /* [session 105] was 22 */  /* [session 107] was 25 */  /* [session 110] was 29 */  /* [session 110b] was 34 */  /* [session 118] was 60 */  /* [session 122] was 70 */  /* [session 123] was 77 */
   });
 
   it("records the catch rate that moved with it — 15.1% -> 63.0%, nowhere else written down", () => {
@@ -410,11 +410,11 @@ describe("GATE 1b — the redraw counterfactual, conditioned on the era", () => 
     // structural.** But it was over-retracted. State it as "vanishingly rare
     // while the policy can fire", not as "false".
     expect(redrawCounterfactual(split.oilSupplied).neitherReaches).toBe(1);
-    expect(redrawCounterfactual(split.focusDry).neitherReaches).toBe(82) /* [s116b] was 64 */ /* [session 116] was 54 */;  /* [session 121] was 68 */  /* [session 113] was 37 */  // [session 96] was 14  // [session 98] was 16 /* [session 102] was 20 */ /* [session 105] was 26 */  /* [session 107] was 28 */  /* [session 110] was 30 */  /* [session 110b] was 36 */  /* [session 118] was 65 */  /* [session 122] was 74 */  /* [session 123] was 80 */
+    expect(redrawCounterfactual(split.focusDry).neitherReaches).toBe(93 /* [session 124] was 82 */) /* [s116b] was 64 */ /* [session 116] was 54 */;  /* [session 121] was 68 */  /* [session 113] was 37 */  // [session 96] was 14  // [session 98] was 16 /* [session 102] was 20 */ /* [session 105] was 26 */  /* [session 107] was 28 */  /* [session 110] was 30 */  /* [session 110b] was 36 */  /* [session 118] was 65 */  /* [session 122] was 74 */  /* [session 123] was 80 */
     expect(
       redrawCounterfactual(split.oilSupplied).neitherReaches +
         redrawCounterfactual(split.focusDry).neitherReaches,
-    ).toBe(83) /* [s116b] was 65 */ /* [session 116] was 55 */;  /* [session 121] was 69 */  /* [session 113] was 38 */  // [session 96] was 15  // [session 98] was 17 /* [session 102] was 21 */ /* [session 105] was 27 */  /* [session 107] was 29 */  /* [session 110] was 31 */  /* [session 110b] was 37 */  /* [session 118] was 66 */  /* [session 122] was 75 */  /* [session 123] was 81 */
+    ).toBe(94 /* [session 124] was 83 */) /* [s116b] was 65 */ /* [session 116] was 55 */;  /* [session 121] was 69 */  /* [session 113] was 38 */  // [session 96] was 15  // [session 98] was 17 /* [session 102] was 21 */ /* [session 105] was 27 */  /* [session 107] was 29 */  /* [session 110] was 31 */  /* [session 110b] was 37 */  /* [session 118] was 66 */  /* [session 122] was 75 */  /* [session 123] was 81 */
   });
 
   it("puts session 83's unexplained residual almost ENTIRELY in the preOil arm again", () => {
@@ -427,7 +427,7 @@ describe("GATE 1b — the redraw counterfactual, conditioned on the era", () => 
     expect(before.plays + supplied.plays + dry.plays).toBe(pooled.plays);
     expect(before.plays).toBe(262); // unchanged — the preOil arm did not grow
     expect(before.neitherReaches).toBe(56); // unchanged
-    expect(pooled.neitherReaches).toBe(139) /* [s116b] was 121 */ /* [session 116] was 111 */;  /* [session 121] was 125 */  /* [session 113] was 94 */  // [session 96] was 71  // [session 98] was 73 /* [session 102] was 77 */ /* [session 105] was 83 */  /* [session 107] was 85 */  /* [session 110] was 87 */  /* [session 110b] was 93 */  /* [session 118] was 122 */  /* [session 122] was 131 */  /* [session 123] was 137 */
+    expect(pooled.neitherReaches).toBe(150 /* [session 124] was 139 */) /* [s116b] was 121 */ /* [session 116] was 111 */;  /* [session 121] was 125 */  /* [session 113] was 94 */  // [session 96] was 71  // [session 98] was 73 /* [session 102] was 77 */ /* [session 105] was 83 */  /* [session 107] was 85 */  /* [session 110] was 87 */  /* [session 110b] was 93 */  /* [session 118] was 122 */  /* [session 122] was 131 */  /* [session 123] was 137 */
     expect(pooled.neitherReaches - before.neitherReaches).toBe(
       supplied.neitherReaches + dry.neitherReaches,
     );
@@ -620,7 +620,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
     // detector for "did this cast use an oil", and it is now wrong by 26 casts
     // rather than by 2.
     expect(meterDetected.length).toBe(13);
-    expect(traces.filter(firedOil).length).toBe(95) /* [session 116] was 80 */;  /* [session 121] was 86 */  /* [session 113] was 72 */ // [session 93] was 39  // [session 96] was 40  // [session 98] was 41 — the batch's four double-lethal casts /* [session 102] was 45 */ /* [session 105] was 52 */  /* [session 107] was 61 */  /* [session 110] was 65 */  /* [session 110b] was 70 */  /* [session 118] was 82 */  /* [session 122] was 89 */  /* [session 123] was 92 */
+    expect(traces.filter(firedOil).length).toBe(100 /* [session 124] was 95 */) /* [session 116] was 80 */;  /* [session 121] was 86 */  /* [session 113] was 72 */ // [session 93] was 39  // [session 96] was 40  // [session 98] was 41 — the batch's four double-lethal casts /* [session 102] was 45 */ /* [session 105] was 52 */  /* [session 107] was 61 */  /* [session 110] was 65 */  /* [session 110b] was 70 */  /* [session 118] was 82 */  /* [session 122] was 89 */  /* [session 123] was 92 */
     // Every meter-restoring cast is an oil cast; the reverse fails 26 times.
     expect(meterDetected.every(firedOil)).toBe(true);
   });
@@ -657,7 +657,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
       return last.consumablesUsed - first.consumablesUsed;
     };
     const blind = traces.filter((t) => oldReader(t) < oilsConsumed(t));
-    expect(blind.length).toBe(83) /* [session 116] was 68 */;  /* [session 121] was 74 */  /* [session 113] was 60 */ // [session 93] was 27  // [session 96] was 28  // [session 98] was 29 /* [session 102] was 33 */ /* [session 105] was 40 */  /* [session 107] was 49 */  /* [session 110] was 53 */  /* [session 110b] was 58 */  /* [session 118] was 70 */  /* [session 122] was 77 */  /* [session 123] was 80 */
+    expect(blind.length).toBe(88 /* [session 124] was 83 */) /* [session 116] was 68 */;  /* [session 121] was 74 */  /* [session 113] was 60 */ // [session 93] was 27  // [session 96] was 28  // [session 98] was 29 /* [session 102] was 33 */ /* [session 105] was 40 */  /* [session 107] was 49 */  /* [session 110] was 53 */  /* [session 110b] was 58 */  /* [session 118] was 70 */  /* [session 122] was 77 */  /* [session 123] was 80 */
     // Never the other direction: the old reader under-counted and never
     // over-counted, which is why nothing already published was inflated.
     expect(traces.filter((t) => oldReader(t) > oilsConsumed(t))).toEqual([]);
@@ -679,7 +679,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
     // convenience.
     expect(blind.filter((t) => eraOf(t.docId, created) === "preOil").map((t) => t.docId)).toEqual(["12975152"]);
     // Everything else is in an era where the oil policy was live.
-    expect(blind.filter((t) => eraOf(t.docId, created) !== "preOil").length).toBe(82) /* [session 116] was 67 */;  /* [session 121] was 73 */  /* [session 113] was 59 */ // [session 93] was 26  // [session 96] was 27  // [session 98] was 28 /* [session 102] was 32 */ /* [session 105] was 39 */  /* [session 107] was 48 */  /* [session 110] was 52 */  /* [session 110b] was 57 */  /* [session 118] was 69 */  /* [session 122] was 76 */  /* [session 123] was 79 */
+    expect(blind.filter((t) => eraOf(t.docId, created) !== "preOil").length).toBe(87 /* [session 124] was 82 */) /* [session 116] was 67 */;  /* [session 121] was 73 */  /* [session 113] was 59 */ // [session 93] was 26  // [session 96] was 27  // [session 98] was 28 /* [session 102] was 32 */ /* [session 105] was 39 */  /* [session 107] was 48 */  /* [session 110] was 52 */  /* [session 110b] was 57 */  /* [session 118] was 69 */  /* [session 122] was 76 */  /* [session 123] was 79 */
   });
 
   it("rules the GEAR out: the decks changed a great deal and their reach did not", () => {
@@ -692,7 +692,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
     // That is the strongest form of this control the file has carried.
     expect(reach(split.preOil)).toBeCloseTo(0.153, 3);
     expect(reach(split.oilSupplied)).toBeCloseTo(0.152, 3);
-    expect(reach(split.focusDry)).toBeCloseTo(0.16031079876091361, /* [session 116] was 0.15532036041005207 */ 3);  // [session 96] was 0.157  // [session 98] was 0.15601  /* [session 107] was 0.15653035388761455 */  /* [session 118] was 0.158164677157365 */  /* [session 122] was 0.1596955003576311 */
+    expect(reach(split.focusDry)).toBeCloseTo(0.16118277126542055 /* [session 124] was 0.16031079876091361 */, /* [session 116] was 0.15532036041005207 */ 3);  // [session 96] was 0.157  // [session 98] was 0.15601  /* [session 107] was 0.15653035388761455 */  /* [session 118] was 0.158164677157365 */  /* [session 122] was 0.1596955003576311 */
     expect(Math.abs(reach(split.preOil) - reach(split.oilSupplied))).toBeLessThan(0.01);
     expect(Math.abs(reach(split.preOil) - reach(split.focusDry))).toBeLessThan(0.01);
     // Meanwhile the decks really did change, which is what makes the null
@@ -701,7 +701,7 @@ describe("GATE 2 — the collapse, decomposed", () => {
     // is itself evidence the budget-zero reversion is about the consumable.
     expect(crit(split.preOil)).toBeCloseTo(0.185, 3);
     expect(crit(split.oilSupplied)).toBeCloseTo(0.316, 3);
-    expect(crit(split.focusDry)).toBeCloseTo(0.2804362931444484, /* [s116b] was 0.32115771934050813 */ /* [session 116] was 0.33681301702859323 */ 3);  /* [session 121] was 0.3055070465743641 */  /* [session 113] was 0.3353462263793131 */ // [session 93] was 0.336  // [session 96] was 0.341  // [session 98] was 0.299  /* [session 99] was 0.317303256698053 */ /* [session 102] was 0.32298047812753683 */ /* [session 105] was 0.3398053164307034 */  /* [session 107] was 0.34071208244256956 */  /* [session 110] was 0.33890179737702925 */  /* [session 110b] was 0.3302330730727507 */  /* [session 118] was 0.32033307728453175 */  /* [session 122] was 0.2905439735432301 */  /* [session 123] was 0.28641495535209704 */
+    expect(crit(split.focusDry)).toBeCloseTo(0.27562215339681423 /* [session 124] was 0.2804362931444484 */, /* [s116b] was 0.32115771934050813 */ /* [session 116] was 0.33681301702859323 */ 3);  /* [session 121] was 0.3055070465743641 */  /* [session 113] was 0.3353462263793131 */ // [session 93] was 0.336  // [session 96] was 0.341  // [session 98] was 0.299  /* [session 99] was 0.317303256698053 */ /* [session 102] was 0.32298047812753683 */ /* [session 105] was 0.3398053164307034 */  /* [session 107] was 0.34071208244256956 */  /* [session 110] was 0.33890179737702925 */  /* [session 110b] was 0.3302330730727507 */  /* [session 118] was 0.32033307728453175 */  /* [session 122] was 0.2905439735432301 */  /* [session 123] was 0.28641495535209704 */
   });
 
   it("fires the before-era-is-oil-free assertion if that control ever stops holding", () => {
@@ -736,7 +736,7 @@ describe("§3's heldCoverage signal, re-run per era", () => {
     // session 89 watched it soften to ~1.4x and session 91 to 1.30x as
     // Focus-dry dead hands (which are frozen on one cell and cover almost
     // nothing) were pooled in. On the corrected arm it is 1.65x.
-    expect(pooled.meanCoverageDead).toBeCloseTo(5.116197183098592, /* [s116b] was 5.192468619246862 */ /* [session 116] was 5.248868778280543 */ 2);  /* [session 121] was 5.22 */  /* [session 113] was 5.320652173913044 */  // [session 96] was 5.197  // [session 98] was 5.241 /* [session 102] was 5.283783783783784 */ /* [session 105] was 5.2993630573248405 */  /* [session 107] was 5.2625 */  /* [session 110] was 5.309523809523809 */  /* [session 110b] was 5.3535911602209945 */  /* [session 118] was 5.208333333333333 */  /* [session 122] was 5.143939393939394 */  /* [session 123] was 5.068840579710145 */
+    expect(pooled.meanCoverageDead).toBeCloseTo(5.086092715231788 /* [session 124] was 5.116197183098592 */, /* [s116b] was 5.192468619246862 */ /* [session 116] was 5.248868778280543 */ 2);  /* [session 121] was 5.22 */  /* [session 113] was 5.320652173913044 */  // [session 96] was 5.197  // [session 98] was 5.241 /* [session 102] was 5.283783783783784 */ /* [session 105] was 5.2993630573248405 */  /* [session 107] was 5.2625 */  /* [session 110] was 5.309523809523809 */  /* [session 110b] was 5.3535911602209945 */  /* [session 118] was 5.208333333333333 */  /* [session 122] was 5.143939393939394 */  /* [session 123] was 5.068840579710145 */
     expect(today.meanCoverageDead).toBeCloseTo(8.682, 2);
     expect(today.meanCoverageDead).toBeGreaterThan(pooled.meanCoverageDead);
     expect(today.deadPlays).toBe(22); // was 15 (s84), 42 pooled
@@ -809,7 +809,7 @@ describe("§1 / GATE 1 — the bot stopped OVERSHOOTING; the target never moved"
     expect(() => assertOpeningFocusPinned(traces)).not.toThrow();
     // [session 89] 147 -> 167 of 168. The exception is still the SAME single
     // cast, which is the claim: twenty more casts produced no new one.
-    expect(traces.filter((t) => t.hasStart).length).toBe(456) /* [s116b] was 363 */ /* [session 116] was 338 */;  /* [session 121] was 389 */  /* [session 113] was 294 */  /* [session 92] was 177 */ // [session 93] was 187  // [session 96] was 188  // [session 98] was 198  /* [session 99] was 207 */ /* [session 102] was 209 */ /* [session 105] was 229 */  /* [session 107] was 250 */  /* [session 110] was 272 */  /* [session 110b] was 287 */  /* [session 118] was 366 */  /* [session 122] was 409 */  /* [session 123] was 432 */
+    expect(traces.filter((t) => t.hasStart).length).toBe(482 /* [session 124] was 456 */) /* [s116b] was 363 */ /* [session 116] was 338 */;  /* [session 121] was 389 */  /* [session 113] was 294 */  /* [session 92] was 177 */ // [session 93] was 187  // [session 96] was 188  // [session 98] was 198  /* [session 99] was 207 */ /* [session 102] was 209 */ /* [session 105] was 229 */  /* [session 107] was 250 */  /* [session 110] was 272 */  /* [session 110b] was 287 */  /* [session 118] was 366 */  /* [session 122] was 409 */  /* [session 123] was 432 */
     const unrecorded = traces.filter((t) => !t.hasStart);
     expect(unrecorded).toHaveLength(1);
     expect(unrecorded[0]!.docId).toBe("12975152");

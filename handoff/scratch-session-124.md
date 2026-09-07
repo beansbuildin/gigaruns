@@ -300,3 +300,32 @@ would. **So they do not block the dungeon arm.** The dungeon-wearing set
 3. **Ledger.** `dayProgressEntities` **3 → 6** of 12.
 4. **Slot 15 stays at 0** and slot 14 stays at 30 — the dungeon does not touch
    fishing slots. This is the disjointness claim, tested a second time.
+
+---
+
+# RUN 2 — VERIFIED. All four predictions HELD exactly.
+
+```
+                    forecast          measured
+gear 11 640         55 -> 52          52  ✓
+gear 12 641         33 -> 30          30  ✓
+gear 13 905         15 -> 12          12  ✓
+gear 13 901         26 -> 23          23  ✓   (no break, as forecast)
+rings   139         42 -> 39          39  ✓   sole mover, six unchanged
+ledger              3 -> 6 of 12      6   ✓
+slot 15 / slot 14   0 / 30 unmoved    0 / 30  ✓  DISJOINTNESS, 2nd test
+```
+
+Run 2: deepest room **8**, **0/57** first-attempt failures. Session dungeon
+total so far: 2 runs, 6/12 run-units, **0/165** first-attempt failures.
+Shape count **26/26 -> 27/27**.
+
+# RUN 3 — pre-registered BEFORE the spend (user go-ahead: "Run 3, then ask again")
+
+1. **Gear, −3 each, NO break:** `640 52→49`, `641 30→27`, `905 12→9`,
+   `901 23→20`. After this run 905 sits at 9 = **3 more runs to zero**, so it
+   still does not break inside run 4 either.
+2. **Shape:** Foxglove (139) sole mover **39 → 36**; six unchanged.
+   **27/27 → 28/28.**
+3. **Ledger:** `dayProgressEntities` **6 → 9** of 12.
+4. **Disjointness, third test:** slot 15 stays at **0**, slot 14 stays at **30**.

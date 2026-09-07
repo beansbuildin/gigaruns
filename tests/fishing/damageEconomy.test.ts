@@ -503,7 +503,7 @@ describe("the simulator's economy, same predicate", () => {
     // has not moved, and the ratio fell because LIVE's own drift keeps growing
     // in magnitude (-0.6882 -> -0.7230). The gap is closing because the live
     // arm moves toward the sim, not because the sim moved.
-    expect(bare.economy.drift / LIVE.drift).toBeCloseTo(4.915666593073866, 6); /* [session 102] bar was 10, against ~17x; measured 9.97x */ /* [session 105] measured 8.48x */ /* [session 122] bar of 5 CROSSED at 4.83 — converted from toBeGreaterThan(5) to a pin, see above */  /* [session 123] was 4.830349605884868 */
+    expect(bare.economy.drift / LIVE.drift).toBeCloseTo(4.94478408684242 /* [session 124] was 4.915666593073866 */, 6); /* [session 102] bar was 10, against ~17x; measured 9.97x */ /* [session 105] measured 8.48x */ /* [session 122] bar of 5 CROSSED at 4.83 — converted from toBeGreaterThan(5) to a pin, see above */  /* [session 123] was 4.830349605884868 */
     // Pinned so the NEXT move is attributable rather than merely visible.
     // [session 116] Moved again, on the 25-cast day: -0.6017 -> -0.6473. Still
     // NEGATIVE and still short of -1, the two conditions STATE names for a
@@ -546,7 +546,7 @@ describe("the simulator's economy, same predicate", () => {
     //
     // STATE's open question 4 ("does the drift walk justify a re-derive?") is
     // CLOSED by this. Do not re-ask it.
-    expect(LIVE.drift).toBeCloseTo(-0.7104773713577185, /* [session 122] was -0.6881944444444444 — FIFTH move, direction arm fired, RE-DERIVED */ /* [session 121] was -0.6850220264317181 */ /* [session 118] was -0.6417445482866043 */ /* [s116b] was -0.6473354231974922 */ 6);  /* [session 116] was -0.6017241379310345 */ /* [session 113] was -0.5187436676798379 */ /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */  /* [session 110b] was -0.5005181347150259 */  /* [session 123] was -0.7230263157894737 */
+    expect(LIVE.drift).toBeCloseTo(-0.7062937062937062 /* [session 124] was -0.7104773713577185 */, /* [session 122] was -0.6881944444444444 — FIFTH move, direction arm fired, RE-DERIVED */ /* [session 121] was -0.6850220264317181 */ /* [session 118] was -0.6417445482866043 */ /* [s116b] was -0.6473354231974922 */ 6);  /* [session 116] was -0.6017241379310345 */ /* [session 113] was -0.5187436676798379 */ /* [session 102] first pin; pre-batch was -0.2426 */ /* [session 105] was -0.3504492939666239 */  /* [session 107] was -0.4330518697225573 */  /* [session 110] was -0.43875278396436523 */  /* [session 110b] was -0.5005181347150259 */  /* [session 123] was -0.7230263157894737 */
   });
 
   it("reproduces live's per-card AMOUNTS in every arm — they are read from a real capture", () => {
@@ -600,7 +600,7 @@ describe("the simulator's economy, same predicate", () => {
     // mean comes from **playing worse cards**, not from cards dealing
     // different amounts. That is a statement about card CHOICE, and a rod swap
     // does not bear on it.
-    expect(Math.abs(bare.economy.meanDamage - LIVE.meanDamage)).toBeCloseTo(0.7135974380975885, 6); /* [session 123] was toBeLessThan(0.7) — CROSSED at 0.7136 by the Golkan->Dendren swap, pinned per the pre-registration above */ /* [session 113] was 0.5; measured 0.5477 */
+    expect(Math.abs(bare.economy.meanDamage - LIVE.meanDamage)).toBeCloseTo(0.77257077464097 /* [session 124] was 0.7135974380975885 */, 6); /* [session 123] was toBeLessThan(0.7) — CROSSED at 0.7136 by the Golkan->Dendren swap, pinned per the pre-registration above */ /* [session 113] was 0.5; measured 0.5477 */
   });
 
   it("THE CAUSE: the hit rate dominates the decomposition, not the arithmetic", () => {

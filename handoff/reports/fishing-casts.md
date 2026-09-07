@@ -1,6 +1,6 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-06T23:57:11.394Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-07T00:04:17.468Z.
 
 483 recorded casts — 241 caught (49.9%).
 Total Hard Core earned: 51920 (215.4 per catch, 107.5 per cast).
