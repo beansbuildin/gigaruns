@@ -75,6 +75,31 @@ describe("the corpus supports a boon model at all", () => {
  * letting a red wall test be the only signal.
  */
 const AWAITING_MODEL_DIRECTIVE = new Set<string>([
+  // ⭐ [session 124] `Thorns` — FIRST PICKED PAIR, from the day-20702 runs.
+  // Same precedent chain as every entry below: `LossIntuitionUp` (99),
+  // `LossBlockUp` (112), `CritHeal` (113), `BurningTenacity` (114). Modelling
+  // a boon type from n=1 has required an explicit user directive every time,
+  // and an agent deciding it alone is what that precedent forbids. This is
+  // the SEVENTH held boon.
+  //
+  // **The pickup is a verified LATENT no-op**, read off the pair rather than
+  // assumed from the family: `hp` 47 -> 47, `hpMax` 51 -> 51, `armor` 8 -> 8,
+  // `armorMax` 17 -> 17, and every ROLLED stat byte-identical.
+  // `selectedVal1` 5, `selectedVal2` 0, `Rarity` "Rare", `TokenId` 123.
+  //
+  // ⚠ **Thorns had been OFFERED since 2026-08-27 and never picked**, so its
+  // first appearance here is a PICK, not a new boon in the game. Rule 8's
+  // highest-tier policy is the plausible proximate cause — it reaches offers
+  // the old lowest-tier rule declined — but that is an association, not a
+  // measurement, and is deliberately not asserted.
+  //
+  // ⚠ **Its NAME says "retaliate when hit" and that is not evidence.**
+  // DECISIONS 2026-08-14/15: the effect is never inferred from the name. What
+  // is established is the pickup delta (nothing); the conditional the name
+  // gestures at is unobserved and would need post-pickup exchanges where the
+  // player is struck.
+  "Thorns",
+
   // ⭐ [session 113] `CritHeal` — FIRST PAIR, from run-2026-08-31-03-04-33
   // state-011 -> state-012. Held back for a user directive on the
   // `LossIntuitionUp` (session 99) / `LossBlockUp` (session 112) precedent:
@@ -806,7 +831,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // session 122's +12. The clean census below gains ONE, a RECURRENCE of an
     // already-clean type, so the clean TYPE SET is unchanged and Wall 1 gains
     // no new hole.
-    expect(roomOne.length).toBe(345);  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
+    expect(roomOne.length).toBe(357 /* [session 124] was 345 */);  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -869,6 +894,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "AddMaxArmor",
       "AddMaxArmor",
       "AddMaxArmor", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
+      "AddMaxArmor", // [session 124] +1 from the four Tier-2 runs of 2026-09-06.
       "AddMaxHealth",
       "AddMaxHealth", // [session 122] already-clean type RECURRING from day 20700 run 3's room-1 offer (AddMaxHealth(8)/WeakeningMastery(10)/AddEvasion(1)) — the clean SET is still the same SIX, unchanged since session 52
       "AddMaxHealth", // [session 123] already-clean type RECURRING from day 20701's room-1 offers — the clean SET is still the same SIX, unchanged since session 52, now across a corpus of 345 room-1 options
@@ -893,6 +919,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper",
       "UpgradePaper", // [session 114] already-clean type RECURRING — the clean SET is still the same SIX, unchanged since session 52, now over a corpus grown by 33 offers
       "UpgradePaper", // [session 116] already-clean type RECURRING from the single Tier-2 run of 2026-09-01 — the clean SET is still the same SIX, unchanged since session 52
+      "UpgradePaper", // [session 124] +2 from the four Tier-2 runs of 2026-09-06; wall 1 STILL has exactly SIX clean TYPES, unchanged since session 52.
+      "UpgradePaper", // [session 124]
       "UpgradeRock",  /* [session 113] +1, ninth */
       "UpgradeRock",
       "UpgradeRock",
@@ -1028,7 +1056,10 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // equalling the deepest Heal sighting on record (the session-112 room 9).
     // Appended at the array's end by insertion order, same as every entry
     // since session 43, so it lands last rather than beside the other 9.
-    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9]);
+    // [session 124] +2 Heal offers from day 20702's four runs, BOTH at room 4.
+    // Appended at the array's end by insertion order, same as every entry since
+    // session 43, so they land last rather than beside the other fours.
+    expect(healRooms).toEqual([1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4]);
   });
 });
 

@@ -155,7 +155,27 @@ describe("the three damage rules", () => {
 
 describe("what tenacity and intuition are NOT", () => {
   it("intuition never mitigates damage on its own", () => {
-    const fired = exchanges.filter((e) => e.flags.intuitionProc0 && !e.flags.blockProc0);
+    // ⚠ [session 124] `evadeProc0` JOINS `blockProc0` in the exclusion, and
+    // this is the FILTER being completed, NOT the claim being relaxed.
+    //
+    // The day-20702 runs produced the FIRST exchange in the corpus where
+    // evade and intuition co-fire — 1 of 638 — and it reads
+    // `atk [11, 27], taken [0, 11], flags [evadeProc0, intuitionProc0]`.
+    // Taken to the old filter that is a counterexample: intuition fired, no
+    // block, and 27 ATK landed as 0.
+    //
+    // **It is evade, and evade is not a partial mitigator.** Measured on the
+    // same corpus: of 15 exchanges where `evadeProc0` fires against an
+    // incoming hit, **15 of 15 take exactly zero** and none take a reduced
+    // non-zero amount. So the assertion's own words — intuition mitigates
+    // "on its own" — require excluding every OTHER mitigator, which is
+    // precisely why `blockProc0` was already excluded. Leaving evade in
+    // would make this test assert something about evade.
+    //
+    // The claim itself is untouched and still has no counterexample.
+    const fired = exchanges.filter(
+      (e) => e.flags.intuitionProc0 && !e.flags.blockProc0 && !e.flags.evadeProc0,
+    );
     for (const ex of fired) {
       if (!dealtDamage(ex, 1) || typeof ex.atk[1] !== "number") continue;
       // Full ATK taken. The one corpus exchange that looked mitigated also

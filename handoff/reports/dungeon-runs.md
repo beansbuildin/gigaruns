@@ -1,11 +1,11 @@
 # Dungeon runs
 
-Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-07T00:19:12.304Z.
+Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-07T00:27:10.458Z.
 
 **"Dendren Root"** (the user's term) is wire item 846, `NAME_CID: "Dendren Remnant"` — see this file's header comment in `src/sim/dungeonReport.ts` for the capture that confirmed it.
 
-124 recorded attempts — 115 deaths, 0 cleared, 9 incomplete/stopped. 79 juiced.
-Total Hard Core earned: 366124. Total Dendren Root earned: 33620. Total energy spent: 5640.
+125 recorded attempts — 116 deaths, 0 cleared, 9 incomplete/stopped. 80 juiced.
+Total Hard Core earned: 370972. Total Dendren Root earned: 34307. Total energy spent: 5700.
 
 ## Death-room histogram
 
@@ -18,7 +18,7 @@ Total Hard Core earned: 366124. Total Dendren Root earned: 33620. Total energy s
 - room 7: █████████████████████ 21
 - room 8: ████████ 8
 - room 9: ███████ 7
-- room 10: █████████ 9
+- room 10: ██████████ 10
 - room 11: ████ 4
 - room 12: █ 1
 - room 13: ██ 2
@@ -152,3 +152,4 @@ Total Hard Core earned: 366124. Total Dendren Root earned: 33620. Total energy s
 | 25391354 | death @ room 14 | yes | 7032 | 1362 | 60 | run-2026-09-06-23-44-48 |
 | 25391566 | death @ room 8 | yes | 3888 | 420 | 60 | run-2026-09-07-00-00-25 |
 | 25391789 | death @ room 7 | yes | 3288 | 309 | 60 | run-2026-09-07-00-15-26 |
+| 25391892 | death @ room 10 | yes | 4848 | 687 | 60 | run-2026-09-07-00-22-47 |

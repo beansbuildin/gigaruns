@@ -310,6 +310,12 @@ describe("player loadout matches the fixtures", () => {
     //   state-175  currentMax 17 -> 14   corrode shred on an enemy win
     //   state-183  currentMax back to 17 (room boundary)
     expect([...seen].sort()).toEqual([
+      // ⭐ [session 124] +5 combos from the four Tier-2 runs of 2026-09-06:
+      // 51/16, 51/25, 51/27, 65/25, 75/27. Census updated ONCE, after the day
+      // was fully spent (12/12 run-units), for the session-123 reason below.
+      // The new HP values 51/65/75 come from the DEEP rooms run 1 reached —
+      // it died in room 14, the deepest in the corpus's history — so these are
+      // enemies the bot had never met, not a restatement of known ones.
       // [session 123] The census is updated ONCE, after the day's four runs
       // stopped writing fixtures. An earlier attempt mid-session watched
       // this number move 560 -> 562 between two test invocations: a corpus
@@ -319,6 +325,7 @@ describe("player loadout matches the fixtures", () => {
       // All fourteen trace to one cause — `hpMax` 50 -> 51 on repaired gear
       // (see PLAYER's session-123 note) — so these are that base plus its
       // usual AddMaxArmor pickups and mid-run booned states off it.
+
       "32/15",
       "32/16",
       "34/16",
@@ -360,11 +367,14 @@ describe("player loadout matches the fixtures", () => {
       "50/27",
       "50/29",
       "50/35",
+      "51/16",
       "51/17",
       "51/18",
       "51/19",
       "51/21",
+      "51/25",
       "51/26",
+      "51/27",
       "51/29",
       "53/17",
       "53/19",
@@ -396,6 +406,7 @@ describe("player loadout matches the fixtures", () => {
       "65/16",
       "65/19",
       "65/24",
+      "65/25",
       "65/27",
       "66/17",
       "72/33",
@@ -408,6 +419,7 @@ describe("player loadout matches the fixtures", () => {
       "74/25",
       "75/16",
       "75/19",
+      "75/27",
       "88/19",
     ]);
   });
