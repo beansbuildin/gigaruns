@@ -1,4 +1,4 @@
-# STATE — session 125 — 2026-09-08 — commit <PENDING>
+# STATE — session 125 — 2026-09-08 — commit 7958d5c6
 
 ## Status
 No numbered TASKS.md gate; tasks 1–14 are GATE MET or parked on data. The
