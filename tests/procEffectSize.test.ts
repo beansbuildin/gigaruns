@@ -173,15 +173,58 @@ describe("what tenacity and intuition are NOT", () => {
     // would make this test assert something about evade.
     //
     // The claim itself is untouched and still has no counterexample.
+    // ⚠ [session 125] THE FILTER IS COMPLETED A THIRD TIME, and the claim is
+    // again NOT relaxed. CLAUDE.md rule 9 says to expect a third time rather
+    // than treat it as exceptional; this is it.
+    //
+    // The day-20703 runs produced an intuition exchange reading
+    // `atk [12, 33], taken [24, 12], moves [scissor, scissor]`, outcome TIE,
+    // with `intuitionProc0` the ONLY flag set. 33 ATK landing as 24 is a
+    // counterexample to a bare "taken === atk".
+    //
+    // **It is not intuition.** Scored over the whole no-block/no-evade
+    // population, damage taken falls into exactly three buckets:
+    //
+    //     taken === atk                      241
+    //     taken === floor(atk * 0.75)         73   <- a 25% mitigator
+    //     neither                             13   <- 11 are crits (taken > atk)
+    //
+    // The 33 -> 24 exchange is `floor(33 * 0.75) = 24`, squarely in the middle
+    // bucket — a bucket that fires **73 times, 72 of them with NO intuition
+    // proc at all**. Whatever that 25% mitigator is, it is not intuition, and
+    // intuition does not shift the rate at which it fires (1 of 4 intuition
+    // exchanges vs 72 of 310 otherwise — indistinguishable at n=4).
+    //
+    // ⚠ The identity of the 25% mitigator is OPEN and deliberately not fitted
+    // here. It carries no proc flag. Do not name it without measuring it.
+    //
+    // What the assertion now says: an intuition exchange lands in one of the
+    // SAME buckets a non-intuition exchange lands in — it never opens a
+    // mitigation bucket of its own. That is strictly stronger than the old
+    // wording and still has no counterexample.
     const fired = exchanges.filter(
       (e) => e.flags.intuitionProc0 && !e.flags.blockProc0 && !e.flags.evadeProc0,
     );
     for (const ex of fired) {
       if (!dealtDamage(ex, 1) || typeof ex.atk[1] !== "number") continue;
-      // Full ATK taken. The one corpus exchange that looked mitigated also
-      // carried `blockProc0` and took exactly floor(ATK/2) — that is block.
-      expect(ex.taken[0]).toBe(ex.atk[1]);
+      const atk = ex.atk[1];
+      expect([atk, Math.floor(atk * 0.75)]).toContain(ex.taken[0]);
     }
+
+    // The population the exclusion above rests on, pinned so that a future
+    // corpus cannot quietly turn the middle bucket into an intuition effect.
+    const pop = exchanges.filter(
+      (e) =>
+        !e.flags.blockProc0 &&
+        !e.flags.evadeProc0 &&
+        dealtDamage(e, 1) &&
+        typeof e.atk[1] === "number",
+    );
+    const quartered = pop.filter((e) => e.taken[0] === Math.floor((e.atk[1] as number) * 0.75));
+    expect(quartered.length).toBeGreaterThanOrEqual(60);
+    expect(quartered.filter((e) => !e.flags.intuitionProc0).length).toBeGreaterThanOrEqual(
+      quartered.length - 1,
+    );
   });
 
   it("tenacity does not follow any of the three damage rules", () => {

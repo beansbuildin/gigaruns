@@ -1,33 +1,33 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-07T00:27:10.950Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-08T17:33:14.078Z.
 
-483 recorded casts — 241 caught (49.9%).
-Total Hard Core earned: 51920 (215.4 per catch, 107.5 per cast).
+507 recorded casts — 254 caught (50.1%).
+Total Hard Core earned: 58320 (229.6 per catch, 115.0 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 241 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 46 of those 241 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 254 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 54 of those 254 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Barnaboo: 48
-- Finley: 44
+- Barnaboo: 51
+- Finley: 46
 - Plankton: 39
-- Jelloid: 23
+- Kelpkin: 25
+- Jelloid: 25
 - Ollie: 22
-- Kelpkin: 22
+- Skinzy: 9
 - Deadfin: 7
-- Skinzy: 7
 - Zombo: 6
 - Gulp: 5
 - Podge: 5
 - Glimmer: 3
 - Globbo: 3
 - Sherrif Bubblesmoke: 2
+- Grotto: 2
 - Slo_mo: 1
 - Chompus: 1
 - Goober: 1
 - Gideon: 1
-- Grotto: 1
 
 ## Per-cast detail
 
@@ -516,3 +516,27 @@ Total Hard Core earned: 51920 (215.4 per catch, 107.5 per cast).
 | 13289947 | no | — | 0 |
 | 13289952 | yes | Ollie (rarity 1) | 640 |
 | 13289958 | no | — | 0 |
+| 13320130 | yes | Finley (rarity 0) | 80 |
+| 13320132 | no | — | 0 |
+| 13320146 | no | — | 0 |
+| 13320149 | no | — | 0 |
+| 13320153 | yes | Jelloid (rarity 1) | 160 |
+| 13320155 | yes | Grotto (rarity 5) | 1120 |
+| 13320158 | yes | Barnaboo (rarity 0) | 80 |
+| 13320161 | no | — | 0 |
+| 13320168 | no | — | 0 |
+| 13320170 | yes | Skinzy (rarity 2) | 1600 |
+| 13320196 | yes | Kelpkin (rarity 1) | 640 |
+| 13320198 | no | — | 0 |
+| 13320202 | yes | Skinzy (rarity 2) | 1280 |
+| 13320205 | no | — | 0 |
+| 13320209 | yes | Kelpkin (rarity 1) | 320 |
+| 13320215 | yes | Barnaboo (rarity 0) | 400 |
+| 13320217 | yes | Barnaboo (rarity 0) | 160 |
+| 13320220 | no | — | 0 |
+| 13320224 | yes | Kelpkin (rarity 1) | 320 |
+| 13320227 | yes | Finley (rarity 0) | 80 |
+| 13320266 | no | — | 0 |
+| 13320269 | no | — | 0 |
+| 13320271 | no | — | 0 |
+| 13320275 | yes | Jelloid (rarity 1) | 160 |

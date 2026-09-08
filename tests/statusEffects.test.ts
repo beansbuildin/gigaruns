@@ -136,7 +136,12 @@ describe("Burn", () => {
     // (a window loss REMOVES keys; this diff only ADDS one). `14 = 7 * 2`, so
     // the x2 multiplier now holds over base ticks {2,3,4,5,7} — the first test
     // of it at a base above 5, and it survived.
-    expect(Object.keys(pairs).sort()).toEqual(["10/5", "14/7", "4/2", "6/3", "8/4"]);  /* [session 123] was ["10/5", "4/2", "6/3", "8/4"] */  /* [session 116] Set UNCHANGED by the 2026-09-01 Tier-2 run, which added no new pair but raised n 52 total; x2 now holds over {2,3,4,5}. [session 114] was ["4/2", "6/3"] — 10/5 and 8/4 arrived together in the room-14 run; BOTH satisfy x2 (10 = 5*2, 8 = 4*2), so the multiplier survives a doubling of the pair set. That entry also claimed "NO odd plain amount" while listing 10/5 and 6/3, which are odd — corrected above. */
+    // ⭐ [session 125] **A SIXTH PAIR, `16/8`, from day 20703's four runs — and
+    // it takes over from `14/7` as the largest Burn amount the rule has been
+    // tested at.** The set GREW again (an ADD, not the session-114 sliding-
+    // window loss that REMOVES keys — checked, not assumed). `16 = 8 * 2`, so
+    // the x2 multiplier now holds over base ticks {2,3,4,5,7,8}.
+    expect(Object.keys(pairs).sort()).toEqual(["10/5", "14/7", "16/8", "4/2", "6/3", "8/4"]);  /* [session 125] was ["10/5", "14/7", "4/2", "6/3", "8/4"] */  /* [session 123] was ["10/5", "4/2", "6/3", "8/4"] */  /* [session 116] Set UNCHANGED by the 2026-09-01 Tier-2 run, which added no new pair but raised n 52 total; x2 now holds over {2,3,4,5}. [session 114] was ["4/2", "6/3"] — 10/5 and 8/4 arrived together in the room-14 run; BOTH satisfy x2 (10 = 5*2, 8 = 4*2), so the multiplier survives a doubling of the pair set. That entry also claimed "NO odd plain amount" while listing 10/5 and 6/3, which are odd — corrected above. */
     // The multiplier, asserted against every observed pair rather than against
     // the two literals above — so it is the RELATIONSHIP that is pinned, not
     // the sample. This is what a future pair has to keep satisfying.

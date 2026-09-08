@@ -9,7 +9,7 @@ LIVE read, never from the brief.
 ## Step 0 — JWT (the brief's THIRD ask; two sessions dropped it)
 
 `scripts/doctor.ts`: **token valid for another 106.8h** (~4.45 days), 1728 chars.
-Authenticated as `coinpie`. Runway is not short; no need to warn the user before
+Authenticated as `<USER>`. Runway is not short; no need to warn the user before
 spending. **Recorded here so the third silent pass does not happen.**
 
 ## Step 1 — live state, and where the brief was WRONG
@@ -130,3 +130,201 @@ filter is expected to fire on roughly a third of offers. Entry is
   repairs; **read gear live before quoting any forecast built on it.**
 - **[05:52Z]** Claim B's "6 missing rings" was a subtraction error in a recap,
   not a game event. The components were all right; only the sum was wrong.
+
+---
+
+## RUN 1 — died room 9. All forecasts held.
+
+`dayProgressEntities` **3** (0 -> 3 of 12). **0/57 first-attempt failures.**
+Energy 155 -> 96 (committed 60, observed 59; the usual in-run passive-regen drift).
+
+- **P1 HELD:** Summoner **42 -> 39**, sole mover, exactly -3. Six untouched
+  (Athena 21, Archon 24, Crusader 27, Chobo 30, Foxglove 33, Overseer 42).
+- **P3 HELD:** 640 46->43, 641 24->21, 901 17->14, 905 24->21. All exactly -3.
+- **Disjoint wear sets re-confirmed a 5th time:** rod 923 still **30**,
+  slot-15 pair still **25 / 30**. A dungeon run moves no fishing gear.
+- Rule 8 fired on all 8 rooms; no Perpetual filter this run.
+
+### The "1 UNMODELLED boon picked" flag resolves to nothing new
+The run banner said *"8 type(s) picked, 1 of them still UNMODELLED (first-ever
+candidates)"*. Resolved by checking the 8 picks against `BOON_MODELS`: it is
+**`VulnerableMastery`**, already a KNOWN held boon (STATE open question 5).
+`UNMODELLED_TYPES` is **unchanged at 13**. **No new boon type, so no new user
+directive is needed** — the banner's "first-ever candidate" wording is about
+this RUN, not about the corpus.
+
+---
+
+## ⭐ USER STATEMENT, and the CORPUS CONFIRMS IT — intuition is an INFORMATION
+## effect, not a mitigation, and THE SERVER NAMES THE BLOCKED MOVE
+
+**User, in chat, 2026-09-08 (ground truth, not derived):** *"there is also now a
+0.5% chance to proc Intuition which rules out one of the enemies moves for the
+next turn."*
+
+Checked against `fixtures/dungeon-runs` immediately (rule 9). It holds, and the
+corpus adds the mechanism the statement did not have to give:
+
+```
+files with intuitionProc0:true AND blockedMove   18
+files with intuitionProc0:true ONLY               0
+files with blockedMove ONLY                       0
+```
+
+**PERFECT 18/18 co-occurrence, zero on either side alone.** The event is:
+
+```json
+{ "type": "intuition_block", "value": "rock", "playerId": 1,
+  "data": { "blockedMove": "rock" } }
+```
+
+- **`playerId` is 1 on all 18 — never 0.** It is the ENEMY's move that is
+  removed, exactly as the user said.
+- **The server NAMES the move**: `blockedMove` = rock 8 / scissor 6 / paper 4
+  (18 total).
+
+### ⭐ THIS EXPLAINS SESSION 124'S FINDING RATHER THAN CONTRADICTING IT
+Session 124 established *"intuition never mitigates on its own"* and treated it
+as a durable claim with no counterexample. That is now **explained**: intuition
+is not a mitigation mechanic at all, so there was never damage reduction to
+find. The old claim and the new mechanism are the same fact seen from two sides.
+
+### The proc RATE — do not read a contradiction into it
+Corpus: **18 true / 8148 `intuitionProc0` rows = 0.221%.** The user says it is
+**0.5% NOW**. These are consistent with the rate having been RAISED recently
+(the JEBAITOR precedent: a skill `value` climbing 2.25 -> 6.75 -> 15.75 across
+sessions). **The corpus rate is historical and must not be quoted as current.**
+
+### ⚠ ACTIONABLE, BUT NOT THIS SESSION — rule 4
+`blockedMove` is consumed **NOWHERE** in `src/`. Verified: the only mentions of
+intuition machinery outside the sim are `scripts/procEvidence.ts` (which counts
+`intuition_block` events but ignores the payload) and `scripts/procEffectSize.ts`.
+**The opponent model does not zero out a move the server has told us the enemy
+cannot play.** That is a real, free EV improvement sitting unused.
+
+**It is NOT being implemented live today.** Changing live move selection is
+exactly CLAUDE.md rule 4 — sim against fixtures first. Two caveats for whoever
+picks it up:
+
+1. **Scope the duration.** The user says "for the NEXT turn". The event is
+   emitted in the same batch as the current exchange's `OnDamage`, so whether
+   the exclusion applies to the current resolution or only the following one is
+   **NOT settled by the fixtures** and must be measured, not assumed.
+2. **The EV is small by construction.** At 0.22–0.5% of exchanges this can
+   change at most a handful of decisions per session. Worth doing for
+   correctness; **not worth spending a run to measure.**
+
+---
+
+## RUNS 2–4 and the DUNGEON ARM CLOSE — 12/12, every forecast held EXACTLY
+
+| run | death room | first-attempt failures | perpetual filter fired | Summoner |
+|---|---|---|---|---|
+| 1 | 9  | 0/57 | 0 | 42 -> 39 |
+| 2 | 11 | 0/88 | 1 (room 9) | 39 -> 36 |
+| 3 | 7  | 0/49 | 4 | 36 -> 33 |
+| 4 | 13 | 0/90 | 3 | 33 -> 30 |
+
+**TOTAL 0/284 first-attempt action failures.** `dayProgressEntities` 12/12.
+Energy 240 guard-tracked.
+
+### Forecast scorecard — dungeon
+- **P1 HELD 4/4.** Summoner sole mover every run, exactly -3, six untouched.
+  Charge shape now confirmed on four more runs.
+- **P2 HELD.** Athena stays scarcest at **21**. Summoner ends at **30**, tied
+  with Chobo, exactly as predicted. Total **219 -> 207**.
+- **P3 HELD 4/4, including the reversal of the brief.** Final: 640 **34**,
+  641 **12**, 905 **12**, 901 **5** (lowest, exactly the predicted value).
+  **NO dungeon piece broke and the gear halt did NOT fire** — which is what
+  P3 predicted against the brief's "905 breaks on run 2".
+- **Disjoint wear sets, 4 more confirmations.** Rod 923 read **30** after every
+  single run; slot-15 pair read **25 / 30** after every single run. Four dungeon
+  runs moved zero fishing durability.
+
+Closing balances: Athena 21, Archon 24, Crusader 27, Chobo 30, **Summoner 30**,
+Foxglove 33, Overseer 42 = **207**.
+
+---
+
+## FISHING — 24 PLAYED / 20 CHARGED. The CHARGED CAP bound, NOT a server refusal.
+
+13 `--oil-batch` invocations, `castCap: 2` each, run as repeated small batches
+exactly as the brief required. **The user stopped the session at the cap; a 13th
+batch was NOT run** (verified against the ledger — see below).
+
+```
+casts PLAYED   24        catch rate 13/24 = 54.2%
+casts CHARGED  20/20     Hard Core 6,400   Dendren Root 0
+JEBAITOR spared 4 (16.7%)
+rod 923:  30 -> 6   (-1.00/cast over 24 casts, EXACT, every batch)
+slot 15:  25 -> 1  and  30 -> 6
+oils: Relaxing 34 -> 29 (5 consumed), Focus 0 throughout (policy-withdrawn)
+```
+
+Fish: Infused Sediment (Epic) x8, Finley x2, Jelloid x2, Barnaboo x1.
+
+### Forecast scorecard — fishing. P4/P5 RATES exact; P6/P7 NOT TESTED.
+
+- **P4 (rod -1.00/played cast) HELD EXACTLY**, on all 12 batches, no drift.
+  30 - 24 = **6**, which is what the server reads. The rod did **not** reach 0;
+  the day ended 6 casts short of it.
+- **P5 (slot 15 wears at the same rate and breaks 5 casts BEFORE the rod)** —
+  the **RATE is confirmed exactly** (25 - 24 = **1**, 30 - 24 = **6**), so the
+  slot-15 piece sits **one cast** from 0 with the rod still at 6. The **BREAK
+  EVENT was not reached**, so P5's ordering claim is **un-falsified but not yet
+  demonstrated**. It will fire on the first cast of the next fishing day.
+- **⚠ P6 / P7 FAILED TO BE TESTABLE, and this is the session's one real miss.**
+  Both predicted the **server's refusal** would land in casts 24–29 and end the
+  batch. **No refusal occurred.** The **GAME's charged ledger hit exactly 20/20
+  at 24 played**, and `checkFishingCaps.ts` returned `BLOCKED — cap spent`
+  BEFORE any refusable cast was attempted. **There is NO fourth data point on
+  the refusal boundary this session.** The boundary sequence stays 24, 25, 27.
+
+### ⭐ WHY the refusal did not appear, and it is JEBAITOR, not a change
+
+The refusal is only reachable when JEBAITOR spares enough casts that PLAYED runs
+ahead of CHARGED far enough to attempt a 21st+ charged cast. This session
+JEBAITOR spared **4 of 24 = 16.7%**, so 24 played landed on exactly 20 charged
+with nothing left over. Prior sessions spared more and therefore probed past the
+cap. **A session with no refusal is NOT evidence the refusal moved or went
+away** — it means the spare rate was too low to reach it. Do not read the
+missing data point as a change in the boundary.
+
+### ⚠ A LEDGER FIELD THAT READS WRONG IF SKIMMED
+`checkFishingCaps.ts` prints `REPO ledger: 20 casts, 288 energy`. **288 / 12 =
+24, not 20.** The repo's cast counter tracks **CHARGED** casts while its energy
+counter tracks **PLAYED** ones. Both are correct; they count different things.
+Anyone dividing that energy by 12 to cross-check the cast count will think the
+ledger is broken. Noted, not changed.
+
+### Rule 13 discharge — the interrupted 13th batch
+The user interrupted batch 13 before execution. **Per rule 13 the ledger was
+read rather than trusted:** `dayDocs` still **20/20**, repo ledger still 20 casts
+/ 288 energy, rod still **6**, slot-15 still **1**, `dayProgressEntities` still
+**12**. **Nothing ran.** The denial and reality agree this time.
+
+---
+
+## ECONOMY — the day
+
+```
+DUNGEON  4 juiced Tier-2 runs, 12/12 run-units, 240 energy
+         Hard Core 19,608   Dendren Root 2,874
+         death rooms 9 / 11 / 7 / 13
+         cid 25422936 (r9, HC 4512) 25434003 (r11, 5736)
+             25434376 (r7,  2904)   25435344 (r13, 6456)
+FISHING  24 played / 20 charged, 288 energy
+         Hard Core 6,400    catch 13/24 = 54.2%
+DAY      Hard Core 26,008   Dendren Root 2,874   energy 528
+```
+
+## Final gear — for the next session's forecast
+```
+slot 11  640  34   (11 runs)      slot 14  923   6   <- 6 casts
+slot 12  641  12   (4 runs)       slot 15  954   1   <- ⚠ BREAKS ON CAST 1
+slot 13  901   5   (1 run)  <- ⚠  slot 15  954   6   <- 6 casts
+slot 13  905  12   (4 runs)       slot  8   50   0   grandfathered
+```
+**901 at 5 breaks on run 2 next session** (5 -> 2 -> 0 at -3/run). **The
+slot-15 piece at 1 breaks on the FIRST played cast.** Both are repairs worth
+raising with the user BEFORE the next day starts.

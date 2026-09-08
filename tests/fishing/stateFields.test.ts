@@ -285,6 +285,28 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // crit multiplier looks like rather than a capture artefact.
     "13289828 t1: card 18 hit=true crit=false predicted Δ-5, actual Δ-8 (13->5/20)",
     "13289924 t1: card 96 hit=true crit=false predicted Δ-7, actual Δ-11 (18->7/28)",
+    // ── [session 125] TWELFTH and THIRTEENTH, from the day-20703 24-cast batch ──
+    // ⭐ **THE FIRST TIME TWO ANOMALIES HAVE COME FROM THE SAME CAST.** Both
+    // rows below are cast `13320209`, turns 2 and 5. Every previous exception
+    // is one per cast, so a per-cast independence assumption — which nothing
+    // here relies on, but which is easy to acquire by reading the list — is
+    // now falsified by example.
+    //
+    // Otherwise the SAME family as all eleven above: `crit=false` from the
+    // server, damage above the card's own effect. Neither is lethal
+    // (24->16 of 28, 15->4 of 28), so both clamped deltas ARE the unclamped
+    // `FISH_HP_DIFF` and no censoring caveat applies.
+    //
+    // ⚠ **NEITHER TIGHTENS THE BOUND**, for the same reason session 124's two
+    // did not: base 5 and base 7 are both already present in this list, so
+    // neither is a NEW BASE, and only a new base can narrow the interval.
+    // Raw ratios **1.600** (8/5) and **1.571** (11/7). ⚠ Read these as the
+    // ROW's admissible window, not as a point estimate — the rule is
+    // `round(base x m)`, so these two rows admit [1.500, 1.700) and
+    // [1.500, 1.643) respectively. Both are LOOSER than the standing
+    // [1.500, 1.583), which is why neither narrows it.
+    "13320209 t2: card 99 hit=true crit=false predicted Δ-5, actual Δ-8 (24->16/28)",
+    "13320209 t5: card 23 hit=true crit=false predicted Δ-7, actual Δ-11 (15->4/28)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -396,6 +418,16 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // the Dendren analogue of the same geometry. Neither is a new base, so
       // neither can tighten the bound; they are kept because a REPEATED ratio
       // on an independent card is what distinguishes a real multiplier from a
+      // capture artefact.
+      { base: 5, actual: 8 },
+      { base: 7, actual: 11 },
+      // [session 125] the day-20703 batch's two, BOTH FROM THE SAME CAST
+      // (13320209 turns 2 and 5 — the first time one cast has produced two).
+      // Bases 5 and 7 are both already here, so neither can tighten the
+      // bound: their own admissible windows are [1.500, 1.700) and
+      // [1.500, 1.643), both looser than the standing [1.500, 1.583).
+      // Kept for the same reason session 124's pair was — a ratio repeating
+      // on an independent card is what separates a real multiplier from a
       // capture artefact.
       { base: 5, actual: 8 },
       { base: 7, actual: 11 },
@@ -572,7 +604,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(110 /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
+    expect(corrected.crits).toBe(113 /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });
