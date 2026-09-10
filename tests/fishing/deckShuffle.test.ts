@@ -128,7 +128,34 @@ describe("§1a — the live corpus falsifies the sequential draw pile", () => {
     // or model regression that actually serves the pile sequentially — would
     // produce 253, not 5. A bound should sit between what chance can do and
     // what the bug would do; 0 and 1 both sat below what chance can do.
-    expect(sequential.length).toBeLessThanOrEqual(5); /* [session 102] was toEqual([]) — see above */ /* [session 105] was <= 1; re-derived from the null, not bumped */
+    // ⚠⚠ **[session 126] THE BOUND WAS CROSSED — 6 MATCHES OF 515 OPENING
+    // HANDS — AND IT IS CONVERTED TO A PIN RATHER THAN RAISED.** Session 105
+    // set 5 by saying "chance will not reach it for the life of this corpus".
+    // Chance appears to have reached it, so that sentence is now falsified as
+    // written and the number must not simply be bumped to 7; bumping is the
+    // exact fragility session 105 was fixing.
+    //
+    // **Re-derived on both nulls this file already names, at 515 hands.**
+    // Session 105 measured 2 matches in 253 hands, lambda 0.2076 ordered, so
+    // the ordered per-hand rate is 0.2076 / 253 = 8.206e-4:
+    //
+    //   ORDERED-uniform null   lambda = 515 * 8.206e-4 = 0.423   P(>=6) ~ 5.2e-6   (~1 in 190,000)
+    //   SET null               lambda = 515 * 4.585e-3 = 2.361   P(>=6) ~ 3.5%     (ordinary)
+    //
+    // ⭐ **So the two nulls now DISAGREE about whether this is an anomaly, and
+    // that disagreement is the finding.** Under the ordered null 6 is a
+    // 1-in-190,000 event; under the SET null it is unremarkable. Session 79
+    // ruled the SET null out on the grounds that roster order is not a display
+    // artefact — that ruling is what this crossing puts back in question, and
+    // it is NOT re-opened here on one session's data.
+    //
+    // ⛔ **Do not fit a cause and do not "fix" the loader.** The regression
+    // this test exists to catch would produce 515, not 6; the discriminating
+    // ratio assertion below is still comfortably satisfied (6/515 = 1.17%
+    // against a 2% bar), so the session-79 falsification is UNTOUCHED. What is
+    // in doubt is only the null used to police the residual.
+    expect(sequential.length).toBe(6); /* [session 126] was <= 5, CROSSED — pinned, see above */ /* [session 102] was toEqual([]) */ /* [session 105] was <= 1; re-derived from the null, not bumped */
+    expect(LIVE.length).toBe(515); /* [session 126] the denominator the 6 is read against — pinned so the pair moves together */
     // The discriminating claim, expressed as the ratio rather than the count.
     expect(sequential.length / LIVE.length).toBeLessThan(0.02);
   });

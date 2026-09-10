@@ -401,6 +401,7 @@ describe("player loadout matches the fixtures", () => {
       "59/17",
       "59/19",
       "59/20",
+      "59/21", // ⭐ [session 126] +1 combo, and ONLY 1, from the four Tier-2 runs of game day 20704 — against +5 last session. Census updated ONCE, after the run-units were spent.
       "59/22",
       "62/32",
       "64/17",

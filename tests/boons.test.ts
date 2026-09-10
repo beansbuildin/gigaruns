@@ -220,6 +220,46 @@ const AWAITING_MODEL_DIRECTIVE = new Set<string>([
   // later EXCHANGES rather than at pickup. Measuring it needs post-pickup
   // exchanges where a block actually lands — not a guess from the 4.
   "WeakeningBlock",
+
+  // ⭐⭐ [session 126] THREE FIRST-EVER PICKUP PAIRS IN ONE SESSION — the
+  // largest single-session addition to this list, taking it from SEVEN to TEN.
+  // All three landed across the day's four juiced Tier-2 runs, and all three
+  // get the WeakeningBlock treatment above: a new boon type from n=1 is HELD
+  // pending a user directive. **None of them is modelled here.**
+  //
+  // Each pickup was checked against its fixture as a LATENT NO-OP rather than
+  // assumed to be one. In all three the ONLY field of the player object that
+  // moved is `pickedBoons` (the boon appended); `hp`, `hpMax`, `armor`,
+  // `armorMax` and every ROLLED stat are byte-identical across the pair.
+  //
+  // `LossLuckUp` — run-2026-09-09-17-28-53 state-123 -> state-124.
+  //   Rarity "Rare", TokenId 113, UINT256_CID 48, RARITY_CID 2, MaxRoom 17.
+  //   `val1Min === val1Max === 5`, `selectedVal1` 5, `selectedVal2` 0 — the
+  //   value does NOT roll. `pickedBoons` 8 -> 9. Taken by the WIDE orb rule as
+  //   the richest Hard Core payout on offer (26 of [26, 19, 23]), not by the
+  //   ranker, which is the ordinary reason a latent type finally gets a pair.
+  //
+  // `IntuitionArmor` — run-2026-09-09-17-45-45 state-023 -> state-024.
+  //   Rarity "Rare", TokenId 101, UINT256_CID 37, RARITY_CID 2, MaxRoom 17.
+  //   ⚠ **This one ROLLS**: `val1Min` 7, `val1Max` 10, and this pickup drew
+  //   `selectedVal1` **7** — the bottom of its own range. `selectedVal2` 0.
+  //   `pickedBoons` 1 -> 2. A rolling val1 means a single pickup cannot even
+  //   pin the magnitude, let alone the mechanic; it needs pairs across the
+  //   range before a model could be fitted to it at all.
+  //
+  // `AddWeakShield` — run-2026-09-09-17-55-35 state-031 -> state-032.
+  //   Rarity "Rare", TokenId 92, UINT256_CID 28, RARITY_CID 2, MaxRoom 17.
+  //   `val1Min === val1Max === 2`, `selectedVal1` 2, `selectedVal2` 0 — does
+  //   not roll. `pickedBoons` 1 -> 2.
+  //
+  // Latency at pickup is UNSURPRISING for all three and is NOT evidence about
+  // the mechanic, exactly as recorded for `WeakeningBlock`: the names read as
+  // effects that fire during later EXCHANGES ("on a loss", "on a block") or as
+  // a modifier to an existing stat, none of which would show at pickup.
+  // Measuring any of them needs post-pickup exchanges of the triggering kind.
+  "LossLuckUp",
+  "IntuitionArmor",
+  "AddWeakShield",
 ]);
 
 describe("every modelled boon reproduces its recorded delta", () => {
@@ -831,7 +871,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // session 122's +12. The clean census below gains ONE, a RECURRENCE of an
     // already-clean type, so the clean TYPE SET is unchanged and Wall 1 gains
     // no new hole.
-    expect(roomOne.length).toBe(369 /* [session 124] was 345 */);  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
+    expect(roomOne.length).toBe(381 /* [session 126] was 369 — four new room-1 offers x3 options from day 20704's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */);  /* [session 124] was 345 */  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -952,6 +992,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeScissor", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 4)
       "UpgradeScissor", // [session 121] already-clean type RECURRING from the day-20699 run 25325352 room-1 offer (AddEvasion(1)/RegenMastery(1)/UpgradeScissor(0,4)) — the clean SET is still the same SIX, unchanged since session 52. The OTHER day-20699 run contributed NO clean room-1 option, so the option census (315) and this one moved by different amounts again, the pattern session 116 first flagged and session 118 called the norm at Tier 2.
       "UpgradeScissor", // [session 122] already-clean type RECURRING from day 20700 run 2's room-1 offer (AddVulnerableMagic(2)/AddEvasion(1)/UpgradeScissor(0,4)) — the clean SET is still the same SIX, unchanged since session 52. Two of the day's four room-1 offers carried a clean option, so the option census moved +12 while this one moved +2.
+      "UpgradeScissor", // [session 126] already-clean type RECURRING from day 20704 run 2's room-1 offer (AddBurnShield(3)/AddBurnSword(3)/UpgradeScissor(0,4)) — the clean SET is still the same SIX, unchanged since session 52. Exactly ONE of the day's four room-1 offers carried a clean option, so the option census moved +12 while this one moved +1 — the largest gap between the two counters yet, and the same divergence session 116 first flagged rather than anything new.
     ]);
   });
 
@@ -1060,7 +1101,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // [session 124] +2 Heal offers from day 20702's four runs, BOTH at room 4.
     // Appended at the array's end by insertion order, same as every entry since
     // session 43, so they land last rather than beside the other fours.
-    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8 ]);
+    // [session 126] +2 Heal offers from day 20704's four runs, at **room 7**
+    // and **room 5** — neither a new room nor a new type, both already on the
+    // array. Appended at the array's end by insertion order, same as every
+    // entry since session 43, so they land last rather than beside the other
+    // sevens and fives.
+    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8, 7, 5 ]);
   });
 });
 

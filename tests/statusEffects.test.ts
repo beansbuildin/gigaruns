@@ -20,6 +20,8 @@
  * only "of what was observed, all obeyed the rule", which holds on an empty set.
  */
 
+import { readdirSync, readFileSync, statSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -33,6 +35,8 @@ import {
   VULNERABLE_MULTIPLIER,
   WEAK_MULTIPLIER,
 } from "../scripts/statusEffects.js";
+import { dealtDamage } from "../scripts/procEffectSize.js";
+import { BOON_MODELS } from "../src/sim/boons.js";
 
 const RUN_DIRS_SCANNED = 30;
 const ex = loadStatusExchanges({ maxRunDirs: RUN_DIRS_SCANNED });
@@ -184,13 +188,48 @@ const noUnmodelledStatusOf = (xs: typeof ex) =>
 /** [session 114] The whole-corpus clean set — see `exAll`. Weak 83/83, Vulnerable 45/45. */
 const noUnmodelledStatusAll = noUnmodelledStatusOf(exAll);
 
+/**
+ * ⭐ [session 126] The corpus's ONLY exception to the floor-multiplier rules,
+ * on either status, and it arrived this session.
+ *
+ * `run-2026-09-09-17-28-53/state-120.json`, room 9 of the day's first juiced
+ * Tier-2 run: `atk` 39 against a victim carrying `Vulnerable` 1 and NOTHING
+ * else, every proc flag false. The rule predicts `floor(39 * 1.25)` = **48**.
+ * The server dealt **52**.
+ *
+ * **Why it is a BOON and not a status.** The run had picked
+ * `VulnerableMastery(10)` at room 5 (state-067), well before this exchange.
+ * Splitting the whole corpus on "was VulnerableMastery active for this victim"
+ * separates it perfectly:
+ *
+ *     VulnerableMastery ABSENT   84/84 obey 1.25   (exceptionless)
+ *     VulnerableMastery ACTIVE    0/1  obey 1.25
+ *
+ * ⛔ **It is NOT modelled, and this file does not name the mechanic.**
+ * `VulnerableMastery` is one of the types held in `AWAITING_MODEL_DIRECTIVE`
+ * (tests/boons.test.ts), and CLAUDE.md's standing rule is that a new boon
+ * effect from n=1 needs a USER DIRECTIVE. n here is exactly 1.
+ *
+ * ⚠ **And n=1 cannot separate the candidates even if it were allowed to.**
+ * At `atk` 39 the observed 52 is reproduced by AT LEAST three different rules:
+ *   floor(39 * 4/3)  = 52      floor(39 * 1.35) = 52      floor(39 * 1.25) + 4 = 52
+ * `VulnerableMastery` has `val1Min === val1Max === 10`, so its value never
+ * rolls and no future pickup will vary it — separating these needs exchanges
+ * at DIFFERENT `atk` values, not more pickups. Do not fit one of them.
+ */
+const VULNERABLE_MASTERY_EXCEPTIONS = { Weak: 0, Vulnerable: 1 } as const;
+
 describe("Weak and Vulnerable are exact floor multipliers", () => {
   it.each([
     ["Weak", WEAK_MULTIPLIER],
     ["Vulnerable", VULNERABLE_MULTIPLIER],
   ] as const)("%s scales damage by %s, floored", (status, _mult) => {
     const r = scaleRule(noUnmodelledStatusAll, status);
-    expect(r.ok).toBe(r.n);
+    // ⭐ [session 126] THE FIRST-EVER `Vulnerable` EXCEPTION. Until this
+    // session both statuses were exceptionless on the clean set. Weak still
+    // is; Vulnerable is now 77/78, and the single miss is named and bounded by
+    // the test below rather than tolerated by a loosened rule here.
+    expect(r.n - r.ok).toBe(VULNERABLE_MASTERY_EXCEPTIONS[status]);
     expect(r.n).toBeGreaterThan(10);
   });
 
@@ -199,9 +238,13 @@ describe("Weak and Vulnerable are exact floor multipliers", () => {
     const clean = scaleRule(noUnmodelledStatusAll, "Weak");
     expect(full.n - full.ok).toBe(1); // exactly one miss on the whole corpus — NOW ACTUALLY THE WHOLE CORPUS (95/96)
     expect(clean.n - clean.ok).toBe(0); // and it is not in the clean set (83/83)
-    // Vulnerable has no exception at all, clean or not — asserted so the
-    // filter is not silently carrying it.
-    expect(scaleRule(exAll, "Vulnerable").ok).toBe(scaleRule(exAll, "Vulnerable").n); // 51/51
+    // ⚠ [session 126] THIS LINE USED TO READ "Vulnerable has no exception at
+    // all, clean or not". THAT IS NO LONGER TRUE — it now has exactly one, and
+    // unlike the Weak exception it is NOT explained by an unmodelled STATUS.
+    // It is explained by an unmodelled BOON, which `scaleRule` cannot see:
+    // it filters on `flags` and `beforeStatus` and knows nothing about
+    // `pickedBoons`. See the dedicated test below for the measurement.
+    expect(scaleRule(exAll, "Vulnerable").n - scaleRule(exAll, "Vulnerable").ok).toBe(1); // 84/85
   });
 
   it.each(["Weak", "Vulnerable"] as const)(
@@ -212,9 +255,96 @@ describe("Weak and Vulnerable are exact floor multipliers", () => {
       // the same multiplier. If a future corpus ever splits by amount, this
       // fails and the rule above needs re-deriving rather than patching.
       const r = scaleRule(noUnmodelledStatusAll, status);
-      for (const [, t] of Object.entries(r.byAmount)) expect(t.ok).toBe(t.n);
+      // [session 126] The one Vulnerable exception sits at `amount` 1 (62/63).
+      // It does NOT split this rule: the exception is a boon effect, not an
+      // amount effect, and every other bucket is still exceptionless. Counting
+      // misses per bucket rather than asserting zero keeps the amount claim
+      // testable instead of deleting it.
+      const misses = Object.values(r.byAmount).reduce((a, t) => a + (t.n - t.ok), 0);
+      expect(misses).toBe(VULNERABLE_MASTERY_EXCEPTIONS[status]);
     },
   );
+});
+
+describe("⭐ the ONLY Vulnerable exception is a BOON effect, and it stays unmodelled", () => {
+  /** Runs that ever picked `VulnerableMastery`, and the state index it first appears at. */
+  const firstVulnerableMasteryState = (): Map<string, number> => {
+    const base = "fixtures/dungeon-runs";
+    const out = new Map<string, number>();
+    for (const run of readdirSync(base)) {
+      const dir = `${base}/${run}`;
+      if (!statSync(dir).isDirectory()) continue;
+      for (const f of readdirSync(dir).filter((x) => /^state-\d+\.json$/.test(x)).sort()) {
+        let picked: unknown;
+        try {
+          picked = (JSON.parse(readFileSync(`${dir}/${f}`, "utf8")) as never as {
+            data?: { run?: { players?: { pickedBoons?: { boonTypeString?: string }[] }[] } };
+          }).data?.run?.players?.[0]?.pickedBoons;
+        } catch {
+          continue;
+        }
+        if (!Array.isArray(picked)) continue;
+        if (picked.some((b) => b?.boonTypeString === "VulnerableMastery")) {
+          if (!out.has(run)) out.set(run, Number(f.slice(6, 9)));
+          break;
+        }
+      }
+    }
+    return out;
+  };
+
+  it("splits the corpus perfectly: 84/84 without the boon, 0/1 with it", () => {
+    const vmAt = firstVulnerableMasteryState();
+    let vmN = 0;
+    let vmOk = 0;
+    let plainN = 0;
+    let plainOk = 0;
+
+    for (const ex of exAll) {
+      if (Object.values(ex.flags).some(Boolean)) continue;
+      for (const victim of [0, 1] as const) {
+        const attacker = (1 - victim) as 0 | 1;
+        const atk = ex.atk[attacker];
+        if (!dealtDamage(ex, attacker) || typeof atk !== "number" || atk <= 0) continue;
+        if (ex.beforeStatus[attacker].Weak !== undefined) continue;
+        if (ex.beforeStatus[attacker].Vulnerable !== undefined) continue;
+        if (ex.beforeStatus[victim].Weak !== undefined) continue;
+        const amount = ex.beforeStatus[victim].Vulnerable;
+        if (amount === undefined || amount === 0) continue;
+
+        const run = String(ex.label).split("/")[0]!;
+        const idx = Number(/state-(\d+)/.exec(String(ex.label))?.[1] ?? -1);
+        const at = vmAt.get(run);
+        // The PLAYER holds the boon, so it can only apply when the enemy (1) is the victim.
+        const vmActive = at !== undefined && idx >= at && victim === 1;
+        const obeys = ex.taken[victim] === Math.floor(atk * VULNERABLE_MULTIPLIER);
+        if (vmActive) {
+          vmN++;
+          if (obeys) vmOk++;
+        } else {
+          plainN++;
+          if (obeys) plainOk++;
+        }
+      }
+    }
+
+    // Without the boon the rule is EXCEPTIONLESS — this is the claim that
+    // matters, and the session-126 exception did not dent it.
+    expect(plainOk).toBe(plainN);
+    expect(plainN).toBe(84 /* [session 126] first pinned here */);
+
+    // With it, the single observation misses. n === 1 is the whole point: it
+    // is why this is recorded and NOT modelled.
+    expect(vmN).toBe(1);
+    expect(vmOk).toBe(0);
+  });
+
+  it("⛔ stays out of the model until a user directive lands", () => {
+    // CLAUDE.md: a new boon effect from n=1 needs a USER DIRECTIVE. If someone
+    // models `VulnerableMastery`, this fails and they must come back here and
+    // re-read the three-candidate note above before deciding it is safe.
+    expect(BOON_MODELS.VulnerableMastery, "modelled without a directive").toBeUndefined();
+  });
 });
 
 describe("amount === 0 is INERT, not merely small", () => {

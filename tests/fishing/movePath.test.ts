@@ -77,10 +77,16 @@ describe("lastMovePath against the real corpus", () => {
     //
     // ⚠ Do NOT fit a cause. The corpus straddles two deck changes and a rod
     // swap; attributing a 3-point drift to any one of them is unsupported.
+    // [session 126] The drift CONTINUED, 0.89723 -> 0.89567, so the exception
+    // rate is now 10.4% against session 125's 10.3% and the pre-125 "under
+    // 10%". Two consecutive falls, both small, both toward the ring model's
+    // blind spot. Re-pinned, NOT widened. ⚠ The "do NOT fit a cause" warning
+    // above binds harder now, not less: two points in the same direction on
+    // two new casts is not evidence of a mechanism.
     expect(counts.filter((c) => c.constant).length / counts.length).toBeCloseTo(
-      0.8972332015810277,
+      0.8956692913385826,  /* [session 126] was 0.8972332015810277 */
       6,
-    ); /* [session 125] was toBeGreaterThan(0.9) */
+    ); /* [session 126] was 0.8972332015810277 */ /* [session 125] was toBeGreaterThan(0.9) */
   });
 
   it("reads nextMovePath as a real path, not a nextPosition duplicate (QUESTIONS.md §17)", () => {
