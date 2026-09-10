@@ -1,11 +1,11 @@
 # Dungeon runs
 
-Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-10T16:47:58.985Z.
+Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-10T18:05:46.456Z.
 
 **"Dendren Root"** (the user's term) is wire item 846, `NAME_CID: "Dendren Remnant"` — see this file's header comment in `src/sim/dungeonReport.ts` for the capture that confirmed it.
 
-133 recorded attempts — 124 deaths, 0 cleared, 9 incomplete/stopped. 88 juiced.
-Total Hard Core earned: 409396. Total Dendren Root earned: 39869. Total energy spent: 6180.
+137 recorded attempts — 128 deaths, 0 cleared, 9 incomplete/stopped. 92 juiced.
+Total Hard Core earned: 427492. Total Dendren Root earned: 42371. Total energy spent: 6420.
 
 ## Death-room histogram
 
@@ -14,14 +14,14 @@ Total Hard Core earned: 409396. Total Dendren Root earned: 39869. Total energy s
 - room 3: █████████████ 13
 - room 4: ████████████████ 16
 - room 5: ██████████████ 14
-- room 6: ████████ 8
+- room 6: █████████ 9
 - room 7: ███████████████████████ 23
-- room 8: ████████ 8
+- room 8: █████████ 9
 - room 9: ████████ 8
-- room 10: ████████████ 12
+- room 10: █████████████ 13
 - room 11: █████ 5
 - room 12: ██ 2
-- room 13: ███ 3
+- room 13: ████ 4
 - room 14: ██ 2
 
 ## Per-run detail
@@ -161,3 +161,7 @@ Total Hard Core earned: 409396. Total Dendren Root earned: 39869. Total energy s
 | 25462418 | death @ room 10 | yes | 4824 | 687 | 60 | run-2026-09-09-17-33-58 |
 | 25462556 | death @ room 7 | yes | 3216 | 309 | 60 | run-2026-09-09-17-45-45 |
 | 25462652 | death @ room 12 | yes | 5832 | 1005 | 60 | run-2026-09-09-17-55-35 |
+| 25486000 | death @ room 13 | yes | 6768 | 1179 | 60 | run-2026-09-10-17-25-56 |
+| 25486119 | death @ room 10 | yes | 5160 | 687 | 60 | run-2026-09-10-17-33-26 |
+| 25486225 | death @ room 6 | yes | 2376 | 216 | 60 | run-2026-09-10-17-46-14 |
+| 25486261 | death @ room 8 | yes | 3792 | 420 | 60 | run-2026-09-10-17-49-47 |

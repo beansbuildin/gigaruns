@@ -315,6 +315,42 @@ export const SESSION_99_LIMITS: BatchLimits = {
   haltOnShadowBlind: true,
 };
 
+/**
+ * **[session 127] TWENTY-FIVE casts. A batch shape is history, not a standing
+ * authorization (session 66 §4), so the number is justified beside itself.**
+ *
+ * **The cap is 25 because the USER authorized 25**, directly in chat on
+ * 2026-09-10: "up to 25 fishing casts ... without stopping". Not derived from
+ * the ledger, and not a general loosening — `SESSION_99_LIMITS` stays exported
+ * and tested, exactly as its predecessors do.
+ *
+ * **Why the rod hazard behind `castCap: 2` does not apply today.** The small
+ * shape exists because rod durability is read at PREFLIGHT and AFTER the
+ * batch, never between casts, so a long batch can play past zero onto a dry
+ * rod and inject `BASE_DECK` mid-batch unnoticed. **That needs the rod to
+ * reach 0, and it cannot here:** rod 923 read **38** at 17:54:10Z; 25 casts at
+ * -1.00 per PLAYED cast leaves it at **13**. The reason for the small shape is
+ * absent, not overridden.
+ *
+ * **What DOES break, deliberately.** The slot-15 pair read **18 / 18** and
+ * wears -1.00 per played cast, reaching 0 on played cast **18**. Casts
+ * **19-25 are a BROKEN-SLOT-15 ARM** and must be labelled as such in the
+ * recap; nothing downstream separates the arms after the fact.
+ *
+ * **Purpose:** the Dendren catch-rate tripwire has failed to arm for two
+ * sessions. The corpus stands at n = 76; ~24 more casts reach the
+ * pre-registered n ~ 100 where the <50% / 50-65% rule is read.
+ *
+ * Everything else inherits session 99's shape for session 99's reasons.
+ */
+export const SESSION_127_LIMITS: BatchLimits = {
+  castCap: 25,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
 export interface BatchVerdict {
   stop: boolean;
   reason: BatchStopReason | null;
