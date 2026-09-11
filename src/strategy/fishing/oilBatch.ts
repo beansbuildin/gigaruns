@@ -343,6 +343,24 @@ export const SESSION_99_LIMITS: BatchLimits = {
  *
  * Everything else inherits session 99's shape for session 99's reasons.
  */
+/**
+ * [session 128] The day-20706 tail: exactly THREE casts, the whole of what the
+ * game ledger had left (dayDocs[2] read 17/20) before the 18:00Z rollover.
+ *
+ * `castCap: 3` is sized to the LEDGER here, not to the rod — the rod is at 13,
+ * so the dry-rod hazard the `castCap: 2` convention exists for (a dry rod
+ * injects BASE_DECK mid-batch unnoticed, because durability is read only at
+ * preflight and after the batch) is unreachable at any cap of 13 or fewer.
+ * Deliberately sized, same as session 127's 25.
+ */
+export const SESSION_128_LIMITS: BatchLimits = {
+  castCap: 3,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
 export const SESSION_127_LIMITS: BatchLimits = {
   castCap: 25,
   cleanCastCap: null,

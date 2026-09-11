@@ -155,7 +155,7 @@ describe("§1a — the live corpus falsifies the sequential draw pile", () => {
     // against a 2% bar), so the session-79 falsification is UNTOUCHED. What is
     // in doubt is only the null used to police the residual.
     expect(sequential.length).toBe(6); /* [session 126] was <= 5, CROSSED — pinned, see above */ /* [session 102] was toEqual([]) */ /* [session 105] was <= 1; re-derived from the null, not bumped */
-    expect(LIVE.length).toBe(540 /* [session 128] was 515 — +25, day 20705 */); /* [session 126] the denominator the 6 is read against — pinned so the pair moves together */
+    expect(LIVE.length).toBe(543 /* [session 128] was 540 — day 20705 */ /* [session 128] was 515 — +25, day 20705 */); /* [session 126] the denominator the 6 is read against — pinned so the pair moves together */
     // The discriminating claim, expressed as the ratio rather than the count.
     expect(sequential.length / LIVE.length).toBeLessThan(0.02);
   });

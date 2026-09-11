@@ -326,6 +326,12 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // They add corpus weight, not resolution.
     "13355541 t1: card 99 hit=true crit=false predicted Δ-5, actual Δ-8 (14->6/23)",
     "13355566 t3: card 94 hit=true crit=false predicted Δ-7, actual Δ-10 (10->0/18)",
+    // [session 128, day 20706] +1 from the 3-cast tail, taking the list 18 -> 19.
+    // ADDITIVE: one addition, ZERO removals. Base 5 is already on the list and
+    // the ratio 8/5 = 1.600 repeats, so it does NOT tighten the bound. NOT
+    // clamped (22->14, well clear of 0), so unlike the card-94 row above its
+    // state delta IS the damage.
+    "13372304 t2: card 48 hit=true crit=false predicted Δ-5, actual Δ-8 (22->14/25)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -460,6 +466,8 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // the standing [1.500, 1.583). Neither row is a new base.
       { base: 5, actual: 8 },
       { base: 7, actual: 11 },
+      // [session 128, day 20706] the 3-cast tail's one. Base 5 again; no new base.
+      { base: 5, actual: 8 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 

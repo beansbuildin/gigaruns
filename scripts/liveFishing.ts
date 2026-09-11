@@ -185,7 +185,7 @@ import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fis
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { CaptureFixtureWriter, CaptureRunLog, stamp } from "../src/orchestrator/capture.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
-import { SESSION_127_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { SESSION_128_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
 
 /**
  * [session 99 §3] The shadowed redraw trigger's IN-SAMPLE firing rate, printed
@@ -3736,7 +3736,7 @@ async function main() {
   // new Golkan rod. Justified in that constant's own doc comment.
   // `SESSION_98_LIMITS` stays exported and tested, exactly as its predecessors
   // do, so its halts stay demonstrable.
-  const batchLimits = SESSION_127_LIMITS;
+  const batchLimits = SESSION_128_LIMITS;
   const authorizedCasts = batchLimits.castCap ?? args.casts;
   const batchCeiling = Math.min(args.casts > 1 ? args.casts : authorizedCasts, authorizedCasts);
   const targetCasts = args.dryRun ? 1 : args.oilBatch ? batchCeiling : args.casts;
