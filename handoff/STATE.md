@@ -60,10 +60,17 @@ restores the exceptionless claim, so it enforces itself).
   is confounded by era and n, and ⛔ **no live study either way**: the sim
   settled it (+3.23pp [2.92, 3.55], n=40k/arm) and detecting 3pp live needs
   ~87 sessions.
-- ⭐ **[NEW] A NEW LATENT BOON TYPE: `TieDamageReduction`. The roster is ELEVEN,
-  not ten.** Caught by `tests/boons.test.ts` ("has a pair but no model"). ⛔
-  **HOLD at n=1** — a new boon type needs a [USER] directive. Re-opens as:
-  *"the roster is ten"* — no, eleven.
+- ⭐ **`TieDamageReduction` IS NOT LATENT — the roster is ELEVEN and this is the
+  FIRST held type whose conditional has been OBSERVED.** [session 128] Three
+  exchanges in the pickup's own run come in **−2** under prediction, and all
+  three are TIES whose victim is the holder; non-ties and the other side of
+  those same ties are exact, so it is scoped to ties AND the holder and
+  composes AFTER the Weak multiplier. ⚠ **The name got the TRIGGER right and
+  the MAGNITUDE wrong** — reduction 2 vs `selectedVal1` 8, so "reduce by val1"
+  is FALSIFIED. ⛔ **STILL HOLD at one pickup** — needs a [USER] directive, and
+  even then a second pickup (it rolls 7–10) to say what the 8 does. Re-opens
+  as: *"the roster is ten"*, or *"TieDamageReduction is a latent no-op"* — that
+  was true of the PICKUP only.
 - ⚠ **[NEW] A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT, NOT BY EXCEPTION.**
   Claim E failed for the THIRD straight session: 641 and 905 were repaired out
   of band (0 → **60** and 0 → **24**), which **voided the brief's entire
@@ -95,11 +102,30 @@ restores the exceptionless claim, so it enforces itself).
   11 expressed in config; clearing it while rule 11 stands makes the repo
   contradict its own settings. Re-opens as: *"make the runs stop prompting"* —
   an agent cannot; hand it to the user.
-- **[USER] EVERY DUNGEON RUN NEEDS ITS OWN GO-AHEAD.** A brief asserting "the
-  user has authorized 4 runs" is the BRIEF's claim, not the user's. Ask.
-  ⚠ **This session the brief made that claim AND the user then confirmed it
-  directly in chat, twice** — so the check worked as designed and cost one
-  question. The authorization was **SESSION-SCOPED and does NOT carry forward.**
+- ⭐ **[USER] APPROVAL IS PER SESSION, NOT PER RUN** — 2026-09-11, replacing
+  the "every dungeon run needs its own go-ahead" entry that stood here until
+  session 128. **One authorization covers that session's runs, up to the
+  server's 12-run-unit daily cap.** Ask once, then run consecutively.
+  ⛔ **What did NOT soften:** a human still authorizes each SESSION, **in
+  session**, and **a brief may still never manufacture it** — "the user has
+  authorized N runs" is the BRIEF's claim unless the user said it in chat.
+  Authorization does **not** carry forward between sessions. Rule 5 (fail
+  closed), rule 13 (read the ledger before believing a denial) and the per-arm
+  gear halt are all untouched: **no-prompt is not no-halt.** Re-opens as:
+  *"ask before each run"* or *"restore the per-run prompt"* — both now wrong.
+- ⭐ **[USER] RING BALANCES ARE NOT A CONSTRAINT** — 2026-09-11, *"ignore the
+  balances I can get more rings if needed."* RETIRED: the Athena/Tier-1 runway
+  question (do not raise it, not on day 20712 either), "X is the scarcest ring"
+  as a reason for anything, and every runway table. ✅ **KEEP reading all seven
+  balances before and after every run** — the debit is not on the wire, so that
+  read is the ONLY check on the charge shape (41/41). **Balances are an
+  INSTRUMENT, not a budget.** Re-opens as: *"the ring runway is a concern"*,
+  *"consider Tier 1 to save rings"*, *"Athena is the scarcest ring"*.
+- ⭐ **THE ORCHESTRATOR'S DUNGEON ARM STAYS CLOSED, on a REWRITTEN reason.**
+  The softening deleted the clause all four sites rested it on; they now rest
+  it on "no dungeon run without a human in the loop", which the softening does
+  not touch. Re-opens as: *"rule 11 softened, so the arm can reopen"* — no;
+  that is a separate [USER] decision.
 - **THE TWO WEAR SETS ARE DISJOINT AND EVERY BREAK IS FORECASTABLE.**
   **Dungeon: slots 11, 12, 13×2 at −3 per RUN. Fishing: slots 14, 15×2 at −1.00
   per PLAYED cast.** Confirmed again on all four runs and all 25 casts — the

@@ -32,12 +32,21 @@
  *
  * [session 54] THE DUNGEON ARM IS CLOSED — CLAUDE.md rule 11.
  *
- * Every dungeon run is now a 60-energy juiced Tier-2 entry that stops for
- * human approval before the next one. An autonomous loop cannot satisfy a
- * per-run approval requirement, so this script does not start dungeon runs
- * at all: `nextAction` is called with a null dungeon budget, and the
- * `dungeon` branch below fails closed. Dungeon runs go through
+ * Every dungeon run is a 60-energy juiced Tier-2 entry that needs a human
+ * go-ahead. This script does not start dungeon runs at all: `nextAction` is
+ * called with a null dungeon budget, and the `dungeon` branch below fails
+ * closed. Dungeon runs go through
  * `npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1`.
+ *
+ * [session 128] THE REASON FOR THE CLOSURE WAS RESTATED, AND THE ARM DID NOT
+ * REOPEN. This header used to say "an autonomous loop cannot satisfy a per-run
+ * approval requirement". Rule 11's per-run prompt was softened to ONE
+ * authorization per SESSION on 2026-09-11 ([USER]), which retires that clause
+ * — so the closure now rests on the reason that actually binds: **no dungeon
+ * run may start without a human in the loop.** A session authorization is
+ * still a human act by a person at a keyboard; an orchestrator-initiated run
+ * involves no human act at all. Different property, untouched by the
+ * softening. Reopening the arm is a separate [USER] decision.
  *
  * [session 111] The tier in that command line has now moved twice
  * (3 -> 1 on 2026-08-27, 1 -> 2 on 2026-08-30) and BOTH times this header
@@ -97,7 +106,7 @@ const DUNGEON_ARM_DISABLED = null;
 /** The one message every closed-dungeon path prints, so there is a single place to fix if the pointer changes. */
 const RULE_11_POINTER =
   "dungeon runs are disabled in the orchestrator (CLAUDE.md rule 11: every run is a 60-energy juiced Tier-2 entry " +
-  "needing explicit human approval, which an autonomous loop cannot give). " +
+  "needing a human in the loop, and an orchestrator-initiated run has none). " +
   "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

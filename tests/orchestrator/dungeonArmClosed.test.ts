@@ -2,7 +2,11 @@
  * tests/orchestrator/dungeonArmClosed.test.ts — CLAUDE.md rule 11, session 54.
  *
  * Rule 11 makes every dungeon run a 60-energy juiced entry needing explicit
- * per-run human approval, which an autonomous loop cannot give — so
+ * a human in the loop, which an orchestrator-initiated run has not got — so
+ * [session 128] the phrasing here was "per-run human approval, which an
+ * autonomous loop cannot give". Rule 11's per-run prompt was softened to one
+ * authorization per SESSION on 2026-09-11 ([USER]); the arm stays closed on
+ * the reason that survives that change, not the one that did not.
  * `scripts/orchestrator.ts` must not be able to start one.
  *
  * [session 104] The standing ENTRY TIER moved Tier-3 -> Tier-1 (`index: 1`,

@@ -310,9 +310,32 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
   potions — that gate reads `--juiced` alone and never `index`.
 - **3x Big Heal Juice** (itemId 131), loaded from
   `config/bot.json`'s `forbiddenWoods.potions`.
-- **One run, then stop and hand back.** Never chain. The user allocates skill
-  points between runs (rule: never allocate them yourself) and says when to
-  resume. `--runs=1`, every time.
+- **ONE AUTHORIZATION COVERS A SESSION, up to the server's 12-run-unit daily
+  cap.** [USER] directive, 2026-09-11, softening the per-run rule that stood
+  from 2026-08-20 to session 127. **Ask once, then run consecutively without
+  pausing** — the pause between runs is gone, the human is not.
+
+  **What did NOT change, and an agent may not read this softening as wider
+  than it is:**
+
+  - **A human still authorizes each SESSION, in session.** The prompt per run
+    is removed; the human is not. **A brief may still never manufacture the
+    authorization** — *"the user has authorized N runs"* is the BRIEF's claim
+    unless the user said it in chat, and that entry stays in STATE's
+    do-not-re-open digest.
+  - **Rule 5, fail closed, is untouched.** Unknown enum, 5xx, three
+    consecutive action failures, a cap hit → stop, log the body, exit
+    non-zero. **No-prompt is not no-halt.**
+  - **Rule 13 is untouched.** Read the server ledger before believing a
+    denial; never retry on the strength of one.
+  - **The gear halt is untouched.** Never abort a run in progress; after a
+    COMPLETED run, any piece at 0 stops that ARM.
+  - **Rule 4, rule 8, the 12-run-unit cap, and every other "Ask first" item**
+    — ETH spends, selling or burning items, skill points — all stand.
+
+  Still `--runs=1` per invocation. The user allocates skill points (rule:
+  never allocate them yourself); with the pause gone, they do that at the
+  session's end rather than between runs.
 
 The daily ceiling is **12 run-units / 3 = 4 juiced runs per day**, resetting
 11:00 Pacific, and the SERVER enforces it (`maxRunsPerDay: 12`,
@@ -325,13 +348,23 @@ correctly: the account generates **~1368 energy/day** once its ROMs NFTs are
 counted, so the energy arm gives 22.8 and the tripwire fired on good data. See
 CLAUDE.md's energy note below and DECISIONS 2026-08-20.
 
-**The consequence that is easy to miss.** A rule requiring per-run human
-approval cannot be satisfied by an autonomous loop, so **`scripts/orchestrator.ts`
-does not start dungeon runs.** Its dungeon arm is disabled and fails closed with
-a pointer to `liveRun.ts --juiced`; its fishing arm is unaffected and still runs
-autonomously within budget. Anything that reintroduces a bot-initiated dungeon
-run without an explicit human go-ahead violates this rule, however well-gated it
-looks.
+**⛔ `scripts/orchestrator.ts` DOES NOT START DUNGEON RUNS, AND THE 2026-09-11
+SOFTENING DOES NOT REOPEN IT.** Its dungeon arm is disabled and fails closed
+with a pointer to `liveRun.ts --juiced`; its fishing arm is unaffected and still
+runs autonomously within budget.
+
+**This paragraph used to rest the closure on "a rule requiring per-run human
+approval cannot be satisfied by an autonomous loop." That clause no longer
+exists, so the closure is restated on its real reason:** no dungeon run may be
+started without a human in the loop. A session authorization is still a human
+act, performed by a person at the start of a session; an orchestrator-initiated
+run involves **no human act at all**. Those are different safety properties, and
+only the first one was softened.
+
+So the test is unchanged in substance: anything that reintroduces a
+**bot-initiated** dungeon run violates this rule, however well-gated it looks.
+Reopening the arm is a separate [USER] decision and is not implied by anything
+above.
 
 This rule is also what makes the potions block safe to leave in
 `config/bot.json` permanently. Sessions 24, 42, 43 and 52 added it before a run
@@ -474,9 +507,11 @@ transaction that would spend ETH, or anything in the "Ask first" list below.
 - Spend energy above the configured daily budget in `config/bot.json`.
 - Level up / allocate skill points (this is irreversible without Hourglasses).
 
-- **Start any dungeon run.** [2026-08-20, rule 11] Every dungeon run is a
-  60-energy juiced entry and needs an explicit human go-ahead for that run.
-  Approval for one run is never approval for the next.
+- **Start a dungeon SESSION.** [2026-09-11, rule 11] Every dungeon run is a
+  60-energy juiced entry, and a session's runs need an explicit human go-ahead
+  **given in session**. One such go-ahead covers that session's runs up to the
+  server's 12-run-unit daily cap; it does **not** carry to the next session,
+  and a brief cannot supply it.
 
 **Fishing oils are PERMITTED within the configured budget — do not block on
 them.** [2026-08-20, session 61 §4c] "Sell, burn, or list any item" above is
