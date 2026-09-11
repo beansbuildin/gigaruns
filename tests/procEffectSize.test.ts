@@ -225,8 +225,21 @@ describe("what tenacity and intuition are NOT", () => {
     // SAME buckets a non-intuition exchange lands in — it never opens a
     // mitigation bucket of its own. That is strictly stronger than the old
     // wording and still has no counterexample.
+    // ⚠ [session 128] `critProc1` JOINS THE EXCLUSION — the FOURTH time this
+    // filter has been COMPLETED rather than the claim relaxed (DECISIONS
+    // 2026-09-08 records the first three). The counterexample was
+    // `run-2026-09-11-17-40-56/state-114`: atk 22, taken **44**, ratio exactly
+    // 2.000, flags `intuitionProc0,critProc1`, both sides status-clean.
+    //
+    // It is not a counterexample to anything this test claims. 44 is an
+    // AMPLIFICATION, not a third mitigation bucket — the ATTACKER crit, which
+    // is player 1's proc, and the existing exclusions (`blockProc0`,
+    // `evadeProc0`) only ever covered player 0's side. The filter was
+    // one-sided; that was the defect. **Do not read this as intuition
+    // interacting with crit** — it is the crit rule doing exactly what
+    // `tests/procEffectSize.test.ts`'s own crit rule already asserts.
     const fired = exchanges.filter(
-      (e) => e.flags.intuitionProc0 && !e.flags.blockProc0 && !e.flags.evadeProc0,
+      (e) => e.flags.intuitionProc0 && !e.flags.blockProc0 && !e.flags.evadeProc0 && !e.flags.critProc1,
     );
     for (const ex of fired) {
       if (!dealtDamage(ex, 1) || typeof ex.atk[1] !== "number") continue;

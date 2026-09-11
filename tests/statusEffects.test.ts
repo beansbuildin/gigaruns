@@ -377,7 +377,7 @@ describe("⭐ the ONLY Vulnerable exception is a BOON effect, and it stays unmod
     // Without the boon the rule is EXCEPTIONLESS — this is the claim that
     // matters, and the session-126 exception did not dent it.
     expect(plainOk).toBe(plainN);
-    expect(plainN).toBe(90 /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */);
+    expect(plainN).toBe(92 /* [session 128, day 20706] was 90 — +2 more VulnerableMastery-ABSENT observations; `plainOk === plainN` still holds, so the split is STILL PERFECT */ /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */);
 
     // With it, the single observation misses. n === 1 is the whole point: it
     // is why this is recorded and NOT modelled.

@@ -418,6 +418,7 @@ describe("player loadout matches the fixtures", () => {
       "65/29", // [session 125] day-20703
       "66/17",
       "72/33",
+      "73/17", // [session 128, day 20706] +1 combo — ADDITIVE, multiset diff shows 0 removals
       "73/24",
       "73/27",
       "73/29", // [session 125] day-20703
