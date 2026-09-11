@@ -107,14 +107,22 @@ describe("a named profile's state is gitignored", () => {
     // account's captured game states would have been committed to a PUBLIC
     // repo. Asserted against real `git check-ignore` rather than by reading
     // .gitignore, because the pattern semantics are the thing being tested.
-    const { execSync } = await import("node:child_process");
+    // `git check-ignore` exits 0 = ignored, 1 = NOT ignored, >1 = git itself
+    // failed. Session 128: the old `&& echo yes || echo no` idiom collapsed
+    // those last two into "no", so a sandboxed run (where git cannot read
+    // ~/.gitconfig and exits 128) reported this as "would be committed" — a
+    // phantom security finding that cost session 127 an undiagnosed failure.
+    // Distinguishing them makes the assertion STRICTLY stronger, not weaker.
+    const { spawnSync } = await import("node:child_process");
     const p = resolveProfile("someone-else");
     for (const root of [p.dataRoot, p.logRoot, p.fixtureRoot, p.configRoot]) {
       const probe = join(root, "anything.json");
-      const ignored = execSync(`git check-ignore -q ${JSON.stringify(probe)} && echo yes || echo no`, {
-        encoding: "utf8",
-      }).trim();
-      expect(ignored, `${probe} would be committed`).toBe("yes");
+      const r = spawnSync("git", ["check-ignore", "-q", probe], { encoding: "utf8" });
+      expect(
+        r.status,
+        `git check-ignore could not run (${r.status}): ${r.stderr?.trim()} — this test says nothing until git works`,
+      ).toBeLessThan(2);
+      expect(r.status, `${probe} would be committed`).toBe(0);
     }
   });
 

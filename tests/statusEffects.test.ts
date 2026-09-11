@@ -217,7 +217,41 @@ const noUnmodelledStatusAll = noUnmodelledStatusOf(exAll);
  * rolls and no future pickup will vary it — separating these needs exchanges
  * at DIFFERENT `atk` values, not more pickups. Do not fit one of them.
  */
-const VULNERABLE_MASTERY_EXCEPTIONS = { Weak: 0, Vulnerable: 1 } as const;
+/**
+ * ⭐ [session 128] THE SECOND EXCEPTION, AND IT IS A DIFFERENT BOON — so this
+ * table is no longer about `VulnerableMastery` alone and has been renamed.
+ *
+ * `run-2026-09-10-17-46-14/state-074.json`: `atk` 15 against an attacker
+ * carrying `Weak` 5, every proc flag false. The rule predicts
+ * `floor(15 * 0.75)` = **11**. The server dealt **9**.
+ *
+ * **Why it is `TieDamageReduction` and not a hole in the Weak rule.** The run
+ * picked `TieDamageReduction(8)` at state-065 -> state-066, and it is the
+ * ONLY corpus run that has ever picked that type. Three exchanges in that run
+ * come in UNDER prediction and all three are **ties** (`outcome === 0`) whose
+ * victim is the boon holder (player 0):
+ *
+ *     state-074  atk 15, Weak 5 on the attacker  predicted 11  dealt  9   -2
+ *     state-082  atk 14, status-clean            predicted 14  dealt 12   -2
+ *     state-090  atk 18, status-clean            predicted 18  dealt 16   -2
+ *
+ * Every NON-tie exchange in the same stretch lands exactly on prediction, and
+ * so does the OTHER side of those same tie exchanges (state-074 and state-090
+ * both deal a full 27 to player 1). So the effect is scoped to ties, to the
+ * holder, and it composes AFTER the Weak multiplier rather than replacing it.
+ *
+ * ⛔ **It is NOT modelled and this file does not name the mechanic.**
+ * `TieDamageReduction` is held in `AWAITING_MODEL_DIRECTIVE`
+ * (tests/boons.test.ts) and CLAUDE.md's standing rule is that a new boon type
+ * needs a USER DIRECTIVE. There is exactly ONE pickup.
+ *
+ * ⚠ **And the magnitude does NOT match the boon's own value.** The pick drew
+ * `selectedVal1` **8** while the observed reduction is **2**, 3/3. Whatever
+ * the 8 governs, it is not the flat amount subtracted here — so "reduce by
+ * val1" is already falsified, and a directive to model this would still need
+ * a second pickup at a different roll (it rolls 7-10) to say what 8 does.
+ */
+const UNMODELLED_BOON_EXCEPTIONS = { Weak: 1, Vulnerable: 1 } as const;
 
 describe("Weak and Vulnerable are exact floor multipliers", () => {
   it.each([
@@ -229,15 +263,27 @@ describe("Weak and Vulnerable are exact floor multipliers", () => {
     // session both statuses were exceptionless on the clean set. Weak still
     // is; Vulnerable is now 77/78, and the single miss is named and bounded by
     // the test below rather than tolerated by a loosened rule here.
-    expect(r.n - r.ok).toBe(VULNERABLE_MASTERY_EXCEPTIONS[status]);
+    expect(r.n - r.ok).toBe(UNMODELLED_BOON_EXCEPTIONS[status]);
     expect(r.n).toBeGreaterThan(10);
   });
 
-  it("⚠ the ONLY Weak exception carries an unmodelled status — the exclusion cannot widen", () => {
+  it("⚠ BOTH Weak exceptions are unmodelled effects — the exclusion cannot widen", () => {
     const full = scaleRule(exAll, "Weak");
     const clean = scaleRule(noUnmodelledStatusAll, "Weak");
-    expect(full.n - full.ok).toBe(1); // exactly one miss on the whole corpus — NOW ACTUALLY THE WHOLE CORPUS (95/96)
-    expect(clean.n - clean.ok).toBe(0); // and it is not in the clean set (83/83)
+    // ⚠ [session 128] THIS TEST'S TITLE USED TO SAY "the ONLY Weak exception"
+    // and its clean count used to be 0. Both changed, and NEITHER by relaxing
+    // the rule. There are now exactly TWO Weak misses on the whole corpus and
+    // they have DIFFERENT causes, which is why the counts differ:
+    //   run-2026-08-31-03-26-52/state-116  atk 30, an unmodelled STATUS
+    //     — excluded by the clean filter, so it is in `full` and not `clean`.
+    //   run-2026-09-10-17-46-14/state-074  atk 15, an unmodelled BOON
+    //     (`TieDamageReduction`, see UNMODELLED_BOON_EXCEPTIONS above)
+    //     — the clean filter CANNOT see it, because `scaleRule` reads `flags`
+    //     and `beforeStatus` and knows nothing about `pickedBoons`. So it
+    //     survives into the clean set, and that is the whole reason the clean
+    //     count moved off zero for the first time.
+    expect(full.n - full.ok).toBe(2); // [session 128] was 1
+    expect(clean.n - clean.ok).toBe(1); // [session 128] was 0 — the boon-caused miss
     // ⚠ [session 126] THIS LINE USED TO READ "Vulnerable has no exception at
     // all, clean or not". THAT IS NO LONGER TRUE — it now has exactly one, and
     // unlike the Weak exception it is NOT explained by an unmodelled STATUS.
@@ -261,7 +307,7 @@ describe("Weak and Vulnerable are exact floor multipliers", () => {
       // misses per bucket rather than asserting zero keeps the amount claim
       // testable instead of deleting it.
       const misses = Object.values(r.byAmount).reduce((a, t) => a + (t.n - t.ok), 0);
-      expect(misses).toBe(VULNERABLE_MASTERY_EXCEPTIONS[status]);
+      expect(misses).toBe(UNMODELLED_BOON_EXCEPTIONS[status]);
     },
   );
 });
@@ -331,7 +377,7 @@ describe("⭐ the ONLY Vulnerable exception is a BOON effect, and it stays unmod
     // Without the boon the rule is EXCEPTIONLESS — this is the claim that
     // matters, and the session-126 exception did not dent it.
     expect(plainOk).toBe(plainN);
-    expect(plainN).toBe(84 /* [session 126] first pinned here */);
+    expect(plainN).toBe(90 /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */);
 
     // With it, the single observation misses. n === 1 is the whole point: it
     // is why this is recorded and NOT modelled.

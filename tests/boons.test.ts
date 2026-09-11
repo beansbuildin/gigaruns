@@ -75,6 +75,49 @@ describe("the corpus supports a boon model at all", () => {
  * letting a red wall test be the only signal.
  */
 const AWAITING_MODEL_DIRECTIVE = new Set<string>([
+  // ⭐ [session 127, recorded session 128] `TieDamageReduction` — FIRST PICKED
+  // PAIR, `run-2026-09-10-17-46-14` state-065 -> state-066. The ELEVENTH held
+  // type, on the same n=1 precedent as every entry below. It was caught by the
+  // "has a pair but no model" assertion, which is exactly the signal this
+  // construction exists to produce, and it is recorded here rather than
+  // modelled because a new boon type from n=1 needs a [USER] directive.
+  //
+  // **The pickup is a verified LATENT no-op, read off the whole-object diff**
+  // rather than assumed from the family: the ONLY field that differs between
+  // the two states is `pickedBoons` itself (3 -> 4 entries). `health` is
+  // byte-identical — `{current: 20, starting: 30, currentMax: 51,
+  // startingMax: 30}` on both sides — and no rolled stat moved.
+  //
+  // ⚠ **Its `val1` ROLLS, so one pickup cannot pin even its magnitude.** The
+  // offer reads `val1Min` 7, `val1Max` 10, and this pick drew `selectedVal1`
+  // **8**; `selectedVal2` 0, `Rarity` "Rare", `TokenId` 102. That is the same
+  // shape as `IntuitionArmor` (session 126, rolls 7-10, drew 7) and it means
+  // more pickups are needed even AFTER a directive arrives.
+  //
+  // ⭐ **AND ITS CONDITIONAL IS OBSERVED — this is the FIRST held type whose
+  // post-pickup effect has actually been caught.** Three exchanges later in
+  // the same run come in UNDER prediction, and all three are TIES
+  // (`outcome === 0`) whose victim is the holder (player 0):
+  //
+  //     state-074  atk 15 under `Weak` 5   predicted 11   dealt  9   -2
+  //     state-082  atk 14 status-clean     predicted 14   dealt 12   -2
+  //     state-090  atk 18 status-clean     predicted 18   dealt 16   -2
+  //
+  // Every NON-tie exchange in the same stretch is exact, and so is the OTHER
+  // side of those same ties (state-074 and state-090 each deal a full 27 to
+  // player 1). So the effect is scoped to ties AND to the holder, and it
+  // composes AFTER the Weak multiplier rather than replacing it. Carried by
+  // `tests/procEffectSize.test.ts` (the two clean ones) and by
+  // `tests/statusEffects.test.ts`'s `UNMODELLED_BOON_EXCEPTIONS` (state-074).
+  //
+  // ⚠ **The NAME got the trigger right and the MAGNITUDE wrong, which is the
+  // sharpest version yet of "the name is not evidence"** (DECISIONS
+  // 2026-08-14/15). The reduction is **2**, 3/3, while this pick drew
+  // `selectedVal1` **8** — so "reduce by val1" is FALSIFIED, and what the 8
+  // governs is unknown. Even with a directive, saying what 8 does needs a
+  // SECOND pickup at a different roll.
+  "TieDamageReduction",
+
   // ⭐ [session 124] `Thorns` — FIRST PICKED PAIR, from the day-20702 runs.
   // Same precedent chain as every entry below: `LossIntuitionUp` (99),
   // `LossBlockUp` (112), `CritHeal` (113), `BurningTenacity` (114). Modelling
@@ -871,7 +914,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // session 122's +12. The clean census below gains ONE, a RECURRENCE of an
     // already-clean type, so the clean TYPE SET is unchanged and Wall 1 gains
     // no new hole.
-    expect(roomOne.length).toBe(381 /* [session 126] was 369 — four new room-1 offers x3 options from day 20704's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */);  /* [session 124] was 345 */  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */
+    expect(roomOne.length).toBe(393 /* [session 128] was 381 — four new room-1 offers x3 options from day 20705's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */ /* [session 126] was 369 — four new room-1 offers x3 options from day 20704's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 124] was 345 */  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */);
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -962,6 +1005,8 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper", // [session 116] already-clean type RECURRING from the single Tier-2 run of 2026-09-01 — the clean SET is still the same SIX, unchanged since session 52
       "UpgradePaper", // [session 124] +2 from the four Tier-2 runs of 2026-09-06; wall 1 STILL has exactly SIX clean TYPES, unchanged since session 52.
       "UpgradePaper", // [session 124]
+      "UpgradePaper", // [session 128] already-clean type RECURRING from day 20705's room-1 offers — the clean SET is still the same SIX, unchanged since session 52
+      "UpgradeRock", // [session 128] likewise — a RECURRENCE, not a new hole in Wall 1
       "UpgradeRock",  /* [session 113] +1, ninth */
       "UpgradeRock",
       "UpgradeRock",
@@ -1106,7 +1151,12 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // array. Appended at the array's end by insertion order, same as every
     // entry since session 43, so they land last rather than beside the other
     // sevens and fives.
-    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8, 7, 5 ]);
+    // [session 128] +4 Heal offers from day 20705's four runs, at **rooms 9,
+    // 2, 4 and 8** — no new room and no new type, all four already on the
+    // array. Appended at the array's end by insertion order, same as every
+    // entry since session 43. The array is APPEND-ONLY here: the first 33
+    // entries are byte-identical to session 126's, so this is purely additive.
+    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8, 7, 5, 9, 2, 4, 8 ]);
   });
 });
 

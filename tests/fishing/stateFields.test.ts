@@ -307,6 +307,25 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // [1.500, 1.583), which is why neither narrows it.
     "13320209 t2: card 99 hit=true crit=false predicted Δ-5, actual Δ-8 (24->16/28)",
     "13320209 t5: card 23 hit=true crit=false predicted Δ-7, actual Δ-11 (15->4/28)",
+    // ⭐ [session 128] +2 from session 127's 25-cast Dendren batch, taking the
+    // list **16 -> 18**. ADDITIVE: the multiset diff shows two additions and
+    // ZERO removals, and the sixteen above are byte-identical.
+    //
+    // ⚠ **The card-94 row is LETHAL-CLAMPED and its Δ-10 is NOT the damage.**
+    // `fishHp` reads 10->0, and the server's own `FISH_HP_DIFF` for that turn
+    // (cast-2026-09-10-18-02-28/state-003) carries `value: 11, result: 0`. So
+    // the true amount is **11**, and the interval test below uses 11 — the
+    // same UNCLAMPED rule session 123 set for its `base 9, actual 14` row.
+    // The STRING here stays Δ-10 because it must match what `auditFishHp`
+    // emits from the state delta; the two are different observables and
+    // conflating them is how a false falsification gets recorded.
+    //   card 99  predicted Δ-5, actual Δ-8               ratio  8/5 = 1.600
+    //   card 94  predicted Δ-7, actual Δ-10 (UNCLAMPED 11)  ratio 11/7 ≈ 1.571
+    // ⚠ Bases 5 and 7 are BOTH already on the list, so — exactly as with
+    // session 125's pair — neither observation tightens the multiplier bound.
+    // They add corpus weight, not resolution.
+    "13355541 t1: card 99 hit=true crit=false predicted Δ-5, actual Δ-8 (14->6/23)",
+    "13355566 t3: card 94 hit=true crit=false predicted Δ-7, actual Δ-10 (10->0/18)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -429,6 +448,16 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // Kept for the same reason session 124's pair was — a ratio repeating
       // on an independent card is what separates a real multiplier from a
       // capture artefact.
+      { base: 5, actual: 8 },
+      { base: 7, actual: 11 },
+      // [session 128] the day-20705 batch's two. `base 5, actual 8` repeats
+      // sessions 124 and 125 on card 99; `base 7, actual 11` repeats them on
+      // card 94 — and that row is the FIRST lethal-clamped one, so its 11 is
+      // the server's `FISH_HP_DIFF` and not the 10 the state delta shows.
+      // ⚠ Had the clamped 10 been taken at face value its window would be
+      // [1.357, 1.500), which closes the interval to EMPTY and reads as the
+      // single-multiplier rule being falsified. It is not: 11/7 sits inside
+      // the standing [1.500, 1.583). Neither row is a new base.
       { base: 5, actual: 8 },
       { base: 7, actual: 11 },
     ];
@@ -604,7 +633,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(113 /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
+    expect(corrected.crits).toBe(114 /* [session 128] was 113 — +1 across day 20705's 25-cast Dendren batch; same attribution, and the transposed control below still scores strictly fewer */ /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

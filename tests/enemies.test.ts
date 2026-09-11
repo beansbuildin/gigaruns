@@ -403,10 +403,12 @@ describe("player loadout matches the fixtures", () => {
       "59/20",
       "59/21", // ⭐ [session 126] +1 combo, and ONLY 1, from the four Tier-2 runs of game day 20704 — against +5 last session. Census updated ONCE, after the run-units were spent.
       "59/22",
+      "59/27", // [session 128] +6 combos from day 20705's four Tier-2 runs — ADDITIVE, multiset diff shows 0 removals
       "62/32",
       "64/17",
       "64/25",
       "64/27",
+      "65/14",
       "65/16",
       "65/17", // [session 125] day-20703
       "65/19",
@@ -416,6 +418,8 @@ describe("player loadout matches the fixtures", () => {
       "65/29", // [session 125] day-20703
       "66/17",
       "72/33",
+      "73/24",
+      "73/27",
       "73/29", // [session 125] day-20703
       "74/11",
       "74/13",
@@ -428,6 +432,8 @@ describe("player loadout matches the fixtures", () => {
       "75/19",
       "75/27",
       "88/19",
+      "89/14",
+      "89/17",
     ]);
   });
 });

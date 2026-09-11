@@ -84,7 +84,7 @@ describe("lastMovePath against the real corpus", () => {
     // above binds harder now, not less: two points in the same direction on
     // two new casts is not evidence of a mechanism.
     expect(counts.filter((c) => c.constant).length / counts.length).toBeCloseTo(
-      0.8956692913385826,  /* [session 126] was 0.8972332015810277 */
+      0.8949343339587242, /* [session 128] was 0.8956692913385826 — a THIRD consecutive small fall on day 20705's 25 casts, same direction. Re-pinned, NOT widened; the "do NOT fit a cause" warning above binds harder still at three points. */  /* [session 126] was 0.8972332015810277 */
       6,
     ); /* [session 126] was 0.8972332015810277 */ /* [session 125] was toBeGreaterThan(0.9) */
   });
