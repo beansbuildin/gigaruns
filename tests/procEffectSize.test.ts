@@ -218,8 +218,36 @@ describe("what tenacity and intuition are NOT", () => {
     // intuition does not shift the rate at which it fires (1 of 4 intuition
     // exchanges vs 72 of 310 otherwise — indistinguishable at n=4).
     //
-    // ⚠ The identity of the 25% mitigator is OPEN and deliberately not fitted
-    // here. It carries no proc flag. Do not name it without measuring it.
+    // ⭐⭐ [session 128] THE 25% MITIGATOR IS IDENTIFIED, AND IT IS `Weak`.
+    // It was never an unknown mechanic. MEASURED, whole corpus, both sides:
+    //
+    //     in the floor(atk*0.75) bucket AND Weak > 0 on the ATTACKER   343
+    //     in the bucket with NO Weak on the attacker                     0
+    //
+    // 343 of 343, and the same split holds on this file's own narrower
+    // population (165/165) — so it is not an artefact of widening the filter.
+    // `Weak: 0` accounts for none of them either; every one carries an amount
+    // strictly greater than zero, which is consistent with the established
+    // "amount 0 is inert" finding rather than an exception to it.
+    //
+    // ⚠ **WHY IT LOOKED UNIDENTIFIED FOR FOUR SESSIONS, because the lesson is
+    // the durable half.** The bucket was characterised by what it does NOT
+    // carry — "it carries no proc flag" — and that is TRUE and IRRELEVANT.
+    // `Weak` is a STATUS, not a proc flag, so it was invisible to a
+    // flag-shaped description of the population. The note below correctly
+    // observed that intuition does not explain the bucket and correctly
+    // declined to fit a mechanic; what it did not do was look at
+    // `beforeStatus` on the ATTACKER's side. **Describing a population by an
+    // absence tells you where not to look, never where to look.**
+    //
+    // The converse runs 343/363: 20 Weak>0 exchanges land OUTSIDE the bucket,
+    // 18 of them flagged `critProc1` (a crit overrides the scaling, which is
+    // the crit rule doing its own job). The remaining TWO carry no flag at all
+    // and both come in exactly 2 under the Weak prediction
+    // (atk 15 -> 13 where 11 is predicted; atk 20 -> 18 where 15 is) — the
+    // same -2 signature as `TieDamageReduction`, but BOTH PREDATE that boon's
+    // only pickup, so they are NOT it. ⛔ Left OPEN and deliberately not
+    // fitted at n=2; recorded here so the next reader has the two labels.
     //
     // What the assertion now says: an intuition exchange lands in one of the
     // SAME buckets a non-intuition exchange lands in — it never opens a

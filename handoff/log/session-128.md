@@ -264,3 +264,142 @@ Five commits this session; fixtures collapsed:
  tests/**                            17 files — pins, plus 3 findings
  handoff/{STATE,DECISIONS,log/session-128}.md
 ```
+
+---
+
+# Session 128 — verbose appendix
+
+## The suite, pass by pass
+
+The session-opening backlog (session 127's 4 runs + 25 casts, deferred by the
+user in favour of a recap) took **19 full-suite passes** to clear:
+
+```
+70 → 61 → 51 → 44 → 42 → 31 → 24 → 15 → 12 → 11 → 10 → 5 → 2 → 2 → 2 → 1 → 1 → 1 → 0
+```
+
+Strictly monotone, because nothing was writing fixtures underneath. Compare:
+
+| what | passes |
+|---|---|
+| session-127 backlog (4 runs + 25 casts) | **19** |
+| this session's own 4 dungeon runs | **3** |
+| this session's 3-cast fishing tail | ~12 (small, multi-assertion-dominated) |
+
+**So the brief's "pin before you spend" ordering is right and its stated reason
+is not.** Pinning a day's spend is cheap; the expense was the BACKLOG. The
+benefit of the ordering is determinism, not volume.
+
+## The three findings that were not pins
+
+### 1. `TieDamageReduction` is not latent
+
+`run-2026-09-10-17-46-14`, pickup at state-065 → state-066 (`selectedVal1` 8,
+`val1Min` 7, `val1Max` 10, Rare, TokenId 102).
+
+```
+state-074  atk 15 under Weak 5 on the attacker  predicted 11  dealt  9   -2
+state-082  atk 14 status-clean                  predicted 14  dealt 12   -2
+state-090  atk 18 status-clean                  predicted 18  dealt 16   -2
+```
+
+All three `outcome === 0` (ties). Both state-074 and state-090 deal a **full 27**
+to player 1 on the same exchange, and every non-tie in the stretch is exact. So:
+ties only, holder only, composing AFTER the Weak multiplier.
+
+**The name got the trigger right and the magnitude wrong** — 2, not 8. "Reduce
+by val1" is falsified.
+
+Recorded as named, bounded exceptions: the two clean ones listed literally in
+`procEffectSize`'s `cleanMisses` (that invariant fired for the first time ever),
+state-074 in `statusEffects`' table, renamed
+`VULNERABLE_MASTERY_EXCEPTIONS` → `UNMODELLED_BOON_EXCEPTIONS`.
+
+**Why `full` is 2 and `clean` is 1:** `scaleRule` reads `flags` and
+`beforeStatus` and knows nothing about `pickedBoons`, so the boon-caused miss
+survives the clean filter where the old status-caused one does not.
+
+### 2. The 25% mitigator is `Weak`
+
+Whole corpus, both sides, of the `taken === floor(atk * 0.75)` bucket:
+
+```
+in bucket AND Weak > 0 on the ATTACKER   343
+in bucket with NO Weak                     0
+Weak > 0 but NOT in bucket                20   (18 of them critProc1)
+neither                                 2536
+```
+
+Same split on `procEffectSize.test.ts`'s own narrower population: **165/165**.
+`Weak: 0` accounts for none — every one has an amount strictly > 0, consistent
+with "amount 0 is inert" rather than an exception to it.
+
+**Why four sessions missed it.** The bucket was characterised by an ABSENCE —
+*"it carries no proc flag"* — which is true and irrelevant. `Weak` is a STATUS.
+The old note correctly ruled out intuition and correctly declined to fit a
+mechanic; it never read `beforeStatus` on the ATTACKER's side.
+
+**Residual, left open at n=2:** `run-2026-09-04-04-28-39/state-052` (atk 15 →
+13, predicted 11) and `run-2026-09-04-06-04-39/state-084` (atk 20 → 18,
+predicted 15). Both no-flag, both exactly −2 — the `TieDamageReduction`
+signature — but **both predate that boon's only pickup**, so they are not it.
+
+### 3. `profiles/someone-else` was a sandbox artefact
+
+`tests/profile.test.ts` (unchanged since session 59) shells out to
+`git check-ignore -q P && echo yes || echo no`. Under the sandbox git cannot
+read `~/.gitconfig` and exits **128**; the idiom collapses "not ignored"
+(exit 1) and "git failed" (exit >1) into `no`. All four named-profile roots ARE
+ignored, verified unsandboxed. Hardened with `spawnSync` to assert `status < 2`
+separately from `status === 0` — strictly stronger. It now reports
+*"git check-ignore could not run (128)"*.
+
+## The near-miss: a lethal clamp that reads as a falsification
+
+The new card-94 crit anomaly reads `fishHp 10 -> 0`. Taken at face value, Δ-10
+gives an admissible window of **[1.357, 1.500)**, which closes the standing
+single-multiplier interval **[1.500, 1.583)** to EMPTY — i.e. reads as the rule
+being falsified. The server's own event for that turn:
+
+```
+state-003.json  {"type":"FISH_HP_DIFF","playerId":0,"batch":1,"value":11,"data":{"result":0}}
+```
+
+11/7 ≈ 1.571, inside the interval. The `KNOWN_CRIT_ANOMALIES` **string** keeps
+Δ-10 because it must match what `auditFishHp` emits from the state delta; the
+interval row uses 11. Two different observables.
+
+Also: DECISIONS' own prose said "Total 13" crit anomalies. The list was **16**
+before this session and is **19** after. Count the list.
+
+## The live day
+
+Pre-registered at `825a8389`, 17:02:21Z, both ledgers verified at 0.
+
+| | run 1 | run 2 | run 3 | run 4 |
+|---|---|---|---|---|
+| actions | 86 | 57 | 66 | 63 |
+| first-attempt failures | 0 | 0 | 0 | 0 |
+| Archon after | 21 | 18 | 15 | 12 |
+| 640 / 641 / 901 / 905 | 7/45/21/9 | 4/42/18/6 | 1/39/15/3 | 0/36/12/0 |
+
+Energy 420 → 189. Both runs that logged it showed observed delta 59 vs committed
+60 — in-run passive regen, expected, not asserted.
+
+Fishing: 17:52:37Z → 17:53:41Z, `castCap: 3` sized to the LEDGER (the rod at 13
+put the dry-rod hazard out of reach at any cap ≤ 13). Rod 13 → 10.
+**Both ledgers agreed at 20/20** — no JEBAITOR divergence, unlike session 127.
+
+## Tooling notes
+
+- **Two commands were blocked outright by the auto-mode classifier**: a bash
+  heredoc writing into `scripts/`, and `npx vitest run tests/orchestrator` —
+  the path SUBSTRING was enough. Per rule 13 I checked the filesystem before
+  believing the first denial; it had genuinely not run.
+- **`$TMPDIR` differs between sandbox modes** — helper scripts written in one
+  mode vanished in the other. Fifth consecutive session this has cost cycles.
+  The scratchpad path is stable; use it.
+- **A pin patcher run twice nests comments** (`/* was X /* was Y */ */`) and
+  that is a parse error, not a comment. Three sites needed hand repair.
+- **A `toBeCloseTo` whose expectation is a RATIO** (`908 / 1242`) defeats a
+  naive patcher, which replaces the numerator with the whole decimal. Guarded.
