@@ -1,28 +1,28 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-12T15:22:41.815Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-12T15:31:30.241Z.
 
-537 recorded casts — 271 caught (50.5%).
-Total Hard Core earned: 62400 (230.3 per catch, 116.2 per cast).
+554 recorded casts — 278 caught (50.2%).
+Total Hard Core earned: 66320 (238.6 per catch, 119.7 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 271 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 56 of those 271 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 278 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 59 of those 278 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Barnaboo: 53
-- Finley: 50
-- Plankton: 40
+- Barnaboo: 54
+- Finley: 51
+- Plankton: 41
 - Kelpkin: 28
 - Jelloid: 27
 - Ollie: 22
-- Skinzy: 10
-- Deadfin: 8
-- Zombo: 6
+- Skinzy: 11
+- Deadfin: 9
+- Zombo: 7
 - Gulp: 6
 - Podge: 6
 - Glimmer: 4
 - Globbo: 3
-- Sherrif Bubblesmoke: 2
+- Sherrif Bubblesmoke: 3
 - Grotto: 2
 - Slo_mo: 1
 - Chompus: 1
@@ -570,3 +570,20 @@ Total Hard Core earned: 62400 (230.3 per catch, 116.2 per cast).
 | 13372304 | no | — | 0 |
 | 13372311 | no | — | 0 |
 | 13372314 | yes | Kelpkin (rarity 1) | 160 |
+| 13385802 | no | — | 0 |
+| 13385805 | no | — | 0 |
+| 13385809 | no | — | 0 |
+| 13385813 | no | — | 0 |
+| 13385816 | no | — | 0 |
+| 13385820 | yes | Zombo (rarity 2) | 320 |
+| 13385824 | no | — | 0 |
+| 13385827 | yes | Plankton (rarity 0) | 80 |
+| 13385831 | yes | Skinzy (rarity 2) | 320 |
+| 13385833 | yes | Barnaboo (rarity 0) | 160 |
+| 13385835 | yes | Sherrif Bubblesmoke (rarity 4) | 2400 |
+| 13385840 | no | — | 0 |
+| 13385845 | no | — | 0 |
+| 13385848 | yes | Deadfin (rarity 2) | 320 |
+| 13385850 | yes | Finley (rarity 0) | 320 |
+| 13385855 | no | — | 0 |
+| 13385858 | no | — | 0 |

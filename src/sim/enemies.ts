@@ -189,7 +189,26 @@ export const PLAYER: Combatant = {
   // Gear or a skill point — nothing in the capture distinguishes them, the
   // same limit every note above records. **Runs before day 20701 are NOT the
   // same arm as runs after.**
-  hpMax: 51,
+  //
+  // ⚠ **[session 129, day 20707] BACK TO 50, read live on ALL FOUR of today's
+  // runs (`state-000`, unbooned openings): `health.currentMax` 50, against 51
+  // on all four of session 128's runs the day before. `shield.currentMax` did
+  // NOT move — 17 on both days.**
+  //
+  // This is the number the [USER] directive above states the value HOLDS at,
+  // so the pin and the directive now agree. ⛔ **The CAUSE of the −1 is NOT
+  // determined and no mechanism is named here.** It is specifically NOT the
+  // session-122 broken-gear story: today's openings were read with 640 at 60,
+  // 641 at 36, 901 at 12 and 905 at 24 — every dungeon piece healthy — and 640
+  // and 905 had just been repaired UPWARD out of band (0 → 60 and 0 → 24),
+  // which makes "worn gear stopped applying its bonus" the wrong shape
+  // entirely. Item 50 (slot 8) sat at 0 on both days and cannot be the
+  // difference either.
+  //
+  // Recorded as an OBSERVATION for the next session to explain, per the same
+  // limit the note above records: nothing in the capture distinguishes gear
+  // from a skill point, and two readings a day apart do not make a trend.
+  hpMax: 50, /* [session 129, day 20707] was 51 — see the block above */
   // [session 75] ARMOR RE-SPEC, user-stated in chat between run 3 and run 4 of
   // 2026-08-22 and captured from run 4's own `start_run` (cid 24983279). Read
   // off the wire, not inferred: armorMax 17 -> 22, block 8 -> 10, Shield gains
@@ -251,7 +270,30 @@ export const PLAYER: Combatant = {
   // passing assertion**; when a test goes red, fix the first failure and RERUN
   // rather than assuming the rest of the test was fine.
   moves: {
-    rock: mv(27, 10), // Sword — ATK 26 -> 27 between sessions 122 and 123 (repaired gear); 25 -> 26 between runs 2 and 3 of session 113; DEF 8 -> 9 before run 1 of session 103, 9 -> 10 before session 122
+    // ── [session 129, day 20707] ATK 27 -> 26, AND IT MOVED TOGETHER WITH
+    //    `hpMax` 51 -> 50. Read off every unbooned `state-000` on both days:
+    //
+    //      2026-09-11 (session 128, all 4 runs)  hp 51  arm 17  rock 27/10
+    //      2026-09-12 (session 129, all 4 runs)  hp 50  arm 17  rock 26/10
+    //
+    //    Paper (11/17) and Scissor (12/8) did NOT move, and neither did
+    //    `armorMax`. So it is exactly −1 HP and −1 Sword ATK, together.
+    //
+    // ⭐ **THE ONE EQUIPMENT IDENTITY CHANGE BETWEEN THOSE TWO READINGS IS THE
+    //    ROD SWAP, 923 (Dendren) -> 924 (Puppeteer) in SLOT 14.** Every other
+    //    equipped piece is the SAME instance on both days (docIds identical)
+    //    and every dungeon piece was ALIVE at both openings — 640 at 60, 641
+    //    at 36, 901 at 12, 905 at 24 today, against 3/36/12/15 the day before.
+    //    Item 50 (slot 8) read 0 on both days and cannot be the difference.
+    //
+    // ⛔ **COINCIDENT, NOT PROVEN.** Two readings a day apart cannot separate
+    //    the rod from a skill point or an unobserved out-of-band change, and
+    //    nothing in the capture distinguishes gear from level — the same limit
+    //    every note in this file records. It is stated here because it is
+    //    CHEAPLY FALSIFIABLE and nobody expected it: if the rod is the cause,
+    //    then **the fishing rod carries a DUNGEON stat line**, and swapping
+    //    back to 923 restores 51/27. That is one gear read, no spend.
+    rock: mv(26, 10), /* [session 129] was mv(27, 10) */ // Sword — ATK 26 -> 27 between sessions 122 and 123 (repaired gear); 25 -> 26 between runs 2 and 3 of session 113; DEF 8 -> 9 before run 1 of session 103, 9 -> 10 before session 122
     paper: mv(11, 17), // Shield — ATK 10 -> 11 between runs 2 and 3 of session 113; DEF 15 -> 16 before run 1 of session 103, 16 -> 17 before session 122
     scissor: mv(12, 8), // Spell — unchanged since session 42 second update
   },

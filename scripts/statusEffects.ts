@@ -218,6 +218,26 @@ export function inertAtZero(exchanges: Exchange[], status: StatusType): Tally {
       const side = onAttacker ? attacker : victim;
       const other = onAttacker ? victim : attacker;
       if (ex.beforeStatus[other].Weak !== undefined || ex.beforeStatus[other].Vulnerable !== undefined) continue;
+      // ⭐ [session 129] **THE ATTACKER'S `Vengeance` AMPLIFIES, so a Vengeance
+      // attacker is not a clean reading of "damage == the attacker's ATK".**
+      // This is the FIFTH completion of this exclusion family, not a
+      // relaxation of it — the same shape as `critProc1` joining
+      // `procEffectSize`'s intuition exclusion in session 128.
+      //
+      // Both exchanges that forced it: `atk 26 -> taken 32`, delta **+6**,
+      // attacker carrying `beforeStatus.Vengeance = 25`. One was a TIE
+      // (rock/rock) and one was NOT (rock/scissor), so the trigger is not
+      // ties and this is NOT `TieDamageReduction` wearing another name — that
+      // one REDUCES by 2 on ties only.
+      //
+      // ⛔ **`Vengeance`'s magnitude is NOT modelled here and must not be.**
+      // `BOON_MODELS.Vengeance` is `latent` on the evidence of its PICKUP
+      // ("selectedVal1 15 -> no change to any player field") and a new boon
+      // model needs a [USER] directive — `tests/boons.test.ts`'s
+      // `AWAITING_MODEL_DIRECTIVE` branch fails anyone who adds one. What is
+      // recorded is only that the population is CONTAMINATED, which is all
+      // this filter needs to be correct. n = 2; do not fit +6 to val1 25.
+      if (ex.beforeStatus[other].Vengeance !== undefined) continue;
       if (ex.beforeStatus[side][status] !== 0) continue;
       if (status !== "Weak" && ex.beforeStatus[side].Weak) continue;
       if (status !== "Vulnerable" && ex.beforeStatus[side].Vulnerable) continue;

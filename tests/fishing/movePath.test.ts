@@ -84,7 +84,7 @@ describe("lastMovePath against the real corpus", () => {
     // above binds harder now, not less: two points in the same direction on
     // two new casts is not evidence of a mechanism.
     expect(counts.filter((c) => c.constant).length / counts.length).toBeCloseTo(
-      0.8955223880597015, /* [session 128, day 20706] was 0.8949343339587242 — the 3-cast tail; this one ROSE, breaking the run of falls */ /* [session 128] was 0.8956692913385826 — a THIRD consecutive small fall on day 20705's 25 casts, same direction. Re-pinned, NOT widened; the "do NOT fit a cause" warning above binds harder still at three points. */  /* [session 126] was 0.8972332015810277 */
+      0.8987341772151899, /* [session 128, day 20706] was 0.8949343339587242 — the 3-cast tail; this one ROSE, breaking the run of falls */ /* [session 128] was 0.8956692913385826 — a THIRD consecutive small fall on day 20705's 25 casts, same direction. Re-pinned, NOT widened; the "do NOT fit a cause" warning above binds harder still at three points. */  /* [session 126] was 0.8972332015810277 */ /* [session 129, day 20707] was 0.8955223880597015 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */
       6,
     ); /* [session 126] was 0.8972332015810277 */ /* [session 125] was toBeGreaterThan(0.9) */
   });

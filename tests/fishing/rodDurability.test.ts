@@ -28,7 +28,7 @@ import {
   NOT_EQUIPPED_SLOT,
   type GearInstanceLike,
 } from "../../src/strategy/fishing/rodDurability.js";
-import { CURRENT_ROD, DENDREN_ROD, GOLKAN_ROD, SHROOM_ROD, MAKESHIFT_ROD } from "../../src/sim/fishing/rodDeck.js";
+import { CURRENT_ROD, DENDREN_ROD, GOLKAN_ROD, PUPPETEERS_ROD, SHROOM_ROD, MAKESHIFT_ROD } from "../../src/sim/fishing/rodDeck.js";
 import {
   appendRodDurability,
   loadRodDurability,
@@ -68,20 +68,44 @@ describe("rod durability preflight — the fail-closed gate", () => {
   });
 
   it("passes the healthy DENDREN reading read live on 2026-09-05 (40, slot 14) — the rod actually held", () => {
-    // The live reading that motivated the repoint: `GET /gear/instances`
-    // returned item 923 equipped at slot 14 with DURABILITY 40, and 812 absent
-    // from the equipped set entirely. This asserts the gate accepts the
-    // CURRENT rod through its DEFAULT parameter, which is the path
-    // `liveFishing.ts` actually takes.
+    // The live reading that motivated the session-124 repoint: `GET
+    // /gear/instances` returned item 923 equipped at slot 14 with DURABILITY
+    // 40, and 812 absent from the equipped set entirely.
+    //
+    // ⚠ [session 129] The rod id is now passed EXPLICITLY rather than
+    // inherited, exactly as the Golkan case above was when Dendren became
+    // current. Dendren stopped being `CURRENT_ROD` on the Puppeteer swap, and
+    // a historical reading must not ride a moving default — it asserted
+    // `rodItemId === CURRENT_ROD`, which is a claim about TODAY that a
+    // 2026-09-05 fixture cannot make. The default-parameter path is covered by
+    // the Puppeteer case below, which is the rod `liveFishing.ts` actually
+    // takes today.
     //
     // ⚠ Both rods read 40 at slot 14 on their respective days. That is a
     // COINCIDENCE of two unrelated readings, not a constant — do not infer a
     // starting durability of 40 from it.
-    const r = readRodDurability([...BAG, rod(DENDREN_ROD, 40)]);
+    const r = readRodDurability([...BAG, rod(DENDREN_ROD, 40)], DENDREN_ROD);
     expect(r.status).toBe("ok");
     expect(r.stop).toBe(false);
     expect(r.durability).toBe(40);
     expect(r.rodItemId).toBe(DENDREN_ROD);
+    expect(r.slot).toBe(14);
+  });
+
+  it("passes the healthy PUPPETEER reading read live on 2026-09-12 (44, slot 14) — through the DEFAULT parameter", () => {
+    // [session 129] The reading that motivated the Puppeteer repoint:
+    // `checkGear.ts` read item 924 equipped at slot 14 with DURABILITY 44,
+    // Dendren (923) gone from the equipped set. This is the case that asserts
+    // the gate accepts the CURRENT rod through its DEFAULT parameter — the
+    // path `liveFishing.ts` takes — and it is why the repoint had to land
+    // BEFORE the first Puppeteer cast rather than after it: left at 923, the
+    // preflight fails closed with "rod 923 is NOT equipped" and no cast can be
+    // played at all.
+    const r = readRodDurability([...BAG, rod(PUPPETEERS_ROD, 44)]);
+    expect(r.status).toBe("ok");
+    expect(r.stop).toBe(false);
+    expect(r.durability).toBe(44);
+    expect(r.rodItemId).toBe(PUPPETEERS_ROD);
     expect(r.rodItemId).toBe(CURRENT_ROD);
     expect(r.slot).toBe(14);
   });

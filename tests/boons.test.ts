@@ -914,7 +914,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // session 122's +12. The clean census below gains ONE, a RECURRENCE of an
     // already-clean type, so the clean TYPE SET is unchanged and Wall 1 gains
     // no new hole.
-    expect(roomOne.length).toBe(405 /* [session 128, day 20706] was 393 — four more room-1 offers x3 options; the clean SET is unchanged (the assertion below), so already-clean types RECURRING, not new holes */ /* [session 128] was 381 — four new room-1 offers x3 options from day 20705's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */ /* [session 126] was 369 — four new room-1 offers x3 options from day 20704's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 124] was 345 */  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */);
+    expect(roomOne.length).toBe(417 /* [session 128, day 20706] was 393 — four more room-1 offers x3 options; the clean SET is unchanged (the assertion below), so already-clean types RECURRING, not new holes */ /* [session 128] was 381 — four new room-1 offers x3 options from day 20705's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */ /* [session 126] was 369 — four new room-1 offers x3 options from day 20704's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 124] was 345 */  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */); /* [session 129, day 20707] was [405] */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -971,6 +971,10 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // because a clean-OPTION census is about what the server offered at room
     // 1, which the player's loadout does not enter.
     expect(clean.sort()).toEqual([
+      // ⭐ [session 129, day 20707] +2 AddMaxArmor room-1 OPTIONS from the four
+      // Tier-2 runs of 2026-09-12. The clean TYPE set is STILL the same six —
+      // this is two more instances of a type already in it, not a new type.
+      "AddMaxArmor", "AddMaxArmor",
       "AddMaxArmor", // [session 82] run 1's room-1 offer carried AddMaxArmor(8) — one more clean OPTION, and the clean TYPE set is still the same six.
       "AddMaxArmor",
       "AddMaxArmor",
@@ -1156,7 +1160,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // array. Appended at the array's end by insertion order, same as every
     // entry since session 43. The array is APPEND-ONLY here: the first 33
     // entries are byte-identical to session 126's, so this is purely additive.
-    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8, 7, 5, 9, 2, 4, 8, 3, 7 ]);
+    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8, 7, 5, 9, 2, 4, 8, 3, 7, 11 ]); /* [session 129, day 20707] +1 — a room-11 Heal from the four Tier-2 runs; purely additive, earlier entries byte-identical */
   });
 });
 

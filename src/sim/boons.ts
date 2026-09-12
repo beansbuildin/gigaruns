@@ -5448,6 +5448,167 @@ export const OBSERVED_OFFERS: BoonOffer[] = [
     source: "run-2026-09-11-17-40-56/state-121",
     options: [opt("AddEvasion", 2), opt("TieDamageReduction", 10), opt("AddBurnMagic", 5)],
   },
+  // ⭐ [session 129, day 20707] +30 from the FOUR Tier-2 juiced runs of
+  // 2026-09-12 (12/12 run-units, 278 actions, 0/278 first-attempt failures).
+  // Transcribed from the corpus by script and verified ADDITIVE: the table
+  // went 750 -> 780 and nothing was removed, so no earlier offer fell out.
+  // ⚠ The table is hand-maintained and carries NO payouts — see the note at
+  // the top of this file.
+  //
+  // ⚠ `TieDamageReduction` and `Vengeance` both appear here. Recording an
+  // OFFER is not modelling a BOON: `BOON_MODELS` is untouched, both stay
+  // held, and `tests/boons.test.ts`'s AWAITING_MODEL_DIRECTIVE branch still
+  // fails anyone who models them. [USER] 2026-09-12 confirmed the hold.
+  {
+    room: 1,
+    source: "run-2026-09-12-15-03-37/state-005.json→state-006.json",
+    options: [opt("AddIntuition", 1), opt("RegenMastery", 1), opt("AddLuck", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-12-15-03-37/state-015.json→state-016.json",
+    options: [opt("UpgradePaper", 0, 8), opt("AddIntuition", 1), opt("AddBlock", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-12-15-03-37/state-031.json→state-032.json",
+    options: [opt("AddLifestealShield", 3), opt("VulnerableBlock", 4), opt("UpgradeRock", 0, 4)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-12-15-03-37/state-045.json→state-046.json",
+    options: [opt("CorrosiveShield", 2), opt("UpgradePaper", 8), opt("AddWeakSword", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-12-15-03-37/state-061.json→state-062.json",
+    options: [opt("UpgradePaper", 6), opt("AddTenacity", 2), opt("TieDamageReduction", 10)],
+  },
+  {
+    room: 1,
+    source: "run-2026-09-12-15-06-45/state-021.json→state-022.json",
+    options: [opt("AddMaxArmor", 2), opt("TieDamageReduction", 8), opt("AddEvasion", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-12-15-06-45/state-043.json→state-044.json",
+    options: [opt("AddLuck", 1), opt("UpgradeScissor", 4), opt("VulnerableEvade", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-12-15-06-45/state-051.json→state-052.json",
+    options: [opt("VulnerableCrit", 1), opt("UpgradeScissor", 4), opt("AddBurnSword", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-12-15-06-45/state-067.json→state-068.json",
+    options: [opt("BurningCrit", 3), opt("UpgradePaper", 8), opt("AddVulnerableMagic", 2)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-12-15-06-45/state-087.json→state-088.json",
+    options: [opt("BurningBlock", 8), opt("AddEvasion", 5), opt("AddLifestealMagic", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-12-15-06-45/state-105.json→state-106.json",
+    options: [opt("AddLifestealShield", 4), opt("AddWeakShield", 2), opt("UpgradePaper", 4)],
+  },
+  {
+    room: 1,
+    source: "run-2026-09-12-15-11-55/state-005.json→state-006.json",
+    options: [opt("AddLifestealMagic", 2), opt("AddLuck", 2), opt("AddMaxArmor", 2)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-12-15-11-55/state-021.json→state-022.json",
+    options: [opt("AddEvasion", 1), opt("AddLifestealShield", 4), opt("VulnerableEvade", 4)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-12-15-11-55/state-031.json→state-032.json",
+    options: [opt("AddBurnShield", 3), opt("AddTenacity", 2), opt("AddBurnMagic", 3)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-12-15-11-55/state-047.json→state-048.json",
+    options: [opt("AddLifestealShield", 2), opt("AddLuck", 1), opt("CritHeal", 6)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-12-15-11-55/state-061.json→state-062.json",
+    options: [opt("VulnerableEvade", 4), opt("CorrosiveMagic", 2), opt("AddLuck", 1)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-12-15-11-55/state-073.json→state-074.json",
+    options: [opt("WeakeningTenacity", 4), opt("CorrosiveMagic", 2), opt("Vengeance", 25)],
+  },
+  {
+    room: 7,
+    source: "run-2026-09-12-15-11-55/state-085.json→state-086.json",
+    options: [opt("UpgradePaper", 4), opt("UpgradeScissor", 0, 4), opt("LossLuckUp", 5)],
+  },
+  {
+    room: 8,
+    source: "run-2026-09-12-15-11-55/state-103.json→state-104.json",
+    options: [opt("Vengeance", 15), opt("CritHeal", 6), opt("CorrosiveSword", 2)],
+  },
+  {
+    room: 1,
+    source: "run-2026-09-12-15-17-01/state-013.json→state-014.json",
+    options: [opt("AddEvasion", 5), opt("AddEvasion", 1), opt("VulnerableCrit", 1)],
+  },
+  {
+    room: 2,
+    source: "run-2026-09-12-15-17-01/state-031.json→state-032.json",
+    options: [opt("TieVulnerable", 1), opt("AddTenacity", 3), opt("AddTenacity", 2)],
+  },
+  {
+    room: 3,
+    source: "run-2026-09-12-15-17-01/state-047.json→state-048.json",
+    options: [opt("Vengeance", 25), opt("UpgradeScissor", 8), opt("AddTenacity", 2)],
+  },
+  {
+    room: 4,
+    source: "run-2026-09-12-15-17-01/state-063.json→state-064.json",
+    options: [opt("AddBlock", 5), opt("AddBlock", 2), opt("UpgradePaper", 8)],
+  },
+  {
+    room: 5,
+    source: "run-2026-09-12-15-17-01/state-077.json→state-078.json",
+    options: [opt("AddLifestealShield", 2), opt("AddMaxArmor", 2), opt("AddTenacity", 2)],
+  },
+  {
+    room: 6,
+    source: "run-2026-09-12-15-17-01/state-095.json→state-096.json",
+    options: [opt("AddIntuition", 1), opt("Vengeance", 25), opt("UpgradePaper", 0, 4)],
+  },
+  {
+    room: 7,
+    source: "run-2026-09-12-15-17-01/state-111.json→state-112.json",
+    options: [opt("AddIntuition", 1), opt("AddLuck", 2), opt("AddBurnShield", 5)],
+  },
+  {
+    room: 8,
+    source: "run-2026-09-12-15-17-01/state-127.json→state-128.json",
+    options: [opt("Regen", 1), opt("UpgradeScissor", 4), opt("AddMaxArmor", 10)],
+  },
+  {
+    room: 9,
+    source: "run-2026-09-12-15-17-01/state-143.json→state-144.json",
+    options: [opt("UpgradePaper", 6), opt("AddVulnerableShield", 2), opt("AddBlock", 3)],
+  },
+  {
+    room: 10,
+    source: "run-2026-09-12-15-17-01/state-161.json→state-162.json",
+    options: [opt("AddLifestealMagic", 2), opt("IntuitionArmor", 8), opt("AddTenacity", 3)],
+  },
+  {
+    room: 11,
+    source: "run-2026-09-12-15-17-01/state-179.json→state-180.json",
+    options: [opt("Heal", 50), opt("AddIntuition", 1), opt("AddEvasion", 1)],
+  },
 ];
 
 export const offersForRoom = (room: number): BoonOffer[] =>

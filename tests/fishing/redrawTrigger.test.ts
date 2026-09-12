@@ -202,6 +202,23 @@ describe("the two degeneracies are pinned at the OUTCOME, in the simulator", () 
     const a = run(ALWAYS_REDRAW_CONNECT_THRESHOLD);
     const n = run(NEVER_REDRAW_CONNECT_THRESHOLD);
     expect(a.escapedMana).toBeGreaterThan(n.escapedMana);
-    expect(a.turnsPerCast).toBeLessThan(n.turnsPerCast);
+    /*
+     * ⚠ **[session 129] `expect(a.turnsPerCast).toBeLessThan(n.turnsPerCast)`
+     * is RETIRED on the Puppeteer (924) repoint, for the same reason session
+     * 123 retired `toBe(1)` above: it was a property of the OLD DECK, not of
+     * the thing under test.**
+     *
+     * The always-redraw arm's `turnsPerCast` is 4 on every deck because it is
+     * a CEILING, not a behaviour — 10 mana at 3 per turn exhausts in four
+     * turns and the arm never takes a useful shot. What moved is the OTHER
+     * arm: Puppeteer kills fish fast enough that never-redraw now finishes a
+     * cast in 3.88 turns, where the softer Dendren deck took longer than 4.
+     * So the inequality flipped without the redraw mechanism changing at all.
+     *
+     * `escapedMana` is the separation this test exists for and it is
+     * untouched — the always-redraw arm still throws its casts away to mana.
+     * Pinning a turn count that a harder-hitting deck can walk past is the
+     * same mistake as the `< 1.29` recorded above.
+     */
   });
 });

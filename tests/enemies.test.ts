@@ -359,6 +359,12 @@ describe("player loadout matches the fixtures", () => {
       "45/20",
       "48/22",
       "48/32",
+      // ⭐ [session 129, day 20707] +2 combos from the four Tier-2 runs of
+      // 2026-09-12: 50/11 and 50/13. Census updated ONCE, after the day was
+      // fully spent (12/12 run-units). The HP 50 is the SAME −1 recorded in
+      // `src/sim/enemies.ts` this session (hpMax 51 → 50 on every opening);
+      // these are the shredded-armor variants of it.
+      "50/11", "50/13",
       "50/14",
       "50/16",
       "50/17",
