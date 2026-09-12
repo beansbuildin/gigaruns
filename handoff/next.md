@@ -1,230 +1,288 @@
-# BRIEF — session 128 — AN OFFLINE SESSION FIRST. The suite is RED, and no live arm opens until it is green.
+# BRIEF — session 129 — a CRUSADER day, the JWT dies before it does, and a ROD SWAP to Puppeteer (924)
 
-**This document replaces the session-127 `next.md`, which is spent.** Session 127
-met the carried gate (the Dendren tripwire fired and read **noise**), spent day
-20705 fully on the dungeon arm, and played 25 casts — **then left the suite red
-by agreement, with the pin re-derivation deferred to this session.**
-
-**⛔ THIS IS THE FIRST BRIEF IN SEVEN SESSIONS WHOSE FIRST JOB IS NOT LIVE.**
-STATE 127's open question 1 is unambiguous: *"Do not start a live arm before it
-is green."* Honour that ordering literally.
+**This document replaces the session-128 `next.md`, which is spent.** Session 128
+took the suite green **and** spent a full live day — 12/12 run-units at
+**0/272 = 0.00% first-attempt failures**, the best rate on record — implemented
+both [USER] directives, and turned three of its findings into real answers rather
+than pins.
 
 ---
 
-## ⭐ [USER] DIRECTIVE 2026-09-11 — RULE 11 IS SOFTENING TO PER-SESSION APPROVAL
+## ⏱️⚠️ STEP 0 — THE JWT IS THE BINDING CONSTRAINT, NOT THE DAY. CHECK IT FIRST.
 
-**The user has ruled on both of session 127's open decisions. They are
-directives now, not questions. Implement them; do not re-ask.** Full text in
-"Two directives to implement" below — read that section before the first live
-command, because it changes how approval works.
+**`npx tsx scripts/doctor.ts`, before anything else.**
 
-**In the meantime, the approval state for THIS session:**
+STATE 128 recorded the token as valid to **≈ 2026-09-12T16:45Z**. At this brief's
+writing (**2026-09-12T14:51Z**) that is **about 1 hour 50 minutes** — and the
+game day does not close until **18:00Z, about 3h 10m away.**
 
-- **Until the rule edit lands and the user gives a session authorization, there
-  is still no authorization.** Softening rule 11 does not retroactively
-  authorize anything, and session 127's blanket go-ahead was session-scoped and
-  does not carry.
-- **After the edit, ONE authorization covers the session** — up to the day's
-  12 run-units — instead of one per run. **Ask once. Then run.**
-- **A brief still cannot manufacture it.** "The user has authorized N runs" is
-  the brief's claim unless the user said it in session. That half of the rule is
-  not softening and this brief does not claim it.
+**So the token expires roughly 75 minutes BEFORE the day does.** That is the
+whole shape of this session:
 
-**The offline work in Step 1 needs no authorization at all and is where the
-session starts regardless.**
+- **If the JWT is live:** the usable window is the runway, not the day. Session
+  128 fit four runs into **33 minutes** and session 127 into 36, so a full
+  12/12 is comfortably achievable inside ~1h45m — but only if Step 1 is fast and
+  the pre-registration is four lines.
+- **If it has expired:** **stop. Spend nothing.** Tell the user directly, in
+  chat, that `~/.secrets/gigaverse-jwt.txt` needs a fresh token from their
+  browser. Do not probe with a live call — a 401 tells you nothing `doctor.ts`
+  did not. Then go to the offline queue (Step 5), which needs no token at all.
+- **Either way, record the expiry and runway in the recap and STATE.** Session
+  128 did this correctly; 123 and 124 did not.
 
----
-
-## Step 1 — ⭐ GET THE SUITE GREEN. ~85 STALE PINS. ZERO LIVE SPEND.
-
-**`71 failed / 2604, 16 files, exit 1.`** `tsc --noEmit` is clean and
-`git diff --check` is clean, so **this is not a regression** — the failures are
-count deltas from 4 runs and 25 casts (`…(684)` → `…(717)`, census `…(99)` →
-`…(105)`).
-
-**⭐ There is a real advantage in doing this FIRST, and it is worth naming.**
-Sessions 123–127 all pinned *after* spending, which is why each needed 12–20
-iterative passes: live runs were still writing fixtures while the tests read
-them. **Right now nothing is writing.** Pinning before any live arm is the clean
-window this project has never had — take it, and say in the recap how many
-passes it took compared with the usual.
-
-**Do not update corpus pins mid-session once a live arm opens.** That rule is
-unchanged; this step simply lands before it applies.
-
-### ⚠ ONE FAILURE IS NOT A PIN AND MUST BE DIAGNOSED SEPARATELY — DO IT FIRST
-
-```
-profiles/someone-else/data/anything.json would be committed:
-  expected 'no' to be 'yes'
-```
-
-**STATE flags this as undiagnosed and possibly predating session 127.** It reads
-as a **gitignore-coverage test**, not a corpus pin — which makes it the one
-failure with a plausible security shape, since the whole point of such a test is
-to prove that a profile's data cannot reach a commit.
-
-**Triage it before touching any pin:**
-
-1. **Establish whether it is ours** — `git log` the test and the path, and check
-   whether it failed before session 127's spend.
-2. **If the gitignore coverage is genuinely broken, that is a real finding**, not
-   a number to update. Fix the ignore rule, not the assertion.
-3. **⛔ Do not "fix" it by relaxing the expectation.** An assertion that says
-   "this must not be committable" is not a pin, and flipping it would be the
-   fourth instance of the pattern STATE keeps recording: *the fix is completing
-   the filter, not relaxing the claim.*
-4. Re-run the secret scan **after staging** once resolved.
-
-### The rest
-
-- Re-derive the ~85 count pins. Verify every set change is purely **ADDITIVE** by
-  **MULTISET diff both ways**, and **report removals as removals** — that
-  discipline has caught real changes before.
-- **⛔ Do not "fix" `OBSERVED_OFFERS` source labels using the AFTER state.** Rows
-  are keyed to the **BEFORE** label; using `after` once turned 35 new rows into
-  `sourceMisses` (17 → 52).
-- **⚠ `$TMPDIR` DIFFERS between sandbox modes and sandboxed `tsx`/`git` fail
-  outright — this has cost cycles in FOUR consecutive sessions.** Run the suite
-  and git **UNSANDBOXED**, `--maxWorkers=4`. Capture exit codes to a file and
-  read `$?`; never trust a `tail`-pipe or a task notification, which reports the
-  compound command.
-
-**The gate for this step: `vitest run --maxWorkers=4` exits 0.** Report the
-before/after counts and the pass number.
+**Say the remaining runway to the user in your first message**, alongside the
+scope question and the gear reading. One message, not three.
 
 ---
 
-## Step 2 — TWO REPAIRS, and BOTH ARMS ARE BLOCKED WITHOUT THEM
+## Step 1 — read everything, fast, before the first `start_run`
 
-**⚠ READ `checkGear.ts` LIVE BEFORE QUOTING ANY NUMBER BELOW.**
+`checkDungeonToday.ts` · all seven balances · `checkFishingCaps.ts` ·
+**`npx tsx scripts/checkGear.ts`** · `checkEntryTiers.ts` for the rollover clock.
 
-> **[NEW, STATE 127] A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT, NOT BY
-> EXCEPTION.** Claim E failed for the **third straight session** — 641 and 905
-> were repaired out of band (0 → 60 and 0 → 24) — and it **voided an entire
-> ~200-word section** of the last brief instructing a "broken-gear arm" label
-> that did not apply. **They were a clean-gear arm.**
+**⭐ THE FACTION IS A FUNCTION OF THE ROLLOVER CLOCK** — read
+`next day in HH:MM:SS` before accepting any faction framing. Not to protect a
+ring (balances are no longer a constraint) but so you know **which faction to
+expect in the balance diff**, which is the only check on the charge shape.
 
-So treat this table as a **prompt to ask the user**, not as fact:
+**At writing:**
 
-| arm | piece | durability | consequence |
+| | day | dow | faction |
 |---|---|---|---|
-| **Fishing** | slot-15 pair | **0 / 0** | **ARM IS HALTED.** No batch until repaired. |
-| Fishing | rod 923 | 13 | fine — 13 played casts |
-| **Dungeon** | **901** | **2** | **BREAKS ON RUN 1** (needs 3, clamps to 0) → halt after one run |
-| Dungeon | 640 | 10 | 3 runs |
-| Dungeon | 905 | 12 | 4 runs |
-| Dungeon | 641 | 48 | 16 runs |
-
-**Without repairs the live day is: ONE dungeon run, then a halt. Zero fishing
-casts.** Raise both repairs to the user **in the same message as the scope
-question** — one message, not three.
-
-⚠ **`checkGear.ts` prints a HALT banner permanently and it is not an arm halt.**
-**Item 50, slot 8, sits at 0 and belongs to NEITHER wear set** — unmoved across
-4 runs and 25 casts. **Check WHICH slot before believing the banner.**
-
----
-
-## Step 3 — if and only if a live arm is authorized: read the clock first
-
-**⭐ THE FACTION IS A FUNCTION OF THE ROLLOVER CLOCK.** Run
-`npx tsx scripts/checkEntryTiers.ts` and read `next day in HH:MM:SS` before
-accepting any faction framing.
-
-⚠ **The REASON for this habit has changed.** It used to be about protecting a
-scarce ring. Per the [USER] directive below, **ring balances are no longer a
-constraint** — the clock read now exists only so you know **which faction to
-expect in the balance diff**, which is how the charge shape is verified. Keep the
-read; drop the scarcity framing.
-
-**At this brief's writing (2026-09-11T16:07Z):**
-
-| | day | dow | faction | balance |
-|---|---|---|---|---|
-| now, **~1h50m left** | 20706 | 7 | **Archon (138)** | 24 |
-| from 18:00Z, full 24h | 20707 | 1 | **Crusader (135)** | 27 |
-
-**Step 1 will most likely consume the Archon window**, and that is fine — a full
-day is a better container for live work than a sliver. **But read the clock and
-report which day you are actually on; do not assume either.** ⛔ **Do not weigh
-the two days by ring balance** — see the directive below.
-
-⚠ **THE FISHING AND GAME DAYS ROLL AT THE SAME INSTANT** — 11:00 PT == 18:00Z.
-Two instruments print it in two formats (`hours until next reset: 0.62` vs
-`next day in 00:36:50`). **A batch started near the boundary straddles BOTH
-ledgers**, which is exactly what happened last session: the cap reset mid-batch
-and handed it a fresh 20.
+| now, ~3h10m left | **20707** | **1** | **Crusader (135)** |
+| from 18:00Z | 20708 | 2 | Overseer (136) |
 
 ### Claims to verify — rule 9
 
 | # | Claim | value |
 |---|---|---|
 | A | Day / dow / faction | **per the clock** |
-| B | Rings total **183**: Athena **9**, Chobo 18, Archon 24, Crusader 27, Summoner 30, Foxglove 33, Overseer 42 — **read as a MEASUREMENT, not a budget** | read live |
-| C | Run-units fresh **0 of 12** | `dayProgressEntities` |
-| D | Fishing ledger — **read it, do not assert a number** | `checkFishingCaps.ts` |
-| E | Gear — **read live per Step 2** | `checkGear.ts` |
+| B | Rings total **171**: Athena 9, Archon 12, Chobo 18, Crusader **27**, Summoner 30, Foxglove 33, Overseer 42 — **an INSTRUMENT, not a budget** | read live |
+| C | Run-units fresh **0 of 12** (day 20706's 12/12 reset at 18:00Z) | `dayProgressEntities` |
+| D | Fishing ledger fresh **0/20 charged** | `checkFishingCaps.ts` |
+| E | Gear — **see Step 2. Do not assert it; read it.** | `checkGear.ts` |
 
-⚠ **Claim D failed last session because THE BRIEF CONTRADICTED ITSELF** — its
-table said "fresh 0/20" while its own body said 18 available. **Check a brief's
-internal consistency before treating a mismatch as a spec error.** The live
-reading was 2/20 and the body was right.
-
-⚠ **`checkFishingCaps.ts`'s cast counter tracks CHARGED casts and its energy
-counter tracks PLAYED ones.** Both correct; reads as broken if skimmed.
-
-### If runs happen
-
-Pre-register in a git commit before any spend — **seven sessions running**, and
-every dungeon forecast landed exactly last time. `--dry-run` once (rule 4);
-`--runs=1 --juiced --juiced-index=2`; **ask between runs unless the user gives a
-fresh blanket authorization in session.** Rule 8 on in-room picks; rule 13 on any
-denial. Charge shape stands at **41/41**.
-
-### If a fishing batch happens
-
-Only after the slot-15 repair. **The `castCap: 2` convention is NOT a safety rule
-in itself** — it exists because a dry rod injects `BASE_DECK` mid-batch
-unnoticed, and **that hazard needs the rod to reach 0.** At rod 13, a batch of
-**13 or fewer played casts cannot reach it**; beyond that it can. Size the cap to
-the rod, deliberately, as `SESSION_127_LIMITS` did at 25. **`--casts=N` is
-silently overridden by `--oil-batch`** while the banner prints `args.casts` — set
-`castCap`, not `--casts`.
-
-Oils Relaxing-only; Focus off the allowlist, triggers log **policy-withdrawn**.
-Standing budget 360 energy / 30 casts.
+⚠ **`checkFishingCaps.ts`'s cast counter tracks CHARGED casts; its energy counter
+tracks PLAYED ones.** Both correct; reads as broken if skimmed.
 
 ---
 
-## ⭐ Step 4 — THE OFFLINE QUEUE IS NOW THE INTERESTING WORK, AND IT KEEPS SLIPPING
+## Step 2 — ⛔ I AM NOT GOING TO ASK FOR A REPAIR. READ THE GEAR AND DECIDE.
 
-Three of these have gone untouched for two or more sessions because live arms
-always came first. **This session's ordering finally favours them.** All are
-zero live spend and answerable from committed fixtures under rule 4.
+**This brief is deliberately breaking a pattern.** STATE 128:
 
-1. **⚠ Wire `blockedMove` into the opponent model.** UNTOUCHED for two sessions.
-   The server names the **ENEMY's** excluded move (`playerId` 1 on all 18) and
-   the field is consumed **nowhere in `src/`** — the model still prints a full
-   three-way distribution over a move already ruled out. ⚠ **Scope it: whether
-   the exclusion binds the CURRENT exchange or only the NEXT is NOT settled by
-   the fixtures and must be measured.** EV is small by construction (~0.22–0.5%)
-   — **do it for correctness, and do not spend a run on it.**
+> **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT — now FOUR sessions running, and
+> this time BOTH of its repairs were unnecessary.** 901 read 24 not 2; the
+> slot-15 pair read 30/20 not 0/0.
 
-2. **⚠ What is the 25% mitigator?** 73 exchanges take `floor(atk × 0.75)` with
-   **no proc flag**, 72 of them with no intuition at all. Untouched for two
-   sessions; **the single largest unexplained regularity in the combat corpus.**
-   ⛔ **Do not name it without measuring it**, and do not attribute it to
-   intuition — that error has been made three times and each fix was *completing
-   the filter, not relaxing the claim*.
+Twice now a brief has opened with "raise these repairs up front" and twice the
+user had already repaired out of band, so the request was noise. **A fifth
+repetition would be the brief failing the same way on purpose.**
 
-3. **⭐ `VulnerableMastery` is the sharpest lead — but it needs COLLECTION, not
-   analysis.** atk 39 with Vulnerable 1 dealt **52** where `floor(39×1.25)` = 48;
-   splitting on whether `VulnerableMastery` was active separates it perfectly
-   (**ABSENT 84/84 obey, ACTIVE 0/1**). **Its `val1` never rolls, so more pickups
-   will not separate 4/3 from 1.35 from "+4" — only exchanges at DIFFERENT `atk`
-   values will.** Say this plainly rather than queuing offline work that cannot
-   succeed; it is a reason to watch future runs, not to analyse today.
+**So the instruction is inverted: read `checkGear.ts` FIRST, then raise a repair
+only if the live numbers call for one.**
+
+For orientation only — **session 128's closing values, which may already be
+stale:**
+
+| arm | piece | close | note |
+|---|---|---|---|
+| **Dungeon** | **640** (slot 11) | **0** | arm halted at close |
+| **Dungeon** | **905** (slot 13) | **0** | arm halted at close |
+| Dungeon | 641 | 36 | 12 runs |
+| Dungeon | 901 | 12 | 4 runs |
+| Fishing | rod 923 | **10** | **10 played casts, then zero** |
+| Fishing | slot-15 pair | 30 / 20 | healthy |
+
+**If the dungeon pieces are still at 0**, that arm is halted and needs one repair
+before run 1 — raise it **in the same message as the scope question and the JWT
+runway**. **If they have been repaired, say so as a claim-E note and move
+straight on.** Either way the live read is the fact; the table above is not.
+
+⚠ **`checkGear.ts`'s HALT banner is not automatically an arm halt.** Check WHICH
+slot. The halt is **PER-ARM**, and pieces already at 0 at session open are
+**GRANDFATHERED** — they never abort a run in progress, and a started run always
+finishes.
+
+---
+
+## Step 3 — authorization, and what the softening did NOT change
+
+**⭐ [USER], as of 2026-09-11: APPROVAL IS PER SESSION, NOT PER RUN.** One
+authorization covers this session's runs up to the server's 12-run-unit daily
+cap. **Ask once, then run consecutively without pausing.**
+
+**⛔ What did not soften, and this brief is bound by it:**
+
+- **A human still authorizes each session, in session.** Authorization does
+  **not** carry forward, and **a brief may never manufacture it** — "the user has
+  authorized 4 runs" is the brief's claim unless the user said it in chat.
+  **This brief does not claim it.** The user asked for "the next live session";
+  that is a scope, so **ask once** and then go.
+- **Rule 5, fail closed** — unknown enum, 5xx, three consecutive action failures,
+  a cap hit → stop, log the body, exit non-zero. **No-prompt is not no-halt.**
+- **Rule 13** — read the ledger before believing a denial; never retry on one.
+- **The per-arm gear halt**, rule 4, rule 8, the 12-unit cap.
+
+⚠ **THE `ask` BLOCK IN `.claude/settings.local.json` IS STILL THERE.** The user
+directed it cleared on 2026-09-11; **it has not been.** It blocked two commands
+last session outright — including `vitest run tests/orchestrator`, where the
+**path SUBSTRING alone was enough** to trip it. **An agent cannot edit its own
+permission rules.** Mention it once, with the exact lines to delete (the `ask`
+entries naming `liveRun.ts`, `liveFishing.ts`, `orchestrator.ts`), and carry on
+— do not let it become a third session's discussion.
+
+**⭐ THE ORCHESTRATOR'S DUNGEON ARM STAYS CLOSED.** The softening deleted the
+clause the closure used to rest on; all four sites now rest it on *"no dungeon
+run without a human in the loop"*, which the softening does not touch.
+Re-opening it is a **separate [USER] decision** and is not on this session's
+table.
+
+---
+
+## Step 4 — pre-register, then spend
+
+**Eight sessions running** (`825a8389` last time), and every dungeon forecast
+landed at **all four readings**. Write `handoff/scratch-session-129.md`,
+`git commit`, quote the hash, confirm it predates the spend. No addresses, no
+usernames, no JWT fragments.
+
+**Four lines is enough when the clock is short** — the commit's value is the
+timestamp:
+
+1. **Day, dow, faction**, read off the clock.
+2. **The ring path** — opening balance, −3 per run, sole mover, six untouched.
+3. **The gear path** — per run at −3 on slots 11/12/13×2, **and the break run if
+   one lands**, computed from the LIVE read.
+4. **The charge shape, 45/45 → 49/49** after four runs.
+
+### The dungeon runs
+
+`--dry-run` once (rule 4), then `--runs=1 --juiced --juiced-index=2`, four times,
+**consecutively — no pause between them** once the session authorization is
+given. **Read all seven balances after each run** and continue; report the four
+reads together at the end.
+
+### ⭐⭐ [USER] DIRECTIVE 2026-09-12 — SWAP TO PUPPETEER'S ROD (924) BEFORE FISHING
+
+**The user's call: try the Puppeteer rod, the highest tier, instead of the
+Dendren rod.** This replaces the earlier idea of reverting to Golkan.
+
+**⭐ THE DECK IS ALREADY KNOWN — NO DISCOVERY CAST IS NEEDED.** Session 123 read
+every rod's grants off `/offchain/static` in one call, so
+`ROD_CARD_GRANTS[PUPPETEERS_ROD = 924] = [101…110]` is already in
+`src/sim/fishing/rodDeck.ts`, and cards 101–110 are already in
+`fixtures/fishing-casts/cards.json`. ⛔ **Do not plan a cast to "recover the
+Puppeteer geometry" — it is committed.** That is the same error session 123 made
+about Dendren, the third instance of *"right endpoint is one over"*.
+
+**⭐ IT IS POSITIONALLY IDENTICAL TO GOLKAN AND DENDREN** — the same ten
+hit-zone sets, the same `manaCost: 1` on all ten, the same shape. **So this is
+the session-99/123 pattern: geometry-keyed numbers TRANSFER; only damage
+magnitude does not.** The zone template, matcher, focus/reachability and movePath
+statistics all carry across; **only the damage economy forks into a new era.**
+Say this explicitly rather than reporting "a new deck" as a full break.
+
+| card slot | Golkan | Dendren | **Puppeteer** |
+|---|---|---|---|
+| 3-zone lines ×6 | 6 / −3 | 7 / −4 | **8 / −4** |
+| [1,3,7,9] | 7 / −4 | 9 / −4 | **10 / −5** |
+| [2,4,6,8] | 8 / −4 | 9 / −5 | **11 / −5** |
+| ring, 8 cells | 4 / −4 | 5 / −4 | **6 / −5** |
+| centre crit | 12 / −3 | 14 / −4 | **16 / −4** |
+
+*(hit damage / miss heal-to-fish, from the committed fixture)*
+
+**⭐ WHY THIS ALSO EXPLAINS THE DENDREN UNDERPERFORMANCE — worth recording in
+DECISIONS, because it corrects a live-vs-sim reading.** Expected fish-HP change
+per play, computed off the fixture at aim skill `s` (0 = random aim):
+
+| deck | s=0 | s=0.2 | s=0.4 | s=0.6 |
+|---|---|---|---|---|
+| Golkan | −0.400 | −1.660 | −2.920 | −4.180 |
+| Dendren | −0.300 | −1.820 | −3.340 | −4.860 |
+| **Puppeteer** | **−0.678** | **−2.362** | **−4.047** | **−5.731** |
+
+**Dendren raised hit damage by 1 but ALSO raised the miss heal by 1.** Below an
+aim skill of **s ≈ 0.077** that makes it WORSE than Golkan — and the corpus's
+observed hit rate (**39.9%**) sits essentially on the random-aim baseline
+(**38.9%**), i.e. **s ≈ 0.02, below the crossover.** So the live Dendren-vs-Golkan
+gap (51.9% vs 59.6%) has a **mechanism**, not just noise, and the sim's
++3.23pp-for-Dendren result quietly assumed aim the bot does not have.
+⚠ **This is deck arithmetic, not a measurement** — it ignores the focus meter,
+turn economy, fish HP pools, oils and redraw, and weights the ten cards equally
+where `cardChoice.ts` does not. **The direction is robust; the magnitudes are
+not. Do not quote these as measured values.**
+
+**Puppeteer wins at EVERY aim level, including random**, so no crossover applies.
+
+### The swap — steps, in order
+
+1. **The user equips 924 in slot 14.** An agent cannot equip gear; confirm it
+   happened by reading `checkGear.ts`, not by assuming.
+2. **Read 924's durability LIVE.** It is unknown — do not carry Dendren's 10
+   across, and do not assume a full bar.
+3. **Repoint `CURRENT_ROD` / `REAL_DECK` to `PUPPETEERS_ROD` (924).**
+   `tests/fishing/rodDeck.test.ts` exists precisely to fail when the constant no
+   longer matches the rod held in the most recent recorded cast — **let it be the
+   check, and expect it to go red until the repoint lands.**
+4. ⛔ **Do NOT add the three legacy rods (49/50/336) to `ROD_CARD_GRANTS`** while
+   doing this. The gear array carries Stone Rod (50) beside the active rod, so a
+   complete table makes "exactly one KNOWN rod" ambiguous. **Resolve by SLOT
+   first** — session 128's documented trap.
+5. **Pre-register the expected per-play drift** from the table above, then report
+   the measured value against it. That turns the swap into a test rather than a
+   preference, and it is free.
+
+### The batch itself
+
+- **Set `castCap` to the LIVE rod durability**, not to 30. `--casts=N` is
+  **silently overridden by `--oil-batch`** while the banner still prints
+  `args.casts` — set the cap, not the flag. `SESSION_127_LIMITS` ran 25 and
+  `SESSION_128_LIMITS` ran 3, both deliberately; add a `SESSION_129_LIMITS` the
+  same way.
+- **The `castCap: 2` convention is NOT a safety rule in itself.** It exists
+  because a **dry rod injects `BASE_DECK` mid-batch unnoticed**, and that hazard
+  needs the rod to hit 0 **with casts still to play**. A batch sized exactly to
+  the rod cannot do that.
+- **On a fish-to-zero halt: stop, hand back, wait for a manual repair**, then
+  resume with a **fresh live durability read**.
+- **Report played and charged separately.** Standing budget 360 energy / 30
+  casts; the rod is the real cap.
+- **Report the catch rate as a FOURTH slice** — Puppeteer alongside Dendren
+  54/104 = 51.9%, Golkan 183/307 = 59.6%, pooled 271/537 = 50.5%. ⛔ **Do not
+  pool Puppeteer casts into the Dendren figure**, and expect n to be far too
+  small to conclude anything on day one.
+
+Oils **Relaxing-only**; Focus off the allowlist, triggers log
+**policy-withdrawn**; autonomous within `dendren.oils` with `policyApproved`
+true. 22 Relaxing held, 0 consumed last session.
+
+---
+
+## Step 5 — the offline queue. THIS IS ALSO THE NO-TOKEN FALLBACK.
+
+**If the JWT has expired, this is the whole session** — none of it needs a token
+or a single unit of spend.
+
+1. **⚠ Wire `blockedMove` into the opponent model — UNTOUCHED FOR A THIRD
+   SESSION.** The server names the **ENEMY's** excluded move (`playerId` 1 on all
+   18) and the field is consumed **nowhere in `src/`**, so the model still prints
+   a full three-way distribution over a move already ruled out. Free EV, pure
+   strategy, sim-testable under rule 4. ⚠ **Scope it: whether the exclusion binds
+   the CURRENT exchange or only the NEXT is NOT settled by the fixtures.**
+   **Three sessions of deferral is the signal that it needs doing first, not
+   last.**
+
+2. **⚠ The residual TWO `Weak`-outside-bucket exchanges.** Both exactly 2 under
+   prediction, no flags, **both PREDATING the `TieDamageReduction` pickup** — so
+   that boon does not explain them. n=2, **deliberately not fitted.** Free to
+   look at; ⛔ do not name a mechanism from two observations.
+
+3. **⭐ `VulnerableMastery` needs COLLECTION, not analysis.** Its `val1` never
+   rolls, so **more pickups will not separate 4/3 from 1.35 from "+4" — only
+   exchanges at DIFFERENT `atk` values will.** A reason to watch future runs; not
+   offline work that can succeed today. Say so rather than queueing it again.
 
 4. **The `web/` front end has still never spawned a real script** — untouched
    since session 120. `cd web/server && npm install && npm run dev` against the
@@ -232,170 +290,108 @@ zero live spend and answerable from committed fixtures under rule 4.
 
 ---
 
-## ⭐⭐ TWO [USER] DIRECTIVES TO IMPLEMENT — 2026-09-11. Not questions. Do them.
+## One [USER] question to put forward — and only one
 
-### 1. CLEAR THE `ask` BLOCK, AND SOFTEN RULE 11 TO MATCH. Both halves, together.
+**⭐ `TieDamageReduction` HAS AN OBSERVED EFFECT NOW AND NEEDS A DIRECTIVE TO
+MODEL.** It is the **first held type whose conditional has been observed**, so it
+is no longer the usual "latent no-op at n=1" ask:
 
-**The user's words: *"clear the block and soften rule 11."*** Session 127 flagged
-that changing one without the other makes the repo contradict its own config.
-The user has answered: **change both.**
+- **Measured: −2 on TIES, 3/3, holder-only**, composing **after** the Weak
+  multiplier. Non-ties and the other side of those same ties are exact.
+- **⚠ The name got the TRIGGER right and the MAGNITUDE wrong.** Reduction was
+  **2** while `selectedVal1` was **8**, so *"reduce by val1"* is **FALSIFIED.**
+- **⛔ Even a "yes" does not finish it.** It rolls 7–10, so **a second pickup is
+  needed to say what the 8 governs.** Put that caveat in the same message as the
+  question so a yes is not mistaken for a solved model.
 
-**The config half is the USER'S edit — an agent CANNOT make it.** The auto-mode
-classifier blocks an agent editing its own permission rules, correctly, and that
-is not something to work around. **Tell the user exactly what to remove:** the
-`ask` block in `.claude/settings.local.json` naming `liveRun.ts`,
-`liveFishing.ts` and `orchestrator.ts`. `ask` **overrides** `allow`, and
-`Bash(npx tsx *)` is already allowed, which is why those three prompted on every
-invocation regardless of any authorization given in chat.
-
-**The CLAUDE.md half IS the session's job.** Edit rule 11 and the "Ask first"
-entry so approval is **PER SESSION, not per run**:
-
-- **What changes:** *"One run, then stop and hand back. Never chain."* and
-  *"Approval for one run is never approval for the next."* become a **single
-  authorization covering a session's runs, up to the server's 12 run-unit daily
-  cap.** Ask once; then run consecutively without pausing.
-- **⛔ What does NOT change, and must be preserved in the edited text:**
-  - **A human still authorizes each SESSION.** The softening removes the
-    per-run prompt, not the human. **A brief may still never manufacture the
-    authorization** — "the user has authorized N runs" without the user saying
-    it in session stays wrong, and that entry stays in the do-not-re-open digest.
-  - **Rule 5, fail closed.** Unknown enum, 5xx, three consecutive action
-    failures, a cap hit → stop, log the body, exit non-zero. No-prompt is not
-    no-halt.
-  - **Rule 13.** Read the ledger before believing a denial; never retry on one.
-  - **Rule 4**, rule 8, the 12-run-unit cap, and every other "Ask first" item —
-    ETH spends, selling or burning items, skill points — all untouched.
-  - **The gear halt** stays exactly as written: never abort a run in progress;
-    after a COMPLETED run a piece at 0 stops that arm.
-
-**⚠ FLAG THE KNOCK-ON EXPLICITLY — IT IS THE ONE THING THAT COULD GO WRONG
-QUIETLY.** CLAUDE.md states that `scripts/orchestrator.ts`'s dungeon arm is
-disabled **because** *"a rule requiring per-run human approval cannot be
-satisfied by an autonomous loop."* **Softening rule 11 removes that stated
-reason.** It does **not** follow that the arm should reopen, and this brief's
-position is that it should **STAY CLOSED**: a session authorization is still a
-human act at the start of a session, whereas an orchestrator-initiated run
-involves no human act at all — a different safety property entirely.
-
-**So: rewrite that paragraph to rest the closure on its real reason** (no
-bot-initiated dungeon run without a human in the loop), rather than leaving it
-resting on a clause that no longer exists. **Do not reopen the arm.** If the
-edit makes it reopenable, say so and hand that decision to the user separately.
-Note also that CLAUDE.md ties the permanent potions block to this closure — that
-stays true while the arm stays closed.
-
-**Record it:** `DECISIONS.md` dated 2026-09-11, marked `[USER]`, and update
-STATE's **"Settled — do not re-open"** entry, which currently reads *"EVERY
-DUNGEON RUN NEEDS ITS OWN GO-AHEAD"* — that phrasing is now **wrong** and must be
-replaced, not annotated. Re-opens as: *"ask before each run"* or *"restore the
-per-run prompt"*.
-
-### 2. RING BALANCES ARE NO LONGER A CONSTRAINT. STOP TREATING THEM AS ONE.
-
-**The user's words: *"ignore the balances I can get more rings if needed."***
-
-**⛔ Retire, immediately and everywhere:**
-
-- **The Athena/Tier-1 runway question.** STATE 127's open question 8 recommended
-  putting Tier-2-vs-Tier-1 to the user before the next Athena day. **The user has
-  pre-emptively answered it. Do not raise it — not now, not on day 20712.**
-- **"X is the scarcest ring"** as a reason to do anything: to prefer one day over
-  another, to defer a run, to drop to Tier 1, or to flag a spend as costly.
-- **Runway tables**, "N full days left at 4 runs", and every variant. CLAUDE.md
-  rule 11's runway arithmetic is now **descriptive background, not a decision
-  input**.
-
-**✅ KEEP reading all seven balances before and after every run.** This is the
-distinction that matters and it is easy to get wrong: **balances are a
-MEASUREMENT INSTRUMENT, not a budget.** The ring debit does **not** appear on the
-wire — `gameItemBalanceChanges` carries nothing for rings — so a before/after
-balance read is **the only way to verify the charge shape** (one faction, exactly
-3, six untouched), which stands at **41/41** and is a live claim. Losing that
-read would lose the shape claim.
-
-**Record it:** `DECISIONS.md` dated 2026-09-11, `[USER]`, and STATE's digest.
-Re-opens as: *"the ring runway is a concern"*, *"consider Tier 1 to save rings"*,
-or *"Athena is the scarcest ring"* — all three are now wrong on their own.
+**Do not ask about anything else.** The ring runway, Tier-1-vs-Tier-2, and the
+catch rate are all retired or answered — see carry-forward.
 
 ---
 
 ## Carry forward — name each in the recap
 
-1. **⭐ THE DENDREN TRIPWIRE IS FIRED AND ANSWERED: NOISE.** n = 101, **52.5%**,
-   inside the pre-registered 50–65% band. **Nothing to escalate; do not re-raise
-   it.** Quote all three slices or none: **Dendren 53/101 = 52.5%**, **Golkan
-   183/307 = 59.6%**, **pooled 270/534 = 50.6%**. The Dendren-vs-Golkan gap is
-   confounded by era and n, and ⛔ **no live study either way** — the sim settled
-   it (+3.23pp [2.92, 3.55], n=40k/arm) and detecting 3pp live needs ~87
-   sessions.
+1. **⭐ THE 25% MITIGATOR IS IDENTIFIED AND IT IS `Weak`.** 343/343 of the
+   `floor(atk × 0.75)` bucket carry `Weak > 0` **on the ATTACKER**; zero carry no
+   Weak. **⛔ Do not re-open it**, and note *why* it hid for four sessions: the
+   bucket was described by an **ABSENCE** ("carries no proc flag" — true, and
+   irrelevant, because `Weak` is a STATUS). **Do not describe an exchange
+   population by what it does NOT carry.**
 
-2. **⚠ §71's POOLED MARGIN MOVED after holding at −1 for three sessions — it is
-   now 0.** Dendren-only is **−2** at n=101 (was −3 at n=76); Golkan −5, base +1,
-   legacy +6. **[USER] HOLD — report both slices, do not decide, do not retire or
-   rescope.**
+2. **⚠ `critProc1` is in `procEffectSize`'s intuition exclusion — the FOURTH
+   completion of that filter, not a relaxation.** `atk 22 → taken 44` is the
+   ATTACKER's crit, an amplification, and the old exclusions covered only player
+   0's side. *"Intuition interacts with crit"* — it does not.
 
-3. **⛔ ELEVEN latent boon types now, not ten** — `TieDamageReduction` joined
-   last session, caught by `tests/boons.test.ts`'s "has a pair but no model".
-   With `Thorns`, `CritHeal`, `Intimidating`, `BurningTenacity`, `RegenMastery`,
-   `VulnerableMastery`, `WeakeningBlock`, `LossLuckUp`, `IntuitionArmor`,
-   `AddWeakShield`. **Default HOLD; n=1 needs a [USER] directive.**
+3. **⭐ [USER] RING BALANCES ARE NOT A CONSTRAINT.** Retired: the Athena/Tier-1
+   runway question (**not on day 20712 either**), "X is the scarcest ring" as a
+   reason for anything, and every runway table. ✅ **Keep reading all seven
+   balances before and after every run** — the debit is **not on the wire**, so
+   that read is the only check on the charge shape.
 
-4. **⛔ DO NOT RECORD A FOURTH FISHING-REFUSAL POINT FROM SESSION 127.** The batch
-   straddled the 18:00Z rollover (17:59:06Z → 18:05:30Z), which reset the day cap
-   mid-batch and handed it a fresh 20 — **the boundary (day-cast 24/25/27) was
-   never approached and none was reachable.** A missing refusal is not evidence
-   about the boundary.
+4. **⚠ §71 K=10 — quote BOTH slices.** **Pooled −1**, having come in at 0, held
+   at 0 through four runs, then moved when the 3-cast tail took b10's
+   `sacrifices` 8 → 9. **Dendren-only −3** at n=104 (was −2 at n=101); Golkan −5.
+   **[USER] HOLD — report, do not decide, do not retire or rescope.**
 
-5. **⛔ Do not compute a Dendren catch rate from `loadFishingCorpus()`** — its
-   items have no `.turns`, so `splitByDealtDeck` throws. The working path is
-   `loadCastTraces()` → `splitByDealtDeck(...).rod` → `deckOf()` from
-   `scripts/redrawDeckSlice.ts`, then count `t.caught`. And **do not read
-   `fishBatchReport.ts` for a corpus-wide rate** — it is SESSION-scoped and
-   printed `catch rate 0.0%` before any cast.
+5. **Catch rate: quote all three slices or none.** **Dendren 54/104 = 51.9%** —
+   still inside the pre-registered **50–65% noise band** — **Golkan 183/307 =
+   59.6%**, **pooled 271/537 = 50.5%**. The tripwire has fired and returned
+   noise. ⛔ **Do not re-raise it and do not commission a live study**; detecting
+   the real 3pp effect needs ~87 sessions.
 
-6. **Move charges: ABSENT.** No `gameItemBalanceChanges` for rings on the wire;
-   the ring spend is observable only by reading balances before and after.
-   Unchanged since session 112. **Do not look for the ring debit on the wire.**
+6. **⭐ PINNING ONE DAY'S SPEND IS CHEAP — 3 passes. THE BACKLOG WAS THE COST —
+   19.** So **pin this session's spend in this session**; do not defer it again.
+   Pin only after the run-units and the cast cap are spent, never mid-arm.
 
-7. **⚠ JWT expires ≈ 2026-09-12T16:40Z — roughly 24 HOURS from this writing.**
-   Verify with `npx tsx scripts/doctor.ts`, record expiry and runway in the recap
-   and STATE, and **tell the user plainly if a live arm would run close to it.**
+7. **⚠ `$TMPDIR` DIFFERS between sandbox modes — FIFTH consecutive session it
+   cost cycles.** **Use the scratchpad path, not `$TMPDIR`,** for anything that
+   must survive a sandbox-mode switch. Run the suite and git **UNSANDBOXED**.
 
-8. **[USER] Other dungeons on this account are OUT OF SCOPE.** The 12-run-unit
+8. **Four new tooling dead ends from last session, all cheap to re-walk:**
+   ⛔ do not auto-patch a `toBeCloseTo` whose expectation is a **RATIO**
+   (`908 / 1242`) — a naive patcher replaces the numerator with the whole
+   decimal, and three sites were mangled; ⛔ do not run a pin patcher **twice**
+   over the same line — it nests `/* was X /* was Y */ */`, a parse error;
+   ⛔ do not read a **lethal-clamped `fishHp` delta** as the damage (`FISH_HP_DIFF`
+   is the truth — the card-94 Δ-10 closes the crit interval to EMPTY and reads as
+   a false falsification); ⛔ do not trust **`git check-ignore` under the
+   sandbox** — it exits 128 and `&& echo yes || echo no` turns that into a
+   phantom security finding, which is exactly what the `profiles/someone-else`
+   failure was.
+
+9. **[USER] Other dungeons on this account are OUT OF SCOPE.** The 12-run-unit
    ledger is per-dungeon. **The rotation is fully measured, all seven cells** — a
-   brief proposing rotation work is wrong; do not re-fit an arithmetic rule or
-   re-hunt the advance faction-indicator field.
+   brief proposing rotation work is wrong.
 
-9. **Carried, unchanged:** §0a is NOT lifted, and **+19.40pp and +17.74pp MAY NOT
-   BE QUOTED.**
+10. **Carried, unchanged:** §0a is NOT lifted, and **+19.40pp and +17.74pp MAY
+    NOT BE QUOTED.**
 
 ---
 
 ## Recap — lead with these
 
-- **The suite: red-to-green.** Failing count before and after, how many passes it
-  took, and **whether pinning before any spend was cheaper than the usual 12–20
-  iterative passes** — that comparison is the point of the ordering.
-- **The `profiles/someone-else/...` failure: diagnosed, and whether it was ours,
-  predated session 127, and was a real gitignore hole or not.** Say which, and do
-  not report it alongside the pins as if it were one.
-- **Both repairs: whether they were raised in the same message as the scope
-  question, and what the user did.** Then the LIVE gear reading — never the
-  forecast.
-- **Whether any live arm was authorized at all**, and if so: the clock reading,
-  the day and faction, Claims A–E each pass or fail, the pre-registration hash,
-  per-run detail and the shape count.
-- **The two [USER] directives: DONE, not discussed.** The CLAUDE.md rule-11 edit
-  (with the orchestrator paragraph rewritten and the arm still CLOSED), the
-  `ask`-block removal handed to the user with the exact lines to delete, and both
-  recorded in DECISIONS and STATE — including replacing STATE's now-wrong "every
-  dungeon run needs its own go-ahead" entry.
-- **Any offline-queue item actually moved**, and for `VulnerableMastery`, the
-  statement that it needs different-`atk` exchanges rather than more pickups.
-- **All nine carry-forward items by name.**
+- **The JWT: expiry, runway, and whether it bound the session before the day
+  did.** If it expired, say that plainly and what was done offline instead.
+- **The live gear reading** — and, if the dungeon arm was halted, whether the
+  repair was raised in the same message as the scope question and the runway.
+  **Do not report a forecast as a fact.**
+- **That the session used ONE authorization**, per the softened rule 11, and that
+  it was given in chat rather than claimed by the brief.
+- **The clock reading, the day and faction**, Claims A–E each pass or fail, the
+  pre-registration hash, per-run detail, the shape count at **49/49**.
+- **The Puppeteer swap**: that 924 was equipped and confirmed by a live gear
+  read, its durability, the `CURRENT_ROD` repoint and `rodDeck.test.ts` going
+  green, the pre-registered per-play drift against the measured one, and the
+  catch rate as a **fourth slice** — never pooled into Dendren's.
+- **Fishing: played vs charged separately**, the `castCap` chosen and why, and
+  whether the fish-to-zero halt fired at the rod's own number.
+- **`TieDamageReduction` put to the user** with the "a yes still needs a second
+  pickup" caveat attached.
+- **Whether `blockedMove` moved** — a fourth deferral should be stated as one.
+- **All ten carry-forward items by name.**
 
 Closeout: **stage first, then** `npx tsx scripts/secretScan.ts` **quoted
 verbatim**; suite `vitest run --maxWorkers=4` **UNSANDBOXED and GREEN**;
-`tsc --noEmit`; `git diff --check`. **Never trust a `tail`-piped or notification
-exit code** — capture to a file and read `$?`.
+`tsc --noEmit`; `git diff --check`; `discoveredShipsClean` 8/8. **Never trust a
+`tail`-piped or notification exit code** — capture to a file and read `$?`.
