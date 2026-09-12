@@ -1,40 +1,41 @@
-# STATE — session 128 — 2026-09-11 — commit 562d991b
+# STATE — session 129 — 2026-09-12 — commit <SHA>
 
 ## Status
 No numbered TASKS.md gate; tasks 1–14 are GATE MET or parked on data. The
-session worked `handoff/next.md`'s session-128 brief, which was CURRENT.
+session worked `handoff/next.md`'s session-129 brief, which was CURRENT.
 
-**⭐ THE CARRIED GATE IS MET. GATE PASS — the suite is GREEN and was LEFT
-GREEN.** Session 127 handed over 70 failures / 2604 (its recap said 71; the
-extra one does not reproduce unsandboxed — see below). The session closed at
-**2637 passed / 2637, exit 0**, `tsc --noEmit` exit 0, `git diff --check` exit 0
-— *after* a full day's live spend, not before it.
+**⭐ GATE PASS. The full live day was spent AND the suite was left GREEN** —
+**2674 passed / 2674, exit 0**, `tsc --noEmit` exit 0, `git diff --check`
+exit 0, `discoveredShipsClean` 8/8.
 
 **The dungeon arm is a full PASS: 12/12 run-units, 4 juiced Tier-2 runs,
-272 actions, 0/272 = 0.00% first-attempt failures**, every pre-registered
-prediction landing at every one of four readings. The fishing arm spent the
-day's last 3 casts, 20/20.
+254 actions, 0/254 = 0.00% first-attempt failures**, and **every
+pre-registered forecast landed EXACTLY at all four readings.** The fishing arm
+ran the **FIRST Puppeteer (924) batch** — 17 played / 14 charged, clean
+`cast_cap` exit, halting on the gear number it was sized to.
 
-**⭐ TWO [USER] DIRECTIVES IMPLEMENTED, not discussed** — rule 11 softened to
-per-session approval, and ring balances retired as a constraint.
+**⭐ `blockedMove` IS DONE — and the answer FALSIFIES the wiring three briefs
+proposed.** Offline, zero live cost, after three sessions of deferral.
 
-**⭐ THREE of the session's findings were NOT pins.** The 25% mitigator is
-IDENTIFIED (it is `Weak`); `TieDamageReduction` is NOT latent; and the
-`profiles/someone-else` failure was a sandbox artefact, not a gitignore hole.
+**⭐ THREE findings that are NOT pins**, all from live captures: `Vengeance`
+AMPLIFIES; `hpMax` and Sword ATK both fell by 1 coincident with the rod swap;
+and `redrawTrigger`'s turn-count separation was a property of the OLD DECK.
 
 **Secret scan, quoting the instrument verbatim** (`npx tsx scripts/secretScan.ts`),
 run AFTER staging:
 
 ```
 > secret scan — scope: tracked
-  files scanned:        17153
-  CONTROL A (read):     16749 file(s) contain "docId"
+  files scanned:        17773
+  CONTROL A (read):     17367 file(s) contain "docId"
   CONTROL B (matchers): all rules verified against synthetic samples
 > PASS — no unexplained hits, both controls healthy.
 ```
 
-14 allowlisted hits, all pre-existing test fixtures and doc samples. **No leaks
-this session.** `tests/discoveredShipsClean.test.ts` 8 passed.
+Plus the narrower run, as an ADDITION and not a substitute:
+`--scope=diff --ref=3b3d9e9f` → **646 files, PASS**. 14 allowlisted hits, all
+pre-existing test fixtures and doc samples. **No leaks this session.** No
+`raw/` or `.har` path entered the commit.
 
 ## Settled — do not re-open
 Pointers only — `DECISIONS.md` and `QUESTIONS.md` own the evidence. **An entry
@@ -42,225 +43,221 @@ here means a brief proposing it as NEW work is wrong.** Carried forward and
 edited each session, never rewritten. **[USER]** = a user directive an agent may
 not re-open at all.
 
-**Dropped this session — FIVE, to hold the ~15 cap:** the **fishing-refusal
-non-point** and the **two-rollovers-are-one-instant** entries (both folded into
-this session's own operating practice and neither re-proposable as new work);
-the **item-50 / slot-8 zero-durability** entry (now stated in `checkGear.ts`'s
-own output every run); the **"a new boon type needs a USER DIRECTIVE, now
-eleven"** entry (enforced by `tests/boons.test.ts`'s `AWAITING_MODEL_DIRECTIVE`
-branch, which fails if anyone models one — it enforces itself); and the
-**`ask`-block config cause** entry, superseded by the rule-11 directive below.
+**Dropped this session — FOUR, to hold the ~15 cap:** the **25%-mitigator /
+`Weak`** entry and the **`critProc1` intuition-exclusion** entry (both now
+stated in `scripts/statusEffects.ts`'s own comments beside tests that fail if
+anyone reverts them); the **two-wear-sets** entry (confirmed a fifth time and
+carried by the pre-registration ritual itself); and the **rod-read /
+`--casts` override** entry, now enforced by `SESSION_129_LIMITS`'s own doc
+comment and by `oilBatch.ts`.
 
-**And SIX more, to bring an over-cap digest back down:** the **Dendren tripwire**
-entry (it fired, read noise, and is now a metric rather than proposable work);
-the **"different fisheries" phrasing**, **double-lethal oil override**,
-**Tier-1/Tier-3 income baseline** and **evade-dominates-crit** entries (all four
-quiet for many sessions and all four enforced by tests or config); and the
-**sorted-list-diff** entry (a tooling note, recorded in DECISIONS, not work a
-brief would propose).
-
-- ⭐ **`TieDamageReduction` IS NOT LATENT — the roster is ELEVEN and this is the
-  FIRST held type whose conditional has been OBSERVED.** [session 128] Three
-  exchanges in the pickup's own run come in **−2** under prediction, and all
-  three are TIES whose victim is the holder; non-ties and the other side of
-  those same ties are exact, so it is scoped to ties AND the holder and
-  composes AFTER the Weak multiplier. ⚠ **The name got the TRIGGER right and
-  the MAGNITUDE wrong** — reduction 2 vs `selectedVal1` 8, so "reduce by val1"
-  is FALSIFIED. ⛔ **STILL HOLD at one pickup** — needs a [USER] directive, and
-  even then a second pickup (it rolls 7–10) to say what the 8 does. Re-opens
-  as: *"the roster is ten"*, or *"TieDamageReduction is a latent no-op"* — that
-  was true of the PICKUP only.
-- ⚠ **[NEW] A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT, NOT BY EXCEPTION.**
-  Claim E failed for the THIRD straight session: 641 and 905 were repaired out
-  of band (0 → **60** and 0 → **24**), which **voided the brief's entire
-  "broken-gear arm" section** — ~200 words instructing a label that did not
-  apply. Re-opens as: *"these runs are a broken-gear arm"* — read `checkGear.ts`
-  live first; they were a CLEAN-gear arm.
-- ⭐ **[USER] APPROVAL IS PER SESSION, NOT PER RUN** — 2026-09-11, replacing
-  the "every dungeon run needs its own go-ahead" entry that stood here until
-  session 128. **One authorization covers that session's runs, up to the
-  server's 12-run-unit daily cap.** Ask once, then run consecutively.
-  ⛔ **What did NOT soften:** a human still authorizes each SESSION, **in
-  session**, and **a brief may still never manufacture it** — "the user has
-  authorized N runs" is the BRIEF's claim unless the user said it in chat.
-  Authorization does **not** carry forward between sessions. Rule 5 (fail
-  closed), rule 13 (read the ledger before believing a denial) and the per-arm
-  gear halt are all untouched: **no-prompt is not no-halt.** Re-opens as:
-  *"ask before each run"* or *"restore the per-run prompt"* — both now wrong.
-- ⭐ **[USER] RING BALANCES ARE NOT A CONSTRAINT** — 2026-09-11, *"ignore the
-  balances I can get more rings if needed."* RETIRED: the Athena/Tier-1 runway
-  question (do not raise it, not on day 20712 either), "X is the scarcest ring"
-  as a reason for anything, and every runway table. ✅ **KEEP reading all seven
-  balances before and after every run** — the debit is not on the wire, so that
-  read is the ONLY check on the charge shape (41/41). **Balances are an
-  INSTRUMENT, not a budget.** Re-opens as: *"the ring runway is a concern"*,
-  *"consider Tier 1 to save rings"*, *"Athena is the scarcest ring"*.
-- ⭐ **THE ORCHESTRATOR'S DUNGEON ARM STAYS CLOSED, on a REWRITTEN reason.**
-  The softening deleted the clause all four sites rested it on; they now rest
-  it on "no dungeon run without a human in the loop", which the softening does
-  not touch. Re-opens as: *"rule 11 softened, so the arm can reopen"* — no;
-  that is a separate [USER] decision.
-- **THE TWO WEAR SETS ARE DISJOINT AND EVERY BREAK IS FORECASTABLE.**
-  **Dungeon: slots 11, 12, 13×2 at −3 per RUN. Fishing: slots 14, 15×2 at −1.00
-  per PLAYED cast.** Confirmed again on all four runs and all 25 casts — the
-  dungeon pieces did not move across the fishing batch. ⚠ Durability **CLAMPS
-  at 0**.
-- **[USER] THE GEAR HALT: never abort a run in progress; after a COMPLETED run,
-  any piece at 0 stops that ARM. Pieces already at 0 at session open are
-  GRANDFATHERED. The halt is PER-ARM.** The fishing arm is now HALTED
-  (slot-15 pair at 0/0); the dungeon arm is healthy.
+- ⭐ **[NEW] `blockedMove`'s SCOPE IS MEASURED AND THE PROPOSED WIRING IS
+  FALSIFIED.** It does **NOT** bind the CURRENT exchange (**6/20** vs **6.67**
+  expected, p = 0.48 — chance exactly) and only DEPRESSES the NEXT one
+  (**2/20**, p = 0.018). ⛔ A hard exclusion assigns probability ZERO to an
+  event the corpus contains **TWICE**. It is a SOFT prior (~3.3x) whose
+  magnitude n=20 cannot support. Pinned in `src/sim/blockedMove.ts` /
+  `tests/blockedMove.test.ts`; consumed nowhere in the strategy path.
+  Re-opens as: *"wire blockedMove in — remove it from the enemy's
+  distribution"*, or *"the current-vs-next scope is unsettled"*. Both wrong.
+- ⚠ **[NEW] `Vengeance` AMPLIFIES — the SECOND held boon whose conditional has
+  been observed.** `atk 26 → taken 32` (**+6**) twice, attacker carrying
+  `beforeStatus.Vengeance = 25`; **one a TIE and one NOT**, so the trigger is
+  not ties and this is not `TieDamageReduction`. Added to `inertAtZero`'s
+  exclusion — the **FIFTH** completion of that filter, not a relaxation.
+  ⛔ `BOON_MODELS` untouched. Re-opens as: *"Vengeance is a latent no-op"* —
+  true of the PICKUP only.
+- ⭐ **[USER] `TieDamageReduction` STAYS HELD AT n=1** — asked and answered
+  2026-09-12. The roster stays ELEVEN. Re-opens as: *"model the observed −2"*,
+  *"ask the user about TieDamageReduction"* — both now answered; do not re-ask
+  without a second pickup.
+- ⚠ **[NEW] `hpMax` 51 → 50 AND Sword ATK 27 → 26, TOGETHER**, on every
+  opening of 2026-09-12 against every opening of 2026-09-11. `armorMax`,
+  Paper and Scissor unmoved. **The one equipment IDENTITY change between the
+  readings is the rod swap 923 → 924**; every other piece is the same instance
+  and all were alive. ⛔ COINCIDENT, **NOT PROVEN** — but falsifiable for the
+  price of one gear read: if the rod is the cause, swapping back restores
+  51/27. Re-opens as: *"the −1 is broken gear"* — it is not; every dungeon
+  piece read healthy.
+- ⚠ **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT — FIFTH session running.**
+  640 and 905 were repaired out of band (0 → **60** and 0 → **24**), so the
+  dungeon arm was NOT halted. ✅ **This brief handled it correctly** — it
+  inverted the instruction to *"read `checkGear.ts` first, then raise a repair
+  only if the live numbers call for one"*, and nothing was wasted. **Keep that
+  inversion.** Re-opens as: *"raise these repairs up front"*.
+- ⭐ **[USER] APPROVAL IS PER SESSION, NOT PER RUN** — 2026-09-11. One
+  authorization covers that session's runs to the 12-run-unit cap. Used exactly
+  that way this session: asked once, four runs consecutively, no pause.
+  ⛔ **A human still authorizes each SESSION, in session, and a brief may never
+  manufacture it.** Rule 5, rule 13 and the per-arm gear halt are untouched:
+  **no-prompt is not no-halt.** Re-opens as: *"ask before each run"*,
+  *"the user has authorized N runs"* (in a brief).
+- ⭐ **[USER] RING BALANCES ARE NOT A CONSTRAINT** — 2026-09-11. RETIRED: the
+  runway question, "X is the scarcest ring", every runway table. ✅ **KEEP
+  reading all seven before and after every run** — the debit is not on the
+  wire, so that read is the ONLY check on the charge shape (**49/49**).
+  Re-opens as: *"the ring runway is a concern"*, *"consider Tier 1 to save
+  rings"*.
+- ⭐ **THE ORCHESTRATOR'S DUNGEON ARM STAYS CLOSED**, on "no dungeon run
+  without a human in the loop" — which the 2026-09-11 softening does not
+  touch. Re-opens as: *"rule 11 softened, so the arm can reopen"*.
+- **[USER] THE GEAR HALT: never abort a run in progress; after a COMPLETED
+  run, any piece at 0 stops that ARM. Pieces already at 0 at session open are
+  GRANDFATHERED. The halt is PER-ARM.** Fired twice this session exactly as
+  pre-registered — 901 at run 4, the slot-15 pair at cast 17. Item 50 (slot 8)
+  is grandfathered and is **not** an arm halt however loudly the banner reads.
 - **[USER] OTHER DUNGEONS ON THIS ACCOUNT ARE OUT OF SCOPE.** The 12-run-unit
   ledger is PER-DUNGEON, measured.
-- **THE ROD IS READ AT PREFLIGHT AND AFTER THE BATCH, NEVER BETWEEN CASTS**, and
-  **`--casts=N` is SILENTLY OVERRIDDEN by `--oil-batch`**. ⚠ **The `castCap: 2`
-  convention is NOT a safety rule in itself** — it exists because a dry rod
-  injects `BASE_DECK` mid-batch unnoticed. **That hazard needs the rod to reach
-  0**; at rod 38 → 13 it was unreachable, so `SESSION_127_LIMITS` ran
-  `castCap: 25` deliberately. Re-opens as: *"a long batch violates the rod
-  rule"* — only when the rod can reach 0.
-- **[USER] The fishing budget is 360 energy / 30 casts, STANDING.**
+- **[USER] The fishing budget is 360 energy / 30 casts, STANDING.** The binding
+  cap is whichever of rod / ledger / gear is smallest — this session it was
+  **gear at 17**, not the rod (44) and not the ledger (20).
 - **THE FACTION IS A FUNCTION OF THE ROLLOVER CLOCK.** Read `next day in
-  HH:MM:SS` before accepting any faction framing. ⚠ It was RIGHT this session
-  (brief said Athena, clock said Athena with 36:50 left) — the habit is cheap
-  and stays. The rotation itself is **fully measured, all seven cells**; a brief
-  proposing rotation work is wrong.
-
-- ⭐ **THE 25% MITIGATOR IS IDENTIFIED AND IT IS `Weak`.** 343/343 of the
-  `floor(atk*0.75)` bucket carry `Weak > 0` on the ATTACKER; **zero** carry no
-  Weak. It looked unknown for four sessions because the bucket was described by
-  an ABSENCE ("carries no proc flag" — true, and irrelevant, since `Weak` is a
-  STATUS). ⛔ A residual TWO are left open at n=2. Re-opens as: *"identify the
-  25% mitigator"* or *"73 exchanges with no proc flag are unexplained"*.
-- ⚠ **`critProc1` IS IN `procEffectSize`'s INTUITION EXCLUSION — the FOURTH
-  completion of that filter, not a relaxation.** atk 22 → taken 44 is the
-  ATTACKER's crit, an AMPLIFICATION, and the old exclusions covered only player
-  0's side. Re-opens as: *"intuition interacts with crit"* — it does not.
-- ⚠ **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT — now FOUR sessions running,
-  and this time BOTH of its repairs were unnecessary.** 901 read 24 not 2; the
-  slot-15 pair read 30/20 not 0/0. Re-opens as: *"raise these two repairs"* —
-  read `checkGear.ts` live first.
-- ⚠ **PINNING ONE DAY'S SPEND IS CHEAP (3 passes); THE BACKLOG WAS THE COST
-  (19).** Re-opens as: *"pinning before spending will be cheaper"* — it is
-  better, but because nothing is writing underneath, not because there is less.
-
-
+  HH:MM:SS` before accepting any faction framing. Right again this session
+  (day 20707, dow 1, Crusader). The rotation is **fully measured, all seven
+  cells**; a brief proposing rotation work is wrong.
+- ⚠ **PINNING ONE DAY'S SPEND IS CHEAP; THE BACKLOG IS THE COST.** Five rounds,
+  ~90 sites this session, done in-session. Re-opens as: *"defer the pin pass"*.
+- ⚠ **`VulnerableMastery` needs COLLECTION, not ANALYSIS** — its `val1` never
+  rolls, so only exchanges at DIFFERENT `atk` values separate the candidates.
+  Re-opens as: *"analyse VulnerableMastery offline"* — it cannot succeed.
 
 ## What works
-- **`scripts/liveRun.ts` end to end, FOUR times in 33 minutes** — 272 actions,
-  **0/272 = 0.00% first-attempt failures**, the best rate on record.
-- **Every dungeon forecast landed EXACTLY, at all four readings** — Archon the
-  sole ring mover at −3/run, and all four wearing pieces on their predicted
-  values every time.
-- **The pre-registered gear halt fired exactly where predicted** (after run 4,
-  640 and 905 at 0), coinciding with the 12-unit cap so it cost nothing.
-- **`scripts/liveFishing.ts --oil-batch` at `castCap: 3`** — clean `cast_cap`
-  exit, rod delta exactly −1.00/played cast, both ledgers agreeing at 20/20.
-- **Pre-registration as a git commit, EIGHT sessions running** (`825a8389`).
-- Rule 8's Perpetual filter and the tier picker across all 272 actions, no
+- **`scripts/liveRun.ts` end to end, FOUR times in ~17 minutes** — 254 actions,
+  **0/254 = 0.00% first-attempt failures**.
+- **Every dungeon forecast landed EXACTLY, at all four readings** — Crusader
+  the sole ring mover at −3/run, all four wearing pieces on their predicted
+  values every time, and the break on 901 at run 4.
+- **`scripts/liveFishing.ts --oil-batch` on a NEW ROD** — clean `cast_cap`
+  exit at 17/17, rod delta exactly **−1.00/played cast** (44 → 27).
+- **Pre-registration as a git commit, NINTH session running** (`09c8bc37` for
+  the dungeon arm, `bf31c692` for the fishing arm — each before its own spend).
+- **`scripts/secretScan.ts` at both scopes**, tracked and diff.
+- Rule 8's Perpetual filter and the tier picker across all 254 actions, no
   unknown enum.
 
 ## What's broken
-- ⚠ **THE DUNGEON ARM IS HALTED** — 640 (slot 11) and 905 (slot 13) both at 0
-  after run 4, exactly as pre-registered. **A manual repair is needed before the
-  next session's dungeon runs.** 641 at 36, 901 at 12.
-- ⚠ **THE `ask` BLOCK IN `.claude/settings.local.json` IS STILL THERE and it is
-  the USER's edit to make.** It blocked two commands this session outright,
-  including `vitest run tests/orchestrator` — the path SUBSTRING alone was
-  enough. An agent cannot edit its own permission rules.
-- ⚠ **`$TMPDIR` DIFFERS between sandbox modes** — cost cycles again (FIFTH
-  consecutive session). Use the scratchpad path, not `$TMPDIR`, for anything
-  that must survive a sandbox-mode switch.
-- ⚠ **The residual TWO Weak-outside-bucket exchanges are unexplained** at n=2.
+- ⚠ **BOTH ARMS ARE HALTED on gear.** Dungeon: **901 (slot 13) at 0**. Fishing:
+  **the slot-15 954 at 0** (its pair at 10). **Both need a manual repair
+  before the next session's runs.** 640 at 48, 641 at 24, 905 at 12, rod 924
+  at 27.
+- ⚠ **THE `ask` BLOCK IN `.claude/settings.local.json` IS STILL THERE** and is
+  the USER's edit to make — the path SUBSTRING alone trips it. It did not
+  block anything this session, but it remains.
+- ⚠ **`$TMPDIR` DIFFERS between sandbox modes** — cost cycles a **SIXTH**
+  consecutive session, on the very first suite capture. Use the scratchpad
+  path, never `$TMPDIR`, for anything that must survive a mode switch.
+- ⚠ **`data.nextPosition` / `data.nextMovePath` are still logged as UNKNOWN
+  FIELDS on every fishing turn** — 8 dumps today, and dumps exist from
+  2026-09-08 onward. **The bot ACTIVELY USES `nextPosition`** (the override
+  reports 62/62 hits), so a field the strategy depends on has been flagged
+  unknown for five sessions. A registry gap, not a rule-5 condition.
+- ⚠ **`fixtures/fishing-casts/cards.json` holds only 8 of Golkan's 10 cards**
+  (82, 83 absent). Dendren and Puppeteer are complete.
 
 ## Corrections to SPEC.md
 - **`SPEC.md` was not touched and needed no change.** No live response
   contradicted it.
-- ⚠ **Claims A–E: THREE PASSED, ONE FAILED, ONE READ-ONLY.** A PASS (day 20706,
-  dow 7, Archon, off the clock), B PASS exactly (9/18/24/27/30/33/42 = 183),
-  C PASS (`dayProgressEntities` null = 0 of 12), D read live (3 casts left, not
-  asserted by the brief), **E FAIL** — gear, fourth consecutive session.
+- ⚠ **Claims A–E: FOUR PASSED, ONE READ-ONLY-AND-STALE.** A PASS (day 20707,
+  dow 1, Crusader, off the clock), B PASS exactly (9/12/18/27/30/33/42 = 171),
+  C PASS (`dayProgressEntities` null = 0 of 12), D PASS (0/20 charged),
+  **E was deliberately not asserted by the brief** — read live, and the
+  forecast table it offered "for orientation only" was stale in **three** of
+  its six rows.
+- ⚠ **The brief's `rodDeck.test.ts` prediction was BACKWARDS.** It said the
+  test would be "red until the repoint lands"; the test keys on the rod in the
+  latest CORPUS cast, so it is the **repoint** that reddens it and the first
+  recorded Puppeteer cast that heals it.
 - **Move charges: ABSENT** — no `gameItemBalanceChanges` for rings on the wire;
   the ring spend is observable only by reading balances before and after.
   Unchanged since session 112.
 - Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
 
 ## Dead ends
-- **Do not describe an exchange population by what it does NOT carry.** Four
-  sessions of "the 25% mitigator carries no proc flag" pointed away from the
-  answer, which was a STATUS on the attacker.
-- **Do not auto-patch a `toBeCloseTo` whose expectation is a RATIO** (`908 /
-  1242`) — a naive patcher replaces the NUMERATOR with the whole decimal. Three
-  separate sites were mangled and hand-repaired.
-- **Do not run a pin patcher twice over the same line** — it nests
-  `/* was X /* was Y */ */`, which is a parse error, not a comment.
-- **Do not read a lethal-clamped `fishHp` delta as the damage.** Taking the
-  card-94 Δ-10 at face value closes the crit-multiplier interval to EMPTY and
-  reads as a falsification; `FISH_HP_DIFF` says the true value is 11.
-- **Do not trust `git check-ignore` under the sandbox** — it exits 128 and the
-  `&& echo yes || echo no` idiom turns that into a phantom security finding.
-- **Do not run the suite or git sandboxed**, and do not trust a `tail`-piped
-  exit code — capture to a file and read `$?`.
+- **Do not read consecutive captures as consecutive EXCHANGES.** Every
+  `use_move` capture is followed by a duplicate with no events; treating those
+  as exchanges makes "current" and "next" the SAME row and returns an
+  identical 6/20 for both — which is exactly how a first pass at `blockedMove`
+  hid the entire finding.
+- **`loadCorpus()` cannot answer any question about `data.events`** —
+  `CorpusState` keeps `data.run` and drops `events` entirely.
+- **Do not let a pin patcher walk forward to the next `);`** — it annotates
+  assertions it never changed (16 of them this session) and mis-maps array
+  literals positionally (`[3,3]` → `[4,3]` where the truth was `[3,4]`). Sweep
+  the diff for added annotations whose line is otherwise byte-identical.
+- **Do not patch a bare numeric literal; anchor on the matcher call.** The old
+  value also lives inside the historical `/* was X */` comment on the same
+  line.
+- Carried and re-walked successfully: ratio expectations need BOTH halves moved
+  by hand; never nest a `/* was */`; `$TMPDIR` differs by sandbox mode; run the
+  suite and git UNSANDBOXED.
 - Carried: §0a NOT lifted, **+19.40pp and +17.74pp MAY NOT BE QUOTED.**
 
 ## Metrics
 - **Dungeon, live: 4 juiced Tier-2 runs, 12/12 run-units, 240 energy**, all on
-  game day **20706 (dow 7, Archon)**, 17:12:35Z → 17:45:17Z. Actions
-  **86 / 57 / 66 / 63 = 272**; **0/272 = 0.00% first-attempt failures.**
-  Archon 24→21→18→15→**12**, −3/run, sole mover every time.
-- **Fishing, live: 3 PLAYED / 3 CHARGED**, 36 energy, clean `cast_cap` exit,
-  **both ledgers agreeing at 20/20**. 0 oils consumed (Relaxing 22 held).
-- **Gear, close: 640 0, 641 36, 901 12, 905 0** (dungeon — ARM HALTED);
-  **rod 923 10, slot-15 pair 30/20** (fishing — healthy).
-- **Rings, close: Athena 9, Archon 12, Chobo 18, Crusader 27, Summoner 30,
-  Foxglove 33, Overseer 42 — total 171.** Charge shape **45/45**.
-- **Catch rate, ALL THREE SLICES: Dendren 54/104 = 51.9%** (still inside the
-  pre-registered 50–65% noise band), **Golkan 183/307 = 59.6%**, **pooled
-  271/537 = 50.5%.** Legacy rod 21/82 = 25.6%, base deck 13/44 = 29.5%.
-- **§71 K=10 — POOLED margin −1**, having come in at 0, HELD at 0 through the
-  four dungeon runs, then moved when the 3-cast tail took b10's `sacrifices`
-  8 → 9 (b10 net 45−9 = 36 vs all3 52−15 = 37). **DENDREN-ONLY margin −3** at
-  n=104 (was −2 at n=101). Golkan −5. **[USER] HOLD — report, do not decide.**
-- Suite **2637 passed / 2637, exit 0**, files 116 — **GREEN.** Corpus:
-  **141 dungeon attempts** (was 137), **537 fishing casts** (was 534).
-- **JWT valid to ≈ 2026-09-12T16:45Z** — roughly **22.5h** from session close.
+  game day **20707 (dow 1, Crusader)**, 15:03:35Z → 15:17:13Z. Actions
+  **39 / 63 / 62 / 90 = 254**; **0/254 = 0.00% first-attempt failures.**
+  Crusader 27→24→21→18→**15**, −3/run, sole mover every time; six untouched.
+- **Fishing, live: 17 PLAYED / 14 CHARGED**, 204 energy, clean `cast_cap`
+  exit, ledgers agreeing at 14/20 with 6 casts unspent — **stopped by the GEAR
+  halt, not the ledger.** 2 Relaxing oils consumed (22 → 20).
+- **Gear, close: 640 48, 641 24, 901 0, 905 12** (dungeon — ARM HALTED);
+  **rod 924 27, slot-15 pair 10 / 0** (fishing — ARM HALTED).
+- **Rings, close: Athena 9, Archon 12, Crusader 15, Chobo 18, Summoner 30,
+  Foxglove 33, Overseer 42 — total 159.** Charge shape **49/49**.
+- **Catch rate, FOUR slices: Puppeteer 7/17 = 41.2%** (day one, n far too
+  small to read — 7 caught, 10 escaped), **Dendren 54/104 = 51.9%**, **Golkan
+  183/307 = 59.6%**, **pooled 271/537 = 50.5%.** ⛔ Puppeteer is NOT pooled
+  into Dendren's.
+- **Per-play drift, computed off the fixture (NOT taken from the brief):**
+  Dendren **−0.300**, Puppeteer **−0.678** at random aim — both reproduce the
+  brief exactly. Golkan **−0.389** does NOT reproduce its −0.400, because the
+  fixture holds 8 of its 10 cards. ⚠ Deck arithmetic, not a measurement.
+- **`blockedMove`: 20 procs in 145 runs.** Enemy move distribution over **5067**
+  corpus exchanges: paper 33.7% / rock 33.1% / scissor 33.2%.
+- Suite **2674 passed / 2674, exit 0**, files 117 — **GREEN.** Corpus:
+  **145 dungeon attempts** (was 141), **554 fishing casts** (was 537).
+  `OBSERVED_OFFERS` **750 → 780**.
+- **JWT expired ≈ 2026-09-12T16:45Z**, ~1.7h from session open at 14:59Z. It
+  bound tighter than the day (rollover 18:00Z) exactly as the brief predicted —
+  **but both live arms finished by 15:31Z, ~74 minutes inside the token.**
 
 ## Open questions for Claude
-1. ⭐ **THE DUNGEON ARM IS HALTED AND NEEDS ONE REPAIR BEFORE ANY RUN** — 640
-   (slot 11) and 905 (slot 13) at 0. This is the only blocker on the next live
-   dungeon day. Raise it in the same message as the scope question.
-2. ⭐ **`TieDamageReduction` NOW HAS AN OBSERVED EFFECT AND STILL NEEDS A [USER]
-   DIRECTIVE TO MODEL.** −2 on ties, 3/3, holder-only, composing after the Weak
-   multiplier — while `selectedVal1` was 8. **Ask the user whether to model it**,
-   and note that even a yes needs a second pickup (it rolls 7–10) to say what
-   the 8 governs.
-3. ⚠ **THE `ask` BLOCK IS STILL BLOCKING AND IS THE USER'S EDIT.** Rule 11 has
-   now softened, so the config and the rule no longer contradict each other in
-   the direction session 127 feared — but the block still fires on any command
-   whose text contains `liveRun.ts`, `liveFishing.ts` or `orchestrator.ts`.
-4. ⚠ **Wire `blockedMove` into the opponent model.** UNTOUCHED for a THIRD
-   session. Still free EV, pure-strategy, zero live spend. ⚠ Scope it: CURRENT
-   vs NEXT exchange is not settled by the fixtures.
-5. ⭐ **What is `VulnerableMastery`?** Still the sharpest lead. **Needs exchanges
-   at DIFFERENT `atk` values** — its `val1` never rolls, so more pickups will
-   not separate 4/3 from 1.35 from "+4". A reason to watch future runs, not to
-   analyse today.
-6. ⚠ **The residual TWO Weak-outside-bucket exchanges**, both exactly 2 under
-   prediction with no flags, both PREDATING the `TieDamageReduction` pickup.
-   n=2, deliberately not fitted. Free to look at offline.
-7. **The `web/` front end has still never spawned a real script** — untouched
+1. ⭐ **BOTH ARMS ARE HALTED AND NEED REPAIRS BEFORE ANY LIVE WORK** — dungeon
+   901 (slot 13) at 0, fishing slot-15 954 at 0. This is the only blocker on
+   the next live day. Raise it with the scope question, **after** reading
+   `checkGear.ts` live — three of the last five briefs' gear tables were stale.
+2. ⭐ **IS THE ROD THE CAUSE OF THE −1 HP / −1 ATK?** One gear read answers it
+   and costs nothing: if the user swaps back to 923, does the opening go back
+   to 51/27? If yes, **the fishing rod carries a DUNGEON stat line** — which
+   nobody has considered and which would make every rod swap a combat decision.
+3. ⚠ **`Vengeance` now has an observed effect and needs a [USER] directive to
+   model** — +6 at `val1` 25, n=2, holder-attacker, not tie-gated. Same shape
+   as last session's `TieDamageReduction` ask, and the same caveat applies: a
+   yes still needs more observations to say what the 25 governs.
+4. ⚠ **`blockedMove` is answered but NOT finished.** The remaining work is
+   COLLECTION — the proc rate is 20 in 145 runs, and a reweighting magnitude
+   needs enough that the interval on the depression clears the base rate.
+   ⛔ Do not commission runs for it; it accumulates for free.
+5. ⚠ **The unknown-field registry does not know `nextPosition`**, a field the
+   strategy actively depends on. Cheap to close, and it is noise on every
+   fishing turn until someone does.
+6. **The `web/` front end has still never spawned a real script** — untouched
    since session 120.
 
 ## Files changed
-Five commits this session; fixtures collapsed:
+Four commits this session (plus this recap); fixtures collapsed:
 
 ```
- fixtures/dungeon-runs/**            4 run captures (+1 dry-run)
- fixtures/fishing-casts/live/**      3 cast captures
- src/sim/boons.ts                    +66 OBSERVED_OFFERS 684 -> 750
- src/strategy/fishing/oilBatch.ts    +19 SESSION_128_LIMITS (castCap 3)
+ fixtures/dungeon-runs/**            536 files — 4 run captures (+1 dry-run)
+ fixtures/fishing-casts/live/**       80 files — 17 cast captures
+ src/sim/blockedMove.ts              NEW — the scope measurement
+ tests/blockedMove.test.ts           NEW — 6 pins on it
+ src/sim/boons.ts                    OBSERVED_OFFERS 750 -> 780
+ src/sim/enemies.ts                  hpMax 51->50, rock ATK 27->26, both recorded
+ src/sim/fishing/rodDeck.ts          CURRENT_ROD 923 -> 924 (+ why, at length)
+ src/strategy/fishing/oilBatch.ts    +SESSION_129_LIMITS (castCap 17)
  scripts/liveFishing.ts              +-2 point batchLimits at it
- scripts/orchestrator.ts             +-15 closure reason restated, arm STILL closed
- CLAUDE.md                           +40 rule 11 softened; Ask-first entry; orchestrator para
- tests/**                            17 files — pins, plus 3 findings
- handoff/{STATE,DECISIONS,log/session-128}.md
+ scripts/statusEffects.ts            +Vengeance exclusion in inertAtZero
+ tests/**                            18 files — the pin pass, plus 3 findings
+ handoff/{STATE,DECISIONS,scratch-session-129,log/session-129}.md
 ```
