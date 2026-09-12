@@ -344,6 +344,28 @@ export const SESSION_99_LIMITS: BatchLimits = {
  * Everything else inherits session 99's shape for session 99's reasons.
  */
 /**
+ * [session 129] The FIRST Puppeteer (924) batch. `castCap: 17` is sized to the
+ * **GEAR HALT**, not to the rod and not to the ledger — the two slot-15 pieces
+ * read 27 and 17 at session open and wear -1.00 per PLAYED cast, so the 17
+ * reaches 0 exactly at cast 17 and the [USER] per-arm halt fires there. The
+ * rod itself is at 44 and the game ledger at 20, so both are slack.
+ *
+ * The `castCap: 2` convention does not bind: the dry-rod hazard it exists for
+ * (a dry rod injects BASE_DECK mid-batch unnoticed, because durability is read
+ * at preflight and after the batch only) needs the rod to reach 0 with casts
+ * still to play, and 44 - 17 = 27 makes that unreachable.
+ *
+ * Everything else inherits session 99's shape for session 99's reasons.
+ */
+export const SESSION_129_LIMITS: BatchLimits = {
+  castCap: 17,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
+/**
  * [session 128] The day-20706 tail: exactly THREE casts, the whole of what the
  * game ledger had left (dayDocs[2] read 17/20) before the 18:00Z rollover.
  *

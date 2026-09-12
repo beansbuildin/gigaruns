@@ -344,7 +344,33 @@ export const BASE_DECK: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
  * any damage-keyed quantity. A damage pin that moves after the first Dendren
  * cast is the SWAP, not drift and not a regression.
  */
-export const CURRENT_ROD = DENDREN_ROD;
+/**
+ * **[session 129] REPOINTED to Puppeteer (924).** The user equipped it out of
+ * band; `checkGear.ts` read it live in slot 14 at DURABILITY 44 on
+ * 2026-09-12, with Dendren (923) gone from the equipped set.
+ *
+ * The repoint had to come BEFORE the first Puppeteer cast, not after:
+ * `readRodDurability` defaults to `CURRENT_ROD`, so leaving it at 923 makes
+ * the preflight fail closed with "rod 923 is NOT equipped" and no cast can be
+ * played at all. That inverts this file's usual both-halves-of-the-evidence
+ * order, and the consequence is stated rather than hidden:
+ * `tests/fishing/rodDeck.test.ts`'s "CURRENT_ROD is that rod" goes RED between
+ * the repoint and the first recorded Puppeteer cast, because the latest cast
+ * in the corpus is still a Dendren one. It self-heals on the first cast.
+ *
+ * ⚠ The session-129 brief predicted the opposite direction ("expect it to go
+ * red until the repoint lands"). The test keys on the CORPUS, not on the
+ * constant, so it is the repoint that reddens it.
+ *
+ * Puppeteer is POSITIONALLY IDENTICAL to Golkan and Dendren — the same ten
+ * hit-zone sets, `manaCost: 1` on all ten — so geometry-keyed numbers transfer
+ * and only the damage economy forks. Unlike the Golkan -> Dendren step it is
+ * **not** a mixed change: every card hits harder AND E[fish-HP delta per play]
+ * at random aim is -0.678 against Dendren's -0.300 (computed off
+ * `fixtures/fishing-casts/cards.json`, session 129). It dominates at every aim
+ * level, so no crossover applies.
+ */
+export const CURRENT_ROD = PUPPETEERS_ROD;
 
 /**
  * The deck every sim script starts from. ONE definition — three scripts

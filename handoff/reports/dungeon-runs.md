@@ -1,11 +1,11 @@
 # Dungeon runs
 
-Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-11T17:53:31.194Z.
+Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-12T15:22:41.263Z.
 
 **"Dendren Root"** (the user's term) is wire item 846, `NAME_CID: "Dendren Remnant"` — see this file's header comment in `src/sim/dungeonReport.ts` for the capture that confirmed it.
 
-141 recorded attempts — 132 deaths, 0 cleared, 9 incomplete/stopped. 96 juiced.
-Total Hard Core earned: 444892. Total Dendren Root earned: 44696. Total energy spent: 6660.
+145 recorded attempts — 136 deaths, 0 cleared, 9 incomplete/stopped. 100 juiced.
+Total Hard Core earned: 461212. Total Dendren Root earned: 46772. Total energy spent: 6900.
 
 ## Death-room histogram
 
@@ -14,13 +14,13 @@ Total Hard Core earned: 444892. Total Dendren Root earned: 44696. Total energy s
 - room 3: █████████████ 13
 - room 4: ████████████████ 16
 - room 5: ██████████████ 14
-- room 6: █████████ 9
-- room 7: ███████████████████████ 23
+- room 6: ██████████ 10
+- room 7: ████████████████████████ 24
 - room 8: █████████ 9
-- room 9: ███████████ 11
+- room 9: ████████████ 12
 - room 10: ██████████████ 14
 - room 11: █████ 5
-- room 12: ██ 2
+- room 12: ███ 3
 - room 13: ████ 4
 - room 14: ██ 2
 
@@ -169,3 +169,7 @@ Total Hard Core earned: 444892. Total Dendren Root earned: 44696. Total energy s
 | 25510291 | death @ room 9 | yes | 3984 | 546 | 60 | run-2026-09-11-17-24-17 |
 | 25510370 | death @ room 9 | yes | 4056 | 546 | 60 | run-2026-09-11-17-31-49 |
 | 25510448 | death @ room 9 | yes | 4224 | 546 | 60 | run-2026-09-11-17-40-56 |
+| 25531662 | death @ room 6 | yes | 2952 | 216 | 60 | run-2026-09-12-15-03-37 |
+| 25531682 | death @ room 7 | yes | 3144 | 309 | 60 | run-2026-09-12-15-06-45 |
+| 25531733 | death @ room 9 | yes | 4320 | 546 | 60 | run-2026-09-12-15-11-55 |
+| 25531776 | death @ room 12 | yes | 5904 | 1005 | 60 | run-2026-09-12-15-17-01 |
