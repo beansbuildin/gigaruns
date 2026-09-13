@@ -560,6 +560,23 @@ This is the user's own "Tier 1/2/3, silver/gold rings" terminology. Both
 gated tiers carry `inputsBasedOnFactionDay: true`, so **the required item
 list is not static** — re-read it per day, never cache it.
 
+**[CORRECTED 2026-09-13, session 130, LIVE] "one ring per faction" is the
+`entryData` SUPERSET, not a run's bill — at BOTH gated tiers.** Tier 2 was
+measured in session 112 (one silver faction, −3 per juiced run). Tier 3 was
+measured on four juiced runs on day 20708 (dow 2): **exactly one gold id moved,
+−3 per entry, six gold untouched and all seven silver untouched.** The charged
+gold faction was **Foxglove (248)**, whereas the silver dow → faction map puts
+dow 2 on Overseer, so **the Tier-2 silver rotation does not govern the gold
+charge**. One gold day is observed; the gold rotation is unknown. The debit is
+not on the wire (`start_run` carries no `gameItemBalanceChanges` for rings) —
+read balances before and after.
+
+**[MEASURED 2026-09-13, session 130] Dendren Root (846) is a function of the
+death room, identical at Tier 2 and Tier 3** (juiced): 6→216, 7→309, 8→420,
+9→546, 10→687, 11→840, 12→1005, 13→1179, 14→1362. Hard Core (845) at Tier 3
+paid 998 per room reached against Tier 2's 490 (×2.04), consistent with
+`dropMultiplier` 4 vs 2.
+
 `entryData` is ordered tier 2, 1, 3 in the array as returned. **Array index
 is not tier** — match `entryData[].tier` explicitly when reading this
 endpoint's response.
