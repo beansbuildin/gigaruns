@@ -5350,7 +5350,18 @@ a proc chance or something else is unknown.
 
 ---
 
-## §67 OPEN [session 113] — `Vengeance`: the first quantitative observation, and it is n=1
+## §67 ANSWERED [session 130] — `Vengeance`: the first quantitative observation, and it is n=1
+
+> **[session 130, 2026-09-13] ANSWERED, and the "+5 residue" below is explained
+> exactly.** The user directed "Model it". The corpus held far more than n=1:
+> **29** damage exchanges by an armed attacker, **164** status transitions, **8**
+> holder-as-victim exchanges. Rule: arms on a LOSS (never a win or tie), holds on
+> a further loss, consumed by the holder's next damaging exchange, which deals
+> `floor(x*1.25)` with crit before and Weak / Vulnerable / block after — 29/29.
+> The state-116 case: `floor(floor(30*1.25)*0.75) = floor(37*0.75) = 27`. Only
+> amount 25 has ever armed, so "+amount%" is NOT established and 15 is refused.
+> Model: `src/sim/vengeance.ts`; pins: `tests/statusEffects.test.ts`. The text
+> below is kept as the record of what was believed at session 113.
 
 **No decision is being asked for.** This is recorded so the observation is not
 lost and so a future session does not rediscover it as a `Weak` regression.

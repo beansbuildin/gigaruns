@@ -36,7 +36,7 @@
  * go-ahead. This script does not start dungeon runs at all: `nextAction` is
  * called with a null dungeon budget, and the `dungeon` branch below fails
  * closed. Dungeon runs go through
- * `npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1`.
+ * `npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1`.
  *
  * [session 128] THE REASON FOR THE CLOSURE WAS RESTATED, AND THE ARM DID NOT
  * REOPEN. This header used to say "an autonomous loop cannot satisfy a per-run
@@ -107,7 +107,7 @@ const DUNGEON_ARM_DISABLED = null;
 const RULE_11_POINTER =
   "dungeon runs are disabled in the orchestrator (CLAUDE.md rule 11: every run is a 60-energy juiced Tier-2 entry " +
   "needing a human in the loop, and an orchestrator-initiated run has none). " +
-  "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1";
+  "Run one with: npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Cap on any one sleep chunk — keeps SIGINT response prompt during a long regen wait rather than blocking in one giant setTimeout. */

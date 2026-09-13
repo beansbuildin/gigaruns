@@ -15,7 +15,7 @@
  * before and after a run. This script prints it so a run can be bracketed:
  *
  *   npx tsx scripts/checkGear.ts   # before
- *   npx tsx scripts/liveRun.ts --juiced --juiced-index=2 --runs=1
+ *   npx tsx scripts/liveRun.ts --juiced --juiced-index=3 --runs=1
  *   npx tsx scripts/checkGear.ts   # after  -> per-run wear rate, per slot
  *
  * ▸ [USER] RATIFIED 2026-09-05 — THE GEAR HALT. A run in progress is NEVER

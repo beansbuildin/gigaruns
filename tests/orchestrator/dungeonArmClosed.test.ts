@@ -100,10 +100,17 @@ describe("rule 11 — the potion/juiced invariant, stated over the whole source 
     const src = read("scripts/orchestrator.ts");
     expect(src).toContain('throw new Error(`scheduler returned {kind: "dungeon"}');
     expect(src).toContain("rule 11");
-    expect(src).toContain("scripts/liveRun.ts --juiced --juiced-index=2 --runs=1");
+    expect(src).toContain("scripts/liveRun.ts --juiced --juiced-index=3 --runs=1");
   });
 
-  it("no operator-facing hint still recommends a retired entry tier (3 or 1)", () => {
+  it("no operator-facing hint still recommends a retired entry tier (2 or 1)", () => {
+    // [session 130] ⭐ **The retired set flipped AGAIN, by [USER] directive
+    // 2026-09-13: the standing tier is back to 3 (gold rings), so 2 and 1 are
+    // now the retired indices and 3 is the instruction.** A stale `=2` would
+    // halve Hard Core against the tier the user chose (dropMultiplier 2 vs 4,
+    // measured x2.04 per room on the first four Tier-3 runs). The two paragraphs
+    // below are kept as history; their "3 is retired" reading is superseded.
+    //
     // [session 104] The switch to Tier-1 is a policy the operator reads off a
     // printed command line, so a stale hint IS the bug — nothing in code
     // defaults the index (`--juiced-index` is required and never guessed), and
@@ -126,7 +133,7 @@ describe("rule 11 — the potion/juiced invariant, stated over the whole source 
     // Tier 2 (`entryData[0]`) exactly as it used to for Tier 1
     // (`entryData[1]`), which makes the positional read look MORE correct
     // than it is.
-    for (const retired of ["--juiced-index=3", "--juiced-index=1"]) {
+    for (const retired of ["--juiced-index=2", "--juiced-index=1"]) {
       for (const rel of SOURCE_FILES) {
         expect(readCode(rel), `${rel} still recommends the retired ${retired} entry`).not.toContain(retired);
       }

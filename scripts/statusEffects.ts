@@ -53,6 +53,7 @@
  */
 
 import { loadExchanges, dealtDamage, wilson, type Exchange, type LoadOptions } from "./procEffectSize.js";
+import { vengeanceAfter, vengeanceDamage } from "../src/sim/vengeance.js";
 
 /** Every status type observed. `SecondWind`/`Steadfast` are additions to CAPTURE-1's list. */
 export const STATUS_TYPES = ["Burn", "Weak", "Vulnerable", "SecondWind", "Regen", "Steadfast"] as const;
@@ -230,7 +231,13 @@ export function inertAtZero(exchanges: Exchange[], status: StatusType): Tally {
       // ties and this is NOT `TieDamageReduction` wearing another name — that
       // one REDUCES by 2 on ties only.
       //
-      // ⛔ **`Vengeance`'s magnitude is NOT modelled here and must not be.**
+      // ⭐ [session 130] **SUPERSEDED: Vengeance IS now modelled, in
+      // `src/sim/vengeance.ts`, on a [USER] directive — and the "n = 2" below
+      // was an artefact of THIS filter.** The corpus held 29 armed damage
+      // exchanges; see `vengeanceRules`. The exclusion itself stays exactly
+      // right: an armed attacker is not a reading of "damage == ATK".
+      //
+      // ~~⛔ **`Vengeance`'s magnitude is NOT modelled here and must not be.**~~
       // `BOON_MODELS.Vengeance` is `latent` on the evidence of its PICKUP
       // ("selectedVal1 15 -> no change to any player field") and a new boon
       // model needs a [USER] directive — `tests/boons.test.ts`'s
@@ -246,6 +253,63 @@ export function inertAtZero(exchanges: Exchange[], status: StatusType): Tally {
     }
   }
   return { ok, n };
+}
+
+/**
+ * [session 130, [USER] "Model it" 2026-09-13] `Vengeance` — the whole mechanic,
+ * checked against `src/sim/vengeance.ts`, which carries the reasoning.
+ *
+ * - `damage`: every exchange in which an ARMED attacker dealt damage and the
+ *   victim did not evade. Prediction = crit x2, then floor(x1.25), then Weak,
+ *   Vulnerable, block — each floored.
+ * - `trigger`: every exchange whose player-side holder had picked the boon,
+ *   predicting the after-state amount from the before-state amount, the
+ *   outcome and whether the holder dealt damage.
+ * - `victimInert`: the holder as VICTIM, both sides otherwise status- and
+ *   proc-free — damage taken is exactly the attacker's ATK.
+ *
+ * The status is only ever held by side 0 in this corpus; `trigger` reads side
+ * 0 for that reason and says so rather than looping both sides vacuously.
+ */
+export function vengeanceRules(exchanges: Exchange[]): { damage: Tally; trigger: Tally; victimInert: Tally } {
+  const damage: Tally = { ok: 0, n: 0 };
+  const trigger: Tally = { ok: 0, n: 0 };
+  const victimInert: Tally = { ok: 0, n: 0 };
+  for (const ex of exchanges) {
+    for (const victim of [0, 1] as const) {
+      const attacker = (1 - victim) as 0 | 1;
+      const atk = ex.atk[attacker];
+      if (!dealtDamage(ex, attacker) || typeof atk !== "number" || atk <= 0) continue;
+
+      const armed = ex.beforeStatus[attacker].Vengeance;
+      if (armed && !ex.flags[`evadeProc${victim}`]) {
+        const predicted = vengeanceDamage({
+          atk,
+          crit: !!ex.flags[`critProc${attacker}`],
+          vengeance: armed,
+          weak: !!ex.beforeStatus[attacker].Weak,
+          vulnerable: !!ex.beforeStatus[victim].Vulnerable,
+          block: !!ex.flags[`blockProc${victim}`],
+        });
+        damage.n++;
+        if (predicted === ex.taken[victim]) damage.ok++;
+      }
+
+      if (ex.beforeStatus[victim].Vengeance !== undefined) {
+        if (Object.values(ex.flags).some(Boolean)) continue;
+        if (Object.values(ex.beforeStatus[attacker]).some(Boolean)) continue;
+        if (Object.entries(ex.beforeStatus[victim]).some(([k, v]) => k !== "Vengeance" && v)) continue;
+        victimInert.n++;
+        if (ex.taken[victim] === atk) victimInert.ok++;
+      }
+    }
+    if (ex.boons[0].includes("Vengeance")) {
+      trigger.n++;
+      const predicted = vengeanceAfter(ex.beforeStatus[0].Vengeance, ex.outcome, dealtDamage(ex, 0));
+      if (predicted === ex.afterStatus[0].Vengeance) trigger.ok++;
+    }
+  }
+  return { damage, trigger, victimInert };
 }
 
 /**
@@ -379,6 +443,12 @@ function main(): void {
     const t = inertAtZero(ex, s);
     if (t.n > 0) console.log(`    ${s.padEnd(11)} ${t.ok}/${t.n}  ${pct(t)}`);
   }
+
+  const vg = vengeanceRules(ex);
+  console.log(`\n  Vengeance   armed attacker deals floor(x*1.25), crit before, Weak/Vuln/block after  ${vg.damage.ok}/${vg.damage.n}`);
+  console.log(`              arms on a LOSS, holds on a loss, consumed when the holder deals        ${vg.trigger.ok}/${vg.trigger.n}`);
+  console.log(`              inert on the holder as VICTIM                                         ${vg.victimInert.ok}/${vg.victimInert.n}`);
+  console.log(`              only armed amount ever observed: 25 — other amounts are UNMODELLED`);
 
   const heals = unexplainedHeals(ex);
   const ratios = heals.filter((h) => h.dealt > 0).map((h) => h.heal / h.dealt);

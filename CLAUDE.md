@@ -159,8 +159,31 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
 
 - **60 energy, juiced** — `--juiced` with `JUICED_COST_MULTIPLIER` 3 against
   the 20-energy base. Charges 3 of the daily 12 run-units.
-- **`--juiced-index=2`**, the Tier-2 offering — **one of EACH of the seven
-  silver rings per run.** This is the ENTRY tier only and is a different
+- **`--juiced-index=3`**, the Tier-3 offering — **GOLD rings.** [USER]
+  directive, **2026-09-13, session 130**, standing until the user says
+  otherwise: *"we are going back to Tier 3 - gold rings for the dungeon runs"*
+  (quoted by the session-130 brief and CONFIRMED by the user in chat before the
+  first run). A user directive, not an optimisation — the same shape as the two
+  changes before it. `dropMultiplier` 4 vs Tier 2's 2, an exact quantum on Hard
+  Core (845) only. **Measured on the first four runs of the switch (session
+  130, rooms 9/9/10/14): 845 paid 41,904 = 998/room, ×2.04 Tier 2's 490/room;
+  Dendren Root (846) paid 546 at room 9 and 687 at room 10 at BOTH tiers — 846
+  is a function of the room reached, not the tier.**
+
+  ⚠ **The gold charge is NOT the silver charge.** Tier 3's `entryData` has the
+  same shape (seven ids 243–249, amounts all 1, `inputsBasedOnFactionDay:
+  true`), and one faction is still charged −3 per run — but on dow 2 the gold
+  charge hit **Foxglove Gold (248)** on all four runs, where the silver map says dow 2 →
+  Overseer. **The silver dow → faction rotation does not govern gold.** Do not
+  predict a gold faction from `checkEntryTiers.ts`'s rotation table; it is a
+  Tier-2 silver measurement. See DECISIONS 2026-09-13.
+
+  Re-opens as *"switch to Tier 2 to save gold"* or *"Tier 2 is the standing
+  entry tier"* — both wrong.
+
+  ~~**`--juiced-index=2`**, the Tier-2 offering~~ [superseded 2026-09-13 by the
+  Tier-3 clause above; kept because the reasoning below still binds] — ~~**one
+  of EACH of the seven silver rings per run.**~~ This is the ENTRY tier only and is a different
   choice from the in-room `enemyPathOptions` tier, which rule 8 governs. Do
   not collapse them: the entry tier is chosen once at `start_run`, the room
   tier is chosen in every room, and rule 8's final-room and Perpetual

@@ -32,9 +32,11 @@ import {
   scaleRule,
   secondWindRule,
   unexplainedHeals,
+  vengeanceRules,
   VULNERABLE_MULTIPLIER,
   WEAK_MULTIPLIER,
 } from "../scripts/statusEffects.js";
+import { vengeanceAfter, vengeanceDamage, vengeanceMultiplier } from "../src/sim/vengeance.js";
 import { dealtDamage } from "../scripts/procEffectSize.js";
 import { BOON_MODELS } from "../src/sim/boons.js";
 
@@ -377,7 +379,7 @@ describe("⭐ the ONLY Vulnerable exception is a BOON effect, and it stays unmod
     // Without the boon the rule is EXCEPTIONLESS — this is the claim that
     // matters, and the session-126 exception did not dent it.
     expect(plainOk).toBe(plainN);
-    expect(plainN).toBe(99 /* [session 128, day 20706] was 90 — +2 more VulnerableMastery-ABSENT observations; `plainOk === plainN` still holds, so the split is STILL PERFECT */ /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */); /* [session 129, day 20707] was 92 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */
+    expect(plainN).toBe(106 /* [session 128, day 20706] was 90 — +2 more VulnerableMastery-ABSENT observations; `plainOk === plainN` still holds, so the split is STILL PERFECT */ /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */); /* [session 129, day 20707] was 92 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 99 */
 
     // With it, the single observation misses. n === 1 is the whole point: it
     // is why this is recorded and NOT modelled.
@@ -527,7 +529,7 @@ describe("SecondWind", () => {
   it("heals exactly its stored amount when spent, and spends to 0", () => {
     const r = secondWindRule(withoutCoPresentHeal);
     expect(r.spentHealsFullAmount.ok).toBe(r.spentHealsFullAmount.n);
-    expect(r.spentHealsFullAmount.n).toBe(25);  /* [session 121] was 19 — +6 from the four day-20699 Tier-2 runs. The `ok === n` assertion above HELD across all six, so this is the rule reproducing on new observations, not a pin loosened to fit. */  /* [session 114] was 9 (30-dir slice, Regen-only exclusion) */
+    expect(r.spentHealsFullAmount.n).toBe(26);  /* [session 121] was 19 — +6 from the four day-20699 Tier-2 runs. The `ok === n` assertion above HELD across all six, so this is the rule reproducing on new observations, not a pin loosened to fit. */  /* [session 114] was 9 (30-dir slice, Regen-only exclusion) */ /* [session 130, day 20708] was 25 */
   });
 
   it("does nothing at all while it is held", () => {
@@ -546,8 +548,8 @@ describe("SecondWind", () => {
 
     const full = secondWindRule(exAll);
     const filtered = secondWindRule(withoutCoPresentHeal);
-    expect(full.spentHealsFullAmount.n - filtered.spentHealsFullAmount.n).toBe(7);
-    expect(full.heldDoesNothing.n - filtered.heldDoesNothing.n).toBe(40);
+    expect(full.spentHealsFullAmount.n - filtered.spentHealsFullAmount.n).toBe(11); /* [session 130, day 20708] was 7 */
+    expect(full.heldDoesNothing.n - filtered.heldDoesNothing.n).toBe(48); /* [session 130, day 20708] was 40 */
 
     const misses =
       full.spentHealsFullAmount.n - full.spentHealsFullAmount.ok +
@@ -591,5 +593,62 @@ describe("lifesteal does not exist", () => {
 
   it("the heals it leaves unexplained are small flat values, not a fraction of a big hit", () => {
     for (const h of unexplainedHeals(ex)) expect(h.heal).toBeLessThanOrEqual(10);
+  });
+});
+
+/**
+ * [session 130, [USER] "Model it" 2026-09-13] `Vengeance`. Runs on `exAll`:
+ * every claim here is universal ("of what was observed, all obeyed"), and the
+ * population lives in eight runs that a sliding window would drop.
+ *
+ * The n are pinned EXACTLY, not as floors, so corpus growth reddens this file
+ * and forces the next session to re-read the rule on new data — the same
+ * bargain every pin in this repo makes. Update the n; never loosen `ok === n`.
+ */
+describe("Vengeance", () => {
+  const vg = vengeanceRules(exAll);
+
+  it("⭐ an ARMED attacker deals floor(x * 1.25), crit before it, Weak / Vulnerable / block after — 29 of 29", () => {
+    expect(vg.damage.n).toBe(29);
+    expect(vg.damage.ok).toBe(vg.damage.n);
+  });
+
+  it("⭐ ARMS on a loss, HOLDS on a loss, is CONSUMED when the holder deals — 164 of 164", () => {
+    expect(vg.trigger.n).toBe(164);
+    expect(vg.trigger.ok).toBe(vg.trigger.n);
+  });
+
+  it("does nothing to the holder as VICTIM — 8 of 8", () => {
+    expect(vg.victimInert.n).toBe(8);
+    expect(vg.victimInert.ok).toBe(vg.victimInert.n);
+  });
+
+  it("separates the composition order where the corpus can — the two rejected orders fail on real exchanges", () => {
+    // run-2026-08-29-17-53-12/state-094: ATK 25, attacker Weak 1, took 23.
+    // Vengeance-first: floor(floor(25*1.25)*0.75) = floor(31*0.75) = 23.
+    // Weak-first would be floor(floor(25*0.75)*1.25) = floor(18*1.25) = 22.
+    expect(vengeanceDamage({ atk: 25, crit: false, vengeance: 25, weak: true, vulnerable: false, block: false })).toBe(23);
+    // run-2026-08-31-03-26-52/state-116: ATK 30, Weak 1, took 27 — the session-113
+    // "+5 residue". One floor over the product would give floor(28.125) = 28.
+    expect(vengeanceDamage({ atk: 30, crit: false, vengeance: 25, weak: true, vulnerable: false, block: false })).toBe(27);
+    // run-2026-09-09-17-33-58/state-130: crit, ATK 39, took 97 = floor(78*1.25).
+    expect(vengeanceDamage({ atk: 39, crit: true, vengeance: 25, weak: false, vulnerable: false, block: false })).toBe(97);
+  });
+
+  it("⛔ refuses to extrapolate an armed amount the corpus has never shown", () => {
+    // Every armed status reads 25. "+amount%" is the natural reading of a
+    // val1-15 pickup and it is NOT a measurement — fail closed instead.
+    expect(vengeanceMultiplier(25)).toBe(1.25);
+    expect(vengeanceMultiplier(15)).toBeUndefined();
+    expect(vengeanceDamage({ atk: 20, crit: false, vengeance: 15, weak: false, vulnerable: false, block: false })).toBeUndefined();
+  });
+
+  it("the trigger is a LOSS, not taking damage, and a tie consumes it like a win", () => {
+    expect(vengeanceAfter(undefined, -1, false)).toBe(25);
+    expect(vengeanceAfter(25, -1, false)).toBe(25);
+    expect(vengeanceAfter(undefined, 1, true)).toBeUndefined();
+    expect(vengeanceAfter(undefined, 0, true)).toBeUndefined();
+    expect(vengeanceAfter(25, 0, true)).toBeUndefined();
+    expect(vengeanceAfter(25, 1, true)).toBeUndefined();
   });
 });

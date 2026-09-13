@@ -369,6 +369,7 @@ describe("player loadout matches the fixtures", () => {
       "50/16",
       "50/17",
       "50/19",
+      "50/21", // [session 130, day 20708] +2 MID-RUN combos (50/21, 58/14) from the first four Tier-3 runs — starting loadout 50/17 on all four start states, so NOT a re-spec; ADDITIVE, 0 removals
       "50/25",
       "50/27",
       "50/29",
@@ -397,6 +398,7 @@ describe("player loadout matches the fixtures", () => {
       "54/30",
       "54/32",
       "54/40",
+      "58/14", // [session 130, day 20708] +2 MID-RUN combos (50/21, 58/14) from the first four Tier-3 runs — starting loadout 50/17 on all four start states, so NOT a re-spec; ADDITIVE, 0 removals
       "58/17",
       "58/25",
       "58/27",

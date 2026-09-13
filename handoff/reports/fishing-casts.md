@@ -1,22 +1,22 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-12T15:31:30.241Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-13T17:34:41.518Z.
 
-554 recorded casts — 278 caught (50.2%).
-Total Hard Core earned: 66320 (238.6 per catch, 119.7 per cast).
+564 recorded casts — 282 caught (50.0%).
+Total Hard Core earned: 68720 (243.7 per catch, 121.8 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 278 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 59 of those 278 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 282 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 62 of those 282 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
 - Barnaboo: 54
-- Finley: 51
+- Finley: 52
 - Plankton: 41
-- Kelpkin: 28
+- Kelpkin: 30
 - Jelloid: 27
 - Ollie: 22
 - Skinzy: 11
-- Deadfin: 9
+- Deadfin: 10
 - Zombo: 7
 - Gulp: 6
 - Podge: 6
@@ -587,3 +587,13 @@ Total Hard Core earned: 66320 (238.6 per catch, 119.7 per cast).
 | 13385850 | yes | Finley (rarity 0) | 320 |
 | 13385855 | no | — | 0 |
 | 13385858 | no | — | 0 |
+| 13403198 | no | — | 0 |
+| 13403200 | no | — | 0 |
+| 13403207 | no | — | 0 |
+| 13403214 | yes | Finley (rarity 0) | 320 |
+| 13403219 | no | — | 0 |
+| 13403226 | yes | Deadfin (rarity 2) | 1280 |
+| 13403230 | yes | Kelpkin (rarity 1) | 160 |
+| 13403235 | yes | Kelpkin (rarity 1) | 640 |
+| 13403238 | no | — | 0 |
+| 13403250 | no | — | 0 |

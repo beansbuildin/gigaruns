@@ -295,7 +295,13 @@ describe("what tenacity and intuition are NOT", () => {
     // Deliberately NOT asserting what tenacity does — at 17/19 fires and 6
     // heals total it cannot be bounded, and QUESTIONS.md §58 records it as
     // undetermined rather than rounding an association into a mechanic.
-    const fired = exchanges.filter((e) => e.flags.tenacityProc0 && e.statusClean);
+    // [session 130] Excludes the player's OWN evade/block procs. Session 130's
+    // run-2026-09-13-17-19-08/state-136 co-fired `evadeProc0` with
+    // `tenacityProc0` (enemy ATK 18, taken 0) and turned this red at 1 — but an
+    // evade zeroes damage without exception (procEffectSize's evade rule), so
+    // that 0 is the EVADE's and says nothing about tenacity. Not a loosening:
+    // the population this claim is about never included a co-fired negator.
+    const fired = exchanges.filter((e) => e.flags.tenacityProc0 && e.statusClean && !e.flags.evadeProc0 && !e.flags.blockProc0);
     const negated = fired.filter(
       (e: Exchange) => dealtDamage(e, 1) && typeof e.atk[1] === "number" && e.taken[0] === 0,
     );

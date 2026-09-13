@@ -79,7 +79,21 @@ Payout summed from `gameItemBalanceChanges` in the run logs; method VALIDATED fi
 - Oils Relaxing-only; Focus triggers log policy-withdrawn.
 - Catch rate: NO prediction. Reported as a Puppeteer-only slice, never pooled into Dendren.
 
+## FISHING ARM — RESULTS (17:31:25Z → 17:34:41Z, day 20708)
+- **10 PLAYED / 9 CHARGED**, clean `cast_cap` exit, 120 energy. Game ledger 9/20.
+- **Gear EXACT:** slot-15 **10 → 0** and **20 → 10**, rod **27 → 17** (−1.00/played cast). Fishing arm HALTED on gear.
+- **Puppeteer slice: 4/10 = 40.0% today; 11/27 = 40.7% cumulative.** Not pooled. 2,400 Hard Core.
+- 1 Relaxing oil consumed (20 → 19); Focus triggers logged policy-withdrawn.
+- `nextPosition` override 67/67 hits; still logged as an UNKNOWN FIELD every turn (carry-forward 3, not closed).
+
+## Vengeance ([USER] "Model it")
+29/29 damage, 164/164 trigger, 8/8 victim-inert — see DECISIONS 2026-09-13.
+
 ## Surprises log
+- My between-run balance print used wrong awk columns and lost run 2's gold reading. Recovered with reads taken DURING runs 3 and 4 (after their entry charge).
+- The session-129 "Vengeance n=2" was an artefact of `inertAtZero`'s filter: the corpus held 29 damage exchanges.
+- A first pin-patcher run crashed MID-TREE (arg on the next line) after writing three files; caught by the literal-mismatch guard on the rerun, verified by diff against a pre-pin copy.
+- A patcher bug stripped the outer brackets of a nested array literal (`[[1,99],...]` → `[1,104], ...`); fixed by hand before any suite run read it.
 - `checkEntryTiers.ts`'s Tier-3 cost block is TEMPLATED off the Tier-2 finding ("3x ONE of the seven,
   Measured live, session 112", silver rotation text) — it asserts the Tier-2 charge shape for gold
   without any Tier-3 measurement. The instrument prints a hypothesis as fact.

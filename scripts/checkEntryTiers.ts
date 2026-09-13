@@ -217,7 +217,7 @@ async function main() {
     );
     console.log(
       `          (entryData says inputAmounts ${JSON.stringify(entry.inputAmounts)} across all seven ids;` +
-        ` that is the\n           SUPERSET over faction-days, NOT one run's bill. Measured live, session 112.)`,
+        ` that is the\n           SUPERSET over faction-days, NOT one run's bill. Measured live: Tier 2 session 112, Tier 3 session 130.)`,
     );
     for (const row of [...r.perFaction].sort((a, b) => a.balance - b.balance)) {
       console.log(
@@ -230,6 +230,18 @@ async function main() {
         `      ${r.cyclesUntilScarcestDries} full cycle(s) = ${r.daysUntilScarcestDries} days = ` +
         `~${r.runsUntilScarcestDries} runs, bound by ${r.scarcest.id} ${RING_NAMES[r.scarcest.id] ?? ""} (${r.scarcest.balance} held).`,
     );
+    // [session 130] The rotation text below is a TIER-2 SILVER measurement and
+    // used to print under Tier 3 as well, asserting it about gold with no
+    // Tier-3 data at all. Measured 2026-09-13 (day 20708, dow 2): the gold
+    // charge was ONE faction at -3 x4 runs — the SHAPE carries — but it was
+    // FOXGLOVE Gold (248), where the silver map says dow 2 -> Overseer.
+    if (entry.tier !== 2) {
+      console.log(
+        `    ⚠ [session 130] TIER ${entry.tier}'s faction rotation is NOT the silver map. Measured: day 20708 (dow 2)\n` +
+          `      charged 248 Foxglove Gold, -3 on each of 4 runs, six untouched. ONE day observed —\n` +
+          `      do not predict a gold faction; learn it from a balance diff.`,
+      );
+    } else {
     console.log(
       `      Spread across factions is ${r.scarcest.balance}-${r.richest.balance}, so the TRUE runway lands\n` +
         `      inside that band depending on the rotation ORDER — which is now SOLVED (below).\n` +
@@ -265,6 +277,7 @@ async function main() {
         `        exactly once per ${ROTATION_PERIOD_DAYS} days. That is the user's stated model, not a measurement.\n` +
         `        The old "min(balance)/${RINGS_PER_JUICED_RUN}" figure was a DIFFERENT model and is retired — see this file's header.`,
     );
+    }
     if (entry.inputsBasedOnFactionDay) {
       console.log(`    ⚠ inputsBasedOnFactionDay: true — this list is per-day. Re-read it; never cache it.`);
     }
