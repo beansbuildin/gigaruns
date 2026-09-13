@@ -344,6 +344,27 @@ export const SESSION_99_LIMITS: BatchLimits = {
  * Everything else inherits session 99's shape for session 99's reasons.
  */
 /**
+ * [session 130] The SECOND Puppeteer (924) batch. `castCap: 10` is sized to the
+ * **GEAR HALT** again: the slot-15 pair read **10 / 20** at 16:58:56Z (both
+ * repaired out of band since session 129's 10 / 0) and wears -1.00 per PLAYED
+ * cast, so the 10 reaches 0 exactly at played cast 10 and the [USER] per-arm
+ * halt fires there. The rod is at 27 and the game ledger at 0/20 (CHARGED
+ * casts), so both are slack — the user's 20-cast scope is cut to 10 by gear.
+ *
+ * The `castCap: 2` convention does not bind: 27 - 10 = 17 means the rod cannot
+ * reach 0 with casts still to play.
+ *
+ * Everything else inherits session 99's shape for session 99's reasons.
+ */
+export const SESSION_130_LIMITS: BatchLimits = {
+  castCap: 10,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
+/**
  * [session 129] The FIRST Puppeteer (924) batch. `castCap: 17` is sized to the
  * **GEAR HALT**, not to the rod and not to the ledger — the two slot-15 pieces
  * read 27 and 17 at session open and wear -1.00 per PLAYED cast, so the 17
