@@ -1,224 +1,194 @@
-# STATE — session 130 — 2026-09-13 — commit 67fa2953
+# STATE — session 131 — 2026-09-14 — work commit b4bff5ad (recap commit follows)
 
 ## Status
 No numbered TASKS.md gate; tasks 1–14 are GATE MET or parked on data. The
-session worked `handoff/next.md`'s session-130 brief, which was CURRENT.
+session worked `handoff/next.md`'s session-131 brief, which was CURRENT.
 
-**⭐ GATE PASS. The full live day was spent at the NEW tier, AND the suite was
-left GREEN** — **2718 passed / 2718, exit 0** (117 files, unsandboxed,
-`--maxWorkers=4`), `tsc --noEmit` exit 0, `git diff --cached --check` exit 0,
-`discoveredShipsClean` 8/8.
+**⭐ GATE PASS. The full live day was spent, the brief's work list was done, and
+the suite was left GREEN** — **2752 passed / 2752, exit 0** (117 files,
+unsandboxed, `--maxWorkers=4`), `tsc --noEmit` exit 0. (Final-tree re-run and
+the closeout checks are quoted in the session log.)
 
-**Dungeon: PASS — 12/12 run-units, 4 juiced TIER-3 runs, 297 actions, 0/297 =
-0.00% first-attempt failures.** Pre-registered in `c347f046` before the first
-`start_run`; four of five hypotheses PASS and **H2 FAILED on purpose-built
-data: the gold faction does NOT follow the silver dow map.**
-**Fishing: PASS — 10 played / 9 charged,** clean `cast_cap` exit at the gear
-halt it was sized to (pre-registered in `d3a1f451`).
+**Dungeon: PASS — 12/12 run-units, 4 juiced TIER-3 runs, 265 actions, 0/265
+first-attempt failures.** Pre-registered in `8a273d55` before the first
+`start_run`. **Second gold point: day 20709 (dow 3) → 247 ARCHON Gold.** Not
+Foxglove (permutation survives); the shifted-silver candidate (Summoner) FAILED.
+**Fishing: PASS — 20 played / 17 charged on GOLKAN (812), two batches of 10**,
+each pre-registered, each a clean `cast_cap` exit.
 
-**JWT: refreshed by the user before the session.** `doctor.ts` at 16:58Z read
-**167.6h** left → expires ≈ **2026-09-20T16:35Z**. It did not bind; the day did
-(rollover 18:00Z). All live work finished by 17:34:41Z, 25 minutes inside it.
+**JWT:** exp **2026-09-20T16:32:40Z**, **144.6h** left at 15:57Z. Did not bind;
+the day did (rollover 18:00Z; last cast 17:56Z).
 
-**ONE authorization covered the session, given in chat** at ~17:01Z (*"Yes: 4 T3
-+ 10 casts"*), which also CONFIRMED the brief's quoted Tier-3 directive. Not
-claimed from the brief.
+**ONE authorization covered the session, given in chat** (~16:05Z, *"Golkan yes:
+4 T3 + 20 Casts"*), which also CONFIRMED the brief's quoted Golkan directive.
+Batch 2 ran on *"resume fishing"* after an out-of-band repair. A mid-batch
+*"run up to 15 casts"* arrived after batch 2 had started at 10 and was not
+actionable (gear halt as it then stood, 3 casts left, 4 min to rollover).
 
-**Secret scan, quoting the instrument** (`npx tsx scripts/secretScan.ts`, run
-after staging):
-
-```
-> PASS — no unexplained hits, both controls healthy.
-```
-Addition, not substitute: `--scope=diff --ref=02a5e944` → **725 files, PASS**.
-The recap's own diff grep: `eyJ` 0, `noobId\s*\d+` 0, `PRIVATE` 0,
-`0x[a-fA-F0-9]{4,}` 0. No `raw/` or `.har` path staged.
+**⭐ NEW [USER] RULE at session end:** *"pass a new rule for fishing that it
+should only stop if the Rod is broken, the two lure slots are not a major
+impact."* Recorded in CLAUDE.md rule 11, DECISIONS, and `checkGear.ts`.
 
 ## Settled — do not re-open
 Pointers only — `DECISIONS.md` and `QUESTIONS.md` own the evidence. **[USER]** =
 a user directive an agent may not re-open at all.
 
-**Dropped this session — THREE:** the **`Vengeance` AMPLIFIES** entry (now a
-model with 29/29 + 164/164 pins that fail if reverted — superseded by the new
-[USER] entry below); the **TieDamageReduction held at n=1** entry (folded into
-`tests/boons.test.ts`'s `AWAITING_MODEL_DIRECTIVE`, which fails anyone who
-models it); the **`VulnerableMastery` needs collection** entry (quiet for three
-sessions; its reasoning lives in QUESTIONS).
+**Dropped this session — FIVE**, each now enforced elsewhere: **ENTRY TIER IS 3**
+(CLAUDE.md rule 11 + `dungeonArmClosed.test.ts`); **Vengeance IS MODELLED**
+(29/29 + 164/164 pins fail if reverted); **APPROVAL IS PER SESSION** and **THE
+ORCHESTRATOR'S DUNGEON ARM STAYS CLOSED** (both CLAUDE.md rule 11); the **`hpMax`
+51→50 coincides with the rod swap** entry (ANSWERED — merged into the rod entry).
 
-- ⭐ **[USER] [NEW] ENTRY TIER IS 3 — GOLD RINGS.** 2026-09-13, standing.
-  `--juiced-index=3`; CLAUDE.md rule 11 amended with the Tier-2 clause struck
-  and kept; `dungeonArmClosed.test.ts` retires `{2, 1}`. DECISIONS 2026-09-13.
-  Re-opens as: *"switch to Tier 2 to save gold"*, *"Tier 2 is the standing
-  entry tier"*, *"run --juiced-index=2"*.
-- ⭐ **[NEW] THE GOLD CHARGE IS ONE FACTION × 3 — BUT NOT THE SILVER ROTATION.**
-  Day 20708 (dow 2) charged **Foxglove Gold 248**, silver map says Overseer.
-  Tier-3 shape count **4/4**; Tier-2's **49/49 is CLOSED**. ONE gold day
-  observed. Re-opens as: *"predict today's gold faction from the dow map"*,
-  *"the rotation is fully measured, so gold is known"* — the rotation is
-  measured for SILVER only.
-- ⭐ **[NEW] DENDREN ROOT (846) IS A FUNCTION OF THE DEATH ROOM, NOT THE TIER.**
-  Room 9 → 546 and room 10 → 687 at both tiers; full table in SPEC §3c.
-  Re-opens as: *"compare Dendren Root totals across tiers"*, *"846 should be
-  unchanged at ≈2,700–2,900"* — a total is depth-confounded; compare per room.
-- ⭐ **[USER] [NEW] `Vengeance` IS MODELLED** ("Model it", 2026-09-13). Arms on
-  a LOSS, holds on a loss, consumed on the holder's next damaging exchange,
-  which deals `floor(x*1.25)` (crit before; Weak/Vulnerable/block after).
-  `src/sim/vengeance.ts`, QUESTIONS §67 ANSWERED. ⛔ Only amount 25 has armed;
-  15 is refused. Re-opens as: *"ask the user about Vengeance"*, *"Vengeance is
-  n=2"*, *"model Vengeance 15 as +15%"*.
-- ⭐ **`blockedMove`'s SCOPE IS MEASURED AND THE PROPOSED WIRING IS FALSIFIED.**
-  Now **23 procs**: current **6/23** vs 7.67 (p ≈ 0.31, chance), next **2/23**
-  vs 7.67 (p ≈ 0.0067). Soft prior, not an exclusion (2 counterexamples stand).
-  Consumed nowhere. Re-opens as: *"wire blockedMove in — remove it from the
-  enemy's distribution"*, *"commission runs for blockedMove"*.
-- ⚠ **`hpMax` 51 → 50 AND Sword ATK 27 → 26 coincide with the rod swap 923 →
-  924.** Unchanged: all four session-130 start states read **50/17** on rod 924.
-  COINCIDENT, NOT PROVEN; falsifiable only by a swap back. Re-opens as: *"the −1
-  is broken gear"*, *"swap back to 923 to test it"* (not for this alone).
-- ⚠ **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT — SIXTH session.** 901 and a
-  slot-15 954 were repaired out of band again. ✅ Keep the inversion: read
-  `checkGear.ts` first. Re-opens as: *"raise these repairs up front"*.
-- ⭐ **[USER] APPROVAL IS PER SESSION, NOT PER RUN** — 2026-09-11. Used exactly
-  that way again. ⛔ A brief may never manufacture it; rule 5, rule 13 and the
-  per-arm gear halt untouched. Re-opens as: *"ask before each run"*, *"the user
-  has authorized N runs"* (in a brief).
-- ⭐ **[USER] RING BALANCES ARE NOT A CONSTRAINT** — 2026-09-11. ✅ KEEP reading
-  ALL FOURTEEN (both metals) before and after every run — the debit is not on
-  the wire. Re-opens as: *"the gold runway is a concern"*, *"consider Tier 2 to
-  save gold"*.
-- ⭐ **THE ORCHESTRATOR'S DUNGEON ARM STAYS CLOSED** — no dungeon run without a
-  human in the loop. Re-opens as: *"rule 11 softened, so the arm can reopen"*.
-- **[USER] THE GEAR HALT: never abort a run in progress; after a COMPLETED run,
-  any piece at 0 stops that ARM; pieces at 0 at session open are GRANDFATHERED;
-  PER-ARM.** Fired exactly as pre-registered on both arms this session. Item 50
-  (slot 8) is grandfathered. Re-opens as: *"item 50 halts the arm"*.
-- **[USER] OTHER DUNGEONS ON THIS ACCOUNT ARE OUT OF SCOPE.** The 12-run-unit
-  ledger is per-dungeon.
-- **[USER] The fishing budget is 360 energy / 30 casts, STANDING.** Binding cap
-  = smallest of rod / ledger / gear — **gear at 10** this session.
+- ⭐ **[USER] [NEW] THE ROD IS GOLKAN (812).** 2026-09-14, standing.
+  `CURRENT_ROD = GOLKAN_ROD`. DECISIONS 2026-09-14. Re-opens as: *"re-derive a
+  drift table to argue for Puppeteer"*, *"swap back to 924/923"*.
+- ⭐ **[USER] [NEW] FISHING STOPS ONLY ON A BROKEN ROD.** Slot-15 lures at 0 do
+  NOT halt fishing or size the batch; cap = min(rod, ledger, authorized). Dungeon
+  arm's any-piece halt unchanged. CLAUDE.md rule 11. Re-opens as: *"size castCap
+  to the slot-15 gear"*, *"the lure at 0 halts fishing"*.
+- ⭐ **[NEW] GOLD ROTATION: TWO POINTS, NOT THE SILVER MAP, NOT SILVER-SHIFTED.**
+  dow 2 → Foxglove 248; dow 3 → Archon 247. Shape (one faction × 3) **8/8**.
+  Re-opens as: *"gold = silver shifted by one day"*, *"predict today's gold
+  faction"* — pre-register a SET that excludes both measured factions.
+- ⭐ **[NEW] THE FISHING ROD CARRIES NO DUNGEON STAT LINE.** Golkan openings
+  50/17, rock 26 ×4 — same as on 924. Cause of the 51→50 drop unknown.
+  Re-opens as: *"swap to 923 to test the rod stat line"*.
+- ⭐ **[NEW] DECK ARITHMETIC HAS NOT PREDICTED LIVE CATCH RATE — TWICE.** No
+  mechanism fitted. Re-opens as: *"Puppeteer dominates at every aim level"*,
+  *"the sim says Dendren beats Golkan"*.
+- ⭐ **[NEW] "cards.json holds 8 of Golkan's 10 cards" was FALSE.** 10/10 present,
+  0.400 exactly; −0.389 retired, source unknown. Re-opens as: *"add cards 82/83
+  to the fixture"*, *"Golkan's drift is −0.389"*.
+- ⭐ **DENDREN ROOT (846) IS A FUNCTION OF THE DEATH ROOM.** Now 8/8 per-room
+  matches across two Tier-3 days (SPEC §3c table). Re-opens as: *"compare 846
+  totals across days/tiers"*.
+- ⭐ **`blockedMove`'s WIRING IS FALSIFIED.** Now **27 procs**: current **8/27**
+  vs 9.01 (P≈0.43), next **2/27** vs 9.01 (P≈0.0018). Soft prior, 2
+  counterexamples. Consumed nowhere. Re-opens as: *"wire blockedMove in"*,
+  *"commission runs for blockedMove"*.
+- ⚠ **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT — SEVENTH session, and repairs
+  now land MID-SESSION too.** Read `checkGear.ts` at open AND before each batch.
+  Re-opens as: *"raise these repairs up front"*.
+- ⭐ **[USER] RING BALANCES ARE NOT A CONSTRAINT** — 2026-09-11. The runway line
+  is now DELETED from `checkEntryTiers.ts`. ✅ Still read ALL FOURTEEN before and
+  after every run. Re-opens as: *"the gold runway is a concern"*.
+- **[USER] THE DUNGEON GEAR HALT: never abort a run; after a COMPLETED run any
+  dungeon piece at 0 stops that arm; pieces at 0 at session open are
+  GRANDFATHERED (item 50, slot 8).** Re-opens as: *"item 50 halts the arm"*.
+- **[USER] OTHER DUNGEONS ON THIS ACCOUNT ARE OUT OF SCOPE.** Ledger per-dungeon.
+- **[USER] The fishing budget is 360 energy / 30 casts, STANDING.**
 - **[USER] The Tier-1/Tier-3 whole-run income baseline is RETIRED BY NAME.**
-  Switching tiers does not un-retire it; per-room recording is not that
-  experiment. Re-opens as: *"design a cross-tier income experiment"*.
-- ⚠ **PIN IN-SESSION; THE BACKLOG IS THE COST.** 175 sites this session, green
-  same-session. Re-opens as: *"defer the pin pass"*.
+  Re-opens as: *"design a cross-tier income experiment"*.
+- ⚠ **PIN IN-SESSION.** 190 annotated sites this session, green same-session.
+  Re-opens as: *"defer the pin pass"*.
 
 ## What works
-- **`scripts/liveRun.ts --juiced --juiced-index=3` four times in ~21 min** —
-  297 actions, **0/297** first-attempt failures; dry-run printed `index 3`.
-  `liveRun.ts` sends `index` straight to the server; no positional `entryData`
-  read exists in it (checked).
-- **Every gear forecast landed EXACTLY** at all four dungeon readings
-  (45/21/21/9 → … → 36/12/12/0) and on the fishing close (slot-15 10→0, 20→10;
-  rod 27→17).
-- **`scripts/liveFishing.ts --oil-batch` at `SESSION_130_LIMITS.castCap 10`**,
-  clean `cast_cap` exit.
-- **Payout summing off `gameItemBalanceChanges`** in `logs/run-*.jsonl` —
-  validated by reproducing session 125's 19,608 / 2,874 exactly before use.
-- **Pre-registration as a commit, TENTH session running**, split per arm.
-- **`vengeanceRules`** in `npx tsx scripts/statusEffects.ts`: 29/29, 164/164, 8/8.
+- **`liveRun.ts --juiced --juiced-index=3` ×4 in ~21 min** — 73/46/74/72 actions,
+  0 first-attempt failures; dry-run printed `index 3`.
+- **Every dungeon gear reading landed EXACTLY on the pre-registered −3/run path**
+  (640 33/30/27/24, 641 9/6/3/0, 901 9/6/3/0, 905 23/20/17/14).
+- **`liveFishing.ts --oil-batch` at `SESSION_131_LIMITS.castCap 10`**, twice,
+  clean `cast_cap` exits; rod −1.00/played cast both batches (44→34→24).
+- **Payout summing off `gameItemBalanceChanges`** — re-validated against session
+  130's 41,904 before use.
+- **Pin patcher that parses every failure and refuses to write on one
+  unanchored literal** — 8 rounds, 0 bad writes; `tests/` snapshotted first.
+- **`checkEntryTiers.ts`** prints both gold points and no runway; **`checkGear.ts`**
+  prints a per-arm verdict (fishing off slot 14 only).
 
 ## What's broken
-- ⚠ **BOTH ARMS ARE HALTED on gear.** Dungeon: **905 (slot 13) at 0**. Fishing:
-  **slot-15 954 (…83b834fd) at 0**, its pair at 10. Close: 640 36, 641 12, 901
-  12, rod 924 17. **Both need a manual repair before the next live day.**
-- ⚠ **`data.nextPosition` / `data.nextMovePath` still logged as UNKNOWN FIELDS**
-  every fishing turn (dumps again today) while the override uses it (67/67).
-  Registry gap, not a rule-5 condition. **Not closed this session.**
-- ⚠ **`fixtures/fishing-casts/cards.json` holds 8 of Golkan's 10 cards** (82,
-  83 absent). Unchanged.
-- ⚠ **`checkEntryTiers.ts` still prints a ring "RUNWAY" line under both tiers**,
-  a concept the user retired 2026-09-11. Its Tier-3 block no longer prints the
-  silver rotation table (fixed this session); the runway line was left.
-- ⚠ **THE `ask` BLOCK IN `.claude/settings.local.json` IS STILL THERE** —
-  `Bash(npx tsx scripts/liveRun.ts *)`, `Bash(npx tsx scripts/liveFishing.ts
-  *)`, `Bash(npx tsx scripts/orchestrator.ts *)`. The user's edit to make.
-  Did not block anything this session.
-- ⚠ **`$TMPDIR` DIFFERS by sandbox mode** — avoided this session by using the
-  scratchpad path throughout. **The `web/` front end** is untouched since
-  session 120.
+- ⚠ **Rod 812 is at 24.** Under the new rule it is the only fishing gate; the
+  next batch caps at min(24, ledger 20, authorized). Slot-15 954 …83b834fd at 0,
+  …ac25b641 at 10 — no longer halting.
+- ⚠ **`checkGear.ts`'s DUNGEON HALT banner still fires permanently on
+  grandfathered item 50** (slot 8). Read which slot; it is not an arm halt.
+- ⚠ **`factionDayRunway` is exported and tested but printed by nothing** since
+  the runway line was deleted. Dead code kept to avoid churning its test.
+- ⚠ **`doctor.ts` does not print JWT expiry** (the brief said to verify it
+  there); decoded `exp` from the token file instead.
+- ⚠ **The game fishing ledger lagged the repo ledger by one mid-session** (8 vs 9
+  after batch 1); converged at 17/17 after batch 2. Not a rule-13 event.
+- ⚠ **THE `ask` BLOCK IN `.claude/settings.local.json` IS STILL THERE.** Did not
+  block anything. The user's edit.
+- **The `web/` front end** is untouched since session 120.
 
 ## Corrections to SPEC.md
-- **SPEC §3c said Tier 3 "requires one Golden Ring per faction"**; live: ONE
-  gold faction, −3 per juiced run, six untouched, silver untouched, and the
-  faction (Foxglove 248 on dow 2) is NOT the silver map's. **Fixed in SPEC.md**,
-  with the 846-by-room table added beside it.
-- **CLAUDE.md rule 11**: `--juiced-index=3` [USER], dated, Tier-2 clause struck.
-- **The brief's "Vengeance n=2"** was wrong by the corpus: 29 damage exchanges.
-- **The brief's Dendren-Root "tight test" framing** (totals ≈2,700–2,900) is
-  depth-confounded; the per-room identity is the real test and it PASSES.
-- **The brief's gear table was stale in 2 of 7 rows** (901 0→24, slot-15 0→20).
+- None to SPEC.md this session: the §3c 846-by-room table held 4/4 and the gold
+  charge shape held. The gold faction list is in DECISIONS, not SPEC (a rotation
+  is not yet a spec claim at n=2).
+- **The brief** said `doctor.ts` reports JWT expiry — it does not.
+- **STATE 129/130** said cards.json holds 8 of Golkan's 10 cards — false; retired.
+- **The brief's gear table** was stale in 2 of 7 rows at open (905 0→26, slot-15
+  0→20), and 641/901/slot-15 changed again mid-session (641 0→60, a new 901
+  instance …37fba31e at 24, slot-15 …ac25b641 0→20).
 - Resolved IDs: forbiddenWoods=5, dendren nodeId="5"/pondId=2 — unchanged.
 - Move charges: **ABSENT** for rings on the wire — unchanged since session 112.
 
 ## Dead ends
-- **Do not print ring balances with positional `awk` columns** — the faction
-  names shift the fields and the between-run print came out empty; run 2's
-  gold reading was lost. Use `sed` on the `balance N` token, or read the JSON.
-- **Do not let a pin patcher write files before it has parsed every failure** —
-  the first run crashed on an argument on the next line after writing three
-  files. Snapshot `tests/` first and diff against it.
-- **Do not strip outer brackets when re-formatting an array received value** —
-  `[[1,99],…]` became `[1,104], …`, a syntax error. Caught before a suite read it.
-- **Do not compare Dendren Root totals across days** — compare per death room.
-- Carried: never read consecutive captures as consecutive EXCHANGES;
-  `loadCorpus()` drops `data.events`; anchor pins on the matcher call; ratio
-  pins need BOTH halves; never nest a `/* was */`. §0a NOT lifted — **+19.40pp
-  and +17.74pp MAY NOT BE QUOTED.**
+- **Do not end a background loop with `[ $rc -ne 0 ] && break`** — the task
+  reports exit 1 on a clean run. Read each run's own exit line.
+- **Do not let a blanket patcher write `toBeCloseTo(x, 1)` sites** — it writes
+  full precision into a 1-digit pin; round those by hand.
+- **The vitest JSON reporter carries no diff** for arrays/objects — use the
+  default reporter to read received values.
+- **A re-pin pass started before the day's LAST batch will have to be redone** —
+  batch 2 landed mid-pass and moved 62 pins again. Pin after all casts.
+- **Do not reproduce −0.389 again** — grant list, 80–89 and 74+80–88 all miss.
+- Carried: never positional `awk` on ring balances; never read consecutive
+  captures as consecutive EXCHANGES; `loadCorpus()` drops `data.events`; ratio
+  pins need BOTH halves; §0a NOT lifted — **+19.40pp and +17.74pp MAY NOT BE
+  QUOTED.**
 
 ## Metrics
-- **Dungeon, live: 4 juiced Tier-3 runs, 12/12 run-units, 240 energy,** day
-  **20708 (dow 2)**, 17:04:17Z → ~17:25Z. Actions **75 / 62 / 57 / 103 = 297**,
-  0 first-attempt failures. Death rooms **9 / 9 / 10 / 14**.
-- **Hard Core 8,736 / 9,264 / 9,696 / 14,208 = 41,904**, 998/room = **×2.04**
-  Tier 2's 490/room (band [1.6, 2.4] PASS). Room-matched: room 9 ×2.13, room 10
-  ×1.93.
-- **Dendren Root 546 / 546 / 687 / 1,362 = 3,141** (×1.09 of 2,874, PASS);
-  per room identical to Tier 2.
-- **Gold, open → close: Foxglove 31 → 19 (−12)**; Overseer 25, Crusader 25,
-  Athena 35, Archon 40, Chobo 44, Summoner 48 unchanged. **Silver 159
-  unchanged** (Athena 9, Archon 12, Crusader 15, Chobo 18, Summoner 30, Foxglove
-  33, Overseer 42). Readings: 28 after run 1, 22 during run 3, 19 during run 4,
-  19 at close — runs 2+3 are one combined −6.
-- **Fishing, live: 10 PLAYED / 9 CHARGED**, 120 energy, 1 Relaxing oil (20 →
-  19). **Puppeteer 4/10 = 40.0% today; 11/27 = 40.7% cumulative** — its own
-  slice, not pooled. Other slices unchanged: Dendren 54/104 = 51.9%, Golkan
-  183/307 = 59.6%. 2,400 Hard Core.
-- **Vengeance:** 29/29 damage, 164/164 transitions, 8/8 victim-inert; 43
-  `Vengeance` status sightings, all amount 25, all side 0.
-- **Fish-HP multiplier interval [1.500, 1.583) → [1.500, 1.5625)** on
-  Puppeteer card 101 (base 8, actual 12).
-- Suite **2718/2718** (was 2674). Corpus **149 dungeon attempts** (was 145),
-  **564 fishing casts** (was 554). `OBSERVED_OFFERS` **780 → 818**.
-  Loadout census +2 mid-run combos (50/21, 58/14); start loadout 50/17 ×4.
+- **Dungeon, live:** day **20709 (dow 3)**, 4 juiced Tier-3 runs, 12/12 run-units,
+  240 energy, 16:54Z → ~17:21Z. Death rooms **9 / 6 / 10 / 11**.
+- **Hard Core 8,448 / 5,424 / 8,976 / 10,848 = 33,696** → 936/room = **×1.91**
+  Tier 2's 490 (band [1.6, 2.4] PASS). Pooled Tier-3, two days: 75,600 / 78
+  rooms = 969/room, ×1.98.
+- **Dendren Root 546 / 216 / 687 / 840 = 2,289**, per-room identity 4/4.
+- **Gold: Archon 40 → 37 → 34 → 31 → 28**; Foxglove 19, Overseer 25, Crusader 25,
+  Athena 35, Chobo 44, Summoner 48 unchanged. **Silver 159 unchanged** at every
+  read.
+- **Opening loadout on Golkan: hpMax 50, armor 17, rock ATK 26 — ×4.**
+- **Fishing, live: 20 PLAYED / 17 CHARGED**, 240 energy, 2 Relaxing (19 → 17).
+  Batch 1 **5/10**, batch 2 **4/10** = **9/20 = 45.0%**. **Golkan cumulative
+  192/327 = 58.7%** — arithmetic on the carried 183/307 + 9/20, NOT recomputed
+  from the corpus this session; post-Puppeteer era. Other slices
+  unchanged: Puppeteer 11/27 = 40.7%, Dendren 54/104 = 51.9%.
+- **Fish-HP interval unchanged [1.500, 1.5625)**; `KNOWN_CRIT_ANOMALIES` 20 → 21
+  (Golkan card 86, 6 → 9).
+- Suite **2752/2752** (was 2718). Corpus **153 dungeon attempts** (was 149),
+  **584 fishing casts** (was 564). `OBSERVED_OFFERS` **818 → 850**. Loadout
+  census +3 (74/21, 74/24, 74/27 — AddMaxHealth(24), a new size).
 
 ## Open questions for Claude
-1. ⭐ **BOTH ARMS NEED REPAIRS before any live work** — 905 (slot 13) and the
-   slot-15 954 at 0. Read `checkGear.ts` first; repairs keep landing out of band.
-2. ⭐ **What is the GOLD faction rotation?** One point: dow 2 → Foxglove (248).
-   Silver's dow 3 cell is also Foxglove, so "gold = silver shifted by one day"
-   is one candidate among many — **n=1 separates nothing**. The next Tier-3 day
-   is the second point; pre-register a SET, not a single faction.
-3. ⚠ **Is the rod carrying a dungeon stat line?** Still 50/17 on rod 924. Only a
-   swap back to 923 tests it; not worth a swap by itself.
-4. ⚠ **`nextPosition` registry gap** — cheap, still open, noise on every turn.
-5. ⚠ **`checkEntryTiers.ts`'s ring-runway line** outlived the [USER] retirement
-   of the runway question. Delete it, or does the user still want it printed?
+1. ⭐ **Third gold point.** Measured: dow 2 → Foxglove, dow 3 → Archon. Under a
+   7-permutation, the next Tier-3 day must charge NEITHER. Pre-register the
+   five-faction SET; n=2 still separates nothing about order.
+2. ⭐ **Fishing batch size under the new rule.** Rod 812 at 24 is now the only
+   gear term. With a fresh 20-cast ledger the cap is 20 unless the user
+   authorizes fewer; a batch must never exceed rod durability (the dry-rod
+   BASE_DECK hazard). Does the user want the rod repaired before the next day?
+3. ⚠ **What dropped hpMax 51→50 / rock ATK 27→26 on 2026-09-12?** Not the rod.
+   Low priority; nothing currently tests it.
+4. ⚠ **Delete `factionDayRunway` and `tests/entryTierRunway.test.ts`?** Nothing
+   prints it any more. Cleanup, not a decision the user needs to make.
 
 ## Files changed
-Work commit `9015e650` plus pre-registration commits `c347f046`, `d3a1f451`,
-and this recap; fixtures collapsed:
+Work commit `b4bff5ad` plus pre-registration commits `8a273d55`, `c3a29c3b`,
+`b36f1eaf`, and this recap (CLAUDE.md rule 11, `checkGear.ts` per-arm verdict,
+DECISIONS):
 
 ```
- fixtures/dungeon-runs/**            622 files — 4 run captures (+1 dry-run)
- fixtures/fishing-casts/live/**       68 files — 10 cast captures
- src/sim/vengeance.ts                NEW — the Vengeance combat model
- scripts/statusEffects.ts            +vengeanceRules, inertAtZero note superseded
- src/sim/boons.ts                    OBSERVED_OFFERS 780 -> 818; Vengeance note
- src/strategy/fishing/oilBatch.ts    +SESSION_130_LIMITS (castCap 10)
- scripts/liveFishing.ts              -> SESSION_130_LIMITS; in-sample 2.3 -> 2.2
- scripts/checkEntryTiers.ts          Tier-3 block no longer prints silver rotation
- scripts/{doctor,liveRun,orchestrator,checkGear}.ts   --juiced-index=3 hints
- tests/**                            20 files — pin pass (175 sites) + Vengeance
- CLAUDE.md, SPEC.md, QUESTIONS.md    rule 11 [USER]; §3c corrected; §67 answered
- handoff/{STATE,DECISIONS,scratch-session-130,log/session-130}.md
+ fixtures/dungeon-runs/**                558 files — 4 run captures (+1 dry-run)
+ fixtures/fishing-casts/**               122 files — 20 cast captures
+ src/sim/fishing/rodDeck.ts              CURRENT_ROD 924 -> 812
+ src/strategy/fishing/oilBatch.ts        +SESSION_131_LIMITS (castCap 10)
+ scripts/liveFishing.ts                  -> SESSION_131_LIMITS; +nextPosition/nextMovePath known; in-sample 2.2 -> 2.1
+ scripts/checkEntryTiers.ts              runway line deleted; two gold points printed
+ scripts/checkGear.ts                    per-arm verdict; fishing reads the rod only [USER]
+ src/sim/boons.ts                        OBSERVED_OFFERS 818 -> 850
+ tests/**                                24 files — pin pass (190 sites) + slice-aware / deck-explicit fixes
+ CLAUDE.md                               rule 11: fishing stops only on a broken rod [USER]
+ handoff/{STATE,DECISIONS,scratch-session-131,log/session-131}.md, handoff/reports/*
 ```

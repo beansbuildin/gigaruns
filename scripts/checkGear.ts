@@ -85,10 +85,26 @@ async function main() {
       `  ⚠ ${worn.length} equipped piece(s) at DURABILITY 0: ` +
         worn.map((w) => `item ${w.itemId} (slot ${w.slot})`).join(", "),
     );
+    // [session 131] [USER] 2026-09-14: "pass a new rule for fishing that it
+    // should only stop if the Rod is broken, the two lure slots are not a major
+    // impact". The halt is PER-ARM, and the FISHING arm now reads the ROD
+    // (slot 14) ONLY — the slot-15 lure pieces at 0 do not halt fishing. The
+    // DUNGEON arm's rule is unchanged: any of its pieces at 0 after a completed
+    // run stops it. Pieces at 0 at session open stay grandfathered (item 50).
+    const rodDry = worn.filter((w) => w.slot === 14);
+    const lureDry = worn.filter((w) => w.slot === 15);
+    const otherDry = worn.filter((w) => w.slot !== 14 && w.slot !== 15);
     console.log(
-      `  ⚠ [USER] HALT: after a completed run, any piece at 0 means STOP and hand back for a`,
+      `  ▸ FISHING arm: ${rodDry.length > 0 ? "⚠ HALT — the ROD (slot 14) is at 0. Hand back for a repair." : "rod (slot 14) has durability — NOT halted."}` +
+        (lureDry.length > 0 ? `\n     ${lureDry.length} slot-15 lure piece(s) at 0 do NOT halt fishing ([USER] 2026-09-14).` : ""),
     );
-    console.log(`     manual repair. Do not start the next run. A run already in progress is NEVER aborted.`);
+    if (otherDry.length > 0) {
+      console.log(
+        `  ⚠ DUNGEON arm — [USER] HALT: after a completed run, any of its pieces at 0 means STOP and hand back`,
+      );
+      console.log(`     for a manual repair (pieces at 0 at session open are grandfathered — item 50, slot 8). A run in`);
+      console.log(`     progress is NEVER aborted.`);
+    }
   }
 }
 

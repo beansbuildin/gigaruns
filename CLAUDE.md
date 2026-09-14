@@ -353,6 +353,14 @@ such thing as a plain dungeon run any more. Four conditions, all of them:
     denial; never retry on the strength of one.
   - **The gear halt is untouched.** Never abort a run in progress; after a
     COMPLETED run, any piece at 0 stops that ARM.
+    **[USER] 2026-09-14, session 131 — FISHING stops ONLY on a broken ROD.**
+    *"pass a new rule for fishing that it should only stop if the Rod is
+    broken, the two lure slots are not a major impact."* The two slot-15 lure
+    pieces at 0 no longer halt the fishing arm and no longer size its cast cap;
+    the binding cap is the smallest of rod / ledger / authorized casts. The
+    rod halt is enforced in code (`readRodDurability`, fails closed at 0). The
+    DUNGEON arm's any-piece-at-0 halt is unchanged. Re-opens as: *"size the
+    batch to the slot-15 gear"*, *"the lure at 0 halts fishing"*.
   - **Rule 4, rule 8, the 12-run-unit cap, and every other "Ask first" item**
     — ETH spends, selling or burning items, skill points — all stand.
 
