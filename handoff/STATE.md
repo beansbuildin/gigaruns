@@ -1,4 +1,4 @@
-# STATE — session 131 — 2026-09-14 — work commit b4bff5ad (recap commit follows)
+# STATE — session 131 — 2026-09-14 — commit 675b13df (work commit b4bff5ad)
 
 ## Status
 No numbered TASKS.md gate; tasks 1–14 are GATE MET or parked on data. The
