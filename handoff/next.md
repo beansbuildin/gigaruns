@@ -1,369 +1,365 @@
-# BRIEF — session 130 — ⭐ BACK TO TIER 3 / GOLD RINGS, 4 runs + 20 casts — and the JWT is EXPIRED
+# BRIEF — session 131 — ⭐ BACK TO THE GOLKAN ROD (812), and the SECOND gold-rotation point
 
-**This document replaces the session-129 `next.md`, which is spent.** Session 129
-spent a full live day, left the suite **green (2674/2674)**, ran the first
-Puppeteer batch, and closed `blockedMove` offline after three sessions of
-deferral.
+**This document replaces the session-130 `next.md`, which is spent.** Session 130
+spent a full live day at the **new Tier 3**, left the suite green (2718/2718),
+modelled `Vengeance`, and **falsified its own H2** — the gold faction does not
+follow the silver dow map.
 
-**The headline this session is a TIER CHANGE, and it is the largest change to
-rule 11 since the approval softening.** Read the directive below before touching
-`liveRun.ts` — it invites one specific bug that CLAUDE.md documents in advance.
-
----
-
-## ⏱️⛔ STEP 0 — THE JWT IS EXPIRED. THIS BLOCKS EVERYTHING LIVE.
-
-STATE 129 recorded the token expiring **≈ 2026-09-12T16:45Z**. At this brief's
-writing (**2026-09-13T16:36Z**) that is **more than 24 hours ago.**
-
-1. **`npx tsx scripts/doctor.ts` first.** Confirm live; do not trust this brief's
-   arithmetic.
-2. **If still expired: stop. Spend nothing.** Tell the user directly in chat that
-   `~/.secrets/gigaverse-jwt.txt` needs a fresh token from their browser. ⛔ **Do
-   not probe with a live call** — a 401 adds nothing `doctor.ts` did not say.
-3. **If refreshed: record the expiry and runway** in the recap and STATE, and say
-   whether it binds tighter than the day. It did in session 129, exactly as
-   predicted, and both arms still finished 74 minutes inside it.
-
-**The Tier-3 preparation in Step 2 is READ-ONLY and needs no token beyond
-`entryData` — but the CLAUDE.md edit and the offline queue need none at all.**
-
-⚠ **The day is short too.** At writing, day **20708** (dow 2) closes at
-**2026-09-13T18:00Z**, about **1h 24m** away; day **20709** (dow 3) follows with
-a full 24h. **Read the rollover clock; do not assume either.**
+**The JWT is comfortable for once.** Refreshed before session 130 and read at
+**167.6h**, expiring ≈ **2026-09-20T16:35Z** — roughly **144 hours** from this
+writing. Verify with `doctor.ts` and record it, but it will not bind this
+session. **The day will**: at writing, day **20709** (dow 3) closes at
+**2026-09-14T18:00Z**, about **2h 10m** away.
 
 ---
 
-## ⭐⭐ [USER] DIRECTIVE 2026-09-13 — ENTRY TIER GOES BACK TO 3 (GOLD RINGS)
+## ⭐⭐ [USER] DIRECTIVE 2026-09-14 — REVERT THE ROD TO GOLKAN (812)
 
-**The user's call: *"we are going back to Tier 3 - gold rings for the dungeon
-runs."*** This is a **standing amendment to CLAUDE.md rule 11**, the same shape
-as the two changes before it — Tier 3 → Tier 1 on 2026-08-27, Tier 1 → Tier 2 on
-2026-08-30 — **and it must be recorded the same way: as a user directive, not an
-optimisation.**
+**The user's call: *"we are going back to the Golkan rod."*** Standing until
+they say otherwise.
 
-### What changes
+### The live evidence supports it, and it is now the strongest it has been
 
-- **`--juiced-index=3`**, not 2. Tier 3.
-- **The entry cost moves from silver rings to GOLD.**
-- **`dropMultiplier` goes 2 → 4.** Per SPEC §3c and DECISIONS 2026-08-28 that
-  multiplier is an **EXACT quantum on Hard Core (item 845) and moves nothing
-  else.**
+| rod | caught | n | rate |
+|---|---|---|---|
+| **Golkan (812)** | 183 | 307 | **59.6%** |
+| Dendren (923) | 54 | 104 | 51.9% |
+| **Puppeteer (924)** | **11** | **27** | **40.7%** |
 
-### What does NOT change — all of it still binds
+**Puppeteer against Golkan: −18.9pp, z = 1.90, p = 0.057.** That is not
+conventional significance, and n=27 is still thin — **but it is far stronger
+than the Dendren comparison ever was (p = 0.17)**, and it has been consistent
+across both Puppeteer days (7/17 then 4/10).
 
-- **60 energy, juiced, 3 of the 12 daily run-units.** `index` and `isJuiced` are
-  **independent axes** (SPEC §3c/§3f, session 42), so the tier change does not
-  touch the energy cost, the run-unit charge, or the potion auto-load — that gate
-  reads `--juiced` alone and never `index`.
-- **3× Big Heal Juice** from `config/bot.json`'s `forbiddenWoods.potions`.
-- **Rule 8** on in-room picks — highest non-Perpetual tier, except the final
-  room, keyed on the server's `maxRoom`. **The ENTRY tier and the in-room
-  `enemyPathOptions` tier are different choices; do not collapse them.** That
-  distinction is written into rule 11 and matters more, not less, now that both
-  numbers are 3.
-- **Rule 5** (fail closed), **rule 13** (read the ledger before believing a
-  denial), the **per-arm gear halt**, and **[USER] per-session approval**.
+### ⛔ AND THE DECK ARITHMETIC THAT ARGUED FOR PUPPETEER HAS NOW BEEN CONTRADICTED BY PLAY. RECORD THAT.
 
-### ⛔ THE TRAP THIS CHANGE INVITES — CLAUDE.md NAMES IT IN ADVANCE
+The session-129 brief computed per-play drift off the committed fixture and
+concluded Puppeteer **strictly dominates at every aim level** (−0.678 against
+Golkan's −0.400 at random aim). **Live play went the other way, hard.** The
+pattern is now three-for-three and it deserves a name in DECISIONS:
 
-> **`index` is the TIER, not an array position.** `entryData` is returned ordered
-> **tier 2, 1, 3**, so `entryData[1]` is Tier 1 **by luck**, `entryData[0]` is
-> Tier 2 **by a different coincidence**, and **`entryData[3]` DOES NOT EXIST.**
+- The **simulator** said Dendren beats Golkan by +3.23pp. Live: Dendren came in
+  **7.7pp worse**.
+- The **deck arithmetic** said Puppeteer beats both. Live: Puppeteer came in
+  **18.9pp worse than Golkan**.
+- **Golkan remains the best-performing rod in live play, at by far the largest
+  n.**
 
-**Match on `entryData[].tier === 3`. Never index the array positionally.** Two
-tiers in a row landing on a positional index that happened to work is exactly how
-this becomes a silent bug, and the previous two tier changes both got away with
-it by accident. **This one will not.**
+**⛔ Do not re-derive a drift table to argue against this directive.** Whatever
+the per-play arithmetic captures, it is not predicting catch rate — plausibly
+because catch rate is dominated by **meter-out** (64.2% live) rather than damage
+per play, because `cardChoice.ts` does not play the ten cards uniformly, or
+because the **fish-HP multiplier** (interval now [1.500, 1.5625) on Puppeteer
+card 101, base 8 → actual 12) sits between card damage and fish HP. **All three
+are hypotheses. Do not fit one.** The finding to record is the narrower,
+defensible one: **deck arithmetic has not predicted live catch rate, twice.**
 
-### ⛔ FOUR THINGS THAT ARE TIER-2 FINDINGS AND DO NOT AUTOMATICALLY CARRY
+### The swap — steps, in order
 
-1. **The charge shape — "one faction, exactly 3, six untouched" — is a TIER-2
-   claim, currently 49/49.** ⛔ **Do NOT carry that counter across the tier
-   change.** Open a **separate Tier-3 count starting at 0/0**, and state in the
-   recap that 49/49 is closed as a Tier-2 figure.
-2. **The dow → faction rotation is a TIER-2 finding.** Tier 2's `entryData`
-   carried `inputsBasedOnFactionDay: true` over the seven **silver** ids.
-   ⛔ **Do not assume today's dow governs the GOLD charge.** Read Tier 3's own
-   `entryData` and its own `inputsBasedOnFactionDay` before predicting anything.
-   The rotation being *"fully measured, all seven cells"* is a statement about
-   silver rings at Tier 2 and nothing else.
-3. **The gold-ring item IDs are NOT in this brief** and must not be guessed.
-   **Read them off `entryData[].tier === 3`'s `inputItems` / `inputAmounts`**, and
-   read the balances for exactly those ids before and after each run.
-4. **Confirm the Tier-3 offering is still OPEN.** Tier availability has a window;
-   `checkEntryTiers.ts` prints the live cost and the offering. **If Tier 3 is not
-   offered, stop and tell the user** rather than falling back to Tier 2 silently.
+1. **The user equips 812 in slot 14.** An agent cannot equip gear; confirm it by
+   reading `checkGear.ts`, never by assuming.
+2. **Read 812's durability LIVE.** Unknown to this brief — it was at 5 when it
+   was swapped out long ago and may have been repaired since. **Do not carry
+   Puppeteer's 17 across.**
+3. **Repoint `CURRENT_ROD` / `REAL_DECK` in `src/sim/fishing/rodDeck.ts` from
+   `PUPPETEERS_ROD` (924) to `GOLKAN_ROD` (812).**
+4. ⚠ **`rodDeck.test.ts` goes RED ON THE REPOINT and is healed by the FIRST
+   RECORDED GOLKAN CAST — not the other way round.** The session-129 brief
+   predicted this backwards and STATE corrected it. The test keys on the rod in
+   the **latest CORPUS cast**, so expect red between the repoint and the first
+   cast, and say so rather than treating it as a break.
+5. ⛔ **Do NOT add the legacy rods (49/50/336) to `ROD_CARD_GRANTS`** while in
+   there. The gear array carries Stone Rod (50) beside the active rod, so a
+   complete table makes "exactly one KNOWN rod" ambiguous. **Resolve by SLOT.**
+6. **Report Golkan's post-swap casts as a CONTINUATION of the existing 183/307
+   slice**, not a new one — same rod, same deck. But **flag the era**: these
+   casts come after a policy era and two rod swaps, so if the rate diverges
+   sharply from 59.6%, that is itself informative.
 
-### ⛔ AND ONE EXPERIMENT THAT STAYS RETIRED
+### ⚠ A CARRIED CLAIM ABOUT GOLKAN'S CARDS IS FALSE — CHECK AND CORRECT IT
 
-**[USER] The Tier-1/Tier-3 whole-run income baseline is RETIRED BY NAME**, after
-thirteen sessions, because a ~3x within-arm spread made it underpowered.
-**Switching tiers does not un-retire it.** Recording Hard Core per run is free and
-correct; **designing a cross-tier income experiment around these runs is not**, and
-a brief proposing one would be wrong.
+**STATE 129 and STATE 130 both record:** *"`fixtures/fishing-casts/cards.json`
+holds 8 of Golkan's 10 cards (82, 83 absent)."* STATE 129 used it to explain why
+Golkan's drift computed −0.389 rather than −0.400.
 
-### The CLAUDE.md edit — do it, and record it
+**It does not survive one command.** `ROD_CARD_GRANTS[GOLKAN_ROD]` is
+`[74, 80, 81, 84, 85, 86, 87, 88, 89, 90]`, and **all ten of those ids are
+present in `cards.json`.** Ids **82 and 83 are absent from the fixture, but they
+are not Golkan cards** — they are not in the grant list at all.
 
-Amend rule 11's `--juiced-index` clause to **3**, dated 2026-09-13, marked
-**[USER]**, standing until the user says otherwise. **Keep the superseded
-paragraphs** — that file's convention is to strike through and annotate rather
-than delete, because the reasoning behind a reversed decision keeps mattering.
-Record in `DECISIONS.md` and update STATE's digest. Re-opens as: *"switch to
-Tier 2 to save gold"* or *"Tier 2 is the standing entry tier"* — both now wrong.
+**So one of two things is wrong and this session should settle which**, now that
+Golkan is the live deck again:
+
+- either the "8 of 10" claim was always a misreading of an absent-id list, **or**
+- `deckOf()` / `splitByDealtDeck` defines Golkan's deck differently from
+  `ROD_CARD_GRANTS`, in which case the −0.389 figure came from a different card
+  set and **the two numbers were never comparable.**
+
+**Resolve it, correct both STATE entries, and do not carry the claim a third
+time.** It is five minutes and it currently underwrites a published number.
+
+---
+
+## Step 0 — the JWT, briefly
+
+`npx tsx scripts/doctor.ts`. Expected ≈ **2026-09-20T16:35Z**, ~144h out.
+**Record expiry and runway in the recap and STATE anyway** — that habit is what
+made session 129's tight window a non-event. **The day, not the token, is the
+constraint this session.**
 
 ---
 
 ## Step 1 — read everything, before the first `start_run`
 
-`checkDungeonToday.ts` · **`checkEntryTiers.ts` (the rollover clock AND the live
-Tier-3 cost)** · the ring balances for **both** metals · `checkFishingCaps.ts` ·
-**`npx tsx scripts/checkGear.ts`**.
+`checkDungeonToday.ts` · `checkEntryTiers.ts` (rollover clock **and** the live
+Tier-3 cost) · **all FOURTEEN ring balances, both metals** · `checkFishingCaps.ts`
+· **`npx tsx scripts/checkGear.ts`**.
 
 ### Claims to verify — rule 9
 
 | # | Claim | value |
 |---|---|---|
-| A | Day / dow / faction | **per the clock** — 20708 dow 2 at writing, 20709 dow 3 after 18:00Z |
-| B | **Tier 3 is OFFERED**, and its `inputItems` are GOLD | `entryData[].tier === 3` |
-| C | Silver rings total **159**: Athena 9, Archon 12, Crusader 15, Chobo 18, Summoner 30, Foxglove 33, Overseer 42 — **an INSTRUMENT, not a budget** | read live |
-| D | **GOLD ring balances — UNKNOWN to this brief.** Read and report them; do not assert | read live |
+| A | Day / dow — **20709, dow 3** at writing; **20710, dow 4** after 18:00Z | per the clock |
+| B | **GOLD** totals **236**: Foxglove **19**, Overseer 25, Crusader 25, Athena 35, Archon 40, Chobo 44, Summoner 48 | read live |
+| C | **SILVER** totals **159**: Athena 9, Archon 12, Crusader 15, Chobo 18, Summoner 30, Foxglove 33, Overseer 42 — should be **untouched** by a Tier-3 entry | read live |
+| D | Tier **3** is offered; `entryData[].tier === 3` carries GOLD ids | read live |
 | E | Run-units fresh **0 of 12** | `dayProgressEntities` |
-| F | Fishing ledger — read it; last session closed at 14/20 with 6 unspent | `checkFishingCaps.ts` |
-| G | Gear — **see Step 2. Do not assert it; read it.** | `checkGear.ts` |
+| F | Fishing ledger — last session closed 9/20 | `checkFishingCaps.ts` |
+| G | Gear + the rod — **see Step 2. Read it, do not assert it.** | `checkGear.ts` |
 
-⚠ **`checkFishingCaps.ts`'s cast counter tracks CHARGED casts; its energy counter
-tracks PLAYED ones.** Both correct; reads as broken if skimmed.
+⛔ **`index` is the TIER, not an array position.** `entryData` comes back ordered
+**tier 2, 1, 3**; **`entryData[3]` does not exist.** Match on
+`entryData[].tier === 3`. `liveRun.ts` sends `index` straight to the server and
+has no positional read — **keep it that way.**
+
+⚠ **Do not print ring balances with positional `awk` columns.** Faction names
+shift the fields; session 130's between-run print came out empty and **run 2's
+gold reading was lost.** Use `sed` on the `balance N` token, or read the JSON.
 
 ---
 
-## Step 2 — gear: keep the inversion. It worked.
+## Step 2 — gear: keep the inversion. SIXTH session of stale forecasts.
 
-**STATE 129 explicitly endorses what the last brief did:**
+**Read `checkGear.ts` FIRST. Then raise a repair only if the live numbers call
+for one.** Session 130's brief table was stale in **2 of 7 rows** (901 0→24,
+slot-15 0→20) — repairs keep landing out of band, and the inversion is the
+reason nothing was wasted.
 
-> **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT — FIFTH session running.** 640
-> and 905 were repaired out of band… ✅ **This brief handled it correctly** — it
-> inverted the instruction to *"read `checkGear.ts` first, then raise a repair
-> only if the live numbers call for one"*, and nothing was wasted. **Keep that
-> inversion.**
+For orientation only — **session 130's close, which may already be wrong:**
 
-**So: read `checkGear.ts` FIRST. Then raise a repair only if the live numbers
-call for one.** Three of the last five briefs' gear tables were stale, and last
-session's was stale in **three of its six rows**.
+| arm | piece | close |
+|---|---|---|
+| **Dungeon** | **905** (slot 13) | **0** — arm halted at close |
+| Dungeon | 640 | 36 |
+| Dungeon | 641 | 12 |
+| Dungeon | 901 | 12 |
+| **Fishing** | **slot-15 954** (…83b834fd) | **0** — arm halted at close |
+| Fishing | slot-15 pair | 10 |
+| Fishing | rod 924 | 17 — **being swapped out; read 812 instead** |
 
-For orientation only — **session 129's close, which may already be wrong:**
-
-| arm | piece | close | note |
-|---|---|---|---|
-| **Dungeon** | **901** (slot 13) | **0** | arm halted at close |
-| Dungeon | 640 | 48 | 16 runs |
-| Dungeon | 641 | 24 | 8 runs |
-| Dungeon | 905 | 12 | 4 runs |
-| **Fishing** | **slot-15 954** | **0** | arm halted at close |
-| Fishing | slot-15 pair | 10 | **10 casts — binds below the 20 asked for** |
-| Fishing | rod 924 | 27 | 27 casts |
-
-**If those zeros still stand, both arms need a repair** — raise it once, with the
-scope question and the JWT runway, in a single message. ⚠ **Note for the 20-cast
-scope: last session the binding cap was GEAR at 17, not the rod (44) and not the
-ledger (20).** The binding cap is **whichever of rod / ledger / gear is
-smallest** — compute all three and say which one binds.
+**If those zeros stand, both arms need a repair** — raise it once, with the scope
+question, in a single message. **The binding cast cap is the smallest of rod /
+ledger / gear** — it was **gear at 10** last session, not the rod.
 
 ⚠ **`checkGear.ts`'s HALT banner is not automatically an arm halt** — item 50
 (slot 8) is grandfathered and trips it permanently. Check WHICH slot. Pieces at 0
-at session open are **GRANDFATHERED**; a started run always finishes.
+at session open are **GRANDFATHERED**; a started run always finishes; the halt is
+**PER-ARM**.
 
 ---
 
-## Step 3 — pre-register, then spend
+## Step 3 — ⭐ THE DUNGEON GATE: the SECOND gold-rotation point
 
-**Ninth session running** (`09c8bc37` and `bf31c692` last time, each before its
-own arm's spend — **that split is good practice; repeat it**). Write
-`handoff/scratch-session-130.md`, `git commit`, quote the hash. No addresses, no
-usernames, no JWT fragments.
+**One gold day is observed: day 20708, dow 2 → Foxglove Gold (248), −12 across
+four runs, six gold factions and all seven silvers untouched. Tier-3 shape count
+4/4; Tier-2's 49/49 is CLOSED.**
 
-**Pre-register these, and note that the tier change makes two of them genuinely
-uncertain for the first time in weeks:**
+**n=1 separates nothing.** STATE's instruction is explicit: **pre-register a SET,
+not a single faction.**
 
-1. **⭐ The GOLD charge shape — UNKNOWN, and that is the point.** State in advance
-   what you expect from `entryData` (how many ids, what amounts, whether
-   `inputsBasedOnFactionDay` is true) and what would falsify it. **Do not predict
-   "one faction, exactly 3"** on the strength of the Tier-2 result; say plainly
-   that it is a Tier-2 claim being tested at Tier 3 for the first time.
-2. **⭐ Dendren Root should be UNCHANGED. This is the TIGHT test.** Item **846
-   answers to `isJuiced` alone** and is **not** governed by `dropMultiplier`.
-   Session 129's four runs are the comparison; recent Tier-2 days paid ≈ **2,700
-   – 2,900**. **If Dendren Root moves with the tier, a documented SPEC claim is
-   wrong** — that is a real finding, not a rounding difference.
-3. **⚠ Hard Core should roughly DOUBLE — and this is the LOOSE test, so frame it
-   loosely.** `dropMultiplier` 4 vs 2 implies ×2 on item 845. Recent Tier-2
-   four-run days paid **18,816 / 19,056 / 19,608**, so the multiplier implies
-   ≈ **37,000 – 39,000**. ⚠ **But session 103's four Tier-3 runs paid 30,960**,
-   and the two references do not agree, because **room depth varies run to run
-   and dominates**. **Pre-register the RATIO, not the total**, and expect noise.
-4. **The gear path** per run at −3 on slots 11/12/13×2, **and the break run if
-   one lands**, computed from the LIVE read.
+### The pre-registration, and it has a clean falsifier
 
-### The runs
+- **⭐ Under ANY 7-permutation hypothesis, a dow-3 gold day must NOT charge
+  Foxglove again.** That is the sharp test: **a second Foxglove charge kills the
+  permutation hypothesis outright**, exactly as a repeat inside one cycle killed
+  it for silver.
+- **One named candidate, and only one, so it is falsifiable:** *"gold = silver
+  shifted by one day"* predicts **dow 3 → Summoner Gold**, because silver's dow 4
+  is Summoner. It fits the single observed point (gold dow 2 = Foxglove = silver
+  dow 3) — **and so do many other maps. It is one candidate among many, not a
+  favourite.**
+- **The predicted SET, if the permutation holds:** any of the six non-Foxglove
+  gold factions. **State which one you expect and why, then report which came.**
+- ⛔ **Do NOT predict today's gold faction from the silver dow map.** That is the
+  hypothesis session 130 falsified on purpose-built data, and it is in the
+  do-not-re-open digest.
+
+⚠ **If the day has rolled to 20710 (dow 4), the same structure applies** — the
+falsifier is still "not Foxglove", and the shifted-map candidate becomes silver's
+dow 5, **Chobo**. Read the clock and say which day you are on.
+
+### Also pre-register
+
+- **The gold path**: opening balance of the charged faction, **−3 per run**, six
+  gold untouched, **all seven silver untouched.**
+- **The Tier-3 shape count 4/4 → 8/8.**
+- **Hard Core as a RATIO, not a total.** Session 130 measured **998/room against
+  Tier 2's 490/room = ×2.04**, inside the [1.6, 2.4] band. Predict the ratio.
+- ⛔ **Dendren Root (846) is a function of the DEATH ROOM, not the tier** — room
+  9 → 546, room 10 → 687 at both tiers. **Compare per room, never totals.**
+  "846 should be ≈2,700–2,900" is depth-confounded and was wrong in the last
+  brief.
+- **The gear path** per run, from the LIVE read, and the break run if one lands.
+
+---
+
+## Step 4 — the runs
 
 **⛔ This brief does not carry authorization.** [USER] approval is **per session,
-in session** — one authorization then covers all four runs consecutively, but a
-brief may never manufacture it. The user named a scope (4 runs, 20 casts);
-**ask once, then go.**
+in session**; one authorization then covers all runs consecutively to the
+12-unit cap, but **a brief may never manufacture it.** The user named a scope
+(the rod revert) but **no run or cast count — ask for both, once, in the same
+message as the gear reading.**
 
-`--dry-run` once (rule 4) — **and read its output carefully this time**, because
-it is the cheapest place to catch a wrong `index`. Then
-**`--runs=1 --juiced --juiced-index=3`**, four times, consecutively, no pause.
+`--dry-run` once (rule 4) and **confirm it prints `index 3`**. Then
+`--runs=1 --juiced --juiced-index=3`, consecutively, no pause.
 
-**Read BOTH metals' balances after each run** — gold to measure the charge,
-silver to confirm it is untouched. **Report all four readings together at the
-end.** If any silver moves on a Tier-3 entry, that is a finding; say so.
+**Read BOTH metals after every run** — gold to measure the charge, silver to
+confirm it is untouched — and **report all readings together at the end.** Rule 8
+on in-room picks; **rule 5 fail-closed and rule 13 on denials are untouched: no
+prompt is not no halt.**
 
 ---
 
-## Step 4 — fishing: 20 casts on the Puppeteer rod
+## Step 5 — fishing, on Golkan
 
-**The user's scope is 20 casts**, inside the standing 360-energy / 30-cast
-budget. **The binding cap is whichever of rod / ledger / gear is smallest** —
-last session that was gear at 17, and the slot-15 pair closed at 10/0.
-
-- **Set `castCap` to the binding number**, as `SESSION_129_LIMITS` did at 17.
-  Add a `SESSION_130_LIMITS` the same way. ⛔ **`--casts=N` is silently
-  overridden by `--oil-batch`** while the banner still prints `args.casts`.
+- **Set `castCap` to the binding number** (smallest of rod / ledger / gear), as
+  `SESSION_130_LIMITS` did at 10. Add `SESSION_131_LIMITS` the same way.
+  ⛔ **`--casts=N` is silently overridden by `--oil-batch`** while the banner
+  still prints `args.casts`.
 - **The `castCap: 2` convention is not a safety rule in itself** — it exists
-  because a dry rod injects `BASE_DECK` mid-batch unnoticed, and that needs the
-  rod to hit 0 **with casts still to play.** A batch sized to the binding cap
-  cannot.
-- **On a halt: stop, hand back, wait for the repair**, resume with a **fresh live
-  read.**
-- **Report played and charged separately**, and **report Puppeteer as its own
-  slice.** Day one read **7/17 = 41.2%**, n far too small to mean anything.
-  ⛔ **Do not pool it into Dendren's 54/104 = 51.9%.** The other slices: Golkan
-  183/307 = 59.6%, pooled 271/537 = 50.5%.
-
-Oils **Relaxing-only** (20 held, 2 consumed last session); Focus off the
-allowlist, triggers log **policy-withdrawn**.
+  because a dry rod injects `BASE_DECK` mid-batch unnoticed, which needs the rod
+  to hit 0 **with casts still to play.** A batch sized to the binding cap cannot.
+- **On a halt: stop, hand back, wait for the repair**, resume on a **fresh live
+  read**.
+- **Report played and charged separately.** Slices: **Golkan 183/307 = 59.6%**
+  (this session's casts CONTINUE it), Puppeteer 11/27 = 40.7%, Dendren
+  54/104 = 51.9%. ⛔ Never pool across rods.
+- Oils **Relaxing-only** (19 held); Focus off the allowlist, triggers log
+  **policy-withdrawn**.
 
 ---
 
-## One [USER] question — and only one
+## Two small jobs that are already decided — just do them
 
-**⚠ `Vengeance` AMPLIFIES and needs a directive to model.** `atk 26 → taken 32`
-(**+6**) twice, attacker carrying `beforeStatus.Vengeance = 25`; **one a TIE and
-one NOT**, so the trigger is **not** ties and this is **not**
-`TieDamageReduction`. It is the **second** held boon whose conditional has been
-observed.
+1. **⛔ DELETE the ring "RUNWAY" line from `scripts/checkEntryTiers.ts`.** STATE
+   130 lists it as an open question — **it is not one.** The user retired the
+   runway concept on 2026-09-11 (*"ignore the balances I can get more rings if
+   needed"*), so removing a line that still prints it is **implementing a
+   standing directive, not a new decision.** Do it; do not spend a user question
+   on it. Its Tier-3 block already stopped printing the silver rotation table.
 
-**Attach the same caveat that came with the last such ask:** a yes still needs
-more observations to say what the **25** governs, and `BOON_MODELS` is untouched
-meanwhile.
-
-⛔ **Do NOT re-ask about `TieDamageReduction`** — asked and answered 2026-09-12,
-**stays HELD at n=1**, roster stays eleven. Re-asking without a second pickup is
-in the do-not-re-open digest.
+2. **⚠ CLOSE THE `nextPosition` REGISTRY GAP.** `data.nextPosition` /
+   `data.nextMovePath` are logged as UNKNOWN FIELDS on **every fishing turn**,
+   with dumps from 2026-09-08 onward, **while the strategy actively uses
+   `nextPosition`** — the override reported **67/67** hits last session. A field
+   the bot depends on has been flagged unknown for six sessions. **A registry
+   gap, not a rule-5 condition.** Cheap, offline, and it is noise on every turn
+   until someone does it.
 
 ---
 
 ## Carry forward — name each in the recap
 
-1. **⭐ `blockedMove` IS ANSWERED, AND THE WIRING THREE BRIEFS PROPOSED IS
-   FALSIFIED.** It does **NOT** bind the current exchange (6/20 vs 6.67 expected,
-   p = 0.48 — chance exactly) and only **depresses the next** (2/20, p = 0.018).
-   ⛔ **A hard exclusion assigns probability ZERO to an event the corpus contains
-   TWICE.** It is a **soft prior (~3.3x)** whose magnitude n=20 cannot support.
-   Pinned in `src/sim/blockedMove.ts`; consumed nowhere in the strategy path.
-   **The remaining work is COLLECTION and it accrues for free — do not commission
-   runs for it.**
+1. **⭐ [USER] `Vengeance` IS MODELLED** (2026-09-13). Arms on a LOSS, holds on a
+   loss, consumed on the holder's next damaging exchange, which deals
+   `floor(x * 1.25)` — **crit before; Weak / Vulnerable / block after.**
+   `src/sim/vengeance.ts`; QUESTIONS §67 ANSWERED; 29/29 damage, 164/164
+   transitions, 8/8 victim-inert. ⛔ **Only amount 25 has armed; 15 is REFUSED.**
+   Re-opens as *"ask the user about Vengeance"*, *"Vengeance is n=2"*, or
+   *"model Vengeance 15 as +15%"* — all wrong.
 
-2. **⚠ IS THE ROD CARRYING A DUNGEON STAT LINE?** `hpMax` **51 → 50** and Sword
-   ATK **27 → 26** moved **together**, on every opening of 09-12 against every
-   opening of 09-11, with `armorMax`/Paper/Scissor unmoved. **The one equipment
-   IDENTITY change between the readings is the rod swap 923 → 924**, and every
-   dungeon piece read healthy. ⛔ **COINCIDENT, NOT PROVEN.** It is falsifiable
-   for the price of one gear read: **if the user ever swaps back to 923, capture
-   the opening — 51/27 returning would prove it.** Do not swap back for this
-   alone; it would cost the Puppeteer data. **But if a swap happens for any
-   reason, take the reading.** This matters more under Tier 3, where combat
-   depth drives the payout.
+2. **⭐ `blockedMove`'s wiring stays FALSIFIED, now at 23 procs.** Current
+   **6/23** vs 7.67 expected (p ≈ 0.31 — chance); next **2/23** (p ≈ 0.0067).
+   **A soft prior, not an exclusion — two counterexamples stand.** Consumed
+   nowhere in the strategy path. ⛔ **Do not commission runs for it**; it accrues
+   for free.
 
-3. **⚠ The unknown-field registry does not know `nextPosition` — and the strategy
-   ACTIVELY USES IT** (the override reports 62/62 hits). Logged as an unknown
-   field on every fishing turn, with dumps from 2026-09-08 onward. **A registry
-   gap, not a rule-5 condition.** Cheap to close, and it is noise on every turn
-   until someone does.
+3. **⚠ Is the rod carrying a DUNGEON stat line?** `hpMax` 51→50 and Sword ATK
+   27→26 coincided with the 923→924 swap; all four session-130 openings read
+   **50/17** on 924. **COINCIDENT, NOT PROVEN.** ⭐ **This session's revert to 812
+   is the test that was never worth making on its own — TAKE THE READING.** If
+   the opening returns to **51/27** on Golkan, the rod carries a combat stat line
+   and every rod choice becomes a dungeon decision. **Pre-register it**: it costs
+   nothing and the swap is happening anyway.
 
-4. **⚠ `fixtures/fishing-casts/cards.json` holds only 8 of Golkan's 10 cards**
-   (82 and 83 absent); Dendren and Puppeteer are complete. **This is why Golkan's
-   per-play drift computes −0.389 rather than the −0.400 an earlier brief
-   quoted.** Dendren (−0.300) and Puppeteer (−0.678) reproduce exactly. Quote the
-   computed values, not the brief's.
+4. **⛔ `TieDamageReduction` stays HELD at n=1** — asked and answered 2026-09-12,
+   roster stays eleven, enforced by `tests/boons.test.ts`'s
+   `AWAITING_MODEL_DIRECTIVE`. **Do not re-ask without a second pickup.**
 
-5. **⚠ A BRIEF'S PREDICTION ABOUT ITS OWN TESTS CAN BE BACKWARDS.** Last brief
-   said `rodDeck.test.ts` would be *"red until the repoint lands"*. Wrong
-   direction: the test keys on the rod in the **latest CORPUS cast**, so the
-   **repoint** reddens it and the **first recorded Puppeteer cast** heals it.
-   Check which way a guard actually points before predicting its colour.
+5. **⭐ PIN IN-SESSION.** 175 sites last session, green same-session. ⛔ Never
+   defer the pin pass; pin only after the run-units and cast cap are spent.
 
-6. **⭐ PIN IN-SESSION.** Five rounds, ~90 sites last time, done same-session and
-   left green. ⛔ Do not defer the pin pass. Pin only after the run-units and the
-   cast cap are spent, never mid-arm.
+6. **⛔ Three fresh patcher / formatting traps.** Do not let a pin patcher **write
+   files before it has parsed every failure** — session 130's first run crashed
+   after writing three; **snapshot `tests/` and diff against it.** Do not **strip
+   outer brackets** re-formatting an array received value (`[[1,99],…]` became
+   `[1,104], …`, a syntax error). And carried: anchor pins on the **matcher
+   call**, never a bare numeric literal; ratio pins need **both halves** moved;
+   never nest a `/* was */`.
 
-7. **⛔ Two fresh patcher traps.** Do not let a pin patcher **walk forward to the
-   next `);`** — it annotated 16 assertions it never changed and mis-mapped array
-   literals positionally (`[3,3]` → `[4,3]` where the truth was `[3,4]`). And
-   **do not patch a bare numeric literal — anchor on the matcher call**, because
-   the old value also lives inside the historical `/* was X */` comment on the
-   same line. **Sweep the diff for added annotations whose line is otherwise
-   byte-identical.**
+7. **⛔ Do not read consecutive captures as consecutive EXCHANGES** — every
+   `use_move` capture is followed by a duplicate with no events, which is how a
+   first pass at `blockedMove` hid the whole finding. **`loadCorpus()` cannot
+   answer any question about `data.events`** — it keeps `data.run` and drops
+   `events`.
 
-8. **⛔ Do not read consecutive captures as consecutive EXCHANGES.** Every
-   `use_move` capture is followed by a duplicate with no events; treating those as
-   exchanges makes "current" and "next" the SAME row — which is exactly how a
-   first pass at `blockedMove` hid the entire finding. Relatedly,
-   **`loadCorpus()` cannot answer any question about `data.events`** — it keeps
-   `data.run` and drops `events`.
+8. **⚠ `$TMPDIR` DIFFERS by sandbox mode** — **avoided last session** by using
+   the scratchpad path throughout, after six consecutive sessions of cost. **Keep
+   using the scratchpad path, never `$TMPDIR`.** Run the suite and git
+   **UNSANDBOXED**.
 
-9. **⚠ `$TMPDIR` DIFFERS between sandbox modes — SIXTH consecutive session it
-   cost cycles**, this time on the very first suite capture. **Use the scratchpad
-   path, never `$TMPDIR`.** Run the suite and git **UNSANDBOXED**.
+9. **⚠ THE `ask` BLOCK IN `.claude/settings.local.json` IS STILL THERE** —
+   `Bash(npx tsx scripts/liveRun.ts *)`, `liveFishing.ts`, `orchestrator.ts`. The
+   user directed it cleared on 2026-09-11; it did not block anything last
+   session, but it remains and **the path substring alone trips it.** An agent
+   cannot edit its own permission rules. Mention once; do not re-litigate.
 
-10. **⚠ THE `ask` BLOCK IN `.claude/settings.local.json` IS STILL THERE** — the
-    user directed it cleared on 2026-09-11 and it remains; the path SUBSTRING
-    alone trips it. **An agent cannot edit its own permission rules.** Mention it
-    once with the exact lines, and carry on.
-
-11. **[USER] Other dungeons on this account are OUT OF SCOPE.** The 12-run-unit
-    ledger is per-dungeon. **The rotation is fully measured** — for silver at
-    Tier 2; see the directive. **The `web/` front end** is untouched since
-    session 120. **§0a NOT lifted; +19.40pp and +17.74pp MAY NOT BE QUOTED.**
+10. **⭐ THE ORCHESTRATOR'S DUNGEON ARM STAYS CLOSED** — "no dungeon run without a
+    human in the loop". **[USER] Other dungeons are OUT OF SCOPE**; the 12-unit
+    ledger is per-dungeon. **The Tier-1/Tier-3 income baseline stays RETIRED BY
+    NAME** — per-room recording is not that experiment. **The `web/` front end**
+    is untouched since session 120. **§0a NOT lifted; +19.40pp and +17.74pp MAY
+    NOT BE QUOTED.**
 
 ---
 
 ## Recap — lead with these
 
-- **The JWT: expiry, runway, and whether it was refreshed at all.** If not, say
-  what was done offline instead.
-- **⭐ TIER 3: the live `entryData` for `tier === 3`** — the gold ids, the
-  amounts, `inputsBasedOnFactionDay`, and whether the offering was open. **The
-  GOLD charge shape as a NEW count starting at 0/0**, with 49/49 stated as
-  **closed** at Tier 2.
-- **Whether any SILVER balance moved on a Tier-3 entry** — it should not.
-- **Dendren Root against its ≈2,700–2,900 Tier-2 baseline** (the tight test) and
-  **Hard Core as a RATIO** against ×2 (the loose one), with room depths beside
-  them.
-- **The CLAUDE.md rule-11 edit landed**, dated and marked [USER], superseded
-  paragraphs kept, and recorded in DECISIONS and STATE.
+- **⭐ The rod revert**: 812 equipped and confirmed by a live gear read, its
+  durability, the `CURRENT_ROD` repoint, and `rodDeck.test.ts` going red on the
+  repoint and green on the first Golkan cast — **in that order.**
+- **⭐ The opening loadout on Golkan** against session 130's 50/17 — **51/27 or
+  not** — and what that says about the rod carrying a dungeon stat line.
+- **⭐ The SECOND gold-rotation point**: which faction charged, whether it was
+  Foxglove (killing the permutation), and how the observed value scored against
+  the pre-registered set and the shifted-map candidate.
+- **Whether any SILVER moved on a Tier-3 entry** — it should not — and the
+  Tier-3 shape count at **8/8**.
+- **The Golkan card-coverage claim: resolved**, with both STATE entries corrected
+  and the −0.389 / −0.400 discrepancy explained or retired.
 - **The live gear reading** — never a forecast — and which of rod / ledger / gear
   bound the cast count.
-- **That ONE authorization covered the session**, given in chat, not claimed.
-- **Fishing: played vs charged separately**, Puppeteer as its own slice, never
-  pooled.
-- **`Vengeance` put to the user** with the "a yes still needs more observations"
-  caveat.
-- **All eleven carry-forward items by name.**
+- **That ONE authorization covered the session**, given in chat, not claimed, and
+  what scope the user set.
+- **Fishing: played vs charged separately**, Golkan casts as a **continuation** of
+  183/307 with the era flagged.
+- **Both small jobs done**: the runway line deleted, the `nextPosition` registry
+  gap closed.
+- **All ten carry-forward items by name.**
 
 Closeout: **stage first, then** `npx tsx scripts/secretScan.ts` **quoted
-verbatim** (plus the `--scope=diff` run as an addition, never a substitute);
-suite `vitest run --maxWorkers=4` **UNSANDBOXED and GREEN**; `tsc --noEmit`;
-`git diff --check`; `discoveredShipsClean` 8/8. **Never trust a `tail`-piped or
-notification exit code** — capture to a file and read `$?`.
+verbatim** (plus `--scope=diff` as an addition, never a substitute); suite
+`vitest run --maxWorkers=4` **UNSANDBOXED and GREEN**; `tsc --noEmit`;
+`git diff --cached --check`; `discoveredShipsClean` 8/8. **Never trust a
+`tail`-piped or notification exit code** — capture to a file and read `$?`.
