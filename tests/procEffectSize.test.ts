@@ -129,11 +129,22 @@ describe("the null — what an exchange does when nothing procs", () => {
     // ⛔ NOT modelled: one pickup, and CLAUDE.md requires a [USER] directive
     // for a new boon type. Note also that the reduction is 2 while the pick
     // drew `selectedVal1` 8, so "reduce by val1" is already falsified.
-    expect(cleanMisses).toEqual([
-      "run-2026-09-10-17-46-14/state-082.json victim=0 taken=12 atk=14",
-      "run-2026-09-10-17-46-14/state-090.json victim=0 taken=16 atk=18",
-    ]);
-    expect(cleanN - cleanOk).toBe(2);
+    //
+    // [session 131] SLICE-SAFE, the same discipline as this file's header: the
+    // bounded slice is the last RUN_DIRS_SCANNED runs, and day 20709's four runs
+    // pushed run-2026-09-10-17-46-14 out of it — the list read [] and failed a
+    // literal expectation. The two named exchanges are expected exactly when
+    // their run is IN the slice, and nothing else is ever allowed.
+    const tieBoonRunInSlice = exchanges.some((ex) => ex.label.startsWith("run-2026-09-10-17-46-14/"));
+    expect(cleanMisses).toEqual(
+      tieBoonRunInSlice
+        ? [
+            "run-2026-09-10-17-46-14/state-082.json victim=0 taken=12 atk=14",
+            "run-2026-09-10-17-46-14/state-090.json victim=0 taken=16 atk=18",
+          ]
+        : [],
+    );
+    expect(cleanN - cleanOk).toBe(tieBoonRunInSlice ? 2 : 0); /* [session 131] was toBe(2) — slice-aware, see the list above */
     // Observation only, not an assertion: the mixed rate is composition-bound.
     expect(ok / n).toBeGreaterThan(0.5);
   });

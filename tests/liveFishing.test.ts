@@ -89,6 +89,13 @@ describe("unknownDocKeys", () => {
     const withExtra = { ...doc0, data: { ...data, someNewMechanic: { amount: 5 } } };
     expect(unknownDocKeys(withExtra)).toEqual(["data.someNewMechanic"]);
   });
+
+  it("[session 131] does NOT flag data.nextPosition / data.nextMovePath — decoded in session 48 and consumed by the move override", () => {
+    const doc0 = cast[0]!.response.data.doc as unknown as Record<string, unknown>;
+    const data = doc0.data as Record<string, unknown>;
+    const withMove = { ...doc0, data: { ...data, nextPosition: [1, 2], nextMovePath: [1, 2] } };
+    expect(unknownDocKeys(withMove)).toEqual([]);
+  });
 });
 
 describe("fishCell", () => {

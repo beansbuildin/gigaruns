@@ -1,11 +1,11 @@
 # Dungeon runs
 
-Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-13T17:34:40.973Z.
+Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-14T17:56:41.995Z.
 
 **"Dendren Root"** (the user's term) is wire item 846, `NAME_CID: "Dendren Remnant"` — see this file's header comment in `src/sim/dungeonReport.ts` for the capture that confirmed it.
 
-149 recorded attempts — 140 deaths, 0 cleared, 9 incomplete/stopped. 104 juiced.
-Total Hard Core earned: 503116. Total Dendren Root earned: 49913. Total energy spent: 7140.
+153 recorded attempts — 144 deaths, 0 cleared, 9 incomplete/stopped. 108 juiced.
+Total Hard Core earned: 536812. Total Dendren Root earned: 52202. Total energy spent: 7380.
 
 ## Death-room histogram
 
@@ -14,12 +14,12 @@ Total Hard Core earned: 503116. Total Dendren Root earned: 49913. Total energy s
 - room 3: █████████████ 13
 - room 4: ████████████████ 16
 - room 5: ██████████████ 14
-- room 6: ██████████ 10
+- room 6: ███████████ 11
 - room 7: ████████████████████████ 24
 - room 8: █████████ 9
-- room 9: ██████████████ 14
-- room 10: ███████████████ 15
-- room 11: █████ 5
+- room 9: ███████████████ 15
+- room 10: ████████████████ 16
+- room 11: ██████ 6
 - room 12: ███ 3
 - room 13: ████ 4
 - room 14: ███ 3
@@ -177,3 +177,7 @@ Total Hard Core earned: 503116. Total Dendren Root earned: 49913. Total energy s
 | 25554818 | death @ room 9 | yes | 9264 | 546 | 60 | run-2026-09-13-17-10-48 |
 | 25554870 | death @ room 10 | yes | 9696 | 687 | 60 | run-2026-09-13-17-15-01 |
 | 25554948 | death @ room 14 | yes | 14208 | 1362 | 60 | run-2026-09-13-17-19-08 |
+| 25578265 | death @ room 9 | yes | 8448 | 546 | 60 | run-2026-09-14-16-54-04 |
+| 25578394 | death @ room 6 | yes | 5424 | 216 | 60 | run-2026-09-14-17-04-26 |
+| 25578417 | death @ room 10 | yes | 8976 | 687 | 60 | run-2026-09-14-17-07-46 |
+| 25578459 | death @ room 11 | yes | 10848 | 840 | 60 | run-2026-09-14-17-12-41 |

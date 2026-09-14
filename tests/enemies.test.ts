@@ -435,8 +435,16 @@ describe("player loadout matches the fixtures", () => {
       "74/14",
       "74/17",
       "74/19",
+      // [session 131, day 20709] +3 combos 74/21, 74/24, 74/27, CHASED to their pickup per the session-104
+      // directive — ADDITIVE, multiset diff 3 added / 0 removed. Run 4 (run-2026-09-14-17-12-41) opens 50/17,
+      // takes AddMaxArmor(10) -> 27 and then AddMaxHealth(**24**) -> 74/27 at state-084 — a NEW AddMaxHealth
+      // size (prior +8, +14). 74/24 (state-134) and 74/21 (state-140) are mid-run armor shred off 74/27,
+      // restored to 74/27 by state-146. Not a re-spec: all four openings read 50/17.
+      "74/21",
       "74/22",
+      "74/24",
       "74/25",
+      "74/27",
       "75/16",
       "75/19",
       "75/27",

@@ -213,7 +213,7 @@ import { SESSION_131_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBat
  * 3.1 -> 3.0 -> 3.1 across three batches, which is what a ~3% rate on a
  * slowly-growing denominator looks like — do not read a direction into it.
  */
-export const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "2.2"; /* [session 130, day 20708] was "2.3" — recomputed on the 564-cast corpus after the second Puppeteer batch */ /* [session 125] was "2.4" — recomputed on the 507-cast corpus after the day-20703 24-cast batch */ /* [session 124] was "2.5" — recomputed on the 483-cast corpus after the day-20702 26-cast batch */ /* [session 122] was "2.3" — recomputed on the 433-cast corpus after the day-20700 23-cast batch */ /* [session 121] was "2.5" — recomputed on the 410-cast corpus after the day-20699 20-cast day */ /* [session 118] was "2.6" — recomputed on the 375-cast corpus */ /* [session 116] was "2.8" — recomputed on the 364-cast corpus */ /* [session 113] was "3.0" — recomputed on the 315-cast corpus */ /* [session 107] was "3.1" — recomputed on the 273-cast corpus */  /* [session 110] was "3.0" — recomputed on the 288-cast corpus */  /* [session 110b] was "2.9" — recomputed on the 295-cast corpus */
+export const REDRAW_SHADOW_IN_SAMPLE_RATE_PCT = "2.1"; /* [session 131, day 20709] was "2.2" — recomputed on the 584-cast corpus after two Golkan batches */ /* [session 130, day 20708] was "2.3" — recomputed on the 564-cast corpus after the second Puppeteer batch */ /* [session 125] was "2.4" — recomputed on the 507-cast corpus after the day-20703 24-cast batch */ /* [session 124] was "2.5" — recomputed on the 483-cast corpus after the day-20702 26-cast batch */ /* [session 122] was "2.3" — recomputed on the 433-cast corpus after the day-20700 23-cast batch */ /* [session 121] was "2.5" — recomputed on the 410-cast corpus after the day-20699 20-cast day */ /* [session 118] was "2.6" — recomputed on the 375-cast corpus */ /* [session 116] was "2.8" — recomputed on the 364-cast corpus */ /* [session 113] was "3.0" — recomputed on the 315-cast corpus */ /* [session 107] was "3.1" — recomputed on the 273-cast corpus */  /* [session 110] was "3.0" — recomputed on the 288-cast corpus */  /* [session 110b] was "2.9" — recomputed on the 295-cast corpus */
 import { castOutcomesChronological, loadFishingCorpus } from "../src/sim/fishingCorpus.js";
 import { evaluateZeroStreak } from "../src/strategy/fishing/zeroStreak.js";
 
@@ -301,6 +301,14 @@ export const KNOWN_DOC_DATA_KEYS: ReadonlySet<string> = new Set([
   "caughtFish",
   "cardsToAdd",
   "cardChosenId",
+  // [session 131] Registry gap closed. `nextMovePath` (1-based row-major cell
+  // indices) and `nextPosition` (its endpoint, a coordinate pair) were decoded
+  // in session 48 (`src/sim/fishing/movePathAudit.ts`, `castTrace.ts`) and the
+  // move override consumes `nextPosition` (67/67 hits, session 130) — yet both
+  // were still dumped as UNKNOWN FIELDS on every turn from 2026-09-08 onward
+  // (41 dump files). Known and used, so no longer flagged.
+  "nextPosition",
+  "nextMovePath",
 ]);
 
 /** `data` handled separately via `KNOWN_DOC_DATA_KEYS` — see that constant's doc comment. */

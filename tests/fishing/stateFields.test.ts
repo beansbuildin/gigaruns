@@ -338,6 +338,11 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // 12/8 = 1.500 repeats card 9's 3/2, so it does not tighten the bound.
     // Not clamped (18->6), so the state delta IS the damage.
     "13403235 t1: card 101 hit=true crit=false predicted Δ-8, actual Δ-12 (18->6/29)",
+    // [session 131, day 20709] +1 from the first batch back on GOLKAN (812),
+    // 20 -> 21. ADDITIVE: one addition, ZERO removals. Card 86 is a Golkan card;
+    // ratio 9/6 = 1.500 repeats, so it does NOT tighten the [1.500, 1.5625)
+    // interval. Not clamped (12->3), so the state delta IS the damage.
+    "13419655 t2: card 86 hit=true crit=false predicted Δ-6, actual Δ-9 (12->3/29)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -480,6 +485,10 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // falls to 25/16. The interval is still NON-EMPTY — [1.500, 1.5625) — so
       // the one-multiplier claim survives a sharper test than it has had.
       { base: 8, actual: 12 },
+      // [session 131, day 20709] Golkan card 86, base 6 -> 9 — NOT a new base.
+      // Its window [8.5/6, 9.5/6) = [1.4167, 1.5833) contains the standing
+      // [1.500, 1.5625), so the interval is unchanged.
+      { base: 6, actual: 9 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 
@@ -653,7 +662,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(124 /* [session 128] was 113 — +1 across day 20705's 25-cast Dendren batch; same attribution, and the transposed control below still scores strictly fewer */ /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */ /* [session 129, day 20707] was 114 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 118 */
+    expect(corrected.crits).toBe(125 /* [session 131, day 20709] was 124 — +1 across the first 10-cast batch back on GOLKAN (812); same attribution */ /* [session 128] was 113 — +1 across day 20705's 25-cast Dendren batch; same attribution, and the transposed control below still scores strictly fewer */ /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */ /* [session 129, day 20707] was 114 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 118 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

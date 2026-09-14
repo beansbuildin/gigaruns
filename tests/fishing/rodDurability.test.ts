@@ -101,11 +101,31 @@ describe("rod durability preflight — the fail-closed gate", () => {
     // BEFORE the first Puppeteer cast rather than after it: left at 923, the
     // preflight fails closed with "rod 923 is NOT equipped" and no cast can be
     // played at all.
-    const r = readRodDurability([...BAG, rod(PUPPETEERS_ROD, 44)]);
+    //
+    // ⚠ [session 131] The rod id is now passed EXPLICITLY, the same treatment
+    // Golkan and Dendren got: Puppeteer stopped being `CURRENT_ROD` on the
+    // revert to Golkan, and a 2026-09-12 reading must not ride a moving
+    // default. The default-parameter path moves to the Golkan case below.
+    const r = readRodDurability([...BAG, rod(PUPPETEERS_ROD, 44)], PUPPETEERS_ROD);
     expect(r.status).toBe("ok");
     expect(r.stop).toBe(false);
     expect(r.durability).toBe(44);
     expect(r.rodItemId).toBe(PUPPETEERS_ROD);
+    expect(r.slot).toBe(14);
+  });
+
+  it("[session 131] passes the healthy GOLKAN reading read live on 2026-09-14 (44, slot 14) — through the DEFAULT parameter", () => {
+    // [USER] 2026-09-14: "we are going back to the Golkan rod". `checkGear.ts`
+    // read item 812 equipped at slot 14 with DURABILITY 44, Puppeteer (924)
+    // gone from the equipped set. This is the case that asserts the gate
+    // accepts the CURRENT rod through its DEFAULT parameter — the path
+    // `liveFishing.ts` takes — which is why the repoint landed BEFORE the
+    // first Golkan cast. (44 again is a coincidence with Puppeteer's reading.)
+    const r = readRodDurability([...BAG, rod(GOLKAN_ROD, 44)]);
+    expect(r.status).toBe("ok");
+    expect(r.stop).toBe(false);
+    expect(r.durability).toBe(44);
+    expect(r.rodItemId).toBe(GOLKAN_ROD);
     expect(r.rodItemId).toBe(CURRENT_ROD);
     expect(r.slot).toBe(14);
   });

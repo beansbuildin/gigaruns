@@ -379,7 +379,7 @@ describe("⭐ the ONLY Vulnerable exception is a BOON effect, and it stays unmod
     // Without the boon the rule is EXCEPTIONLESS — this is the claim that
     // matters, and the session-126 exception did not dent it.
     expect(plainOk).toBe(plainN);
-    expect(plainN).toBe(106 /* [session 128, day 20706] was 90 — +2 more VulnerableMastery-ABSENT observations; `plainOk === plainN` still holds, so the split is STILL PERFECT */ /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */); /* [session 129, day 20707] was 92 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 99 */
+    expect(plainN).toBe(117 /* [session 131, day 20709] was 106 */ /* [session 128, day 20706] was 90 — +2 more VulnerableMastery-ABSENT observations; `plainOk === plainN` still holds, so the split is STILL PERFECT */ /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */); /* [session 129, day 20707] was 92 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 99 */
 
     // With it, the single observation misses. n === 1 is the whole point: it
     // is why this is recorded and NOT modelled.
@@ -614,7 +614,7 @@ describe("Vengeance", () => {
   });
 
   it("⭐ ARMS on a loss, HOLDS on a loss, is CONSUMED when the holder deals — 164 of 164", () => {
-    expect(vg.trigger.n).toBe(164);
+    expect(vg.trigger.n).toBe(166 /* [session 131, day 20709] was 164 */);
     expect(vg.trigger.ok).toBe(vg.trigger.n);
   });
 

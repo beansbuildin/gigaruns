@@ -96,12 +96,35 @@
 - Gear path: …83b834fd 10→**0 (halt)**, …ac25b641 20→10, rod 34→24.
 - Catch: same band 3–9 of 10; ≤2 flags. Rollover 18:00Z is ~23 min out; a batch took ~3.5 min.
 
+## Fishing batch 2 — raw result
+- 10 PLAYED, **4 caught** (casts 1,2,4,6). Golkan continuation **192/327 = 58.7%**. In band PASS.
+- Ledgers now AGREE at **17/20** (game 8→17, repo 9→17): the batch-1 8-vs-9 gap closed — the game ledger lagged one
+  cast. Session total: **20 played / 17 charged**.
+- Gear exact: …83b834fd 10→**0 (halt)**, …ac25b641 20→10, rod 34→24.
+- **[USER] mid-batch "run up to 15 casts, ledger shows 12/20 left"** arrived AFTER batch 2 had started at castCap 10.
+  Not actionable: gear halt (…83b834fd at 0), 3 left on the ledger, rollover 18:00Z at 17:56Z. Handed back.
+
 ## Offline findings so far
 - **Golkan card coverage: the "8 of 10 (82, 83 absent)" claim is FALSE.** All ten of `ROD_CARD_GRANTS[812]` are in
   `cards.json`; E[fish-HP delta per play] at random aim computes **0.400 exactly** = the session-129 brief's figure.
   82/83 are not Golkan cards. −0.389 is not reproduced by the grant list, by 80–89, or by 74+80–88 — its source is
   unknown and it is RETIRED. The two numbers were never a deck-coverage discrepancy.
 
+## Pin pass
+- Suite after the live work: 72 failed (batch 1), then 62 after batch 2 landed mid-pass. Snapshot of `tests/` taken
+  first (scratchpad). Patcher parses EVERY failure and refuses to write if any literal is unanchored; a second-round
+  hit on a pin already carrying a session-131 annotation replaces the value and keeps the original "was".
+- Hand edits: OBSERVED_OFFERS +32 (generated, multiset 32/0), loadout census +3 (chased), KNOWN_CRIT_ANOMALIES +1,
+  Wall-1 clean +Heal +UpgradeRock, Heal rooms +1,+4, oil docIds +13419650 +13419927, gap set +13419933, four ratio
+  pins with BOTH halves, redraw in-sample "2.2" → "2.1", toMatchObject ×7, arrays ×8, procEffectSize slice-aware,
+  redrawTrigger deck-explicit, rodDurability Golkan default case. 190 `[session 131, day 20709]` annotations.
+- **GREEN: 2752/2752, 117 files.**
+
 ## Surprises log
 - `doctor.ts` does not print JWT expiry any more (brief says "verify with doctor.ts"); decoded `exp` directly.
 - 812 was already equipped at session open — the brief's step 1 ("the user equips 812") landed out of band.
+- Gear repaired/changed out of band MID-SESSION, between the batches: 641 0→60, a NEW 901 instance (…37fba31e) at 24,
+  slot-15 …ac25b641 0→20. The dungeon arm is therefore NOT halted at close on 641; the old 901 (…492d8277) left slot 13.
+- The batch loop's trailing `[ $rc -ne 0 ] && break` makes the background task report exit 1 on success.
+- A blanket patcher writes full precision into `toBeCloseTo(x, 1)` sites — rounded back by hand (blockedMove pct).
+- The JSON reporter carries no diff for arrays/objects; the default reporter does.

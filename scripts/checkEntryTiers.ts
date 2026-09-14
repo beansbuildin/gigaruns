@@ -222,14 +222,14 @@ async function main() {
     for (const row of [...r.perFaction].sort((a, b) => a.balance - b.balance)) {
       console.log(
         `      faction ${row.faction ?? "?"}  ${String(row.id).padEnd(4)}${(RING_NAMES[row.id] ?? "(unknown item)").padEnd(18)}` +
-          ` balance ${String(row.balance).padStart(3)}  = ${String(row.activeDayRuns).padStart(3)} runs on its own active days`,
+          ` balance ${String(row.balance).padStart(3)}`,
       );
     }
-    console.log(
-      `    ▸ RUNWAY, under a UNIFORM ${ROTATION_PERIOD_DAYS}-day rotation at ${RUNS_PER_DAY} runs/day:\n` +
-        `      ${r.cyclesUntilScarcestDries} full cycle(s) = ${r.daysUntilScarcestDries} days = ` +
-        `~${r.runsUntilScarcestDries} runs, bound by ${r.scarcest.id} ${RING_NAMES[r.scarcest.id] ?? ""} (${r.scarcest.balance} held).`,
-    );
+    // [session 131] The ring RUNWAY line that printed here is DELETED. [USER]
+    // 2026-09-11: ring balances are not a constraint ("ignore the balances I can
+    // get more rings if needed"). The balances above stay — they are how the
+    // charged faction is learned (the debit is not on the wire). The pure
+    // `factionDayRunway` arithmetic stays exported and tested; nothing prints it.
     // [session 130] The rotation text below is a TIER-2 SILVER measurement and
     // used to print under Tier 3 as well, asserting it about gold with no
     // Tier-3 data at all. Measured 2026-09-13 (day 20708, dow 2): the gold
@@ -237,15 +237,16 @@ async function main() {
     // FOXGLOVE Gold (248), where the silver map says dow 2 -> Overseer.
     if (entry.tier !== 2) {
       console.log(
-        `    ⚠ [session 130] TIER ${entry.tier}'s faction rotation is NOT the silver map. Measured: day 20708 (dow 2)\n` +
-          `      charged 248 Foxglove Gold, -3 on each of 4 runs, six untouched. ONE day observed —\n` +
-          `      do not predict a gold faction; learn it from a balance diff.`,
+        `    ⚠ [session 130] TIER ${entry.tier}'s faction rotation is NOT the silver map. Measured gold days:\n` +
+          `        day 20708 (dow 2) -> 248 Foxglove Gold   [session 130]\n` +
+          `        day 20709 (dow 3) -> 247 Archon Gold     [session 131] (silver-shifted-by-one predicted Summoner: FAILED)\n` +
+          `      Each: -3 on each of 4 runs, six gold and all silver untouched. TWO days observed, two\n` +
+          `      distinct factions — consistent with a permutation, proves nothing more. Do not predict a\n` +
+          `      gold faction; learn it from a balance diff.`,
       );
     } else {
     console.log(
-      `      Spread across factions is ${r.scarcest.balance}-${r.richest.balance}, so the TRUE runway lands\n` +
-        `      inside that band depending on the rotation ORDER — which is now SOLVED (below).\n` +
-        `      [session 123] ⭐ THE ROTATION IS FULLY MEASURED — ALL SEVEN CELLS, NONE FORCED.\n` +
+      `      [session 123] ⭐ THE ROTATION IS FULLY MEASURED — ALL SEVEN CELLS, NONE FORCED.\n` +
         `      The ARITHMETIC map stays FALSIFIED; the PERMUTATION hypothesis (a) was tested three\n` +
         `      times on pre-registered predictions and SURVIVED all three:\n` +
         `        dow1 -> f1 Crusader (135)  <- day 20700, pre-registered {f1,f2}; got f1. DECISIVE.\n` +
@@ -271,11 +272,6 @@ async function main() {
         `      ⚠ dayOfWeek is 1-INDEXED — MEASURED, not assumed. Sessions 117/118 printed the slots\n` +
         `        as "dow 0/1/2"; the server returned dow 7 for day 20699. dow = day mod 7, 0 -> 7.\n` +
         `      Do NOT re-fit an arithmetic rule to the seven points.`,
-    );
-    console.log(
-      `      ⚠ Do NOT quote the ${r.runsUntilScarcestDries} as exact. It assumes each faction is charged\n` +
-        `        exactly once per ${ROTATION_PERIOD_DAYS} days. That is the user's stated model, not a measurement.\n` +
-        `        The old "min(balance)/${RINGS_PER_JUICED_RUN}" figure was a DIFFERENT model and is retired — see this file's header.`,
     );
     }
     if (entry.inputsBasedOnFactionDay) {

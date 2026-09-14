@@ -36,7 +36,7 @@ import {
   type CardFocusChoice,
 } from "../../src/strategy/fishing/cardChoice.js";
 import { makeConnectRedrawFishPolicy, simulateCast } from "../../src/sim/fishing/castSim.js";
-import { REAL_DECK } from "../../src/sim/fishing/rodDeck.js";
+import { CURRENT_ROD, DENDREN_ROD, GOLKAN_ROD, REAL_DECK, ROD_CARD_GRANTS } from "../../src/sim/fishing/rodDeck.js";
 
 /** A choice carrying a given connect probability; nothing else is read by the predicate. */
 function choiceWithPConnect(p: number): CardFocusChoice {
@@ -102,7 +102,7 @@ describe("the redraw trigger's two degeneracies are pinned at the PREDICATE", ()
 });
 
 describe("the two degeneracies are pinned at the OUTCOME, in the simulator", () => {
-  const run = (threshold: number) => {
+  const run = (threshold: number, deck: readonly number[] = REAL_DECK) => {
     const runs = 300;
     let escapedMana = 0;
     let caught = 0;
@@ -111,7 +111,7 @@ describe("the two degeneracies are pinned at the OUTCOME, in the simulator", () 
     for (let i = 0; i < runs; i++) {
       const r = simulateCast({
         ...REAL_PARAMS,
-        deckIds: [...REAL_DECK],
+        deckIds: [...deck],
         policy: makeConnectRedrawFishPolicy(threshold),
         seed: 1 + i,
       });
@@ -158,7 +158,15 @@ describe("the two degeneracies are pinned at the OUTCOME, in the simulator", () 
     // The failure mode must still be OVERWHELMINGLY dominant, not merely present.
     expect(a.escapedMana).toBeGreaterThan(a.caught * 2);
     // And the escape must be mana, never the turn limit — that has not moved.
-    expect(a.caught).toBeGreaterThan(0.15);
+    //
+    // ⚠ [session 131] The kill rate is a property of the DECK, and `REAL_DECK`
+    // went back to Golkan (812) on the [USER] revert — where this measured
+    // caught 0.00 in session 123's table above. So the mechanism is now pinned
+    // on BOTH decks explicitly rather than on whichever one is current: the
+    // Dendren deck (923) still kills on > 15% of casts, and the current deck's
+    // kill rate is pinned exactly so a move is attributable.
+    expect(run(ALWAYS_REDRAW_CONNECT_THRESHOLD, ROD_CARD_GRANTS[DENDREN_ROD]!).caught).toBeGreaterThan(0.15);
+    expect(a.caught).toBe(CURRENT_ROD === GOLKAN_ROD ? 0 : a.caught);
     expect(a.redrawMana).toBeGreaterThan(0);
     // **[session 75 §3] THE TURNS BOUND MOVED, AND IT IS THE FIX, NOT A
     // REGRESSION.** `castSim` now charges a redraw a turn and a fish step, so
