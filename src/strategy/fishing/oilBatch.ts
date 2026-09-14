@@ -344,6 +344,25 @@ export const SESSION_99_LIMITS: BatchLimits = {
  * Everything else inherits session 99's shape for session 99's reasons.
  */
 /**
+ * [session 131] The FIRST batch back on Golkan (812), [USER] directive
+ * 2026-09-14. `castCap: 10` is sized to the **GEAR HALT** a third time: the
+ * slot-15 pair read **20 / 10** at 15:57Z (…83b834fd repaired out of band from
+ * 0) and wears -1.00 per PLAYED cast, so the 10 reaches 0 at played cast 10 and
+ * the [USER] per-arm halt fires there. Rod 812 is at 44 and the game ledger at
+ * 0/20, so both are slack — the user's 20-cast scope is cut to 10 by gear, and
+ * the remainder waits on a repair and a fresh read.
+ *
+ * The `castCap: 2` convention does not bind: 44 - 10 = 34.
+ */
+export const SESSION_131_LIMITS: BatchLimits = {
+  castCap: 10,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
+/**
  * [session 130] The SECOND Puppeteer (924) batch. `castCap: 10` is sized to the
  * **GEAR HALT** again: the slot-15 pair read **10 / 20** at 16:58:56Z (both
  * repaired out of band since session 129's 10 / 0) and wears -1.00 per PLAYED

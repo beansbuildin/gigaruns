@@ -369,8 +369,19 @@ export const BASE_DECK: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
  * at random aim is -0.678 against Dendren's -0.300 (computed off
  * `fixtures/fishing-casts/cards.json`, session 129). It dominates at every aim
  * level, so no crossover applies.
+ *
+ * **[session 131] REPOINTED BACK to Golkan (812)** — [USER] directive
+ * 2026-09-14, *"we are going back to the Golkan rod"*, confirmed in chat. The
+ * user equipped it out of band; `checkGear.ts` read 812 in slot 14 at
+ * DURABILITY 44 on 2026-09-14. Same ordering consequence as session 129: the
+ * "CURRENT_ROD is that rod" test goes RED on this repoint and heals on the
+ * first recorded Golkan cast.
+ *
+ * ⚠ The "dominates at every aim level" arithmetic above was CONTRADICTED BY
+ * PLAY: Puppeteer caught 11/27 = 40.7% against Golkan's 183/307 = 59.6%. Deck
+ * arithmetic has not predicted live catch rate, twice (Dendren, Puppeteer).
  */
-export const CURRENT_ROD = PUPPETEERS_ROD;
+export const CURRENT_ROD = GOLKAN_ROD;
 
 /**
  * The deck every sim script starts from. ONE definition — three scripts

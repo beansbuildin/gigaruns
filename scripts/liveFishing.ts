@@ -185,7 +185,7 @@ import { resolvePatternsByName, toCandidate, type Pattern } from "../src/sim/fis
 import type { ShutdownSignal } from "../src/orchestrator/shutdown.js";
 import { CaptureFixtureWriter, CaptureRunLog, stamp } from "../src/orchestrator/capture.js";
 import { dendrenCastsRemaining } from "../src/api/fishingLedger.js";
-import { SESSION_130_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
+import { SESSION_131_LIMITS, batchVerdict } from "../src/strategy/fishing/oilBatch.js";
 
 /**
  * [session 99 §3] The shadowed redraw trigger's IN-SAMPLE firing rate, printed
@@ -3738,7 +3738,9 @@ async function main() {
   // do, so its halts stay demonstrable.
   // [session 130] SESSION_130_LIMITS — ten casts, capped by the slot-15 GEAR
   // halt. `SESSION_129_LIMITS` stays exported and tested.
-  const batchLimits = SESSION_130_LIMITS;
+  // [session 131] SESSION_131_LIMITS — ten casts on Golkan (812), capped by the
+  // slot-15 GEAR halt again. `SESSION_130_LIMITS` stays exported.
+  const batchLimits = SESSION_131_LIMITS;
   const authorizedCasts = batchLimits.castCap ?? args.casts;
   const batchCeiling = Math.min(args.casts > 1 ? args.casts : authorizedCasts, authorizedCasts);
   const targetCasts = args.dryRun ? 1 : args.oilBatch ? batchCeiling : args.casts;

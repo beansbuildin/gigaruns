@@ -48,8 +48,31 @@
    641 and 901 break at the END of run 4, the last authorized run; the dungeon arm halts after it, costs nothing.
 7. Run-units 0 → 3 → 6 → 9 → 12.
 
-## PRE-REGISTRATION — fishing arm (to be committed separately, before the first cast)
-(pending)
+## Dungeon arm — raw result (read live after each run; scored at recap)
+- Runs exit 0 ×4, actions 73/46/74/72 = **265, 0/265 first-attempt failures**; run-units 12/12.
+- **Gold: Archon 247 40 → 37 → 34 → 31 → 28** (−3 ×4). Six gold untouched. **All seven silver untouched (159).**
+  H1 PASS (shape 8/8). **H2 PASS — not Foxglove; the permutation survives.** **H3 (Summoner) FAILED.**
+- Gear exact on every reading: 640 33/30/27/24, 641 9/6/3/**0**, 901 9/6/3/**0**, 905 23/20/17/14. Dungeon arm HALTED
+  (641 + 901 at 0 after the last authorized run — cost nothing).
+- The batch loop's own exit 1 was the trailing `[ $rc -ne 0 ] && break` test, not a run failure.
+
+## PRE-REGISTRATION — fishing arm (committed before the first cast)
+1. `CURRENT_ROD` repointed 924 → **812** BEFORE the first cast (preflight needs it). `rodDeck.test.ts`
+   "CURRENT_ROD is that rod" expected **RED now, GREEN after the first recorded Golkan cast.**
+2. The first cast is dealt Golkan's grant `[74,80,81,84,85,86,87,88,89,90]` (not BASE_DECK, not Puppeteer's).
+3. Batch `SESSION_131_LIMITS.castCap 10` — bound by GEAR (slot-15 …ac25b641 at 10). **Played 10.** Charged ≤ 10,
+   reported separately.
+4. Gear path: slot-15 …83b834fd 20 → **10**, …ac25b641 10 → **0 ← fishing arm halts**; rod 812 44 → **34**.
+5. Catch rate — CONTINUATION of Golkan 183/307 = 59.6%. Expected ~6/10; 90% binomial band **3–9**.
+   **≤ 2 caught is a flag** (P ≈ 1.2% at 59.6%) that the post-era Golkan arm diverges. n=10 settles nothing else.
+6. Oils Relaxing-only (19 held); Focus triggers log policy-withdrawn.
+7. After the halt: stop, hand back for the slot-15 repair; casts 11–20 only on a fresh gear read.
+
+## Offline findings so far
+- **Golkan card coverage: the "8 of 10 (82, 83 absent)" claim is FALSE.** All ten of `ROD_CARD_GRANTS[812]` are in
+  `cards.json`; E[fish-HP delta per play] at random aim computes **0.400 exactly** = the session-129 brief's figure.
+  82/83 are not Golkan cards. −0.389 is not reproduced by the grant list, by 80–89, or by 74+80–88 — its source is
+  unknown and it is RETIRED. The two numbers were never a deck-coverage discrepancy.
 
 ## Surprises log
 - `doctor.ts` does not print JWT expiry any more (brief says "verify with doctor.ts"); decoded `exp` directly.
