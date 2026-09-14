@@ -56,6 +56,20 @@
   (641 + 901 at 0 after the last authorized run — cost nothing).
 - The batch loop's own exit 1 was the trailing `[ $rc -ne 0 ] && break` test, not a run failure.
 
+### Dungeon arm — SCORED
+| run | dungeon run id | death room | 845 | 845/48 | 846 | SPEC §3c 846 for room |
+|---|---|---|---|---|---|---|
+| 1 | 25578265 | 9 | 8,448 | 176 | 546 | 546 ✅ |
+| 2 | (17-04-24 log) | 6 | 5,424 | 113 | 216 | 216 ✅ |
+| 3 | (17-07-44 log) | 10 | 8,976 | 187 | 687 | 687 ✅ |
+| 4 | (17-12-40 log) | 11 | 10,848 | 226 | 840 | 840 ✅ |
+- Method validated first: the same `gameItemBalanceChanges` summer reproduces session 130's **41,904** exactly.
+- **845: 33,696 over 36 rooms = 936/room → ÷490 = ×1.91. PASS** ([1.6, 2.4], centre 2.04). Every amount ÷48 exact — PASS.
+- **846: 4/4 per-room identity PASS** (rooms 6/9/10/11 all tabled). Total 2,289 — NOT compared (depth-confounded).
+- **Rod stat line: NULL.** Every opening on Golkan 812 reads **hpMax 50, armor 17, rock ATK 26** (×4) — the same as on
+  924. The rod does NOT carry a dungeon stat line; the 51→50 / 27→26 coincidence with the 923→924 swap was NOT the rod.
+  (Cause of the −1/−1 still unknown; 923 itself untested, but 812 ≠ 924 is now shown irrelevant.)
+
 ## PRE-REGISTRATION — fishing arm (committed before the first cast)
 1. `CURRENT_ROD` repointed 924 → **812** BEFORE the first cast (preflight needs it). `rodDeck.test.ts`
    "CURRENT_ROD is that rod" expected **RED now, GREEN after the first recorded Golkan cast.**
@@ -67,6 +81,20 @@
    **≤ 2 caught is a flag** (P ≈ 1.2% at 59.6%) that the post-era Golkan arm diverges. n=10 settles nothing else.
 6. Oils Relaxing-only (19 held); Focus triggers log policy-withdrawn.
 7. After the halt: stop, hand back for the slot-15 repair; casts 11–20 only on a fresh gear read.
+
+## Fishing batch 1 — raw result
+- 10 PLAYED; GAME ledger **8/20** vs repo guard **9** charged — disagree by one, both recorded. Caught **5/10**
+  (casts 1,2,3,5,10). Golkan continuation **188/317 = 59.3%**. In band (3–9) PASS; no divergence flag.
+- Gear exact: slot-15 …83b834fd 20→10, …ac25b641 10→**0** (arm halted), rod 44→34 (−1.00/played cast). 1 Relaxing (19→18).
+- The UNKNOWN FIELD lines in this batch came from the process that loaded liveFishing.ts before the registry edit.
+
+## PRE-REGISTRATION — fishing batch 2 (committed before its first cast)
+- **[USER] "resume fishing"** in chat ~17:36Z, after an out-of-band repair; covered by the session's 20-cast scope.
+- Fresh read 17:36:55Z: slot-15 …83b834fd **10**, …ac25b641 **20** (repaired 0→20); rod 812 **34**; ledger 8/20
+  (12 left). ALSO repaired/changed out of band: **641 0→60**, and slot 13's 901 is a NEW INSTANCE (…37fba31e) at 24.
+- Binding cap = min(gear 10, authorization remainder 10, ledger 12, rod 34) = **10** — `SESSION_131_LIMITS` unchanged.
+- Gear path: …83b834fd 10→**0 (halt)**, …ac25b641 20→10, rod 34→24.
+- Catch: same band 3–9 of 10; ≤2 flags. Rollover 18:00Z is ~23 min out; a batch took ~3.5 min.
 
 ## Offline findings so far
 - **Golkan card coverage: the "8 of 10 (82, 83 absent)" claim is FALSE.** All ten of `ROD_CARD_GRANTS[812]` are in
