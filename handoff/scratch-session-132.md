@@ -43,3 +43,45 @@
 - Rod −1.00 per PLAYED cast. Played and charged reported separately.
 - No catch-rate prediction beyond: Golkan cumulative recomputed from the corpus at recap, post-revert sub-slice alongside.
 - If 18:00Z arrives mid-batch: stop after that batch; day 20711 needs its own authorization.
+
+## Dungeon arm — raw result (live)
+- **Run 1** (17:19Z, `run-2026-09-15-17-19-23`): rc 0, 70 actions, 0/70 first-attempt failures. Energy 414→355.
+  Death room **10**. 845 **9,360** (÷48 = 195 exact) → 936/room = ×1.91. 846 **687** = table room 10 ✓.
+  Payout method re-validated first: reproduces session 131's 8448/5424/8976/10848 and 546/216/687/840 and rooms 9/6/10/11 exactly.
+- **⭐ THIRD GOLD POINT (run 1 in isolation, read twice, stable): 249 SUMMONER Gold 48 → 45.** Six gold untouched,
+  all seven silver untouched (159). H1 shape PASS (9/9). **H2 PASS — neither Foxglove nor Archon; permutation survives.**
+  In the pre-registered set. Named nominal Athena (−1 step extrapolation) FAILED.
+  Note: Summoner is what the falsified "gold = silver shifted by one" predicted for dow 3 (session 131) — it came a day late. Not a fit.
+- Gear after run 1 exact: 640 21, 641 57, 905 11, 901 21. **Slot-6 204 stayed 4** (and 208 15, 109 19, 110 30) — not dungeon-wear pieces.
+- Ledger before run 2: 3/12.
+
+## Fishing corpus — RECOMPUTED (pre-batch, 584 casts; loadCastTraces → splitByDealtDeck.rod → deckOf)
+- deckOf "golkan" slice: **192/327 = 58.7%** — the carried arithmetic reproduces EXACTLY. Post-revert last 20: **9/20 = 45.0%**.
+- ⚠ SURPRISE: that "Golkan" slice POOLS TWO RODS — by grant-subset of the opening deck: **811 45/82 = 54.9%** and
+  **812 147/245 = 60.0%**. "Never pool across rods" — the Golkan cumulative has been an 811+812 pool.
+- Other rod slices reproduce: 923 Dendren 54/104 = 51.9%, 924 Puppeteer 11/27 = 40.7%; 922 21/82 = 25.6% (older era).
+- **Runs 2, 3**: rc 0, 37 / 74 actions, 0 failures. Summoner 45→42→39; gear −3 exact each (640 18/15, 641 54/51, 905 8/5, 901 18/15).
+  Slot-15 954 …83b834fd read **25** after run 2 (was 0) — repaired out of band mid-session.
+- **Run 4 (17:33Z)**: `start_run` OK (energy 238→178), then **`✗ fetch failed`** (network) in room 5, HP 45/50, rc 1.
+  Rule 13 ledger read at 17:45Z: **run-units 12/12**, Summoner **36**, six gold + silver 159 untouched → shape **12/12**.
+  Gear 640 12, 641 48, 905 2, 901 12 — exact; no piece at 0 → no halt. Gear debit lands at start_run, not at run end.
+- **[USER] ~17:46Z:** "Resume run 4 now" → `--resume-existing` (no new run-unit).
+- **[USER] fishing:** "complete all fishing casts, ignore gear breaks, ask me for the approval on fishing now so I can
+  step away" → confirmed option **"Approve: up to 24 casts"** — Golkan, batches ≤12, lures ignored, rod at 0 a hard
+  stop, crossing 18:00Z allowed, rule 5 stands.
+- **Run 4 resumed** (`--resume-existing`, 17:46Z): "active run already exists at room 5 — resuming", rc 0, 62 actions,
+  0 failures; ledger still **12/12** (no new charge). Died room 11. Gear unchanged by the resume (640 12, 641 48, 905 2, 901 12).
+
+### Dungeon arm — SCORED
+| run | log | death room | 845 | ÷48 | 846 | table |
+|---|---|---|---|---|---|---|
+| 1 | 17-19-23 | 10 | 9,360 | 195 | 687 | 687 ✓ |
+| 2 | 17-25-13 | 5 | 3,552 | 74 | 141 | (room 5 new: 141) |
+| 3 | 17-28-02 | 11 | 10,944 | 228 | 840 | 840 ✓ |
+| 4 | 17-33-09 + 17-46-39 (resume) | 11 | 4,512 + 6,624 = 11,136 | 232 | 141 + 699 = 840 | 840 ✓ |
+- 845: **34,992 over 37 rooms = 945.7/room = ×1.93** Tier 2's 490 — band [1.6, 2.4] **PASS**. Every per-run ÷48 exact.
+- Pooled Tier-3, three days: 110,592 / 115 rooms = 961.7/room, ×1.96.
+- 846 per-room identity **3/3** at tabled rooms; room 5 → 141 is a new table entry (run 4's pre-drop segment ALSO read 141 on
+  reaching room 5 — consistent, not a second test). Tier-3 per-room total now 11/11.
+- Gold: Summoner 48→45→42→39→36. Shape **12/12**. Silver 159 untouched at every read.
+- Actions 70 + 37 + 74 + (≈? pre-drop) + 62; first-attempt failures 0 in every printed tally. One network `fetch failed` (run 4).

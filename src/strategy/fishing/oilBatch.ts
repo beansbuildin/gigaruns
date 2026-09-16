@@ -363,6 +363,24 @@ export const SESSION_131_LIMITS: BatchLimits = {
 };
 
 /**
+ * [session 132] Golkan (812) under the [USER] 2026-09-14 rule: fishing stops
+ * ONLY on a broken rod, so the cap is min(rod, ledger, authorized). Rod 812
+ * read **24** at 17:06Z, the game ledger 0/20, authorized 30; the user said
+ * *"cast until broken or until ledger runs out"*. `castCap: 12` splits the
+ * rod's 24 into two batches so no batch can outrun the rod (the dry-rod
+ * BASE_DECK hazard — durability is read at preflight and after the batch,
+ * never between casts). The second batch is sized on a fresh read; pass
+ * `--casts=N` (N <= 12) to cut it.
+ */
+export const SESSION_132_LIMITS: BatchLimits = {
+  castCap: 12,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
+/**
  * [session 130] The SECOND Puppeteer (924) batch. `castCap: 10` is sized to the
  * **GEAR HALT** again: the slot-15 pair read **10 / 20** at 16:58:56Z (both
  * repaired out of band since session 129's 10 / 0) and wears -1.00 per PLAYED

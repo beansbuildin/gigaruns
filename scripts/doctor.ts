@@ -135,7 +135,9 @@ async function main() {
           );
         } else {
           jwt = raw;
-          pass(`token present and valid for another ${hours(left)}  (${mask(raw)})`);
+          // [session 132] Print the absolute expiry too — briefs record it as a
+          // timestamp, and "valid for another Nh" alone forced decoding by hand.
+          pass(`token present and valid for another ${hours(left)}, exp ${new Date(exp * 1000).toISOString()}  (${mask(raw)})`);
           if (left < 3600) {
             warn("under an hour left on this token", "A long session will outlive it. Consider re-copying now.");
           }

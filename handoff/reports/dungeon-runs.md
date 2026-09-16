@@ -1,11 +1,11 @@
 # Dungeon runs
 
-Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-14T17:56:41.995Z.
+Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-15T17:56:57.944Z.
 
 **"Dendren Root"** (the user's term) is wire item 846, `NAME_CID: "Dendren Remnant"` — see this file's header comment in `src/sim/dungeonReport.ts` for the capture that confirmed it.
 
-153 recorded attempts — 144 deaths, 0 cleared, 9 incomplete/stopped. 108 juiced.
-Total Hard Core earned: 536812. Total Dendren Root earned: 52202. Total energy spent: 7380.
+157 recorded attempts — 148 deaths, 0 cleared, 9 incomplete/stopped. 112 juiced.
+Total Hard Core earned: 571804. Total Dendren Root earned: 54710. Total energy spent: 7620.
 
 ## Death-room histogram
 
@@ -13,13 +13,13 @@ Total Hard Core earned: 536812. Total Dendren Root earned: 52202. Total energy s
 - room 2: █████████ 9
 - room 3: █████████████ 13
 - room 4: ████████████████ 16
-- room 5: ██████████████ 14
+- room 5: ███████████████ 15
 - room 6: ███████████ 11
 - room 7: ████████████████████████ 24
 - room 8: █████████ 9
 - room 9: ███████████████ 15
-- room 10: ████████████████ 16
-- room 11: ██████ 6
+- room 10: █████████████████ 17
+- room 11: ████████ 8
 - room 12: ███ 3
 - room 13: ████ 4
 - room 14: ███ 3
@@ -181,3 +181,7 @@ Total Hard Core earned: 536812. Total Dendren Root earned: 52202. Total energy s
 | 25578394 | death @ room 6 | yes | 5424 | 216 | 60 | run-2026-09-14-17-04-26 |
 | 25578417 | death @ room 10 | yes | 8976 | 687 | 60 | run-2026-09-14-17-07-46 |
 | 25578459 | death @ room 11 | yes | 10848 | 840 | 60 | run-2026-09-14-17-12-41 |
+| 25599799 | death @ room 10 | yes | 9360 | 687 | 60 | run-2026-09-15-17-19-24 |
+| 25599909 | death @ room 5 | yes | 3552 | 141 | 60 | run-2026-09-15-17-25-15 |
+| 25599945 | death @ room 11 | yes | 10944 | 840 | 60 | run-2026-09-15-17-28-04 |
+| 25600039 | death @ room 11 | yes | 11136 | 840 | 60 | run-2026-09-15-17-33-11, run-2026-09-15-17-46-40 |
