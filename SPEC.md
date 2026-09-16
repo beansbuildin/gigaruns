@@ -567,13 +567,17 @@ measured on four juiced runs on day 20708 (dow 2): **exactly one gold id moved,
 −3 per entry, six gold untouched and all seven silver untouched.** The charged
 gold faction was **Foxglove (248)**, whereas the silver dow → faction map puts
 dow 2 on Overseer, so **the Tier-2 silver rotation does not govern the gold
-charge**. One gold day is observed; the gold rotation is unknown. The debit is
+charge**. [sessions 131–133] Four gold days are now observed — dow 2 → 248
+Foxglove, dow 3 → 247 Archon, dow 4 → 249 Summoner, dow 5 → 245 Overseer — four
+distinct factions, consistent with a 7-permutation whose order is unknown. Gold
+id = silver id + 109 for all seven factions. The debit is
 not on the wire (`start_run` carries no `gameItemBalanceChanges` for rings) —
 read balances before and after.
 
 **[MEASURED 2026-09-13, session 130] Dendren Root (846) is a function of the
-death room, identical at Tier 2 and Tier 3** (juiced): 6→216, 7→309, 8→420,
-9→546, 10→687, 11→840, 12→1005, 13→1179, 14→1362. Hard Core (845) at Tier 3
+death room, identical at Tier 2 and Tier 3** (juiced): 5→141 [session 132],
+6→216, 7→309, 8→420, 9→546, 10→687, 11→840, 12→1005, 13→1179, 14→1362.
+Per-room identity at Tier 3 is **15/15** across four days (sessions 130–133). Hard Core (845) at Tier 3
 paid 998 per room reached against Tier 2's 490 (×2.04), consistent with
 `dropMultiplier` 4 vs 2.
 

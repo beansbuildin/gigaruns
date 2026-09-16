@@ -97,7 +97,7 @@ describe("orbOffers — joining Hard Core payouts onto the sim's offer table", (
     // Not a defect to fix in the table: the rows are correct about room and
     // content, and they are the DEEPEST offers the corpus has. A source-keyed
     // join would silently drop exactly those.
-    expect(join.sourceMisses.length).toBe(117 /* [session 131, day 20709] was 85 */); /* [session 129, day 20707] was [17] */ /* [session 130, day 20708] was 47 */
+    expect(join.sourceMisses.length).toBe(186 /* [session 133, day 20711] was 117 */ /* [session 131, day 20709] was 85 */); /* [session 129, day 20707] was [17] */ /* [session 130, day 20708] was 47 */
     const missedRooms = new Set(
       join.sourceMisses.map((src) => OBSERVED_OFFERS.find((o) => o.source === src)!.room),
     );

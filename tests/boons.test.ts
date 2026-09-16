@@ -303,6 +303,13 @@ const AWAITING_MODEL_DIRECTIVE = new Set<string>([
   "LossLuckUp",
   "IntuitionArmor",
   "AddWeakShield",
+  // ⭐ [session 132, recorded session 133] `WeakeningEvade` — FIRST PICKED PAIR,
+  // `run-2026-09-15-17-19-24` state-141 -> state-142. Held on the n=1 precedent
+  // (a new type needs a [USER] directive). Whole-object diff of player 0: the
+  // ONLY change is `pickedBoons` 8 -> 9 — a latent no-op at pickup. Unlike
+  // TieDamageReduction its val1 does NOT roll: `val1Min` = `val1Max` = 4,
+  // `selectedVal1` 4, `selectedVal2` 0, Rarity "Rare", TokenId 97.
+  "WeakeningEvade",
 ]);
 
 describe("every modelled boon reproduces its recorded delta", () => {
@@ -420,7 +427,9 @@ describe("LossBlockUp is latent at pickup — modelled from n=1 by directive", (
     // unverified, not verified-and-passing. Only bumping the count and
     // RE-RUNNING actually tested it. An assertion ordered after a failing one
     // is not a passing assertion.
-    expect(picks.length, "was n=1 when the directive was granted; a fourth is new information").toBe(3);
+    // [session 133] A FOURTH pickup arrived (sessions 132/133 corpus). Count
+    // bumped and RE-RUN so the per-pick checks below actually executed on it.
+    expect(picks.length, "was n=1 when the directive was granted; a fifth is new information").toBe(4);
     for (const pick of picks) expect(pick.picked.selectedVal1).toBe(5);
 
     for (const pick of picks) {
@@ -914,7 +923,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // session 122's +12. The clean census below gains ONE, a RECURRENCE of an
     // already-clean type, so the clean TYPE SET is unchanged and Wall 1 gains
     // no new hole.
-    expect(roomOne.length).toBe(441 /* [session 131, day 20709] was 429 */ /* [session 128, day 20706] was 393 — four more room-1 offers x3 options; the clean SET is unchanged (the assertion below), so already-clean types RECURRING, not new holes */ /* [session 128] was 381 — four new room-1 offers x3 options from day 20705's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */ /* [session 126] was 369 — four new room-1 offers x3 options from day 20704's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 124] was 345 */  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */); /* [session 129, day 20707] was [405] */ /* [session 130, day 20708] was 417 */
+    expect(roomOne.length).toBe(465 /* [session 133, day 20711] was 441 */ /* [session 131, day 20709] was 429 */ /* [session 128, day 20706] was 393 — four more room-1 offers x3 options; the clean SET is unchanged (the assertion below), so already-clean types RECURRING, not new holes */ /* [session 128] was 381 — four new room-1 offers x3 options from day 20705's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */ /* [session 126] was 369 — four new room-1 offers x3 options from day 20704's four runs; the clean SET is unchanged (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 124] was 345 */  /* [session 123] was 333 */  /* [session 122] was 321 */  /* [session 121 runs 3-4] was 315 */  /* [session 121] was 309 */  /* [session 118 runs 2-4] was 300 */  /* [session 118] was 297 */  /* [session 116 run 4] was 294 */  /* [session 116 run 3] was 291 */  /* [session 116 run 2] was 288 */  /* [session 116] was 285 */  /* [session 114] was 273 — four new room-1 offers x3 options; the clean SET is unchanged, still the same six types (the assertion below), so this is already-clean types RECURRING, not new holes */  /* [session 113] was 264 */); /* [session 129, day 20707] was [405] */ /* [session 130, day 20708] was 417 */
 
     const clean: string[] = [];
     for (const option of roomOne) {
@@ -1013,6 +1022,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradePaper", // [session 124]
       "UpgradePaper", // [session 128] already-clean type RECURRING from day 20705's room-1 offers — the clean SET is still the same SIX, unchanged since session 52
       "UpgradePaper", // [session 130, day 20708] already-clean type RECURRING from the first four Tier-3 runs' room-1 offers — the clean SET is still the same SIX
+      "UpgradePaper", // [session 133, day 20711]
       "UpgradeRock", // [session 128] likewise — a RECURRENCE, not a new hole in Wall 1
       "UpgradeRock",  /* [session 113] +1, ninth */
       "UpgradeRock",
@@ -1030,6 +1040,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
       "UpgradeRock", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 2)
       "UpgradeRock", // [session 118] already-clean type RECURRING from the day-20698 runs 2-4 room-1 offers — the clean SET is still the same SIX, unchanged since session 52 (run 3)
       "UpgradeRock", // [session 131, day 20709] already-clean type RECURRING from the second Tier-3 day's room-1 offers — the clean SET is still the same SIX
+      "UpgradeScissor", // [session 133, day 20711]
       "UpgradeScissor",
       "UpgradeScissor",
       "UpgradeScissor",
@@ -1165,7 +1176,7 @@ describe("Wall 1 — HELD through session 08, THREE holes by end of session 09 L
     // array. Appended at the array's end by insertion order, same as every
     // entry since session 43. The array is APPEND-ONLY here: the first 33
     // entries are byte-identical to session 126's, so this is purely additive.
-    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8, 7, 5, 9, 2, 4, 8, 3, 7, 11, 6, 8, 9, 1, 10, 1, 4 ]); /* [session 131, day 20709] +2 Heal offers from the second Tier-3 day — rooms 1 and 4; no new room, no new type; appended by insertion order, the first 45 entries byte-identical */ /* [session 129, day 20707] +1 — a room-11 Heal from the four Tier-2 runs; purely additive, earlier entries byte-identical */ /* [session 130, day 20708] +5 Heal offers from the first four Tier-3 runs — rooms 6, 8, 9, 1, 10; no new room (11 stays deepest), no new type; appended by insertion order, the first 40 entries byte-identical */
+    expect(healRooms).toEqual([ 1, 1, 2, 2, 3, 3, 3, 1, 1, 2, 6, 7, 4, 6, 1, 3, 2, 7, 4, 2, 9, 8, 1, 8, 3, 5, 8, 9, 4, 4, 8, 7, 5, 9, 2, 4, 8, 3, 7, 11, 6, 8, 9, 1, 10, 1, 4, 7, 2, 8 ]); /* [session 133, day 20711] +3 Heal offers across days 20710/20711 — rooms 7, 2, 8; no new room, no new type; appended by insertion order */ /* [session 131, day 20709] +2 Heal offers from the second Tier-3 day — rooms 1 and 4; no new room, no new type; appended by insertion order, the first 45 entries byte-identical */ /* [session 129, day 20707] +1 — a room-11 Heal from the four Tier-2 runs; purely additive, earlier entries byte-identical */ /* [session 130, day 20708] +5 Heal offers from the first four Tier-3 runs — rooms 6, 8, 9, 1, 10; no new room (11 stays deepest), no new type; appended by insertion order, the first 40 entries byte-identical */
   });
 });
 

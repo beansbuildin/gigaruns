@@ -240,9 +240,12 @@ async function main() {
         `    ⚠ [session 130] TIER ${entry.tier}'s faction rotation is NOT the silver map. Measured gold days:\n` +
           `        day 20708 (dow 2) -> 248 Foxglove Gold   [session 130]\n` +
           `        day 20709 (dow 3) -> 247 Archon Gold     [session 131] (silver-shifted-by-one predicted Summoner: FAILED)\n` +
-          `      Each: -3 on each of 4 runs, six gold and all silver untouched. TWO days observed, two\n` +
-          `      distinct factions — consistent with a permutation, proves nothing more. Do not predict a\n` +
-          `      gold faction; learn it from a balance diff.`,
+          `        day 20710 (dow 4) -> 249 Summoner Gold   [session 132] (in the pre-registered 5-set)\n` +
+          `        day 20711 (dow 5) -> 245 Overseer Gold   [session 133] (in the pre-registered 4-set)\n` +
+          `      Each: -3 on each of 4 runs, six gold and all silver untouched (16/16). FOUR days, four\n` +
+          `      distinct factions — the 7-permutation SURVIVES. An UNMEASURED dow (6, 7, 1) must charge one\n` +
+          `      of {243 Chobo, 244 Crusader, 246 Athena}; a measured dow should repeat its faction.\n` +
+          `      Gold id = silver id + 109 for all seven. Do not fit an arithmetic rule to the steps.`,
       );
     } else {
     console.log(

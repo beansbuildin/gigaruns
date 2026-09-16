@@ -297,9 +297,18 @@ describe("what tenacity and intuition are NOT", () => {
     );
     const quartered = pop.filter((e) => e.taken[0] === Math.floor((e.atk[1] as number) * 0.75));
     expect(quartered.length).toBeGreaterThanOrEqual(60);
-    expect(quartered.filter((e) => !e.flags.intuitionProc0).length).toBeGreaterThanOrEqual(
-      quartered.length - 1,
-    );
+    // [session 133] This used to allow ONE intuition-flagged quartered
+    // exchange; the 09-15/09-16 runs brought it to FOUR and it went red. All
+    // four have the ATTACKER under `Weak`, which is itself an exact
+    // floor(x * 0.75) (tests/statusEffects.test.ts) — and so does EVERY
+    // quartered exchange in the window (89/89; 0 of 322 without attacker Weak).
+    // The middle bucket is Weak, full stop, so intuition coinciding with it
+    // is a coincidence the one-sided filter could not see. Pinned exactly
+    // instead of with a tolerance: stricter, not relaxed.
+    for (const e of quartered) expect(e.beforeStatus[1].Weak ?? 0, e.label).toBeGreaterThan(0);
+    const noWeak = pop.filter((e) => !((e.beforeStatus[1].Weak ?? 0) > 0));
+    expect(noWeak.length).toBeGreaterThan(100);
+    expect(noWeak.filter((e) => e.taken[0] === Math.floor((e.atk[1] as number) * 0.75))).toHaveLength(0);
   });
 
   it("tenacity does not follow any of the three damage rules", () => {

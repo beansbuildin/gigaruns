@@ -343,6 +343,14 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // ratio 9/6 = 1.500 repeats, so it does NOT tighten the [1.500, 1.5625)
     // interval. Not clamped (12->3), so the state delta IS the damage.
     "13419655 t2: card 86 hit=true crit=false predicted Δ-6, actual Δ-9 (12->3/29)",
+    // [session 133] 21 -> 26, from sessions 132/133's 42 casts. Same shape as
+    // every entry above: an unflagged hit landing at x1.5 (-6->-9, -4->-6),
+    // or capped at the fish's remaining HP (-8->-9 from 9, -6->-9 from 9).
+    "13434239 t3: card 87 hit=true crit=false predicted Δ-6, actual Δ-9 (10->1/25)",
+    "13434242 t8: card 22 hit=true crit=false predicted Δ-4, actual Δ-6 (15->9/19)",
+    "13450665 t1: card 88 hit=true crit=false predicted Δ-8, actual Δ-9 (9->0/14)",
+    "13450749 t1: card 7 hit=true crit=false predicted Δ-6, actual Δ-9 (9->0/14)",
+    "13450753 t7: card 89 hit=true crit=false predicted Δ-4, actual Δ-6 (10->4/24)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -489,6 +497,16 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       // Its window [8.5/6, 9.5/6) = [1.4167, 1.5833) contains the standing
       // [1.500, 1.5625), so the interval is unchanged.
       { base: 6, actual: 9 },
+      // [session 133] sessions 132/133's five. The two lethal rows use the
+      // UNCLAMPED `FISH_HP_DIFF` per the rule above: 13450665 card 88 base 8
+      // reads 12 (state delta clamped at 9), 13450749 card 7 base 6 reads 9.
+      // Base-4 windows [5.5/4, 6.5/4) = [1.375, 1.625) and the base-6/8 rows
+      // all contain the standing [1.500, 1.5625) — the interval is unchanged.
+      { base: 6, actual: 9 },
+      { base: 4, actual: 6 },
+      { base: 8, actual: 12 },
+      { base: 6, actual: 9 },
+      { base: 4, actual: 6 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 
@@ -662,7 +680,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(125 /* [session 131, day 20709] was 124 — +1 across the first 10-cast batch back on GOLKAN (812); same attribution */ /* [session 128] was 113 — +1 across day 20705's 25-cast Dendren batch; same attribution, and the transposed control below still scores strictly fewer */ /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */ /* [session 129, day 20707] was 114 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 118 */
+    expect(corrected.crits).toBe(138 /* [session 133, day 20711] was 125 */ /* [session 131, day 20709] was 124 — +1 across the first 10-cast batch back on GOLKAN (812); same attribution */ /* [session 128] was 113 — +1 across day 20705's 25-cast Dendren batch; same attribution, and the transposed control below still scores strictly fewer */ /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */ /* [session 129, day 20707] was 114 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 118 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

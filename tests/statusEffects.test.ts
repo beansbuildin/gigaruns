@@ -284,8 +284,29 @@ describe("Weak and Vulnerable are exact floor multipliers", () => {
     //     and `beforeStatus` and knows nothing about `pickedBoons`. So it
     //     survives into the clean set, and that is the whole reason the clean
     //     count moved off zero for the first time.
-    expect(full.n - full.ok).toBe(2); // [session 128] was 1
+    // ⭐ [session 133] A THIRD full-set miss: run-2026-09-16-16-55-14/state-100,
+    // atk 11, taken 9, predicted 8 — and its attacker holds `Vengeance` 25
+    // (ARMED) alongside `Weak` 1. So does the 08-31 miss (atk 30, taken 27).
+    // Both reproduce EXACTLY under session 131's Vengeance model — Vengeance
+    // before Weak: floor(floor(11*1.25)*0.75) = 9, floor(floor(30*1.25)*0.75)
+    // = 27 — so two of the three misses are the MODELLED Vengeance
+    // composition that `scaleRule` does not apply, not an unmodelled effect.
+    // Pinned below by label so the claim cannot drift.
+    expect(full.n - full.ok).toBe(3); // [session 133] was 2; [session 128] was 1
     expect(clean.n - clean.ok).toBe(1); // [session 128] was 0 — the boon-caused miss
+    const vengeanceMisses: Array<[string, number, number]> = [
+      ["run-2026-08-31-03-26-52/state-116.json", 30, 27],
+      ["run-2026-09-16-16-55-14/state-100.json", 11, 9],
+    ];
+    for (const [label, atk, taken] of vengeanceMisses) {
+      const e = exAll.find((x) => x.label === label);
+      expect(e, label).toBeDefined();
+      expect(e!.beforeStatus[0].Vengeance).toBe(25);
+      expect(e!.taken[1]).toBe(taken);
+      expect(
+        vengeanceDamage({ atk, crit: false, vengeance: 25, weak: true, vulnerable: false, block: false }),
+      ).toBe(taken);
+    }
     // ⚠ [session 126] THIS LINE USED TO READ "Vulnerable has no exception at
     // all, clean or not". THAT IS NO LONGER TRUE — it now has exactly one, and
     // unlike the Weak exception it is NOT explained by an unmodelled STATUS.
@@ -341,7 +362,7 @@ describe("⭐ the ONLY Vulnerable exception is a BOON effect, and it stays unmod
     return out;
   };
 
-  it("splits the corpus perfectly: 84/84 without the boon, 0/1 with it", () => {
+  it("splits the corpus perfectly: exceptionless without the boon (124/124, session 133), 0/1 with it", () => {
     const vmAt = firstVulnerableMasteryState();
     let vmN = 0;
     let vmOk = 0;
@@ -379,7 +400,7 @@ describe("⭐ the ONLY Vulnerable exception is a BOON effect, and it stays unmod
     // Without the boon the rule is EXCEPTIONLESS — this is the claim that
     // matters, and the session-126 exception did not dent it.
     expect(plainOk).toBe(plainN);
-    expect(plainN).toBe(117 /* [session 131, day 20709] was 106 */ /* [session 128, day 20706] was 90 — +2 more VulnerableMastery-ABSENT observations; `plainOk === plainN` still holds, so the split is STILL PERFECT */ /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */); /* [session 129, day 20707] was 92 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 99 */
+    expect(plainN).toBe(124 /* [session 133, day 20711] was 117 */ /* [session 131, day 20709] was 106 */ /* [session 128, day 20706] was 90 — +2 more VulnerableMastery-ABSENT observations; `plainOk === plainN` still holds, so the split is STILL PERFECT */ /* [session 128] was 84 — +6 VulnerableMastery-ABSENT observations from day 20705's runs; `plainOk === plainN` still holds, so the split is STILL PERFECT and this is a corpus-growth pin, not a weakening */); /* [session 129, day 20707] was 92 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 99 */
 
     // With it, the single observation misses. n === 1 is the whole point: it
     // is why this is recorded and NOT modelled.
@@ -404,10 +425,16 @@ describe("amount === 0 is INERT, not merely small", () => {
     },
   );
 
-  it("zero is common enough that a presence check would be wrong most of the time", () => {
+  // [session 133] Moved from the 30-dir slice to `exAll` (session 114's rule:
+  // corpus-wide claims run on the whole corpus). The slide took the slice to
+  // 245 zero vs 492 non-zero — one short of the bound — while the whole corpus
+  // reads 1039 vs 1526 (40.5%). The title also over-claimed: "most of the
+  // time" was never what the bound asserted (zero > half of non-zero, i.e.
+  // more than a third of present entries).
+  it("zero is common enough — over a third of present entries — that a presence check would be wrong often", () => {
     let zero = 0;
     let nonZero = 0;
-    for (const e of ex) {
+    for (const e of exAll) {
       for (const side of [0, 1] as const) {
         for (const status of ["Weak", "Vulnerable"] as const) {
           const a = e.beforeStatus[side][status];
@@ -608,18 +635,18 @@ describe("lifesteal does not exist", () => {
 describe("Vengeance", () => {
   const vg = vengeanceRules(exAll);
 
-  it("⭐ an ARMED attacker deals floor(x * 1.25), crit before it, Weak / Vulnerable / block after — 29 of 29", () => {
-    expect(vg.damage.n).toBe(29);
+  it("⭐ an ARMED attacker deals floor(x * 1.25), crit before it, Weak / Vulnerable / block after — 35 of 35 [session 133; was 29]", () => {
+    expect(vg.damage.n).toBe(35 /* [session 133, day 20711] was 29 */);
     expect(vg.damage.ok).toBe(vg.damage.n);
   });
 
-  it("⭐ ARMS on a loss, HOLDS on a loss, is CONSUMED when the holder deals — 164 of 164", () => {
-    expect(vg.trigger.n).toBe(166 /* [session 131, day 20709] was 164 */);
+  it("⭐ ARMS on a loss, HOLDS on a loss, is CONSUMED when the holder deals — 185 of 185 [session 133; was 164/166]", () => {
+    expect(vg.trigger.n).toBe(185 /* [session 133, day 20711] was 166 */ /* [session 131, day 20709] was 164 */);
     expect(vg.trigger.ok).toBe(vg.trigger.n);
   });
 
-  it("does nothing to the holder as VICTIM — 8 of 8", () => {
-    expect(vg.victimInert.n).toBe(8);
+  it("does nothing to the holder as VICTIM — 9 of 9 [session 133; was 8]", () => {
+    expect(vg.victimInert.n).toBe(9 /* [session 133, day 20711] was 8 */);
     expect(vg.victimInert.ok).toBe(vg.victimInert.n);
   });
 

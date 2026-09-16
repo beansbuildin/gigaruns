@@ -374,6 +374,7 @@ describe("player loadout matches the fixtures", () => {
       "50/27",
       "50/29",
       "50/35",
+      "50/37", // [session 133, day 20711]
       "51/11", // [session 125] day-20703
       "51/13", // [session 125] day-20703
       "51/14", // [session 125] day-20703
@@ -400,6 +401,8 @@ describe("player loadout matches the fixtures", () => {
       "54/40",
       "58/14", // [session 130, day 20708] +2 MID-RUN combos (50/21, 58/14) from the first four Tier-3 runs — starting loadout 50/17 on all four start states, so NOT a re-spec; ADDITIVE, 0 removals
       "58/17",
+      "58/19", // [session 133, day 20711]
+      "58/21", // [session 133, day 20711]
       "58/25",
       "58/27",
       "58/29",
@@ -413,6 +416,8 @@ describe("player loadout matches the fixtures", () => {
       "59/22",
       "59/27", // [session 128] +6 combos from day 20705's four Tier-2 runs — ADDITIVE, multiset diff shows 0 removals
       "62/32",
+      "64/11", // [session 133, day 20711]
+      "64/14", // [session 133, day 20711]
       "64/17",
       "64/25",
       "64/27",
@@ -448,6 +453,7 @@ describe("player loadout matches the fixtures", () => {
       "75/16",
       "75/19",
       "75/27",
+      "78/27", // [session 133, day 20711]
       "88/19",
       "89/14",
       "89/17",
