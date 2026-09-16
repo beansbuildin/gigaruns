@@ -50,7 +50,14 @@ import { redrawCounterfactual, separability } from "../src/sim/fishing/redrawCou
 import { splitByDealtDeck } from "../src/sim/fishing/rodDeck.js";
 
 const DENDREN_IDS = new Set([91, 92, 93, 94, 95, 96, 97, 98, 99, 100]);
-const GOLKAN_IDS = new Set([80, 81, 84, 85, 86, 87, 74, 88, 89, 90]);
+// [session 133] Card 74 is in BOTH the Shroom (811) and Golkan (812) grants
+// (rodDeck.ts ROD_CARD_GRANTS), so a set that included it filed every Shroom
+// cast under "golkan" — session 132 found the standing "Golkan 192/327" was an
+// 811+812 pool (811 45/82, 812 147/245). Only 812-EXCLUSIVE ids count now, and
+// Shroom gets its own slice, keyed on the ids it holds that Makeshift (922)
+// does not (74/75/78).
+const GOLKAN_IDS = new Set([80, 81, 84, 85, 86, 87, 88, 89, 90]);
+const SHROOM_IDS = new Set([74, 75, 78]);
 
 /**
  * ⚠ **`legacyRod` is NOT one deck.** It is "rod-dealt, but on neither of the
@@ -65,17 +72,20 @@ const GOLKAN_IDS = new Set([80, 81, 84, 85, 86, 87, 74, 88, 89, 90]);
  * because the mistake is the natural one: **44 of the 126 low-id traces are
  * dry-rod base-deck casts, not an early rod at all.**
  */
-export type Deck = "dendren" | "golkan" | "unknown";
+export type Deck = "dendren" | "golkan" | "shroom" | "unknown";
 
 export function deckOf(t: CastTrace): Deck {
   let dendren = false;
   let golkan = false;
+  let shroom = false;
   for (const id of t.cards.keys()) {
     if (DENDREN_IDS.has(id)) dendren = true;
     if (GOLKAN_IDS.has(id)) golkan = true;
+    if (SHROOM_IDS.has(id)) shroom = true;
   }
   if (dendren && !golkan) return "dendren";
   if (golkan && !dendren) return "golkan";
+  if (shroom && !golkan && !dendren) return "shroom";
   return "unknown";
 }
 
@@ -112,6 +122,7 @@ function main(): void {
   const rodDealt = byGrant.rod ?? [];
   const dendren = rodDealt.filter((t) => deckOf(t) === "dendren");
   const golkan = rodDealt.filter((t) => deckOf(t) === "golkan");
+  const shroom = rodDealt.filter((t) => deckOf(t) === "shroom");
   const legacyRod = rodDealt.filter((t) => deckOf(t) === "unknown");
   const unknown = legacyRod;
 
@@ -119,14 +130,15 @@ function main(): void {
     sliceRow("POOLED (everything, all decks)", all),
     sliceRow("BASE DECK (dry rod, no grant)", baseDeck),
     sliceRow("LEGACY ROD (rod-dealt, unknown rod)", legacyRod),
-    sliceRow("GOLKAN", golkan),
+    sliceRow("SHROOM (811)", shroom),
+    sliceRow("GOLKAN (812 only — Shroom no longer pooled in, session 133)", golkan),
     sliceRow("DENDREN (post-swap)", dendren),
   ];
 
   console.log("\n▸ K=10 redraw margin, sliced by DECK — QUESTIONS.md §71\n");
   console.log(
     `  corpus: ${all.length} trace(s) — baseDeck(dry rod) ${baseDeck.length}, ` +
-      `legacyRod ${legacyRod.length}, golkan ${golkan.length}, dendren ${dendren.length}`,
+      `legacyRod ${legacyRod.length}, shroom ${shroom.length}, golkan ${golkan.length}, dendren ${dendren.length}`,
   );
   if (unknown.length > 0) {
     // [session 124] These are NOT an error, and they are NOT one deck. They
@@ -162,7 +174,9 @@ function main(): void {
   // defect session 124 found in checkEntryTiers.ts and fixed the same day.
   console.log("  §71 READING — the dichotomy in QUESTIONS.md is NOT the right one:");
   console.log("    Both of its branches presuppose a POSITIVE pre-swap margin. GOLKAN alone is");
-  console.log("    NEGATIVE at n=307, so there was never a positive margin for the swap to destroy.");
+  console.log(`    NEGATIVE (n=${golkan.length}), so there was never a positive margin for the swap to destroy.`);
+  // [session 133] n=307 was the 811+812 pool. Split, SHROOM (811) reads +12 and
+  // 812 alone -22 on the 606-trace corpus — reported, not ruled on (§71 HOLD).
   console.log("    Compare decks AT CONSTANT policy era (castEra.ts) before reading anything here.");
   console.log("  ⚠ POWER: the small cells fire only a handful of times; only GOLKAN carries weight.");
   console.log("  ⚠ The thresholds are fitted on the POOLED corpus with oracle labels. Slicing does NOT");

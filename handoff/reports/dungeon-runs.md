@@ -1,11 +1,11 @@
 # Dungeon runs
 
-Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-15T17:56:57.944Z.
+Regenerated from `data/run-reports/dungeon.jsonl` by `scripts/dungeonReport.ts` — do not hand-edit. Last generated 2026-09-16T17:41:21.024Z.
 
 **"Dendren Root"** (the user's term) is wire item 846, `NAME_CID: "Dendren Remnant"` — see this file's header comment in `src/sim/dungeonReport.ts` for the capture that confirmed it.
 
-157 recorded attempts — 148 deaths, 0 cleared, 9 incomplete/stopped. 112 juiced.
-Total Hard Core earned: 571804. Total Dendren Root earned: 54710. Total energy spent: 7620.
+161 recorded attempts — 152 deaths, 0 cleared, 9 incomplete/stopped. 116 juiced.
+Total Hard Core earned: 611548. Total Dendren Root earned: 57521. Total energy spent: 7860.
 
 ## Death-room histogram
 
@@ -16,11 +16,11 @@ Total Hard Core earned: 571804. Total Dendren Root earned: 54710. Total energy s
 - room 5: ███████████████ 15
 - room 6: ███████████ 11
 - room 7: ████████████████████████ 24
-- room 8: █████████ 9
-- room 9: ███████████████ 15
+- room 8: ██████████ 10
+- room 9: ████████████████ 16
 - room 10: █████████████████ 17
-- room 11: ████████ 8
-- room 12: ███ 3
+- room 11: █████████ 9
+- room 12: ████ 4
 - room 13: ████ 4
 - room 14: ███ 3
 
@@ -185,3 +185,7 @@ Total Hard Core earned: 571804. Total Dendren Root earned: 54710. Total energy s
 | 25599909 | death @ room 5 | yes | 3552 | 141 | 60 | run-2026-09-15-17-25-15 |
 | 25599945 | death @ room 11 | yes | 10944 | 840 | 60 | run-2026-09-15-17-28-04 |
 | 25600039 | death @ room 11 | yes | 11136 | 840 | 60 | run-2026-09-15-17-33-11, run-2026-09-15-17-46-40 |
+| 25623877 | death @ room 8 | yes | 7776 | 420 | 60 | run-2026-09-16-16-55-14 |
+| 25624056 | death @ room 11 | yes | 11232 | 840 | 60 | run-2026-09-16-17-13-51 |
+| 25624138 | death @ room 9 | yes | 8784 | 546 | 60 | run-2026-09-16-17-18-42 |
+| 25624216 | death @ room 12 | yes | 11952 | 1005 | 60 | run-2026-09-16-17-22-55 |
