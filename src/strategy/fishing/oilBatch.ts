@@ -363,6 +363,22 @@ export const SESSION_131_LIMITS: BatchLimits = {
 };
 
 /**
+ * [session 134] Golkan (812), fishing-only day. Rod 812 read **24** at
+ * 17:40Z, the game ledger 0/20 at the 18:00Z rollover, authorized 30, so the
+ * cap is min(24, 20, 30) = 20 charged / up to 24 played. `castCap: 12` splits
+ * the rod's 24 into two batches for the same reason as session 132: durability
+ * is read at preflight and after the batch, never between casts, so no batch
+ * may outrun the rod. The second batch is sized on a fresh read.
+ */
+export const SESSION_134_LIMITS: BatchLimits = {
+  castCap: 12,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
+/**
  * [session 132] Golkan (812) under the [USER] 2026-09-14 rule: fishing stops
  * ONLY on a broken rod, so the cap is min(rod, ledger, authorized). Rod 812
  * read **24** at 17:06Z, the game ledger 0/20, authorized 30; the user said

@@ -454,6 +454,13 @@ describe("player loadout matches the fixtures", () => {
       "75/19",
       "75/27",
       "78/27", // [session 133, day 20711]
+      // [session 134] session 133's +6 (50/37, 58/19, 58/21, 64/11, 64/14, 78/27) CHASED, all benign pickups:
+      //   78/27  run-09-15-17-19-24: 50/17 -AddMaxArmor(10)-> 50/27 -AddMaxHealth(14)-> 64/27 -AddMaxHealth(14)-> 78/27
+      //   64/14, 64/11  run-09-15-17-28-04: 50/17 -AddMaxHealth(14)-> 64/17, then mid-run armor shred, back to 64/17
+      //   50/37  run-09-15-17-46-40 = session 132's --resume-existing of run 4, so its state-000 is MID-RUN
+      //          (50/25, four boons already picked); AddMaxArmor(2) -> 50/27, AddMaxArmor(10) -> 50/37
+      //   58/19, 58/21  run-09-16-17-22-55: AddMaxHealth(8) -> 58/17, then two AddMaxArmor picks at selectedVal1 2 (states 108, 122)
+      // No re-spec. A resumed run's first capture is not an opening loadout.
       "88/19",
       "89/14",
       "89/17",
