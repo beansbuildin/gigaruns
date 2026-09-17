@@ -476,6 +476,36 @@ quietly.
 
 ---
 
+**14. NEVER WAIT FOR THE DAILY ROLLOVER. Spend the full quota every day.**
+User directive, 2026-09-17, session 134, standing until the user says
+otherwise: *"I NEVER WANT YOU TO WAIT UNTIL THE ROLL OVER. WE SHOULD BE USING
+THE FULL QUOTA EVERY FUCKING DAY. THERE IS NO REASON FOR YOU TO WAIT."*
+
+It was given because the session-134 brief recommended waiting ~22 minutes for
+the 18:00Z rollover so the ledger would be clean, and the agent took that
+recommendation without asking. **Day 20712's entire 20-cast fishing quota was
+forfeited** — the reads finished at 17:40Z with room for a 12-cast batch. The
+brief's own words were *"Recommend waiting; do not decide it"*: the decision
+belonged to the user, and was never put to them.
+
+**Unspent daily quota is gone forever. Ledger tidiness is worth nothing against
+it.** If a game day has quota left — fishing casts, dungeon run-units — spend it
+now, minutes before the rollover, straddling the rollover, whatever it takes. A
+batch that straddles 18:00Z is fine; the server hands out a fresh cap and the
+work continues.
+
+**The argument that will tempt the next agent, and it is WRONG:** *"the rod's
+plays carry over, so nothing is lost by waiting."* The **ROD** carries. **THE
+DAY'S CASTS DO NOT.** Same for run-units.
+
+This does not loosen anything else. Rule 5 still fails closed, rule 11 still
+requires a human to authorize a dungeon SESSION, and this rule never
+manufactures that authorization — it governs quota already authorized to be
+spent. For fishing, which is autonomous within `config/bot.json`, it means
+simply: do not ask, and do not wait.
+
+---
+
 ## Working style
 
 - **TypeScript, Node 20+. Nothing here signs.** Abstract tooling is TS-first.

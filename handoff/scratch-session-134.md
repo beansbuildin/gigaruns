@@ -35,3 +35,13 @@
 
 ## Catch rate, pre-batch (corpus recompute)
 - golkan 173/287 = 60.3%, shroom 45/82, dendren 54/104, unknown 32/109. 626 traces.
+
+## The day, after the user's correction
+- [USER] 2026-09-17: never wait for the rollover; use the full quota daily.
+  Saved to CLAUDE-level memory as well as STATE/DECISIONS.
+- Day 20713: batches 5 / 12 / 6 / 1 = 24 played, 20 charged (cap spent), 11 caught,
+  3 Relaxing oils, rod 24 -> 1 (did NOT break).
+- Batch 1 halted correctly on an ambiguous aborted write (10s deadline) in cast 5.
+  docId 13465884: hasStart true, continuous false — a NEW non-clean shape.
+- Pin pass: 137 auto pins / 8 passes, 7 hand-worked, 0 annotation-only changes.
+- secretScan flagged session 133's own quoted report; 4 exemptions added.
