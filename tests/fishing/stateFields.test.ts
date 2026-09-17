@@ -351,6 +351,11 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     "13450665 t1: card 88 hit=true crit=false predicted Δ-8, actual Δ-9 (9->0/14)",
     "13450749 t1: card 7 hit=true crit=false predicted Δ-6, actual Δ-9 (9->0/14)",
     "13450753 t7: card 89 hit=true crit=false predicted Δ-4, actual Δ-6 (10->4/24)",
+    // [session 134, day 20713] one new anomaly from the 24-cast Golkan batch.
+    // Base 5 is NOT a new base (it appears twice already) and its window
+    // [7.5/5, 8.5/5) = [1.500, 1.700) CONTAINS the standing [1.500, 1.5625),
+    // so the interval is unchanged. Not lethal-clamped (25 -> 17, floor is 0).
+    "13466352 t3: card 51 hit=true crit=false predicted Δ-5, actual Δ-8 (25->17/30)",
   ];
 
   it("fishHp moves by exactly the played card's FISH_HP effect — seven documented exceptions", () => {
@@ -507,6 +512,9 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
       { base: 8, actual: 12 },
       { base: 6, actual: 9 },
       { base: 4, actual: 6 },
+      // [session 134, day 20713] card 51, base 5 -> 8. Not a new base; window
+      // [1.500, 1.700) contains the standing interval, which is unchanged.
+      { base: 5, actual: 8 },
     ];
     expect(observed).toHaveLength(KNOWN_CRIT_ANOMALIES.length);
 
@@ -680,7 +688,7 @@ describe("SPEC-fishing §4 state-field claims, re-scored against the corpus", ()
     // attribution as every entry above: each is `critEffects` at a cell inside
     // the card's TRANSLATED `critZones`, and the transposed control below still
     // scores strictly fewer, so the zone table is still doing the discriminating.
-    expect(corrected.crits).toBe(138 /* [session 133, day 20711] was 125 */ /* [session 131, day 20709] was 124 — +1 across the first 10-cast batch back on GOLKAN (812); same attribution */ /* [session 128] was 113 — +1 across day 20705's 25-cast Dendren batch; same attribution, and the transposed control below still scores strictly fewer */ /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */ /* [session 129, day 20707] was 114 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 118 */
+    expect(corrected.crits).toBe(145 /* [session 133, day 20711] was 125 */ /* [session 131, day 20709] was 124 — +1 across the first 10-cast batch back on GOLKAN (812); same attribution */ /* [session 128] was 113 — +1 across day 20705's 25-cast Dendren batch; same attribution, and the transposed control below still scores strictly fewer */ /* [session 125] was 110 — +3 across the day-20703 24-cast batch; same attribution as every entry above */ /* [session 124] was 106 */) /* [session 123] was 101 — +5 across the first DENDREN-deck batch (24 casts); same attribution as every entry above */ /* [session 121] was 91 — +4 across the day-20699 twenty-cast day, same attribution as every entry above */ /* [session 118] was 86 */ /* [s116b] was 85 */;  /* [session 116] was 84 */  /* [session 92] was 36 */ // [session 98] was 41 /* [session 102] was 46 */ /* [session 105] was 55 */  /* [session 107] was 61 */  /* [session 110] was 63 */  /* [session 110b] was 67 */  /* [session 113] was 68 */  /* [session 122] was 95 */ /* [session 129, day 20707] was 114 — the 4-run dungeon day + the first 17-cast PUPPETEER (924) batch */ /* [session 130, day 20708] was 118 */
     expect(transposed.agree).toBeLessThan(transposed.scored);
     expect(transposed.crits).toBeLessThan(corrected.crits);
   });

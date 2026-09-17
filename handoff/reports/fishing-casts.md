@@ -1,30 +1,30 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-16T17:41:21.626Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-17T18:18:09.080Z.
 
-626 recorded casts — 317 caught (50.6%).
-Total Hard Core earned: 77840 (245.6 per catch, 124.3 per cast).
+649 recorded casts — 328 caught (50.5%).
+Total Hard Core earned: 81440 (248.3 per catch, 125.5 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 317 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 70 of those 317 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 328 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 74 of those 328 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Finley: 60
+- Finley: 62
 - Barnaboo: 60
 - Plankton: 45
-- Kelpkin: 32
+- Kelpkin: 34
 - Jelloid: 32
-- Ollie: 23
-- Skinzy: 12
+- Ollie: 26
+- Skinzy: 14
 - Deadfin: 11
 - Zombo: 7
 - Gulp: 6
 - Podge: 6
+- Gideon: 5
 - Glimmer: 4
 - Sherrif Bubblesmoke: 4
 - Globbo: 3
 - Chompus: 3
-- Gideon: 3
 - Grotto: 3
 - Slo_mo: 2
 - Goober: 1
@@ -659,3 +659,26 @@ Total Hard Core earned: 77840 (245.6 per catch, 124.3 per cast).
 | 13450749 | yes | Skinzy (rarity 2) | 320 |
 | 13450751 | yes | Chompus (rarity 4) | 960 |
 | 13450753 | no | — | 0 |
+| 13465833 | yes | Ollie (rarity 1) | 320 |
+| 13465842 | no | — | 0 |
+| 13465852 | yes | Skinzy (rarity 2) | 640 |
+| 13465867 | no | — | 0 |
+| 13465884 | no | — | 0 |
+| 13465949 | yes | Finley (rarity 0) | 80 |
+| 13465967 | yes | Kelpkin (rarity 1) | 160 |
+| 13465989 | yes | Finley (rarity 0) | 160 |
+| 13465998 | no | — | 0 |
+| 13466013 | no | — | 0 |
+| 13466044 | no | — | 0 |
+| 13466063 | yes | Ollie (rarity 1) | 160 |
+| 13466077 | no | — | 0 |
+| 13466096 | no | — | 0 |
+| 13466107 | no | — | 0 |
+| 13466118 | yes | Gideon (rarity 4) | 480 |
+| 13466352 | no | — | 0 |
+| 13466359 | yes | Skinzy (rarity 2) | 320 |
+| 13466365 | no | — | 0 |
+| 13466372 | no | — | 0 |
+| 13466375 | yes | Ollie (rarity 1) | 160 |
+| 13466380 | yes | Gideon (rarity 4) | 960 |
+| 13466392 | yes | Kelpkin (rarity 1) | 160 |

@@ -209,6 +209,30 @@ export const ALLOWLIST: Exemption[] = [
     why: "the redactor's own synthetic username vector",
   },
   {
+    rule: "addressLabelled",
+    path: "handoff/log/session-133.md",
+    why:
+      "[session 134] session 133's recap QUOTED THIS SCANNER'S OWN REPORT VERBATIM, as CLAUDE.md requires, and the report prints its allowlisted hits — so the scanner's synthetic vectors landed in a tracked file and the next run flagged them. The values are the redaction tests' fakes, not this account's. Note the shape: a recap that quotes the allowlisted block needs its own entry, so quote the summary and the unexplained block instead. jwt and the private-key rules are NEVER exempted for a log.",
+  },
+  {
+    rule: "noobTokenJson",
+    path: "handoff/log/session-133.md",
+    why:
+      "[session 134] session 133's recap QUOTED THIS SCANNER'S OWN REPORT VERBATIM, as CLAUDE.md requires, and the report prints its allowlisted hits — so the scanner's synthetic vectors landed in a tracked file and the next run flagged them. The values are the redaction tests' fakes, not this account's. Note the shape: a recap that quotes the allowlisted block needs its own entry, so quote the summary and the unexplained block instead. jwt and the private-key rules are NEVER exempted for a log.",
+  },
+  {
+    rule: "noobIdProse",
+    path: "handoff/log/session-133.md",
+    why:
+      "[session 134] session 133's recap QUOTED THIS SCANNER'S OWN REPORT VERBATIM, as CLAUDE.md requires, and the report prints its allowlisted hits — so the scanner's synthetic vectors landed in a tracked file and the next run flagged them. The values are the redaction tests' fakes, not this account's. Note the shape: a recap that quotes the allowlisted block needs its own entry, so quote the summary and the unexplained block instead. jwt and the private-key rules are NEVER exempted for a log.",
+  },
+  {
+    rule: "usernameQuoted",
+    path: "handoff/log/session-133.md",
+    why:
+      "[session 134] session 133's recap QUOTED THIS SCANNER'S OWN REPORT VERBATIM, as CLAUDE.md requires, and the report prints its allowlisted hits — so the scanner's synthetic vectors landed in a tracked file and the next run flagged them. The values are the redaction tests' fakes, not this account's. Note the shape: a recap that quotes the allowlisted block needs its own entry, so quote the summary and the unexplained block instead. jwt and the private-key rules are NEVER exempted for a log.",
+  },
+  {
     rule: "usernameQuoted",
     path: "tests/capture.test.ts",
     why: "synthetic capture-redaction vectors, the same fake name redact.test.ts uses; the address beside it is the non-hex '0xSECRET' for the same reason",

@@ -23,38 +23,53 @@ there is no dungeon arm.**
    slot-15 lures at 0 neither halt fishing nor size the batch ([USER],
    2026-09-14).
 
-3. **⭐ SKIPPING TODAY COSTS THE ROTATION NOTHING.** The day's 12 run-units go
-   unspent and the **fifth gold point is not taken** — say that plainly. But the
-   three unmeasured dows are **6, 7 and 1**, and **measuring any two FORCES the
-   third.** dow 7 is tomorrow (day 20713) and dow 1 the day after, so the gold
-   map can still be completed on schedule without today. dow 6 itself returns on
-   **day 20719 (opens 2026-09-22T18:00Z)** if it is ever wanted directly.
+3. **⚠ THE RUN-UNITS ARE FORFEITED, AND THAT IS A REAL COST — SAY SO.** A
+   fishing-only day leaves **12 run-units unspent** and takes no gold point.
+   ⛔ **Do not describe this as costless.** It is a deliberate trade the user
+   made, and the dungeon arm is halted on gear (640 and 901 at 0) regardless.
+   For the record: today is **dow 7**, one of the three unmeasured gold dows
+   (6, 7, 1); measuring any two forces the third.
 
 ---
 
-## ⏱️ The clock — and for a fishing-only day, waiting is the cleaner call
+## ⏱️ CAST NOW. DAY 20713 IS LIVE WITH A FULL LEDGER.
 
-At this brief's writing (**2026-09-17T17:37Z**) day **20712** closes at
-**18:00Z** — about **22 minutes**.
+At this writing (**2026-09-17T18:05Z**) day **20713 (dow 7)** opened five minutes
+ago: **fresh 0/20 charged ledger, 23h 55m remaining.** ⛔ **Do not read, plan or
+tidy before starting the first batch.** Do the Step-1 reads and cast.
 
-**⭐ The rod, not the day, is the binding term.** Rod **812 is at 24**, and it
-loses exactly **1.00 per PLAYED cast**. **That is 24 plays before it breaks,
-and they do not expire at the rollover.** A day's ledger only limits how many of
-them **charge** (20/day).
+---
 
-So the choice is about accounting, not about losing casts:
+## ⛔⛔ STANDING RULE — NEVER WAIT OUT A ROLLOVER. A DAY'S ALLOWANCE EXPIRES.
 
-- **Start now** → a 20-cast batch will almost certainly **straddle 18:00Z**,
-  which **resets the charged cap mid-batch** (session 127 saw exactly this and
-  got handed a fresh 20). All 24 plays could charge across the two days — but the
-  ledger bookkeeping is messy and a mid-batch instruction becomes unactionable,
-  as in session 131.
-- **Wait ~22 minutes** → a clean fresh **0/20** ledger, the full 24h of day
-  20713, and no straddle. **Nothing is lost by waiting** because the rod's 24
-  plays carry over.
+**The session-134 brief as first written recommended waiting ~22 minutes for the
+rollover, on the reasoning that "nothing is lost because the rod's 24 plays carry
+over." THAT REASONING WAS WRONG AND IT COST A FULL DAY'S CASTS.** Day 20712's
+20 charged casts were forfeited and cannot be recovered.
 
-**Recommend waiting; do not decide it.** Say which day the session actually
-spent.
+**The correct economics, stated so no brief repeats this:**
+
+- **The per-day ledger — 20 charged casts and 12 run-units — is an ALLOWANCE THAT
+  EXPIRES AT 18:00Z.** It does not bank, it does not carry, and an unspent day is
+  **permanently forfeited income.**
+- **The Hard Cores event window is FINITE.** Every skipped day is a fixed
+  fraction of the remaining total, gone.
+- **Rod durability is the MINOR term and it is REPAIRABLE.** It carries across
+  days and the user repairs it on request. **Using a consumable that carries as
+  an argument to skip an allowance that does not is exactly backwards.**
+- **⛔ Therefore: spend the day you are in, immediately.** A short window is a
+  reason to move faster, never a reason to wait. A straddled rollover mid-batch
+  is a bookkeeping annoyance; a skipped day is lost income. **They are not
+  comparable.**
+
+**⚠ THIS WAS ALREADY RULED ON.** On 2026-09-10 a brief made the same
+recommendation — wait for the rollover to protect a scarce ring — and the user
+answered *"we are not waiting for the rollover."* **That should have been carried
+as a settled entry and was not.** It is one now. **Record it in `DECISIONS.md`
+dated 2026-09-17, marked [USER], and add it to STATE's "Settled — do not
+re-open."** Re-opens as: *"wait for the rollover"*, *"nothing is lost by
+waiting"*, *"the rod's plays carry over so the day doesn't matter"*, *"a full
+day is a cleaner container"* — **all wrong.**
 
 ---
 
@@ -229,8 +244,9 @@ and the catch-rate tripwire are retired or answered.
 - **That this was a fishing-only session**, that **no authorization was needed**
   and none was asked for, and that **no gear repair was raised** because the halt
   is per-arm.
-- **The day decision** — ran in the ~22-minute sliver or waited for 18:00Z — and
-  which day the casts charged against.
+- **That casting started immediately** on day 20713's fresh ledger, and how many
+  of its 20 charged casts were actually used. ⛔ An unspent charged cast is
+  forfeited income, not a neutral outcome.
 - **The live rod reading**, the batch sizes against remaining durability, **casts
   played vs charged separately**, and whether the rod reached 0.
 - **The 812-only catch rate**, never pooled, with the cumulative **recomputed
@@ -238,8 +254,10 @@ and the catch-rate tripwire are retired or answered.
 - **⭐ Whether the list-inserter bug was fixed**, and the two parser defects with
   it — that is this session's real gate.
 - **The loadout-census chase**, if it happened, and what it resolved to.
-- **The run-units forfeited**: 12 unspent, no fifth gold point, shape still
-  **16/16** — and the note that measuring dow 7 and dow 1 still forces dow 6.
+- **The run-units forfeited**: 12 unspent and no gold point, shape still
+  **16/16** — stated as a real cost, not a neutral one.
+- **That the never-wait-out-a-rollover rule was recorded** in DECISIONS and
+  STATE's settled digest.
 - **`WeakeningEvade` put to the user** with the "a yes still does not say what
   the 4 governs" caveat.
 - **All six carry-forward items by name.**
