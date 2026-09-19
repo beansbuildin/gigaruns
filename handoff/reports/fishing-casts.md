@@ -1,23 +1,23 @@
 # Fishing casts
 
-Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-17T18:18:09.080Z.
+Regenerated from `data/run-reports/fishing.jsonl` by `scripts/fishingReport.ts` — do not hand-edit. Last generated 2026-09-19T17:59:40.028Z.
 
-649 recorded casts — 328 caught (50.5%).
-Total Hard Core earned: 81440 (248.3 per catch, 125.5 per cast).
+674 recorded casts — 341 caught (50.6%).
+Total Hard Core earned: 83920 (246.1 per catch, 124.5 per cast).
 
-**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 328 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 74 of those 328 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
+**The per-catch amount is NOT a constant.** It tracks the fish's rarity — across all 341 caught casts the base is rarity 0 -> 80, 1 -> 160, 2 -> 320, 3 -> 400, 4 -> 480, 5 -> 560 — and 77 of those 341 paid an exact small multiple of that base (up to 5x) with no distinguishing field on the response. Both the ladder and the multiple count are derived from the casts below, not quoted from a past measurement — see `src/sim/fishingReport.ts`.
 
 ## Fish caught, by name
 
-- Finley: 62
-- Barnaboo: 60
-- Plankton: 45
-- Kelpkin: 34
-- Jelloid: 32
+- Finley: 63
+- Barnaboo: 63
+- Plankton: 47
+- Kelpkin: 37
+- Jelloid: 33
 - Ollie: 26
-- Skinzy: 14
+- Skinzy: 15
 - Deadfin: 11
-- Zombo: 7
+- Zombo: 9
 - Gulp: 6
 - Podge: 6
 - Gideon: 5
@@ -682,3 +682,28 @@ Total Hard Core earned: 81440 (248.3 per catch, 125.5 per cast).
 | 13466375 | yes | Ollie (rarity 1) | 160 |
 | 13466380 | yes | Gideon (rarity 4) | 960 |
 | 13466392 | yes | Kelpkin (rarity 1) | 160 |
+| 13494994 | no | — | 0 |
+| 13494997 | yes | Skinzy (rarity 2) | 320 |
+| 13495000 | no | — | 0 |
+| 13495003 | yes | Kelpkin (rarity 1) | 320 |
+| 13495008 | no | — | 0 |
+| 13495010 | no | — | 0 |
+| 13495014 | yes | Barnaboo (rarity 0) | 80 |
+| 13495016 | no | — | 0 |
+| 13495020 | yes | Plankton (rarity 0) | 160 |
+| 13495023 | no | — | 0 |
+| 13495029 | no | — | 0 |
+| 13495035 | yes | Zombo (rarity 2) | 320 |
+| 13495039 | yes | Kelpkin (rarity 1) | 320 |
+| 13495043 | no | — | 0 |
+| 13495045 | yes | Kelpkin (rarity 1) | 160 |
+| 13495047 | no | — | 0 |
+| 13495051 | yes | Barnaboo (rarity 0) | 80 |
+| 13495056 | yes | Jelloid (rarity 1) | 160 |
+| 13495059 | yes | Finley (rarity 0) | 80 |
+| 13495062 | no | — | 0 |
+| 13495066 | yes | Barnaboo (rarity 0) | 80 |
+| 13495069 | no | — | 0 |
+| 13495075 | no | — | 0 |
+| 13495077 | yes | Zombo (rarity 2) | 320 |
+| 13495079 | yes | Plankton (rarity 0) | 80 |

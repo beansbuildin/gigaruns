@@ -363,6 +363,20 @@ export const SESSION_131_LIMITS: BatchLimits = {
 };
 
 /**
+ * [session 135] [USER] "run 30 fishing casts immediately". Rod 812 read 40 at
+ * 17:51Z, so 30 plays cannot run the rod dry (the BASE_DECK hazard needs
+ * castCap < rod). The ledger binds at 20/day; the batch straddles the 18:00Z
+ * rollover on purpose (CLAUDE.md rule 14) and continues on the fresh cap.
+ */
+export const SESSION_135_LIMITS: BatchLimits = {
+  castCap: 30,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
+/**
  * [session 134] Golkan (812), fishing-only day. Rod 812 read **24** at
  * 17:40Z, the game ledger 0/20 at the 18:00Z rollover, authorized 30, so the
  * cap is min(24, 20, 30) = 20 charged / up to 24 played. `castCap: 12` splits

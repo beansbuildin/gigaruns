@@ -1,160 +1,162 @@
-# STATE — session 134 — 2026-09-17 — commit d4107e91
+# STATE — session 135 — 2026-09-19 — commit (see the session-135 commit)
 
 ## Status
-No numbered TASKS.md gate. **Fishing only, by the user's instruction — no
-dungeon arm, and no authorization was needed or asked for** (CLAUDE.md: fishing
-within budget is autonomous). No gear repair was raised: the halt is PER-ARM and
-the dungeon pieces at 0 block nothing here.
+No numbered TASKS.md gate. A **short, user-driven fishing session**: *"the
+rollover has passed, run 30 fishing casts immediately"*, then `/gigarecap`.
+There was no `/handoff` brief.
 
-**⛔ THE SESSION'S HEADLINE IS A LOSS, NOT A GATE.** The brief recommended
-waiting ~22 minutes for the 18:00Z rollover; I took the recommendation without
-asking, and **day 20712's entire 20-cast quota was forfeited.** The brief said
-*"Recommend waiting; do not decide it"* — that decision was the user's.
+**Closeout: GATE FAIL — the suite is not green, on purpose.** 2845/2846. The one
+failure is a **pre-registered tripwire** in `tests/fishing/damageEconomy.test.ts`,
+whose own comment says *"If it breaches 10%, RE-EXAMINE the claim — do not move
+this bar."* It reads **0.10048**. I did not move the bar. See What's broken.
 
-**⭐ [USER] DIRECTIVE 2026-09-17, STANDING: NEVER WAIT FOR THE ROLLOVER. SPEND
-THE FULL QUOTA EVERY DAY.** *"THERE IS NO REASON FOR YOU TO WAIT."* A brief
-recommending a wait is wrong by this directive. The rod's durability carries
-over; **the day's casts do not.**
+**Live fishing, day 20714:** one `--oil-batch` of **25 played / 20 charged
+(20/20, cap spent) / 13 caught**, 1 Relaxing oil, rod 812 **40 → 15**.
+- ⚠ **The user said the rollover had passed; it had not.** At 17:51Z there were
+  9 minutes left of day 20714, with 0/20 spent. I cast immediately, per
+  CLAUDE.md rule 14. The batch hit the day's cap at 17:59:40Z, 20 s before
+  rollover.
+- **The last 5 of the 30 were NOT played.** At 18:00:16Z day 20715 read a fresh
+  0/20. I issued `--casts=5` and **the user rejected the tool call**. Rule-13
+  ledger read at 18:03:53Z: **game 0/20, repo 0, rod still 15, no new log**, so
+  nothing ran. **Day 20715 has 20 casts unspent.**
 
-**Day 20713 was then spent to the cap:** 24 played / **20 charged (20/20)**, 11
-caught, 3 Relaxing oils, rod 812 **24 → 1**.
+**Rod 812: 15** — enough for a full day. **JWT** exp 2026-09-20T16:32:40Z: **~22h
+from this recap, and it WILL bind the next session** unless the user refreshes it.
 
-**Suite 2846/2846**, `tsc` rc 0, secret scan PASS (tracked, 20654 files).
-
-**JWT:** exp 2026-09-20T16:32:40Z (~71h at session open).
-
-**⚠ ROD 812 IS AT 1.** It did not break, so fishing is NOT halted — but it
-breaks on the next cast. [USER] repairs.
-
-**⚠ DUNGEON ARM: 905 is at 0** (640 read 48 and 901 read 12 — both repaired out
-of band, against a brief that forecast them at 0).
+**No dungeon activity, and the ring balances were not read this session.**
 
 ## Settled — do not re-open
 Pointers only. `DECISIONS.md` and `QUESTIONS.md` own the evidence. **[USER]** = a
 user directive an agent may not re-open at all.
 
-- ⭐ **[USER] NEVER WAIT FOR THE ROLLOVER — USE THE FULL DAILY QUOTA.**
-  2026-09-17. Re-opens as: *"wait for a clean 0/20 ledger"*, *"the batch would
-  straddle 18:00Z"*, *"the rod's plays carry over so nothing is lost"* (the rod
-  carries; **the day's casts do not**), *"the accounting is messy mid-batch"*.
+**Dropped this session, two, both now in CLAUDE.md:**
+- "never wait for the rollover" is **rule 14**;
+- "fishing stops only on a broken rod" is **rule 11**.
+
+- ⭐ **[NEW] THE damageEconomy 10% BAR IS A TRIPWIRE, NOT A PIN.** It breached at
+  0.10048. The claim gets re-examined; the bar does not move. Re-opens as:
+  *"widen the bar to 0.11"*, *"the patcher refused a pin, fix it by hand"*.
 - ⭐ **[USER] THE ROD IS GOLKAN (812).** Re-opens as: *"swap back to 924/923"*,
   *"the sim says Dendren beats Golkan"*.
-- ⭐ **THE GOLKAN SLICE IS 812-ONLY: now 184/310 = 59.4%** (was 173/287).
+- ⭐ **THE GOLKAN SLICE IS 812-ONLY: now 197/335 = 58.8%** (was 184/310).
   Recompute from the corpus; never pool 811. Re-opens as: *"Golkan 58.7%"*,
   *"add 74 back to GOLKAN_IDS"*.
-- ⭐ **[USER] FISHING STOPS ONLY ON A BROKEN ROD.** Cap = min(rod, ledger,
-  authorized). Re-opens as: *"size castCap to the slot-15 gear"*.
-- ⭐ **GOLD ROTATION: four clean points (dow 2 Foxglove, 3 Archon, 4 Summoner,
-  5 Overseer), charge shape 16/16.** A fifth, **dow 6 → Crusader**, was observed
-  OUT OF BAND this session and is **WEAK**: the other six gold balances rose over
-  the same window, so −12 is a NET figure and the shape did not advance.
-  Re-opens as: *"the gold map has five confirmed points"*, *"predict the next
-  gold faction by a step rule"*.
-- ⭐ **AN ABORTED WRITE PRODUCES A TRACE SHAPE NOTHING ELSE DOES** — `hasStart`
-  true, `continuous` false. Session 45's resumed cast is the opposite. Re-opens
-  as: *"the second non-clean trace is another resumed cast"*.
+- ⭐ **GOLD ROTATION: four clean points** (dow 2 Foxglove, 3 Archon, 4 Summoner,
+  5 Overseer), **charge shape 16/16.**
+  - The fifth, **dow 6 → Crusader**, is WEAK: it was out of band, and −12 was a
+    net figure.
+  - Re-opens as: *"the gold map has five confirmed points"*, *"predict the next
+    gold faction by a step rule"*.
+- ⭐ **AN ABORTED WRITE PRODUCES A TRACE SHAPE NOTHING ELSE DOES** (`hasStart`
+  true, `continuous` false). Re-opens as: *"the second non-clean trace is
+  another resumed cast"*.
 - ⭐ **`--resume-existing` COSTS NO RUN-UNIT; gear debits at `start_run`.**
-- ⭐ **A RESUMED RUN'S state-000 IS NOT AN OPENING LOADOUT** (this is why 50/37
-  looked like a new opening). Re-opens as: *"the corpus shows a new starting
-  loadout"*.
+- ⭐ **A RESUMED RUN'S state-000 IS NOT AN OPENING LOADOUT.** Re-opens as: *"the
+  corpus shows a new starting loadout"*.
 - ⭐ **SLOT-6 204 IS NOT A WEAR PIECE.** The wear set is 640/641/901/905.
 - ⭐ **"Intuition quarters damage" and the Weak "exceptions" are Weak/Vengeance.**
-- ⭐ **THE FISHING ROD CARRIES NO DUNGEON STAT LINE.**
 - ⭐ **DENDREN ROOT (846) IS A FUNCTION OF THE DEATH ROOM.**
 - ⭐ **`blockedMove`'s WIRING IS FALSIFIED.** Re-opens as: *"wire blockedMove in"*.
-- ⚠ **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT — TENTH session.** 640 and 901
-  were forecast at 0 and read 48 and 12. Read `checkGear.ts` live.
-- ⭐ **[USER] RING BALANCES ARE NOT A CONSTRAINT** (still read all fourteen).
-- **[USER] THE DUNGEON GEAR HALT** — never abort a run; after a completed run,
-  any piece at 0 stops that arm; item 50 (slot 8) is grandfathered.
-- **[USER] OTHER DUNGEONS OUT OF SCOPE.** **[USER] fishing budget 360 energy / 30
-  casts.** **[USER] Tier-1/Tier-3 income baseline RETIRED BY NAME.**
-- ⚠ **PIN AFTER THE DAY'S LAST CAST.** Done again this session.
+- ⚠ **A BRIEF'S GEAR FORECAST IS STALE BY DEFAULT.** The rod read 40 at this
+  open after closing at 1; it was repaired out of band. Read `checkGear.ts` live.
+- ⭐ **[USER] RING BALANCES ARE NOT A CONSTRAINT** (still read all fourteen on a
+  dungeon day).
+- **[USER] THE DUNGEON GEAR HALT; OTHER DUNGEONS OUT OF SCOPE; fishing budget 360
+  energy / 30 casts; Tier-1/Tier-3 income baseline RETIRED BY NAME.**
+- ⚠ **PIN AFTER THE DAY'S LAST CAST.** Done this session.
 
 ## What works
-- **`scripts/pinPatch.ts` + `scripts/pinReporter.ts` — THE PATCHER IS COMMITTED**
-  and was used live for the first time: **137 pins over 8 passes**, 7 refusals,
-  **0 annotation-only line changes**, no hand repair of tool damage.
-  - Anchors on the matcher call's **file:line:column** (stack), so identical
-    pin text in three tests moves independently.
-  - Arrays are replaced as **AST node spans**, keeping layout — the
-    list-inserter bug cannot recur.
-  - No diff text is parsed, so the `+ Received` defect cannot recur.
-  - Refuses: ratio expressions, bounds, `.not`, non-literal args, conflicting
-    actuals at one site, length changes on arrays holding comments, and any
-    edit that would stop the file parsing.
-  - `npx tsx scripts/pinPatch.ts --run --write --snapshot=<dir> --annotate=134`
-- **`liveFishing.ts`** — four batches, three rc 0; the fourth halt was correct.
-- **Rule 5 fail-closed on an ambiguous aborted write**, then the rule-13 ledger
-  read that sized the next batch.
+- **`liveFishing.ts --oil-batch` with `SESSION_135_LIMITS` (castCap 30).**
+  - 25 casts in ~8 min, rc 0.
+  - It stopped cleanly at `ledger 0 left`.
+  - Rod wear was exactly 1.00 per played cast.
+- **`scripts/pinPatch.ts`, second live use:** 160 pins written automatically over
+  17 passes, 9 refusals.
+  - The refusals were all correct: 4 ratio pins, 1 constant, 2 id lists, 1
+  anomaly list with its expression-valued pin, and the tripwire.
+  - No syntax damage.
+  - The late passes each moved one assertion. That is sequential assertions
+    inside one test, **not oscillation**.
+- **The rule-13 ledger read after the rejected `--casts=5`** — see Status.
 
 ## What's broken
-- ⛔ **Rod 812 is at 1 — it breaks on the next cast.** [USER] repairs.
-- ⛔ **Dungeon gear 905 is at 0.** That arm is halted until repaired.
-- ⚠ **`checkGear.ts`'s DUNGEON HALT banner still fires permanently on item 50.**
-- ⚠ **`factionDayRunway` + `tests/entryTierRunway.test.ts` KEPT, not deleted.**
-  CLAUDE.md rule 11 names that test as a guard; deleting it is a rule-11 edit.
-  **Both halves together or neither.**
-- ⚠ **A RECAP THAT QUOTES THE SECRET SCAN'S ALLOWLISTED BLOCK BREAKS THE NEXT
-  SCAN.** Session 133's did; four exemptions were added for that one path.
-  **Quote the summary and the unexplained block, never the allowlisted block.**
-- ⚠ **THE `ask` BLOCK IN `.claude/settings.local.json`** — the user's edit.
-- **`web/`** untouched since session 120 (no `node_modules`).
+- ⛔ **`damageEconomy.test.ts:321` is RED by design.**
+  - `|unclamped.drift − LIVE.drift| / |LIVE.drift|` = **0.10048**, against a
+    pre-registered bar of `< 0.1`.
+  - The ratio's history: 4.7% at session 91, 8.0% at session 116, now 10.05%.
+  - The test's claim is *"the clamp is real but small — the unclamped reading
+    agrees in sign and within a hundredth"*. That claim now needs
+    re-examination, and a bar move is explicitly forbidden.
+  - **Needs a decision** (Open question 1).
+- ⚠ **The JWT expires 2026-09-20T16:32:40Z**, before the next rollover window
+  closes.
+- ⚠ **ROM overflow warning, first time printed:**
+  - The largest single ROM (400) is ≥ the pool headroom (359), so one claim can
+    now reach the energy cap.
+  - The overflow path is marked UNTESTED in `liveFishing.ts`.
+  - Energy is not a constraint (rule 12). The worry is wasted ROM energy on a
+    claim, not a blocker.
+- ⚠ `checkGear.ts`'s DUNGEON HALT banner still fires permanently on item 50.
+- ⚠ `factionDayRunway` + `tests/entryTierRunway.test.ts` are kept. Deleting them
+  is a rule-11 edit.
+- **`web/`** has been untouched since session 120.
 
-## Corrections to SPEC.md / the brief
-- **The brief's premise that day 20712's 12 run-units were unspent was WRONG** —
-  the server ledger read 12/12 at session open, spent out of band at 17:29Z.
-- **The brief's gear forecast was wrong for the tenth session running.**
-- **The brief's "recommend waiting" was wrong and cost a day's casts** — now a
-  [USER] directive, above.
-- No SPEC §-level corrections this session.
+## Corrections to SPEC.md
+- None this session.
+- **The user's "the rollover has passed" was off by 9 minutes.** It was 17:51Z;
+  day 20714 was still open, with 20 unspent. That is not a SPEC matter, and it
+  worked in the account's favour.
+- **Resolved IDs:** forbiddenWoods=5, dendren nodeId "5" / pondId 2 (unchanged).
+- **Move charges:** ABSENT for rings on the wire (unchanged since session 112).
 
 ## Dead ends
-- **Do not re-derive today's catch rate from `fishBatchReport.ts` or
-  `loadFishingCorpus()`** — `loadCastTraces()` → `splitByDealtDeck().rod` →
-  `deckOf()`.
-- **Carried from earlier sessions:**
+- **Don't widen a tripwire bar because the patcher refused it.** A refusal on
+  `toBeLessThan` is the tool working.
+- **Carried:**
+  - `$TMPDIR` differs by sandbox mode, and git and the suite run UNSANDBOXED.
   - Never end a background loop with `[ $rc -ne 0 ] && break`.
-  - `$TMPDIR` differs between sandbox modes; git and the suite run UNSANDBOXED.
   - Never read consecutive captures as consecutive exchanges.
   - `loadCorpus()` drops `data.events`.
-  - Ratio pins need both halves moved (the patcher now refuses them by name).
-  - §0a NOT lifted: **+19.40pp and +17.74pp MAY NOT BE QUOTED.**
+  - §0a is NOT lifted: **+19.40pp and +17.74pp MAY NOT BE QUOTED.**
   - Don't reproduce −0.389.
 
 ## Metrics
-- **Fishing, live day 20713:** 24 played / **20 charged (cap spent)**, **11
-  caught**, 3 Relaxing oils, rod **24 → 1**. Batches 5 / 12 / 6 / 1.
-- **Day 20712: ZERO casts — forfeited by waiting for the rollover.**
-- **Rod slices (corpus recompute):** **812 184/310 = 59.4%**; 811 45/82 = 54.9%;
-  923 54/104 = 51.9%; unknown/legacy 32/109.
-- **Corpus:** 161 dungeon attempts, **649 fishing casts** (was 626).
-- **Suite:** **2846/2846** (was 2826; +20 are `pinPatch.test.ts`).
-- **`KNOWN_CRIT_ANOMALIES` 26 → 27**; fish-HP interval **unchanged** at
-  [1.500, 1.5625) — the new row's window [1.500, 1.700) contains it.
-- **Dungeon, out of band:** day 20712 12/12 run-units, gold Crusader −12 net.
+- **Fishing, live day 20714:** 25 played / 20 charged, **13 caught (52.0%)**, 1
+  Relaxing oil, rod 40 → 15.
+- **Day 20715: 0 of 20.** The user stopped the 5-cast continuation.
+- **Rod slices (corpus recompute, `loadCastTraces` → `splitByDealtDeck().rod` →
+  `deckOf`):**
+  - **812: 197/335 = 58.8%**
+  - 811: 45/82 = 54.9%
+  - 923: 54/104 = 51.9%
+  - unknown/legacy: 32/109
+- **Corpus:** **674 fishing casts** (was 649); 161 dungeon attempts.
+- **`KNOWN_CRIT_ANOMALIES` 27 → 30.**
+  - The fish-HP interval is **unchanged** at [1.500, 1.5625).
+  - Two of the new rows are base 6, one is base 8; none is a new base.
+- **Ratio pins:** 1157/1614, 1262/1614, 51/218, 86/110.
+- **The in-sample redraw constant went 2.2 → 2.3.**
+- **Suite:** **2845 passed / 1 failed (2846)**. `tsc` rc 0.
 
 ## Open questions for Claude
-1. ⭐ **WeakeningEvade is still held at n=1** (latent at pickup, `val1` fixed at
-   4). Put to the user this session; **not yet answered.** Model it as latent by
-   directive (the LossBlockUp precedent), or keep holding? A "yes" models the
-   PICKUP as latent and still says nothing about what the 4 governs — and
-   because `val1` is fixed, more pickups will never separate that.
-2. **The rod is at 1 and breaks on the next cast.** The next session's first
-   live act is blocked until [USER] repairs it — confirm before planning a batch.
-3. **Delete `factionDayRunway` and its test?** Needs the CLAUDE.md rule-11 edit
-   in the same change.
-4. **`web/` has been untouched for 14 sessions.** Keep listing it, or retire it?
+1. ⭐ **The damageEconomy tripwire fired (0.10048 against 10%).** Re-examine
+   *"the clamp is real but small"* — the ratio has risen at every read (4.7% →
+   8.0% → 10.05%). Retire the claim, or restate it on a quantity that is not
+   composition-bound? Moving the bar is ruled out by the test itself.
+2. ⭐ **WeakeningEvade is still held at n=1.** It was put to the user in session
+   134 and has not been answered. Model it as latent by directive (the
+   LossBlockUp precedent), or keep holding?
+3. **The JWT expires in ~22h.** The next session's first act may be a refresh
+   by the user.
+4. **Day 20715 has 20 unspent casts**, rod at 15. Per rule 14 the next session
+   spends them, if they are still open when it starts.
 
 ## Files changed
 ```
- scripts/pinPatch.ts                   NEW — the committed pin patcher
- scripts/pinReporter.ts                NEW — vitest reporter (structured actual/expected)
- tests/pinPatch.test.ts                NEW — 20 tests, one per named defect
- scripts/secretScan.ts                 +4 exemptions for session-133.md, with the reason
- scripts/liveFishing.ts                SESSION_134_LIMITS
- src/strategy/fishing/oilBatch.ts      +SESSION_134_LIMITS
- tests/**                              ~15 files — 137 auto pins + 7 hand-worked
- fixtures/fishing-casts/live/**         25 capture dirs (24 casts + 1 dry-run)
- handoff/{STATE,scratch-session-134,log/session-134}.md
+ scripts/liveFishing.ts               SESSION_135_LIMITS wired; in-sample 2.2 -> 2.3
+ src/strategy/fishing/oilBatch.ts     +SESSION_135_LIMITS (castCap 30)
+ tests/**                             ~15 files — 160 auto pins + 8 hand-worked
+ fixtures/fishing-casts/live/**       25 cast captures (day 20714)
+ handoff/{STATE,DECISIONS,log/session-135}.md
 ```
