@@ -1,45 +1,61 @@
-# STATE — session 135 — 2026-09-19 — commit (see the session-135 commit)
+# STATE — session 137 — 2026-09-25 — commit (see the session-137 commit)
 
 ## Status
-No numbered TASKS.md gate. A **short, user-driven fishing session**: *"the
-rollover has passed, run 30 fishing casts immediately"*, then `/gigarecap`.
-There was no `/handoff` brief.
+No numbered TASKS.md gate. User-driven: *"run a full day of fishing only"* ×2,
+an oil-timing investigation, one [USER] config reversal, a third fishing day,
+then `/gigarecap`. No `/handoff` brief.
 
-**Closeout: GATE FAIL — the suite is not green, on purpose.** 2845/2846. The one
-failure is a **pre-registered tripwire** in `tests/fishing/damageEconomy.test.ts`,
-whose own comment says *"If it breaches 10%, RE-EXAMINE the claim — do not move
-this bar."* It reads **0.10048**. I did not move the bar. See What's broken.
+**Closeout: GATE FAIL — 15 of 2846 tests red.** All 15 are pin-patcher
+REFUSALS left for hand-work. I did not hand-work them in the recap. Two need
+real judgement: the **damageEconomy tripwire** (now 0.114) and **14 new crit
+anomalies**, 11 of them on the Focus-oil day. See What's broken.
 
-**Live fishing, day 20714:** one `--oil-batch` of **25 played / 20 charged
-(20/20, cap spent) / 13 caught**, 1 Relaxing oil, rod 812 **40 → 15**.
-- ⚠ **The user said the rollover had passed; it had not.** At 17:51Z there were
-  9 minutes left of day 20714, with 0/20 spent. I cast immediately, per
-  CLAUDE.md rule 14. The batch hit the day's cap at 17:59:40Z, 20 s before
-  rollover.
-- **The last 5 of the 30 were NOT played.** At 18:00:16Z day 20715 read a fresh
-  0/20. I issued `--casts=5` and **the user rejected the tool call**. Rule-13
-  ledger read at 18:03:53Z: **game 0/20, repo 0, rod still 15, no new log**, so
-  nothing ran. **Day 20715 has 20 casts unspent.**
+⚠ **SESSION 136 WAS NEVER RECAPPED OR COMMITTED, and this commit absorbs it.**
+On 2026-09-21 (game day 20716) a session fished 26 casts on rod 812, then 50,
+with `SESSION_136_LIMITS` (castCap 20). It pin-passed at 700 casts and
+stopped with everything staged. Its fixtures, pins, `SESSION_136_LIMITS` and the
+in-sample 2.3 → 2.2 change all land in this commit. There is no
+`log/session-136.md`. Session 136's day is covered in this log's §0, from its own
+code comments and fixtures only.
 
-**Rod 812: 15** — enough for a full day. **JWT** exp 2026-09-20T16:32:40Z: **~22h
-from this recap, and it WILL bind the next session** unless the user refreshes it.
+**Live fishing: three game days, each spent to 20/20 charged.**
+| day | played / charged | caught | oils | rod 812 |
+|---|---|---|---|---|
+| 20718 | 22 / 20 | 11 (50%) | 0 — Focus withdrawn, 0 Relaxing held | 24 → 2 |
+| 20719 | 21 / 20 | 9 (43%) | 2 Relaxing | 40 → 19 (repaired out of band) |
+| **20720** | 26 / 20 | **22 (85%)** | **16 Focus + 4 Relaxing** | 19 → **0**, repaired → 44 → 38 |
 
-**No dungeon activity, and the ring balances were not read this session.**
+Day 20720 is the first day since session 93 with Focus Oil allowed and stocked.
+It is n=26, one day. Treat it as a strong first read, not a rate.
+
+**Rod 812: 38.** **Stock after day 20720: Focus 51 / Relaxing 64.** At ~16
+Focus/day that is ~3 days. **JWT:** reads worked all session. Its expiry was
+not re-read.
+
+**No dungeon activity. Ring balances were not read.**
 
 ## Settled — do not re-open
 Pointers only. `DECISIONS.md` and `QUESTIONS.md` own the evidence. **[USER]** = a
 user directive an agent may not re-open at all.
 
-**Dropped this session, two, both now in CLAUDE.md:**
-- "never wait for the rollover" is **rule 14**;
-- "fishing stops only on a broken rod" is **rule 11**.
+- ⭐ **[USER] FOCUS OIL (942) IS RE-ALLOWED, reversing session 93's
+  relaxing-only directive.** 2026-09-24. `allowedItemIds [937, 942]`, pinned by
+  `oilPolicy.test.ts` + `oilDoubleLethalDisabled.test.ts`. Re-opens as:
+  *"withdraw Focus Oil again"*, *"return to relaxing-only to save oils"*.
+- ⭐ **ORDER ALONE SAYS THE CATCH-RATE LEVER IS WHICH OIL, NOT WHEN.** Every sweep
+  puts `focus-when-empty-only` above every Relaxing timing. Loosening the Relaxing
+  gate adds ~0pp. §0a holds, so **quote no sweep number.** DECISIONS 2026-09-24.
+  Re-opens as: *"loosen the Relaxing trigger to lift catch rate"*, *"spend an
+  oil at start_run"*.
 
-- ⭐ **[NEW] THE damageEconomy 10% BAR IS A TRIPWIRE, NOT A PIN.** It breached at
+**Dropped this session:** "PIN AFTER THE DAY'S LAST CAST" (a one-shot reminder, quiet for two sessions).
+
+- ⭐ **THE damageEconomy 10% BAR IS A TRIPWIRE, NOT A PIN.** It breached at
   0.10048. The claim gets re-examined; the bar does not move. Re-opens as:
   *"widen the bar to 0.11"*, *"the patcher refused a pin, fix it by hand"*.
 - ⭐ **[USER] THE ROD IS GOLKAN (812).** Re-opens as: *"swap back to 924/923"*,
   *"the sim says Dendren beats Golkan"*.
-- ⭐ **THE GOLKAN SLICE IS 812-ONLY: now 197/335 = 58.8%** (was 184/310).
+- ⭐ **THE GOLKAN SLICE IS 812-ONLY.** Last computed 197/335 = 58.8% at 674 casts; NOT recomputed at 769.
   Recompute from the corpus; never pool 811. Re-opens as: *"Golkan 58.7%"*,
   *"add 74 back to GOLKAN_IDS"*.
 - ⭐ **GOLD ROTATION: four clean points** (dow 2 Foxglove, 3 Archon, 4 Summoner,
@@ -64,99 +80,106 @@ user directive an agent may not re-open at all.
   dungeon day).
 - **[USER] THE DUNGEON GEAR HALT; OTHER DUNGEONS OUT OF SCOPE; fishing budget 360
   energy / 30 casts; Tier-1/Tier-3 income baseline RETIRED BY NAME.**
-- ⚠ **PIN AFTER THE DAY'S LAST CAST.** Done this session.
 
 ## What works
-- **`liveFishing.ts --oil-batch` with `SESSION_135_LIMITS` (castCap 30).**
-  - 25 casts in ~8 min, rc 0.
-  - It stopped cleanly at `ledger 0 left`.
-  - Rod wear was exactly 1.00 per played cast.
-- **`scripts/pinPatch.ts`, second live use:** 160 pins written automatically over
-  17 passes, 9 refusals.
-  - The refusals were all correct: 4 ratio pins, 1 constant, 2 id lists, 1
-  anomaly list with its expression-valued pin, and the tripwire.
-  - No syntax damage.
-  - The late passes each moved one assertion. That is sequential assertions
-    inside one test, **not oscillation**.
-- **The rule-13 ledger read after the rejected `--casts=5`** — see Status.
+- **`liveFishing.ts --oil-batch` under `SESSION_136_LIMITS` (castCap 20).** Five
+  batches, and every one exited rc 0 on `cast_cap` or `ledger_exhausted`.
+  - ⚠ castCap counts PLAYED casts, and ~1 play per 20 goes uncharged. So each
+    full day needed a small second batch to spend the last 1–2 charges.
+  - Every one was preceded by a `checkFishingCaps.ts` read.
+- **The Focus-oil path, live.** 19 × `use_fishing_item` itemId 942 posted and
+  accepted on day 20720. The necessity-gated trigger fired it only on focus-empty
+  turns.
+- **Rod-0 halt.** Rod 812 hit 0 on day 20720's last cast. The next batch was not
+  issued until the user repaired it.
+- **Transient server write conflict, failed closed.** `start_run` → HTTP 400
+  *"Write conflict during plan execution … Please retry"*. The loop reconciled
+  it as `action_not_applied`. The ledger read 15/20 unchanged, and one retry
+  succeeded.
+- **`scripts/pinPatch.ts`:** 157 pins over 8 passes, converged, 15 refusals.
+- **Rule-13 read after an app quit** mid tool-permission: ledger 0/20, and the
+  newest log was only the dry run. Nothing had run.
 
 ## What's broken
-- ⛔ **`damageEconomy.test.ts:321` is RED by design.**
-  - `|unclamped.drift − LIVE.drift| / |LIVE.drift|` = **0.10048**, against a
-    pre-registered bar of `< 0.1`.
-  - The ratio's history: 4.7% at session 91, 8.0% at session 116, now 10.05%.
-  - The test's claim is *"the clamp is real but small — the unclamped reading
-    agrees in sign and within a hundredth"*. That claim now needs
-    re-examination, and a bar move is explicitly forbidden.
-  - **Needs a decision** (Open question 1).
-- ⚠ **The JWT expires 2026-09-20T16:32:40Z**, before the next rollover window
-  closes.
-- ⚠ **ROM overflow warning, first time printed:**
-  - The largest single ROM (400) is ≥ the pool headroom (359), so one claim can
-    now reach the energy cap.
-  - The overflow path is marked UNTESTED in `liveFishing.ts`.
-  - Energy is not a constraint (rule 12). The worry is wasted ROM energy on a
-    claim, not a blocker.
-- ⚠ `checkGear.ts`'s DUNGEON HALT banner still fires permanently on item 50.
-- ⚠ `factionDayRunway` + `tests/entryTierRunway.test.ts` are kept. Deleting them
-  is a rule-11 edit.
-- **`web/`** has been untouched since session 120.
+- ⛔ **15 pin refusals, all RED. Hand-work each one; do not auto-move them.**
+  1. **damageEconomy.test.ts:332 TRIPWIRE: 0.114** (was 0.10048 at s135).
+     Still rising. The bar may not move. Open Q1.
+  2. **stateFields.test.ts:373/676: `KNOWN_CRIT_ANOMALIES` +14.**
+     - Every one is `hit=true crit=false` with actual ≈ 1.5 × predicted.
+     - **11 of 14 are casts 13573xxx, the Focus-oil day, after the repair.**
+     - Hypothesis, UNTESTED: an oil or the repair changes crit behaviour.
+       Check the base/ratio window before appending. Open Q2.
+  3. **movePath.test.ts:30: "exceptionless" broke.** Cast 13547151 t4/t5 has
+     `lengthMatches: false`: 3 steps against a different path length, endpoint
+     OK. A first exception is a finding, not a pin.
+  4. **oilReachability ×4 + fishingCorpus:550: id lists grew.** Expected, since
+     Focus oils went live: the oil-cast list is +15. Verify each is ADDITIVE,
+     then append.
+  5. **redrawCounterfactual ×3: ratio pins.** Both halves by hand. Current
+     values: 0.72334, 0.80469, 0.25726.
+  6. **fishMaxHp:41: mean 20.087 vs `< 20`.** Did the fish pool shift, or did
+     the claim drift? Do not widen it blindly.
+  7. **castEra:697: the gear-reach delta is 0.0115 vs `< 0.01`.** Same
+     judgement.
+  8. **redrawShadowAnalysis:123: in-sample 2.2 → 2.0.** Set
+     `REDRAW_SHADOW_IN_SAMPLE_RATE_PCT` by hand.
+- ⚠ **castCap counts plays, not charges.** Every full day this session needed a
+  follow-up batch. Candidate: halt on `ledger 0` only.
+- ⚠ **Carried, unchanged:** ROM-overflow path untested, `checkGear.ts` banner on
+  item 50, `web/` idle since s120.
 
 ## Corrections to SPEC.md
 - None this session.
-- **The user's "the rollover has passed" was off by 9 minutes.** It was 17:51Z;
-  day 20714 was still open, with 20 unspent. That is not a SPEC matter, and it
-  worked in the account's favour.
-- **Resolved IDs:** forbiddenWoods=5, dendren nodeId "5" / pondId 2 (unchanged).
-- **Move charges:** ABSENT for rings on the wire (unchanged since session 112).
+- **Resolved IDs:** forbiddenWoods=5, dendren nodeId "5" / pondId 2. Focus oil
+  942 and Relaxing oil 937 are unchanged.
+- **Move charges:** ABSENT (unchanged).
 
 ## Dead ends
-- **Don't widen a tripwire bar because the patcher refused it.** A refusal on
-  `toBeLessThan` is the tool working.
-- **Carried:**
-  - `$TMPDIR` differs by sandbox mode, and git and the suite run UNSANDBOXED.
-  - Never end a background loop with `[ $rc -ne 0 ] && break`.
-  - Never read consecutive captures as consecutive exchanges.
-  - `loadCorpus()` drops `data.events`.
-  - §0a is NOT lifted: **+19.40pp and +17.74pp MAY NOT BE QUOTED.**
-  - Don't reproduce −0.389.
+- **zsh does not word-split an unquoted `$VAR`.** `pinPatch.ts --run $F`
+  passed 12 paths as ONE argument, so vitest matched nothing and the patcher
+  reported "0 failures". **Rule: a 0 after a known-red run is a harness fault
+  until shown otherwise.** List the files literally.
+- **Loosening the Relaxing trigger to fix catch rate.** Every sweep arm puts it
+  at ~+0pp over the necessity gate. See the digest.
+- **Carried:** §0a is not lifted, and no sweep number may be quoted as a
+  forecast. `$TMPDIR` differs by sandbox mode, and tsx/vitest/git run
+  unsandboxed.
 
 ## Metrics
-- **Fishing, live day 20714:** 25 played / 20 charged, **13 caught (52.0%)**, 1
-  Relaxing oil, rod 40 → 15.
-- **Day 20715: 0 of 20.** The user stopped the 5-cast continuation.
-- **Rod slices (corpus recompute, `loadCastTraces` → `splitByDealtDeck().rod` →
-  `deckOf`):**
-  - **812: 197/335 = 58.8%**
-  - 811: 45/82 = 54.9%
-  - 923: 54/104 = 51.9%
-  - unknown/legacy: 32/109
-- **Corpus:** **674 fishing casts** (was 649); 161 dungeon attempts.
-- **`KNOWN_CRIT_ANOMALIES` 27 → 30.**
-  - The fish-HP interval is **unchanged** at [1.500, 1.5625).
-  - Two of the new rows are base 6, one is base 8; none is a new base.
-- **Ratio pins:** 1157/1614, 1262/1614, 51/218, 86/110.
-- **The in-sample redraw constant went 2.2 → 2.3.**
-- **Suite:** **2845 passed / 1 failed (2846)**. `tsc` rc 0.
+- **Live, this session:** 69 played / 60 charged / **42 caught (60.9%)**, 22
+  oils. By day: 50%, 43%, **85%**.
+- **Focus-withheld split, days 20718–20719:** 19 casts where the trigger wanted
+  942 and policy withdrew it → **2 caught (11%)**. The other 24 → 18 caught
+  (75%). This split is **selection-biased**: the trigger fires in casts that are
+  already failing.
+- **Loss mix, last 400 casts:** 214 caught / 143 escaped at full HP / 43 mana-out.
+  Catch rate when focus never hit 0: **128/188 = 68%**. When it did hit 0:
+  **86/212 = 41%**.
+- **`oilArmCatchCheck` (default runs):** live no-oil 45.7% (231/505), live oil
+  arm 96.2% (127/132). Sim with oils off: 29.6%. Both rows REFUTED against the
+  live CI.
+- **Corpus: 769 fishing casts** (was 674, +26 from s136, +69 this session).
+- **Suite at final tree:** **2831 passed / 15 failed (2846)**, 9 files. `tsc`
+  rc 0.
 
 ## Open questions for Claude
-1. ⭐ **The damageEconomy tripwire fired (0.10048 against 10%).** Re-examine
-   *"the clamp is real but small"* — the ratio has risen at every read (4.7% →
-   8.0% → 10.05%). Retire the claim, or restate it on a quantity that is not
-   composition-bound? Moving the bar is ruled out by the test itself.
-2. ⭐ **WeakeningEvade is still held at n=1.** It was put to the user in session
-   134 and has not been answered. Model it as latent by directive (the
-   LossBlockUp precedent), or keep holding?
-3. **The JWT expires in ~22h.** The next session's first act may be a refresh
-   by the user.
-4. **Day 20715 has 20 unspent casts**, rod at 15. Per rule 14 the next session
-   spends them, if they are still open when it starts.
+1. ⭐ **damageEconomy tripwire: 4.7% → 8.0% → 10.05% → 11.4%.** Retire *"the
+   clamp is real but small"*, or restate it on a quantity that is not tied to
+   deck composition?
+2. ⭐ **14 new crit anomalies, 11 on the first Focus-oil day.** Does Focus Oil,
+   or the out-of-band repair, change damage? Test it by splitting the anomalies
+   by `consumablesUsed` before the hit, before growing the list.
+3. **Should `castCap` count charges?** The ~1-in-20 uncharged play costs one
+   extra batch per day.
+4. **Is a Focus-stock budget warranted?** At ~16/day, 51 lasts ~3 days, and the
+   next dry day reverts to ~45%.
 
 ## Files changed
 ```
- scripts/liveFishing.ts               SESSION_135_LIMITS wired; in-sample 2.2 -> 2.3
- src/strategy/fishing/oilBatch.ts     +SESSION_135_LIMITS (castCap 30)
- tests/**                             ~15 files — 160 auto pins + 8 hand-worked
- fixtures/fishing-casts/live/**       25 cast captures (day 20714)
- handoff/{STATE,DECISIONS,log/session-135}.md
+ config/bot.json                      allowedItemIds [937] -> [937, 942], dated note
+ tests/fishing/oilPolicy.test.ts, oilDoubleLethalDisabled.test.ts   942 allowed
+ scripts/liveFishing.ts, src/strategy/fishing/oilBatch.ts           s136 (uncommitted): SESSION_136_LIMITS
+ tests/**                             ~14 files, 157 auto pins (s136's + this session's)
+ fixtures/fishing-casts/live/**       95 cast captures (days 20716, 20718-20720)
+ handoff/{STATE,DECISIONS,log/session-137}.md, handoff/reports/*
 ```

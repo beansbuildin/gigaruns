@@ -363,6 +363,21 @@ export const SESSION_131_LIMITS: BatchLimits = {
 };
 
 /**
+ * [session 136] [USER] "run the full day of fishing casts again". Rod 812 read
+ * **50** at 15:53Z (repaired out of band from 15), the game ledger 0/20, the
+ * standing budget 30 — so the cap is min(50, 20, 30) = **20, set by the
+ * LEDGER**. The rod cannot run dry at 20 plays, so the BASE_DECK hazard that
+ * forces a split batch does not bind here and this runs as ONE batch.
+ */
+export const SESSION_136_LIMITS: BatchLimits = {
+  castCap: 20,
+  cleanCastCap: null,
+  zeroStreakCap: 15,
+  stopOnOilConsume: false,
+  haltOnShadowBlind: true,
+};
+
+/**
  * [session 135] [USER] "run 30 fishing casts immediately". Rod 812 read 40 at
  * 17:51Z, so 30 plays cannot run the rod dry (the BASE_DECK hazard needs
  * castCap < rod). The ledger binds at 20/day; the batch straddles the 18:00Z

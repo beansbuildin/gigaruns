@@ -173,9 +173,9 @@ describe("lock 2 — absent means DISABLED, and config/bot.json leaves it absent
     expect(cfg.dendren?.oils?.doubleLethalOverride).toBeUndefined();
     // The neighbouring user decisions this file must not disturb, asserted so
     // that "disable the override" cannot be implemented by loosening either.
-    // The same directive's first half: Focus Oil (942) stays OFF the allowlist.
-    expect(cfg.dendren.oils.allowedItemIds).toEqual([MID_RELAXING_OIL_ITEM_ID]);
-    expect(cfg.dendren.oils.allowedItemIds).not.toContain(MID_FOCUS_OIL_ITEM_ID);
+    // [session 136] USER DIRECTIVE 2026-09-24 reverses session 93's
+    // relaxing-only half: Focus Oil (942) is back ON the allowlist.
+    expect(cfg.dendren.oils.allowedItemIds).toEqual([MID_RELAXING_OIL_ITEM_ID, MID_FOCUS_OIL_ITEM_ID]);
     expect(cfg.dendren.oils.policyApproved).toBe(true);
   });
 
