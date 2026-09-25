@@ -1545,6 +1545,17 @@ had ever read it. `data.lastMovePath` is the server's own account of the move:
 
 Steps-per-turn is only ever 1 or 2 (155 / 157 across all casts). So:
 
+> **[session 138] CORRECTION — the length identity is NOT exceptionless, and
+> steps-per-turn is not only 1 or 2.** At 3099 scored moves (769 casts):
+> histogram 1: 1516, 2: 1577, **3: 6**. All six 3-step moves are cast
+> `13547151` (day 20718), a fish that walks exactly 3 unit steps every turn.
+> On t4 and t5 its destination was ONE cell away and it walked three
+> (`(2,3)->(1,3)->(1,2)->(2,2)`, `(2,2)->(2,1)->(1,1)->(1,2)`), so
+> `length == manhattan` holds on **3097/3099**. The unit-step and endpoint
+> identities still hold on 3099/3099. A k-ring model treats the true cell as
+> probability zero on those two moves. `movePath.test.ts` pins the two
+> exceptions exactly; `QUESTIONS.md` §74.
+
 - **What is exceptionless** is the unit-step decomposition. The fish only ever
   walks one cell at a time; what varies is how many cells it walks in a turn.
   The quantity FACT 1 calls a "step class" is a **step COUNT**.

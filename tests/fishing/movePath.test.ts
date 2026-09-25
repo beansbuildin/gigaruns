@@ -24,13 +24,35 @@ describe("lastMovePath against the real corpus", () => {
   const traces = loadCastTraces();
   const clean = traces.filter(isCleanTrace);
 
-  it("decomposes every recorded move into UNIT steps, exceptionless", () => {
+  /**
+   * [session 138] The first exceptions in the corpus's history, and they are
+   * to ONE of the three identities, not all three. Cast `13547151` (day
+   * 20718, 2026-09-23 04:58Z) is the only cast with a 3-step mover: all six of its
+   * moves are exactly 3 unit steps. On t4 and t5 the destination was ONE cell
+   * away, and the fish still walked three:
+   *
+   *     t4  (2,3) -> (1,3) -> (1,2) -> (2,2)    net Manhattan 1
+   *     t5  (2,2) -> (2,1) -> (1,1) -> (1,2)    net Manhattan 1
+   *
+   * So "path length = Manhattan distance" was a fact about 1- and 2-step
+   * movers that looked universal because no 3-step mover had been captured.
+   * Unit steps and the endpoint still hold on every move, including these.
+   * Pinned as an EXACT list, so a third, novel case fails loudly.
+   */
+  const NON_GEODESIC_MOVES = ["13547151 t4 [3,2,6]", "13547151 t5 [5,1,2]"];
+
+  it("decomposes every recorded move into UNIT steps ending on fishPosition, exceptionless", () => {
     const r = auditMovePaths(traces);
     expect(r.scored).toBeGreaterThanOrEqual(312);
-    expect(r.violations).toEqual([]);
-    expect(r.lengthMatches).toBe(r.scored);
     expect(r.endpointMatches).toBe(r.scored);
     expect(r.allUnitSteps).toBe(r.scored);
+  });
+
+  it("path length = Manhattan distance, except the two documented 3-step detours", () => {
+    const r = auditMovePaths(traces);
+    expect(r.violations.map((v) => `${v.castId} t${v.turnIndex} [${v.path.join(",")}]`)).toEqual(NON_GEODESIC_MOVES);
+    expect(r.violations.every((v) => v.endpointMatches && v.allUnitSteps && !v.lengthMatches)).toBe(true);
+    expect(r.lengthMatches).toBe(r.scored - NON_GEODESIC_MOVES.length);
   });
 
   it("only ever observes 1 or 2 steps in a turn", () => {

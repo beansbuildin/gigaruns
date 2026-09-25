@@ -609,6 +609,12 @@ describe("the oil flag — derived off the server's own consumablesUsed", () => 
       "13495020", // [session 135, day 20714] the 25-cast batch's one Relaxing oil; additive, 1 added / 0 removed
       // [session 136, day 20716] +4 from the 26-cast day; additive, 4 added / 0 removed.
       "13523069", "13523114", "13523119", "13523604",
+      // [session 138] +15 from days 20719–20720. Verified ADDITIVE by diff: 15
+      // added, 0 removed. ⚠ NOT Relaxing-only any more: Focus Oil (942) was
+      // re-allowed by [USER] directive 2026-09-24, and day 20720 spent 16 × 942.
+      "13562077", "13562084",
+      "13573585", "13573595", "13573605", "13573612", "13573632", "13573637", "13573639",
+      "13573645", "13573653", "13573704", "13573708", "13573715", "13573717",
     ]);  /* [session 124] 95 docIds -> 100 */  /* [session 122] 87 docIds -> 90 */  /* [session 114] was 74 docIds -> 80; +6 oil casts from the four 2026-08-31 batches */
     for (const c of oilCasts) {
       const used = c.slotsUsed!.filter(Boolean).length;

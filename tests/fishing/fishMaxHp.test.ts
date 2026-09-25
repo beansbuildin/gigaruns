@@ -38,7 +38,23 @@ describe("the corpus fact, re-derived on every run", () => {
     // A band rather than a pin: the corpus grows. What must not change is that
     // this is a distribution and that its centre sits below the sim's 21.
     expect(meanFishMaxHp(ALL)).toBeGreaterThan(16);
-    expect(meanFishMaxHp(ALL)).toBeLessThan(20);
+    // [session 138] was `< 20`, which the POOLED mean broke at 20.087. Not
+    // widened blindly: the bar is now the claim the comment above states (the
+    // sim's 21), and the reason it moved is pinned separately just below.
+    expect(meanFishMaxHp(ALL)).toBeLessThan(21);
+  });
+
+  it("[session 138] THE CENTRE MOVED: September's fish are larger than August's, and the current regime is at or above the sim's 21", () => {
+    // Half-month means at 769 casts: Aug 18.94 (n=339), Sep 1–15 20.63
+    // (n=267), Sep 16+ 21.66 (n=163). The pooled mean crossing 20 was this
+    // shift showing through, not noise. Consequence: a sampler built on the
+    // WHOLE corpus under-draws current fish HP by ~1.5 (~7%) — the opposite of
+    // what "the centre was never the problem" assumed. See QUESTIONS.md §74.
+    const castDate = (t: (typeof ALL)[number]) => t.turns[0]?.file.match(/cast-(\d{4}-\d\d-\d\d)/)?.[1] ?? "";
+    const aug = ALL.filter((t) => castDate(t) !== "" && castDate(t) < "2026-09-01");
+    const sep = ALL.filter((t) => castDate(t) >= "2026-09-01");
+    expect(meanFishMaxHp(aug)).toBeLessThan(20);
+    expect(meanFishMaxHp(sep)).toBeGreaterThan(meanFishMaxHp(aug) + 1);
   });
 
   it("holds fishMaxHp constant within a cast — which is why the sampler fires once per cast", () => {

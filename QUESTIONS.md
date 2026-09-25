@@ -5691,3 +5691,89 @@ deck"*, **NOT** *"no threshold separates"*.
 **What would move this:** more Dendren casts, which is what the user asked to
 wait for. The rod ran to zero on 2026-09-06 and is awaiting a manual repair, so
 the next Dendren batch comes after that.
+
+---
+
+## §72 OPEN [session 138] — the damageEconomy 10% tripwire (STATE Q1): the evidence for the re-examination
+
+`tests/fishing/damageEconomy.test.ts` "the clamp is real but small" reads
+**0.1140** against its pre-registered 10% bar. The bar is not moved and the
+test is left RED. This is the re-examination the bar asks for; the call on the
+claim is yours.
+
+**What the ratio actually measures.** `unclamped − clamped` is the sum of TWO
+clamps with OPPOSITE signs, and the test's prose names only one of them:
+
+```
+window          casts  drift    unclamped  ratio   lethal overkill/play  max-HP regen cap/play
+Aug              294   -0.6017  -0.6336    0.053         +0.147               -0.116
+Sep 1-15         267   -0.9404  -1.0566    0.124         +0.246               -0.130
+Sep 16-23        115   -0.8492  -0.9534    0.123         +0.210               -0.106
+Sep 24+ (d20719-20720) 46 -1.2365 -1.5222  0.231         +0.335               -0.049
+ALL rod-dealt    722   -0.8098  -0.9022    0.114         +0.207               -0.114
+```
+
+- The **max-HP regen cap** — the clamp the prose describes ("a terminal miss
+  shows a smaller state delta") — is FLAT at ~−0.11 HP/play across every
+  window with real n.
+- **Lethal overkill** (the clamp at 0: a killing hit's `FISH_HP_DIFF` exceeds
+  the fish's remaining HP) is what is RISING, 0.15 → 0.25 → 0.34 per play, with
+  the harder-hitting September decks and day 20720's crit excursion (§73).
+- The ratio climbs because overkill climbs. It is composition, not the two
+  readings disagreeing.
+
+**A candidate restatement, NOT applied:** measure the two clamps separately —
+pin the regen cap per play (stable, composition-light), and report overkill as
+a census that moves with deck strength. This is what "restate it on a quantity
+that is not tied to deck composition" would look like, if you want it.
+
+---
+
+## §73 OPEN [session 138] — the crit-anomaly RATE jumped on day 20720, and neither Focus Oil nor the repair explains it
+
+14 new `KNOWN_CRIT_ANOMALIES` were appended (31 → 45, additive, all ×1.5,
+interval unchanged at [1.500, 1.5625)). The RATE is the finding:
+
+- **Day 20720: 11 anomalies in 63 hits = 17.5%.** Corpus baseline 34/1304 ≈
+  2.6%. P(≥11 | Poisson 1.64) ≈ 1e-6. Not noise.
+- **Focus Oil ruled out:** on that day, hits with no oil yet used 8/47 (17%);
+  hits after an oil 3/16 (19%). Five of the 11 are in casts that never used an
+  oil.
+- **The rod repair ruled out:** 8 of the 11 are in the first 20 casts, BEFORE
+  the repair (~03:24–03:30Z). STATE s137's "after the repair" was wrong.
+- **`jebaitorTriggered` ruled out:** 7/155 hits flagged vs 38/1212 unflagged.
+
+**The question for the user:** did anything change on the slot-15 lures (954)
+between day 20719 (~05:56Z 09-24) and day 20720 (03:18Z 09-25) — a repair, a
+swap, a new piece? No session 134–137 log records a lure read, so the corpus
+cannot answer it. Live read at 2026-09-25T04:52Z: 954 …83b834fd **24**, 954
+…ac25b641 **14**, rod 812 **38**. The lure is the documented crit source
+(SPEC-fishing, `CRIT_HIT` with `critZones: []`), and a crit CHANCE that moved
+would produce exactly this: same ×1.5, higher rate.
+
+**Why it matters:** the sim prices card choice without the lure crit, and a
+crit rate of ~17% rather than ~3% is a material damage term. Worth one day's
+lure reading at open, before anyone models it.
+
+---
+
+## §74 OPEN [session 138] — three corpus facts that broke under September's data
+
+1. **A 3-step fish exists, and it detours.** Cast `13547151` (day 20718) moves
+   exactly 3 unit steps on all six turns; on t4/t5 its destination was ONE cell
+   away. `movePath.test.ts` now pins the two exceptions exactly.
+   ⚠ **`src/strategy/fishing/stepClass.ts` types `StepClass = 1 | 2` and treats
+   the Manhattan-k ring as a HARD CONSTRAINT** ("every cell off the k-ring gets
+   probability zero"). For this fish the true cell sits off the ring on 2 of 6
+   moves. Not fixed this session. Before sizing a fix, check how much live play
+   depends on prediction at all, given the server sends `nextMovePath`.
+2. **fishMaxHp's centre moved up.** Aug 18.94 → Sep 1–15 20.63 → Sep 16+ 21.66.
+   The current regime is ABOVE the sim's 21, and a sampler built on the whole
+   corpus under-draws current fish HP by ~1.5 (~7%). `fishMaxHp.test.ts` now
+   pins the era shift. Relevant to §0a.
+3. **castEra needs its FOURTH era.** Day 20720's 26 casts are Focus-SUPPLIED
+   and are binned `focusDry`. `castEra.ts`'s own docblock says a restock opens
+   a fourth era and "do not silently widen `focusDry`". Every `focusDry` pin in
+   `castEra.test.ts` currently includes them. Mechanical but touches many pins;
+   the boundary is the first day-20720 cast, `2026-09-25T03:18:24.342Z`
+   (last Focus-dry cast `2026-09-24T05:55:42.575Z`).
